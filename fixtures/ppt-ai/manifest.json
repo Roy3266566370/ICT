@@ -1,0 +1,151 @@
+{
+  "generated_at": "2026-11-07T15:13:41Z",
+  "source": "fixtures/corpus（仓库内自制语料）",
+  "splits": {
+    "dev": [
+      {
+        "material": "dev_01_bar_single",
+        "file": "dev/dev_01_bar_single.json",
+        "kind": "bar_chart",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/dev/dev_01_bar_single.pptx"
+      },
+      {
+        "material": "dev_02_line_multi",
+        "file": "dev/dev_02_line_multi.json",
+        "kind": "line_chart",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/dev/dev_02_line_multi.pptx"
+      },
+      {
+        "material": "dev_03_pie",
+        "file": "dev/dev_03_pie.json",
+        "kind": "pie_chart",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/dev/dev_03_pie.pptx"
+      },
+      {
+        "material": "dev_04_table_3x4",
+        "file": "dev/dev_04_table_3x4.json",
+        "kind": "table",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/dev/dev_04_table_3x4.pptx"
+      },
+      {
+        "material": "dev_05_table_chart_mix",
+        "file": "dev/dev_05_table_chart_mix.json",
+        "kind": "table_chart_mix",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/dev/dev_05_table_chart_mix.pptx"
+      },
+      {
+        "material": "dev_06_group_textbox",
+        "file": "dev/dev_06_group_textbox.json",
+        "kind": "group_textbox",
+        "expect": "should_fail",
+        "source": "fixtures/corpus/dev/dev_06_group_textbox.pptx"
+      },
+      {
+        "material": "dev_07_group_table",
+        "file": "dev/dev_07_group_table.json",
+        "kind": "group_table",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/dev/dev_07_group_table.pptx"
+      },
+      {
+        "material": "dev_08_omml_formula",
+        "file": "dev/dev_08_omml_formula.json",
+        "kind": "omml_formula",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/dev/dev_08_omml_formula.pptx"
+      },
+      {
+        "material": "dev_09_text_only",
+        "file": "dev/dev_09_text_only.json",
+        "kind": "text_only",
+        "expect": "should_fail",
+        "source": "fixtures/corpus/dev/dev_09_text_only.pptx"
+      },
+      {
+        "material": "dev_10_picture_chart",
+        "file": "dev/dev_10_picture_chart.json",
+        "kind": "picture_chart",
+        "expect": "should_fail",
+        "source": "fixtures/corpus/dev/dev_10_picture_chart.pptx"
+      }
+    ],
+    "eval": [
+      {
+        "material": "eval_01_bar_single",
+        "file": "eval/eval_01_bar_single.json",
+        "kind": "bar_chart",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/eval/eval_01_bar_single.pptx"
+      },
+      {
+        "material": "eval_02_line_multi",
+        "file": "eval/eval_02_line_multi.json",
+        "kind": "line_chart",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/eval/eval_02_line_multi.pptx"
+      },
+      {
+        "material": "eval_03_pie",
+        "file": "eval/eval_03_pie.json",
+        "kind": "pie_chart",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/eval/eval_03_pie.pptx"
+      },
+      {
+        "material": "eval_04_table_3x4",
+        "file": "eval/eval_04_table_3x4.json",
+        "kind": "table",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/eval/eval_04_table_3x4.pptx"
+      },
+      {
+        "material": "eval_05_table_chart_mix",
+        "file": "eval/eval_05_table_chart_mix.json",
+        "kind": "table_chart_mix",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/eval/eval_05_table_chart_mix.pptx"
+      },
+      {
+        "material": "eval_06_group_textbox",
+        "file": "eval/eval_06_group_textbox.json",
+        "kind": "group_textbox",
+        "expect": "should_fail",
+        "source": "fixtures/corpus/eval/eval_06_group_textbox.pptx"
+      },
+      {
+        "material": "eval_07_group_chart",
+        "file": "eval/eval_07_group_chart.json",
+        "kind": "group_chart",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/eval/eval_07_group_chart.pptx"
+      },
+      {
+        "material": "eval_08_omml_formula",
+        "file": "eval/eval_08_omml_formula.json",
+        "kind": "omml_formula",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/eval/eval_08_omml_formula.pptx"
+      },
+      {
+        "material": "eval_09_multi_page_mix",
+        "file": "eval/eval_09_multi_page_mix.json",
+        "kind": "multi_page_mix",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/eval/eval_09_multi_page_mix.pptx"
+      },
+      {
+        "material": "eval_10_max_pages_60",
+        "file": "eval/eval_10_max_pages_60.json",
+        "kind": "max_pages_boundary",
+        "expect": "should_pass",
+        "source": "fixtures/corpus/eval/eval_10_max_pages_60.pptx"
+      }
+    ]
+  },
+  "total": 20
+}

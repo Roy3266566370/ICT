@@ -1,0 +1,200 @@
+{
+  "material_id": "mat_stranger_chart",
+  "ispecs": [
+    {
+      "spec_version": "1.0",
+      "object_id": "ispec_mat_stranger_chart_p01_s01_chart",
+      "title": "季度销售额",
+      "kind": "filter",
+      "parameters": [
+        {
+          "id": "category",
+          "label": "分类",
+          "type": "enum",
+          "unit": "",
+          "default": "全部",
+          "options": [
+            "全部",
+            "一月",
+            "二月",
+            "三月"
+          ],
+          "source": {
+            "page": 1,
+            "element_id": "p01_s01",
+            "bbox": null,
+            "status": "original",
+            "excerpt": "季度销售额"
+          }
+        }
+      ],
+      "expressions": [],
+      "datasets": [
+        {
+          "id": "chart_p01",
+          "columns": [
+            "category",
+            "series",
+            "value"
+          ],
+          "rows": [
+            [
+              "一月",
+              "销售额",
+              10
+            ],
+            [
+              "二月",
+              "销售额",
+              20
+            ],
+            [
+              "三月",
+              "销售额",
+              30
+            ],
+            [
+              "一月",
+              "成本",
+              4
+            ],
+            [
+              "二月",
+              "成本",
+              8
+            ],
+            [
+              "三月",
+              "成本",
+              12
+            ]
+          ],
+          "source": {
+            "page": 1,
+            "element_id": "p01_s01"
+          }
+        }
+      ],
+      "views": [
+        {
+          "type": "vega",
+          "spec_ref": "bar",
+          "x": "category",
+          "y": "value",
+          "title": "季度销售额",
+          "dataset": "chart_p01"
+        },
+        {
+          "type": "table",
+          "columns": [
+            "category",
+            "series",
+            "value"
+          ],
+          "title": "原始数据（只读，来自 PPTX chart）",
+          "dataset": "chart_p01"
+        }
+      ],
+      "constraints": [],
+      "checks": [
+        {
+          "id": "C1",
+          "type": "source_match",
+          "page": 1,
+          "expect": "数值与 PPT 原生图表一致（2 个系列 × 3 个分类，datasets 逐值复核通过）"
+        },
+        {
+          "id": "C2",
+          "type": "consistency",
+          "expr": "true"
+        }
+      ],
+      "notes": "识别方式: pptx_native_chart；数据由 python-pptx 的 chart.plots[].categories 与 series.values 直读，未经视觉识别；共 2 个系列 × 3 个分类；datasets[0]=chart_p01 的数值与源逐值相等（容差 0）。"
+    },
+    {
+      "spec_version": "1.0",
+      "object_id": "ispec_mat_stranger_chart_p01_s02_table",
+      "title": "陌生材料：季度经营数据",
+      "kind": "filter",
+      "parameters": [
+        {
+          "id": "filter_column",
+          "label": "筛选列",
+          "type": "enum",
+          "unit": "",
+          "default": "姓名",
+          "options": [
+            "姓名",
+            "科目",
+            "分数"
+          ],
+          "source": {
+            "page": 1,
+            "element_id": "p01_s02",
+            "bbox": null,
+            "status": "original",
+            "excerpt": "姓名 | 科目 | 分数"
+          }
+        }
+      ],
+      "expressions": [],
+      "datasets": [
+        {
+          "id": "table_p01",
+          "columns": [
+            "姓名",
+            "科目",
+            "分数"
+          ],
+          "rows": [
+            [
+              "张三",
+              "数学",
+              "95"
+            ],
+            [
+              "李四",
+              "物理",
+              "88"
+            ]
+          ],
+          "source": {
+            "page": 1,
+            "element_id": "p01_s02"
+          }
+        }
+      ],
+      "views": [
+        {
+          "type": "table",
+          "columns": [
+            "姓名",
+            "科目",
+            "分数"
+          ],
+          "title": "原始表格（只读，来自 PPTX table）",
+          "dataset": "table_p01"
+        }
+      ],
+      "constraints": [],
+      "checks": [
+        {
+          "id": "C1",
+          "type": "source_match",
+          "page": 1,
+          "expect": "表头与 2 行单元格文本来自 PPTX 表格原文"
+        },
+        {
+          "id": "C2",
+          "type": "consistency",
+          "expr": "true"
+        }
+      ],
+      "notes": "识别方式: pptx_native_table；表头与单元格文本由 python-pptx 的 table.rows[].cells[].text 直读，未经视觉识别。"
+    }
+  ],
+  "recognition": {
+    "found": true,
+    "reason": "识别到 2 个交互区域：1个原生图表、1个表格"
+  }
+}

@@ -1,0 +1,166 @@
+/**
+ * `document.test.ts` —— 自由编辑的文档模型单测（纯函数，无需浏览器）。
+ *
+ * 跑法（Node ≥ 22.6，原生类型擦除）：
+ *   cd frontend && npm test
+ *
+ * 断言重点：保存时只上行改动字段（不整份覆盖）、样式单独成包、新增/删除对象
+ * 走 create / deleted 两种语义、以及新建对象的默认位置与参考样式。
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import {
+  createPayload,
+  diffDocuments,
+  distributeNodes,
+  newNode,
+  patchNodes,
+  rebaseDocument,
+} from './model.ts';
+import type { SceneDocument, SceneNode } from './types.ts';
+
+function node(overrides: Partial<SceneNode> = {}): SceneNode {
+  return {
+    id: 'n_1',
+    name: '标题',
+    type: 'text',
+    x: 10,
+    y: 20,
+    width: 300,
+    height: 80,
+    rotation: 0,
+    z: 1,
+    opacity: 1,
+    locked: false,
+    hidden: false,
+    deleted: false,
+    text: '原始文字',
+    style: { font_size: 24, font_family: '微软雅黑', color: '#18233D' },
+    base_style: { font_size: 24, font_family: '微软雅黑', color: '#18233D' },
+    base_text: '原始文字',
+    ...overrides,
+  };
+}
+
+function doc(nodes: SceneNode[]): SceneDocument {
+  return {
+    schema_version: '1.0',
+    revision: 3,
+    title: '测试文档',
+    pages: [{ page_no: 1, width: 1280, height: 720, nodes }],
+  };
+}
+
+test('只把改动过的字段放进 patch，没动的字段不上行', () => {
+  const base = doc([node()]);
+  const current = doc([node({ x: 42, text: '新文字' })]);
+  const changes = diffDocuments(base, current);
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0]!.id, 'n_1');
+  assert.deepEqual(changes[0]!.patch, { x: 42, text: '新文字' });
+});
+
+test('文字样式改动单独成 style 包，不掺杂几何字段', () => {
+  const base = doc([node()]);
+  const current = doc([node({ style: { ...node().style, bold: true } })]);
+  const [change] = diffDocuments(base, current);
+  assert.deepEqual(change!.patch, { style: { bold: true } });
+  assert.equal('x' in (change!.patch ?? {}), false);
+});
+
+test('新增对象走 create，删除对象走 deleted，不产生空 patch', () => {
+  const base = doc([node()]);
+  const added = doc([node(), node({ id: 'u_1', name: '新文字', text: '新的' })]);
+  const created = diffDocuments(base, added);
+  assert.equal(created.length, 1);
+  assert.ok(created[0]!.create, '新增对象应带 create 负载');
+  assert.equal(created[0]!.id, 'u_1');
+
+  const removed = diffDocuments(base, doc([node({ deleted: true })]));
+  assert.deepEqual(removed, [{ page_no: 1, id: 'n_1', patch: { deleted: true } }]);
+});
+
+test('patchNodes 不改原对象（撤销栈依赖不可变数据）', () => {
+  const base = doc([node()]);
+  const next = patchNodes(base, 1, ['n_1'], { x: 99, style: { color: '#FF0000' } });
+  assert.equal(base.pages[0]!.nodes[0]!.x, 10);
+  assert.equal(base.pages[0]!.nodes[0]!.style.color, '#18233D');
+  assert.equal(next.pages[0]!.nodes[0]!.x, 99);
+  assert.equal(next.pages[0]!.nodes[0]!.style.color, '#FF0000');
+  assert.equal(next.pages[0]!.modified, true);
+});
+
+test('复制对象只带可编辑属性，图片二进制不重复上行', () => {
+  const source = node({ type: 'image', image_data: 'data:image/png;base64,AAA', asset_id: 'a1' });
+  const copy = node({ ...source, id: 'u_2', duplicate_from: 'n_1' });
+  const payload = createPayload(copy);
+  assert.equal(payload.duplicate_from, 'n_1');
+  assert.equal('image_data' in payload, false, '复制应复用源对象资源，不重传图片');
+  assert.equal(payload.width, 300);
+});
+
+test('新建图片会带 image_data，新建文字不带', () => {
+  const image = createPayload(node({ id: 'u_3', type: 'image', image_data: 'data:image/png;base64,AAA' }));
+  assert.equal(image.image_data, 'data:image/png;base64,AAA');
+  const text = createPayload(node({ id: 'u_4' }));
+  assert.equal('image_data' in text, false);
+  assert.equal(text.type, 'text');
+});
+
+test('新建文字落在页面中央，并继承本页字号最大的文字样式', () => {
+  const page = doc([
+    node({ id: 'foot', style: { font_size: 9, font_family: '宋体', color: '#999999' }, text: '页脚' }),
+    node({ id: 'title', style: { font_size: 51, font_family: '微软雅黑', color: '#FFFFFF' }, text: '大标题' }),
+  ]).pages[0]!;
+  const created = newNode(page, 'u_5', 'text');
+  assert.equal(created.x, Math.round((1280 - 320) / 2));
+  assert.equal(created.y, Math.round((720 - 70) / 2));
+  assert.equal(created.style.font_family, '微软雅黑');
+  assert.equal(created.style.color, '#FFFFFF');
+});
+
+test('两端同时改同一字段时 rebase 报冲突，改不同字段则自动合并', () => {
+  const base = doc([node()]);
+  const local = doc([node({ x: 100 })]);
+  const sameField = doc([node({ x: 300 })]);
+  const conflict = rebaseDocument(base, local, sameField);
+  assert.equal(conflict.conflicts.length, 1);
+
+  const otherField = doc([node({ y: 200 })]);
+  const merged = rebaseDocument(base, local, otherField);
+  assert.equal(merged.conflicts.length, 0);
+  assert.equal(merged.document.pages[0]!.nodes[0]!.x, 100);
+  assert.equal(merged.document.pages[0]!.nodes[0]!.y, 200);
+});
+
+test('横向分布保持首尾不动并平均分配剩余间距', () => {
+  const base = doc([
+    node({ id: 'a', x: 10, width: 20 }),
+    node({ id: 'b', x: 100, width: 30 }),
+    node({ id: 'c', x: 300, width: 40 }),
+  ]);
+  const next = distributeNodes(base, 1, ['c', 'a', 'b'], 'h');
+  const [a, b, c] = ['a', 'b', 'c'].map(id => next.pages[0]!.nodes.find(n => n.id === id)!);
+  assert.equal(a.x, 10);
+  assert.equal(b.x, 150);
+  assert.equal(c.x, 300);
+});
+
+test('纵向分布同样保持首尾并平均分配间距', () => {
+  const base = doc([
+    node({ id: 'a', y: 10, height: 20 }),
+    node({ id: 'b', y: 100, height: 30 }),
+    node({ id: 'c', y: 300, height: 40 }),
+  ]);
+  const next = distributeNodes(base, 1, ['a', 'b', 'c'], 'v');
+  const [a, b, c] = ['a', 'b', 'c'].map(id => next.pages[0]!.nodes.find(n => n.id === id)!);
+  assert.equal(a.y, 10);
+  assert.equal(b.y, 150);
+  assert.equal(c.y, 300);
+});
+
+test('不足三个对象时分布不产生改动', () => {
+  const base = doc([node({ id: 'a' }), node({ id: 'b', x: 100 })]);
+  assert.equal(distributeNodes(base, 1, ['a', 'b'], 'v'), base);
+});

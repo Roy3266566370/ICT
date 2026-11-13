@@ -1,0 +1,204 @@
+{
+  "$description": "象生 XiangSheng v0.3 设计令牌（设计语言：纸上仪器 / Paper Instrument）。与 frontend/src/styles/tokens.css 逐值一致：改任一侧必须同步另一侧。cssVariable 字段给出对应的 CSS 自定义属性名。",
+  "meta": {
+    "name": "象生 XiangSheng",
+    "version": "0.3",
+    "planRevision": "design-pass-2026-11",
+    "tokenFormat": "css-custom-property",
+    "cssSource": "frontend/src/styles/tokens.css",
+    "fontStrategy": "system-stack-first，Sora/Inter 仅作为可选 CDN/本地字体回退，不引入外部 CSS 依赖（离线可用）",
+    "designLanguage": {
+      "name": "纸上仪器 / Paper Instrument",
+      "principle": [
+        "全站一套暖纸底色 + 墨色文字，阅读页与营销页同一温度",
+        "层级用 1px 发丝线 + 两级柔和投影，不用重边框和色块",
+        "数字一律等宽（tabular-nums），参数与结果像仪表读数",
+        "靛蓝只表示可操作，珊瑚橙只表示活的数值，两者都小面积使用"
+      ]
+    }
+  },
+  "color": {
+    "paper": {
+      "0": { "value": "#FFFFFF", "cssVariable": "--paper-0", "usage": "卡片/浮层：最亮" },
+      "1": { "value": "#FBF9F4", "cssVariable": "--paper-1", "usage": "次级卡片、表单底" },
+      "2": { "value": "#F7F4ED", "cssVariable": "--paper-2", "usage": "页面底部画布（= --color-surface）" },
+      "3": { "value": "#F1ECE2", "cssVariable": "--paper-3", "usage": "inset、工具条、缩略图轨道" },
+      "4": { "value": "#E9E3D5", "cssVariable": "--paper-4", "usage": "hover / 按下 / 进度槽" }
+    },
+    "ink": {
+      "900": { "value": "#121B27", "cssVariable": "--ink-900", "usage": "标题、关键数值（= --color-navy）" },
+      "700": { "value": "#2F3A49", "cssVariable": "--ink-700", "usage": "正文" },
+      "500": { "value": "#58636F", "cssVariable": "--ink-500", "usage": "次级正文" },
+      "400": { "value": "#7C8694", "cssVariable": "--ink-400", "usage": "说明、占位" },
+      "300": { "value": "#A8AFBA", "cssVariable": "--ink-300", "usage": "禁用、分隔文字" }
+    },
+    "line": {
+      "hairline": { "value": "#E7E0D3", "cssVariable": "--hairline", "usage": "1px 发丝线（= --color-border）" },
+      "hairlineStrong": { "value": "#D5CCB9", "cssVariable": "--hairline-strong", "usage": "输入框、可点边缘（= --color-border-strong）" },
+      "hairlineDark": { "value": "rgba(255,255,255,0.10)", "cssVariable": "--hairline-dark", "usage": "深底上的分隔" }
+    },
+    "brand": {
+      "indigo": { "value": "#4F46E5", "cssVariable": "--color-indigo", "usage": "可操作 / 激活 / 主按钮" },
+      "coral": { "value": "#FF7A59", "cssVariable": "--color-coral", "usage": "活跃数值 / 强调点（仅装饰，不用于小字）" },
+      "coralInk": { "value": "#B8431F", "cssVariable": "--color-coral-ink", "usage": "珊瑚橙的文字安全版（对纸底 4.6:1）" },
+      "navy": { "value": "#121B27", "cssVariable": "--color-navy", "usage": "兼容别名，等于 --ink-900" },
+      "surface": { "value": "#F7F4ED", "cssVariable": "--color-surface", "usage": "兼容别名，等于 --paper-2" }
+    },
+    "derived": {
+      "indigoStrong": { "value": "#4038C9", "cssVariable": "--color-indigo-strong" },
+      "indigoSoft": { "value": "#ECEBFB", "cssVariable": "--color-indigo-soft" },
+      "indigoSofter": { "value": "#F4F3FD", "cssVariable": "--color-indigo-softer" },
+      "coralSoft": { "value": "#FFECE5", "cssVariable": "--color-coral-soft" },
+      "navyMuted": { "value": "#58636F", "cssVariable": "--color-navy-muted" },
+      "navySubtle": { "value": "#7C8694", "cssVariable": "--color-navy-subtle" },
+      "surfaceRaised": { "value": "#FFFFFF", "cssVariable": "--color-surface-raised" },
+      "surfaceSunken": { "value": "#F1ECE2", "cssVariable": "--color-surface-sunken" },
+      "focusRing": { "value": "#4F46E5", "cssVariable": "--color-focus-ring" }
+    },
+    "semantic": {
+      "pass": { "value": "#0F7B5F", "soft": "#E4F3ED", "cssVariable": "--color-pass", "note": "必须与图标/文字同时出现，不得只靠颜色" },
+      "fail": { "value": "#B42318", "soft": "#FBEAE7", "cssVariable": "--color-fail" },
+      "warn": { "value": "#9A5B08", "soft": "#FBF1DE", "cssVariable": "--color-warn" },
+      "info": { "value": "#1F5FA8", "soft": "#E8F0FA", "cssVariable": "--color-info" },
+      "neutral": { "value": "#5B6677", "soft": "#EEEAE1", "cssVariable": "--color-neutral" }
+    }
+  },
+  "font": {
+    "familySans": {
+      "value": "'Inter', 'Sora', 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, 'Noto Sans SC', sans-serif",
+      "cssVariable": "--font-family-sans"
+    },
+    "familyMono": {
+      "value": "'JetBrains Mono', 'SFMono-Regular', 'Cascadia Code', Consolas, 'Liberation Mono', monospace",
+      "cssVariable": "--font-family-mono"
+    },
+    "familyMath": {
+      "value": "'KaTeX_Main', 'Latin Modern Math', 'Times New Roman', serif",
+      "cssVariable": "--font-family-math"
+    },
+    "size": {
+      "xs": { "value": "0.75rem", "px": 12, "cssVariable": "--font-size-xs" },
+      "sm": { "value": "0.875rem", "px": 14, "cssVariable": "--font-size-sm" },
+      "md": { "value": "1rem", "px": 16, "cssVariable": "--font-size-md" },
+      "lg": { "value": "1.125rem", "px": 18, "cssVariable": "--font-size-lg" },
+      "xl": { "value": "1.375rem", "px": 22, "cssVariable": "--font-size-xl" },
+      "2xl": { "value": "1.75rem", "px": 28, "cssVariable": "--font-size-2xl" },
+      "3xl": { "value": "2.25rem", "px": 36, "cssVariable": "--font-size-3xl" },
+      "4xl": { "value": "3rem", "px": 48, "cssVariable": "--font-size-4xl" }
+    },
+    "semanticSize": {
+      "display": { "value": "clamp(2.5rem, 4.4vw, 4.25rem)", "cssVariable": "--text-display", "usage": "首页主标题" },
+      "h1": { "value": "clamp(1.9rem, 2.6vw, 2.5rem)", "cssVariable": "--text-h1", "usage": "页面级标题" },
+      "h2": { "value": "clamp(1.4rem, 1.8vw, 1.75rem)", "cssVariable": "--text-h2" },
+      "h3": { "value": "1.25rem", "cssVariable": "--text-h3" },
+      "body": { "value": "1rem", "cssVariable": "--text-body" },
+      "small": { "value": "0.875rem", "cssVariable": "--text-small" },
+      "micro": { "value": "0.75rem", "cssVariable": "--text-micro" }
+    },
+    "weight": {
+      "regular": { "value": 400, "cssVariable": "--font-weight-regular" },
+      "medium": { "value": 500, "cssVariable": "--font-weight-medium" },
+      "semibold": { "value": 600, "cssVariable": "--font-weight-semibold" },
+      "bold": { "value": 700, "cssVariable": "--font-weight-bold" },
+      "black": { "value": 800, "cssVariable": "--font-weight-black", "usage": "页面标题；中文用 800 仍有清晰笔画" }
+    },
+    "lineHeight": {
+      "tight": { "value": 1.2, "cssVariable": "--line-height-tight" },
+      "snug": { "value": 1.4, "cssVariable": "--line-height-snug" },
+      "normal": { "value": 1.6, "cssVariable": "--line-height-normal" },
+      "relaxed": { "value": 1.75, "cssVariable": "--line-height-relaxed" }
+    },
+    "letterSpacing": {
+      "tight": { "value": "-0.01em", "cssVariable": "--letter-spacing-tight" },
+      "display": { "value": "-0.035em", "cssVariable": "--letter-spacing-display", "usage": "大标题收紧" },
+      "caps": { "value": "0.08em", "cssVariable": "--letter-spacing-caps" }
+    }
+  },
+  "space": {
+    "0": { "value": "0", "px": 0, "cssVariable": "--space-0" },
+    "1": { "value": "0.25rem", "px": 4, "cssVariable": "--space-1" },
+    "2": { "value": "0.5rem", "px": 8, "cssVariable": "--space-2" },
+    "3": { "value": "0.75rem", "px": 12, "cssVariable": "--space-3" },
+    "4": { "value": "1rem", "px": 16, "cssVariable": "--space-4" },
+    "5": { "value": "1.25rem", "px": 20, "cssVariable": "--space-5" },
+    "6": { "value": "1.5rem", "px": 24, "cssVariable": "--space-6" },
+    "8": { "value": "2rem", "px": 32, "cssVariable": "--space-8" },
+    "10": { "value": "2.5rem", "px": 40, "cssVariable": "--space-10" },
+    "12": { "value": "3rem", "px": 48, "cssVariable": "--space-12" },
+    "16": { "value": "4rem", "px": 64, "cssVariable": "--space-16" },
+    "20": { "value": "5rem", "px": 80, "cssVariable": "--space-20" },
+    "24": { "value": "6rem", "px": 96, "cssVariable": "--space-24" }
+  },
+  "radius": {
+    "xs": { "value": "4px", "cssVariable": "--radius-xs" },
+    "sm": { "value": "6px", "cssVariable": "--radius-sm" },
+    "md": { "value": "10px", "cssVariable": "--radius-md" },
+    "lg": { "value": "14px", "cssVariable": "--radius-lg" },
+    "xl": { "value": "18px", "cssVariable": "--radius-xl", "usage": "卡片" },
+    "2xl": { "value": "24px", "cssVariable": "--radius-2xl", "usage": "大面板" },
+    "pill": { "value": "999px", "cssVariable": "--radius-pill" }
+  },
+  "shadow": {
+    "xs": { "value": "0 1px 1px rgba(38,30,16,0.04), 0 1px 3px rgba(38,30,16,0.05)", "cssVariable": "--shadow-xs", "usage": "卡片默认" },
+    "sm": { "value": "0 1px 2px rgba(38,30,16,0.05), 0 4px 12px rgba(38,30,16,0.06)", "cssVariable": "--shadow-sm" },
+    "md": { "value": "0 2px 4px rgba(38,30,16,0.04), 0 12px 28px rgba(38,30,16,0.09)", "cssVariable": "--shadow-md", "usage": "hover 抬起" },
+    "lg": { "value": "0 4px 8px rgba(38,30,16,0.05), 0 24px 56px rgba(38,30,16,0.13)", "cssVariable": "--shadow-lg" },
+    "focus": { "value": "0 0 0 3px rgba(79,70,229,0.22)", "cssVariable": "--shadow-focus" },
+    "note": "阴影带暖调（rgba(38,30,16)），在纸底上不显脏"
+  },
+  "motion": {
+    "duration": {
+      "instant": { "value": "60ms", "cssVariable": "--motion-duration-instant" },
+      "fast": { "value": "120ms", "cssVariable": "--motion-duration-fast" },
+      "base": { "value": "200ms", "cssVariable": "--motion-duration-base" },
+      "slow": { "value": "360ms", "cssVariable": "--motion-duration-slow" }
+    },
+    "easing": {
+      "standard": { "value": "cubic-bezier(0.2, 0, 0.2, 1)", "cssVariable": "--motion-easing-standard" },
+      "emphasized": { "value": "cubic-bezier(0.2, 0.8, 0.2, 1)", "cssVariable": "--motion-easing-emphasized" },
+      "out": { "value": "cubic-bezier(0.16, 1, 0.3, 1)", "cssVariable": "--motion-easing-out", "usage": "入场/hover 抬起" }
+    },
+    "reducedMotion": {
+      "mediaQuery": "(prefers-reduced-motion: reduce)",
+      "cssStrategy": "在 tokens.css 的 media 查询中把四个 duration 置为 0ms，并同步暴露 JS 侧 reducedMotion（App.tsx 的 useReducedMotion）",
+      "jsStrategy": "window.matchMedia('(prefers-reduced-motion: reduce)') 监听并作为 TemplateProps.reducedMotion 下发"
+    }
+  },
+  "layout": {
+    "contentMax": { "value": "1408px", "cssVariable": "--layout-content-max" },
+    "gutter": { "value": "clamp(24px, 4.4vw, 64px)", "cssVariable": "--layout-gutter", "usage": "页面左右留白，随视口伸缩" },
+    "asideWidth": { "value": "260px", "cssVariable": "--layout-aside-width" },
+    "inspectorWidth": { "value": "320px", "cssVariable": "--layout-inspector-width" },
+    "headerHeight": { "value": "72px", "cssVariable": "--layout-header-height", "usage": "营销页顶栏" },
+    "appbarHeight": { "value": "56px", "cssVariable": "--layout-appbar-height", "usage": "工具页顶栏" },
+    "zIndex": {
+      "header": 20,
+      "overlay": 60,
+      "toast": 80
+    },
+    "breakpoints": {
+      "desktop": "1024px",
+      "tablet": "768px",
+      "note": "R1-AC5：<1024px 主视觉上下排列、场景卡两列；<768px 导航收纳、场景卡单列"
+    }
+  },
+  "brand": {
+    "logo": {
+      "concept": "开放方框（未闭合的容器，呼应「页」）+ 穿行曲线（叙事路径）+ 活跃圆点（可回应的参数点）",
+      "colors": ["--color-indigo", "--color-coral"],
+      "files": {
+        "mark": "design/logo-mark.svg",
+        "mono": "design/logo-mono.svg",
+        "lockup": "design/logo-lockup.svg"
+      },
+      "minReadableSizePx": 24,
+      "navSizeCssVariable": "--logo-size-nav"
+    }
+  },
+  "accessibility": {
+    "statusEncoding": "状态必须「颜色 + 图标 + 文字」三重编码，不得只用颜色（R14-AC5）",
+    "focusVisible": "统一使用 :focus-visible + --shadow-focus / --color-focus-ring；键盘焦点用珊瑚橙 2px 描边",
+    "minTargetSizePx": 32,
+    "contrast": "正文 ink-500 对 paper-2 ≥ 5.2:1；珊瑚橙不用于正文小字，改用 --color-coral-ink"
+  }
+}

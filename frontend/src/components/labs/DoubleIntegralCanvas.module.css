@@ -1,0 +1,19 @@
+.root { min-width: 0; padding: 18px; background: #fffefb; border-radius: 14px; }
+.explanation h3 { margin: 9px 0; font-size: 18px; color: var(--ink-800, #222c42); }
+.explanation p { color: var(--ink-500, #596779); line-height: 1.7; font-size: 13px; margin: 0 0 14px; }
+.tag { display: inline-block; padding: 4px 9px; border-radius: 6px; background: #eeebff; color: #4f46e5; font-size: 12px; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: #526075; }
+.legend > span { display: inline-flex; gap: 6px; align-items: center; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.lowerDot { background: #4f46e5; }.upperDot { background: #0d9488; }.sliceDot { background: #f97355; }
+.graph { display: block; width: 100%; height: auto; margin-top: 12px; }
+.graph text { font-size: 11px; fill: #64748b; }.graph .sliceLabel { fill: #c2412b; font-weight: 600; }
+.grid { stroke: #eaeaf0; stroke-width: 1; }.axis { stroke: #a7b3c4; }
+.lower, .upper { fill: none; stroke-width: 2.6; stroke-linejoin: round; }
+.lower { stroke: #4f46e5; }.upper { stroke: #0d9488; }
+.slice { stroke: #f97355; stroke-width: 5; stroke-linecap: round; }.endpoint { fill: #f97355; stroke: #fff; stroke-width: 1.8; }
+.sliceReadout { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 12px 14px; background: #fff2eb; color: #9a432c; border-radius: 9px; font-size: 13px; }
+.values { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 15px; color: #526075; font-size: 12px; }
+.values small { flex-basis: 100%; color: #64748b; }.colorStrip { display: flex; width: 160px; height: 12px; border-radius: 4px; overflow: hidden; }.colorStrip i { flex: 1; }
+.formula { overflow-x: auto; padding: 10px 0 0; }
+@media (max-width: 600px) { .root { padding: 10px; }.legend { gap: 8px; }.explanation h3 { font-size: 16px; }.graph text { font-size: 13px; } }

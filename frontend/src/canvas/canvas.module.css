@@ -1,0 +1,553 @@
+/* canvas.module.css —— 万象画布样式
+ * 遵循「纸上仪器」令牌：纸底 + 发丝线 + 靛蓝可操作 + 珊瑚橙活数值。
+ */
+
+/* ---------- 视口与内层 ---------- */
+.viewport {
+  position: relative;
+  height: calc(100dvh - var(--layout-appbar-height, 56px) - 49px - 34px);
+  overflow: auto;
+  background: var(--paper-2);
+  overscroll-behavior: contain;
+}
+
+.inner {
+  position: relative;
+  transform-origin: 0 0;
+  background-image: radial-gradient(circle, #dcd4c3 1.2px, transparent 1.2px);
+  background-size: 26px 26px;
+}
+
+.inner.inkmode {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.wires {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+
+.wire {
+  stroke: #8a84e8;
+  stroke-width: 2.2;
+  fill: none;
+}
+
+.wireHit {
+  stroke: rgba(0, 0, 0, 0);
+  stroke-width: 14;
+  fill: none;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.tempWire {
+  stroke: var(--color-coral);
+  stroke-width: 2;
+  fill: none;
+  stroke-dasharray: 5 4;
+}
+
+.ink {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+}
+
+/* ---------- 节点卡片 ---------- */
+.node {
+  position: absolute;
+  background: var(--paper-0);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg, 14px);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(38,30,16,.05), 0 4px 12px rgba(38,30,16,.06));
+  z-index: 2;
+}
+
+.node:hover {
+  box-shadow: var(--shadow-md, 0 2px 4px rgba(38,30,16,.04), 0 12px 28px rgba(38,30,16,.09));
+}
+
+.nhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 11px;
+  border-bottom: 1px solid var(--hairline);
+  cursor: grab;
+  user-select: none;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-900);
+  background: var(--paper-1);
+  border-radius: var(--radius-lg, 14px) var(--radius-lg, 14px) 0 0;
+  touch-action: none;
+}
+
+.nhead:active {
+  cursor: grabbing;
+}
+
+.ndot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--color-indigo);
+}
+
+.ndotSrc {
+  background: var(--color-coral);
+}
+
+.nbadge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--color-indigo-soft);
+  color: var(--color-indigo);
+}
+
+.nbadgeSink {
+  background: var(--paper-3);
+  color: var(--ink-400);
+}
+
+.nx {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--ink-300);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.nx:hover {
+  color: #b42318;
+}
+
+.nbody {
+  padding: 11px;
+}
+
+/* ---------- 端口 ---------- */
+.port {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  top: 50%;
+  z-index: 3;
+  cursor: crosshair;
+  transition: transform .15s, box-shadow .15s;
+}
+
+.portOut {
+  right: -8px;
+  transform: translateY(-50%);
+  background: var(--color-coral);
+  border: 2.5px solid #fff;
+  box-shadow: 0 0 0 1.5px var(--color-coral);
+}
+
+.portIn {
+  left: -8px;
+  transform: translateY(-50%);
+  background: #fff;
+  border: 2.5px solid var(--color-indigo);
+}
+
+.portOut:hover {
+  transform: translateY(-50%) scale(1.3);
+}
+
+.portIn:hover,
+.portIn[data-armed] {
+  transform: translateY(-50%) scale(1.3);
+  box-shadow: 0 0 0 6px rgba(79, 70, 229, .16);
+}
+
+.portIn[data-armed] {
+  animation: portpulse .9s infinite;
+}
+
+@keyframes portpulse {
+  50% { box-shadow: 0 0 0 10px rgba(79, 70, 229, .12); }
+}
+
+/* ---------- 对象体通用 ---------- */
+.objSvg {
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md, 10px);
+  background: var(--paper-1);
+  display: block;
+  touch-action: none;
+}
+
+.live {
+  color: var(--color-coral-ink);
+  font-family: var(--font-family-mono, Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.mono {
+  font-family: var(--font-family-mono, Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.matgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  max-width: 160px;
+}
+
+.matgrid input {
+  width: 100%;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12.5px;
+  font-family: var(--font-family-mono, Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  background: var(--paper-0);
+  color: var(--ink-700);
+  outline: none;
+}
+
+.matgrid input:focus {
+  border-color: var(--color-indigo);
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 8px 0;
+}
+
+.presets button {
+  border: 1px solid var(--hairline-strong);
+  background: var(--paper-0);
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  color: var(--ink-500);
+  cursor: pointer;
+}
+
+.presets button:hover {
+  border-color: var(--color-indigo);
+  color: var(--color-indigo);
+}
+
+.miniRead {
+  font-size: 11.5px;
+  color: var(--ink-400);
+}
+
+.readouts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+}
+
+.ro {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  padding: 3px 0;
+  border-bottom: 1px dashed var(--hairline);
+  color: var(--ink-500);
+}
+
+.ro b {
+  font-family: var(--font-family-mono, Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-coral-ink);
+  font-weight: 600;
+  font-size: 11.5px;
+}
+
+.eigVerdict {
+  font-size: 11px;
+  color: var(--ink-400);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.sqArea {
+  font-size: 11.5px;
+  text-align: center;
+  margin-top: 2px;
+  color: var(--ink-500);
+}
+
+.unwired {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 12px;
+  font-size: 12px;
+  color: var(--ink-400);
+  border: 1.5px dashed var(--hairline-strong);
+  border-radius: var(--radius-md, 10px);
+  background: var(--paper-1);
+  line-height: 1.5;
+}
+
+.unwiredSrc {
+  color: var(--color-coral-ink);
+  font-weight: 600;
+}
+
+.note {
+  width: 100%;
+  min-height: 64px;
+  border: 0;
+  outline: none;
+  resize: none;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink-700);
+  background: transparent;
+  padding: 0;
+}
+
+.note:focus {
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, .16);
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+/* ---------- 选中态 ---------- */
+.node[data-sel] {
+  box-shadow: 0 0 0 2.5px var(--color-indigo), var(--shadow-md, 0 12px 28px rgba(38,30,16,.09));
+}
+
+/* ---------- 新对象控件 ---------- */
+.dim {
+  color: var(--ink-400);
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--color-indigo);
+  height: 22px;
+  cursor: pointer;
+}
+
+.tickerRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.tickerCtl {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.tickerCtl .tbtn,
+.quizBtn {
+  border: 1px solid var(--hairline-strong);
+  background: var(--paper-0);
+  color: var(--ink-700);
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tickerCtl .tbtn:hover,
+.quizBtn:hover {
+  border-color: var(--color-indigo);
+  color: var(--color-indigo);
+}
+
+.portLabel {
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--ink-400);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.portLabelR {
+  left: auto;
+  right: -26px;
+}
+
+.matgrid .rocell {
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  padding: 6px 4px;
+  font-size: 12.5px;
+  font-family: var(--font-family-mono, Consolas, monospace);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  background: var(--paper-1);
+  color: var(--color-coral-ink);
+  font-weight: 600;
+}
+
+.quizQ {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink-700);
+  margin-bottom: 2px;
+}
+
+.quizBtn {
+  margin-top: 7px;
+  background: var(--color-indigo);
+  border-color: var(--color-indigo);
+  color: #fff;
+}
+
+.quizBtn:hover {
+  background: var(--color-indigo-strong);
+  color: #fff;
+}
+
+.quizResult {
+  margin-top: 7px;
+  font-size: 12.5px;
+  color: var(--ink-500);
+  border-top: 1px dashed var(--hairline);
+  padding-top: 6px;
+}
+
+.texview {
+  margin-top: 6px;
+  padding: 8px 6px 4px;
+  border-top: 1px dashed var(--hairline);
+  font-size: 15px;
+  color: var(--ink-900);
+  min-height: 30px;
+}
+
+/* ---------- 触屏/手写笔 ---------- */
+@media (pointer: coarse) {
+  .port { width: 20px; height: 20px; }
+  .portOut { right: -11px; }
+  .portIn { left: -11px; }
+  .nhead { padding: 10px 13px; }
+}
+
+/* ---------- 暗色/窄屏微调 ---------- */
+@media (max-width: 720px) {
+  .viewport {
+    height: calc(100dvh - var(--layout-appbar-height, 56px) - 82px - 34px);
+  }
+}
+
+/* ---------- 自制积木：框选 / 选择条 / 复合节点 ---------- */
+
+.marquee {
+  position: absolute;
+  border: 1.5px dashed var(--color-coral, #b65a3c);
+  background: rgba(182, 90, 60, 0.07);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.selBar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--ink-900, #252b28);
+  color: #fff;
+  font-size: 12.5px;
+  box-shadow: 0 6px 20px rgba(24, 34, 48, 0.22);
+  pointer-events: auto;
+}
+
+.selBarBtn {
+  border: none;
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: var(--color-coral, #b65a3c);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.selBarBtn:last-child {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.brickName {
+  width: 100%;
+  border: none;
+  border-bottom: 1px dashed var(--hairline-strong, #b9b3a4);
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  font-size: 13.5px;
+  padding: 2px 0 5px;
+  margin-bottom: 6px;
+  color: var(--ink-800, #2f3a49);
+}
+
+.brickName:focus {
+  outline: none;
+  border-bottom-color: var(--color-coral, #b65a3c);
+}
+
+.portList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0;
+}
+
+.portInChip,
+.portOutChip {
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--font-family-mono, monospace);
+}
+
+.portInChip {
+  background: #EAEEF7;
+  color: var(--color-indigo, #3949ab);
+}
+
+.portOutChip {
+  background: #FDEDE6;
+  color: var(--color-coral-ink, #b8431f);
+}

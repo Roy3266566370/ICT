@@ -1,0 +1,471 @@
+/* SharePage.module.css —— 学生端只读全屏页（P2-10）
+ *
+ * 布局目标：
+ *  - 桌面：页面（16:9，按可用区域适配）+ 右侧对象视图；参数抽屉浮在页面右缘；
+ *  - 移动端：页面保持 16:9，参数与视图折叠为底部抽屉，翻页交给顶部 select。
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--color-surface);
+  color: var(--color-navy);
+}
+
+/* ---------------- 顶栏 ---------------- */
+
+.topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+}
+
+.heading {
+  min-width: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-xs);
+  letter-spacing: var(--letter-spacing-caps);
+  color: var(--color-navy-subtle);
+}
+
+.brand img {
+  display: block;
+  object-fit: contain;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
+}
+
+.subtitle {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-muted);
+}
+
+.topActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.pagePicker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-muted);
+}
+
+.pagePicker select {
+  font: inherit;
+  color: var(--color-navy);
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+}
+
+.copyButton {
+  font: inherit;
+  font-size: var(--font-size-xs);
+  padding: 6px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  color: var(--color-navy);
+  cursor: pointer;
+}
+
+.copyButton:hover {
+  border-color: var(--color-indigo);
+  color: var(--color-indigo);
+}
+
+.copyButton:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.copyHint {
+  font-size: var(--font-size-xs);
+  color: var(--color-pass);
+}
+
+.copyField {
+  width: 240px;
+  max-width: 100%;
+  font: inherit;
+  font-size: var(--font-size-xs);
+  padding: 5px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  color: var(--color-navy-muted);
+}
+
+/* ---------------- 主体 ---------------- */
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+}
+
+.stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  gap: var(--space-2);
+}
+
+.pageFrame {
+  position: relative;
+  flex: 1;
+  min-height: 240px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--hairline, #e7e0d3);
+  box-shadow: var(--shadow-sm);
+}
+
+.staticPage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: var(--hairline, #e7e0d3);
+  user-select: none;
+}
+
+.stageBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  min-height: 34px;
+}
+
+.pageNav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.navButton {
+  font: inherit;
+  font-size: var(--font-size-xs);
+  padding: 5px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  color: var(--color-navy);
+  cursor: pointer;
+}
+
+.navButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.navButton:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.pageIndicator {
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.stageHint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+}
+
+/* ---------------- 对象视图（桌面右栏） ---------------- */
+
+.specAside {
+  width: 340px;
+  flex: none;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+.specBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.spec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.specTitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+}
+
+.specEmpty {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+}
+
+.params {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-2);
+}
+
+.param {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.paramLabel {
+  grid-column: 1 / -1;
+  color: var(--color-navy-muted);
+  overflow-wrap: anywhere;
+}
+
+.param input[type='range'],
+.param input[type='number'],
+.param input[type='text'] {
+  width: 100%;
+  font: inherit;
+  padding: 3px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface-raised);
+}
+
+.param input[type='range'] {
+  padding: 0;
+  border: 0;
+  accent-color: var(--color-indigo);
+}
+
+.paramValue {
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-indigo);
+}
+
+.viewBlock {
+  overflow-x: auto;
+}
+
+.viewTitle {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.table th,
+.table td {
+  border: 1px solid var(--color-border);
+  padding: 4px 6px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table th {
+  background: var(--color-surface-sunken);
+  font-weight: var(--font-weight-semibold);
+}
+
+.textView {
+  margin: 0;
+  padding: var(--space-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-snug);
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-sm);
+}
+
+.figureView {
+  margin: 0;
+}
+
+.figureView img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  background: var(--hairline, #e7e0d3);
+}
+
+.figureView figcaption {
+  margin-top: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+}
+
+.degrade {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+}
+
+/* ---------------- 移动端抽屉 ---------------- */
+
+.specDrawer {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  padding: 0 var(--space-3);
+}
+
+.specDrawer[open] {
+  padding-bottom: var(--space-3);
+}
+
+.specDrawerSummary {
+  padding: var(--space-3) 0;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ---------------- 页脚与状态页 ---------------- */
+
+.footer {
+  padding: var(--space-2) var(--space-5) var(--space-3);
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+}
+
+.statePage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-8);
+  text-align: center;
+}
+
+.stateTitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-xl);
+}
+
+.stateHint {
+  margin: 0 0 var(--space-1);
+  max-width: 32rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-navy-muted);
+}
+
+/* ---------------- 移动端 / 平板 ---------------- */
+
+@media (max-width: 1023px) {
+  .root {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .topActions {
+    justify-content: flex-start;
+  }
+
+  .copyField {
+    width: 100%;
+    order: 3;
+  }
+
+  .body {
+    flex-direction: column;
+    padding: var(--space-3);
+  }
+
+  .stage {
+    flex: none;
+  }
+
+  .pageFrame {
+    flex: none;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+  }
+
+  .staticPage {
+    aspect-ratio: 16 / 9;
+  }
+
+  .stageBar {
+    display: none;
+  }
+
+  .specAside {
+    width: 100%;
+  }
+
+  .footer {
+    padding-bottom: var(--space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copyButton,
+  .navButton,
+  .specDrawerSummary {
+    transition: none;
+  }
+}

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>象算 · 交互验算器（概念演示）</title>
+<style>
+:root{
+  --bg:#f5f6fa; --card:#ffffff; --ink:#1c2333; --sub:#5a6478; --line:#e4e7f0;
+  --pri:#4f5dff; --pri-soft:#eceeff; --ok:#1f9d66; --ok-soft:#e4f6ee;
+  --bad:#e5484d; --bad-soft:#fdecec; --warn:#b7791f; --warn-soft:#fdf3e0;
+  --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+a{color:var(--pri);text-decoration:none}
+.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav-in{max-width:1180px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:26px}
+.logo{font-weight:800;font-size:18px;color:var(--ink);letter-spacing:.5px}
+.logo em{color:var(--pri);font-style:normal}
+.nav a.nl{color:var(--sub);font-size:14px}
+.nav a.nl:hover{color:var(--pri)}
+.nav .demo-tag{margin-left:auto;font-size:12px;color:var(--warn);background:var(--warn-soft);border:1px solid #ecd9ae;padding:3px 10px;border-radius:999px}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
+.hero{text-align:center;padding:56px 16px 40px}
+.hero h1{font-size:44px;font-weight:800;letter-spacing:1px}
+.hero h1 em{color:var(--pri);font-style:normal}
+.hero p{font-size:17px;color:var(--sub);margin:14px auto 8px;max-width:640px}
+.hero .sub2{font-size:14px;color:var(--sub)}
+.hero .cta{display:inline-block;margin-top:24px;background:var(--pri);color:#fff;padding:12px 34px;border-radius:10px;font-size:16px;font-weight:600}
+.hero .cta:hover{filter:brightness(1.08)}
+.props{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:44px 0 12px}
+.prop{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.prop b{display:block;font-size:15px;margin-bottom:6px}
+.prop span{font-size:13.5px;color:var(--sub)}
+.sec-t{font-size:22px;font-weight:700;margin:44px 0 6px}
+.sec-s{font-size:14px;color:var(--sub);margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;display:block;color:var(--ink);transition:.15s}
+a.card:hover{border-color:var(--pri);box-shadow:0 6px 24px rgba(79,93,255,.10);transform:translateY(-2px)}
+.card h3{font-size:17px;margin-bottom:4px}
+.card .desc{font-size:13px;color:var(--sub);margin-bottom:12px;min-height:40px}
+.badge{display:inline-block;font-size:11.5px;padding:2px 9px;border-radius:999px;font-weight:600}
+.b-live{background:var(--ok-soft);color:var(--ok);border:1px solid #bfe6d2}
+.b-soon{background:#f1f2f6;color:#8a93a8;border:1px solid var(--line)}
+.b-part{background:var(--warn-soft);color:var(--warn);border:1px solid #ecd9ae}
+.tag{font-size:11.5px;color:#7c86a0;background:#f1f2f8;border-radius:6px;padding:1px 7px;margin-left:6px}
+.tasks{list-style:none;font-size:13.5px;color:var(--sub)}
+.tasks li{padding:5px 0;border-top:1px dashed var(--line);display:flex;justify-content:space-between}
+.tasks li:first-child{border-top:none}
+.crumb{font-size:13px;color:var(--sub);margin-bottom:14px}
+.crumb a{color:var(--sub)}
+.tool{display:grid;grid-template-columns:400px 1fr;gap:20px;align-items:start}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px}
+.panel h2{font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.panel h2 .n{width:22px;height:22px;border-radius:6px;background:var(--pri-soft);color:var(--pri);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.field{margin-bottom:14px}
+.field>label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.field .hint{font-size:12px;color:var(--sub);font-weight:400;margin-left:6px}
+input[type=text],input[type=number],select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border-color:var(--pri)}
+textarea{font-family:var(--mono);resize:vertical}
+.btn{background:var(--pri);color:#fff;border:none;padding:10px 20px;border-radius:9px;font-size:14.5px;font-weight:600;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:#fff;color:var(--pri);border:1px solid var(--pri)}
+.btn.mini{padding:4px 12px;font-size:12.5px;border-radius:7px;font-weight:500}
+.btn-row{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap}
+table.ptab{width:100%;border-collapse:collapse;font-size:13.5px}
+.ptab th{font-size:12px;color:var(--sub);font-weight:600;text-align:left;padding:6px 6px;border-bottom:1px solid var(--line)}
+.ptab td{padding:4px 4px;border-bottom:1px solid #f0f1f6}
+.ptab input{padding:5px 7px;font-size:13px}
+.ptab .del{color:var(--bad);cursor:pointer;border:none;background:none;font-size:15px;line-height:1}
+.res-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:18px}
+.res-card h3{font-size:15px;margin-bottom:12px}
+.stats{width:100%;border-collapse:collapse;font-size:13.5px}
+.stats th{background:#f7f8fc;color:var(--sub);font-weight:600;padding:8px 10px;text-align:right;border-bottom:1px solid var(--line)}
+.stats th:first-child,.stats td:first-child{text-align:left}
+.stats td{padding:8px 10px;text-align:right;border-bottom:1px solid #f0f1f6;font-family:var(--mono);font-size:13px}
+.stats tr.avg td{font-weight:700;background:var(--pri-soft);color:var(--pri)}
+.gantt-wrap{overflow-x:auto;padding:6px 0}
+canvas.gantt{display:block}
+.mini-g{margin-bottom:14px}
+.mini-g .mg-t{font-size:12.5px;font-weight:600;margin-bottom:4px;display:flex;justify-content:space-between}
+.mini-g .mg-t span{color:var(--sub);font-weight:400;font-family:var(--mono)}
+.steps-scrub{display:flex;align-items:center;gap:12px;margin:10px 0 14px}
+.steps-scrub input[type=range]{flex:1}
+.steps-scrub .st{font-family:var(--mono);font-size:13px;color:var(--sub);min-width:110px}
+.pg-grid{overflow-x:auto}
+.pg-grid table{border-collapse:collapse;font-family:var(--mono);font-size:13px}
+.pg-grid th,.pg-grid td{border:1px solid var(--line);min-width:34px;height:32px;text-align:center;padding:2px 4px}
+.pg-grid th.ref{background:#f7f8fc;color:var(--ink);font-weight:700}
+.pg-grid th.rowh{background:#f7f8fc;color:var(--sub);font-weight:600;font-size:11px;white-space:nowrap}
+.pg-grid td.fault{background:var(--bad-soft);color:var(--bad);font-weight:700}
+.pg-grid td.hit{color:var(--ink)}
+.pg-grid td.cur{outline:2px solid var(--pri);outline-offset:-2px}
+.pg-grid th.fault-ref{color:var(--bad)}
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.chip{background:var(--pri-soft);color:var(--pri);border-radius:8px;padding:6px 14px;font-size:13.5px;font-weight:600}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.verify-box{border:1.5px dashed var(--pri);border-radius:12px;padding:16px 18px;background:#fafbff;margin-top:18px}
+.verify-box h4{font-size:14px;color:var(--pri);margin-bottom:4px}
+.verify-box p{font-size:12.5px;color:var(--sub);margin-bottom:10px}
+.verify-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.verify-row input{width:180px}
+.vres{font-size:14px;font-weight:600;margin-top:10px}
+.vres.ok{color:var(--ok)}
+.vres.bad{color:var(--bad)}
+.err{background:var(--bad-soft);color:var(--bad);border-radius:8px;padding:10px 14px;font-size:13.5px;margin-top:10px}
+.note{font-size:12px;color:var(--sub);background:#f7f8fc;border-radius:8px;padding:10px 14px;margin-top:16px;line-height:1.7}
+.seq-prev{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.seq-prev i{font-style:normal;font-family:var(--mono);font-size:12px;background:#f1f2f8;border-radius:5px;padding:2px 8px;color:var(--sub)}
+.kbd{font-family:var(--mono);background:#f1f2f8;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12px}
+.banner{background:linear-gradient(135deg,#4f5dff,#7a5cff);color:#fff;border-radius:16px;padding:26px 30px;margin:40px 0 10px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.banner b{font-size:18px}
+.banner p{font-size:13.5px;opacity:.9;max-width:560px}
+.footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);font-size:12.5px;color:#9aa2b8;text-align:center}
+@media(max-width:900px){.tool{grid-template-columns:1fr}.grid,.props{grid-template-columns:1fr}.hero h1{font-size:30px}}
+</style>
+</head>
+<body>
+<nav class="nav"><div class="nav-in">
+  <a class="logo" href="#/">象算<em>·验算器</em></a>
+  <a class="nl" href="#/os">操作系统</a>
+  <a class="nl" href="#/ds">数据结构</a>
+  <a class="nl" href="#/math">高等数学</a>
+  <a class="nl" href="#/about">关于</a>
+  <span class="demo-tag">概念演示 · 计算在浏览器内完成</span>
+</div></nav>
+<div class="wrap" id="app"></div>
+<script>
+'use strict';
+/* ============================================================
+   象算·验算器 —— 概念演示
+   正式版由后端确定性内核计算；本演示在浏览器内实现同一组算法，
+   用于验证「科目→题型→填参数→内核计算→交互建模」的产品形态。
+   ============================================================ */
+const $=(s,el=document)=>el.querySelector(s);
+const h=(t,a={},...c)=>{const e=document.createElement(t);for(const[k,v]of Object.entries(a)){if(v==null)continue;if(k==='class')e.className=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(k==='html')e.innerHTML=v;else e.setAttribute(k,v)}for(const x of c.flat()){e.append(x?.nodeType?x:document.createTextNode(x??''))}return e};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const PALETTE=['#4f5dff','#f6a536','#30a46c','#e5484d','#8e5cf7','#0ea5b7','#e46ba8','#7a8b3f','#c76a2b','#4d8de8'];
+const pColor=id=>{let n=0;const m=String(id).match(/\d+/);n=m?+m[0]:[...String(id)].reduce((s,c)=>s+c.charCodeAt(0),0);return PALETTE[n%PALETTE.length]};
+const fmt=(x,d=2)=>{if(x==null||!isFinite(x))return '—';const v=Math.round(x*10**d)/10**d;return Number.isInteger(v)?String(v):v.toFixed(d).replace(/0+$/,'').replace(/\.$/,'')};
+
+/* ---------------- 内核：CPU 调度 ---------------- */
+function schedule(procs,alg,q){
+  const ps=procs.map((p,i)=>({...p,idx:i,rem:p.burst,finish:null}));
+  const n=ps.length,T=ps.reduce((s,p)=>s+p.burst,0)+Math.max(...ps.map(p=>p.arrival))+1;
+  const segs=[];let t=0;
+  const done=()=>ps.every(p=>p.rem<=0);
+  const avail=()=>ps.filter(p=>p.arrival<=t&&p.rem>0);
+  const push=(id,a,b)=>{if(b<=a)return;const l=segs[segs.length-1];if(l&&l.id===id&&l.end===a)l.end=b;else segs.push({id,start:a,end:b})};
+  if(alg==='rr'){
+    const queue=[];const inQ=new Set();let cur=null,used=0;
+    while(!done()&&t<=T+10000){
+      for(const p of ps)if(p.arrival===t&&!inQ.has(p)){queue.push(p);inQ.add(p)}
+      if(cur&&cur.rem>0&&!queue.includes(cur))queue.push(cur),cur=null;
+      else if(cur&&cur.rem<=0){cur.finish=t;cur=null}
+      if(!cur){cur=queue.shift()||null;used=0}
+      if(!cur){t++;continue}
+      cur.rem--;used++;
+      if(used>=q){const c=cur;cur=null;if(c.rem>0)queue.push(c);else c.finish=t+1}
+      t++;
+    }
+    // rebuild segments from tick simulation is lossy; rerun tick recording:
+    segs.length=0;const r=rrRecord(procs,q);r.segs.forEach(s=>segs.push(s));
+    const ps2=procs.map((p,i)=>({...p,idx:i}));
+    for(const s of r.finish){const p=ps2[s.idx];p.finish=s.t;p.ta=p.finish-p.arrival;p.wt=p.ta-p.burst}
+    return{segs,procs:ps2};
+  }
+  while(!done()&&t<=T+10000){
+    let pick=null;
+    const av=avail();
+    if(av.length){
+      if(alg==='fcfs')pick=av.reduce((a,b)=>a.arrival<b.arrival||(a.arrival===b.arrival&&a.idx<b.idx)?a:b);
+      else if(alg==='sjf')pick=av.reduce((a,b)=>a.burst<b.burst||(a.burst===b.burst&&a.arrival<b.arrival)||(a.burst===b.burst&&a.arrival===b.arrival&&a.idx<b.idx)?a:b);
+      else if(alg==='srtf')pick=av.reduce((a,b)=>a.rem<b.rem||(a.rem===b.rem&&a.arrival<b.arrival)||(a.rem===b.rem&&a.arrival===b.arrival&&a.idx<b.idx)?a:b);
+      else if(alg==='priority')pick=av.reduce((a,b)=>a.priority<b.priority||(a.priority===b.priority&&a.arrival<b.arrival)||(a.priority===b.priority&&a.arrival===b.arrival&&a.idx<b.idx)?a:b);
+    }
+    if(!pick){t++;continue}
+    const pre=(alg==='srtf')?1:pick.rem; // 抢占式按单位时间推进；非抢占一次跑完
+    const dur=alg==='srtf'?1:pick.rem;
+    push(pick.id,t,t+dur);pick.rem-=dur;t+=dur;
+    if(pick.rem<=0)pick.finish=t;
+  }
+  for(const p of ps){p.ta=p.finish-p.arrival;p.wt=p.ta-p.burst}
+  return{segs,procs:ps};
+}
+function rrRecord(procs,q){
+  const ps=procs.map((p,i)=>({...p,idx:i,rem:p.burst}));
+  const segs=[],finish=[],queue=[],inQ=new Set();let t=0,cur=null,used=0;
+  const done=()=>ps.every(p=>p.rem<=0);
+  const T=ps.reduce((s,p)=>s+p.burst,0)+Math.max(...ps.map(p=>p.arrival))+10000;
+  const push=(id,a,b)=>{const l=segs[segs.length-1];if(l&&l.id===id&&l.end===a)l.end=b;else segs.push({id,start:a,end:b})};
+  while(!done()&&t<T){
+    for(const p of ps)if(p.arrival===t&&!inQ.has(p)){queue.push(p);inQ.add(p)}
+    if(!cur){cur=queue.shift()||null;used=0}
+    if(cur){
+      push(cur.id,t,t+1);cur.rem--;used++;t++;
+      if(cur.rem<=0){finish.push({idx:cur.idx,t});cur=null}
+      else if(used>=q){queue.push(cur);cur=null}
+    }else t++;
+  }
+  return{segs,finish};
+}
+function drawGantt(canvas,segs,H){
+  const total=segs.length?segs[segs.length-1].end:1;
+  const px=Math.max(46,Math.min(90,(canvas.parentElement.clientWidth-60)/total));
+  const W=total*px+60;canvas.width=W*2;canvas.height=(H||76)*2;canvas.style.width=W+'px';canvas.style.height=(H||76)+'px';
+  const c=canvas.getContext('2d');c.scale(2,2);c.clearRect(0,0,W,100);
+  const y=18,hgt=34;
+  for(const s of segs){
+    const x=s.start*px,w=(s.end-s.start)*px;
+    if(s.id==='idle'){c.fillStyle='#eef0f6';c.fillRect(x,y,w,hgt);c.fillStyle='#9aa2b8';c.font='11px '+getComputedStyle(document.body).fontFamily;c.textAlign='center';if(w>20)c.fillText('空闲',x+w/2,y+hgt/2+4)}
+    else{c.fillStyle=pColor(s.id);c.beginPath();c.roundRect(x,y,w,hgt,5);c.fill();c.fillStyle='#fff';c.font='bold 13px system-ui';c.textAlign='center';if(w>18)c.fillText(s.id,x+w/2,y+hgt/2+5)}
+    c.fillStyle='#8a93a8';c.font='10px system-ui';c.fillText(s.start,x,y+hgt+14);
+  }
+  c.fillText(total,total*px,y+hgt+14);
+}
+/* ---------------- 内核：页面置换 ---------------- */
+function pageReplace(ref,F,alg,init){
+  const frames=init?init.slice(0,F):[];while(frames.length<F)frames.push(null);
+  const fifoQ=init?init.slice(0,F):[];
+  const lastUsed={};(init||[]).forEach((p,i)=>lastUsed[p]=-1e6+i);
+  const steps=[];
+  ref.forEach((r,i)=>{
+    let fault=false,victim=null;
+    if(frames.includes(r)){lastUsed[r]=i}
+    else{
+      fault=true;
+      const empty=frames.indexOf(null);
+      if(empty>=0){frames[empty]=r;if(alg==='fifo')fifoQ.push(r)}
+      else{
+        if(alg==='fifo'){victim=fifoQ.shift();fifoQ.push(r)}
+        else if(alg==='lru'){victim=frames.reduce((a,b)=>lastUsed[a]<=lastUsed[b]?a:b)}
+        else{victim=frames.reduce((a,b)=>nextUse(ref,i,a)>=nextUse(ref,i,b)?a:b)}
+        frames[frames.indexOf(victim)]=r;
+      }
+      lastUsed[r]=i;
+    }
+    steps.push({ref:r,frames:frames.slice(),fault,victim});
+  });
+  return steps;
+  function nextUse(ref,i,p){const j=ref.indexOf(p,i+1);return j<0?Infinity:j}
+}
+/* ---------------- 内核：表达式与积分 ---------------- */
+function parseExpr(src){
+  let i=0;const s=src.replace(/\s+/g,'');
+  const peek=()=>s[i],eat=ch=>{if(s[i]===ch){i++;return true}return false};
+  const FNS={sin:Math.sin,cos:Math.cos,tan:Math.tan,asin:Math.asin,acos:Math.acos,atan:Math.atan,exp:Math.exp,ln:Math.log,log:Math.log10,sqrt:Math.sqrt,abs:Math.abs,sinh:Math.sinh,cosh:Math.cosh};
+  function expr(){let v=term();while(true){if(eat('+'))v={op:'+',a:v,b:term()};else if(eat('-'))v={op:'-',a:v,b:term()};else return v}}
+  function term(){let v=unary();while(true){if(eat('*'))v={op:'*',a:v,b:unary()};else if(eat('/'))v={op:'/',a:v,b:unary()};else return v}}
+  function unary(){if(eat('-'))return{op:'neg',a:unary()};if(eat('+'))return unary();return pow()}
+  function pow(){const b=primary();if(eat('^'))return{op:'^',a:b,b:unary()};return b}
+  function primary(){
+    if(eat('(')){const v=expr();if(!eat(')'))throw'缺少右括号';return v}
+    const m=s.slice(i).match(/^[0-9]*\.?[0-9]+([eE][+-]?[0-9]+)?/);if(m){i+=m[0].length;return{op:'num',v:+m[0]}}
+    const w=s.slice(i).match(/^[a-zA-Z_][a-zA-Z0-9_]*/);
+    if(w){i+=w[0].length;const name=w[0].toLowerCase();
+      if(eat('(')){const arg=expr();if(!eat(')'))throw'缺少右括号';if(!FNS[name])throw'不支持的函数 '+name;return{op:'fn',name,a:arg}}
+      if(name==='x')return{op:'x'};
+      if(name==='pi')return{op:'num',v:Math.PI};
+      if(name==='e')return{op:'num',v:Math.E};
+      throw'未知标识符 '+name}
+    throw'在「'+s.slice(i,i+8)+'」处无法解析';
+  }
+  const ast=expr();if(i<s.length)throw'表达式末尾有多余内容';
+  return x=>ev(ast,x);
+  function ev(n,x){switch(n.op){case'num':return n.v;case'x':return x;
+    case'+':return ev(n.a,x)+ev(n.b,x);case'-':return ev(n.a,x)-ev(n.b,x);
+    case'*':return ev(n.a,x)*ev(n.b,x);case'/':return ev(n.a,x)/ev(n.b,x);
+    case'^':return Math.pow(ev(n.a,x),ev(n.b,x));case'neg':return-ev(n.a,x);
+    case'fn':return FNS[n.name](ev(n.a,x))}}
+}
+const simpson=(f,a,b,n)=>{if(n%2)n++;const h=(b-a)/n;let s=f(a)+f(b);for(let i=1;i<n;i++)s+=f(a+i*h)*(i%2?4:2);return s*h/3};
+const riemann=(f,a,b,n,rule)=>{const h=(b-a)/n;let s=0;for(let i=0;i<n;i++){const x=rule==='left'?a+i*h:rule==='right'?a+(i+1)*h:a+(i+.5)*h;s+=f(x)}return s*h};
+function drawIntegral(canvas,f,a,b,n,rule){
+  const W=canvas.parentElement.clientWidth-10,H=300;canvas.width=W*2;canvas.height=H*2;canvas.style.width=W+'px';canvas.style.height=H+'px';
+  const c=canvas.getContext('2d');c.scale(2,2);c.clearRect(0,0,W,H);
+  const pad={l:46,r:14,t:14,b:30};
+  let ymin=Infinity,ymax=-Infinity;const N=400;
+  for(let i=0;i<=N;i++){const x=a+(b-a)*i/N;const y=f(x);if(isFinite(y)){ymin=Math.min(ymin,y);ymax=Math.max(ymax,y)}}
+  if(ymin===ymax){ymin-=1;ymax+=1}
+  const yr=ymax-ymin;ymin-=yr*.12;ymax+=yr*.12;
+  const X=x=>pad.l+(x-a)/(b-a)*(W-pad.l-pad.r),Y=y=>H-pad.b-(y-ymin)/(ymax-ymin)*(H-pad.t-pad.b);
+  c.strokeStyle='#dfe3ee';c.lineWidth=1;
+  for(let g=0;g<=5;g++){const yv=ymin+(ymax-ymin)*g/5;c.beginPath();c.moveTo(pad.l,Y(yv));c.lineTo(W-pad.r,Y(yv));c.stroke();c.fillStyle='#8a93a8';c.font='10px system-ui';c.textAlign='right';c.fillText(fmt(yv),pad.l-6,Y(yv)+3)}
+  if(ymin<0&&ymax>0){c.strokeStyle='#b9c0d4';c.beginPath();c.moveTo(pad.l,Y(0));c.lineTo(W-pad.r,Y(0));c.stroke()}
+  const hgt=(b-a)/n;
+  for(let i=0;i<n;i++){const x0=a+i*hgt;const fx=rule==='left'?f(x0):rule==='right'?f(x0+hgt):f(x0+hgt/2);if(!isFinite(fx))continue;
+    const y0=Math.max(pad.t,Math.min(H-pad.b,Y(0))),y1=Y(fx);c.fillStyle='rgba(79,93,255,.16)';c.strokeStyle='rgba(79,93,255,.5)';
+    c.fillRect(X(x0),Math.min(y0,y1),X(x0+hgt)-X(x0),Math.abs(y1-y0)||1);c.strokeRect(X(x0),Math.min(y0,y1),X(x0+hgt)-X(x0),Math.abs(y1-y0)||1)}
+  c.strokeStyle='#e5484d';c.lineWidth=2;c.beginPath();let started=false;
+  for(let i=0;i<=N;i++){const x=a+(b-a)*i/N;const y=f(x);if(!isFinite(y)){started=false;continue}const px=X(x),py=Y(y);started?c.lineTo(px,py):c.moveTo(px,py);started=true}
+  c.stroke();
+  c.fillStyle='#8a93a8';c.font='10px system-ui';c.textAlign='center';c.fillText(fmt(a),X(a),H-10);c.fillText(fmt(b),X(b),H-10);
+}
+
+/* ================= 页面 ================= */
+const app=$('#app');
+const SUBJECTS=[
+ {id:'os',name:'操作系统',desc:'408 统考核心：调度、置换、磁盘、死锁四大过程模拟。',tasks:[['cpu-schedule','CPU 调度',1],['page-replace','页面置换',1],['disk-schedule','磁盘调度',0],['banker','银行家算法',0]]},
+ {id:'ds',name:'数据结构',desc:'图的遍历、堆操作、查找次数等逐步演示。',tasks:[['bfs','广度优先遍历',0],['heap','堆插入与删除',0],['bsearch','折半查找比较次数',0]]},
+ {id:'math',name:'高等数学',desc:'考研数学：极限、导数、积分、级数等计算与图形。',tasks:[['integral','定积分',1],['derivative','导数与切线',0],['limit','函数极限',0],['taylor','泰勒展开',0]]},
+ {id:'linalg',name:'线性代数',desc:'矩阵运算、行列式、逆矩阵、线性方程组。',tasks:[['matmul','矩阵运算',0],['det','行列式',0],['linsys','线性方程组',0]]},
+ {id:'opt',name:'最优化',desc:'梯度下降轨迹、驻点分类、约束极值。',tasks:[['gd','梯度下降',0],['lagrange','等式约束极值',0]]},
+ {id:'dl',name:'深度学习',desc:'小型全连接网络前向、反向传播与训练。',tasks:[['nn','全连接网络训练',0]]},
+];
+const badge=s=>s===1?'<span class="badge b-live">可用</span>':s===2?'<span class="badge b-part">部分</span>':'<span class="badge b-soon">即将上线</span>';
+
+function home(){
+  const el=h('div');
+  el.innerHTML=`
+  <div class="hero">
+    <h1>不问 AI，<em>验</em>给你看</h1>
+    <p>选科目、选题型、填参数——由确定性内核逐步算给你看。<br>每一个结果都能回放、能核对、能分享。</p>
+    <p class="sub2">与 AI 聊天互补：AI 给你答案，这里让你验证答案、看懂过程。</p>
+    <a class="cta" href="#/os">开始验算 →</a>
+  </div>
+  <div class="props">
+    <div class="prop"><b>内核计算，不是模型生成</b><span>结果由确定性算法得出：调度轨迹、置换过程、积分数值都能逐步复算，不会"编答案"。</span></div>
+    <div class="prop"><b>逐步回放与调参</b><span>每个过程可单步、可拖动进度；改一个参数立即重算，直接观察规律而不是背结论。</span></div>
+    <div class="prop"><b>验算模式</b><span>把 AI 或参考答案给你的结果贴进来，内核逐步对账，指出第几步开始错。</span></div>
+  </div>
+  <div class="banner"><div><b>为什么不用聊天机器人做题？</b><p>LLM 在逐步模拟类题目（调度、置换、堆操作）上出错率高且无法自查。这里不预测答案——这里真的在算。AI 负责解释，内核负责正确。</p></div><a class="cta" style="background:#fff;color:var(--pri)" href="#/about">了解原理</a></div>
+  <h2 class="sec-t">选择科目</h2>
+  <p class="sec-s">概念演示阶段开放 3 个题型的完整体验（标绿）。正式版计划覆盖全部 31 个题型。</p>
+  <div class="grid">${SUBJECTS.map(s=>`
+    <a class="card" href="#/${s.id}">
+      <h3>${s.name}</h3><div class="desc">${s.desc}</div>
+      <ul class="tasks">${s.tasks.map(t=>`<li><span>${t[1]}</span>${badge(t[2])}</li>`).join('')}</ul>
+    </a>`).join('')}
+  </div>
+  <div class="footer">象算·验算器 —— 概念演示站点 · 数据不离开本机 · 正式版将支持结果分享链接</div>`;
+  return el;
+}
+function subjectPage(id){
+  const s=SUBJECTS.find(x=>x.id===id);const el=h('div');
+  el.innerHTML=`<div class="crumb"><a href="#/">首页</a> / ${s.name}</div>
+  <h2 class="sec-t" style="margin-top:0">${s.name}</h2><p class="sec-s">${s.desc}</p>
+  <div class="grid">${s.tasks.map(t=>`
+    <a class="card" href="${t[2]?'#/'+id+'/'+t[0]:'javascript:void(0)'}" ${t[2]?'':'style="opacity:.55;cursor:default"'}>
+      <h3>${t[1]} ${badge(t[2])}</h3>
+      <div class="desc">${TASK_DESC[t[0]]||''}</div>
+    </a>`).join('')}</div>`;
+  return el;
+}
+const TASK_DESC={
+ 'cpu-schedule':'五种算法同一组进程对照：FCFS / SJF / SRTF / RR / 优先级，甘特图与周转时间。',
+ 'page-replace':'FIFO / LRU / OPT 逐帧回放，缺页统计，自动检测 Belady 异常。',
+ 'disk-schedule':'FCFS / SSTF / SCAN / C-SCAN / LOOK / C-LOOK 磁头轨迹与总移动距离。',
+ 'banker':'Need/Work 逐轮推导安全序列，支持一次资源请求试分配与回滚。',
+ 'bfs':'真实队列、已访问集合、父节点与层级，逐行伪代码同步高亮。',
+ 'heap':'大/小根堆插入建堆与删除堆顶，树形图、数组与交换逐步呈现。',
+ 'bsearch':'按指定取整约定统计折半查找最坏比较次数。',
+ 'integral':'黎曼和可调分割数对照 Simpson 参考值，函数图像与误差实时联动。',
+ 'derivative':'切线、割线、差商随步长变化。',
+ 'limit':'左右趋近数值证据，区分有限、无穷与不存在。',
+ 'taylor':'一至十阶展开与点上误差。',
+ 'matmul':'矩阵加减乘与数乘。','det':'行列式求值。','linsys':'消元求解。',
+ 'gd':'目标函数、初始点、学习率与迭代轨迹。','lagrange':'拉格朗日乘数与驻点分类。',
+ 'nn':'各层形状、中间数值与梯度展开。'
+};
+function toolShell(subjectId,taskId,title){
+  const el=h('div');
+  el.innerHTML=`<div class="crumb"><a href="#/">首页</a> / <a href="#/${subjectId}">${SUBJECTS.find(s=>s.id===subjectId).name}</a> / ${title}</div>
+  <h2 class="sec-t" style="margin:0 0 4px">${title}</h2><p class="sec-s">${TASK_DESC[taskId]||''}</p>
+  <div class="tool"><div class="panel" id="form"></div><div id="res"><div class="res-card" style="color:var(--sub);font-size:14px">填好参数后点「开始验算」。也可以先点「填入示例」一键得到可运行的输入。</div></div></div>`;
+  return el;
+}
+function soon(taskId){
+  const el=h('div');
+  el.innerHTML=`<div class="crumb"><a href="#/">首页</a> / ${TASK_DESC[taskId]?taskId:''}</div>
+  <div class="panel" style="max-width:560px;margin:60px auto;text-align:center">
+  <h2 style="justify-content:center">即将上线</h2>
+  <p style="color:var(--sub);font-size:14px;margin-top:8px">该题型的内核已实现，参数表单正在制作中。概念演示请先体验：CPU 调度、页面置换、定积分。</p>
+  <div class="btn-row" style="justify-content:center;margin-top:16px"><a class="btn ghost" href="#/os">返回科目</a></div></div>`;
+  return el;
+}
+function verifyBox(label,check,hint){
+  const box=h('div',{class:'verify-box'});
+  box.innerHTML=`<h4>验算模式 · 对照你的答案</h4><p>把 AI 或参考答案给你的「${label}」填进来，内核逐步对账。${hint||''}</p>`;
+  const inp=h('input',{type:'text',placeholder:'填入你的答案'});
+  const out=h('div',{class:'vres'});
+  const btn=h('button',{class:'btn mini',onclick:()=>{
+    const v=inp.value.trim();if(!v){out.className='vres bad';out.textContent='请先填入答案';return}
+    const r=check(v);out.className='vres '+(r.ok?'ok':'bad');out.textContent=r.msg;
+  }},'对照');
+  box.append(h('div',{class:'verify-row'},inp,btn),out);
+  return box;
+}
+
+/* ---------- 工具1：CPU 调度 ---------- */
+function cpuTool(){
+  const el=toolShell('os','cpu-schedule','CPU 调度');
+  const form=$('#form',el),res=$('#res',el);
+  let procs=[{id:'P1',arrival:0,burst:8,priority:3},{id:'P2',arrival:1,burst:4,priority:2},{id:'P3',arrival:2,burst:9,priority:1},{id:'P4',arrival:3,burst:5,priority:4}];
+  let alg='fcfs',quantum=2;
+  function readProcs(){procs=[...form.querySelectorAll('.ptab tbody tr')].map(tr=>{const i=tr.querySelectorAll('input');return{id:i[0].value||'P?',arrival:+i[1].value||0,burst:Math.max(1,+i[2].value||1),priority:+i[3].value||0}})}
+  function renderForm(){
+    form.innerHTML='<h2><span class="n">1</span>进程表</h2>';
+    const tb=h('table',{class:'ptab'});
+    tb.innerHTML='<thead><tr><th>进程</th><th>到达</th><th>执行</th><th>优先数<span class="hint">小=优先</span></th><th></th></tr></thead>';
+    const body=h('tbody');
+    procs.forEach((p,i)=>{
+      const tr=h('tr');
+      [['id',p.id,'text'],['arrival',p.arrival,'number'],['burst',p.burst,'number'],['priority',p.priority,'number']].forEach(([k,v,t])=>{
+        tr.append(h('td',{},h('input',{type:t,value:v,style:'width:'+(t==='text'?'52px':'60px'),oninput:readProcs})));
+      });
+      tr.append(h('td',{},h('button',{class:'del',title:'删除',onclick:()=>{procs.splice(i,1);renderForm()}},'×')));
+      body.append(tr);
+    });
+    tb.append(body);form.append(tb);
+    form.append(h('div',{class:'btn-row',style:'margin:10px 0 18px'},h('button',{class:'btn mini ghost',onclick:()=>{procs.push({id:'P'+(procs.length+1),arrival:0,burst:3,priority:procs.length+1});renderForm()}},'+ 添加进程')));
+    form.append(h('div',{class:'field'},h('label',{html:'调度算法'}),
+      h('select',{onchange:e=>{alg=e.target.value;$('#qwrap',form).style.display=alg==='rr'?'':'none'}},
+        ...[['fcfs','FCFS 先来先服务'],['sjf','SJF 短作业优先（非抢占）'],['srtf','SRTF 最短剩余时间（抢占）'],['rr','RR 时间片轮转'],['priority','优先级（非抢占，数小优先）']].map(o=>h('option',{value:o[0],selected:o[0]===alg?'':null},o[1])))));
+    const qw=h('div',{class:'field',id:'qwrap',style:'display:'+(alg==='rr'?'':'none')},h('label',{html:'时间片 quantum'}),h('input',{type:'number',value:quantum,min:1,oninput:e=>quantum=Math.max(1,+e.target.value||1)}));
+    form.append(qw);
+    form.append(h('div',{class:'btn-row'},
+      h('button',{class:'btn',onclick:run},'开始验算'),
+      h('button',{class:'btn ghost',onclick:()=>{procs=[{id:'P1',arrival:0,burst:8,priority:3},{id:'P2',arrival:1,burst:4,priority:2},{id:'P3',arrival:2,burst:9,priority:1},{id:'P4',arrival:3,burst:5,priority:4}];renderForm();run()}},'填入示例')));
+    form.append(h('div',{class:'note',html:'正式版此处由后端内核计算；本演示在浏览器执行同一组算法。进程数上限 8，到达/执行为非负整数。'}));
+  }
+  function run(){
+    readProcs();res.innerHTML='';
+    if(!procs.length){res.append(h('div',{class:'err'},'至少需要 1 个进程'));return}
+    if(procs.some(p=>!Number.isFinite(p.arrival)||!Number.isFinite(p.burst)||p.burst<1||p.arrival<0)){res.append(h('div',{class:'err'},'到达时间需 ≥0，执行时间需 ≥1'));return}
+    const names=new Set(procs.map(p=>p.id));if(names.size!==procs.length){res.append(h('div',{class:'err'},'进程名不能重复'));return}
+    const r=schedule(procs,alg,quantum);
+    const c1=h('div',{class:'res-card'},h('h3',{html:'甘特图'}));
+    const gw=h('div',{class:'gantt-wrap'});const cv=h('canvas',{class:'gantt'});gw.append(cv);c1.append(gw);
+    const avgW=r.procs.reduce((s,p)=>s+p.wt,0)/r.procs.length,avgT=r.procs.reduce((s,p)=>s+p.ta,0)/r.procs.length;
+    const tb=h('table',{class:'stats'});
+    tb.innerHTML='<thead><tr><th>进程</th><th>到达</th><th>执行</th><th>完成</th><th>周转</th><th>带权周转</th><th>等待</th></tr></thead>';
+    const body=h('tbody');
+    [...r.procs].sort((a,b)=>a.idx-b.idx).forEach(p=>body.append(h('tr',{},
+      h('td',{html:`<span style="color:${pColor(p.id)}">●</span> ${esc(p.id)}`}),h('td',{},p.arrival),h('td',{},p.burst),h('td',{},p.finish),h('td',{},p.ta),h('td',{},fmt(p.ta/p.burst)),h('td',{},p.wt))));
+    body.append(h('tr',{class:'avg'},h('td',{},'平均'),h('td',{},''),h('td',{},''),h('td',{},''),h('td',{},fmt(avgT)),h('td',{},''),h('td',{},fmt(avgW))));
+    tb.append(body);c1.append(tb);
+    c1.append(verifyBox('平均等待时间',v=>{
+      const n=parseFloat(v);if(!isFinite(n))return{ok:false,msg:'无法解析为数字'};
+      return Math.abs(n-avgW)<0.005?{ok:true,msg:`一致 ✓ 内核算得 ${fmt(avgW)}，你的答案正确`}:{ok:false,msg:`不一致：内核算得 ${fmt(avgW)}，你填 ${v}。建议拖动上方对照各进程等待时间逐步找错。`}
+    },'正式版可粘贴 AI 给出的整段解答，自动提取数值逐步比对。'));
+    // 全部算法对比
+    const c2=h('div',{class:'res-card'},h('h3',{html:'同一组进程 · 五种算法对照'}));
+    const bars=[];
+    for(const[a,label]of[['fcfs','FCFS'],['sjf','SJF'],['srtf','SRTF'],['rr','RR(q='+quantum+')'],['priority','优先级']]){
+      const rr=schedule(procs,a,quantum);
+      const w=rr.procs.reduce((s,p)=>s+p.wt,0)/rr.procs.length;
+      const mg=h('div',{class:'mini-g'},h('div',{class:'mg-t'},document.createTextNode(label),h('span',{},'平均等待 '+fmt(w))));
+      const cv2=h('canvas',{class:'gantt'});mg.append(cv2);c2.append(mg);bars.push([cv2,rr.segs]);
+    }
+    res.append(c1,c2);
+    requestAnimationFrame(()=>{drawGantt(cv,r.segs);for(const[c2v,s2]of bars)drawGantt(c2v,s2,52)});
+    res.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  renderForm();run();
+  return el;
+}
+
+/* ---------- 工具2：页面置换 ---------- */
+function pageTool(){
+  const el=toolShell('os','page-replace','页面置换');
+  const form=$('#form',el),res=$('#res',el);
+  let refStr='1 2 3 4 1 2 5 1 2 3 4 5',frames=3,initStr='',alg='fifo',cur=Infinity;
+  function parseSeq(s){const m=s.match(/\d+/g);return m?m.map(Number):[]}
+  form.innerHTML='<h2><span class="n">1</span>访问序列与内存</h2>';
+  const seqPrev=h('div',{class:'seq-prev'});
+  const seqIn=h('input',{type:'text',value:refStr,placeholder:'例如 1 2 3 4 1 2 5 …',oninput:e=>{refStr=e.target.value;seqPrev.innerHTML=parseSeq(refStr).map(x=>`<i>${x}</i>`).join('')}});
+  seqPrev.innerHTML=parseSeq(refStr).map(x=>`<i>${x}</i>`).join('');
+  const frIn=h('input',{type:'number',value:frames,min:1,max:8,oninput:e=>frames=Math.max(1,Math.min(8,+e.target.value||1))});
+  const initIn=h('input',{type:'text',value:initStr,placeholder:'可空，例如 1 2',oninput:e=>initStr=e.target.value});
+  form.append(
+    h('div',{class:'field'},h('label',{html:'页面访问序列<span class="hint">空格或逗号分隔</span>'}),seqIn,seqPrev),
+    h('div',{class:'field'},h('label',{html:'物理块数'}),frIn),
+    h('div',{class:'field'},h('label',{html:'初始已装入页面<span class="hint">可空，按调入先后填</span>'}),initIn),
+    h('div',{class:'field'},h('label',{html:'置换算法'}),
+      h('select',{onchange:e=>alg=e.target.value},...[['fifo','FIFO 先进先出'],['lru','LRU 最近最久未用'],['opt','OPT 最优置换']].map(o=>h('option',{value:o[0]},o[1])))),
+    h('div',{class:'btn-row'},h('button',{class:'btn',onclick:run},'开始验算'),
+      h('button',{class:'btn ghost',onclick:()=>{refStr='1 2 3 4 1 2 5 1 2 3 4 5';frames=3;initStr='';alg='fifo';seqIn.value=refStr;frIn.value=3;initIn.value='';seqPrev.innerHTML=parseSeq(refStr).map(x=>`<i>${x}</i>`).join('');run()}},'填入示例（Belady 经典序列）')),
+    h('div',{class:'note',html:'示例序列在 FIFO 下物理块从 3 增到 4 缺页反而更多——计算后底部会自动检测 Belady 异常。'})
+  );
+  function run(){
+    const ref=parseSeq(refStr);res.innerHTML='';
+    if(ref.length<1||ref.length>40){res.append(h('div',{class:'err'},'访问序列需 1–40 项'));return}
+    const init=parseSeq(initStr);
+    if(new Set(init).size!==init.length){res.append(h('div',{class:'err'},'初始页面不能重复'));return}
+    if(init.length>frames){res.append(h('div',{class:'err'},'初始页面数不能超过物理块数'));return}
+    const steps=pageReplace(ref,frames,alg,init.length?init:null);
+    const faults=steps.filter(s=>s.fault).length;
+    const c1=h('div',{class:'res-card'},h('h3',{html:'置换过程'}));
+    const chips=h('div',{class:'chips'},
+      h('span',{class:'chip'},`共 ${ref.length} 次访问`),
+      h('span',{class:'chip bad'},`缺页 ${faults} 次`),
+      h('span',{class:'chip ok'},`命中 ${ref.length-faults} 次`),
+      h('span',{class:'chip'},`缺页率 ${fmt(faults/ref.length*100,1)}%`));
+    c1.append(chips);
+    const scrub=h('div',{class:'steps-scrub'});
+    const rng=h('input',{type:'range',min:0,max:ref.length,value:ref.length,oninput:e=>{cur=+e.target.value;draw();st.textContent=cur>=ref.length?'全部步骤':`看到第 ${cur+1} 步`}});
+    const st=h('span',{class:'st'},'全部步骤');
+    scrub.append(h('button',{class:'btn mini ghost',onclick:()=>{let i=cur>=ref.length?-1:cur;const tm=setInterval(()=>{i++;if(i>=ref.length){clearInterval(tm)}rng.value=Math.min(i+1,ref.length);rng.dispatchEvent(new Event('input'));if(i+1>=ref.length)clearInterval(tm)},450)}},'▶ 播放'),rng,st);
+    const gridBox=h('div',{class:'pg-grid'});c1.append(scrub,gridBox);
+    function draw(){
+      const t=h('table');let hd='<tr><th class="rowh">物理块</th>';
+      if(init.length)hd+='<th class="ref">初始</th>';
+      for(let i=0;i<Math.min(cur,ref.length);i++){hd+=`<th class="ref ${steps[i].fault?'fault-ref':''}">${steps[i].ref}</th>`}
+      for(let f=0;f<frames;f++){hd+=`<tr><th class="rowh">块${f+1}</th>`;
+        if(init.length){hd+=`<td>${init[f]??''}</td>`}
+        for(let i=0;i<Math.min(cur,ref.length);i++){const v=steps[i].frames[f];const cls=(steps[i].fault?'fault':'hit')+(i===cur-1?' cur':'');hd+=`<td class="${cls}">${v??''}</td>`}}
+      t.innerHTML=hd;gridBox.innerHTML='';gridBox.append(t);
+    }
+    draw();
+    c1.append(verifyBox('缺页次数',v=>{
+      const n=parseInt(v);if(!isFinite(n))return{ok:false,msg:'无法解析为整数'};
+      return n===faults?{ok:true,msg:`一致 ✓ 缺页 ${faults} 次，你的答案正确`}:{ok:false,msg:`不一致：内核逐帧算得缺页 ${faults} 次，你填 ${n}。缺页步在表中标红，可拖动进度条逐步对账。`}
+    }));
+    res.append(c1);
+    if(alg==='fifo'){
+      const steps2=pageReplace(ref,frames+1,'fifo',init.length?init:null);
+      const f2=steps2.filter(s=>s.fault).length;
+      const c2=h('div',{class:'res-card'},h('h3',{html:'Belady 异常检测'}));
+      if(f2>faults){c2.append(h('div',{class:'chips'},h('span',{class:'chip warn'},`⚠ 检测到 Belady 异常：块数 ${frames}→${frames+1}，缺页 ${faults}→${f2} 反而增多`),
+        h('span',{class:'chip'},'这是 FIFO 的已知缺陷，也是 408 经典考点')))}
+      else{c2.append(h('div',{class:'chips'},h('span',{class:'chip ok'},`未触发：块数 ${frames+1} 时缺页 ${f2} 次（≤ 当前 ${faults} 次）`)))}
+      res.append(c2);
+    }
+    res.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  run();
+  return el;
+}
+
+/* ---------- 工具3：定积分 ---------- */
+function intTool(){
+  const el=toolShell('math','integral','定积分');
+  const form=$('#form',el),res=$('#res',el);
+  let expr='sin(x)',a=0,b=Math.PI,n=8,rule='mid';
+  form.innerHTML='<h2><span class="n">1</span>积分参数</h2>';
+  const exIn=h('input',{type:'text',value:expr,oninput:e=>expr=e.target.value});
+  const aIn=h('input',{type:'text',value:a,oninput:e=>a=parseFloat(e.target.value)});
+  const bIn=h('input',{type:'text',value:fmt(b,6),oninput:e=>b=parseFloat(e.target.value)});
+  const nRng=h('input',{type:'range',min:1,max:256,value:n,oninput:e=>{n=+e.target.value;nLab.textContent='n = '+n;run(true)}});
+  const nLab=h('span',{class:'st'},'n = '+n);
+  form.append(
+    h('div',{class:'field'},h('label',{html:'被积函数 f(x)<span class="hint">乘法写 * ，幂写 ^ ，支持 sin cos tan exp ln sqrt abs atan pi e</span>'}),exIn),
+    h('div',{class:'field'},h('label',{html:'积分区间'}),h('div',{style:'display:flex;gap:10px'},aIn,bIn)),
+    h('div',{class:'field'},h('label',{html:'黎曼和分割'}),h('div',{class:'steps-scrub',style:'margin:0'},nRng,nLab),
+      h('select',{onchange:e=>{rule=e.target.value;run(true)}},...[['left','左端点'],['mid','中点'],['right','右端点']].map(o=>h('option',{value:o[0],selected:o[0]===rule?'':null},o[1])))),
+    h('div',{class:'btn-row'},h('button',{class:'btn',onclick:()=>run()},'开始验算'),
+      h('button',{class:'btn ghost',onclick:()=>{expr='sin(x)';a=0;b=Math.PI;exIn.value=expr;aIn.value=0;bIn.value=fmt(Math.PI,6);b=Math.PI;run()}},'填入示例')),
+    h('div',{class:'note',html:'拖动 n 观察黎曼和向参考值收敛——这就是「调参看规律」。正式版同时给出解析解与求导回验。'})
+  );
+  function run(soft){
+    res.innerHTML='';
+    let f;try{f=parseExpr(expr)}catch(e){res.append(h('div',{class:'err'},'表达式解析失败：'+e));return}
+    if(!isFinite(a)||!isFinite(b)||a===b){res.append(h('div',{class:'err'},'请填写有效的上下限且 a≠b'));return}
+    let ref;try{ref=simpson(f,Math.min(a,b),Math.max(a,b),2048);if(a>b)ref=-ref}catch(e){res.append(h('div',{class:'err'},'函数在区间内无法求值（可能存在间断）'));return}
+    if(!isFinite(ref)){res.append(h('div',{class:'err'},'积分发散或超出数值范围'));return}
+    const est=riemann(f,Math.min(a,b),Math.max(a,b),n,rule)*(a>b?-1:1);
+    const c1=h('div',{class:'res-card'},h('h3',{html:'图像与黎曼和'}));
+    const cv=h('canvas',{class:'gantt',style:'width:100%'});c1.append(cv);
+    c1.append(h('div',{class:'chips'},
+      h('span',{class:'chip'},`黎曼和 ≈ ${fmt(est,6)}`),
+      h('span',{class:'chip ok'},`参考值（Simpson 2048 段）≈ ${fmt(ref,6)}`),
+      h('span',{class:'chip '+(Math.abs(est-ref)<0.01?'ok':'warn')},`误差 ${fmt(Math.abs(est-ref),6)}`)));
+    c1.append(verifyBox('定积分值',v=>{
+      const x=parseFloat(v);if(!isFinite(x))return{ok:false,msg:'无法解析为数字'};
+      return Math.abs(x-ref)<Math.max(1e-4,Math.abs(ref)*1e-4)?{ok:true,msg:`一致 ✓ 参考值 ${fmt(ref,6)}`}:{ok:false,msg:`不一致：参考值 ${fmt(ref,6)}，你填 ${v}。`}
+    },'正式版对可解析函数给出精确解析值并求导回验，数值仅作对照。'));
+    res.append(c1);
+    requestAnimationFrame(()=>drawIntegral(cv,f,Math.min(a,b),Math.max(a,b),n,rule));
+    if(!soft)res.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  run();
+  return el;
+}
+
+function about(){
+  const el=h('div');
+  el.innerHTML=`<div class="crumb"><a href="#/">首页</a> / 关于</div>
+  <div class="panel" style="max-width:720px">
+  <h2>这个概念在验证什么</h2>
+  <p style="font-size:14px;color:var(--sub);margin:10px 0;line-height:1.9">
+  万象实验室已有的能力被拆成两层：前半层「理解题目」（OCR、视觉模型、题意编译）是无限长尾，也是 LLM 的主场；
+  后半层「确定性内核 + 交互画布」是已验证、可回放、AI 给不了的东西。<br><br>
+  本产品只保留后半层：<b>用户选题型、填参数，内核计算，画布回放</b>。不承诺"什么题都能做"，
+  承诺"覆盖到的题型，结果步步可对账"。<br><br>
+  差异点：<b>验算模式</b>——把 AI 或参考答案的结果贴进来逐步对照。AI 越普及，需要验算的人越多；
+  这不是和 AI 抢答，是给 AI 的答案上保险。</p>
+  <h2 style="margin-top:22px">本演示的边界</h2>
+  <p style="font-size:14px;color:var(--sub);margin-top:10px;line-height:1.9">
+  三个演示工具在浏览器内执行与后端内核相同的算法；正式版由后端内核计算、前端画布渲染，
+  并支持参数保存、撤销、分享快照链接。调度语义（如优先级是否抢占、SJF 同长tie规则）以正式版内核为准。</p></div>`;
+  return el;
+}
+
+/* ---------- 路由 ---------- */
+const routes={
+ '/':home,'/about':about,
+ '/os':()=>subjectPage('os'),'/ds':()=>subjectPage('ds'),'/math':()=>subjectPage('math'),
+ '/linalg':()=>subjectPage('linalg'),'/opt':()=>subjectPage('opt'),'/dl':()=>subjectPage('dl'),
+ '/os/cpu-schedule':cpuTool,'/os/page-replace':pageTool,'/math/integral':intTool,
+};
+function render(){
+  const path=location.hash.slice(1)||'/';
+  const fn=routes[path];
+  app.innerHTML='';window.scrollTo(0,0);
+  app.append(fn?fn():soon(path.split('/').pop()));
+}
+window.addEventListener('hashchange',render);
+render();
+</script>
+</body>
+</html>

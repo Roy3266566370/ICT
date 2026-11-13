@@ -1,0 +1,26 @@
+.panel {
+  position: fixed;
+  z-index: 80;
+  right: 16px;
+  bottom: 16px;
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-lg);
+  background: var(--paper-0);
+  box-shadow: 0 12px 48px rgba(20, 25, 35, .22);
+}
+.header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.header strong { color: var(--ink-700); font-size: 13px; }
+.header button { width: 32px; height: 32px; border: 1px solid var(--hairline); border-radius: 50%; background: var(--paper-1); color: var(--ink-700); font-size: 20px; cursor: pointer; }
+.footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; }
+.footer button { min-height: 38px; padding: 8px 16px; border: 1px solid var(--hairline-strong); border-radius: var(--radius-md); color: var(--ink-700); background: var(--paper-1); font-size: 12px; cursor: pointer; }
+.footer button:last-child { color: #fff; background: var(--ink-900); }
+.footer button:disabled { opacity: .4; cursor: default; }
+.panel button:focus-visible { outline: 2px solid var(--accent, #bf4a1d); outline-offset: 2px; }
+@media (max-width: 580px) {
+  .panel { right: 8px; bottom: 8px; width: calc(100vw - 16px); max-height: calc(100dvh - 16px); padding: 12px; }
+}

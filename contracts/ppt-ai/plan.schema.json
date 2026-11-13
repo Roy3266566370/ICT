@@ -1,0 +1,440 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:ppt-ai:plan:1",
+  "title": "PPT AI InteractionPlan ppt-ai.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "plan_id",
+    "plan_revision",
+    "material_id",
+    "source_revision",
+    "source_hash",
+    "options",
+    "coverage",
+    "issues",
+    "budget",
+    "created_at"
+  ],
+  "properties": {
+    "plan_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96
+    },
+    "plan_revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "material_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96
+    },
+    "source_revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "source_hash": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 32
+    },
+    "coverage": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object"
+      }
+    },
+    "issues": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object"
+      }
+    },
+    "budget": {
+      "type": "object"
+    },
+    "options": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "option_id",
+          "region_id",
+          "title",
+          "question",
+          "purpose",
+          "operator_id",
+          "support_status",
+          "support_reason",
+          "parameters",
+          "views",
+          "bindings",
+          "review_items",
+          "provider",
+          "source",
+          "offline_supported"
+        ],
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 96
+          },
+          "region_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 96
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "operator_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 96
+          },
+          "support_status": {
+            "enum": [
+              "supported",
+              "needs_review",
+              "explanation_only",
+              "unsupported"
+            ]
+          },
+          "support_reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "parameters": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "$ref": "#/$defs/parameter"
+            }
+          },
+          "views": {
+            "type": "array",
+            "maxItems": 20,
+            "items": {
+              "type": "object"
+            }
+          },
+          "bindings": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "object"
+            }
+          },
+          "review_items": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "object"
+            }
+          },
+          "provider": {
+            "type": "object"
+          },
+          "source": {
+            "$ref": "#/$defs/anchor"
+          },
+          "offline_supported": {
+            "type": "boolean"
+          },
+          "learning": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "bbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+      ],
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "w": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "h": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "material_id",
+        "page",
+        "node_id",
+        "element_id",
+        "bbox",
+        "excerpt",
+        "source_version",
+        "semantic_content_hash"
+      ],
+      "properties": {
+        "material_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "node_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "element_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "bbox": {
+          "$ref": "#/$defs/bbox"
+        },
+        "excerpt": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "source_version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "semantic_content_hash": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin_type",
+        "evidence",
+        "inference",
+        "user_checks",
+        "method"
+      ],
+      "properties": {
+        "origin_type": {
+          "enum": [
+            "native",
+            "ocr",
+            "model_inference",
+            "user_input",
+            "supplement",
+            "teaching"
+          ]
+        },
+        "evidence": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "inference": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "method": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "user_checks": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "parameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concept_id",
+        "id",
+        "label",
+        "type",
+        "unit",
+        "default",
+        "min",
+        "max",
+        "step",
+        "options",
+        "shape",
+        "source",
+        "provenance"
+      ],
+      "properties": {
+        "concept_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "type": {
+          "enum": [
+            "number",
+            "integer",
+            "boolean",
+            "string",
+            "enum",
+            "matrix2",
+            "vector2",
+            "number_list",
+            "number_matrix"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "shape": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1024
+          }
+        },
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "concept_id"],
+          "properties": {
+            "mode": {"enum": ["free", "linked"]},
+            "concept_id": {"type": "string", "maxLength": 96},
+            "factor": {"type": "number", "exclusiveMinimum": 0}
+          }
+        },
+        "default": {
+          "oneOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              }
+            }
+          ]
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "step": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "options": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string"
+          }
+        },
+        "source": {
+          "$ref": "#/$defs/anchor"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        }
+      }
+    }
+  }
+}

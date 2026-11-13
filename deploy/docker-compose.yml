@@ -1,0 +1,88 @@
+# 象生 XiangSheng v0.2 —— docker compose 编排（frontend + backend）
+#
+# 用法（仓库根）：
+#   cp .env.example .env      # 然后填写 SESSION_SECRET
+#   docker compose --env-file .env -f deploy/docker-compose.yml config
+#   docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+#
+# 说明：
+#   - 不使用已弃用的顶层 version 字段（Compose v2 规范）。
+#   - 构建上下文固定为仓库根（..），Dockerfile 位于 deploy/。
+#   - 不含任何真实密钥；SESSION_SECRET 未设置时后端随机生成并告警。
+#   - backend 只暴露在 compose 内部网络，前端 nginx 通过 http://backend:8000 反代。
+
+name: xiangsheng-v02
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    image: xiangsheng-backend:0.2.0
+    restart: unless-stopped
+    environment:
+      # 容器内 WORKDIR=/app，因此 ./data 就是 /app/data（挂载卷）。
+      DATABASE_URL: "${DATABASE_URL:-sqlite:///./data/xiangsheng.db}"
+      # 必须由部署环境注入；留空时后端随机生成一次性密钥（重启后旧会话失效）。
+      SESSION_SECRET: "${SESSION_SECRET:-}"
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-false}"
+      SESSION_TTL_HOURS: "${SESSION_TTL_HOURS:-24}"
+      MATERIAL_RETENTION_HOURS: "${MATERIAL_RETENTION_HOURS:-24}"
+      # 浏览器经 nginx 同源访问时 Origin 是 http://localhost:8080；
+      # 本地 npm run dev 是 http://localhost:5173。两者都放行。
+      ALLOWED_ORIGINS: "${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}"
+      MAX_UPLOAD_BYTES: "${MAX_UPLOAD_BYTES:-73400320}"
+      MAX_UNZIPPED_BYTES: "${MAX_UNZIPPED_BYTES:-209715200}"
+      MAX_SLIDE_PAGES: "${MAX_SLIDE_PAGES:-60}"
+      ENFORCE_CSRF: "${ENFORCE_CSRF:-true}"
+      LOG_LEVEL: "${LOG_LEVEL:-INFO}"
+      # PPT AI 交互增强：默认开启本地确定性路径；专用视图试验默认关闭。
+      PPT_AI_ENABLED: "${PPT_AI_ENABLED:-true}"
+      PPT_AI_HYBRID_MATCHING_ENABLED: "${PPT_AI_HYBRID_MATCHING_ENABLED:-true}"
+      PPT_AI_GENERATED_VIEWS_ENABLED: "${PPT_AI_GENERATED_VIEWS_ENABLED:-false}"
+      PPT_AI_TASK_MAX_CALLS: "${PPT_AI_TASK_MAX_CALLS:-3}"
+      PPT_AI_TASK_TIMEOUT_S: "${PPT_AI_TASK_TIMEOUT_S:-300}"
+    volumes:
+      # SQLite 与上传原件持久化到宿主机；容器重建不丢数据。
+      - ../backend/data:/app/data
+    expose:
+      - "8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json', timeout=3)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+      args:
+        # 构建期固化到静态产物：空 = mock；origin = 真实 API。
+        # nginx 已把 /api/ 反代到 backend，浏览器侧 Origin 是宿主机地址，
+        # 因此默认取 compose 暴露的 http://localhost:8080；生产改成实际域名。
+        VITE_API_BASE: "${VITE_API_BASE:-http://localhost:8080}"
+    image: xiangsheng-frontend:0.2.0
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -q
+        - -O
+        - /dev/null
+        - "http://127.0.0.1/"
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

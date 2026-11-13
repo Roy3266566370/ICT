@@ -1,0 +1,2567 @@
+{
+  "generated_at": "2026-11-08T05:42:46Z",
+  "generator": "build_hybrid_corpus.py@1",
+  "corpus_version": "corpus-v2.1",
+  "description": "受控变体语料：不是真实陌生 PPT 验收；用于混合匹配回归与负例测试。",
+  "splits": {
+    "dev": [
+      "dev_calculus_taylor_01",
+      "dev_calculus_double_integral_01",
+      "dev_optimization_newton_1d_01",
+      "dev_optimization_least_squares_line_01",
+      "dev_data_structures_stack_queue_01",
+      "dev_data_structures_sorting_01",
+      "dev_deep_learning_activation_gradient_01",
+      "dev_deep_learning_conv_pool_01",
+      "dev_physics_projectile_01",
+      "dev_physics_spring_oscillator_01",
+      "dev_neg_01",
+      "dev_neg_02",
+      "dev_neg_03",
+      "dev_neg_04",
+      "dev_neg_05",
+      "dev_neg_06"
+    ],
+    "calibration": [
+      "calibration_calculus_taylor_01",
+      "calibration_calculus_double_integral_01",
+      "calibration_optimization_newton_1d_01",
+      "calibration_optimization_least_squares_line_01",
+      "calibration_data_structures_stack_queue_01",
+      "calibration_data_structures_sorting_01",
+      "calibration_deep_learning_activation_gradient_01",
+      "calibration_deep_learning_conv_pool_01",
+      "calibration_physics_projectile_01",
+      "calibration_physics_spring_oscillator_01",
+      "calibration_neg_01",
+      "calibration_neg_02",
+      "calibration_neg_03",
+      "calibration_neg_04",
+      "calibration_neg_05",
+      "calibration_neg_06"
+    ],
+    "blind": [
+      "blind_calculus_taylor_01",
+      "blind_calculus_double_integral_01",
+      "blind_optimization_newton_1d_01",
+      "blind_optimization_least_squares_line_01",
+      "blind_data_structures_stack_queue_01",
+      "blind_data_structures_sorting_01",
+      "blind_deep_learning_activation_gradient_01",
+      "blind_deep_learning_conv_pool_01",
+      "blind_physics_projectile_01",
+      "blind_physics_spring_oscillator_01",
+      "blind_neg_01",
+      "blind_neg_02",
+      "blind_neg_03",
+      "blind_neg_04",
+      "blind_neg_05",
+      "blind_neg_06"
+    ]
+  },
+  "materials": [
+    {
+      "material_id": "dev_calculus_taylor_01",
+      "file": "dev/dev_calculus_taylor_01.pptx",
+      "split": "dev",
+      "family_id": "family_calculus.taylor",
+      "template_id": "calculus.taylor",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "calculus.taylor",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "x0": 0.0,
+            "order": 5,
+            "x_eval": 0.5
+          },
+          "missing": [],
+          "evidence": "泰勒近似：f(x) = sin(x)，展开点 x0 = 0，阶数 n = 5，估计点 x = 0.5。",
+          "note": "显式给出展开点、阶数与估计点。"
+        },
+        {
+          "page_no": 2,
+          "expected_template": "calculus.taylor",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "x0": 0.0,
+            "order": 3,
+            "x_eval": 0.2
+          },
+          "missing": [],
+          "evidence": "用 3 阶泰勒多项式在 x0 = 0 处近似 f(x) = exp(x)，并计算 x = 0.2 处的函数值。",
+          "note": "中文叙述，阶数在句首。"
+        },
+        {
+          "page_no": 3,
+          "expected_template": "calculus.taylor",
+          "expected_category": "formula",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "x0": 0.0
+          },
+          "missing": [
+            "order",
+            "x_eval"
+          ],
+          "evidence": "用泰勒多项式近似 f(x) = cos(x)，展开点 x0 = 0。",
+          "note": "缺少阶数与估计点，不能自动执行。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_calculus_double_integral_01",
+      "file": "dev/dev_calculus_double_integral_01.pptx",
+      "split": "dev",
+      "family_id": "family_calculus.double_integral",
+      "template_id": "calculus.double_integral",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "calculus.double_integral",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "ax": 0.0,
+            "bx": 2.0,
+            "ay": 0.0,
+            "by": 1.0,
+            "nx": 20,
+            "ny": 20
+          },
+          "missing": [],
+          "evidence": "二重积分：∫∫_D (x^2 + y) dA，D: 0 ≤ x ≤ 2, 0 ≤ y ≤ 1，网格 20×20。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "calculus.double_integral",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "ax": -1.0,
+            "bx": 1.0,
+            "ay": 0.0,
+            "by": 2.0,
+            "nx": 24,
+            "ny": 16
+          },
+          "missing": [],
+          "evidence": "计算二重积分 ∫∫_D (x*y + 1) dA，其中 x 从 -1 到 1，y 从 0 到 2，使用 24×16 网格。",
+          "note": "“从…到…”措辞与乘号写法。"
+        },
+        {
+          "page_no": 3,
+          "expected_template": "calculus.double_integral",
+          "expected_category": "formula",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {},
+          "missing": [
+            "ax",
+            "bx",
+            "ay",
+            "by"
+          ],
+          "evidence": "二重积分 ∫∫_D (x^2 + y^2) dA，D 为矩形区域。",
+          "note": "缺少区域边界。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_optimization_newton_1d_01",
+      "file": "dev/dev_optimization_newton_1d_01.pptx",
+      "split": "dev",
+      "family_id": "family_optimization.newton_1d",
+      "template_id": "optimization.newton_1d",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "optimization.newton_1d",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "x0": 3.0,
+            "max_iter": 8
+          },
+          "missing": [],
+          "evidence": "一维牛顿优化：f(x) = x^2 - 4x + 1，初值 x0 = 3，迭代 8 次。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "optimization.newton_1d",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "x0": 0.5,
+            "max_iter": 10
+          },
+          "missing": [],
+          "evidence": "用牛顿法求 f(x) = x^4 - 2x^2 + 1 的极小点，起点 x0 = 0.5，最多 10 步。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "optimization.newton_1d",
+          "expected_category": "optimization",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {},
+          "missing": [
+            "x0"
+          ],
+          "evidence": "用牛顿法优化 f(x) = x^3 - 3x 的极值。",
+          "note": "缺少初值，不能自动执行。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_optimization_least_squares_line_01",
+      "file": "dev/dev_optimization_least_squares_line_01.pptx",
+      "split": "dev",
+      "family_id": "family_optimization.least_squares_line",
+      "template_id": "optimization.least_squares_line",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "optimization.least_squares_line",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "xs": [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            "ys": [
+              2.0,
+              3.0,
+              5.0,
+              4.0
+            ]
+          },
+          "missing": [],
+          "evidence": "最小二乘直线拟合：数据点 (1, 2), (2, 3), (3, 5), (4, 4)。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "optimization.least_squares_line",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "xs": [
+              0.0,
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            "ys": [
+              1.0,
+              2.0,
+              2.0,
+              4.0,
+              5.0
+            ]
+          },
+          "missing": [],
+          "evidence": "对数据 (0, 1), (1, 2), (2, 2), (3, 4), (4, 5) 做最小二乘拟合。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "optimization.least_squares_line",
+          "expected_category": "optimization",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "xs": [
+              1.0,
+              2.0,
+              3.0
+            ]
+          },
+          "missing": [
+            "ys"
+          ],
+          "evidence": "最小二乘拟合：只有 x 数据 [1, 2, 3]，缺少对应的 y 数据。",
+          "note": "缺 y 数据。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_data_structures_stack_queue_01",
+      "file": "dev/dev_data_structures_stack_queue_01.pptx",
+      "split": "dev",
+      "family_id": "family_data_structures.stack_queue",
+      "template_id": "data_structures.stack_queue",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "data_structures.stack_queue",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "mode": "stack",
+            "initial": [
+              3.0,
+              1.0,
+              4.0
+            ],
+            "operations": "push 2; pop; push 5; pop"
+          },
+          "missing": [],
+          "evidence": "栈操作：初始栈 [3, 1, 4]，操作序列 push 2; pop; push 5; pop。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "data_structures.stack_queue",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "mode": "queue",
+            "initial": [
+              2.0,
+              5.0,
+              7.0
+            ],
+            "operations": "enqueue 9; dequeue; enqueue 1"
+          },
+          "missing": [],
+          "evidence": "队列演示：初始队列 [2, 5, 7]，依次执行 enqueue 9; dequeue; enqueue 1。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "data_structures.stack_queue",
+          "expected_category": "data_structure",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "initial": [
+              3.0,
+              1.0,
+              4.0
+            ]
+          },
+          "missing": [
+            "operations"
+          ],
+          "evidence": "栈与队列：初始列表 [3, 1, 4]，请观察空栈情况。",
+          "note": "缺少明确操作序列。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_data_structures_sorting_01",
+      "file": "dev/dev_data_structures_sorting_01.pptx",
+      "split": "dev",
+      "family_id": "family_data_structures.sorting",
+      "template_id": "data_structures.sorting",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "data_structures.sorting",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "algorithm": "bubble",
+            "values": [
+              5.0,
+              1.0,
+              4.0,
+              2.0,
+              8.0
+            ]
+          },
+          "missing": [],
+          "evidence": "冒泡排序：对列表 [5, 1, 4, 2, 8] 升序排序。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "data_structures.sorting",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "algorithm": "insertion",
+            "values": [
+              9.0,
+              3.0,
+              7.0,
+              1.0,
+              5.0,
+              2.0
+            ]
+          },
+          "missing": [],
+          "evidence": "插入排序演示：输入 [9, 3, 7, 1, 5, 2]，升序排列。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "data_structures.sorting",
+          "expected_category": "data_structure",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "values": [
+              4.0,
+              2.0,
+              7.0
+            ]
+          },
+          "missing": [
+            "algorithm"
+          ],
+          "evidence": "排序演示：对 [4, 2, 7] 进行排序。",
+          "note": "未明确排序算法。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_deep_learning_activation_gradient_01",
+      "file": "dev/dev_deep_learning_activation_gradient_01.pptx",
+      "split": "dev",
+      "family_id": "family_deep_learning.activation_gradient",
+      "template_id": "deep_learning.activation_gradient",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "deep_learning.activation_gradient",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "activation": "relu",
+            "x": -0.5,
+            "upstream": 2.0
+          },
+          "missing": [],
+          "evidence": "ReLU 激活函数：在 x = -0.5 处求激活值与梯度，上游梯度为 2。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "deep_learning.activation_gradient",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "activation": "sigmoid",
+            "x": 0.8,
+            "upstream": 1.5
+          },
+          "missing": [],
+          "evidence": "Sigmoid 激活：x = 0.8，反向传播梯度为 1.5。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "deep_learning.activation_gradient",
+          "expected_category": "network",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "activation": "relu"
+          },
+          "missing": [
+            "x"
+          ],
+          "evidence": "激活函数与梯度：观察 ReLU 在零点附近的行为。",
+          "note": "缺少具体输入点。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_deep_learning_conv_pool_01",
+      "file": "dev/dev_deep_learning_conv_pool_01.pptx",
+      "split": "dev",
+      "family_id": "family_deep_learning.conv_pool",
+      "template_id": "deep_learning.conv_pool",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "deep_learning.conv_pool",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "matrix": [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                4,
+                5,
+                6
+              ],
+              [
+                7,
+                8,
+                9
+              ]
+            ],
+            "kernel": [
+              [
+                1,
+                0,
+                -1
+              ],
+              [
+                1,
+                0,
+                -1
+              ],
+              [
+                1,
+                0,
+                -1
+              ]
+            ],
+            "mode": "conv",
+            "stride": 1,
+            "padding": 0
+          },
+          "missing": [],
+          "evidence": "单通道卷积：输入矩阵 [[1,2,3],[4,5,6],[7,8,9]]，卷积核 [[1,0,-1],[1,0,-1],[1,0,-1]]，步长 1，填充 0。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "deep_learning.conv_pool",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "matrix": [
+              [
+                1,
+                3,
+                2,
+                4
+              ],
+              [
+                5,
+                6,
+                7,
+                8
+              ],
+              [
+                9,
+                2,
+                1,
+                0
+              ],
+              [
+                3,
+                4,
+                5,
+                6
+              ]
+            ],
+            "mode": "maxpool",
+            "stride": 2,
+            "padding": 0
+          },
+          "missing": [],
+          "evidence": "最大池化：输入 [[1,3,2,4],[5,6,7,8],[9,2,1,0],[3,4,5,6]]，池化窗口 2×2，步长 2，填充 0。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "deep_learning.conv_pool",
+          "expected_category": "network",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {},
+          "missing": [
+            "matrix",
+            "kernel"
+          ],
+          "evidence": "卷积与池化：对单通道矩阵做 3×3 卷积。",
+          "note": "缺少输入矩阵与卷积核。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_physics_projectile_01",
+      "file": "dev/dev_physics_projectile_01.pptx",
+      "split": "dev",
+      "family_id": "family_physics.projectile",
+      "template_id": "physics.projectile",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "physics.projectile",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "v0": 10.0,
+            "angle_deg": 30.0,
+            "g": 9.8,
+            "t": 1.0,
+            "y0": 0.0
+          },
+          "missing": [],
+          "evidence": "抛体运动：初速度 v0 = 36 km/h，仰角 30°，g = 9.8 m/s^2，t = 1 s。",
+          "note": "36 km/h 必须确定性换算为 10 m/s。"
+        },
+        {
+          "page_no": 2,
+          "expected_template": "physics.projectile",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "v0": 10.0,
+            "angle_deg": 0.0,
+            "y0": 5.0,
+            "g": 9.8,
+            "t": 0.5
+          },
+          "missing": [],
+          "evidence": "平抛运动：初速度为 10 m/s，离地高度 5 m，g = 9.8 m/s^2，求 t = 0.5 s 的位置。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "physics.projectile",
+          "expected_category": "physics",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "angle_deg": 45.0
+          },
+          "missing": [
+            "v0"
+          ],
+          "evidence": "抛体运动：初速度未知，仰角 45°，求轨迹。",
+          "note": "缺少初速度。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_physics_spring_oscillator_01",
+      "file": "dev/dev_physics_spring_oscillator_01.pptx",
+      "split": "dev",
+      "family_id": "family_physics.spring_oscillator",
+      "template_id": "physics.spring_oscillator",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "physics.spring_oscillator",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "m": 2.0,
+            "k": 8.0,
+            "x0": 0.1,
+            "v0": 0.0,
+            "t": 2.0
+          },
+          "missing": [],
+          "evidence": "弹簧振子：m = 2 kg，k = 8 N/m，初位移 x0 = 0.1 m，初速度 v0 = 0 m/s，t = 2 s。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "physics.spring_oscillator",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "m": 0.5,
+            "k": 2.0,
+            "x0": 0.2,
+            "v0": 0.0,
+            "t": 1.5
+          },
+          "missing": [],
+          "evidence": "简谐振动：质量 0.5 kg，劲度系数 2 N/m，从位移 0.2 m 静止释放，求 t = 1.5 s 的位移与速度。",
+          "note": "中文物理量名称。"
+        },
+        {
+          "page_no": 3,
+          "expected_template": "physics.spring_oscillator",
+          "expected_category": "physics",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "m": 1.0,
+            "k": -4.0
+          },
+          "missing": [
+            "x0",
+            "v0"
+          ],
+          "evidence": "弹簧振子：m = 1 kg，k = -4 N/m，求振动。",
+          "note": "劲度系数为负，且缺少初值；不得自动执行。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_neg_01",
+      "file": "dev/dev_neg_01.pptx",
+      "split": "dev",
+      "family_id": "family_negative_非教学目录",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "非教学目录",
+          "required_values": {},
+          "missing": [],
+          "evidence": "课程安排：第一章 绪论；第二章 极限；第三章 导数。本章重点与考核方式见教学大纲。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_neg_02",
+      "file": "dev/dev_neg_02.pptx",
+      "split": "dev",
+      "family_id": "family_negative_版权声明",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "版权声明",
+          "required_values": {},
+          "missing": [],
+          "evidence": "本课件仅供课堂教学使用，版权所有，未经许可不得复制或传播。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_neg_03",
+      "file": "dev/dev_neg_03.pptx",
+      "split": "dev",
+      "family_id": "family_negative_方法概述",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "方法概述",
+          "required_values": {},
+          "missing": [],
+          "evidence": "牛顿法是一种迭代方法，队列是一种先进先出的数据结构，卷积常用于图像处理。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_neg_04",
+      "file": "dev/dev_neg_04.pptx",
+      "split": "dev",
+      "family_id": "family_negative_缺少输入",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "缺少输入",
+          "required_values": {},
+          "missing": [],
+          "evidence": "请计算下面的积分，题目见另一页。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_neg_05",
+      "file": "dev/dev_neg_05.pptx",
+      "split": "dev",
+      "family_id": "family_negative_无效参数",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "无效参数",
+          "required_values": {},
+          "missing": [],
+          "evidence": "弹簧振子：质量 m = -1 kg，劲度系数 k = 0 N/m。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "dev_neg_06",
+      "file": "dev/dev_neg_06.pptx",
+      "split": "dev",
+      "family_id": "family_negative_纯装饰",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "纯装饰",
+          "required_values": {},
+          "missing": [],
+          "evidence": "2026 春季学期 · 高等数学 · 第 3 讲",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_calculus_taylor_01",
+      "file": "calibration/calibration_calculus_taylor_01.pptx",
+      "split": "calibration",
+      "family_id": "family_calculus.taylor",
+      "template_id": "calculus.taylor",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "calculus.taylor",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "x0": 0.0,
+            "order": 5,
+            "x_eval": 0.5
+          },
+          "missing": [],
+          "evidence": "泰勒近似：f(x) = sin(x)，展开点 x0 = 0，阶数 n = 5，估计点 x = 0.5。",
+          "note": "显式给出展开点、阶数与估计点。"
+        },
+        {
+          "page_no": 2,
+          "expected_template": "calculus.taylor",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "x0": 0.0,
+            "order": 3,
+            "x_eval": 0.2
+          },
+          "missing": [],
+          "evidence": "用 3 阶泰勒多项式在 x0 = 0 处近似 f(x) = exp(x)，并计算 x = 0.2 处的函数值。",
+          "note": "中文叙述，阶数在句首。"
+        },
+        {
+          "page_no": 3,
+          "expected_template": "calculus.taylor",
+          "expected_category": "formula",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "x0": 0.0
+          },
+          "missing": [
+            "order",
+            "x_eval"
+          ],
+          "evidence": "用泰勒多项式近似 f(x) = cos(x)，展开点 x0 = 0。",
+          "note": "缺少阶数与估计点，不能自动执行。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_calculus_double_integral_01",
+      "file": "calibration/calibration_calculus_double_integral_01.pptx",
+      "split": "calibration",
+      "family_id": "family_calculus.double_integral",
+      "template_id": "calculus.double_integral",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "calculus.double_integral",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "ax": 0.0,
+            "bx": 2.0,
+            "ay": 0.0,
+            "by": 1.0,
+            "nx": 20,
+            "ny": 20
+          },
+          "missing": [],
+          "evidence": "二重积分：∫∫_D (x^2 + y) dA，D: 0 ≤ x ≤ 2, 0 ≤ y ≤ 1，网格 20×20。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "calculus.double_integral",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "ax": -1.0,
+            "bx": 1.0,
+            "ay": 0.0,
+            "by": 2.0,
+            "nx": 24,
+            "ny": 16
+          },
+          "missing": [],
+          "evidence": "计算二重积分 ∫∫_D (x*y + 1) dA，其中 x 从 -1 到 1，y 从 0 到 2，使用 24×16 网格。",
+          "note": "“从…到…”措辞与乘号写法。"
+        },
+        {
+          "page_no": 3,
+          "expected_template": "calculus.double_integral",
+          "expected_category": "formula",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {},
+          "missing": [
+            "ax",
+            "bx",
+            "ay",
+            "by"
+          ],
+          "evidence": "二重积分 ∫∫_D (x^2 + y^2) dA，D 为矩形区域。",
+          "note": "缺少区域边界。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_optimization_newton_1d_01",
+      "file": "calibration/calibration_optimization_newton_1d_01.pptx",
+      "split": "calibration",
+      "family_id": "family_optimization.newton_1d",
+      "template_id": "optimization.newton_1d",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "optimization.newton_1d",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "x0": 3.0,
+            "max_iter": 8
+          },
+          "missing": [],
+          "evidence": "一维牛顿优化：f(x) = x^2 - 4x + 1，初值 x0 = 3，迭代 8 次。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "optimization.newton_1d",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "x0": 0.5,
+            "max_iter": 10
+          },
+          "missing": [],
+          "evidence": "用牛顿法求 f(x) = x^4 - 2x^2 + 1 的极小点，起点 x0 = 0.5，最多 10 步。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "optimization.newton_1d",
+          "expected_category": "optimization",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {},
+          "missing": [
+            "x0"
+          ],
+          "evidence": "用牛顿法优化 f(x) = x^3 - 3x 的极值。",
+          "note": "缺少初值，不能自动执行。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_optimization_least_squares_line_01",
+      "file": "calibration/calibration_optimization_least_squares_line_01.pptx",
+      "split": "calibration",
+      "family_id": "family_optimization.least_squares_line",
+      "template_id": "optimization.least_squares_line",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "optimization.least_squares_line",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "xs": [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            "ys": [
+              2.0,
+              3.0,
+              5.0,
+              4.0
+            ]
+          },
+          "missing": [],
+          "evidence": "最小二乘直线拟合：数据点 (1, 2), (2, 3), (3, 5), (4, 4)。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "optimization.least_squares_line",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "xs": [
+              0.0,
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            "ys": [
+              1.0,
+              2.0,
+              2.0,
+              4.0,
+              5.0
+            ]
+          },
+          "missing": [],
+          "evidence": "对数据 (0, 1), (1, 2), (2, 2), (3, 4), (4, 5) 做最小二乘拟合。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "optimization.least_squares_line",
+          "expected_category": "optimization",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "xs": [
+              1.0,
+              2.0,
+              3.0
+            ]
+          },
+          "missing": [
+            "ys"
+          ],
+          "evidence": "最小二乘拟合：只有 x 数据 [1, 2, 3]，缺少对应的 y 数据。",
+          "note": "缺 y 数据。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_data_structures_stack_queue_01",
+      "file": "calibration/calibration_data_structures_stack_queue_01.pptx",
+      "split": "calibration",
+      "family_id": "family_data_structures.stack_queue",
+      "template_id": "data_structures.stack_queue",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "data_structures.stack_queue",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "mode": "stack",
+            "initial": [
+              3.0,
+              1.0,
+              4.0
+            ],
+            "operations": "push 2; pop; push 5; pop"
+          },
+          "missing": [],
+          "evidence": "栈操作：初始栈 [3, 1, 4]，操作序列 push 2; pop; push 5; pop。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "data_structures.stack_queue",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "mode": "queue",
+            "initial": [
+              2.0,
+              5.0,
+              7.0
+            ],
+            "operations": "enqueue 9; dequeue; enqueue 1"
+          },
+          "missing": [],
+          "evidence": "队列演示：初始队列 [2, 5, 7]，依次执行 enqueue 9; dequeue; enqueue 1。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "data_structures.stack_queue",
+          "expected_category": "data_structure",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "initial": [
+              3.0,
+              1.0,
+              4.0
+            ]
+          },
+          "missing": [
+            "operations"
+          ],
+          "evidence": "栈与队列：初始列表 [3, 1, 4]，请观察空栈情况。",
+          "note": "缺少明确操作序列。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_data_structures_sorting_01",
+      "file": "calibration/calibration_data_structures_sorting_01.pptx",
+      "split": "calibration",
+      "family_id": "family_data_structures.sorting",
+      "template_id": "data_structures.sorting",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "data_structures.sorting",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "algorithm": "bubble",
+            "values": [
+              5.0,
+              1.0,
+              4.0,
+              2.0,
+              8.0
+            ]
+          },
+          "missing": [],
+          "evidence": "冒泡排序：对列表 [5, 1, 4, 2, 8] 升序排序。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "data_structures.sorting",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "algorithm": "insertion",
+            "values": [
+              9.0,
+              3.0,
+              7.0,
+              1.0,
+              5.0,
+              2.0
+            ]
+          },
+          "missing": [],
+          "evidence": "插入排序演示：输入 [9, 3, 7, 1, 5, 2]，升序排列。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "data_structures.sorting",
+          "expected_category": "data_structure",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "values": [
+              4.0,
+              2.0,
+              7.0
+            ]
+          },
+          "missing": [
+            "algorithm"
+          ],
+          "evidence": "排序演示：对 [4, 2, 7] 进行排序。",
+          "note": "未明确排序算法。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_deep_learning_activation_gradient_01",
+      "file": "calibration/calibration_deep_learning_activation_gradient_01.pptx",
+      "split": "calibration",
+      "family_id": "family_deep_learning.activation_gradient",
+      "template_id": "deep_learning.activation_gradient",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "deep_learning.activation_gradient",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "activation": "relu",
+            "x": -0.5,
+            "upstream": 2.0
+          },
+          "missing": [],
+          "evidence": "ReLU 激活函数：在 x = -0.5 处求激活值与梯度，上游梯度为 2。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "deep_learning.activation_gradient",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "activation": "sigmoid",
+            "x": 0.8,
+            "upstream": 1.5
+          },
+          "missing": [],
+          "evidence": "Sigmoid 激活：x = 0.8，反向传播梯度为 1.5。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "deep_learning.activation_gradient",
+          "expected_category": "network",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "activation": "relu"
+          },
+          "missing": [
+            "x"
+          ],
+          "evidence": "激活函数与梯度：观察 ReLU 在零点附近的行为。",
+          "note": "缺少具体输入点。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_deep_learning_conv_pool_01",
+      "file": "calibration/calibration_deep_learning_conv_pool_01.pptx",
+      "split": "calibration",
+      "family_id": "family_deep_learning.conv_pool",
+      "template_id": "deep_learning.conv_pool",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "deep_learning.conv_pool",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "matrix": [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                4,
+                5,
+                6
+              ],
+              [
+                7,
+                8,
+                9
+              ]
+            ],
+            "kernel": [
+              [
+                1,
+                0,
+                -1
+              ],
+              [
+                1,
+                0,
+                -1
+              ],
+              [
+                1,
+                0,
+                -1
+              ]
+            ],
+            "mode": "conv",
+            "stride": 1,
+            "padding": 0
+          },
+          "missing": [],
+          "evidence": "单通道卷积：输入矩阵 [[1,2,3],[4,5,6],[7,8,9]]，卷积核 [[1,0,-1],[1,0,-1],[1,0,-1]]，步长 1，填充 0。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "deep_learning.conv_pool",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "matrix": [
+              [
+                1,
+                3,
+                2,
+                4
+              ],
+              [
+                5,
+                6,
+                7,
+                8
+              ],
+              [
+                9,
+                2,
+                1,
+                0
+              ],
+              [
+                3,
+                4,
+                5,
+                6
+              ]
+            ],
+            "mode": "maxpool",
+            "stride": 2,
+            "padding": 0
+          },
+          "missing": [],
+          "evidence": "最大池化：输入 [[1,3,2,4],[5,6,7,8],[9,2,1,0],[3,4,5,6]]，池化窗口 2×2，步长 2，填充 0。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "deep_learning.conv_pool",
+          "expected_category": "network",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {},
+          "missing": [
+            "matrix",
+            "kernel"
+          ],
+          "evidence": "卷积与池化：对单通道矩阵做 3×3 卷积。",
+          "note": "缺少输入矩阵与卷积核。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_physics_projectile_01",
+      "file": "calibration/calibration_physics_projectile_01.pptx",
+      "split": "calibration",
+      "family_id": "family_physics.projectile",
+      "template_id": "physics.projectile",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "physics.projectile",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "v0": 10.0,
+            "angle_deg": 30.0,
+            "g": 9.8,
+            "t": 1.0,
+            "y0": 0.0
+          },
+          "missing": [],
+          "evidence": "抛体运动：初速度 v0 = 36 km/h，仰角 30°，g = 9.8 m/s^2，t = 1 s。",
+          "note": "36 km/h 必须确定性换算为 10 m/s。"
+        },
+        {
+          "page_no": 2,
+          "expected_template": "physics.projectile",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "v0": 10.0,
+            "angle_deg": 0.0,
+            "y0": 5.0,
+            "g": 9.8,
+            "t": 0.5
+          },
+          "missing": [],
+          "evidence": "平抛运动：初速度为 10 m/s，离地高度 5 m，g = 9.8 m/s^2，求 t = 0.5 s 的位置。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "physics.projectile",
+          "expected_category": "physics",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "angle_deg": 45.0
+          },
+          "missing": [
+            "v0"
+          ],
+          "evidence": "抛体运动：初速度未知，仰角 45°，求轨迹。",
+          "note": "缺少初速度。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_physics_spring_oscillator_01",
+      "file": "calibration/calibration_physics_spring_oscillator_01.pptx",
+      "split": "calibration",
+      "family_id": "family_physics.spring_oscillator",
+      "template_id": "physics.spring_oscillator",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "physics.spring_oscillator",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "m": 2.0,
+            "k": 8.0,
+            "x0": 0.1,
+            "v0": 0.0,
+            "t": 2.0
+          },
+          "missing": [],
+          "evidence": "弹簧振子：m = 2 kg，k = 8 N/m，初位移 x0 = 0.1 m，初速度 v0 = 0 m/s，t = 2 s。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "physics.spring_oscillator",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "m": 0.5,
+            "k": 2.0,
+            "x0": 0.2,
+            "v0": 0.0,
+            "t": 1.5
+          },
+          "missing": [],
+          "evidence": "简谐振动：质量 0.5 kg，劲度系数 2 N/m，从位移 0.2 m 静止释放，求 t = 1.5 s 的位移与速度。",
+          "note": "中文物理量名称。"
+        },
+        {
+          "page_no": 3,
+          "expected_template": "physics.spring_oscillator",
+          "expected_category": "physics",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "m": 1.0,
+            "k": -4.0
+          },
+          "missing": [
+            "x0",
+            "v0"
+          ],
+          "evidence": "弹簧振子：m = 1 kg，k = -4 N/m，求振动。",
+          "note": "劲度系数为负，且缺少初值；不得自动执行。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_neg_01",
+      "file": "calibration/calibration_neg_01.pptx",
+      "split": "calibration",
+      "family_id": "family_negative_非教学目录",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "非教学目录",
+          "required_values": {},
+          "missing": [],
+          "evidence": "课程安排：第一章 绪论；第二章 极限；第三章 导数。本章重点与考核方式见教学大纲。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_neg_02",
+      "file": "calibration/calibration_neg_02.pptx",
+      "split": "calibration",
+      "family_id": "family_negative_版权声明",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "版权声明",
+          "required_values": {},
+          "missing": [],
+          "evidence": "本课件仅供课堂教学使用，版权所有，未经许可不得复制或传播。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_neg_03",
+      "file": "calibration/calibration_neg_03.pptx",
+      "split": "calibration",
+      "family_id": "family_negative_方法概述",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "方法概述",
+          "required_values": {},
+          "missing": [],
+          "evidence": "牛顿法是一种迭代方法，队列是一种先进先出的数据结构，卷积常用于图像处理。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_neg_04",
+      "file": "calibration/calibration_neg_04.pptx",
+      "split": "calibration",
+      "family_id": "family_negative_缺少输入",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "缺少输入",
+          "required_values": {},
+          "missing": [],
+          "evidence": "请计算下面的积分，题目见另一页。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_neg_05",
+      "file": "calibration/calibration_neg_05.pptx",
+      "split": "calibration",
+      "family_id": "family_negative_无效参数",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "无效参数",
+          "required_values": {},
+          "missing": [],
+          "evidence": "弹簧振子：质量 m = -1 kg，劲度系数 k = 0 N/m。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "calibration_neg_06",
+      "file": "calibration/calibration_neg_06.pptx",
+      "split": "calibration",
+      "family_id": "family_negative_纯装饰",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "纯装饰",
+          "required_values": {},
+          "missing": [],
+          "evidence": "2026 春季学期 · 高等数学 · 第 3 讲",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_calculus_taylor_01",
+      "file": "blind/blind_calculus_taylor_01.pptx",
+      "split": "blind",
+      "family_id": "family_calculus.taylor",
+      "template_id": "calculus.taylor",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "calculus.taylor",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "x0": 0.0,
+            "order": 5,
+            "x_eval": 0.5
+          },
+          "missing": [],
+          "evidence": "泰勒近似：f(x) = sin(x)，展开点 x0 = 0，阶数 n = 5，估计点 x = 0.5。",
+          "note": "显式给出展开点、阶数与估计点。"
+        },
+        {
+          "page_no": 2,
+          "expected_template": "calculus.taylor",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "x0": 0.0,
+            "order": 3,
+            "x_eval": 0.2
+          },
+          "missing": [],
+          "evidence": "用 3 阶泰勒多项式在 x0 = 0 处近似 f(x) = exp(x)，并计算 x = 0.2 处的函数值。",
+          "note": "中文叙述，阶数在句首。"
+        },
+        {
+          "page_no": 3,
+          "expected_template": "calculus.taylor",
+          "expected_category": "formula",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "x0": 0.0
+          },
+          "missing": [
+            "order",
+            "x_eval"
+          ],
+          "evidence": "用泰勒多项式近似 f(x) = cos(x)，展开点 x0 = 0。",
+          "note": "缺少阶数与估计点，不能自动执行。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_calculus_double_integral_01",
+      "file": "blind/blind_calculus_double_integral_01.pptx",
+      "split": "blind",
+      "family_id": "family_calculus.double_integral",
+      "template_id": "calculus.double_integral",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "calculus.double_integral",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "ax": 0.0,
+            "bx": 2.0,
+            "ay": 0.0,
+            "by": 1.0,
+            "nx": 20,
+            "ny": 20
+          },
+          "missing": [],
+          "evidence": "二重积分：∫∫_D (x^2 + y) dA，D: 0 ≤ x ≤ 2, 0 ≤ y ≤ 1，网格 20×20。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "calculus.double_integral",
+          "expected_category": "formula",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "ax": -1.0,
+            "bx": 1.0,
+            "ay": 0.0,
+            "by": 2.0,
+            "nx": 24,
+            "ny": 16
+          },
+          "missing": [],
+          "evidence": "计算二重积分 ∫∫_D (x*y + 1) dA，其中 x 从 -1 到 1，y 从 0 到 2，使用 24×16 网格。",
+          "note": "“从…到…”措辞与乘号写法。"
+        },
+        {
+          "page_no": 3,
+          "expected_template": "calculus.double_integral",
+          "expected_category": "formula",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {},
+          "missing": [
+            "ax",
+            "bx",
+            "ay",
+            "by"
+          ],
+          "evidence": "二重积分 ∫∫_D (x^2 + y^2) dA，D 为矩形区域。",
+          "note": "缺少区域边界。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_optimization_newton_1d_01",
+      "file": "blind/blind_optimization_newton_1d_01.pptx",
+      "split": "blind",
+      "family_id": "family_optimization.newton_1d",
+      "template_id": "optimization.newton_1d",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "optimization.newton_1d",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "x0": 3.0,
+            "max_iter": 8
+          },
+          "missing": [],
+          "evidence": "一维牛顿优化：f(x) = x^2 - 4x + 1，初值 x0 = 3，迭代 8 次。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "optimization.newton_1d",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "x0": 0.5,
+            "max_iter": 10
+          },
+          "missing": [],
+          "evidence": "用牛顿法求 f(x) = x^4 - 2x^2 + 1 的极小点，起点 x0 = 0.5，最多 10 步。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "optimization.newton_1d",
+          "expected_category": "optimization",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {},
+          "missing": [
+            "x0"
+          ],
+          "evidence": "用牛顿法优化 f(x) = x^3 - 3x 的极值。",
+          "note": "缺少初值，不能自动执行。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_optimization_least_squares_line_01",
+      "file": "blind/blind_optimization_least_squares_line_01.pptx",
+      "split": "blind",
+      "family_id": "family_optimization.least_squares_line",
+      "template_id": "optimization.least_squares_line",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "optimization.least_squares_line",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "xs": [
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            "ys": [
+              2.0,
+              3.0,
+              5.0,
+              4.0
+            ]
+          },
+          "missing": [],
+          "evidence": "最小二乘直线拟合：数据点 (1, 2), (2, 3), (3, 5), (4, 4)。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "optimization.least_squares_line",
+          "expected_category": "optimization",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "xs": [
+              0.0,
+              1.0,
+              2.0,
+              3.0,
+              4.0
+            ],
+            "ys": [
+              1.0,
+              2.0,
+              2.0,
+              4.0,
+              5.0
+            ]
+          },
+          "missing": [],
+          "evidence": "对数据 (0, 1), (1, 2), (2, 2), (3, 4), (4, 5) 做最小二乘拟合。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "optimization.least_squares_line",
+          "expected_category": "optimization",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "xs": [
+              1.0,
+              2.0,
+              3.0
+            ]
+          },
+          "missing": [
+            "ys"
+          ],
+          "evidence": "最小二乘拟合：只有 x 数据 [1, 2, 3]，缺少对应的 y 数据。",
+          "note": "缺 y 数据。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_data_structures_stack_queue_01",
+      "file": "blind/blind_data_structures_stack_queue_01.pptx",
+      "split": "blind",
+      "family_id": "family_data_structures.stack_queue",
+      "template_id": "data_structures.stack_queue",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "data_structures.stack_queue",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "mode": "stack",
+            "initial": [
+              3.0,
+              1.0,
+              4.0
+            ],
+            "operations": "push 2; pop; push 5; pop"
+          },
+          "missing": [],
+          "evidence": "栈操作：初始栈 [3, 1, 4]，操作序列 push 2; pop; push 5; pop。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "data_structures.stack_queue",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "mode": "queue",
+            "initial": [
+              2.0,
+              5.0,
+              7.0
+            ],
+            "operations": "enqueue 9; dequeue; enqueue 1"
+          },
+          "missing": [],
+          "evidence": "队列演示：初始队列 [2, 5, 7]，依次执行 enqueue 9; dequeue; enqueue 1。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "data_structures.stack_queue",
+          "expected_category": "data_structure",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "initial": [
+              3.0,
+              1.0,
+              4.0
+            ]
+          },
+          "missing": [
+            "operations"
+          ],
+          "evidence": "栈与队列：初始列表 [3, 1, 4]，请观察空栈情况。",
+          "note": "缺少明确操作序列。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_data_structures_sorting_01",
+      "file": "blind/blind_data_structures_sorting_01.pptx",
+      "split": "blind",
+      "family_id": "family_data_structures.sorting",
+      "template_id": "data_structures.sorting",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "data_structures.sorting",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "algorithm": "bubble",
+            "values": [
+              5.0,
+              1.0,
+              4.0,
+              2.0,
+              8.0
+            ]
+          },
+          "missing": [],
+          "evidence": "冒泡排序：对列表 [5, 1, 4, 2, 8] 升序排序。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "data_structures.sorting",
+          "expected_category": "data_structure",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "algorithm": "insertion",
+            "values": [
+              9.0,
+              3.0,
+              7.0,
+              1.0,
+              5.0,
+              2.0
+            ]
+          },
+          "missing": [],
+          "evidence": "插入排序演示：输入 [9, 3, 7, 1, 5, 2]，升序排列。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "data_structures.sorting",
+          "expected_category": "data_structure",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "values": [
+              4.0,
+              2.0,
+              7.0
+            ]
+          },
+          "missing": [
+            "algorithm"
+          ],
+          "evidence": "排序演示：对 [4, 2, 7] 进行排序。",
+          "note": "未明确排序算法。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_deep_learning_activation_gradient_01",
+      "file": "blind/blind_deep_learning_activation_gradient_01.pptx",
+      "split": "blind",
+      "family_id": "family_deep_learning.activation_gradient",
+      "template_id": "deep_learning.activation_gradient",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "deep_learning.activation_gradient",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "activation": "relu",
+            "x": -0.5,
+            "upstream": 2.0
+          },
+          "missing": [],
+          "evidence": "ReLU 激活函数：在 x = -0.5 处求激活值与梯度，上游梯度为 2。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "deep_learning.activation_gradient",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "activation": "sigmoid",
+            "x": 0.8,
+            "upstream": 1.5
+          },
+          "missing": [],
+          "evidence": "Sigmoid 激活：x = 0.8，反向传播梯度为 1.5。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "deep_learning.activation_gradient",
+          "expected_category": "network",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "activation": "relu"
+          },
+          "missing": [
+            "x"
+          ],
+          "evidence": "激活函数与梯度：观察 ReLU 在零点附近的行为。",
+          "note": "缺少具体输入点。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_deep_learning_conv_pool_01",
+      "file": "blind/blind_deep_learning_conv_pool_01.pptx",
+      "split": "blind",
+      "family_id": "family_deep_learning.conv_pool",
+      "template_id": "deep_learning.conv_pool",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "deep_learning.conv_pool",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "matrix": [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                4,
+                5,
+                6
+              ],
+              [
+                7,
+                8,
+                9
+              ]
+            ],
+            "kernel": [
+              [
+                1,
+                0,
+                -1
+              ],
+              [
+                1,
+                0,
+                -1
+              ],
+              [
+                1,
+                0,
+                -1
+              ]
+            ],
+            "mode": "conv",
+            "stride": 1,
+            "padding": 0
+          },
+          "missing": [],
+          "evidence": "单通道卷积：输入矩阵 [[1,2,3],[4,5,6],[7,8,9]]，卷积核 [[1,0,-1],[1,0,-1],[1,0,-1]]，步长 1，填充 0。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "deep_learning.conv_pool",
+          "expected_category": "network",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "matrix": [
+              [
+                1,
+                3,
+                2,
+                4
+              ],
+              [
+                5,
+                6,
+                7,
+                8
+              ],
+              [
+                9,
+                2,
+                1,
+                0
+              ],
+              [
+                3,
+                4,
+                5,
+                6
+              ]
+            ],
+            "mode": "maxpool",
+            "stride": 2,
+            "padding": 0
+          },
+          "missing": [],
+          "evidence": "最大池化：输入 [[1,3,2,4],[5,6,7,8],[9,2,1,0],[3,4,5,6]]，池化窗口 2×2，步长 2，填充 0。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "deep_learning.conv_pool",
+          "expected_category": "network",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {},
+          "missing": [
+            "matrix",
+            "kernel"
+          ],
+          "evidence": "卷积与池化：对单通道矩阵做 3×3 卷积。",
+          "note": "缺少输入矩阵与卷积核。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_physics_projectile_01",
+      "file": "blind/blind_physics_projectile_01.pptx",
+      "split": "blind",
+      "family_id": "family_physics.projectile",
+      "template_id": "physics.projectile",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "physics.projectile",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "v0": 10.0,
+            "angle_deg": 30.0,
+            "g": 9.8,
+            "t": 1.0,
+            "y0": 0.0
+          },
+          "missing": [],
+          "evidence": "抛体运动：初速度 v0 = 36 km/h，仰角 30°，g = 9.8 m/s^2，t = 1 s。",
+          "note": "36 km/h 必须确定性换算为 10 m/s。"
+        },
+        {
+          "page_no": 2,
+          "expected_template": "physics.projectile",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "v0": 10.0,
+            "angle_deg": 0.0,
+            "y0": 5.0,
+            "g": 9.8,
+            "t": 0.5
+          },
+          "missing": [],
+          "evidence": "平抛运动：初速度为 10 m/s，离地高度 5 m，g = 9.8 m/s^2，求 t = 0.5 s 的位置。",
+          "note": ""
+        },
+        {
+          "page_no": 3,
+          "expected_template": "physics.projectile",
+          "expected_category": "physics",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "angle_deg": 45.0
+          },
+          "missing": [
+            "v0"
+          ],
+          "evidence": "抛体运动：初速度未知，仰角 45°，求轨迹。",
+          "note": "缺少初速度。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_physics_spring_oscillator_01",
+      "file": "blind/blind_physics_spring_oscillator_01.pptx",
+      "split": "blind",
+      "family_id": "family_physics.spring_oscillator",
+      "template_id": "physics.spring_oscillator",
+      "kind": "positive_variant",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": "physics.spring_oscillator",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "A",
+          "required_values": {
+            "m": 2.0,
+            "k": 8.0,
+            "x0": 0.1,
+            "v0": 0.0,
+            "t": 2.0
+          },
+          "missing": [],
+          "evidence": "弹簧振子：m = 2 kg，k = 8 N/m，初位移 x0 = 0.1 m，初速度 v0 = 0 m/s，t = 2 s。",
+          "note": ""
+        },
+        {
+          "page_no": 2,
+          "expected_template": "physics.spring_oscillator",
+          "expected_category": "physics",
+          "expected_status": "supported",
+          "variant": "B",
+          "required_values": {
+            "m": 0.5,
+            "k": 2.0,
+            "x0": 0.2,
+            "v0": 0.0,
+            "t": 1.5
+          },
+          "missing": [],
+          "evidence": "简谐振动：质量 0.5 kg，劲度系数 2 N/m，从位移 0.2 m 静止释放，求 t = 1.5 s 的位移与速度。",
+          "note": "中文物理量名称。"
+        },
+        {
+          "page_no": 3,
+          "expected_template": "physics.spring_oscillator",
+          "expected_category": "physics",
+          "expected_status": "needs_review",
+          "variant": "C",
+          "required_values": {
+            "m": 1.0,
+            "k": -4.0
+          },
+          "missing": [
+            "x0",
+            "v0"
+          ],
+          "evidence": "弹簧振子：m = 1 kg，k = -4 N/m，求振动。",
+          "note": "劲度系数为负，且缺少初值；不得自动执行。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_neg_01",
+      "file": "blind/blind_neg_01.pptx",
+      "split": "blind",
+      "family_id": "family_negative_非教学目录",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "非教学目录",
+          "required_values": {},
+          "missing": [],
+          "evidence": "课程安排：第一章 绪论；第二章 极限；第三章 导数。本章重点与考核方式见教学大纲。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_neg_02",
+      "file": "blind/blind_neg_02.pptx",
+      "split": "blind",
+      "family_id": "family_negative_版权声明",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "版权声明",
+          "required_values": {},
+          "missing": [],
+          "evidence": "本课件仅供课堂教学使用，版权所有，未经许可不得复制或传播。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_neg_03",
+      "file": "blind/blind_neg_03.pptx",
+      "split": "blind",
+      "family_id": "family_negative_方法概述",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "方法概述",
+          "required_values": {},
+          "missing": [],
+          "evidence": "牛顿法是一种迭代方法，队列是一种先进先出的数据结构，卷积常用于图像处理。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_neg_04",
+      "file": "blind/blind_neg_04.pptx",
+      "split": "blind",
+      "family_id": "family_negative_缺少输入",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "缺少输入",
+          "required_values": {},
+          "missing": [],
+          "evidence": "请计算下面的积分，题目见另一页。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_neg_05",
+      "file": "blind/blind_neg_05.pptx",
+      "split": "blind",
+      "family_id": "family_negative_无效参数",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "无效参数",
+          "required_values": {},
+          "missing": [],
+          "evidence": "弹簧振子：质量 m = -1 kg，劲度系数 k = 0 N/m。",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    },
+    {
+      "material_id": "blind_neg_06",
+      "file": "blind/blind_neg_06.pptx",
+      "split": "blind",
+      "family_id": "family_negative_纯装饰",
+      "template_id": null,
+      "kind": "negative",
+      "license": "repository-generated",
+      "source": "controlled-variant",
+      "labels": [
+        {
+          "page_no": 1,
+          "expected_template": null,
+          "expected_category": "text",
+          "expected_status": "explanation_only",
+          "variant": "纯装饰",
+          "required_values": {},
+          "missing": [],
+          "evidence": "2026 春季学期 · 高等数学 · 第 3 讲",
+          "note": "负例：不得自动生成计算交互。"
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "materials": 48,
+    "positive_materials": 30,
+    "negative_materials": 18,
+    "annotated_regions": 108,
+    "templates": 10
+  }
+}

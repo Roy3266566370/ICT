@@ -1,0 +1,65 @@
+{
+  "schema_version": "0.2",
+  "object_id": "obj_example_bfs_flow",
+  "title": "计算机过程：广度优先搜索",
+  "material_id": null,
+  "model_version": 1,
+  "revision": 0,
+  "template_id": "bfs_flow",
+  "kernel_version": "bfs_v1",
+  "config": {
+    "operation": "bfs",
+    "directed": true,
+    "start_node_id": "A",
+    "neighbor_order": "lexicographic_by_id",
+    "max_steps": 200
+  },
+  "parameters": [
+    {
+      "id": "graph",
+      "name": "图（节点与边）",
+      "type": "graph",
+      "value": {
+        "nodes": [
+          { "id": "A", "label": "A" },
+          { "id": "B", "label": "B" },
+          { "id": "C", "label": "C" },
+          { "id": "D", "label": "D" }
+        ],
+        "edges": [
+          { "from": "A", "to": "B" },
+          { "from": "A", "to": "C" },
+          { "from": "B", "to": "D" },
+          { "from": "C", "to": "D" }
+        ]
+      },
+      "unit": "1",
+      "range": { "min": null, "max": null, "step": null },
+      "source_ref_ids": ["src_example_bfs"],
+      "provenance": "manual_demo",
+      "editable": true
+    }
+  ],
+  "views": ["graph", "queue", "numeric_table", "trace", "sources"],
+  "bindings": [
+    { "parameter_id": "graph", "view_id": "graph", "target": "graph.nodes_edges" },
+    { "parameter_id": "graph", "view_id": "queue", "target": "queue.seed" },
+    { "parameter_id": "graph", "view_id": "numeric_table", "target": "table.adjacency" },
+    { "parameter_id": "graph", "view_id": "trace", "target": "trace.steps" }
+  ],
+  "source_refs": [
+    {
+      "id": "src_example_bfs",
+      "provenance": "manual_demo",
+      "label": "示例预置：计算机过程",
+      "material_id": null,
+      "page": null,
+      "element_id": null,
+      "bbox": null,
+      "excerpt": "手工构造的菱形图示例，用于演示队列判重与逐步轨迹；不来自任何 PPT 解析结果。"
+    }
+  ],
+  "validation_profile": "bfs_flow_v1_full",
+  "created_at": "2026-11-01T00:00:00Z",
+  "updated_at": "2026-11-01T00:00:00Z"
+}

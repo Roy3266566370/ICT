@@ -1,0 +1,436 @@
+"""受限数学表达式解析。
+
+只接受白名单函数、变量与运算符；不执行任意 Python，也不让模型生成的文本直接
+进入求解器。LaTeX 片段先做有限替换，再交给 sympy 的 ``parse_expr``。解析失败的
+原因会原样返回给识别层，用于生成需要学生核对的歧义项。
+"""
+
+from __future__ import annotations
+
+import re
+from fractions import Fraction
+from typing import Iterable
+
+import sympy as sp
+from sympy.parsing.sympy_parser import (
+    convert_xor,
+    implicit_multiplication_application,
+    parse_expr,
+    standard_transformations,
+)
+
+MAX_EXPR_CHARS = 600
+# 只限制输入长度不足以阻止 2**(2**33) 这类在求值阶段指数级膨胀的输入：
+# evaluate=True 会先物化完整整数再返回，因此必须在求值前加工作量预算。
+MAX_EXPR_NODES = 500
+MAX_INT_LITERAL_BITS = 128
+MAX_RESULT_INT_BITS = 8192
+MAX_POWER_EXPONENT = 4096
+_MAX_EXACT_INT = 10**18
+
+TRANSFORMATIONS = standard_transformations + (
+    convert_xor,
+    implicit_multiplication_application,
+)
+
+FUNCTIONS = {
+    "sin": sp.sin,
+    "cos": sp.cos,
+    "tan": sp.tan,
+    "asin": sp.asin,
+    "acos": sp.acos,
+    "atan": sp.atan,
+    "acot": sp.acot,
+    "asec": sp.asec,
+    "acsc": sp.acsc,
+    "sinh": sp.sinh,
+    "cosh": sp.cosh,
+    "tanh": sp.tanh,
+    "exp": sp.exp,
+    "log": sp.log,
+    "ln": sp.log,
+    "sqrt": sp.sqrt,
+    "abs": sp.Abs,
+    "cot": sp.cot,
+    "sec": sp.sec,
+    "csc": sp.csc,
+    "factorial": sp.factorial,
+}
+
+# ``\arctan`` 这类反三角写法是教材常见记号，去掉前缀等价于 SymPy 的 atan。
+FUNCTION_ALIASES = {
+    "arctan": "atan",
+    "arcsin": "asin",
+    "arccos": "acos",
+    "arccot": "acot",
+    "arcsec": "asec",
+    "arccsc": "acsc",
+}
+FUNCTIONS.update({alias: FUNCTIONS[base] for alias, base in FUNCTION_ALIASES.items()})
+
+CONSTANTS = {"pi": sp.pi, "e": sp.E}
+
+SUPERSCRIPTS = str.maketrans(
+    {
+        "⁰": "0",
+        "¹": "1",
+        "²": "2",
+        "³": "3",
+        "⁴": "4",
+        "⁵": "5",
+        "⁶": "6",
+        "⁷": "7",
+        "⁸": "8",
+        "⁹": "9",
+        "⁻": "-",
+        "⁺": "+",
+    }
+)
+
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
+# ``xarctanx`` / ``arccosx`` 这类粘连写法既没有乘号也没有括号：整体当成一个标识符
+# 必然报“未知符号”。因此在解析前按最长函数名切出函数名并补一个空格，让 sympy 的
+# 隐式乘法变换补出参数与乘法，得到 ``x*atan(x)``。
+FUNCTION_NAMES = tuple(sorted(FUNCTIONS, key=len, reverse=True))
+
+
+def normalize_function_notation(text: str) -> str:
+    """Keep known function names when OCR uses LaTeX font/operator wrappers."""
+    def operator(match: re.Match[str]) -> str:
+        name = re.sub(r'\s+', '', match.group(1)).lower()
+        return ' ' + FUNCTION_ALIASES.get(name, name) + ' ' if name in FUNCTIONS else match.group(0)
+
+    text = re.sub(r'\\(?:operatorname\*?|mathrm|mathit|mathbf|mathsf|textrm|text)\s*\{([^{}]*)\}', operator, text)
+    text = re.sub(r'\{\s*\\(?:bf|rm|it)\s+([^{}]*)\}', operator, text)
+    def font(match: re.Match[str]) -> str:
+        contents=match.group(1)
+        return ' '+contents+' ' if re.fullmatch(r'[A-Za-z\s]+', contents) else '('+contents+')'
+    text = re.sub(r'\\(?:mathrm|mathit|mathbf|mathsf|textrm|text)\s*\{([^{}]*)\}', font, text)
+    # Preserve names before the display layer removes unknown LaTeX commands.
+    for name in FUNCTION_NAMES:
+        text = re.sub(r'\\' + name + r'(?![A-Za-z])', ' ' + FUNCTION_ALIASES.get(name, name) + ' ', text)
+    return text
+
+
+def expression_text(expression: sp.Expr) -> str:
+    """A shared executable spelling for the browser and backend, not OCR prose."""
+    text = str(expression).replace('**', '^')
+    text = re.sub(r'\bE\b', 'e', text)
+    return re.sub(r'\bAbs\(', 'abs(', text)
+
+
+def _split_juxtaposition(text: str) -> str:
+    """拆开与函数名粘连的字母，便于 sympy 解析隐式乘法与隐式调用。"""
+
+    if not any(name in text.lower() for name in FUNCTION_NAMES):
+        return text
+    lowered = text.lower()
+    out: list[str] = []
+    cursor = 0
+    length = len(text)
+    while cursor < length:
+        hit = None
+        for name in FUNCTION_NAMES:
+            if lowered.startswith(name, cursor):
+                hit = name
+                break
+        if hit is not None:
+            previous = text[cursor - 1] if cursor > 0 else ""
+            if previous and (previous.isalpha() or previous.isdigit()) and out and out[-1] != " ":
+                out.append(" ")
+            out.append(text[cursor : cursor + len(hit)])
+            cursor += len(hit)
+            following = text[cursor] if cursor < length else ""
+            if following and (following.isalpha() or following.isdigit()):
+                out.append(" ")
+            continue
+        out.append(text[cursor])
+        cursor += 1
+    return "".join(out)
+
+
+class ExprError(ValueError):
+    """表达式不合法或不在白名单内。"""
+
+
+def _read_braced(text: str, start: int) -> tuple[str, int] | None:
+    """读取从 ``start`` 开始的平衡花括号组；嵌套分式/上标需要按括号层级切分。"""
+
+    if start >= len(text) or text[start] != "{":
+        return None
+    depth = 0
+    for index in range(start, len(text)):
+        char = text[index]
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1 : index], index + 1
+    return None
+
+
+def _replace_frac(text: str) -> str:
+    """把 ``\\frac{...}{...}`` 展开成普通除法，支持嵌套分式。"""
+
+    marker = "\\frac"
+    while True:
+        index = text.find(marker)
+        if index < 0:
+            return text
+        cursor = index + len(marker)
+        while cursor < len(text) and text[cursor].isspace():
+            cursor += 1
+        numerator = _read_braced(text, cursor)
+        if numerator is None:
+            return text
+        num, cursor = numerator
+        while cursor < len(text) and text[cursor].isspace():
+            cursor += 1
+        denominator = _read_braced(text, cursor)
+        if denominator is None:
+            return text
+        den, end = denominator
+        text = f"{text[:index]}(({num})/({den})){text[end:]}"
+
+
+def _replace_sqrt(text: str) -> str:
+    """把 ``\\sqrt{...}`` 展开成 ``sqrt(...)``。"""
+
+    marker = "\\sqrt"
+    while True:
+        index = text.find(marker)
+        if index < 0:
+            return text
+        cursor = index + len(marker)
+        while cursor < len(text) and text[cursor].isspace():
+            cursor += 1
+        group = _read_braced(text, cursor)
+        if group is None:
+            return text
+        content, end = group
+        text = f"{text[:index]}sqrt({content}){text[end:]}"
+
+
+def _replace_braced_power(text: str) -> str:
+    """把 ``x^{2}`` 展开成 ``x**(2)``，支持指数里的嵌套括号。"""
+
+    while True:
+        match = re.search(r"\^\s*\{", text)
+        if match is None:
+            return text
+        group = _read_braced(text, match.end() - 1)
+        if group is None:
+            return text
+        content, end = group
+        text = f"{text[:match.start()]}**({content}){text[end:]}"
+
+
+def _latex_to_plain(raw: str) -> str:
+    text = normalize_function_notation(raw.strip())
+    text = text.replace("\u2212", "-").replace("\u00d7", "*").replace("\u00f7", "/")
+    text = text.replace("\u00b7", "*").replace("\u03c0", "pi").replace("\u221a", "sqrt")
+    text = text.translate(SUPERSCRIPTS)
+    for command in (
+        "\\textstyle",
+        "\\displaystyle",
+        "\\scriptstyle",
+        "\\left",
+        "\\right",
+        "\\!",
+        "\\,",
+        "\\;",
+        "\\:",
+        "\\quad",
+        "\\qquad",
+    ):
+        text = text.replace(command, "")
+    text = text.replace("\\mathrm{d}", "d").replace("\\mathrm", "")
+    text = text.replace("\\cdot", "*").replace("\\times", "*").replace("\\div", "/")
+    text = text.replace("\\pi", "pi")
+    for name in (
+        "arctan",
+        "arcsin",
+        "arccos",
+        "arccot",
+        "arcsec",
+        "arccsc",
+        "sin",
+        "cos",
+        "tan",
+        "exp",
+        "ln",
+        "log",
+        "sqrt",
+        "abs",
+        "tanh",
+        "sinh",
+        "cosh",
+    ):
+        text = text.replace("\\" + name, name)
+    text = _replace_frac(text)
+    text = _replace_sqrt(text)
+    text = _replace_braced_power(text)
+    text = text.replace("^", "**")
+    # dx / dt 之类只保留被积变量，避免把 d 当作未知符号。
+    text = re.sub(r"\bd\s*([xyzt])\b", r"\1", text)
+    text = text.replace("{", "(").replace("}", ")")
+    text = text.replace("[", "(").replace("]", ")")
+    text = text.replace(" ", "")
+    # 希腊字母/花体命令无法安全求值，保留标记让调用方提问，而不是猜测。
+    return text
+
+
+def normalize_math(raw: str) -> str:
+    """把常见 LaTeX/Unicode 写法整理成 sympy 可读的纯文本。"""
+
+    if not isinstance(raw, str):
+        raise ExprError("表达式必须是文本")
+    text = _latex_to_plain(raw)
+    if not text:
+        raise ExprError("表达式为空")
+    if len(text) > MAX_EXPR_CHARS:
+        raise ExprError("表达式过长")
+    return text
+
+
+def _exact_value(expression: sp.Expr) -> Fraction | None:
+    """在预算内求整数/有理常量子树的值；无法安全求值返回 None。"""
+
+    if isinstance(expression, sp.Integer):
+        value = int(expression)
+        return Fraction(value) if abs(value) <= _MAX_EXACT_INT else None
+    if isinstance(expression, sp.Rational):
+        return Fraction(int(expression.p), int(expression.q))
+    if isinstance(expression, sp.Add):
+        total = Fraction(0)
+        for argument in expression.args:
+            item = _exact_value(argument)
+            if item is None:
+                return None
+            total += item
+            if abs(total) > _MAX_EXACT_INT:
+                return None
+        return total
+    if isinstance(expression, sp.Mul):
+        total = Fraction(1)
+        for argument in expression.args:
+            item = _exact_value(argument)
+            if item is None:
+                return None
+            total *= item
+            if abs(total) > _MAX_EXACT_INT:
+                return None
+        return total
+    if isinstance(expression, sp.Pow):
+        base = _exact_value(expression.base)
+        exponent = _exact_value(expression.exp)
+        if base is None or exponent is None or exponent.denominator != 1:
+            return None
+        power = int(exponent)
+        if abs(power) > 64:
+            return None
+        value = base**power
+        return value if abs(value) <= _MAX_EXACT_INT else None
+    return None
+
+
+def _check_work_budget(tree: sp.Expr) -> None:
+    """求值前拒绝会指数级膨胀的语法树（幂塔、超大整数/指数、超大表达式）。"""
+
+    nodes = 0
+    for node in sp.preorder_traversal(tree):
+        nodes += 1
+        if nodes > MAX_EXPR_NODES:
+            raise ExprError("表达式过于复杂")
+        if isinstance(node, sp.Integer):
+            if abs(int(node)).bit_length() > MAX_INT_LITERAL_BITS:
+                raise ExprError("整数常数超出可计算范围")
+        elif isinstance(node, sp.Pow) and node.exp.is_number:
+            exponent = _exact_value(node.exp)
+            if exponent is None or abs(exponent) > MAX_POWER_EXPONENT:
+                raise ExprError("指数超出可计算范围")
+
+
+def parse_expression(raw: str, variables: Iterable[str] = ("x",), *, preserve_structure: bool = False) -> sp.Expr:
+    """解析并校验表达式；未知符号/函数一律拒绝。"""
+
+    names = tuple(dict.fromkeys(str(item) for item in variables))
+    if not names or any(not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name) for name in names):
+        raise ExprError("变量名不合法")
+    text = normalize_math(raw)
+    text = _split_juxtaposition(text)
+    allowed = set(names) | set(FUNCTIONS) | set(CONSTANTS)
+    for token in _IDENTIFIER.findall(text):
+        if token not in allowed:
+            raise ExprError(f"包含暂不支持的符号：{token}")
+    if any(bad in text for bad in ("=", ";", ":", "'", '"', "[", "]", "{", "}")):
+        raise ExprError("表达式包含不允许的字符")
+    local_dict: dict[str, object] = {name: sp.Symbol(name, real=True) for name in names}
+    local_dict.update(FUNCTIONS)
+    local_dict.update(CONSTANTS)
+    try:
+        unevaluated = parse_expr(
+            text,
+            local_dict=local_dict,
+            transformations=TRANSFORMATIONS,
+            evaluate=False,
+        )
+        _check_work_budget(unevaluated)
+        expression = unevaluated if preserve_structure else unevaluated.doit()
+        for integer in expression.atoms(sp.Integer):
+            if abs(int(integer)).bit_length() > MAX_RESULT_INT_BITS:
+                raise ExprError("计算结果超出可处理范围")
+    except ExprError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - 转成可展示的识别错误
+        raise ExprError(f"无法解析表达式：{type(exc).__name__}") from exc
+    if not isinstance(expression, sp.Expr):
+        raise ExprError("解析结果不是数学表达式")
+    symbols = {str(symbol) for symbol in expression.free_symbols}
+    unexpected = symbols - set(names)
+    if unexpected:
+        raise ExprError(f"表达式包含未声明变量：{', '.join(sorted(unexpected))}")
+    return expression
+
+
+def to_latex(expression: object) -> str:
+    try:
+        return sp.latex(expression)
+    except Exception:  # noqa: BLE001 - 展示层降级
+        return str(expression)
+
+
+def safe_float(value: object) -> float | None:
+    """把 sympy 数值收敛为有限 float；复数/无穷返回 None。"""
+
+    try:
+        converted = complex(sp.N(value, 14))
+    except Exception:  # noqa: BLE001
+        return None
+    if abs(converted.imag) > 1e-9:
+        return None
+    real = float(converted.real)
+    if real != real or real in (float("inf"), float("-inf")):
+        return None
+    return real
+
+
+def number_text(value: float | None, digits: int = 6) -> str:
+    if value is None:
+        return "—"
+    if abs(value) < 1e-12:
+        value = 0.0
+    text = f"{value:.{digits}g}"
+    return text
+
+
+__all__ = [
+    "ExprError",
+    "FUNCTIONS",
+    "normalize_math",
+    "number_text",
+    "parse_expression",
+    "safe_float",
+    "to_latex",
+]

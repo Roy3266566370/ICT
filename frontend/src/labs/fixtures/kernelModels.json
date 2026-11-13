@@ -1,0 +1,1705 @@
+[
+  {
+    "task": "integral",
+    "model": {
+      "engine": "riemann_v1",
+      "subject": "calculus",
+      "kind": "integral",
+      "variable": "x",
+      "expression": "x^2",
+      "formula_tex": "f(x)=x^{2}",
+      "defaults": {
+        "lower": 0.0,
+        "upper": 2.0,
+        "n": 8
+      },
+      "params": [
+        {
+          "id": "lower",
+          "label": "积分下限 a",
+          "kind": "number",
+          "min": null,
+          "max": null,
+          "step": 0.5,
+          "options": []
+        },
+        {
+          "id": "upper",
+          "label": "积分上限 b",
+          "kind": "number",
+          "min": null,
+          "max": null,
+          "step": 0.5,
+          "options": []
+        },
+        {
+          "id": "n",
+          "label": "分割数 n",
+          "kind": "integer",
+          "min": 2,
+          "max": 80,
+          "step": 1,
+          "options": []
+        }
+      ],
+      "teaching": false,
+      "provenance_note": null,
+      "modeling_task": "integral"
+    },
+    "solution": {
+      "summary": "积分题：解析结果、数值近似和几何面积分开呈现。",
+      "answer": "2.6666667",
+      "answer_value": 2.666666666666668,
+      "exact": "8/3",
+      "approx": "2.666666667",
+      "steps": [
+        {
+          "id": "limits",
+          "title": "确认积分区间",
+          "latex": "\\int_{0}^{2} x^{2}\\,\\mathrm{d}x",
+          "detail": "原题区间为 [0, 2]，被积变量为 x。"
+        },
+        {
+          "id": "antiderivative",
+          "title": "求原函数",
+          "latex": "F(x)=\\frac{x^{3}}{3}+C",
+          "detail": "对函数逐项积分；若含参数，按原题给出的符号条件处理。"
+        },
+        {
+          "id": "evaluate",
+          "title": "代入上下限",
+          "latex": "F(2)-F(0)=\\frac{8}{3}",
+          "detail": "解析结果为 8/3；数值约为 2.66667。"
+        },
+        {
+          "id": "approx",
+          "title": "数值核对",
+          "latex": "\\sum f(\\xi_i)\\Delta x",
+          "detail": "改变分割数 n 观察黎曼和趋近解析值；近似值不替代原题答案。"
+        }
+      ],
+      "conditions": [
+        "题目中的函数与区间按识别结果求值；数值近似与解析结果分开标注。"
+      ],
+      "tangent_tex": null,
+      "limitations": [
+        "证明题仍需写出符号推导；数值与图形只用于核对，不替代证明。",
+        "若原题含未识别的字母参数，求解器会保留识别结果并提示核对。"
+      ]
+    }
+  },
+  {
+    "task": "antiderivative",
+    "model": {
+      "engine": "antiderivative_v1",
+      "subject": "calculus",
+      "kind": "antiderivative",
+      "variable": "x",
+      "expression": "x*cos(x)",
+      "formula_tex": "\\int x \\cos{\\left(x \\right)}\\,\\mathrm{d}x=F(x)+C",
+      "defaults": {
+        "c": 0.0
+      },
+      "params": [
+        {
+          "id": "c",
+          "label": "积分常数 C",
+          "kind": "number",
+          "min": -16,
+          "max": 16,
+          "step": 0.5,
+          "options": [],
+          "note": "不定积分给出 F(x)+C；C 只改变曲线上下平移。"
+        }
+      ],
+      "teaching": false,
+      "provenance_note": null,
+      "indefinite": true,
+      "antiderivative_expression": "x*sin(x) + cos(x)",
+      "plot_domain": [
+        -4.0,
+        4.0
+      ],
+      "modeling_task": "antiderivative"
+    },
+    "solution": {
+      "summary": "不定积分题：先求原函数，再加任意常数 C；结果是一族函数。",
+      "answer": "F(x)=x*sin(x) + cos(x)+C",
+      "answer_value": null,
+      "exact": "x \\sin{\\left(x \\right)} + \\cos{\\left(x \\right)}+C",
+      "approx": null,
+      "steps": [
+        {
+          "id": "integrand",
+          "title": "确认被积函数",
+          "latex": "f(x)=x \\cos{\\left(x \\right)}",
+          "detail": "不定积分没有上下限；按原题识别出的被积函数与积分变量计算。"
+        },
+        {
+          "id": "antiderivative",
+          "title": "求原函数并加常数 C",
+          "latex": "\\int x \\cos{\\left(x \\right)}\\,\\mathrm{d}x=x \\sin{\\left(x \\right)} + \\cos{\\left(x \\right)}+C",
+          "detail": "逐项积分得到原函数；不定积分表示一族函数，必须写出任意常数 C。"
+        },
+        {
+          "id": "verify",
+          "title": "求导核对",
+          "latex": "\\frac{\\mathrm{d}}{\\mathrm{d}x}\\left(x \\sin{\\left(x \\right)} + \\cos{\\left(x \\right)}\\right)=x \\cos{\\left(x \\right)}",
+          "detail": "对原函数求导回到被积函数，说明结果正确；常数 C 的导数为 0，因此不影响导数。"
+        }
+      ],
+      "conditions": [
+        "题目中的函数与区间按识别结果求值；数值近似与解析结果分开标注。",
+        "不定积分的结果是一族原函数，相差一个常数；C 由附加的初始条件确定。"
+      ],
+      "tangent_tex": null,
+      "limitations": [
+        "证明题仍需写出符号推导；数值与图形只用于核对，不替代证明。",
+        "若原题含未识别的字母参数，求解器会保留识别结果并提示核对。",
+        "不定积分的结果含任意常数 C；只写原函数不写 +C 会被判为不完整。"
+      ]
+    }
+  },
+  {
+    "task": "derivative",
+    "model": {
+      "engine": "tangent_v1",
+      "subject": "calculus",
+      "kind": "derivative",
+      "variable": "x",
+      "expression": "x^3",
+      "formula_tex": "f(x)=x^{3}",
+      "defaults": {
+        "point": 2.0,
+        "h": 0.1
+      },
+      "params": [
+        {
+          "id": "point",
+          "label": "研究点 x",
+          "kind": "number",
+          "min": null,
+          "max": null,
+          "step": 0.1,
+          "options": []
+        },
+        {
+          "id": "h",
+          "label": "差商步长 h",
+          "kind": "number",
+          "min": 0.001,
+          "max": 2,
+          "step": 0.001,
+          "options": []
+        }
+      ],
+      "teaching": false,
+      "provenance_note": null,
+      "modeling_task": "derivative"
+    },
+    "solution": {
+      "summary": "导数题：切线斜率与局部差商互相核对。",
+      "answer": "12",
+      "answer_value": 12.0,
+      "exact": "12.0",
+      "approx": "12",
+      "steps": [
+        {
+          "id": "value",
+          "title": "确认研究点",
+          "latex": "x_0=2",
+          "detail": "在 x=2 处，函数值为 8。"
+        },
+        {
+          "id": "derivative",
+          "title": "求导函数",
+          "latex": "f'(x)=3 x^{2}",
+          "detail": "对原函数求导，得到切线斜率随位置变化的规则。"
+        },
+        {
+          "id": "slope",
+          "title": "代入研究点",
+          "latex": "k=f'(2)=12.0",
+          "detail": "切线斜率为 12，切线方程见下方。"
+        },
+        {
+          "id": "approx",
+          "title": "差商核对",
+          "latex": "f'(x_0)\\approx\\frac{f(x_0+h)-f(x_0-h)}{2h}",
+          "detail": "缩小 h 观察差商趋近导数；数值核对不等于符号证明。"
+        }
+      ],
+      "conditions": [
+        "题目中的函数与区间按识别结果求值；数值近似与解析结果分开标注。"
+      ],
+      "tangent_tex": "y=8+12(x-2)",
+      "limitations": [
+        "证明题仍需写出符号推导；数值与图形只用于核对，不替代证明。",
+        "若原题含未识别的字母参数，求解器会保留识别结果并提示核对。"
+      ]
+    }
+  },
+  {
+    "task": "geometric_area",
+    "model": {
+      "engine": "sympy",
+      "subject": "calculus",
+      "task": "geometric_area",
+      "kind": "integral",
+      "variable": "x",
+      "expression": "x**2",
+      "defaults": {
+        "lower": 0.0,
+        "upper": 1.0,
+        "n": 16
+      },
+      "params": [
+        {
+          "id": "n",
+          "label": "分割数",
+          "kind": "number",
+          "min": 2,
+          "max": 80,
+          "step": 1,
+          "options": []
+        }
+      ],
+      "teaching": false,
+      "requested_quantities": [
+        "area"
+      ],
+      "formula_tex": "y=x^{2}",
+      "region_kind": "between_axis",
+      "lower_bound": "0",
+      "upper_bound": "1",
+      "improper_upper": false,
+      "original_upper": "1",
+      "visual_upper": 1.0,
+      "boundary_roots": [],
+      "boundary_roots_complete": true,
+      "reference_quantities": [
+        {
+          "id": "area",
+          "label": "面积",
+          "exact": "1/3",
+          "value": 0.3333333333333335,
+          "latex": "\\frac{1}{3}"
+        }
+      ],
+      "modeling_task": "geometric_area"
+    },
+    "solution": {
+      "summary": "按完整区域边界计算几何面积与题目要求的旋转体积。",
+      "answer": "面积 = 1/3",
+      "answer_value": 0.3333333333333335,
+      "exact": "1/3",
+      "approx": "0.3333333333",
+      "quantities": [
+        {
+          "id": "area",
+          "label": "面积",
+          "exact": "1/3",
+          "value": 0.3333333333333335,
+          "latex": "\\frac{1}{3}"
+        }
+      ],
+      "steps": [
+        {
+          "id": "region",
+          "title": "确定区域与分段点",
+          "latex": "y=x^{2},\\quad x\\in[0,1]",
+          "detail": "与 x 轴的全部实交点用于分段，几何面积逐段取绝对值。"
+        },
+        {
+          "id": "area",
+          "title": "面积",
+          "latex": "S=\\int |f(x)|\\,dx=\\frac{1}{3}",
+          "detail": "面积解析值为 1/3"
+        }
+      ],
+      "conditions": [],
+      "limitations": []
+    }
+  },
+  {
+    "task": "rotation_volume",
+    "model": {
+      "engine": "sympy",
+      "subject": "calculus",
+      "task": "area_volume",
+      "kind": "integral",
+      "variable": "x",
+      "expression": "x**2",
+      "defaults": {
+        "lower": 0.0,
+        "upper": 1.0,
+        "n": 16
+      },
+      "params": [
+        {
+          "id": "n",
+          "label": "分割数",
+          "kind": "number",
+          "min": 2,
+          "max": 80,
+          "step": 1,
+          "options": []
+        }
+      ],
+      "teaching": false,
+      "requested_quantities": [
+        "volume"
+      ],
+      "formula_tex": "y=x^{2}",
+      "region_kind": "vertical_inequality",
+      "lower_bound": "0",
+      "upper_bound": "1",
+      "improper_upper": false,
+      "original_upper": "1",
+      "visual_upper": 1.0,
+      "boundary_roots": [],
+      "boundary_roots_complete": true,
+      "effective_intervals": [
+        [
+          "0",
+          "1"
+        ]
+      ],
+      "reference_quantities": [
+        {
+          "id": "volume",
+          "label": "旋转体积",
+          "exact": "pi/5",
+          "value": 0.6283185307179586,
+          "latex": "\\frac{\\pi}{5}"
+        }
+      ],
+      "modeling_task": "rotation_volume"
+    },
+    "solution": {
+      "summary": "按完整区域边界计算几何面积与题目要求的旋转体积。",
+      "answer": "旋转体积 = pi/5",
+      "answer_value": 0.6283185307179586,
+      "exact": "pi/5",
+      "approx": "0.6283185307",
+      "quantities": [
+        {
+          "id": "volume",
+          "label": "旋转体积",
+          "exact": "pi/5",
+          "value": 0.6283185307179586,
+          "latex": "\\frac{\\pi}{5}"
+        }
+      ],
+      "steps": [
+        {
+          "id": "region",
+          "title": "确定区域与分段点",
+          "latex": "y=x^{2},\\quad x\\in[0,1]",
+          "detail": "不等式区域仅保留 f(x)≥0 的非空纤维。"
+        },
+        {
+          "id": "volume",
+          "title": "旋转体积",
+          "latex": "V=\\pi\\int \\max(f(x),0)^2\\,dx=\\frac{\\pi}{5}",
+          "detail": "旋转体积解析值为 pi/5"
+        }
+      ],
+      "conditions": [],
+      "limitations": []
+    }
+  },
+  {
+    "task": "implicit_normal",
+    "model": {
+      "engine": "sympy",
+      "subject": "calculus",
+      "task": "implicit_normal",
+      "kind": "derivative",
+      "variable": "x",
+      "expression": "x**2 + y**2 - 1",
+      "defaults": {
+        "point": 0.0,
+        "h": 0.05
+      },
+      "params": [],
+      "teaching": false,
+      "implicit_expression": "x**2 + y**2 - 1",
+      "formula_tex": "x^{2} + y^{2} - 1=0",
+      "point_x": "0",
+      "point_y": "1",
+      "normal_slope": null,
+      "vertical_normal": true,
+      "partial_x": "2*x",
+      "partial_y": "2*y",
+      "modeling_task": "implicit_normal"
+    },
+    "solution": {
+      "summary": "隐函数偏导确定切线，再求过研究点的法线。",
+      "answer": "法线 x=0",
+      "answer_value": null,
+      "exact": "斜率不存在（竖直法线）",
+      "tangent_tex": "x=0",
+      "normal_tex": "x=0",
+      "steps": [
+        {
+          "id": "point",
+          "title": "确认曲线上研究点",
+          "latex": "P=(0,1)",
+          "detail": "将给定横坐标代入曲线，保留唯一实分支或已核对的纵坐标。"
+        },
+        {
+          "id": "implicit",
+          "title": "隐式求导与法线",
+          "latex": "y\\prime=-F_x/F_y,\\quad k_n=F_y/F_x",
+          "detail": "光滑点法线方向为梯度 (F_x,F_y)；F_x=0 时法线竖直。"
+        },
+        {
+          "id": "normal",
+          "title": "写出法线",
+          "latex": "x=0",
+          "detail": "法线经过研究点，方向与切线垂直。"
+        }
+      ],
+      "conditions": [
+        "研究点必须位于曲线上，且梯度非零。"
+      ],
+      "limitations": []
+    }
+  },
+  {
+    "task": "double_integral",
+    "model": {
+      "engine": "double_integral_v1",
+      "subject": "calculus",
+      "task": "double_integral",
+      "kind": "integral",
+      "expression": "x + y",
+      "integrand": "x + y",
+      "outer_variable": "x",
+      "inner_variable": "y",
+      "outer_bounds": [
+        "0",
+        "1"
+      ],
+      "inner_bounds": [
+        "0",
+        "x"
+      ],
+      "inner_bounds_tex": [
+        "0",
+        "x"
+      ],
+      "inner_integral": "3*x^2/2",
+      "exact": "1/2",
+      "answer_value": 0.5,
+      "formula_tex": "\\int_{0}^{1}\\int_{0}^{x}x + y\\,dy\\,dx",
+      "teaching": false,
+      "defaults": {
+        "slice": 0.5,
+        "n": 20
+      },
+      "params": [
+        {
+          "id": "slice",
+          "label": "切片位置 x",
+          "kind": "number",
+          "min": 0.0,
+          "max": 1.0,
+          "step": 0.01,
+          "options": []
+        },
+        {
+          "id": "n",
+          "label": "积分分割数",
+          "kind": "integer",
+          "min": 4,
+          "max": 80,
+          "step": 1,
+          "options": []
+        }
+      ],
+      "modeling_task": "double_integral"
+    },
+    "solution": {
+      "summary": "从原题区域确定积分限，先对内层变量积分，再对外层变量累加。",
+      "answer": "1/2",
+      "exact": "1/2",
+      "answer_value": 0.5,
+      "steps": [
+        {
+          "id": "region",
+          "title": "确定积分区域",
+          "detail": "0 ≤ x ≤ 1；0 ≤ y ≤ x。边界和阴影共同表示区域 D。"
+        },
+        {
+          "id": "slice",
+          "title": "沿区域取切片",
+          "detail": "固定 x，y 从下边界 0 到上边界 x。",
+          "latex": "\\int_{0}^{1}\\int_{0}^{x}x + y\\,dy\\,dx"
+        },
+        {
+          "id": "inner",
+          "title": "计算内层积分",
+          "detail": "对 y 积分后得到 3*x^2/2。"
+        },
+        {
+          "id": "evaluate",
+          "title": "计算外层积分",
+          "detail": "在 [0, 1] 上积分，结果为 1/2。"
+        }
+      ],
+      "conditions": [
+        "积分限来自原题或 AI 提取的区域，请结合原题核对。"
+      ],
+      "limitations": [
+        "当前支持有限的单片区域和多项式被积函数；数值分割仅用于观察逼近。"
+      ]
+    }
+  },
+  {
+    "task": "optimization",
+    "model": {
+      "engine": "gradient_descent_v1",
+      "subject": "optimization",
+      "variables": [
+        "x",
+        "y"
+      ],
+      "expression": "(x-1)^2+(y+2)^2",
+      "grad_exprs": [
+        "2*x - 2",
+        "2*y + 4"
+      ],
+      "gradient_tex": "\\frac{\\partial f}{\\partial x}=2 x - 2, \\frac{\\partial f}{\\partial y}=2 y + 4",
+      "objective_tex": "f(x,y)=\\left(x - 1\\right)^{2} + \\left(y + 2\\right)^{2}",
+      "defaults": {
+        "x0": 0.0,
+        "y0": 0.0,
+        "learning_rate": 0.1,
+        "iterations": 30
+      },
+      "params": [
+        {
+          "id": "x0",
+          "label": "初始点 x₀",
+          "kind": "number",
+          "min": null,
+          "max": null,
+          "step": 0.1,
+          "options": []
+        },
+        {
+          "id": "y0",
+          "label": "初始点 y₀",
+          "kind": "number",
+          "min": null,
+          "max": null,
+          "step": 0.1,
+          "options": []
+        },
+        {
+          "id": "learning_rate",
+          "label": "学习率 η",
+          "kind": "number",
+          "min": 0.001,
+          "max": 2,
+          "step": 0.001,
+          "options": []
+        },
+        {
+          "id": "iterations",
+          "label": "迭代次数",
+          "kind": "integer",
+          "min": 1,
+          "max": 120,
+          "step": 1,
+          "options": []
+        }
+      ],
+      "bounds": {},
+      "domain": {
+        "x_min": -3.75,
+        "x_max": 4.75,
+        "x_critical": 0.5,
+        "y_min": -3.0,
+        "y_max": 1.0,
+        "y_critical": -1.0
+      },
+      "teaching": false,
+      "provenance_note": null,
+      "modeling_task": "optimization"
+    },
+    "solution": {
+      "summary": "梯度下降轨迹、目标值变化与驻点核对使用同一目标函数。",
+      "answer": "极小值点 (1, -2), f=0；极大值不存在",
+      "answer_point": null,
+      "answer_value": null,
+      "steps": [
+        {
+          "id": "objective",
+          "title": "写出目标与梯度",
+          "latex": "\\left(x - 1\\right)^{2} + \\left(y + 2\\right)^{2},\\quad \\frac{\\partial f}{\\partial x}=2 x - 2, \\frac{\\partial f}{\\partial y}=2 y + 4",
+          "detail": "梯度决定当前位置函数值上升最快的方向，因此沿负梯度移动。"
+        },
+        {
+          "id": "update",
+          "title": "梯度下降迭代",
+          "latex": "x_{k+1}=x_k-\\eta\\nabla f(x_k)",
+          "detail": "初始点 x₀=[0.0, 0.0]，学习率 η=0.1，最多 30 次。"
+        },
+        {
+          "id": "stop",
+          "title": "检查停止与全局性",
+          "latex": "\\|\\nabla f(x_k)\\|\\le 10^{-7}",
+          "detail": "目标函数是凸二次函数，驻点即全局最优；这一结论来自 Hessian 半正定核对。"
+        },
+        {
+          "id": "stationary_classification",
+          "title": "驻点全集与 Hessian 分类",
+          "latex": "\\nabla f=0,\\quad D=f_{xx}f_{yy}-f_{xy}^2",
+          "detail": "极小值点 (1, -2), f=0；极大值不存在"
+        }
+      ],
+      "conditions": [
+        "迭代只沿负梯度方向更新；箱约束存在时投影回可行域。"
+      ],
+      "global_note": "全部驻点由符号方程求出；Hessian 判别局部极值与鞍点。",
+      "limitations": [
+        "一般非线性约束不在首版自动求解范围；原约束仍保留在来源中。"
+      ],
+      "stationary_points": [
+        {
+          "coordinates": [
+            "1",
+            "-2"
+          ],
+          "classification": "minimum",
+          "value": "0",
+          "hessian_determinant": "4",
+          "latex": "\\left( 1, \\  -2\\right)"
+        }
+      ],
+      "stationary_complete": true
+    }
+  },
+  {
+    "task": "bfs",
+    "model": {
+      "engine": "bfs_v1",
+      "subject": "algorithm",
+      "algorithm": "bfs",
+      "nodes": [
+        {
+          "id": "A",
+          "label": "A"
+        },
+        {
+          "id": "B",
+          "label": "B"
+        },
+        {
+          "id": "C",
+          "label": "C"
+        },
+        {
+          "id": "Z",
+          "label": "Z"
+        }
+      ],
+      "edges": [
+        {
+          "from": "A",
+          "to": "B"
+        },
+        {
+          "from": "A",
+          "to": "C"
+        }
+      ],
+      "directed": true,
+      "start": "A",
+      "neighbor_order": "lexicographic_by_id",
+      "defaults": {
+        "start": "A"
+      },
+      "params": [
+        {
+          "id": "start",
+          "label": "起点",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "A",
+            "B",
+            "C",
+            "Z"
+          ]
+        }
+      ],
+      "teaching": false,
+      "provenance_note": null,
+      "modeling_task": "bfs"
+    },
+    "solution": {
+      "summary": "BFS 按队列规则执行；访问顺序、父节点和层级来自同一条轨迹。",
+      "answer": "A → B → C",
+      "answer_order": [
+        "A",
+        "B",
+        "C"
+      ],
+      "steps": [
+        {
+          "id": "init",
+          "title": "初始化",
+          "latex": "queue=[s],\\ visited=\\{s\\}",
+          "detail": "起点入队时立即标记已访问，避免环导致重复入队。"
+        },
+        {
+          "id": "dequeue",
+          "title": "出队并扩展",
+          "latex": "u=queue.pop(0)",
+          "detail": "先进先出保证按层扩展；同层邻居按节点编号升序。"
+        },
+        {
+          "id": "enqueue",
+          "title": "发现新节点",
+          "latex": "visited.add(v),\\ parent[v]=u",
+          "detail": "只有未访问的邻居入队；父节点与层级同时写入轨迹。"
+        }
+      ],
+      "conditions": [
+        "同层处理规则：邻居按节点编号升序；入队即标记已访问。"
+      ],
+      "limitations": [
+        "这里只执行 BFS；Dijkstra、DFS 等需要另建模型。"
+      ]
+    }
+  },
+  {
+    "task": "heap",
+    "model": {
+      "engine": "heap_v1",
+      "subject": "algorithm",
+      "algorithm": "heap",
+      "heap_type": "max",
+      "initial_heap": [
+        9,
+        7,
+        8,
+        1
+      ],
+      "defaults": {
+        "deletion_count": 1
+      },
+      "choices": {},
+      "params": [
+        {
+          "id": "deletion_count",
+          "label": "删除次数",
+          "kind": "number",
+          "min": 0,
+          "max": 4,
+          "step": 1,
+          "options": []
+        }
+      ],
+      "teaching": false,
+      "modeling_task": "heap"
+    },
+    "solution": {
+      "summary": "删除堆顶后，用末尾元素替换根节点并逐层向下筛选。",
+      "answer": "8, 7, 1",
+      "answer_order": [
+        "8",
+        "7",
+        "1"
+      ],
+      "answer_choice": null,
+      "steps": [
+        {
+          "id": "heap_0",
+          "title": "初始堆",
+          "detail": "核对初始数组满足堆序。 数组：[9, 7, 8, 1]；已删除：[]。"
+        },
+        {
+          "id": "heap_1",
+          "title": "第 1 次删除堆顶 9",
+          "detail": "删除堆顶，末尾元素补到根节点；可能暂时不满足堆序。 数组：[1, 7, 8]；已删除：[9]。"
+        },
+        {
+          "id": "heap_3",
+          "title": "交换下标 0 与 2",
+          "detail": "交换后沿该孩子继续向下检查。 数组：[8, 7, 1]；已删除：[9]。"
+        },
+        {
+          "id": "heap_4",
+          "title": "第 1 次删除完成",
+          "detail": "堆序已恢复，按层序数组记录当前堆。 数组：[8, 7, 1]；已删除：[9]。"
+        },
+        {
+          "id": "heap_5",
+          "title": "删除完成",
+          "detail": "最终序列是堆的层序数组。 数组：[8, 7, 1]；已删除：[9]。"
+        }
+      ],
+      "conditions": [
+        "初始序列已满足堆序；每次筛选后恢复堆序。"
+      ],
+      "limitations": [
+        "下标从 0 开始；筛选中的临时状态可能不满足堆序。相同优先级的孩子固定选择左侧。"
+      ]
+    }
+  },
+  {
+    "task": "linear_system",
+    "model": {
+      "engine": "gauss_v1",
+      "subject": "linear_algebra",
+      "la_kind": "linear_system",
+      "op": null,
+      "matrix_a": [
+        [
+          2.0,
+          1.0
+        ],
+        [
+          1.0,
+          -1.0
+        ]
+      ],
+      "matrix_b": null,
+      "vector_b": [
+        7.0,
+        -1.0
+      ],
+      "variables": [
+        "x1",
+        "x2"
+      ],
+      "defaults": {
+        "method": "gauss",
+        "pivoting": "partial"
+      },
+      "params": [
+        {
+          "id": "method",
+          "label": "消元方式",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "gauss",
+            "jordan"
+          ],
+          "note": "高斯消元化上三角后回代；高斯-若尔当一步化到行最简形。"
+        },
+        {
+          "id": "pivoting",
+          "label": "主元策略",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "partial",
+            "none"
+          ],
+          "note": "部分主元每列选绝对值最大者换到主行（更稳定）；不选主元按顺序取第一个非零者。"
+        }
+      ],
+      "teaching": false,
+      "modeling_task": "linear_system"
+    },
+    "solution": {
+      "summary": "高斯消元：写出增广矩阵 → 选主元消元 → 回代（或行最简形）→ 代回核对。",
+      "answer": "x1 = 2，x2 = 3",
+      "answer_vector": [
+        2.0,
+        3.0
+      ],
+      "answer_value": null,
+      "steps": [
+        {
+          "id": "la_0",
+          "title": "写出增广矩阵 [A|b]",
+          "detail": "把系数与右端写成增广矩阵；所有后续步骤都作用在这张表上。"
+        },
+        {
+          "id": "la_1",
+          "title": "选取主元并前向消元",
+          "detail": "每列选绝对值最大的主元换到主行，再用倍加行变换把主元下方消为 0。"
+        },
+        {
+          "id": "la_4",
+          "title": "回代求解",
+          "detail": "上三角化后自下而上：xᵢ = (bᵢ − Σaᵢⱼxⱼ)/aᵢᵢ；若尔当法则直接读最后一列。"
+        },
+        {
+          "id": "la_7",
+          "title": "解与核对",
+          "detail": "x1 = 2，x2 = 3。把解代回残差 ‖Ax−b‖ 已核对。"
+        }
+      ],
+      "conditions": [
+        "矩阵数据来自题目识别条件；可在条件面板中修正后重建。"
+      ],
+      "limitations": [
+        "行号从 1 开始；换行使行列式变号，倍加变换不变。",
+        "若尔当法把主元先归一，再消上下两个方向。"
+      ]
+    }
+  },
+  {
+    "task": "determinant",
+    "model": {
+      "engine": "gauss_v1",
+      "subject": "linear_algebra",
+      "la_kind": "determinant",
+      "op": null,
+      "matrix_a": [
+        [
+          2.0,
+          1.0
+        ],
+        [
+          1.0,
+          -1.0
+        ]
+      ],
+      "matrix_b": null,
+      "vector_b": null,
+      "variables": [],
+      "defaults": {
+        "method": "gauss",
+        "pivoting": "partial"
+      },
+      "params": [
+        {
+          "id": "pivoting",
+          "label": "主元策略",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "partial",
+            "none"
+          ],
+          "note": "部分主元每列选绝对值最大者换到主行（更稳定）；不选主元按顺序取第一个非零者。"
+        }
+      ],
+      "teaching": false,
+      "modeling_task": "determinant"
+    },
+    "solution": {
+      "summary": "行列式经初等行变换化为上三角后取主元乘积；轨迹记录每一次变号。",
+      "answer": "det(A) = -3",
+      "answer_vector": null,
+      "answer_value": -3.0,
+      "steps": [
+        {
+          "id": "la_0",
+          "title": "矩阵 A",
+          "detail": "行列式用初等行变换计算；换行变号，倍乘行会使行列式同倍变化，倍加不变。"
+        },
+        {
+          "id": "la_1",
+          "title": "初等行变换化上三角",
+          "detail": "每列选非零主元并向下消元；本例只用换行与倍加两类变换。"
+        },
+        {
+          "id": "la_4",
+          "title": "读取主对角线",
+          "detail": "det(A) = (−1)^(换行次数) × 主元乘积。"
+        },
+        {
+          "id": "la_5",
+          "title": "结果",
+          "detail": "det(A) = -3"
+        }
+      ],
+      "conditions": [
+        "矩阵数据来自题目识别条件；可在条件面板中修正后重建。"
+      ],
+      "limitations": [
+        "行号从 1 开始；换行使行列式变号，倍加变换不变。",
+        "若尔当法把主元先归一，再消上下两个方向。"
+      ]
+    }
+  },
+  {
+    "task": "inverse",
+    "model": {
+      "engine": "gauss_v1",
+      "subject": "linear_algebra",
+      "la_kind": "inverse",
+      "op": null,
+      "matrix_a": [
+        [
+          2.0,
+          1.0
+        ],
+        [
+          1.0,
+          -1.0
+        ]
+      ],
+      "matrix_b": null,
+      "vector_b": null,
+      "variables": [],
+      "defaults": {
+        "method": "gauss",
+        "pivoting": "partial"
+      },
+      "params": [
+        {
+          "id": "method",
+          "label": "消元方式",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "gauss",
+            "jordan"
+          ],
+          "note": "高斯消元化上三角后回代；高斯-若尔当一步化到行最简形。"
+        },
+        {
+          "id": "pivoting",
+          "label": "主元策略",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "partial",
+            "none"
+          ],
+          "note": "部分主元每列选绝对值最大者换到主行（更稳定）；不选主元按顺序取第一个非零者。"
+        }
+      ],
+      "teaching": false,
+      "modeling_task": "inverse"
+    },
+    "solution": {
+      "summary": "逆矩阵用高斯-若尔当消元：对 [A|I] 同步做行变换，左半化 I、右半即 A⁻¹。",
+      "answer": "A⁻¹ = [0.33333, 0.33333; 0.33333, -0.66667]",
+      "answer_vector": [
+        0.33333333333333337,
+        0.3333333333333333,
+        0.3333333333333333,
+        -0.6666666666666666
+      ],
+      "answer_value": null,
+      "steps": [
+        {
+          "id": "la_0",
+          "title": "写出 [A|I]",
+          "detail": "对同样的行变换同时作用在 A 与单位阵 I 上。"
+        },
+        {
+          "id": "la_1",
+          "title": "消元把左半化为 I",
+          "detail": "主元消元 + 归一主行；左半变 I 时，右半自动成为 A⁻¹。"
+        },
+        {
+          "id": "la_4",
+          "title": "读出右半",
+          "detail": "右半矩阵即 A⁻¹。"
+        },
+        {
+          "id": "la_8",
+          "title": "核对 A·A⁻¹≈I",
+          "detail": "A⁻¹ = [0.33333, 0.33333; 0.33333, -0.66667]；乘积核对通过。"
+        }
+      ],
+      "conditions": [
+        "矩阵数据来自题目识别条件；可在条件面板中修正后重建。"
+      ],
+      "limitations": [
+        "行号从 1 开始；换行使行列式变号，倍加变换不变。",
+        "若尔当法把主元先归一，再消上下两个方向。"
+      ]
+    }
+  },
+  {
+    "task": "matmul",
+    "model": {
+      "engine": "matmul_v1",
+      "subject": "linear_algebra",
+      "la_kind": "matmul",
+      "op": "mul",
+      "matrix_a": [
+        [
+          1.0,
+          2.0
+        ],
+        [
+          3.0,
+          4.0
+        ]
+      ],
+      "matrix_b": [
+        [
+          0.0,
+          1.0
+        ],
+        [
+          1.0,
+          0.0
+        ]
+      ],
+      "vector_b": null,
+      "variables": [],
+      "defaults": {
+        "order": "ab",
+        "scalar": 2.0
+      },
+      "params": [
+        {
+          "id": "order",
+          "label": "乘积顺序",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "ab",
+            "ba"
+          ],
+          "note": "交换顺序可对照矩阵乘法不满足交换律。"
+        }
+      ],
+      "teaching": false,
+      "modeling_task": "matmul"
+    },
+    "solution": {
+      "summary": "矩阵运算逐元素进行；乘法为行·列乘积求和，且一般 A·B ≠ B·A。",
+      "answer": "A·B = [2, 1; 4, 3]",
+      "answer_vector": [
+        2.0,
+        1.0,
+        4.0,
+        3.0
+      ],
+      "answer_value": null,
+      "steps": [
+        {
+          "id": "la_0",
+          "title": "按维度核对",
+          "detail": "乘法和加减都要先核对形状；数乘对全部元素同乘 k。"
+        },
+        {
+          "id": "la_1",
+          "title": "逐元素计算",
+          "detail": "每个结果元素逐项相乘/相加/数乘并求和。"
+        },
+        {
+          "id": "la_5",
+          "title": "结果矩阵",
+          "detail": "A·B = [2, 1; 4, 3]"
+        }
+      ],
+      "conditions": [
+        "矩阵数据来自题目识别条件；可在条件面板中修正后重建。"
+      ],
+      "limitations": [
+        "矩阵乘法不满足交换律：A·B 与 B·A 一般不同。",
+        "逐步帧展示每个元素的乘积求和过程。"
+      ]
+    }
+  },
+  {
+    "task": "cpu_schedule",
+    "model": {
+      "engine": "os_sched_v1",
+      "subject": "operating_system",
+      "os_kind": "cpu_schedule",
+      "processes": [
+        {
+          "id": "JobA",
+          "arrival": 0.0,
+          "burst": 3.0,
+          "priority": null
+        },
+        {
+          "id": "JobB",
+          "arrival": 1.0,
+          "burst": 2.0,
+          "priority": null
+        }
+      ],
+      "has_priority": false,
+      "defaults": {
+        "algorithm": "fcfs",
+        "quantum": 2.0
+      },
+      "params": [
+        {
+          "id": "algorithm",
+          "label": "调度算法",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "fcfs",
+            "sjf",
+            "srtf",
+            "rr"
+          ],
+          "note": "同一组进程可切换算法，对照平均等待与周转时间。"
+        },
+        {
+          "id": "quantum",
+          "label": "时间片 q",
+          "kind": "number",
+          "min": 1,
+          "max": 10,
+          "step": 1,
+          "options": [],
+          "note": "仅时间片轮转使用。"
+        }
+      ],
+      "teaching": false,
+      "modeling_task": "cpu_schedule"
+    },
+    "solution": {
+      "summary": "先来先服务 FCFS：模拟 CPU 时间轴，得到各进程完成时刻，再求平均周转与平均等待时间。",
+      "answer": "平均等待时间 = 1，平均周转时间 = 3.5，平均带权周转时间 = 1.5",
+      "answer_value": 1.0,
+      "answer_order": null,
+      "answer_sequence": null,
+      "steps": [
+        {
+          "id": "os_0",
+          "title": "列出进程表",
+          "detail": "按到达时间排列进程；每个进程有到达时间与服务时间。"
+        },
+        {
+          "id": "os_1",
+          "title": "按规则选择进程",
+          "detail": "先来先服务 FCFS：每次在就绪队列里按规则选一个进程，甘特图记录每一段的理由。"
+        },
+        {
+          "id": "os_2",
+          "title": "记录完成时刻",
+          "detail": "周转时间 = 完成时间 − 到达时间；等待时间 = 周转时间 − 服务时间。"
+        },
+        {
+          "id": "os_3",
+          "title": "平均指标",
+          "detail": "平均等待时间 = 1，平均周转时间 = 3.5，平均带权周转时间 = 1.5"
+        }
+      ],
+      "conditions": [
+        "题目数据来自识别条件；可在条件面板中修正后重建。"
+      ],
+      "limitations": [
+        "同一时刻到达的进程按输入顺序入队；RR 中新到达的进程排在被抢占进程之前。",
+        "相同条件下优先比较：SJF 看服务时间，SRTF 看剩余时间（并列时不抢占），再依次看到达时间与输入顺序。",
+        "切换上方“调度算法”可用同一组进程对照各算法。"
+      ]
+    }
+  },
+  {
+    "task": "page_replace",
+    "model": {
+      "engine": "os_page_v1",
+      "subject": "operating_system",
+      "os_kind": "page_replace",
+      "reference": [
+        "1",
+        "2",
+        "3",
+        "1",
+        "4",
+        "2"
+      ],
+      "defaults": {
+        "algorithm": "lru",
+        "frames": 3
+      },
+      "params": [
+        {
+          "id": "algorithm",
+          "label": "置换算法",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "fifo",
+            "lru",
+            "opt"
+          ],
+          "note": "同一访问序列可对照三种算法的缺页次数。"
+        },
+        {
+          "id": "frames",
+          "label": "物理块数",
+          "kind": "integer",
+          "min": 1,
+          "max": 10,
+          "step": 1,
+          "options": [],
+          "note": "FIFO 增加物理块数时可能缺页更多（Belady 异常）。"
+        }
+      ],
+      "teaching": false,
+      "modeling_task": "page_replace"
+    },
+    "solution": {
+      "summary": "最近最久未使用 LRU：逐次访问页面，命中则不动，缺页则装入或置换，最后统计缺页次数。",
+      "answer": "缺页 5 次，命中 1 次，缺页率 83.3%",
+      "answer_value": 5.0,
+      "answer_order": null,
+      "answer_sequence": null,
+      "steps": [
+        {
+          "id": "os_0",
+          "title": "初始：物理块全空",
+          "detail": "每次访问页面，先看它是否已在物理块中。"
+        },
+        {
+          "id": "os_1",
+          "title": "缺页并装入空闲块",
+          "detail": "不在内存就缺页；还有空闲块时直接装入。"
+        },
+        {
+          "id": "os_5",
+          "title": "物理块已满：置换",
+          "detail": "最近最久未使用 LRU选出被换出的页面，新页面装入同一个块。"
+        },
+        {
+          "id": "os_7",
+          "title": "统计缺页",
+          "detail": "缺页 5 次，命中 1 次，缺页率 83.3%"
+        }
+      ],
+      "conditions": [
+        "题目数据来自识别条件；可在条件面板中修正后重建。"
+      ],
+      "limitations": [
+        "物理块按固定位置显示：被置换页面所在的块直接装入新页面。",
+        "OPT 并列时（多个页面都不再访问）置换最早装入的页面；LRU 命中会刷新最近使用时间，FIFO 命中不改变队列。"
+      ]
+    }
+  },
+  {
+    "task": "disk_schedule",
+    "model": {
+      "engine": "os_disk_v1",
+      "subject": "operating_system",
+      "os_kind": "disk_schedule",
+      "requests": [
+        10.0,
+        40.0,
+        20.0
+      ],
+      "head": 25.0,
+      "max_track": 40.0,
+      "defaults": {
+        "algorithm": "sstf",
+        "direction": "up",
+        "return_cost": "count"
+      },
+      "params": [
+        {
+          "id": "algorithm",
+          "label": "磁盘调度算法",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "fcfs",
+            "sstf",
+            "scan",
+            "cscan",
+            "look",
+            "clook"
+          ],
+          "note": "同一请求序列可对照各算法的总移动距离。"
+        },
+        {
+          "id": "direction",
+          "label": "初始移动方向",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "up",
+            "down"
+          ],
+          "note": "仅 SCAN / C-SCAN / LOOK / C-LOOK 使用。"
+        },
+        {
+          "id": "return_cost",
+          "label": "回扫距离",
+          "kind": "enum",
+          "min": null,
+          "max": null,
+          "step": null,
+          "options": [
+            "count",
+            "skip"
+          ],
+          "note": "C-SCAN / C-LOOK 从一端跳到另一端：教材有的计入总移动，有的不计。"
+        }
+      ],
+      "teaching": false,
+      "modeling_task": "disk_schedule"
+    },
+    "solution": {
+      "summary": "最短寻道时间优先 SSTF：按算法依次服务请求，累加磁头移动距离。",
+      "answer": "总移动距离 = 45，平均寻道长度 = 15；服务顺序 20 → 10 → 40",
+      "answer_value": 45.0,
+      "answer_order": null,
+      "answer_sequence": [
+        "20",
+        "10",
+        "40"
+      ],
+      "steps": [
+        {
+          "id": "os_0",
+          "title": "磁头起点与请求",
+          "detail": "请求按到达顺序给出；总移动距离是相邻两次磁头位置之差的绝对值之和。"
+        },
+        {
+          "id": "os_1",
+          "title": "选择下一个磁道",
+          "detail": "最短寻道时间优先 SSTF：按算法决定下一个服务的磁道，并累加移动距离。"
+        },
+        {
+          "id": "os_1",
+          "title": "端点与换向",
+          "detail": "SCAN 类算法走到末端或最远请求后换向（或回扫）；FCFS / SSTF 没有这一步。"
+        },
+        {
+          "id": "os_4",
+          "title": "总移动距离",
+          "detail": "总移动距离 = 45，平均寻道长度 = 15；服务顺序 20 → 10 → 40"
+        }
+      ],
+      "conditions": [
+        "题目数据来自识别条件；可在条件面板中修正后重建。"
+      ],
+      "limitations": [
+        "SSTF 并列时选请求队列中更靠前的磁道；SCAN / C-SCAN 走到磁盘末端，LOOK / C-LOOK 只走到最远的请求。",
+        "C-SCAN / C-LOOK 的回扫是否计入总移动因教材而异，可在“回扫距离”中切换。"
+      ]
+    }
+  },
+  {
+    "task": "banker",
+    "model": {
+      "engine": "os_banker_v1",
+      "subject": "operating_system",
+      "os_kind": "banker",
+      "names": [
+        "WorkerA",
+        "WorkerB"
+      ],
+      "resources": [
+        "A"
+      ],
+      "allocation": [
+        [
+          1.0
+        ],
+        [
+          0.0
+        ]
+      ],
+      "need": [
+        [
+          1.0
+        ],
+        [
+          1.0
+        ]
+      ],
+      "max": [
+        [
+          2.0
+        ],
+        [
+          1.0
+        ]
+      ],
+      "available": [
+        1.0
+      ],
+      "request": null,
+      "defaults": {
+        "request_mode": "ignore"
+      },
+      "params": [],
+      "teaching": false,
+      "modeling_task": "banker"
+    },
+    "solution": {
+      "summary": "银行家算法：用安全性算法检查系统是否存在安全序列；有资源请求时先试分配再检查。",
+      "answer": "系统处于安全状态，安全序列：WorkerA → WorkerB",
+      "answer_value": null,
+      "answer_order": [
+        "WorkerA",
+        "WorkerB"
+      ],
+      "answer_sequence": [
+        "WorkerA",
+        "WorkerB"
+      ],
+      "steps": [
+        {
+          "id": "os_0",
+          "title": "Need 与 Work",
+          "detail": "Need = Max − Allocation；Work 初始为 Available。"
+        },
+        {
+          "id": "os_1",
+          "title": "寻找可完成的进程",
+          "detail": "有资源请求时先检查 Request ≤ Need 与 Request ≤ Available，再试分配；否则直接找 Need ≤ Work 的进程。"
+        },
+        {
+          "id": "os_1",
+          "title": "假定进程完成并归还资源",
+          "detail": "Work = Work + Allocation，再找下一个。"
+        },
+        {
+          "id": "os_4",
+          "title": "结论",
+          "detail": "系统处于安全状态，安全序列：WorkerA → WorkerB"
+        }
+      ],
+      "conditions": [
+        "题目数据来自识别条件；可在条件面板中修正后重建。"
+      ],
+      "limitations": [
+        "每一轮都从 P0 开始找第一个满足 Need ≤ Work 的进程，因此给出的是其中一个安全序列。",
+        "安全序列通常不唯一：只要每一步都满足 Need ≤ Work，任何合法的完成顺序都算正确。"
+      ]
+    }
+  },
+  {
+    "task": "neural_training",
+    "model": {
+      "engine": "mlp_v1",
+      "subject": "deep_learning",
+      "layers": [
+        {
+          "size": 1,
+          "activation": "input"
+        },
+        {
+          "size": 1,
+          "activation": "linear"
+        }
+      ],
+      "weights": [
+        [
+          [
+            2
+          ]
+        ]
+      ],
+      "biases": [
+        [
+          1
+        ]
+      ],
+      "input": [
+        3
+      ],
+      "target": [
+        5
+      ],
+      "seed": 42,
+      "activation": "linear",
+      "weight_source": "original",
+      "defaults": {
+        "learning_rate": 0.01,
+        "epochs": 1,
+        "input_1": 3
+      },
+      "params": [
+        {
+          "id": "input_1",
+          "label": "输入 x1",
+          "kind": "number",
+          "min": -3,
+          "max": 3,
+          "step": 0.1,
+          "options": []
+        },
+        {
+          "id": "learning_rate",
+          "label": "学习率 η",
+          "kind": "number",
+          "min": 0.001,
+          "max": 2,
+          "step": 0.001,
+          "options": []
+        },
+        {
+          "id": "epochs",
+          "label": "训练轮数",
+          "kind": "integer",
+          "min": 1,
+          "max": 30,
+          "step": 1,
+          "options": []
+        }
+      ],
+      "teaching": false,
+      "provenance_note": null,
+      "modeling_task": "neural_training"
+    },
+    "solution": {
+      "summary": "小型网络的前向、损失、梯度和参数更新均为真实数值。",
+      "answer": "训练 1 轮后 MSE=2.56",
+      "steps": [
+        {
+          "id": "forward",
+          "title": "前向计算",
+          "latex": "z^{[l]}=W^{[l]}a^{[l-1]}+b^{[l]},\\quad a^{[l]}=\\sigma(z^{[l]})",
+          "detail": "输入 [3.0]，目标 [5.0]；逐层得到输出并计算 MSE。"
+        },
+        {
+          "id": "loss",
+          "title": "计算损失",
+          "latex": "\\mathcal{L}=\\frac{1}{m}\\|\\\\hat y-y\\|^2",
+          "detail": "初始损失 4，当前损失 2.56。"
+        },
+        {
+          "id": "backward",
+          "title": "反向传播",
+          "latex": "\\delta^{[L]}=\\frac{2}{m}(\\hat y-y)\\odot\\sigma'(z^{[L]})",
+          "detail": "从输出层向输入层传播误差；每一层的梯度都由真实前向缓存计算。"
+        },
+        {
+          "id": "update",
+          "title": "参数更新",
+          "latex": "W\\leftarrow W-\\eta\\nabla_W\\mathcal{L}",
+          "detail": "每个 epoch 用学习率 0.01 更新一次；当前显示的是第 1 轮结束后的权重。"
+        }
+      ],
+      "conditions": [
+        "权重来源与尺寸在条件面板中单独标注。"
+      ],
+      "limitations": [
+        "权重来源：题目提供",
+        "大型模型不在首版自动展开范围；这里展示的是维度与运算均可核对的小型网络。"
+      ]
+    }
+  }
+]

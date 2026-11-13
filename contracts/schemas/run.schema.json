@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:schema:run:1",
+  "title": "RunSnapshot",
+  "description": "C-RUN@1 运行快照与检查报告（§2.2.2）。RunSnapshot 不可变，回放只读取 input_snapshot（R10-AC5）；ValidationReport 绑定 object_id + model_version + revision，可被重新查询（R11-AC4）。校验报告与检查项定义见 $defs。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "object_id",
+    "model_version",
+    "revision",
+    "kernel_version",
+    "input_snapshot",
+    "result",
+    "validation_report",
+    "created_at"
+  ],
+  "properties": {
+    "run_id": {
+      "description": "运行标识，全局唯一。",
+      "type": "string",
+      "minLength": 1
+    },
+    "object_id": {
+      "description": "被冻结的知识对象 id。",
+      "type": "string",
+      "minLength": 1
+    },
+    "model_version": {
+      "description": "保存运行时冻结的结构版本。",
+      "type": "integer",
+      "minimum": 1
+    },
+    "revision": {
+      "description": "保存运行时冻结的数值修订号。",
+      "type": "integer",
+      "minimum": 0
+    },
+    "kernel_version": {
+      "description": "产生 result 的内核版本。",
+      "enum": ["linear_v1", "force_v1", "bfs_v1", "budget_v1"]
+    },
+    "input_snapshot": {
+      "description": "冻结的完整对象副本，形状即 C-KO@1 KnowledgeObject（见 knowledge_object.schema.json）。",
+      "$ref": "knowledge_object.schema.json"
+    },
+    "result": {
+      "description": "该模板 Result，形状见 C-MX@1 / C-FC@1 / C-BFS@1 / C-BUD@1（contracts/schemas/template_*.schema.json）。POST /objects/{id}/runs 时服务端必须用内核重算并覆盖客户端上传值（§2.2.7 契约级行为 3）。"
+    },
+    "validation_report": {
+      "description": "未校验时为 null；有报告时必须满足 $defs/ValidationReport。",
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/ValidationReport" }]
+    },
+    "created_at": {
+      "description": "保存时间，ISO 8601 UTC。",
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "$defs": {
+    "CheckStatus": {
+      "description": "检查项状态。stale 表示结构或数值已变化、该结论过期（R10-AC7）。",
+      "enum": ["pass", "fail", "not_covered", "stale"]
+    },
+    "CheckItem": {
+      "description": "单条检查项：expected 来自独立实现（validators），actual 来自内核（engines），两者不一致即 fail（R11-AC1）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["check_id", "title", "status", "expected", "actual", "detail"],
+      "properties": {
+        "check_id": {
+          "description": "稳定标识，如 mx_ax_value；重跑同输入时保持不变。",
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "description": "中文标题，面向用户展示。",
+          "type": "string",
+          "minLength": 1
+        },
+        "status": { "$ref": "#/$defs/CheckStatus" },
+        "expected": {
+          "description": "人类可读期望值，如 \"Ax = (2, 1)\"，来自独立实现。",
+          "type": "string"
+        },
+        "actual": {
+          "description": "人类可读实际值，来自确定性内核。",
+          "type": "string"
+        },
+        "detail": {
+          "description": "失败原因或未覆盖说明；通过时为 null。",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "CheckSummary": {
+      "description": "检查计数，必须与 items 中对应 status 的数量一致（§2.2.2 语义）。注意 status=stale 的条目不计入本三项，仅由 ValidationReport.is_stale 表达。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass", "fail", "not_covered"],
+      "properties": {
+        "pass": { "description": "status=pass 的条目数。", "type": "integer", "minimum": 0 },
+        "fail": { "description": "status=fail 的条目数。", "type": "integer", "minimum": 0 },
+        "not_covered": { "description": "status=not_covered 的条目数，必须显式列出不得静默忽略（R11-AC2）。", "type": "integer", "minimum": 0 }
+      }
+    },
+    "ValidationReport": {
+      "description": "独立校验报告（R11）。is_stale=true 时前端必须显示\"过期\"，不得显示为通过（R10-AC7）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_id",
+        "object_id",
+        "model_version",
+        "revision",
+        "kernel_version",
+        "validation_profile",
+        "items",
+        "summary",
+        "is_stale",
+        "created_at"
+      ],
+      "properties": {
+        "report_id": {
+          "description": "报告标识，全局唯一，用于 GET /objects/{id}/checks 回查。",
+          "type": "string",
+          "minLength": 1
+        },
+        "object_id": {
+          "description": "被校验对象 id。",
+          "type": "string",
+          "minLength": 1
+        },
+        "model_version": {
+          "description": "校验时的结构版本。",
+          "type": "integer",
+          "minimum": 1
+        },
+        "revision": {
+          "description": "校验时的数值修订号。",
+          "type": "integer",
+          "minimum": 0
+        },
+        "kernel_version": {
+          "description": "被校验内核版本。",
+          "enum": ["linear_v1", "force_v1", "bfs_v1", "budget_v1"]
+        },
+        "validation_profile": {
+          "description": "所用校验档案，须与对象 validation_profile 一致。",
+          "type": "string",
+          "minLength": 1
+        },
+        "items": {
+          "description": "逐项检查结果，通过与失败必须逐条可读（R11-AC1/AC3）。",
+          "type": "array",
+          "items": { "$ref": "#/$defs/CheckItem" }
+        },
+        "summary": { "$ref": "#/$defs/CheckSummary" },
+        "is_stale": {
+          "description": "对象当前 model_version 或 revision 领先于本报告时置 true；响应时动态计算（§2.2.7 契约级行为 4）。",
+          "type": "boolean"
+        },
+        "created_at": {
+          "description": "报告生成时间，ISO 8601 UTC。",
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "templateId": "bfs_flow",
+  "cases": [
+    {
+      "id": "bfs_golden",
+      "title": "菱形图：访问序列 A,B,C,D，D 只入队一次",
+      "input": {
+        "nodes": [
+          { "id": "A", "label": "A" },
+          { "id": "B", "label": "B" },
+          { "id": "C", "label": "C" },
+          { "id": "D", "label": "D" }
+        ],
+        "edges": [
+          { "from": "A", "to": "B" },
+          { "from": "A", "to": "C" },
+          { "from": "B", "to": "D" },
+          { "from": "C", "to": "D" }
+        ],
+        "start_node_id": "A",
+        "directed": true,
+        "max_steps": 200
+      },
+      "expected": {
+        "order": ["A", "B", "C", "D"],
+        "enqueue_order": ["A", "B", "C", "D"],
+        "visited": ["A", "B", "C", "D"],
+        "unvisited": [],
+        "parent": { "A": null, "B": "A", "C": "A", "D": "B" },
+        "level": { "A": 0, "B": 1, "C": 1, "D": 2 },
+        "edges_of_spanning_tree": [
+          { "from": "A", "to": "B" },
+          { "from": "A", "to": "C" },
+          { "from": "B", "to": "D" }
+        ],
+        "rejected_edges": [
+          { "from": "C", "to": "D", "reason": "D 已在队列中" }
+        ],
+        "terminated_reason": "completed",
+        "has_cycle": false
+      },
+      "notes": "R8-AC1/R8-AC2 的核心用例（任务书称 bfs_diamond，文档表命名为 bfs_golden，见 contracts/README.md 契约矛盾 C-10）。enqueue_order 中 D 只出现一次：出队 B 时 D 入队；出队 C 时 D 已在队列中，记 skip/already_queued 并写入 rejected_edges，reason 文案按 §2.2.5 黄金表逐字为\"D 已在队列中\"。"
+    },
+    {
+      "id": "bfs_cycle",
+      "title": "有环图：正常终止，不死循环",
+      "input": {
+        "nodes": [
+          { "id": "A", "label": "A" },
+          { "id": "B", "label": "B" },
+          { "id": "C", "label": "C" }
+        ],
+        "edges": [
+          { "from": "A", "to": "B" },
+          { "from": "B", "to": "C" },
+          { "from": "C", "to": "A" }
+        ],
+        "start_node_id": "A",
+        "directed": true,
+        "max_steps": 200
+      },
+      "expected": {
+        "order": ["A", "B", "C"],
+        "parent": { "A": null, "B": "A", "C": "B" },
+        "has_cycle": true,
+        "terminated_reason": "completed"
+      },
+      "notes": "R8-AC3：靠 visited/队列判定终止，不限制深度。出队 C 时邻居 A 已 visited，记 skip/already_visited。has_cycle 由有向图 DFS 判定，仅用于展示提示（R8-AC7：该\"允许环\"规则不得复用到预算模板）。"
+    },
+    {
+      "id": "bfs_unreachable",
+      "title": "不可达节点：C 保持未访问",
+      "input": {
+        "nodes": [
+          { "id": "A", "label": "A" },
+          { "id": "B", "label": "B" },
+          { "id": "C", "label": "C" }
+        ],
+        "edges": [
+          { "from": "A", "to": "B" }
+        ],
+        "start_node_id": "A",
+        "directed": true,
+        "max_steps": 200
+      },
+      "expected": {
+        "order": ["A", "B"],
+        "unvisited": ["C"],
+        "terminated_reason": "completed"
+      },
+      "notes": "R8-AC4：不可达节点列入 unvisited，不伪造访问。unvisited=[] 才表示全部可达，与 remaining=null 等空值语义不同（§2.3.6）。"
+    }
+  ]
+}

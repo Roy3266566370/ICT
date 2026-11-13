@@ -1,0 +1,521 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:spec:ispec:1",
+  "title": "交互规格 iSpec v1.0",
+  "description": "象生的交互规格层：识别层只产出 iSpec，运行时只消费 iSpec。新增知识类型 = 新增一份 iSpec，不改宿主代码。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "spec_version",
+    "object_id",
+    "kind",
+    "parameters",
+    "views"
+  ],
+  "properties": {
+    "anchor": {
+      "type": "object",
+      "required": ["page", "element_id", "bbox"],
+      "properties": {
+        "page": {"type": "integer", "minimum": 1},
+        "element_id": {"type": "string"},
+        "node_id": {"type": "string"},
+        "bbox": {"type": "object", "required": ["x", "y", "w", "h"],
+          "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "w": {"type": "number"}, "h": {"type": "number"}}}
+      }
+    },
+    "node_id": {
+      "type": "string",
+      "description": "自由编辑场景中的稳定对象 id；交互区域随该节点的位置与大小移动"
+    },
+    "availability": {
+      "enum": ["active", "needs_review"],
+      "description": "来源内容修改后交互不再可信时标为 needs_review，保留原因与恢复入口"
+    },
+    "availability_reason": {
+      "type": "string"
+    },
+    "generated_by": {
+      "enum": ["auto", "user", "native"],
+      "description": "交互来源：自动识别、用户在编辑器中确认，或 PPT 原生数据"
+    },
+    "scene": {
+      "type": "object",
+      "description": "实验场景定义：不替代 iSpec，只组织问题、关键控制与阶段",
+      "required": ["scene_type", "version"],
+      "properties": {
+        "scene_type": {"type": "string", "minLength": 1},
+        "version": {"type": "string", "minLength": 1},
+        "title": {"type": "string"},
+        "condition_note": {"type": "string"},
+        "controls": {"type": "array", "items": {"type": "string"}},
+        "stages": {"type": "array", "items": {"type": "object"}},
+        "supports_overlay": {"type": "boolean"},
+        "source_status": {"type": "string"},
+        "source_excerpt": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "spec_version": {
+      "const": "1.0"
+    },
+    "object_id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$"
+    },
+    "title": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "parametric",
+        "filter",
+        "step",
+        "geometric",
+        "branch"
+      ],
+      "description": "五类交互原语：参数驱动/数据筛选/步骤推进/几何操作/分支选择"
+    },
+    "parameters": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "default",
+          "source"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "type": {
+            "enum": [
+              "number",
+              "integer",
+              "boolean",
+              "enum",
+              "string"
+            ],
+            "default": "number"
+          },
+          "unit": {
+            "type": "string",
+            "default": ""
+          },
+          "shared_key": {
+            "type": "string",
+            "description": "跨 iSpec 共享标识：同一变量在多页出现时取同一值（§9-4）"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "step": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "default": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "source_default": {
+            "description": "原稿/已确认基准值；有保存值时 default 为当前值，重置回到这里",
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "page",
+              "status"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "element_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "bbox": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  },
+                  "w": {
+                    "type": "number"
+                  },
+                  "h": {
+                    "type": "number"
+                  }
+                }
+              },
+              "status": {
+                "enum": [
+                  "original",
+                  "inferred",
+                  "confirmed",
+                  "manual_demo"
+                ],
+                "description": "original=原文直接写出；inferred=由原文反推；confirmed=用户确认；manual_demo=手工示例"
+              },
+              "excerpt": {
+                "type": "string",
+                "description": "必须是原文片段，不得改写"
+              },
+              "user_checks": {
+                "type": "array",
+                "maxItems": 20,
+                "description": "用户对该参数的确认/修改记录；写入后 source.status 变为 confirmed",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "min": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "min"
+              ]
+            },
+            "then": {
+              "required": [
+                "max"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "expressions": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "expr"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "expr": {
+            "type": "string",
+            "description": "受限表达式：仅允许数字、参数/派生量标识符、+ - * / % **、括号、比较、&& || !、三元 ?:、函数 abs/min/max/sqrt/pow/round/floor/ceil/sin/cos/tan/asin/acos/atan2/log/exp。禁止任意函数调用与副作用。"
+          },
+          "unit": {
+            "type": "string",
+            "default": ""
+          },
+          "label": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "views": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "spec_ref"
+            ],
+            "properties": {
+              "type": {
+                "const": "vega"
+              },
+              "spec_ref": {
+                "type": "string",
+                "description": "内置图表模板名：line / bar / scatter / heatmap / grid_and_transform",
+                "pattern": "^(line|bar|scatter|heatmap|grid_and_transform)$"
+              },
+              "x": {
+                "type": "string"
+              },
+              "y": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "dataset": {
+                "type": "string",
+                "description": "引用 datasets[].id"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "columns"
+            ],
+            "properties": {
+              "type": {
+                "const": "table"
+              },
+              "columns": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "title": {
+                "type": "string"
+              },
+              "dataset": {
+                "type": "string",
+                "description": "引用 datasets[].id"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "template"
+            ],
+            "properties": {
+              "type": {
+                "const": "text"
+              },
+              "template": {
+                "type": "string",
+                "description": "占位符模板，如 'det = {{det}}，秩 = {{rank}}'"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "spec_ref"
+            ],
+            "properties": {
+              "type": {
+                "const": "figure"
+              },
+              "spec_ref": {
+                "type": "string",
+                "description": "内置几何图模板名：vectors / circle_ellipse / grid_transform / step_diagram / det_area / eigen_probe / basis_change / singular_compare / rank_map / inverse_map",
+                "pattern": "^(vectors|circle_ellipse|grid_transform|step_diagram|det_area|eigen_probe|basis_change|singular_compare|rank_map|inverse_map)$"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expr"
+        ],
+        "properties": {
+          "expr": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "error",
+              "warn"
+            ],
+            "default": "error"
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "consistency",
+              "source_match",
+              "range"
+            ]
+          },
+          "expr": {
+            "type": "string"
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "expect": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "used": {"type": "boolean"},
+        "confidence": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "provider": {"type": "string", "maxLength": 64},
+        "note": {"type": "string", "maxLength": 500}
+      }
+    },
+    "trust": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["version", "level", "parameters", "validation", "model"],
+      "properties": {
+        "version": {"const": "trust.1"},
+        "level": {"enum": ["green", "yellow", "red", "gray"]},
+        "level_label": {"type": "string"},
+        "reason": {"type": "string", "maxLength": 1000},
+        "parameters": {"type": "array", "maxItems": 500, "items": {"type": "object"}},
+        "validation": {"type": "object"},
+        "declarations": {"type": "array", "maxItems": 50, "items": {"type": "object"}},
+        "model": {"type": "object"},
+        "anchor_failures": {"type": "integer", "minimum": 0},
+        "anchor_unavailable": {"type": "integer", "minimum": 0},
+        "report_hash": {"type": "string"},
+        "generated_at": {"type": "string"}
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "datasets": {
+      "type": "array",
+      "default": [],
+      "description": "内联数据集：图表/表格视图从这里取数据，避免运行时再去读 slides.json",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "columns",
+          "rows"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "columns": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "number",
+                  "string",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "source": {
+            "type": "object",
+            "description": "数据来源（页码/元素）"
+          }
+        }
+      }
+    }
+  }
+}

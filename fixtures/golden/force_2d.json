@@ -1,0 +1,78 @@
+{
+  "templateId": "force_2d",
+  "cases": [
+    {
+      "id": "fc_perpendicular",
+      "title": "两个等大垂直力：合力 10√2 N，方向 45°",
+      "input": {
+        "forces": [
+          { "magnitude": "10", "angle_deg": 0 },
+          { "magnitude": "10", "angle_deg": 90 }
+        ],
+        "display_precision": 2,
+        "compute_precision": 6
+      },
+      "expected": {
+        "forces": [
+          { "magnitude": "10", "angle_deg": 0, "fx": 10, "fy": 0 },
+          { "magnitude": "10", "angle_deg": 90, "fx": 0, "fy": 10 }
+        ],
+        "fx": 10,
+        "fy": 10,
+        "magnitude": 14.142135623730951,
+        "magnitude_rounded": "14.14",
+        "magnitude_exact": "14.142136",
+        "direction_deg": 45,
+        "direction_defined": true,
+        "cancel": false
+      },
+      "notes": "R7-AC1/R7-AC2。magnitude = hypot(10,10) = 14.142135623730951（即 10√2 ≈ 14.1421356）；舍入值 14.14 N 与计算精度 14.142136 N 必须同时可读。direction_deg = atan2(10,10)*180/π = 45。比较容差 1e-9。"
+    },
+    {
+      "id": "fc_cancel",
+      "title": "两个等大反向力：合力为零，方向未定义",
+      "input": {
+        "forces": [
+          { "magnitude": "10", "angle_deg": 0 },
+          { "magnitude": "10", "angle_deg": 180 }
+        ]
+      },
+      "expected": {
+        "fx": 0,
+        "fy": 0,
+        "magnitude": 0,
+        "magnitude_rounded": "0.00",
+        "direction_deg": null,
+        "direction_rounded": null,
+        "direction_defined": false,
+        "cancel": true,
+        "note": "合力为零，方向未定义"
+      },
+      "notes": "R7-AC3。expected 中的 0 是数学精确值；浮点实现中 sin(180°)=1.22e-16，故 magnitude 实测可能为 ~1.2e-15，只要 < 1e-9 即判 cancel=true。direction_deg 必须为 null，禁止输出 0° 或 NaN。note 文案由 §2.2.4 规则 2 固定。"
+    },
+    {
+      "id": "fc_three",
+      "title": "三个共点力：fx=8、fy=4、合力≈8.94427 N、方向≈26.565°",
+      "input": {
+        "forces": [
+          { "magnitude": "8", "angle_deg": 0 },
+          { "magnitude": "6", "angle_deg": 90 },
+          { "magnitude": "2", "angle_deg": 270 }
+        ],
+        "display_precision": 2,
+        "compute_precision": 6
+      },
+      "expected": {
+        "fx": 8,
+        "fy": 4,
+        "magnitude": 8.94427190999916,
+        "magnitude_rounded": "8.94",
+        "magnitude_exact": "8.944272",
+        "direction_deg": 26.56505117707799,
+        "direction_defined": true,
+        "cancel": false
+      },
+      "notes": "fy = 6*sin(90°) + 2*sin(270°) = 6 - 2 = 4；magnitude = hypot(8,4) = 8.94427190999916；direction = atan2(4,8)*180/π = 26.56505117707799。R7-AC6：支持 2..4 个共点力。"
+    }
+  ]
+}

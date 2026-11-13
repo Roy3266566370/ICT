@@ -1,0 +1,65 @@
+# Local credentials and environment overrides.
+.env
+.env.*
+!.env.example
+
+# Local inference weights and runtime downloads
+/models/ollama/
+/tools/ollama/
+/tools/downloads/
+
+# Dependencies, caches and generated builds.
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+*.tsbuildinfo
+test-results/
+playwright-report/
+coverage/
+
+# Local user data, uploads, credentials and diagnostic output.
+/backend/data/
+/verify/*
+!/verify/manual-integrals-2026-11-13/
+/verify/manual-integrals-2026-11-13/*
+!/verify/manual-integrals-2026-11-13/report.md
+!/verify/manual-integrals-2026-11-13/01-confirmation.png
+!/verify/manual-integrals-2026-11-13/02-definite-result.png
+!/verify/manual-integrals-2026-11-13/03-indefinite-result.png
+/backend/verify/
+/frontend/verify/
+/frontend/.tmp/
+/tmp-perf/
+/tmp-s2-e2e/
+*.log
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.pem
+*.key
+.dev-session-secret
+
+# Agent/editor local state and OS artifacts.
+/.arts/
+/.codeartsdoer/
+/.resultverify/
+/.workbuddy/
+.idea/
+.DS_Store
+Thumbs.db
+nul
+
+# Local course materials and submission documents (not application source).
+/*.docx
+/*.pptx
+/深度学习/

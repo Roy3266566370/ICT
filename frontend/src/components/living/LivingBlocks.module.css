@@ -1,0 +1,314 @@
+/* 活页块渲染器样式（编辑器与播放器共用） */
+
+.blockShell {
+  position: relative;
+  margin: 0 0 1rem;
+}
+
+/* 保真层 ------------------------------------------------------------- */
+.attentionDemo { padding: 1.25rem; background: var(--paper-1); border: 1px solid var(--hairline); border-radius: var(--radius-lg); overflow-x: auto; }
+.attentionDemo label { display: block; margin: 1rem 0; }
+.attentionDemo input[type='range'] { display: block; width: 100%; }
+.attentionDemo table { width: 100%; text-align: left; border-collapse: collapse; }
+.attentionDemo th, .attentionDemo td { padding: 0.5rem; border-bottom: 1px solid var(--hairline); }
+.attentionDemo meter { width: 5rem; }
+.aiPanel, .aiModel { padding: 1.25rem; margin: 1rem 0; border: 1px solid var(--hairline); border-radius: var(--radius-lg); background: var(--paper-1); }
+.aiPanel header, .aiModel header, .aiActions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.aiPanel h2, .aiModel h3 { margin: 0; }
+.aiModel header { justify-content: flex-start; gap: 0.6rem; padding-right: 7rem; }
+.aiPanel > label { display: grid; gap: 0.5rem; margin: 1rem 0; }
+.aiPanel input[type='search'], .aiPanel textarea { width: 100%; box-sizing: border-box; padding: 0.7rem; border: 1px solid var(--hairline); border-radius: 8px; background: var(--paper-0); font: inherit; }
+.aiChoices { max-height: 290px; overflow-y: auto; border: 1px solid var(--hairline); border-radius: 8px; }
+.aiChoices label { display: flex; align-items: flex-start; gap: 0.7rem; padding: 0.8rem; border-bottom: 1px solid var(--hairline); }
+.aiChoices strong, .aiChoices small { display: block; }
+.aiChoices small, .aiMeta { color: var(--ink-500); font-size: 0.82rem; line-height: 1.6; }
+.aiPanel .aiInline { display: flex; align-items: center; }
+.aiActions button, .aiModel > button { border: 0; border-radius: 8px; padding: 0.65rem 1rem; background: var(--ink-900); color: var(--paper-0); cursor: pointer; }
+.aiActions button:disabled { opacity: 0.5; cursor: default; }
+.aiError { color: #b42318; }
+.aiBadge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 5px; background: #e8e4fb; color: #4433a4; font-size: 0.75rem; }
+.aiSliders { display: grid; gap: 0.8rem; border: 0; padding: 1rem 0; margin: 0; }
+.aiSliders label { display: grid; grid-template-columns: 1fr auto; gap: 0.3rem; }
+.aiSliders input { grid-column: 1 / -1; width: 100%; }
+.aiPlaceholder { min-height: 180px; display: grid; place-items: center; color: var(--ink-500); }
+.aiRecommendations { margin: 1rem 0; }
+.aiRecommendation { display: flex; align-items: flex-start; gap: 0.7rem; margin: 0.65rem 0; padding: 0.9rem; background: var(--paper-0); border: 1px solid var(--hairline); border-radius: 8px; }
+.aiRecommendation strong, .aiRecommendation small { display: block; line-height: 1.65; }
+.aiRecommendation small { color: var(--ink-700); margin-top: 0.25rem; }
+.aiPanel details { margin: 1rem 0; }
+.aiPanel details > label { display: grid; gap: 0.5rem; margin: 0.7rem 0; }
+
+.sectionBlock {
+  margin: 1.75rem 0 0.75rem;
+  color: var(--ink-900);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.level1 { font-size: 1.5rem; }
+.level2 { font-size: 1.2rem; }
+.level3 { font-size: 1.05rem; color: var(--ink-700); }
+
+.textBlock {
+  color: var(--ink-700);
+  font-size: 0.98rem;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pageBlock {
+  margin: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--paper-1);
+  overflow: hidden;
+}
+
+.pageToggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.9rem;
+  border: none;
+  background: var(--paper-3);
+  color: var(--ink-500);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.pageToggle:hover { color: var(--ink-700); }
+.pageToggleHint { color: var(--color-coral-ink); font-size: 0.8rem; }
+
+.pageImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--paper-0);
+}
+
+.figureBlock { margin: 0; text-align: center; }
+.figureBlock img {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+}
+.figureBlock figcaption {
+  margin-top: 0.4rem;
+  color: var(--ink-400);
+  font-size: 0.82rem;
+}
+
+.formulaBlock {
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius-md);
+  background: var(--paper-1);
+  border: 1px solid var(--hairline);
+  overflow-x: auto;
+}
+
+/* 实验块 ------------------------------------------------------------- */
+
+.labBlock {
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-xl);
+  background: var(--paper-0);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.labHead {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1rem;
+}
+.labBadge {
+  flex: none;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--color-indigo-soft);
+  color: var(--ink-700);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.labTitle {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink-900);
+  font-weight: 600;
+  font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.labToggle {
+  flex: none;
+  padding: 0.4rem 0.9rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--paper-0);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.labToggle:hover { background: var(--color-indigo-strong); }
+
+.labBody { padding: 0 1rem 1rem; }
+.labCanvas { overflow-x: auto; }
+
+.labScrub {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+.labScrub input[type='range'] { flex: 1; }
+.labScrub button {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md);
+  background: var(--paper-1);
+  color: var(--ink-700);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.labScrub button:disabled { opacity: 0.45; cursor: default; }
+.labStepLabel { color: var(--ink-400); font-size: 0.82rem; min-width: 3.5em; text-align: right; }
+
+.labEmpty { color: var(--ink-400); font-size: 0.9rem; }
+
+.labAnswer { margin-top: 0.7rem; display: flex; align-items: center; gap: 0.7rem; }
+.labAnswer button {
+  padding: 0.35rem 0.8rem;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-coral-ink);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.labAnswer strong { color: var(--ink-900); font-size: 0.92rem; }
+
+/* 先猜再看 ----------------------------------------------------------- */
+
+.quizBlock {
+  padding: 1rem 1.1rem;
+  border: 1px dashed var(--hairline-strong);
+  border-radius: var(--radius-xl);
+  background: var(--color-indigo-softer);
+}
+.quizQuestion { margin: 0 0 0.7rem; color: var(--ink-900); font-weight: 600; }
+.quizRow { display: flex; align-items: center; gap: 0.7rem; }
+.quizRow input[type='range'] { flex: 1; }
+.quizGuess {
+  min-width: 3.2em;
+  text-align: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--paper-0);
+  border: 1px solid var(--hairline);
+  font-variant-numeric: tabular-nums;
+}
+.quizRow button {
+  padding: 0.4rem 0.9rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-coral);
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.quizReveal { margin-top: 0.7rem; }
+.quizReveal strong { color: var(--ink-900); }
+.quizReveal p { margin: 0.35rem 0 0; color: var(--ink-500); font-size: 0.88rem; }
+.quizHint { margin: 0.5rem 0 0; color: var(--ink-400); font-size: 0.82rem; }
+
+/* 判分点 ------------------------------------------------------------- */
+
+.checkpointBlock {
+  padding: 1rem 1.1rem;
+  border-left: 3px solid var(--color-coral);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: var(--paper-1);
+}
+.checkpointPrompt { margin: 0 0 0.6rem; color: var(--ink-900); font-weight: 600; }
+.checkpointRow { display: flex; gap: 0.6rem; }
+.checkpointRow input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  background: var(--paper-0);
+}
+.checkpointRow button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo);
+  color: var(--paper-0);
+  cursor: pointer;
+}
+.checkpointRow button:disabled { opacity: 0.5; cursor: default; }
+.checkpointGood { margin: 0.55rem 0 0; color: #2e6b34; font-weight: 600; }
+.checkpointBad { margin: 0.55rem 0 0; color: var(--color-coral-ink); }
+
+/* 嵌入 --------------------------------------------------------------- */
+
+.embedBlock iframe {
+  width: 100%;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+  background: var(--paper-0);
+}
+
+.unsupported { color: var(--ink-400); font-size: 0.9rem; }
+
+/* 建议卡 ------------------------------------------------------------- */
+
+.suggestionCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin: -0.5rem 0 1rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px dashed var(--color-coral);
+  border-radius: var(--radius-lg);
+  background: var(--color-coral-soft);
+}
+.suggestionMeta { display: flex; align-items: baseline; gap: 0.6rem; min-width: 0; }
+.suggestionKind {
+  flex: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-coral-ink);
+}
+.suggestionReason {
+  color: var(--ink-500);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.suggestionActions { display: flex; gap: 0.5rem; flex: none; }
+.acceptBtn {
+  padding: 0.35rem 0.9rem;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-coral);
+  color: #fff;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.acceptBtn:disabled { opacity: 0.5; }
+.dismissBtn {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink-500);
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.dismissBtn:disabled { opacity: 0.5; }

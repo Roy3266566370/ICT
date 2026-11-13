@@ -1,0 +1,150 @@
+{
+  "generated_at": "2026-11-02T02:29:22Z",
+  "generator": "backend/scripts/build_corpus.py",
+  "generated_by_pptx_version": "1.0.2",
+  "total": 20,
+  "dev": [
+    {
+      "file": "dev/dev_01_bar_single.pptx",
+      "kind": "bar_chart",
+      "expect": "should_pass",
+      "notes": "原生柱状图，单系列 4 分类。",
+      "size_bytes": 34894
+    },
+    {
+      "file": "dev/dev_02_line_multi.pptx",
+      "kind": "line_chart",
+      "expect": "should_pass",
+      "notes": "原生折线图，3 系列 6 分类。",
+      "size_bytes": 35197
+    },
+    {
+      "file": "dev/dev_03_pie.pptx",
+      "kind": "pie_chart",
+      "expect": "should_pass",
+      "notes": "原生饼图，4 分类单系列（无专用模板，降级 bar）。",
+      "size_bytes": 34662
+    },
+    {
+      "file": "dev/dev_04_table_3x4.pptx",
+      "kind": "table",
+      "expect": "should_pass",
+      "notes": "原生表格 3 行 × 4 列（首行表头）。",
+      "size_bytes": 28731
+    },
+    {
+      "file": "dev/dev_05_table_chart_mix.pptx",
+      "kind": "table_chart_mix",
+      "expect": "should_pass",
+      "notes": "同页原生表格 + 柱状图，预期 2 条 iSpec。",
+      "size_bytes": 35087
+    },
+    {
+      "file": "dev/dev_06_group_textbox.pptx",
+      "kind": "group_textbox",
+      "expect": "should_fail",
+      "notes": "组合内仅文本框；无原生数据，不得伪造交互。",
+      "size_bytes": 28615
+    },
+    {
+      "file": "dev/dev_07_group_table.pptx",
+      "kind": "group_table",
+      "expect": "should_pass",
+      "notes": "组合内嵌原生表格，解析器递归展开子形状后直读。",
+      "size_bytes": 28745
+    },
+    {
+      "file": "dev/dev_08_omml_formula.pptx",
+      "kind": "omml_formula",
+      "expect": "should_pass",
+      "notes": "OMML 公式（a14:m/m:oMath 原生 XML 写入，非降级构造），A/B 均有显式赋值（status=original）。",
+      "size_bytes": 28670
+    },
+    {
+      "file": "dev/dev_09_text_only.pptx",
+      "kind": "text_only",
+      "expect": "should_fail",
+      "notes": "纯文字页，无图表/表格/公式。",
+      "size_bytes": 28607
+    },
+    {
+      "file": "dev/dev_10_picture_chart.pptx",
+      "kind": "picture_chart",
+      "expect": "should_fail",
+      "notes": "图表先渲染为 PNG 再插入；图片内图表不可识别。",
+      "size_bytes": 44648
+    }
+  ],
+  "eval": [
+    {
+      "file": "eval/eval_01_bar_single.pptx",
+      "kind": "bar_chart",
+      "expect": "should_pass",
+      "notes": "陌生柱状图（6 分类），与 dev 数据不同。",
+      "size_bytes": 34928
+    },
+    {
+      "file": "eval/eval_02_line_multi.pptx",
+      "kind": "line_chart",
+      "expect": "should_pass",
+      "notes": "陌生折线图（2 系列 6 分类）。",
+      "size_bytes": 35061
+    },
+    {
+      "file": "eval/eval_03_pie.pptx",
+      "kind": "pie_chart",
+      "expect": "should_pass",
+      "notes": "陌生饼图（5 分类）。",
+      "size_bytes": 34694
+    },
+    {
+      "file": "eval/eval_04_table_3x4.pptx",
+      "kind": "table",
+      "expect": "should_pass",
+      "notes": "陌生 3×4 表格。",
+      "size_bytes": 28745
+    },
+    {
+      "file": "eval/eval_05_table_chart_mix.pptx",
+      "kind": "table_chart_mix",
+      "expect": "should_pass",
+      "notes": "陌生表格 + 条形图混排。",
+      "size_bytes": 35110
+    },
+    {
+      "file": "eval/eval_06_group_textbox.pptx",
+      "kind": "group_textbox",
+      "expect": "should_fail",
+      "notes": "组合内文字 + 页面正文，均无原生数据。",
+      "size_bytes": 28755
+    },
+    {
+      "file": "eval/eval_07_group_chart.pptx",
+      "kind": "group_chart",
+      "expect": "should_pass",
+      "notes": "组合内嵌原生图表。",
+      "size_bytes": 34871
+    },
+    {
+      "file": "eval/eval_08_omml_formula.pptx",
+      "kind": "omml_formula",
+      "expect": "should_pass",
+      "notes": "OMML 公式（a14:m/m:oMath 原生 XML 写入，非降级构造），x/y/r 无赋值（status=inferred，计入用户纠正成本）。",
+      "size_bytes": 28667
+    },
+    {
+      "file": "eval/eval_09_multi_page_mix.pptx",
+      "kind": "multi_page_mix",
+      "expect": "should_pass",
+      "notes": "5 页：图表/表格/文字/空页/纯图片；预期 2 条 iSpec。",
+      "size_bytes": 48800
+    },
+    {
+      "file": "eval/eval_10_max_pages_60.pptx",
+      "kind": "max_pages_boundary",
+      "expect": "should_pass",
+      "notes": "恰好 60 页（MAX_PAGES 上限），首页图表 + 59 页文字。",
+      "size_bytes": 96474
+    }
+  ]
+}

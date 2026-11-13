@@ -1,0 +1,1930 @@
+# 万象 WANXIANG v0.2 —— /api/v1 接口契约（C-API@1 + C-ERR@1）
+#
+# 唯一设计源：.codeartsdoer/plans/xiangsheng-v0.2/plan.md §2.2.7（端点与请求/响应体）、§2.2.8（错误码）。
+# 字段名与 §2.2 的 TS 声明逐字一致（snake_case），不做自动命名转换。
+# 领域对象复用 contracts/schemas/ 下的 JSON Schema 文件，避免第二份真源。
+#
+# 覆盖范围：§2.2.7 表格的 19 个端点，分布在 16 个 path 条目（/materials、/materials/{material_id}、
+# /objects/{object_id}/runs 三个路径各含 2 个方法）。
+#
+# 统一封装：
+#   成功  { "data": <T>, "request_id": "<16 hex>" }
+#   错误  { "error": { "code": <ErrorCode>, "message": "...", "retryable": bool, "details": {...} }, "request_id": "..." }
+#   request_id 同时回写到响应头 X-Request-Id。
+
+openapi: 3.1.0
+
+info:
+  title: 万象 WANXIANG API
+  version: 0.2.0
+  description: |
+    个人工作空间的首版接口契约：访客会话、材料上传与后台任务状态机、知识对象/版本/运行/校验、
+    四个白名单模板（matrix_2d / force_2d / bfs_flow / budget_compare）。
+
+    契约级行为（§2.2.7）：
+    1. 所有成功响应都必须包 data，204 除外；request_id 由后端生成（uuid4().hex[:16]）并在响应头 X-Request-Id 回写。
+    2. 写请求（除 POST /sessions）必须携带 X-CSRF-Token 等于当前会话 csrf_token，且 Origin 在允许列表内。
+    3. POST /objects/{id}/runs 的 result 为可选入参，服务端必须用内核重算并覆盖，响应里的 result 永远是服务端结果。
+    4. POST /objects/{id}/validate 首版同步执行并返回报告，不建 job；GET /objects/{id}/checks 返回历史报告，is_stale 在响应时按当前对象版本动态计算。
+    5. 分页用 limit，默认 20、最大 50；超出按 50 处理，不报错。
+    6. GET /materials/{id}/assets/{asset_id} 必须校验 asset_id 属于该 material；禁止路径拼接直接读文件。
+    7. 归属校验失败统一返回 404，body 为 ApiError 且 code="SESSION_EXPIRED"、message="资源不可用"（§2.2.8 末段、§2.3.7 D2）。
+
+servers:
+  - url: /
+    description: 同源部署（frontend 与 backend 由 nginx 反代到同一 origin）
+
+tags:
+  - name: sessions
+    description: 访客会话与 CSRF
+  - name: templates
+    description: 模板白名单与描述
+  - name: examples
+    description: 手工示例克隆
+  - name: materials
+    description: 材料上传、列表、详情、删除、受鉴权资源
+  - name: jobs
+    description: 后台任务状态与重试
+  - name: objects
+    description: 知识对象、模型版本、编译、运行、校验
+  - name: runs
+    description: 历史运行快照
+  - name: auth
+    description: 账号注册、登录与退出（C-AUTHAPI@1 ①–③）
+  - name: me
+    description: 当前账号与会话摘要（C-AUTHAPI@1 ④）
+  - name: ppt-ai
+    description: PPT AI 交互规划、补充实验、目标反求、自动验收与专用视图（ppt-ai.1）
+  - name: trust
+    description: 可信溯源、参数确认与“AI 说错了”对抗演示
+  - name: projects
+    description: 可再次编辑的 .xsproj 工程包
+
+security:
+  - sessionCookie: []
+
+paths:
+  /api/v1/sessions:
+    post:
+      tags: [sessions]
+      operationId: createSession
+      summary: 创建访客会话（端点 #1）
+      description: 空体；服务端创建访客会话并下发 HttpOnly Cookie，返回 session_id / expires_at / csrf_token / retention_hours。原始凭据不得写入 localStorage（R2-AC1）。
+      security: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '200':
+          description: 会话已创建
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SessionInfo'
+
+  /api/v1/sessions/current:
+    get:
+      tags: [sessions]
+      operationId: getCurrentSession
+      summary: 读取当前会话（端点 #2）
+      description: 返回 session_id / expires_at / csrf_token；SessionInfo 另含 retention_hours（向后兼容超集，见 contracts/README.md 契约矛盾 C-02）。
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessSessionInfo'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/templates:
+    get:
+      tags: [templates]
+      operationId: listTemplates
+      summary: 模板白名单列表（端点 #3）
+      description: 返回四个 TemplateDescriptor；前端据此渲染场景卡并校验 template_id 白名单（R12-AC3）。
+      security: []
+      responses:
+        '200':
+          description: 模板列表
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TemplateDescriptor'
+
+  /api/v1/examples/{example_id}/clone:
+    post:
+      tags: [examples]
+      operationId: cloneExample
+      summary: 克隆手工示例到当前会话（端点 #4）
+      description: 空体；在当前会话中克隆该手工示例副本，副本标注 provenance=manual_demo，不冒充解析结果（R2-AC6）。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - name: example_id
+          in: path
+          required: true
+          description: fixtures/examples/index.json 中的 example_id
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '201':
+          description: 克隆完成
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CloneResult'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '422':
+          $ref: '#/components/responses/Error422'
+
+  /api/v1/materials:
+    post:
+      tags: [materials]
+      operationId: uploadMaterial
+      summary: 上传 PPTX 并建任务（端点 #5）
+      description: multipart/form-data，字段名 file。校验扩展名、ZIP 结构、单文件 70MB、60 页上限（R3-AC1）；宏/加密/损坏/路径越界拒绝（R3-AC2）。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: .pptx 文件，<= 70MB
+      responses:
+        '202':
+          description: 已受理，任务排队中
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UploadAccepted'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '413':
+          $ref: '#/components/responses/Error413'
+    get:
+      tags: [materials]
+      operationId: listMaterials
+      summary: 材料列表（端点 #6）
+      description: 返回当前会话的材料与保留到期时间（默认 24 小时，R2-AC5）。
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: 分页条数，默认 20，最大 50；超出按 50 处理不报错
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+      responses:
+        '200':
+          description: 材料列表
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MaterialList'
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /api/v1/materials/{material_id}:
+    get:
+      tags: [materials]
+      operationId: getMaterial
+      summary: 材料详情（端点 #7）
+      description: 含 slides / objects / candidates / job；awaiting_confirmation 阶段返回可读原文与候选对象（R3-AC6）。
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+      responses:
+        '200':
+          description: 材料详情
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MaterialDetail'
+        '404':
+          $ref: '#/components/responses/Error404'
+    delete:
+      tags: [materials]
+      operationId: deleteMaterial
+      summary: 删除材料（端点 #8）
+      description: 立即令其资源不可访问并返回 204 无体（R2-AC4）。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+      responses:
+        '204':
+          description: 已删除，无响应体
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/materials/{material_id}/assets/{asset_id}:
+    get:
+      tags: [materials]
+      operationId: getMaterialAsset
+      summary: 受鉴权的图片资源（端点 #9）
+      description: 返回 png/jpeg 二进制；必须校验 asset_id 属于该 material，禁止路径拼接直接读文件（§2.2.7 契约级行为 6）。素材指向 fixtures/ppt/ 下已存在的导出文件（R4-AC2）。
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: 图片二进制
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/jobs/{job_id}:
+    get:
+      tags: [jobs]
+      operationId: getJob
+      summary: 任务状态（端点 #10）
+      description: 前端每 2 秒轮询，stage 为 ready/failed 时停止（R3-AC5）。stage 迁移见 JobStage。
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '200':
+          description: 任务状态
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/JobStatus'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/jobs/{job_id}/retry:
+    post:
+      tags: [jobs]
+      operationId: retryJob
+      summary: 显式重试生成新 attempt（端点 #11）
+      description: 空体；失败的 PARSE_FAILED 可重试，attempt 递增后回到 queued（R3-AC4）。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/JobId'
+      responses:
+        '202':
+          description: 已受理重试
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RetryAccepted'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '422':
+          $ref: '#/components/responses/Error422'
+
+  /api/v1/objects/{object_id}:
+    get:
+      tags: [objects]
+      operationId: getObject
+      summary: 读取知识对象与最近校验摘要（端点 #12）
+      description: 返回 object（C-KO@1）与 checks_summary（最近一次 ValidationReport，可为 null）。
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      responses:
+        '200':
+          description: 对象与校验摘要
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ObjectWithChecks'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/objects/{object_id}/model:
+    put:
+      tags: [objects]
+      operationId: putObjectModel
+      summary: 保存对象结构并推进 model_version（端点 #13）
+      description: expected_version 与库中 model_version 不一致时返回 VERSION_CONFLICT（R10-AC6）；成功后 model_version+1、revision 归 0、旧校验报告置 stale（R5-AC4、§2.3.2）。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PutModelRequest'
+      responses:
+        '200':
+          description: 已保存
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ObjectEnvelope'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+
+  /api/v1/objects/{object_id}/compile:
+    post:
+      tags: [objects]
+      operationId: compileObject
+      summary: 编译对象为可交互视图（端点 #14）
+      description: 返回 202 与 job_id；任务按 compiling → validating → ready 迁移（§2.3.5）。template_id 不在白名单返回 UNSUPPORTED_TEMPLATE。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompileRequest'
+      responses:
+        '202':
+          description: 已受理编译
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CompileAccepted'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '422':
+          $ref: '#/components/responses/Error422'
+
+  /api/v1/objects/{object_id}/runs:
+    post:
+      tags: [objects]
+      operationId: createRun
+      summary: 保存运行快照（端点 #15）
+      description: 客户端可上传 result 用于对比，但服务端必须用内核重算并覆盖；响应里的 result 永远是服务端结果（§2.2.7 契约级行为 3）。版本或修订不一致返回 VERSION_CONFLICT（R10-AC6）。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+      responses:
+        '201':
+          description: 运行已冻结
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: './schemas/run.schema.json'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '409':
+          $ref: '#/components/responses/Error409'
+        '422':
+          $ref: '#/components/responses/Error422'
+    get:
+      tags: [objects]
+      operationId: listRuns
+      summary: 对象历史运行（端点 #16）
+      description: 返回 RunSnapshot 列表；limit 默认 20、最大 50。
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+      responses:
+        '200':
+          description: 运行列表
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/RunList'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/runs/{run_id}:
+    get:
+      tags: [runs]
+      operationId: getRun
+      summary: 读取单个运行快照（端点 #17）
+      description: 回放只读取 input_snapshot，不被当前参数覆盖（R10-AC5）。
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: 运行快照
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: './schemas/run.schema.json'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/objects/{object_id}/validate:
+    post:
+      tags: [objects]
+      operationId: validateObject
+      summary: 同步执行独立校验（端点 #18）
+      description: 首版同步执行并直接返回 ValidationReport，不建 job（§2.2.7 契约级行为 4、§2.3.7 D3）。
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateRequest'
+      responses:
+        '200':
+          description: 校验报告
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: './schemas/run.schema.json#/$defs/ValidationReport'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '422':
+          $ref: '#/components/responses/Error422'
+
+  /api/v1/objects/{object_id}/checks:
+    get:
+      tags: [objects]
+      operationId: listObjectChecks
+      summary: 对象历史校验报告（端点 #19）
+      description: is_stale 在响应时按当前对象版本动态计算（R10-AC7、R11-AC4）。
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      responses:
+        '200':
+          description: 报告列表
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CheckList'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v1/auth/register:
+    post:
+      tags: [auth]
+      operationId: registerAccount
+      summary: 注册账号（C-AUTHAPI@1 ①）
+      description: 匿名可调用；事务内写 users + 两条 login_identities（username/email），不下发 Cookie、不发邮件（开发期降级 email_verification=disabled_development）。用户名 3–20 位且不区分大小写唯一，密码长度 8–128，策略在服务层校验（违规 422 MISSING_FIELD）。写请求要求 Origin 在允许列表内，否则 422 MISSING_FIELD。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 账号已创建（email_verification=disabled_development）
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthUser'
+        '409':
+          $ref: '#/components/responses/Error409Email'
+        '422':
+          $ref: '#/components/responses/Error422'
+        '503':
+          $ref: '#/components/responses/Error503'
+
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      operationId: loginAccount
+      summary: 登录账号（C-AUTHAPI@1 ②）
+      description: 校验用户名/邮箱与密码，签发 auth_sessions 并下发 HttpOnly Cookie（默认名 xs_auth）。标识不存在与密码错误统一 401 INVALID_CREDENTIALS；账号非 active 返回 403 FORBIDDEN；remember 决定窗口（普通 12h/24h，记住我 168h/720h）。写请求要求 Origin 在允许列表内，否则 422 MISSING_FIELD。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 登录成功并下发会话 Cookie
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+            Set-Cookie:
+              description: 'xs_auth=<43 字符原始令牌>; HttpOnly; Path=/; SameSite=Lax; Max-Age=(remember ? 2592000 : 86400)'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/LoginResult'
+        '401':
+          $ref: '#/components/responses/Error401Auth'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '422':
+          $ref: '#/components/responses/Error422'
+
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      operationId: logoutAccount
+      summary: 退出登录（C-AUTHAPI@1 ③）
+      description: 必须携带有效 xs_auth Cookie 与 X-CSRF-Token，Origin 须在允许列表内（校验顺序：Origin → 会话 → CSRF）。撤销会话并清除 Cookie；同一 Cookie 第二次调用返回 401（会话已撤销）。
+      security:
+        - authCookie: []
+          csrfToken: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '204':
+          description: 会话已撤销，Cookie 已清除（无响应体）
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+        '401':
+          $ref: '#/components/responses/Error401Auth'
+        '422':
+          $ref: '#/components/responses/Error422'
+
+  /api/v1/me:
+    get:
+      tags: [me]
+      operationId: getMe
+      summary: 读取当前账号（C-AUTHAPI@1 ④）
+      description: 需有效 xs_auth Cookie。返回账号、会话摘要与当前会话 CSRF；允许按 5 分钟节流更新 last_seen_at。未登录返回 401 且 body 不含任何账号字段。
+      security:
+        - authCookie: []
+      responses:
+        '200':
+          description: 当前账号与会话摘要
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    required: [data]
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MeResponse'
+        '401':
+          $ref: '#/components/responses/Error401Auth'
+
+  # --- PPT AI 交互增强（ppt-ai.1；私有写接口沿用 SessionDep/WriteDep）---
+  /api/v1/materials/{material_id}/ai-plans:
+    post:
+      tags: [ppt-ai]
+      summary: 创建交互规划任务
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [operation_id]
+              properties:
+                expected_document_revision: {type: integer, minimum: 0}
+                operation_id: {type: string, minLength: 1, maxLength: 100}
+                region_ids: {type: array, maxItems: 100, items: {type: string}}
+                purpose: {type: string, maxLength: 500}
+      responses:
+        '202': {description: 任务已入队，返回 task_id 与状态 URL}
+  /api/v1/materials/{material_id}/ai-tasks/{task_id}:
+    get:
+      tags: [ppt-ai]
+      summary: 读取任务状态（无写副作用）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: task_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 任务状态、stage、结果引用或结构化错误}
+  /api/v1/materials/{material_id}/ai-plans/{plan_id}:
+    get:
+      tags: [ppt-ai]
+      summary: 读取交互规划
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: plan_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 规划、来源与待核对项}
+  /api/v1/materials/{material_id}/ai-plans/{plan_id}/apply:
+    post:
+      tags: [ppt-ai]
+      summary: 采用规划并编译 bundle
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: plan_id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_plan_revision, operation_id]
+              properties:
+                expected_plan_revision: {type: integer, minimum: 1}
+                expected_document_revision: {type: integer, minimum: 0}
+                operation_id: {type: string}
+                selected_option_ids: {type: array, items: {type: string}}
+                confirmed_option_ids: {type: array, items: {type: string}}
+                parameter_overrides: {type: object}
+      responses:
+        '202': {description: 编译任务已入队}
+  /api/v1/materials/{material_id}/ai-regions/{region_id}/retry:
+    post:
+      tags: [ppt-ai]
+      summary: 仅重新识别指定区域
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: region_id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '202': {description: 区域重试任务已入队}
+  /api/v1/materials/{material_id}/ai-bundles/{bundle_id}:
+    get:
+      tags: [ppt-ai]
+      summary: 读取不可变 bundle
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: bundle_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 模型、规格、状态与能力}
+  /api/v1/materials/{material_id}/ai-bundles/{bundle_id}/links:
+    post:
+      tags: [ppt-ai]
+      summary: 确认/拆分跨页关联并生成新 bundle
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: bundle_id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '201': {description: 新 bundle 与分支引用}
+  /api/v1/materials/{material_id}/ai-bundles/{bundle_id}/experiments:
+    post:
+      tags: [ppt-ai]
+      summary: 根据追问生成补充实验
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: bundle_id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '202': {description: 实验任务已入队}
+  /api/v1/materials/{material_id}/ai-bundles/{bundle_id}/target-search:
+    post:
+      tags: [ppt-ai]
+      summary: 目标反求
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: bundle_id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '202': {description: 目标求解任务已入队}
+  /api/v1/materials/{material_id}/ai-experiments/{experiment_id}:
+    get:
+      tags: [ppt-ai]
+      summary: 读取补充实验
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: experiment_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 草案、结果、分支引用与状态}
+  /api/v1/materials/{material_id}/ai-branches/{branch_id}:
+    get:
+      tags: [ppt-ai]
+      summary: 读取分支权威状态
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: branch_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: canonical values、revision 与求值快照}
+    patch:
+      tags: [ppt-ai]
+      summary: 人工参数变更
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: branch_id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_revision, operation_id, values]
+              properties:
+                expected_revision: {type: integer, minimum: 1}
+                operation_id: {type: string}
+                values: {type: object}
+      responses:
+        '200': {description: 新 revision 与统一求值}
+        '409': {description: 版本冲突（VERSION_CONFLICT）}
+  /api/v1/materials/{material_id}/ai-bundles/{bundle_id}/validate:
+    post:
+      tags: [ppt-ai]
+      summary: 自动验收
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: bundle_id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '202': {description: 验收任务已入队}
+  /api/v1/materials/{material_id}/ai-reports/{report_id}:
+    get:
+      tags: [ppt-ai]
+      summary: 读取验收报告
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: report_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 来源/计算/交互三类结果与证据}
+  /api/v1/materials/{material_id}/ai-bundles/{bundle_id}/generated-views:
+    post:
+      tags: [ppt-ai]
+      summary: 专用视图生成试验（默认关闭）
+      security:
+        - sessionCookie: []
+          csrfToken: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - {name: bundle_id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: true}
+      responses:
+        '202': {description: 生成任务已入队}
+        '403': {description: 试验开关关闭或功能未启用}
+  /api/v1/materials/{material_id}/ai-overview:
+    get:
+      tags: [ppt-ai]
+      summary: PPT AI 工作流总览（只读）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+      responses:
+        '200': {description: 规划、bundle、分支、实验、报告与能力}
+  /api/v1/materials/{material_id}/ai-active:
+    get:
+      tags: [ppt-ai]
+      summary: 演示页当前交互 bundle/branch（只读）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+      responses:
+        '200': {description: 当前 bundle、branch 与已验收 artifact}
+  /api/v1/ppt-ai/capabilities:
+    get:
+      tags: [ppt-ai]
+      summary: PPT AI 能力注册表
+      security:
+        - sessionCookie: []
+      responses:
+        '200': {description: 已登记算子、模型状态与特性开关}
+
+  /api/v1/materials/{material_id}/ispecs/{object_id}/parameters/{parameter_id}/confirm:
+    post:
+      tags: [materials, trust]
+      summary: 确认或修改 iSpec 推断参数（写入 user_checks）
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+        - name: object_id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: parameter_id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: X-CSRF-Token
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                action: {enum: [confirm, edit], default: confirm}
+                value: {}
+                note: {type: string, maxLength: 500}
+      responses:
+        '200': {description: 写入确认记录并返回重算后的 TrustReport}
+  /api/v1/materials/{material_id}/project-package:
+    get:
+      tags: [materials, projects]
+      summary: 导出可再次编辑的 .xsproj 工程包
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/MaterialId'
+      responses:
+        '200':
+          description: application/zip；包含 manifest、SceneDocument、iSpecs、参数值与页面图
+          content:
+            application/zip:
+              schema: {type: string, format: binary}
+  /api/v1/project-packages/import:
+    post:
+      tags: [projects]
+      summary: 导入 .xsproj 工程包（校验 schema 与哈希）
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: X-CSRF-Token
+          in: header
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '201': {description: 创建新材料并保留 SceneDocument 节点 id 与 iSpec object_id}
+  /api/v1/trust/adversarial-demo:
+    get:
+      tags: [trust]
+      summary: AI 故障注入与四道防线演示（只读、确定性、不调用真实模型）
+      security:
+        - sessionCookie: []
+      responses:
+        '200': {description: 干净输入、四类合成故障、拦截日志与对照结果}
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: xs_session
+      description: 服务端下发的 HttpOnly 访客会话 Cookie；原始凭据不得写入 localStorage（R2-AC1）。
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: 必须等于当前会话 csrf_token；写请求（除 POST /sessions）还必须校验 Origin 在允许列表内（R13-AC4、§2.2.7 契约级行为 2）。
+    authCookie:
+      type: apiKey
+      in: cookie
+      name: xs_auth
+      description: 账号会话 Cookie（HttpOnly；库内只存 SHA-256 摘要，明文只下发一次）。与访客 sessionCookie 相互独立（R11-6）。
+
+  headers:
+    XRequestId:
+      description: 与响应体 request_id 相同，便于前后端对齐排障
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{16}$'
+
+  parameters:
+    MaterialId:
+      name: material_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    JobId:
+      name: job_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    ObjectId:
+      name: object_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+
+  responses:
+    SuccessSessionInfo:
+      description: 当前会话
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ApiSuccess'
+              - type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SessionInfo'
+    Error400:
+      description: 参数或文件不合法（INVALID_FILE）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Error401:
+      description: 会话无效或过期（SESSION_EXPIRED）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Error404:
+      description: 资源不存在或不属于当前会话；body 仍为 ApiError，code=SESSION_EXPIRED、message=资源不可用（§2.2.8 末段、§2.3.7 D2）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Error409:
+      description: 版本冲突（VERSION_CONFLICT）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Error413:
+      description: 超出文件/页数/解压限制（LIMIT_EXCEEDED）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Error422:
+      description: 缺字段/越界/非法引用/循环依赖/规模超限/不支持的模板（MISSING_FIELD 或 UNSUPPORTED_TEMPLATE）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Error503:
+      description: 规则化候选生成器不可用（MODEL_UNAVAILABLE）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Error401Auth:
+      description: 账号未登录、会话无效或凭据不匹配（AUTH_REQUIRED / INVALID_CREDENTIALS）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Error403:
+      description: 账号不可用（FORBIDDEN）
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Error409Email:
+      description: 用户名或邮箱已注册（USERNAME_ALREADY_REGISTERED / EMAIL_ALREADY_REGISTERED）；既有 Error409 保持 VERSION_CONFLICT 语义不变
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
+  schemas:
+    RequestId:
+      type: string
+      pattern: '^[0-9a-f]{16}$'
+      description: 后端生成的请求标识（uuid4().hex[:16]）
+
+    ApiSuccess:
+      type: object
+      additionalProperties: false
+      required: [data, request_id]
+      description: 成功响应外壳；204 无体除外（§2.2.7 契约级行为 1）。
+      properties:
+        data:
+          description: 业务载荷，形状由各端点覆盖定义
+        request_id:
+          $ref: '#/components/schemas/RequestId'
+
+    ErrorCode:
+      type: string
+      description: |
+        错误码枚举（C-ERR@1，§2.2.8）。HTTP 与 retryable 映射：
+        INVALID_FILE 400/false；LIMIT_EXCEEDED 413/false；PARSE_FAILED 422/true；
+        MODEL_UNAVAILABLE 503/true；UNSUPPORTED_TEMPLATE 422/false；
+        MISSING_FIELD 422/false；VERSION_CONFLICT 409/false；SESSION_EXPIRED 401/false。
+        C-ERR@2 追加：AUTH_REQUIRED 401/false；INVALID_CREDENTIALS 401/false；
+        EMAIL_ALREADY_REGISTERED 409/false；FORBIDDEN 403/false；
+        EMAIL_NOT_VERIFIED 403/false；RATE_LIMITED 429/false。
+        C-ERR@3 追加：USERNAME_ALREADY_REGISTERED 409/false。
+        AUTH_REQUIRED/INVALID_CREDENTIALS/EMAIL_ALREADY_REGISTERED/USERNAME_ALREADY_REGISTERED/FORBIDDEN 由账号端点产生；
+        EMAIL_NOT_VERIFIED 与 RATE_LIMITED 为保留值，本版本不产生。
+      enum:
+        - INVALID_FILE
+        - LIMIT_EXCEEDED
+        - PARSE_FAILED
+        - MODEL_UNAVAILABLE
+        - UNSUPPORTED_TEMPLATE
+        - MISSING_FIELD
+        - VERSION_CONFLICT
+        - SESSION_EXPIRED
+        - AUTH_REQUIRED
+        - INVALID_CREDENTIALS
+        - EMAIL_ALREADY_REGISTERED
+        - FORBIDDEN
+        - EMAIL_NOT_VERIFIED
+        - RATE_LIMITED
+        - USERNAME_ALREADY_REGISTERED
+
+    ErrorBody:
+      type: object
+      additionalProperties: false
+      required: [code, message, retryable]
+      properties:
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        message:
+          type: string
+          minLength: 1
+          description: 面向用户的中文说明，不含堆栈与密钥（R12-AC5）
+        retryable:
+          type: boolean
+          description: 是否建议重试；PARSE_FAILED 与 MODEL_UNAVAILABLE 为 true
+        details:
+          type: object
+          additionalProperties: true
+          description: 可选结构化细节，如越界字段名与允许范围
+
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [error, request_id]
+      description: 统一错误外壳；request_id 位于顶层（§2.2.7 的 TS 声明 ApiError），与成功响应保持一致。
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorBody'
+        request_id:
+          $ref: '#/components/schemas/RequestId'
+
+    TemplateId:
+      type: string
+      enum: [matrix_2d, force_2d, bfs_flow, budget_compare]
+
+    SessionInfo:
+      type: object
+      additionalProperties: false
+      required: [session_id, expires_at, csrf_token, retention_hours]
+      properties:
+        session_id:
+          type: string
+          minLength: 1
+        expires_at:
+          type: string
+          format: date-time
+        csrf_token:
+          type: string
+          minLength: 1
+          description: 写请求必须放入 X-CSRF-Token
+        retention_hours:
+          type: integer
+          minimum: 1
+          description: 访客材料默认保留小时数，首版固定 24（R2-AC5）
+
+    TemplateDescriptor:
+      type: object
+      additionalProperties: false
+      required: [template_id, name, scenario_slug, kernel_version, validation_profile, example_id, limits, schema_path]
+      properties:
+        template_id:
+          $ref: '#/components/schemas/TemplateId'
+        name:
+          type: string
+          minLength: 1
+          description: 场景卡名称，固定为「空间与矩阵」「力与向量」「计算机过程」「办公推演」
+        scenario_slug:
+          type: string
+          enum: [matrix, force, bfs, budget]
+        kernel_version:
+          type: string
+          enum: [linear_v1, force_v1, bfs_v1, budget_v1]
+        validation_profile:
+          type: string
+          minLength: 1
+        example_id:
+          type: string
+          minLength: 1
+          description: 对应 fixtures/examples/index.json 的 example_id
+        limits:
+          type: object
+          additionalProperties:
+            type: string
+          description: 面向用户的限制说明，如 {"页数":"60","文件大小":"70MB"}
+        schema_path:
+          type: string
+          description: 调试用 schema 位置，如 contracts/schemas/template_matrix_2d.schema.json（不是 /api/v1/templates/{id}/schema 端点，见 contracts/README.md 契约矛盾 C-01）
+
+    CloneResult:
+      type: object
+      additionalProperties: false
+      required: [material_id, object_id]
+      properties:
+        material_id:
+          type: string
+          minLength: 1
+        object_id:
+          type: string
+          minLength: 1
+
+    UploadAccepted:
+      type: object
+      additionalProperties: false
+      required: [material_id, job_id]
+      properties:
+        material_id:
+          type: string
+          minLength: 1
+        job_id:
+          type: string
+          minLength: 1
+
+    RetryAccepted:
+      type: object
+      additionalProperties: false
+      required: [job_id, attempt]
+      properties:
+        job_id:
+          type: string
+          minLength: 1
+        attempt:
+          type: integer
+          minimum: 1
+          description: 重试后的新 attempt 序号
+
+    CompileAccepted:
+      type: object
+      additionalProperties: false
+      required: [job_id]
+      properties:
+        job_id:
+          type: string
+          minLength: 1
+
+    MaterialStatus:
+      type: string
+      enum: [processing, awaiting_confirmation, ready, failed]
+
+    MaterialSummary:
+      type: object
+      additionalProperties: false
+      required: [material_id, title, status, page_count, created_at, expires_at, object_count]
+      properties:
+        material_id:
+          type: string
+          minLength: 1
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/MaterialStatus'
+        page_count:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+        object_count:
+          type: integer
+          minimum: 0
+        template_id:
+          type: string
+          enum: [matrix_2d, force_2d, bfs_flow, budget_compare]
+          description: |
+            P1 可选追加（向后兼容，未改 required、未升版本号）：该材料最终确认的知识对象模板，
+            供空间页与示例卡直接展示场景归属，无需再请求 /objects/{id}。
+            处理中（processing/awaiting_confirmation）或未识别出模板时省略该键。
+        run_count:
+          type: integer
+          minimum: 0
+          description: |
+            P1 可选追加（向后兼容，未改 required、未升版本号）：该材料下所有对象的运行快照总数，
+            供空间页显示"已保存 N 次运行"。尚未统计或数据不可用时省略该键（不得返回伪造的 0）。
+
+    MaterialList:
+      type: object
+      additionalProperties: false
+      required: [items, retention_expires_at]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MaterialSummary'
+        retention_expires_at:
+          type: string
+          format: date-time
+          description: 当前会话材料的统一保留到期时间
+
+    SlideElement:
+      type: object
+      additionalProperties: false
+      required: [element_id, kind, name, bbox, text, asset_id]
+      properties:
+        element_id:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum: [text, picture, shape, chart, table, group]
+        name:
+          type: string
+        bbox:
+          type: object
+          additionalProperties: false
+          required: [x, y, w, h]
+          description: EMU 绝对坐标；来源只有页级信息时整条 SourceRef.bbox 为 null，不渲染元素框（R4-AC3）
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            w:
+              type: number
+            h:
+              type: number
+        text:
+          type: [string, 'null']
+        asset_id:
+          type: [string, 'null']
+
+    SlidePage:
+      type: object
+      additionalProperties: false
+      required: [page_no, title, paragraphs, elements, excerpt, image_url]
+      properties:
+        page_no:
+          type: integer
+          minimum: 1
+          description: 1-based 页码
+        title:
+          type: string
+        paragraphs:
+          type: array
+          items:
+            type: string
+        elements:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlideElement'
+        excerpt:
+          type: string
+        image_url:
+          type: [string, 'null']
+          description: 当前材料的整页预览 URL；无整页图时为 null，按页面结构降级阅读
+        width:
+          type: number
+          description: 原始页面宽度，单位 EMU
+        height:
+          type: number
+          description: 原始页面高度，单位 EMU
+
+    CandidateObject:
+      type: object
+      additionalProperties: false
+      required: [candidate_id, template_id, confidence_hint, fields]
+      properties:
+        candidate_id:
+          type: string
+          minLength: 1
+        template_id:
+          $ref: '#/components/schemas/TemplateId'
+        confidence_hint:
+          type: string
+          enum: [low, medium]
+        fields:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [parameter_id, name, status]
+            properties:
+              parameter_id:
+                type: string
+                minLength: 1
+              name:
+                type: string
+              status:
+                type: string
+                enum: [present, missing, inferred]
+
+    JobStage:
+      type: string
+      description: 任务状态机；只允许 queued → parsing → rendering → extracting → awaiting_confirmation → compiling → validating → ready | failed（R3-AC3）。
+      enum:
+        - queued
+        - parsing
+        - rendering
+        - extracting
+        - awaiting_confirmation
+        - compiling
+        - validating
+        - ready
+        - failed
+
+    JobStatus:
+      type: object
+      additionalProperties: false
+      required: [job_id, material_id, kind, stage, attempt, progress_pct, error, updated_at]
+      properties:
+        job_id:
+          type: string
+          minLength: 1
+        material_id:
+          type: string
+          minLength: 1
+        kind:
+          type: string
+          enum: [upload, compile, validate]
+        stage:
+          $ref: '#/components/schemas/JobStage'
+        attempt:
+          type: integer
+          minimum: 1
+        progress_pct:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 100
+          description: 仅可计量阶段给出；rendering 阶段为 null，不编造百分比（§2.3.5）
+        error:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              $ref: '#/components/schemas/ErrorCode'
+            message:
+              type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    MaterialDetail:
+      type: object
+      additionalProperties: false
+      required: [material, slides, objects, candidates, job]
+      properties:
+        ispecs:
+          type: array
+          items:
+            $ref: './spec/ispec.schema.json'
+        render:
+          type: object
+          description: 整页渲染引擎、保真度、状态和错误摘要
+        material:
+          $ref: '#/components/schemas/MaterialSummary'
+        slides:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlidePage'
+        objects:
+          type: array
+          items:
+            $ref: './schemas/knowledge_object.schema.json'
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateObject'
+        job:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/JobStatus'
+
+    ObjectEnvelope:
+      type: object
+      additionalProperties: false
+      required: [object]
+      properties:
+        object:
+          $ref: './schemas/knowledge_object.schema.json'
+
+    ObjectWithChecks:
+      type: object
+      additionalProperties: false
+      required: [object, checks_summary]
+      properties:
+        object:
+          $ref: './schemas/knowledge_object.schema.json'
+        checks_summary:
+          oneOf:
+            - type: 'null'
+            - $ref: './schemas/run.schema.json#/$defs/ValidationReport'
+
+    RunList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: './schemas/run.schema.json'
+
+    CheckList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: './schemas/run.schema.json#/$defs/ValidationReport'
+
+    PutModelRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_version, object]
+      description: PUT /objects/{id}/model 的请求体；expected_version 与库中 model_version 不一致返回 VERSION_CONFLICT（R10-AC6）。
+      properties:
+        expected_version:
+          type: integer
+          minimum: 1
+        object:
+          $ref: './schemas/knowledge_object.schema.json'
+
+    CompileRequest:
+      type: object
+      additionalProperties: false
+      required: [model_version]
+      properties:
+        model_version:
+          type: integer
+          minimum: 1
+
+    CreateRunRequest:
+      type: object
+      additionalProperties: false
+      required: [model_version, revision, input_snapshot]
+      description: result 为可选入参（客户端本地展示结果，仅用于对比）；服务端必定用内核重算并覆盖。
+      properties:
+        model_version:
+          type: integer
+          minimum: 1
+        revision:
+          type: integer
+          minimum: 0
+        input_snapshot:
+          $ref: './schemas/knowledge_object.schema.json'
+        result:
+          description: 客户端本地计算结果，服务端忽略并在响应中返回重算结果
+
+    ValidateRequest:
+      type: object
+      additionalProperties: false
+      required: [model_version, revision]
+      properties:
+        model_version:
+          type: integer
+          minimum: 1
+        revision:
+          type: integer
+          minimum: 0
+    AuthUser:
+      type: object
+      additionalProperties: false
+      required: [user_id, username, email, display_name, status, created_at, email_verification]
+      description: 注册 / 登录 / GET /me 共用的账号展示对象（C-AUTHAPI@1）。
+      properties:
+        user_id:
+          type: string
+          pattern: '^usr_[0-9a-f]{32}$'
+        username:
+          type: string
+          minLength: 3
+          maxLength: 20
+          description: 用户名的原始展示值（大小写与注册时一致）；老账号回退为邮箱本地部分
+        email:
+          type: string
+          minLength: 1
+          description: login_identities.display_identifier（原始展示值，不做大小写改写）
+        display_name:
+          type: string
+          maxLength: 64
+        status:
+          type: string
+          enum: [active]
+        created_at:
+          type: string
+          format: date-time
+        email_verification:
+          type: string
+          enum: [disabled_development]
+          description: 开发期降级标记；本版本不实现邮箱验证，注册即 active
+
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [username, email, password]
+      description: POST /api/v1/auth/register 的请求体（C-AUTHAPI@1 ①）。
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 20
+          description: 3–20 个字符；首字符为字母，其余为字母、数字、下划线或短横线；不区分大小写唯一
+        email:
+          type: string
+          minLength: 3
+          maxLength: 320
+          description: 必填，用于登录与后续通知；不发送验证邮件
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 业务策略要求 8–128 个字符，违规返回 422 MISSING_FIELD
+        display_name:
+          type: [string, 'null']
+          maxLength: 64
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      description: POST /api/v1/auth/login 的请求体（C-AUTHAPI@1 ②）；identifier 与 email 至少提供一个，前者优先。
+      properties:
+        identifier:
+          type: string
+          minLength: 1
+          maxLength: 320
+          description: 用户名或邮箱
+        email:
+          type: string
+          minLength: 1
+          maxLength: 320
+          description: 旧客户端兼容字段；新客户端使用 identifier
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+        remember:
+          type: boolean
+          default: false
+          description: true 时空闲窗口 168h、绝对窗口 720h
+
+    LoginResult:
+      type: object
+      additionalProperties: false
+      required: [user, csrf_token, expires_at, absolute_expires_at]
+      description: POST /api/v1/auth/login 的 data（C-AUTHAPI@1 ②）。
+      properties:
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        csrf_token:
+          type: string
+          minLength: 1
+          description: 当前会话 CSRF；只用于 X-CSRF-Token，不得写入 URL 或 localStorage
+        expires_at:
+          type: string
+          format: date-time
+          description: 等于 idle_expires_at
+        absolute_expires_at:
+          type: string
+          format: date-time
+
+    AuthSessionSummary:
+      type: object
+      additionalProperties: false
+      required: [session_id, expires_at, idle_expires_at]
+      description: GET /api/v1/me 中的会话摘要；expires_at 与 idle_expires_at 同值。
+      properties:
+        session_id:
+          type: string
+          pattern: '^aut_[0-9a-f]{32}$'
+        expires_at:
+          type: string
+          format: date-time
+        idle_expires_at:
+          type: string
+          format: date-time
+
+    MeResponse:
+      type: object
+      additionalProperties: false
+      required: [user, session, csrf_token]
+      description: GET /api/v1/me 的 data（C-AUTHAPI@1 ④）。
+      properties:
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        session:
+          $ref: '#/components/schemas/AuthSessionSummary'
+        csrf_token:
+          type: string
+          minLength: 1

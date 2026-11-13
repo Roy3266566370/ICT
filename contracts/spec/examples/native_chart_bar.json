@@ -1,0 +1,36 @@
+{
+  "spec_version": "1.0",
+  "object_id": "obj_native_chart_bar",
+  "title": "原生柱状图（由 PPTX chart 直读生成）",
+  "kind": "filter",
+  "parameters": [
+    { "id": "category", "label": "分类", "type": "enum", "options": ["全部", "A", "B", "C"], "default": "全部", "unit": "",
+      "source": { "page": 7, "element_id": "p07_s04", "bbox": null, "status": "original", "excerpt": "categories: 月份 / 销售额" } }
+  ],
+  "expressions": [],
+  "datasets": [
+    {
+      "id": "chart_p07",
+      "columns": ["category", "series", "value"],
+      "rows": [
+        ["A", "销售额", 10],
+        ["B", "销售额", 20],
+        ["C", "销售额", 30],
+        ["A", "成本", 4],
+        ["B", "成本", 8],
+        ["C", "成本", 12]
+      ],
+      "source": { "page": 7, "element_id": "p07_s04" }
+    }
+  ],
+  "views": [
+    { "type": "vega", "spec_ref": "bar", "x": "category", "y": "value", "title": "系列数值", "dataset": "chart_p07" },
+    { "type": "table", "columns": ["category", "series", "value"], "title": "原始数据（只读，来自 PPTX chart）", "dataset": "chart_p07" }
+  ],
+  "constraints": [],
+  "checks": [
+    { "id": "C1", "type": "consistency", "expr": "true" },
+    { "id": "C2", "type": "source_match", "page": 7, "expect": "数值与 PPT 原生图表一致" }
+  ],
+  "notes": "图表数据由 python-pptx 的 chart.plots[].categories 与 series.values 直读，不再走视觉识别；datasets[0]=chart_p07 的每行数值与源逐值相等（容差 0），vega/table 视图都引用该数据集。"
+}

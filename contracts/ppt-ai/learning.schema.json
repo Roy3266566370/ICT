@@ -1,0 +1,1183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:ppt-ai:learning:1",
+  "title": "PPT AI Learning ppt-learning.1",
+  "$comment": "根类型为 LearningPage / LearningReply / LearningResultCard / LearningActionDraft / LearningDescriptor / LearningPractice / LearningPublishSelection 之一。",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/page"
+    },
+    {
+      "$ref": "#/$defs/reply"
+    },
+    {
+      "$ref": "#/$defs/result_card"
+    },
+    {
+      "$ref": "#/$defs/action_draft"
+    },
+    {
+      "$ref": "#/$defs/descriptor"
+    },
+    {
+      "$ref": "#/$defs/practice"
+    },
+    {
+      "$ref": "#/$defs/publish_selection"
+    }
+  ],
+  "$defs": {
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "document_revision",
+        "source_hash",
+        "bundle_id",
+        "bundle_revision",
+        "page_no",
+        "node_id",
+        "region_id",
+        "branch_id",
+        "branch_revision",
+        "draft_revision",
+        "client_request_id",
+        "input_values",
+        "input_hash"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "ppt-learning.1"
+        },
+        "document_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_hash": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "bundle_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "bundle_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "page_no": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "region_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "branch_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "branch_revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "draft_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "client_request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "input_values": {
+          "type": "object"
+        },
+        "input_hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        }
+      }
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "material_id",
+        "page_no",
+        "node_id",
+        "region_id",
+        "element_id",
+        "bbox",
+        "excerpt",
+        "semantic_content_hash",
+        "origin_type"
+      ],
+      "properties": {
+        "material_id": {
+          "type": "string",
+          "maxLength": 96
+        },
+        "page_no": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "node_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "region_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "element_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "bbox": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "properties": {
+            "x": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "w": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "h": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "excerpt": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "semantic_content_hash": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "origin_type": {
+          "enum": [
+            "native",
+            "ocr",
+            "model_inference",
+            "user_input",
+            "supplement",
+            "teaching"
+          ]
+        }
+      }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concept_id",
+        "label",
+        "role",
+        "min",
+        "max",
+        "step",
+        "precision",
+        "unit",
+        "reason"
+      ],
+      "properties": {
+        "concept_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "role": {
+          "enum": [
+            "fixed",
+            "editable"
+          ]
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "step": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "exclusiveMinimum": 0
+        },
+        "precision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 12
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 300
+        }
+      }
+    },
+    "suggested_action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_type",
+        "label",
+        "question"
+      ],
+      "properties": {
+        "action_type": {
+          "enum": [
+            "explain",
+            "run_experiment",
+            "solve_target",
+            "compare",
+            "counterexample"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "review_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_id",
+        "field",
+        "prompt",
+        "current_value",
+        "basis",
+        "required",
+        "resolved"
+      ],
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "current_value": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "basis": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "resolved": {
+          "type": "boolean"
+        }
+      }
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "goal_id",
+        "title",
+        "objective",
+        "source_refs",
+        "template_id",
+        "bindings",
+        "fixed_roles",
+        "editable_roles",
+        "controls",
+        "suggested_actions",
+        "review_items",
+        "notes"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "ppt-learning.1"
+        },
+        "goal_id": {
+          "enum": [
+            "eigen_direction",
+            "change_of_basis",
+            "inverse_mapping",
+            "registered_exploration",
+            "explain"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "source_refs": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/source_ref"
+          }
+        },
+        "template_id": {
+          "enum": [
+            "matrix.eigen_probe",
+            "matrix.change_of_basis",
+            "matrix.inverse",
+            "generic.registered",
+            "text.explain"
+          ]
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 96
+          }
+        },
+        "fixed_roles": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "string",
+            "maxLength": 96
+          }
+        },
+        "editable_roles": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "string",
+            "maxLength": 96
+          }
+        },
+        "controls": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/control"
+          }
+        },
+        "suggested_actions": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/suggested_action"
+          }
+        },
+        "review_items": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/review_item"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "can_explain_online",
+        "can_ask_online",
+        "can_explore_locally",
+        "can_save_cloud",
+        "can_manage"
+      ],
+      "properties": {
+        "can_explain_online": {
+          "type": "boolean"
+        },
+        "can_ask_online": {
+          "type": "boolean"
+        },
+        "can_explore_locally": {
+          "type": "boolean"
+        },
+        "can_save_cloud": {
+          "type": "boolean"
+        },
+        "can_manage": {
+          "type": "boolean"
+        }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "item_id",
+        "node_id",
+        "region_id",
+        "title",
+        "state",
+        "support_status",
+        "descriptor",
+        "baseline_values",
+        "explanation_ready",
+        "experiment_ready",
+        "manual_review_reason"
+      ],
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "region_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "state": {
+          "enum": [
+            "unprepared",
+            "preparing",
+            "ready",
+            "needs_review",
+            "explanation_only",
+            "unsupported",
+            "failed",
+            "stale"
+          ]
+        },
+        "support_status": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "descriptor": {
+          "$ref": "#/$defs/descriptor"
+        },
+        "baseline_values": {
+          "type": "object"
+        },
+        "explanation_ready": {
+          "type": "boolean"
+        },
+        "experiment_ready": {
+          "type": "boolean"
+        },
+        "manual_review_reason": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "packaged_explanation": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "material_id",
+        "page_no",
+        "document_revision",
+        "source_hash",
+        "bundle_id",
+        "bundle_revision",
+        "branch_id",
+        "branch_revision",
+        "branch_kind",
+        "state",
+        "items",
+        "pending_task_id",
+        "capabilities",
+        "note",
+        "generated_at"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": "ppt-learning.1"
+        },
+        "material_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "page_no": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "document_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_hash": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "bundle_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "bundle_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "branch_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "branch_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "branch_kind": {
+          "enum": [
+            "baseline",
+            "practice",
+            "candidate",
+            null
+          ]
+        },
+        "state": {
+          "enum": [
+            "unprepared",
+            "preparing",
+            "ready",
+            "needs_review",
+            "explanation_only",
+            "unsupported",
+            "failed",
+            "stale"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/item"
+          }
+        },
+        "pending_task_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "capabilities": {
+          "$ref": "#/$defs/capabilities"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "generated_at": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 32
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "concept_id",
+        "label",
+        "value",
+        "origin_type",
+        "note"
+      ],
+      "properties": {
+        "concept_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "value": {},
+        "origin_type": {
+          "enum": [
+            "native",
+            "ocr",
+            "model_inference",
+            "user_input",
+            "supplement",
+            "teaching"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 300
+        }
+      }
+    },
+    "action_draft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_id",
+        "kind",
+        "context",
+        "summary",
+        "conditions",
+        "added_conditions",
+        "execution_payload",
+        "created_at"
+      ],
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "kind": {
+          "enum": [
+            "run_experiment",
+            "solve_target"
+          ]
+        },
+        "context": {
+          "$ref": "#/$defs/context"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "conditions": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        },
+        "added_conditions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        },
+        "execution_payload": {
+          "type": "object"
+        },
+        "created_at": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 32
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "expected",
+        "actual",
+        "residual",
+        "status"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "expected": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "actual": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "residual": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "not_checked"
+          ]
+        }
+      }
+    },
+    "result_card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "card_id",
+        "title",
+        "conclusion",
+        "solution",
+        "steps",
+        "verification",
+        "source_refs",
+        "scope",
+        "limitations",
+        "next_actions",
+        "input_hash",
+        "request_hash",
+        "task_id",
+        "result_kind",
+        "stale"
+      ],
+      "properties": {
+        "card_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "conclusion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "solution": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "verification": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/verification"
+          }
+        },
+        "source_refs": {
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "$ref": "#/$defs/source_ref"
+          }
+        },
+        "scope": {
+          "type": "object"
+        },
+        "limitations": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "next_actions": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "input_hash": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "request_hash": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "task_id": {
+          "type": "string",
+          "maxLength": 96
+        },
+        "result_kind": {
+          "enum": [
+            "explanation",
+            "experiment",
+            "target"
+          ]
+        },
+        "stale": {
+          "type": "boolean"
+        }
+      }
+    },
+    "reply": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reply_id",
+        "material_id",
+        "page_no",
+        "node_id",
+        "branch_id",
+        "client_request_id",
+        "draft_revision",
+        "input_hash",
+        "request_hash",
+        "state",
+        "answer_card",
+        "clarification",
+        "action_draft",
+        "task_id"
+      ],
+      "properties": {
+        "reply_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "material_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "page_no": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "branch_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "client_request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "draft_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "input_hash": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "request_hash": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "state": {
+          "enum": [
+            "answered",
+            "needs_clarification",
+            "action_ready",
+            "unsupported",
+            "stale"
+          ]
+        },
+        "answer_card": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/result_card"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clarification": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "action_draft": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/action_draft"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "task_id": {
+          "type": "string",
+          "maxLength": 96
+        }
+      }
+    },
+    "practice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "practice_id",
+        "branch_id",
+        "title",
+        "bundle_id",
+        "node_id",
+        "page_no",
+        "revision",
+        "values",
+        "context_input_hash",
+        "created_at",
+        "updated_at",
+        "branch_state"
+      ],
+      "properties": {
+        "practice_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "branch_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "bundle_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 96
+        },
+        "node_id": {
+          "type": "string",
+          "maxLength": 96
+        },
+        "page_no": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "values": {
+          "type": "object"
+        },
+        "context_input_hash": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "created_at": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 32
+        },
+        "updated_at": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 32
+        },
+        "branch_state": {
+          "type": "object"
+        }
+      }
+    },
+    "publish_selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "bundle_id",
+        "expected_bundle_revision",
+        "branch_id",
+        "expected_branch_revision",
+        "expected_document_revision",
+        "selected_learning_item_ids",
+        "selected_experiment_ids"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "baseline",
+            "practice",
+            "original_only"
+          ]
+        },
+        "bundle_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "expected_bundle_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "branch_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 96
+        },
+        "expected_branch_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "expected_document_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "selected_learning_item_ids": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 96
+          }
+        },
+        "selected_experiment_ids": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 96
+          }
+        }
+      }
+    }
+  }
+}

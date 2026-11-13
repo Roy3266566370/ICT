@@ -1,0 +1,36 @@
+{
+  "xRange": {
+    "min": -3.0,
+    "max": 3.0
+  },
+  "yRange": {
+    "min": -1.7,
+    "max": 1.7
+  },
+  "surfacePhasePeriodSeconds": 24,
+  "observationPathPeriodSeconds": 18,
+  "quadraticXCoefficient": 0.23,
+  "quadraticYCoefficient": -0.11,
+  "waveAmplitude": 0.12,
+  "waveXFreq": 0.9,
+  "waveYFreq": 0.6,
+  "pathXStart": -2.6,
+  "pathXSpan": 5.2,
+  "pathYAmplitude": 0.3,
+  "curveHeightOffset": 0.018,
+  "curveSampleCount": 129,
+  "observationMindS": 0.12,
+  "observationMaxS": 0.88,
+  "movingCenterS": 0.5,
+  "movingAmplitudeS": 0.35,
+  "gridStandard": {
+    "columns": 64,
+    "rows": 48
+  },
+  "gridLow": {
+    "columns": 40,
+    "rows": 30
+  },
+  "pulseActiveFraction": 0.35,
+  "pulseSigma": 0.72
+}

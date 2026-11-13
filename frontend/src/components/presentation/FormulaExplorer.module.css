@@ -1,0 +1,18 @@
+.root { margin:16px 0; padding:12px; border:1px solid #e5e1f2; border-radius:8px; background:#faf9ff; }
+.root h4 { margin:0 0 12px; }
+.choices,.range { display:flex; gap:8px; margin:8px 0; }
+.root label { display:flex; flex:1; min-width:0; flex-direction:column; gap:4px; font-size:11px; color:#64647a; }
+.root select,.root input { width:100%; min-width:0; padding:6px; border:1px solid #dedbe9; border-radius:5px; background:#fff; color:#35334b; }
+.range label { flex-direction:row; align-items:center; }
+.range input { width:80px; }
+.root svg { width:100%; cursor:crosshair; touch-action:pan-y; }
+.root svg line { stroke:#ddd9eb; stroke-width:1; }
+.root svg text { fill:#858096; font-size:9px; }
+.root p { font-size:10px; color:#878096; line-height:1.6; margin:5px 0; }
+.root .result { color:#514389; font-size:12px; font-variant-numeric:tabular-nums; }
+.onPage { margin:0; height:100%; display:flex; flex-direction:column; box-sizing:border-box; background:transparent; border:0; padding:8px; }
+.onPage h4 { font-size:12px; margin:0 0 6px; }
+.onPage .choices { margin:0 0 5px; }
+.onPage .range { margin:0; }
+.onPage svg { min-height:50px; flex:1; }
+.onPage>p { flex-shrink:0; }

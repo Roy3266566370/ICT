@@ -1,0 +1,417 @@
+"""万象活页 HTTP 端点集成测试（独立临时数据库与资产目录，不触发真实模型）。"""
+
+from __future__ import annotations
+
+import io
+import os
+import shutil
+import tempfile
+from pathlib import Path
+from typing import Any, Iterator
+
+import pytest
+
+_TMP_DIR = Path(tempfile.mkdtemp(prefix="xiangsheng-living-"))
+os.environ["DATABASE_URL"] = "sqlite:///" + (_TMP_DIR / "test.db").as_posix()
+os.environ["SESSION_COOKIE_SECURE"] = "false"
+os.environ["ENFORCE_CSRF"] = "true"
+os.environ["LAB_AI_ENABLED"] = "false"
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.db.session import reset_engine_cache  # noqa: E402
+from app.settings import get_settings  # noqa: E402
+
+get_settings.cache_clear()
+reset_engine_cache()
+
+from app.main import create_app  # noqa: E402
+
+import app.api.routes_living as routes_living  # noqa: E402
+
+routes_living.LIVING_DIR = _TMP_DIR / "living"
+
+
+def _session(client: TestClient) -> dict[str, Any]:
+    response = client.post("/api/v1/sessions")
+    assert response.status_code == 200, response.text
+    return response.json()["data"]
+
+
+def _headers(session: dict[str, Any]) -> dict[str, str]:
+    return {"X-CSRF-Token": str(session["csrf_token"])}
+
+
+@pytest.fixture(scope="module")
+def app() -> Any:
+    return create_app()
+
+
+@pytest.fixture
+def owner(app: Any) -> Iterator[TestClient]:
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture
+def guest(app: Any) -> Iterator[TestClient]:
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _cleanup() -> Iterator[None]:
+    yield
+    shutil.rmtree(_TMP_DIR, ignore_errors=True)
+
+
+PROBLEM = "解方程组：2x+y-z=8，-3x-y+2z=-11，-2x+y+2z=-3"
+TEXT = f"第三章 线性方程组\n\n本章学习高斯消元。\n\n{PROBLEM}"
+
+
+def _create_text_page(client: TestClient, text: str = TEXT) -> tuple[dict[str, Any], dict[str, Any]]:
+    session = _session(client)
+    response = client.post(
+        "/api/v1/pages/text",
+        headers=_headers(session),
+        json={"title": "测试活页", "text": text},
+    )
+    assert response.status_code == 201, response.text
+    return session, response.json()["data"]
+
+
+def test_text_page_lifecycle(owner: TestClient) -> None:
+    session, document = _create_text_page(owner)
+    page_id = document["page_id"]
+
+    assert document["schema_version"] == "page.1"
+    assert document["blocks"], "应有保真块"
+    conversion = document["provenance"]["conversion"]
+    assert conversion["pages_total"] == 1
+
+    suggestions = [s for s in document["suggestions"] if s["status"] == "pending"]
+    assert any(s["kind"] == "lab" for s in suggestions), "应检测到题目并给出实验建议"
+
+    # 列表与详情
+    listing = owner.get("/api/v1/pages", headers={})
+    assert listing.status_code == 200
+    assert any(p["page_id"] == page_id for p in listing.json()["data"]["pages"])
+
+    fetched = owner.get(f"/api/v1/pages/{page_id}")
+    assert fetched.status_code == 200
+
+    # 乐观锁：错 revision 拒绝
+    bad = owner.patch(
+        f"/api/v1/pages/{page_id}",
+        headers=_headers(session),
+        json={"expected_revision": 99, "title": "改名"},
+    )
+    assert bad.status_code == 409, bad.text
+
+    # 改标题 + 重排块（把首块挪到末尾）
+    blocks = list(document["blocks"])
+    blocks.append(blocks.pop(0))
+    patched = owner.patch(
+        f"/api/v1/pages/{page_id}",
+        headers=_headers(session),
+        json={"expected_revision": document["revision"], "title": "活页A", "blocks": blocks},
+    )
+    assert patched.status_code == 200, patched.text
+    updated = patched.json()["data"]
+    assert updated["title"] == "活页A"
+    assert updated["revision"] == document["revision"] + 1
+
+
+def test_suggestion_accept_and_dismiss(owner: TestClient) -> None:
+    session, document = _create_text_page(owner)
+    page_id = document["page_id"]
+    lab_sug = next(s for s in document["suggestions"] if s["kind"] == "lab")
+
+    accepted = owner.post(
+        f"/api/v1/pages/{page_id}/suggestions/{lab_sug['id']}/accept",
+        headers=_headers(session),
+    )
+    assert accepted.status_code == 200, accepted.text
+    inserted = accepted.json()["data"]["inserted"]
+    assert inserted[0]["type"] == "lab"
+    problem = inserted[0]["data"]["problem"]
+    assert problem["subject"] == "linear_algebra"
+    assert "states" not in problem
+
+    # 重复接受 → 422
+    again = owner.post(
+        f"/api/v1/pages/{page_id}/suggestions/{lab_sug['id']}/accept",
+        headers=_headers(session),
+    )
+    assert again.status_code == 422
+
+    # 忽略
+    formula_sug = next(
+        (s for s in document["suggestions"] if s["kind"] == "formula"), None
+    )
+    if formula_sug is not None:
+        dismissed = owner.post(
+            f"/api/v1/pages/{page_id}/suggestions/{formula_sug['id']}/dismiss",
+            headers=_headers(session),
+        )
+        assert dismissed.status_code == 200
+
+
+def test_lab_block_endpoint(owner: TestClient) -> None:
+    session, document = _create_text_page(owner)
+    page_id = document["page_id"]
+    response = owner.post(
+        f"/api/v1/pages/{page_id}/lab-block",
+        headers=_headers(session),
+        json={"text": "求矩阵 A=[[2,1],[1,3]] 的行列式"},
+    )
+    assert response.status_code == 201, response.text
+    block = response.json()["data"]["block"]
+    assert block["type"] == "lab"
+    assert block["data"]["problem"]["model"].get("la_kind") == "determinant"
+
+    bad = owner.post(
+        f"/api/v1/pages/{page_id}/lab-block",
+        headers=_headers(session),
+        json={"text": "今天天气很好去公园散步"},
+    )
+    assert bad.status_code == 422
+
+
+def _png_bytes() -> bytes:
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGB", (320, 200), "#ffffff")
+    draw = ImageDraw.Draw(image)
+    draw.text((20, 80), "x+1=3", fill="#222222")
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_upload_publish_progress_and_insights(owner: TestClient, guest: TestClient) -> None:
+    session = _session(owner)
+    response = owner.post(
+        "/api/v1/pages",
+        headers=_headers(session),
+        files=[("files", ("note.txt", TEXT.encode("utf-8"), "text/plain"))],
+    )
+    assert response.status_code == 201, response.text
+    document = response.json()["data"]
+    page_id = document["page_id"]
+
+    # 发布
+    image_key = document["source"]["pages"][0]["image_key"]
+    assert owner.get(f"/api/v1/pages/{page_id}/assets/{image_key}").status_code == 200
+    published = owner.post(f"/api/v1/pages/{page_id}/publish", headers=_headers(session))
+    assert published.status_code == 201, published.text
+    share = published.json()["data"]
+    share_id = share["share_id"]
+    assert guest.get(f"/api/v1/page-shares/{share_id}/assets/{image_key}").status_code == 200
+
+    # 公开读取（游客无需会话）：快照不含 suggestions 与 stored_name
+    public = guest.get(f"/api/v1/page-shares/{share_id}")
+    assert public.status_code == 200
+    snap = public.json()["data"]
+    assert "suggestions" not in snap
+    assert snap["share_id"] == share_id
+
+    # 游客上报进度（先建自己的会话）
+    guest_session = _session(guest)
+    blocks = [b for b in snap["blocks"] if b["type"] != "section"]
+    target = blocks[0]["id"]
+    progress = guest.post(
+        f"/api/v1/page-shares/{share_id}/progress",
+        headers=_headers(guest_session),
+        json={"block_id": target, "patch": {"quiz_guess": 2.5}},
+    )
+    assert progress.status_code == 200, progress.text
+
+    # 不存在的块 → 422
+    bad = guest.post(
+        f"/api/v1/page-shares/{share_id}/progress",
+        headers=_headers(guest_session),
+        json={"block_id": "blk_nope", "patch": {}},
+    )
+    assert bad.status_code == 422
+
+    # 老师端聚合
+    insights = owner.get(f"/api/v1/pages/{page_id}/insights")
+    assert insights.status_code == 200
+    data = insights.json()["data"]
+    assert data["viewers"] == 1
+    assert data["blocks"][target]["visits"] == 1
+    assert data["blocks"][target]["quiz_guesses"] == [2.5]
+
+    # 删除后公开链接 404
+    deleted = owner.delete(f"/api/v1/pages/{page_id}", headers=_headers(session))
+    assert deleted.status_code == 204
+    assert guest.get(f"/api/v1/page-shares/{share_id}").status_code == 404
+
+
+def test_upload_rejects_bad_file(owner: TestClient) -> None:
+    session = _session(owner)
+    response = owner.post(
+        "/api/v1/pages",
+        headers=_headers(session),
+        files=[("files", ("evil.exe", b"MZ\x90\x00" * 10, "application/octet-stream"))],
+    )
+    assert response.status_code == 400, response.text
+
+
+def test_other_session_cannot_read(owner: TestClient, guest: TestClient) -> None:
+    _, document = _create_text_page(owner)
+    page_id = document["page_id"]
+    _session(guest)  # 有会话但不是所有者 → 404 而非 401
+    assert guest.get(f"/api/v1/pages/{page_id}").status_code == 404
+
+
+def test_ai_model_generation_cache_replace_and_publish(owner: TestClient, guest: TestClient, monkeypatch) -> None:
+    import app.ppt_ai.page_lab as page_lab
+    calls = []
+
+    def generate(context, **kwargs):
+        calls.append(context)
+        return {
+            "version": page_lab.PAGE_LAB_VERSION, "page_no": 1, "title": "AI 自行设计的归一化实验",
+            "summary": "调节温度观察权重", "params": [{"id": "t", "label": "温度", "min": 0.1,
+                "max": 3, "step": 0.1, "default": 1, "unit": ""}], "explain": ["示例数据"],
+            "program": page_lab.EXAMPLE_PROGRAM.replace("input.temp", "input.t"),
+            "content_hash": "test-model", "generator": {"model": "test-ai", "attempts": 1}, "created_at": "2026-11-11T00:00:00Z",
+        }
+
+    monkeypatch.setattr(page_lab, "generate_page_lab", generate)
+    session, doc = _create_text_page(owner, "自注意力模型通过 Query 和 Key 计算权重，对 Value 加权求和。")
+    anchor = next(b for b in doc["blocks"] if b["type"] == "text")
+    url = f"/api/v1/pages/{doc['page_id']}/ai-models"
+    body = {"block_id": anchor["id"], "expected_revision": doc["revision"], "instruction": "设计可比较温度的实验，不复刻原图"}
+    response = owner.post(url, headers=_headers(session), json=body)
+    assert response.status_code == 200, response.text
+    result = response.json()["data"]
+    assert result["cached"] is False
+    assert result["document"]["blocks"][1] == anchor
+    model = result["block"]
+    assert model["type"] == "canvas" and model["data"]["doc"]["template"] == "ai_model"
+    assert calls[0]["design_goal"] == body["instruction"]
+    assert "自注意力" in calls[0]["page_text"]
+
+    body["expected_revision"] = result["document"]["revision"]
+    cached = owner.post(url, headers=_headers(session), json=body).json()["data"]
+    assert cached["cached"] is True and len(calls) == 1
+    assert cached["document"]["revision"] == body["expected_revision"]
+    body["force"] = True
+    regenerated = owner.post(url, headers=_headers(session), json=body)
+    assert regenerated.status_code == 200, regenerated.text
+    fresh = regenerated.json()["data"]
+    assert len(calls) == 2
+    assert fresh["block"]["id"] == model["id"]
+    assert sum(b["type"] == "canvas" for b in fresh["document"]["blocks"]) == 1
+
+    published = owner.post(f"/api/v1/pages/{doc['page_id']}/publish", headers=_headers(session)).json()["data"]
+    public = guest.get(f"/api/v1/page-shares/{published['share_id']}").json()["data"]
+    assert any(b["type"] == "canvas" and b["data"]["doc"]["model"]["program"] for b in public["blocks"])
+
+
+def test_ai_model_rejects_unowned_stale_and_empty_without_calling_ai(owner: TestClient, guest: TestClient, monkeypatch) -> None:
+    import app.ppt_ai.page_lab as page_lab
+    monkeypatch.setattr(page_lab, "generate_page_lab", lambda *a, **k: pytest.fail("invalid request must not call AI"))
+    session, doc = _create_text_page(owner)
+    anchor = next(b for b in doc["blocks"] if b["type"] == "text")
+    url = f"/api/v1/pages/{doc['page_id']}/ai-models"
+    body = {"block_id": anchor["id"], "expected_revision": 999}
+    assert owner.post(url, headers=_headers(session), json=body).status_code == 409
+    other = _session(guest)
+    body["expected_revision"] = doc["revision"]
+    assert guest.post(url, headers=_headers(other), json=body).status_code == 404
+    body["block_id"] = doc["blocks"][0]["id"]
+    assert owner.post(url, headers=_headers(session), json=body).status_code == 422
+
+
+def test_ai_failure_keeps_document(owner: TestClient, monkeypatch) -> None:
+    import app.ppt_ai.page_lab as page_lab
+    from app.ppt_ai.client import PPTAIError
+    def fail(*args, **kwargs):
+        raise PPTAIError("timeout", "模型调用超时")
+    monkeypatch.setattr(page_lab, "generate_page_lab", fail)
+    session, doc = _create_text_page(owner)
+    anchor = next(b for b in doc["blocks"] if b["type"] == "text")
+    response = owner.post(f"/api/v1/pages/{doc['page_id']}/ai-models", headers=_headers(session),
+                          json={"block_id": anchor["id"], "expected_revision": doc["revision"]})
+    assert response.status_code == 503
+    assert owner.get(f"/api/v1/pages/{doc['page_id']}").json()["data"] == doc
+
+
+def test_ai_generation_cannot_overwrite_concurrent_edit(owner: TestClient, monkeypatch) -> None:
+    from app.db.session import get_session_factory
+    from app.db.models import LivingPageRecord
+    from app.ppt_ai import page_lab
+    session, doc = _create_text_page(owner)
+    anchor = next(b for b in doc["blocks"] if b["type"] == "text")
+    def concurrent(context, **kwargs):
+        with get_session_factory()() as db:
+            row = db.get(LivingPageRecord, doc["page_id"])
+            updated = dict(row.document)
+            updated["title"] = "并发编辑后的标题"
+            updated["revision"] = row.revision + 1
+            row.document = updated
+            row.revision += 1
+            row.title = updated["title"]
+            db.commit()
+        return {"version": page_lab.PAGE_LAB_VERSION, "page_no": 1, "title": "生成模型",
+                "summary": "模型", "explain": [], "params": [{"id": "temp", "min": 0.1, "max": 3, "default": 1}],
+                "program": page_lab.EXAMPLE_PROGRAM, "generator": {"model": "test"}, "content_hash": "test"}
+    monkeypatch.setattr(page_lab, "generate_page_lab", concurrent)
+    response = owner.post(f"/api/v1/pages/{doc['page_id']}/ai-models", headers=_headers(session),
+                          json={"block_id": anchor["id"], "expected_revision": doc["revision"]})
+    assert response.status_code == 409, response.text
+    latest = owner.get(f"/api/v1/pages/{doc['page_id']}").json()["data"]
+    assert latest["title"] == "并发编辑后的标题"
+    assert latest["blocks"] == doc["blocks"]
+
+
+def test_ai_recommendations_cache_and_content_invalidation(owner: TestClient, guest: TestClient, monkeypatch) -> None:
+    from app.living import ai
+    calls = []
+    def recommend(document):
+        calls.append(document)
+        anchor = next(b for b in document["blocks"] if b["type"] == "text")
+        return {"summary": "适合交互", "reviewed_blocks": 1, "existing_models": 0, "truncated_blocks": 0,
+                "recommendations": [{"block_id": anchor["id"], "title": "权重实验", "page": 1,
+                  "reason": "观察分布", "interaction": "调温度", "observation": "权重", "design_goal": "观察温度影响"}]}
+    monkeypatch.setattr(ai, "recommend_models", recommend)
+    session, doc = _create_text_page(owner)
+    url = f"/api/v1/pages/{doc['page_id']}/ai-recommendations"
+    body = {"expected_revision": doc["revision"]}
+    response = owner.post(url, headers=_headers(session), json=body)
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["cached"] is False
+    assert owner.post(url, headers=_headers(session), json=body).json()["data"]["cached"] is True
+    assert len(calls) == 1
+    assert owner.get(f"/api/v1/pages/{doc['page_id']}").json()["data"] == doc
+    edited = owner.patch(f"/api/v1/pages/{doc['page_id']}", headers=_headers(session),
+                         json={"expected_revision": doc["revision"], "title": "修订讲义"}).json()["data"]
+    body["expected_revision"] = edited["revision"]
+    assert owner.post(url, headers=_headers(session), json=body).json()["data"]["cached"] is False
+    assert len(calls) == 2
+    other = _session(guest)
+    assert guest.post(url, headers=_headers(other), json=body).status_code == 404
+    body["expected_revision"] = 999
+    assert owner.post(url, headers=_headers(session), json=body).status_code == 409
+    assert len(calls) == 2
+
+
+def test_ai_recommendations_discard_result_after_concurrent_edit(owner: TestClient, monkeypatch) -> None:
+    from app.living import ai
+    from app.db.session import get_session_factory
+    from app.db.models import LivingPageRecord
+    session, doc = _create_text_page(owner)
+    def recommend(document):
+        with get_session_factory()() as db:
+            row = db.get(LivingPageRecord, doc["page_id"])
+            row.revision += 1
+            db.commit()
+        return {"recommendations": []}
+    monkeypatch.setattr(ai, "recommend_models", recommend)
+    response = owner.post(f"/api/v1/pages/{doc['page_id']}/ai-recommendations", headers=_headers(session),
+                          json={"expected_revision": doc["revision"]})
+    assert response.status_code == 409, response.text

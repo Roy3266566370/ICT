@@ -1,0 +1,98 @@
+/* 品牌组合：标志 + 中文名 + 拉丁名。
+ * 视觉节奏沿用 components/home/SiteNav.module.css 的品牌区，颜色/字号/圆角全部取自
+ * styles/tokens.css 的既有令牌，不新增主题变量。
+ */
+
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--ink-900);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  padding: 4px 6px 4px 4px;
+  margin-inline-start: -6px;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+a.lockup:hover {
+  background: rgba(18, 27, 39, 0.04);
+}
+
+a.lockup:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 3px;
+}
+
+/* 深色品牌区：文字改用纸白，悬停只提亮背景。 */
+.light {
+  color: var(--paper-0);
+}
+
+a.light:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+a.light:focus-visible {
+  outline-color: rgba(255, 255, 255, 0.72);
+}
+
+.light .name {
+  color: var(--paper-0);
+}
+
+.light .latin {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  flex: none;
+  filter: drop-shadow(0 2px 6px rgba(18, 27, 39, 0.18));
+}
+
+.mark img {
+  display: block;
+  object-fit: contain;
+}
+
+.text {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1;
+}
+
+.name {
+  color: var(--ink-900);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-black);
+  letter-spacing: var(--letter-spacing-caps);
+}
+
+.latin {
+  color: var(--ink-500);
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+/* hero 档：36px 标志 + 更大字号与字重 */
+.hero {
+  gap: 13px;
+  margin-inline-start: 0;
+  padding: 2px 4px 2px 2px;
+}
+
+.hero .name {
+  font-size: var(--font-size-2xl);
+}
+
+.hero .latin {
+  letter-spacing: var(--letter-spacing-caps);
+}

@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:schema:template_force_2d:1",
+  "title": "force_2d template contract",
+  "description": "C-FC@1（§2.2.4）：force_2d 的 config 与 result 结构，供 T6（交互视图）、T8（内核）、T9（独立校验）共用。顶层对象描述\"一个模板绑定的自检载荷\"：template_id + config（必填）+ 可选 result。参数 value 的形状见 C-KO@1 的 Parameter.force_list 分支（长度 2..4）。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["template_id", "config"],
+  "properties": {
+    "template_id": { "description": "固定为 force_2d。", "const": "force_2d" },
+    "config": { "$ref": "#/$defs/Force2dConfig" },
+    "result": { "$ref": "#/$defs/Force2dResult" }
+  },
+  "$defs": {
+    "DecimalString": {
+      "description": "十进制字符串，禁止二进制浮点参与传输（R9-AC3 的同类要求，力大小同样用字符串入参）。",
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "Force2dConfig": {
+      "description": "force_2d 配置：只做共点力合成，不计算运动、摩擦或碰撞（R7-AC6）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "angle_unit", "display_precision", "compute_precision"],
+      "properties": {
+        "operation": { "description": "首版唯一取值 resultant（求合力）。", "const": "resultant" },
+        "angle_unit": { "description": "角度单位，固定 deg（R7-AC5 拒绝非度单位）。", "const": "deg" },
+        "display_precision": {
+          "description": "界面舍入位数，默认 2；对应 magnitude_rounded / direction_rounded（R7-AC2）。",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 12,
+          "default": 2
+        },
+        "compute_precision": {
+          "description": "计算精度说明位数，默认 6；对应 magnitude_exact。",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15,
+          "default": 6
+        }
+      }
+    },
+    "ForceValue": {
+      "description": "共点力输入项：magnitude 为十进制字符串（N，0..1000），angle_deg 为度，[0, 360)，x 轴正向为 0°、逆时针为正（§2.2.4、§2.3.6）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["magnitude", "angle_deg"],
+      "properties": {
+        "magnitude": {
+          "description": "力的大小，十进制字符串（N），0..1000，超出返回 MISSING_FIELD（R7-AC5）。",
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        },
+        "angle_deg": {
+          "description": "力的方向（度），0..360 且不含 360；超出返回 MISSING_FIELD（R7-AC5）。",
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
+        }
+      }
+    },
+    "ForceComponentResult": {
+      "description": "单个力的分量结果（入参回显 + 分解值）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["magnitude", "angle_deg", "fx", "fy"],
+      "properties": {
+        "magnitude": { "description": "力的大小，十进制字符串（N）。", "$ref": "#/$defs/DecimalString" },
+        "angle_deg": { "description": "力的方向（度），[0, 360)。", "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
+        "fx": { "description": "x 分量 = magnitude*cos(angle)。", "type": "number" },
+        "fy": { "description": "y 分量 = magnitude*sin(angle)。", "type": "number" }
+      }
+    },
+    "Force2dResult": {
+      "description": "force_2d 内核输出。magnitude_rounded 与 magnitude_exact 必须分开返回（R7-AC2）；合力≈0 时方向必须为 null 而非 0° 或 NaN（R7-AC3）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "forces",
+        "fx",
+        "fy",
+        "magnitude",
+        "magnitude_rounded",
+        "magnitude_exact",
+        "direction_deg",
+        "direction_rounded",
+        "direction_defined",
+        "cancel",
+        "note",
+        "tolerance"
+      ],
+      "properties": {
+        "forces": {
+          "description": "逐力分解结果，顺序与入参一致（长度 2..4）。",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": { "$ref": "#/$defs/ForceComponentResult" }
+        },
+        "fx": { "description": "合力 x 分量 = sum(m*cos(angle))。", "type": "number" },
+        "fy": { "description": "合力 y 分量 = sum(m*sin(angle))。", "type": "number" },
+        "magnitude": {
+          "description": "合力大小 = hypot(fx, fy)，计算精度值（约 14.142135623730951）。",
+          "type": "number",
+          "minimum": 0
+        },
+        "magnitude_rounded": {
+          "description": "按 display_precision 格式化的合力大小字符串，如 \"14.14\"。",
+          "$ref": "#/$defs/DecimalString"
+        },
+        "magnitude_exact": {
+          "description": "保留 compute_precision 位的合力大小字符串，如 \"14.142136\"。",
+          "$ref": "#/$defs/DecimalString"
+        },
+        "direction_deg": {
+          "description": "合力方向 = (atan2(fy, fx)*180/pi + 360) % 360，落在 [0, 360)；合力≈0 时为 null（R7-AC3）。",
+          "oneOf": [{ "type": "null" }, { "type": "number", "minimum": 0, "exclusiveMaximum": 360 }]
+        },
+        "direction_rounded": {
+          "description": "按 display_precision 格式化的方向字符串；方向未定义时为 null。",
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/DecimalString" }]
+        },
+        "direction_defined": {
+          "description": "方向是否有定义；cancel=true 时必须为 false。",
+          "type": "boolean"
+        },
+        "cancel": {
+          "description": "magnitude < 1e-9 时为 true。",
+          "type": "boolean"
+        },
+        "note": {
+          "description": "面向用户的补充说明；cancel=true 时固定为 \"合力为零，方向未定义\"。",
+          "type": "string"
+        },
+        "tolerance": {
+          "description": "数值容差，固定 1e-9（§2.3.6 跨任务共享语义）。",
+          "const": 1e-9
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:ppt-ai:region:1",
+  "title": "PPT AI RegionExtractionResult ppt-ai.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["regions", "coverage", "coordinate_system", "issues", "source_hash", "source_revision"],
+  "properties": {
+    "source_hash": {"type": "string", "minLength": 8, "maxLength": 64},
+    "source_revision": {"type": "integer", "minimum": 0},
+    "coordinate_system": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bbox_unit", "page_width_unit", "target"],
+      "properties": {
+        "bbox_unit": {"const": "normalized"},
+        "page_width_unit": {"type": "string"},
+        "target": {"const": "original_page"},
+        "notes": {"type": "string"}
+      }
+    },
+    "issues": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/issue"}},
+    "coverage": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/coverage"}},
+    "regions": {
+      "type": "array",
+      "maxItems": 2000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "region_id", "page_no", "node_ids", "element_ids", "bbox", "category",
+          "extraction_state", "evidence", "issues", "semantic_content_hash", "provenance", "semantic"
+        ],
+        "properties": {
+          "region_id": {"type": "string", "minLength": 1, "maxLength": 96},
+          "page_no": {"type": "integer", "minimum": 1, "maximum": 500},
+          "node_ids": {"type": "array", "maxItems": 200, "items": {"type": "string"}},
+          "element_ids": {"type": "array", "maxItems": 200, "items": {"type": "string"}},
+          "bbox": {"$ref": "#/$defs/bbox"},
+          "category": {"type": "string", "minLength": 1, "maxLength": 48},
+          "extraction_state": {"enum": ["native", "ocr", "visual", "manual_review", "skipped"]},
+          "evidence": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["source", "method", "element_id", "text", "note"],
+              "properties": {
+                "source": {"enum": ["native", "ocr", "model", "user"]},
+                "method": {"type": "string"},
+                "element_id": {"type": ["string", "null"]},
+                "text": {"type": "string"},
+                "note": {"type": "string"}
+              }
+            }
+          },
+          "issues": {"type": "array", "maxItems": 30, "items": {"$ref": "#/$defs/issue"}},
+          "semantic_content_hash": {"type": "string", "minLength": 8, "maxLength": 64},
+          "semantic": {"type": "object"},
+          "provenance": {"$ref": "#/$defs/provenance"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "bbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": {"type": "number", "minimum": 0, "maximum": 1},
+        "y": {"type": "number", "minimum": 0, "maximum": 1},
+        "w": {"type": "number", "exclusiveMinimum": 0, "maximum": 1},
+        "h": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "severity"],
+      "properties": {
+        "code": {"type": "string", "minLength": 1, "maxLength": 64},
+        "message": {"type": "string", "minLength": 1, "maxLength": 500},
+        "severity": {"enum": ["info", "warn", "error"]}
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin_type", "evidence", "inference", "user_checks", "method"],
+      "properties": {
+        "origin_type": {"enum": ["native", "ocr", "model_inference", "user_input", "supplement", "teaching"]},
+        "evidence": {"type": "string", "maxLength": 4000},
+        "inference": {"type": "string", "maxLength": 2000},
+        "method": {"type": "string", "maxLength": 120},
+        "user_checks": {"type": "array", "maxItems": 50, "items": {"type": "object"}}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page_no", "native", "ocr", "visual", "manual_review", "skipped"],
+      "properties": {
+        "page_no": {"type": "integer", "minimum": 1, "maximum": 500},
+        "native": {"type": "array", "items": {"type": "string"}},
+        "ocr": {"type": "array", "items": {"type": "string"}},
+        "visual": {"type": "array", "items": {"type": "string"}},
+        "manual_review": {"type": "array", "items": {"type": "string"}},
+        "skipped": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

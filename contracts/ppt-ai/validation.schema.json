@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:ppt-ai:validation:1",
+  "title": "PPT AI ValidationReport ppt-ai.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "material_id",
+    "bundle_id",
+    "branch_id",
+    "artifact_id",
+    "bundle_hash",
+    "branch_hash",
+    "kernel_version",
+    "runtime_version",
+    "status",
+    "summary",
+    "rules",
+    "semantic_review",
+    "browser",
+    "repair",
+    "created_at",
+    "stale"
+  ],
+  "properties": {
+    "report_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96
+    },
+    "material_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96
+    },
+    "bundle_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 96
+    },
+    "branch_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 96
+    },
+    "artifact_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 96
+    },
+    "bundle_hash": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64
+    },
+    "branch_hash": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "kernel_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "runtime_version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "status": {
+      "enum": [
+        "passed",
+        "needs_review",
+        "failed",
+        "stale"
+      ]
+    },
+    "stale": {
+      "type": "boolean"
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 32
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pass",
+        "fail",
+        "not_covered",
+        "warn"
+      ],
+      "properties": {
+        "pass": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fail": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_covered": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warn": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rule_id",
+          "category",
+          "status",
+          "message"
+        ],
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 96
+          },
+          "category": {
+            "enum": [
+              "source",
+              "math",
+              "program",
+              "interaction",
+              "visual"
+            ]
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "not_covered",
+              "warn"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "evidence": {}
+        }
+      }
+    },
+    "semantic_review": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object"
+      }
+    },
+    "browser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "checks"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "passed",
+            "failed",
+            "skipped"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object"
+          }
+        },
+        "screenshots": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string"
+          }
+        },
+        "viewport": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "server_verified": {
+          "type": "boolean"
+        },
+        "script_version": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "snapshot_hash": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "checked_at": {
+          "type": "string",
+          "maxLength": 32
+        }
+      }
+    },
+    "repair": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    }
+  }
+}

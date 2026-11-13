@@ -1,0 +1,300 @@
+{
+  "templateId": "budget_compare",
+  "cases": [
+    {
+      "id": "bd_n80",
+      "title": "n=80：方案A 9400.00 元，方案B 10000.00 元",
+      "input": {
+        "expressions": {
+          "plan_a": {
+            "op": "add",
+            "args": [
+              { "op": "ref", "parameter_id": "plan_a_fixed" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "ref", "parameter_id": "plan_a_per_person" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          },
+          "plan_b": {
+            "op": "add",
+            "args": [
+              { "op": "constant", "value": "6000" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "constant", "value": "50" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          }
+        },
+        "parameters": {
+          "people_n": 80,
+          "plan_a_fixed": "3000",
+          "plan_a_per_person": "80",
+          "plan_b_fixed": "6000",
+          "plan_b_per_person": "50"
+        },
+        "people": 80,
+        "budget_limit": null,
+        "display_precision": 2
+      },
+      "expected": {
+        "inputs": { "people": 80 },
+        "scenarios": [
+          {
+            "scenario_id": "plan_a",
+            "total": "9400.00",
+            "per_person": "80.00",
+            "fixed": "3000.00"
+          },
+          {
+            "scenario_id": "plan_b",
+            "total": "10000.00",
+            "per_person": "50.00",
+            "fixed": "6000.00"
+          }
+        ],
+        "difference": "-600.00",
+        "equal": false,
+        "budget_limit": null,
+        "remaining": null,
+        "over_budget": null,
+        "lines": [
+          { "scenario_id": "plan_a", "at_zero": "3000.00", "at_max": "163000.00", "slope": "80.00" },
+          { "scenario_id": "plan_b", "at_zero": "6000.00", "at_max": "106000.00", "slope": "50.00" }
+        ],
+        "display_precision": 2
+      },
+      "notes": "R9-AC1/R9-AC5。金额一律十进制字符串并按规则 7 统一 2 位小数（str(quantize(Decimal('0.01')))），禁止 float 参与（R9-AC3）。未设 budget_limit，故 remaining/over_budget 均为 null，界面不画预算线。lines.at_max 取 n=2000：A=3000+80*2000=163000，B=6000+50*2000=106000。AST 存放位置见 contracts/README.md 契约矛盾 C-06。"
+    },
+    {
+      "id": "bd_n100",
+      "title": "n=100：两方案相等，均为 11000.00 元",
+      "input": {
+        "expressions": {
+          "plan_a": {
+            "op": "add",
+            "args": [
+              { "op": "ref", "parameter_id": "plan_a_fixed" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "ref", "parameter_id": "plan_a_per_person" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          },
+          "plan_b": {
+            "op": "add",
+            "args": [
+              { "op": "constant", "value": "6000" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "constant", "value": "50" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          }
+        },
+        "parameters": {
+          "people_n": 100,
+          "plan_a_fixed": "3000",
+          "plan_a_per_person": "80",
+          "plan_b_fixed": "6000",
+          "plan_b_per_person": "50"
+        },
+        "people": 100,
+        "budget_limit": null,
+        "display_precision": 2
+      },
+      "expected": {
+        "inputs": { "people": 100 },
+        "scenarios": [
+          {
+            "scenario_id": "plan_a",
+            "total": "11000.00",
+            "per_person": "80.00",
+            "fixed": "3000.00"
+          },
+          {
+            "scenario_id": "plan_b",
+            "total": "11000.00",
+            "per_person": "50.00",
+            "fixed": "6000.00"
+          }
+        ],
+        "difference": "0.00",
+        "equal": true,
+        "budget_limit": null,
+        "remaining": null,
+        "over_budget": null
+      },
+      "notes": "R9-AC2 的平衡点用例（任务书称 bud_breakeven，文档表命名为 bd_n100，见 contracts/README.md 契约矛盾 C-10）。3000+80*100=11000，6000+50*100=11000，difference=\"0.00\"、equal=true。"
+    },
+    {
+      "id": "bd_limit_ok",
+      "title": "n=80、上限 10000：余量 600.00 与 0.00，均未超预算",
+      "input": {
+        "expressions": {
+          "plan_a": {
+            "op": "add",
+            "args": [
+              { "op": "ref", "parameter_id": "plan_a_fixed" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "ref", "parameter_id": "plan_a_per_person" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          },
+          "plan_b": {
+            "op": "add",
+            "args": [
+              { "op": "constant", "value": "6000" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "constant", "value": "50" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          }
+        },
+        "parameters": {
+          "people_n": 80,
+          "plan_a_fixed": "3000",
+          "plan_a_per_person": "80",
+          "plan_b_fixed": "6000",
+          "plan_b_per_person": "50"
+        },
+        "people": 80,
+        "budget_limit": 10000,
+        "display_precision": 2
+      },
+      "expected": {
+        "scenarios": [
+          { "scenario_id": "plan_a", "total": "9400.00" },
+          { "scenario_id": "plan_b", "total": "10000.00" }
+        ],
+        "remaining": ["600.00", "0.00"],
+        "over_budget": [false, false],
+        "budget_limit": "10000.00"
+      },
+      "notes": "R9-AC4/R9-AC6。remaining = limit - total，按 scenarios 顺序对应 plan_a、plan_b：10000-9400=600.00、10000-10000=0.00；余量为 0 不算超预算，故 over_budget=[false,false]。budget_limit 输出按规则 7 统一 2 位小数。"
+    },
+    {
+      "id": "bd_over_budget",
+      "title": "n=80、上限 5000：两方案均超预算",
+      "input": {
+        "expressions": {
+          "plan_a": {
+            "op": "add",
+            "args": [
+              { "op": "ref", "parameter_id": "plan_a_fixed" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "ref", "parameter_id": "plan_a_per_person" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          },
+          "plan_b": {
+            "op": "add",
+            "args": [
+              { "op": "constant", "value": "6000" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "constant", "value": "50" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          }
+        },
+        "parameters": {
+          "people_n": 80,
+          "plan_a_fixed": "3000",
+          "plan_a_per_person": "80",
+          "plan_b_fixed": "6000",
+          "plan_b_per_person": "50"
+        },
+        "people": 80,
+        "budget_limit": 5000,
+        "display_precision": 2
+      },
+      "expected": {
+        "remaining": ["-4400.00", "-5000.00"],
+        "over_budget": [true, true],
+        "budget_limit": "5000.00"
+      },
+      "notes": "R9-AC4：余量为负标\"超预算\"。5000-9400=-4400.00，5000-10000=-5000.00。负值必须保留符号，界面文案与颜色双编码（R14-AC5）。"
+    },
+    {
+      "id": "bd_cycle",
+      "title": "表达式自引用：拒绝并返回 MISSING_FIELD",
+      "input": {
+        "expressions": {
+          "plan_a": {
+            "op": "add",
+            "args": [
+              { "op": "ref", "parameter_id": "plan_a" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "ref", "parameter_id": "plan_a_per_person" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          },
+          "plan_b": {
+            "op": "add",
+            "args": [
+              { "op": "constant", "value": "6000" },
+              {
+                "op": "multiply",
+                "args": [
+                  { "op": "constant", "value": "50" },
+                  { "op": "ref", "parameter_id": "people_n" }
+                ]
+              }
+            ]
+          }
+        },
+        "parameters": {
+          "people_n": 80,
+          "plan_a_fixed": "3000",
+          "plan_a_per_person": "80",
+          "plan_b_fixed": "6000",
+          "plan_b_per_person": "50"
+        },
+        "people": 80,
+        "budget_limit": null,
+        "display_precision": 2
+      },
+      "expected": {
+        "error": {
+          "code": "MISSING_FIELD",
+          "message_contains": "循环依赖",
+          "field": "plan_a"
+        }
+      },
+      "notes": "R9-AC7。plan_a 的 AST 通过 ref 指向自身（parameter_id=\"plan_a\" 指向同名命名表达式），构成循环依赖；内核必须抛 KernelError(code=MISSING_FIELD) 且 message 指明节点，禁止进入无限递归。依赖图必须无环（R8-AC7）：此处不得复用 BFS 的\"允许环\"规则。"
+    }
+  ]
+}

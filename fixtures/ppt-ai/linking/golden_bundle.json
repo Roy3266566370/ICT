@@ -1,0 +1,814 @@
+{
+  "bundle_id": "bnd_golden",
+  "bundle_revision": 2,
+  "schema_version": "ppt-ai.2",
+  "material_id": "mat_golden",
+  "source_revision": 0,
+  "source_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "registry_version": "ppt-ai.registry.1",
+  "status": "active",
+  "content_hash": "1948a2de2094aaeb62c64398c666b846a36df279a5ef8d9e3f75b8d95526bfd3",
+  "plans": [],
+  "graph": {
+    "nodes": [
+      {
+        "concept_id": "cpt_p1_a11",
+        "name": "第 1 页参数",
+        "type": "number",
+        "unit": "",
+        "dimension": "scalar",
+        "domain": {
+          "min": 0.0,
+          "max": 20.0
+        },
+        "default": 2.0,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 1,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "第 1 页参数",
+          "source_version": 0,
+          "semantic_content_hash": "52f8677224bbd7869807c408028144d930bd54317efd6b8c7c3513c146f69bb7"
+        },
+        "semantic_role": "parameter",
+        "provenance": {
+          "origin_type": "model_inference",
+          "evidence": "",
+          "inference": "手算黄金样例",
+          "user_checks": [],
+          "method": ""
+        }
+      },
+      {
+        "concept_id": "cpt_p1_a22",
+        "name": "第 1 页参数",
+        "type": "number",
+        "unit": "",
+        "dimension": "scalar",
+        "domain": {
+          "min": 0.0,
+          "max": 20.0
+        },
+        "default": 3.0,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 1,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "第 1 页参数",
+          "source_version": 0,
+          "semantic_content_hash": "52f8677224bbd7869807c408028144d930bd54317efd6b8c7c3513c146f69bb7"
+        },
+        "semantic_role": "parameter",
+        "provenance": {
+          "origin_type": "model_inference",
+          "evidence": "",
+          "inference": "手算黄金样例",
+          "user_checks": [],
+          "method": ""
+        }
+      },
+      {
+        "concept_id": "cpt_p5_a11",
+        "name": "第 5 页参数",
+        "type": "number",
+        "unit": "",
+        "dimension": "scalar",
+        "domain": {
+          "min": 0.0,
+          "max": 20.0
+        },
+        "default": 6.0,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 5,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "第 5 页参数",
+          "source_version": 0,
+          "semantic_content_hash": "09f44d9acc27cb49b5fbd3d952c81ccd4214ac60e5e5f3cb9842ac13fe6e2827"
+        },
+        "semantic_role": "parameter",
+        "provenance": {
+          "origin_type": "model_inference",
+          "evidence": "",
+          "inference": "手算黄金样例",
+          "user_checks": [],
+          "method": ""
+        }
+      },
+      {
+        "concept_id": "cpt_p5_a22",
+        "name": "第 5 页参数",
+        "type": "number",
+        "unit": "",
+        "dimension": "scalar",
+        "domain": {
+          "min": 0.0,
+          "max": 20.0
+        },
+        "default": 1.0,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 5,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "第 5 页参数",
+          "source_version": 0,
+          "semantic_content_hash": "09f44d9acc27cb49b5fbd3d952c81ccd4214ac60e5e5f3cb9842ac13fe6e2827"
+        },
+        "semantic_role": "parameter",
+        "provenance": {
+          "origin_type": "model_inference",
+          "evidence": "",
+          "inference": "手算黄金样例",
+          "user_checks": [],
+          "method": ""
+        }
+      },
+      {
+        "concept_id": "cpt_p9_a11",
+        "name": "第 9 页参数",
+        "type": "number",
+        "unit": "",
+        "dimension": "scalar",
+        "domain": {
+          "min": 0.0,
+          "max": 20.0
+        },
+        "default": 6.0,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 9,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "第 9 页参数",
+          "source_version": 0,
+          "semantic_content_hash": "85565431afb00f923faf5fd3c4030c42aec59d213803d0da1c1d380cbaf165d6"
+        },
+        "semantic_role": "parameter",
+        "provenance": {
+          "origin_type": "model_inference",
+          "evidence": "",
+          "inference": "手算黄金样例",
+          "user_checks": [],
+          "method": ""
+        }
+      },
+      {
+        "concept_id": "cpt_p9_a22",
+        "name": "第 9 页参数",
+        "type": "number",
+        "unit": "",
+        "dimension": "scalar",
+        "domain": {
+          "min": 0.0,
+          "max": 20.0
+        },
+        "default": 1.0,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 9,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "第 9 页参数",
+          "source_version": 0,
+          "semantic_content_hash": "85565431afb00f923faf5fd3c4030c42aec59d213803d0da1c1d380cbaf165d6"
+        },
+        "semantic_role": "parameter",
+        "provenance": {
+          "origin_type": "model_inference",
+          "evidence": "",
+          "inference": "手算黄金样例",
+          "user_checks": [],
+          "method": ""
+        }
+      },
+      {
+        "concept_id": "out:ain_page1:det",
+        "name": "行列式",
+        "type": "number",
+        "unit": "",
+        "dimension": "scalar",
+        "domain": {},
+        "default": 6.0,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 1,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "det 输出",
+          "source_version": 0,
+          "semantic_content_hash": "095e629e0b9080f3960344a75d1407fc0b98e5d460b4fdc40e3ba7ef1ea788fc"
+        },
+        "semantic_role": "derived_output",
+        "provenance": {
+          "origin_type": "model_inference",
+          "evidence": "",
+          "inference": "算子输出",
+          "user_checks": [],
+          "method": ""
+        }
+      }
+    ],
+    "relations": [
+      {
+        "relation_id": "rel_1",
+        "type": "derived_from",
+        "inputs": [
+          "out:ain_page1:det"
+        ],
+        "outputs": [
+          "cpt_p5_a11"
+        ],
+        "expression": null,
+        "operator_id": "matrix.transform",
+        "source": [
+          {
+            "material_id": "mat_golden",
+            "page": 1,
+            "node_id": null,
+            "element_id": null,
+            "bbox": {
+              "x": 0.1,
+              "y": 0.1,
+              "w": 0.4,
+              "h": 0.2
+            },
+            "excerpt": "det 输出",
+            "source_version": 0,
+            "semantic_content_hash": "095e629e0b9080f3960344a75d1407fc0b98e5d460b4fdc40e3ba7ef1ea788fc"
+          },
+          {
+            "material_id": "mat_golden",
+            "page": 5,
+            "node_id": null,
+            "element_id": null,
+            "bbox": {
+              "x": 0.1,
+              "y": 0.1,
+              "w": 0.4,
+              "h": 0.2
+            },
+            "excerpt": "第 5 页矩阵",
+            "source_version": 0,
+            "semantic_content_hash": "f0d9e26a8fc57872dba4243b1719a66030ae67a0b14aa3614ba508119e7bd583"
+          }
+        ],
+        "review_status": "confirmed",
+        "note": "手工黄金样例"
+      },
+      {
+        "relation_id": "rel_2",
+        "type": "derived_from",
+        "inputs": [
+          "out:ain_page5:det"
+        ],
+        "outputs": [
+          "cpt_p9_a11"
+        ],
+        "expression": null,
+        "operator_id": "matrix.transform",
+        "source": [
+          {
+            "material_id": "mat_golden",
+            "page": 5,
+            "node_id": null,
+            "element_id": null,
+            "bbox": {
+              "x": 0.1,
+              "y": 0.1,
+              "w": 0.4,
+              "h": 0.2
+            },
+            "excerpt": "det 输出",
+            "source_version": 0,
+            "semantic_content_hash": "b73c2f2f96a7251e687f2d2c95c10d021d38a9a3c28af55552978d753725ac51"
+          },
+          {
+            "material_id": "mat_golden",
+            "page": 9,
+            "node_id": null,
+            "element_id": null,
+            "bbox": {
+              "x": 0.1,
+              "y": 0.1,
+              "w": 0.4,
+              "h": 0.2
+            },
+            "excerpt": "第 9 页矩阵",
+            "source_version": 0,
+            "semantic_content_hash": "3b4083a84e3b46fda73771e8166a2f5c645d1c78f636a921c40875b438e1b2c1"
+          }
+        ],
+        "review_status": "confirmed",
+        "note": "手工黄金样例"
+      }
+    ],
+    "candidates": [],
+    "conflicts": [],
+    "graph_revision": 2,
+    "dependency_order": [
+      "ain_page1",
+      "ain_page5",
+      "ain_page9"
+    ]
+  },
+  "compiled": {
+    "nodes": [
+      {
+        "node_id": "ain_page1",
+        "option_id": "opt_page1",
+        "region_id": "rgn_page1",
+        "operator_id": "matrix.transform",
+        "title": "第 1 页矩阵",
+        "parameters": [
+          {
+            "concept_id": "cpt_p1_a11",
+            "id": "a11",
+            "label": "第 1 页 a11",
+            "type": "number",
+            "unit": "",
+            "default": 2.0,
+            "min": 0.0,
+            "max": 20.0,
+            "step": 0.1,
+            "options": [],
+            "shape": [],
+            "source": {
+              "material_id": "mat_golden",
+              "page": 1,
+              "node_id": null,
+              "element_id": null,
+              "bbox": {
+                "x": 0.1,
+                "y": 0.1,
+                "w": 0.4,
+                "h": 0.2
+              },
+              "excerpt": "第 1 页 a11 默认值 2.0",
+              "source_version": 0,
+              "semantic_content_hash": "5f3d6ec4935fbb7fe1c049bf4680fccf9e645a4856b6503997126fb149e92b52"
+            },
+            "provenance": {
+              "origin_type": "model_inference",
+              "evidence": "",
+              "inference": "手算黄金样例",
+              "user_checks": [],
+              "method": ""
+            },
+            "binding": {
+              "mode": "free",
+              "concept_id": "",
+              "factor": 1.0
+            }
+          },
+          {
+            "concept_id": "cpt_p1_a22",
+            "id": "a22",
+            "label": "第 1 页 a22",
+            "type": "number",
+            "unit": "",
+            "default": 3.0,
+            "min": 0.0,
+            "max": 20.0,
+            "step": 0.1,
+            "options": [],
+            "shape": [],
+            "source": {
+              "material_id": "mat_golden",
+              "page": 1,
+              "node_id": null,
+              "element_id": null,
+              "bbox": {
+                "x": 0.1,
+                "y": 0.1,
+                "w": 0.4,
+                "h": 0.2
+              },
+              "excerpt": "第 1 页 a22 默认值 3.0",
+              "source_version": 0,
+              "semantic_content_hash": "6c833a7320a6c1a94b802be8b36e42e169fc7bea7bb7d29698f51735197cf014"
+            },
+            "provenance": {
+              "origin_type": "model_inference",
+              "evidence": "",
+              "inference": "手算黄金样例",
+              "user_checks": [],
+              "method": ""
+            },
+            "binding": {
+              "mode": "free",
+              "concept_id": "",
+              "factor": 1.0
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "key": "det",
+            "concept_id": "out:ain_page1:det",
+            "name": "行列式",
+            "type": "number",
+            "unit": ""
+          },
+          {
+            "key": "product",
+            "concept_id": "out:ain_page1:product",
+            "name": "矩阵乘积",
+            "type": "vector2",
+            "unit": ""
+          },
+          {
+            "key": "inverse",
+            "concept_id": "out:ain_page1:inverse",
+            "name": "逆矩阵",
+            "type": "matrix2",
+            "unit": ""
+          }
+        ],
+        "views": [],
+        "provider": {
+          "kind": "matrix",
+          "matrix": [
+            [
+              2.0,
+              0
+            ],
+            [
+              0,
+              3.0
+            ]
+          ]
+        },
+        "checks": [],
+        "offline_supported": true,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 1,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "第 1 页矩阵 A",
+          "source_version": 0,
+          "semantic_content_hash": "b897c9ec8c5b57ca279b8e3eded41837ea1ab83d9aadab706d39e9296a8f03c7"
+        },
+        "learning": null
+      },
+      {
+        "node_id": "ain_page5",
+        "option_id": "opt_page5",
+        "region_id": "rgn_page5",
+        "operator_id": "matrix.transform",
+        "title": "第 5 页矩阵",
+        "parameters": [
+          {
+            "concept_id": "cpt_p5_a11",
+            "id": "a11",
+            "label": "第 5 页 a11",
+            "type": "number",
+            "unit": "",
+            "default": 6.0,
+            "min": 0.0,
+            "max": 20.0,
+            "step": 0.1,
+            "options": [],
+            "shape": [],
+            "source": {
+              "material_id": "mat_golden",
+              "page": 5,
+              "node_id": null,
+              "element_id": null,
+              "bbox": {
+                "x": 0.1,
+                "y": 0.1,
+                "w": 0.4,
+                "h": 0.2
+              },
+              "excerpt": "第 5 页 a11 默认值 6.0",
+              "source_version": 0,
+              "semantic_content_hash": "349f1e1544e20efbc06836470f1e45e43c0800b5ce847c83d5673e21adb8ad98"
+            },
+            "provenance": {
+              "origin_type": "model_inference",
+              "evidence": "",
+              "inference": "手算黄金样例",
+              "user_checks": [],
+              "method": ""
+            },
+            "binding": {
+              "mode": "linked",
+              "concept_id": "out:ain_page1:det",
+              "factor": 1.0
+            }
+          },
+          {
+            "concept_id": "cpt_p5_a22",
+            "id": "a22",
+            "label": "第 5 页 a22",
+            "type": "number",
+            "unit": "",
+            "default": 1.0,
+            "min": 0.0,
+            "max": 20.0,
+            "step": 0.1,
+            "options": [],
+            "shape": [],
+            "source": {
+              "material_id": "mat_golden",
+              "page": 5,
+              "node_id": null,
+              "element_id": null,
+              "bbox": {
+                "x": 0.1,
+                "y": 0.1,
+                "w": 0.4,
+                "h": 0.2
+              },
+              "excerpt": "第 5 页 a22 默认值 1.0",
+              "source_version": 0,
+              "semantic_content_hash": "0a2fac604ca7f0e7f5b36c8642b1049e969d98b403a24254d773439329f727dd"
+            },
+            "provenance": {
+              "origin_type": "model_inference",
+              "evidence": "",
+              "inference": "手算黄金样例",
+              "user_checks": [],
+              "method": ""
+            },
+            "binding": {
+              "mode": "free",
+              "concept_id": "",
+              "factor": 1.0
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "key": "det",
+            "concept_id": "out:ain_page5:det",
+            "name": "行列式",
+            "type": "number",
+            "unit": ""
+          },
+          {
+            "key": "product",
+            "concept_id": "out:ain_page5:product",
+            "name": "矩阵乘积",
+            "type": "vector2",
+            "unit": ""
+          },
+          {
+            "key": "inverse",
+            "concept_id": "out:ain_page5:inverse",
+            "name": "逆矩阵",
+            "type": "matrix2",
+            "unit": ""
+          }
+        ],
+        "views": [],
+        "provider": {
+          "kind": "matrix",
+          "matrix": [
+            [
+              6.0,
+              0
+            ],
+            [
+              0,
+              1.0
+            ]
+          ]
+        },
+        "checks": [],
+        "offline_supported": true,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 5,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "第 5 页矩阵 A",
+          "source_version": 0,
+          "semantic_content_hash": "38611bc20fe96c8f39cdab38c042bc1e8b2baf342479e2f63ccc5c0ef39f2710"
+        },
+        "learning": null
+      },
+      {
+        "node_id": "ain_page9",
+        "option_id": "opt_page9",
+        "region_id": "rgn_page9",
+        "operator_id": "matrix.transform",
+        "title": "第 9 页矩阵",
+        "parameters": [
+          {
+            "concept_id": "cpt_p9_a11",
+            "id": "a11",
+            "label": "第 9 页 a11",
+            "type": "number",
+            "unit": "",
+            "default": 6.0,
+            "min": 0.0,
+            "max": 20.0,
+            "step": 0.1,
+            "options": [],
+            "shape": [],
+            "source": {
+              "material_id": "mat_golden",
+              "page": 9,
+              "node_id": null,
+              "element_id": null,
+              "bbox": {
+                "x": 0.1,
+                "y": 0.1,
+                "w": 0.4,
+                "h": 0.2
+              },
+              "excerpt": "第 9 页 a11 默认值 6.0",
+              "source_version": 0,
+              "semantic_content_hash": "91f56191b1ccd3a91f925fd5f1f629bf53ca8da1420504402f9570c3c7b4d92d"
+            },
+            "provenance": {
+              "origin_type": "model_inference",
+              "evidence": "",
+              "inference": "手算黄金样例",
+              "user_checks": [],
+              "method": ""
+            },
+            "binding": {
+              "mode": "linked",
+              "concept_id": "out:ain_page5:det",
+              "factor": 1.0
+            }
+          },
+          {
+            "concept_id": "cpt_p9_a22",
+            "id": "a22",
+            "label": "第 9 页 a22",
+            "type": "number",
+            "unit": "",
+            "default": 1.0,
+            "min": 0.0,
+            "max": 20.0,
+            "step": 0.1,
+            "options": [],
+            "shape": [],
+            "source": {
+              "material_id": "mat_golden",
+              "page": 9,
+              "node_id": null,
+              "element_id": null,
+              "bbox": {
+                "x": 0.1,
+                "y": 0.1,
+                "w": 0.4,
+                "h": 0.2
+              },
+              "excerpt": "第 9 页 a22 默认值 1.0",
+              "source_version": 0,
+              "semantic_content_hash": "48220b3976011bedadf587599bc7a1b0b54959f518d77201e51c8eb2f23c4198"
+            },
+            "provenance": {
+              "origin_type": "model_inference",
+              "evidence": "",
+              "inference": "手算黄金样例",
+              "user_checks": [],
+              "method": ""
+            },
+            "binding": {
+              "mode": "free",
+              "concept_id": "",
+              "factor": 1.0
+            }
+          }
+        ],
+        "outputs": [
+          {
+            "key": "det",
+            "concept_id": "out:ain_page9:det",
+            "name": "行列式",
+            "type": "number",
+            "unit": ""
+          },
+          {
+            "key": "product",
+            "concept_id": "out:ain_page9:product",
+            "name": "矩阵乘积",
+            "type": "vector2",
+            "unit": ""
+          },
+          {
+            "key": "inverse",
+            "concept_id": "out:ain_page9:inverse",
+            "name": "逆矩阵",
+            "type": "matrix2",
+            "unit": ""
+          }
+        ],
+        "views": [],
+        "provider": {
+          "kind": "matrix",
+          "matrix": [
+            [
+              6.0,
+              0
+            ],
+            [
+              0,
+              1.0
+            ]
+          ]
+        },
+        "checks": [],
+        "offline_supported": true,
+        "source": {
+          "material_id": "mat_golden",
+          "page": 9,
+          "node_id": null,
+          "element_id": null,
+          "bbox": {
+            "x": 0.1,
+            "y": 0.1,
+            "w": 0.4,
+            "h": 0.2
+          },
+          "excerpt": "第 9 页矩阵 A",
+          "source_version": 0,
+          "semantic_content_hash": "c6180e3fd9ebd5b8bb02bd252e490cd74e48d49911166bb63783d49c6793b178"
+        },
+        "learning": null
+      }
+    ],
+    "order": [
+      "ain_page1",
+      "ain_page5",
+      "ain_page9"
+    ],
+    "ispecs": [],
+    "checks": [],
+    "resources": [],
+    "view_contract_version": "ppt-ai.view.1"
+  },
+  "seed_values": {
+    "cpt_p1_a11": 2.0,
+    "cpt_p1_a22": 3.0,
+    "cpt_p5_a11": 6.0,
+    "cpt_p5_a22": 1.0,
+    "cpt_p9_a11": 6.0,
+    "cpt_p9_a22": 1.0
+  },
+  "created_at": "2026-11-09T00:00:00+00:00"
+}

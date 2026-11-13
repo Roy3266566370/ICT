@@ -1,0 +1,555 @@
+/* 顶栏：72px（v0.3 收紧），<768px 收纳为汉堡菜单
+ * 视觉：半透明纸面 + 14px 模糊，底部一根发丝线；滚动时始终可读。 */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: var(--layout-header-height, 72px);
+  background: rgba(247, 244, 237, 0.82);
+  backdrop-filter: saturate(150%) blur(14px);
+  -webkit-backdrop-filter: saturate(150%) blur(14px);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.inner {
+  max-width: var(--layout-content-max, 1440px);
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 var(--layout-gutter, 40px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+  color: var(--ink-900);
+  border-radius: var(--radius-md);
+  padding: 4px 6px 4px 4px;
+  margin-inline-start: -6px;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.brand:hover {
+  background: rgba(18, 27, 39, 0.04);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  filter: drop-shadow(0 2px 6px rgba(18, 27, 39, 0.18));
+}
+
+.mark img {
+  display: block;
+  object-fit: contain;
+}
+
+.brandText {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1;
+}
+
+.brandName {
+  font-size: 18px;
+  font-weight: var(--font-weight-black);
+  letter-spacing: 0.06em;
+  color: var(--ink-900);
+}
+
+.brandLatin {
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+
+.link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ink-700);
+  text-decoration: none;
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.link:hover {
+  color: var(--ink-900);
+}
+
+.link[aria-current='page'] {
+  color: var(--color-indigo-strong);
+}
+
+/* 当前栏目：左侧一颗 5px 珊瑚点，比下划线更安静 */
+.link[aria-current='page']::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-coral);
+}
+
+.uploadButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 17px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 9px;
+  background: var(--paper-0);
+  color: var(--ink-900);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.uploadButton:hover {
+  border-color: rgba(79, 70, 229, 0.45);
+  color: var(--color-indigo-strong);
+}
+
+.menuButton {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline-strong);
+  background: var(--paper-0);
+  color: var(--ink-900);
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.menuIcon {
+  line-height: 1;
+}
+
+.panel {
+  position: absolute;
+  top: var(--layout-header-height, 72px);
+  left: 0;
+  right: 0;
+  background: var(--paper-0);
+  border-bottom: 1px solid var(--hairline);
+  box-shadow: var(--shadow-lg);
+  padding: 10px var(--layout-gutter, 20px) 18px;
+}
+
+.panelNav {
+  max-width: var(--layout-content-max, 1440px);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.panelLink {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--ink-700);
+  text-decoration: none;
+}
+
+.panelLink:hover {
+  background: rgba(18, 27, 39, 0.04);
+}
+
+.panelLink[aria-current='page'] {
+  color: var(--color-indigo-strong);
+  background: var(--color-indigo-softer);
+}
+
+.panelUpload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  margin-top: 8px;
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  border-radius: var(--radius-md);
+  background: var(--color-indigo-softer);
+  color: var(--color-indigo-strong);
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+/* ---------------- 账号入口（契约 C-NAV-ACCOUNT@1） ----------------
+ * 桌面区在 <768px 隐藏（此时入口改由移动端面板提供），
+ * 两处都消费同一个 navAccountEntries 结果，样式只是密度差异。 */
+
+.accountArea {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.accountLoginLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 2px;
+  color: var(--ink-700);
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.accountLoginLink:hover {
+  color: var(--color-indigo-strong);
+}
+
+.accountRegisterLink {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 9px;
+  background: var(--color-indigo-softer);
+  color: var(--color-indigo-strong);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.accountRegisterLink:hover {
+  border-color: var(--color-indigo);
+}
+
+.accountGroup {
+  position: relative;
+  display: inline-flex;
+}
+
+.accountButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 190px;
+  height: 38px;
+  padding: 0 10px 0 4px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-pill);
+  background: var(--paper-0);
+  color: var(--ink-900);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.accountButton:hover {
+  border-color: var(--color-indigo);
+}
+
+.accountName {
+  min-width: 0;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountCaret {
+  flex: none;
+  color: var(--ink-400);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.accountMenu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: var(--z-index-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 210px;
+  padding: var(--space-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--paper-0);
+  box-shadow: var(--shadow-lg);
+}
+
+.accountEmail {
+  margin: var(--space-1) var(--space-2) var(--space-2);
+  overflow: hidden;
+  color: var(--ink-400);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.accountHandle {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-700);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+}
+
+.accountEmailText {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--ink-400);
+  text-overflow: ellipsis;
+}
+
+.accountMenuItem {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-700);
+  font: inherit;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.accountMenuItem:hover:not(:disabled) {
+  background: var(--paper-3);
+  color: var(--ink-900);
+}
+
+.accountMenuItem:disabled {
+  color: var(--ink-300);
+  cursor: default;
+}
+
+/* 退出失败提示：渲染在菜单内部，避免被下拉层遮住 */
+.accountMenuNotice {
+  margin: var(--space-1) var(--space-2) 2px;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-snug);
+}
+
+/* 退出结果提示：浮在账号按钮下方，不挤压顶栏高度 */
+.accountNotice {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: var(--z-index-header);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--paper-0);
+  box-shadow: var(--shadow-sm);
+  color: var(--ink-700);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+/* ---------------- 账号入口（移动端面板内） ---------------- */
+
+.panelAccount {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline);
+}
+
+.panelAccountGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.panelAccountLink {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: var(--radius-md);
+  color: var(--ink-700);
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.panelAccountLink:hover {
+  background: var(--paper-3);
+}
+
+.panelAccountRegister {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  border-radius: var(--radius-md);
+  background: var(--color-indigo-soft);
+  color: var(--color-indigo-strong);
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+}
+
+.panelAccountMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-1);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--paper-1);
+}
+
+.panelAccountNotice {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-neutral-soft);
+  color: var(--ink-700);
+  font-size: var(--font-size-sm);
+}
+
+/* 可访问性：2px 珊瑚橙描边（全局约定，不只作用于顶栏） */
+.header a:focus-visible,
+.header button:focus-visible {
+  outline: 2px solid var(--color-coral);
+  outline-offset: 3px;
+}
+
+@media (max-width: 768px) {
+  .inner {
+    padding: 0 var(--layout-gutter, 20px);
+  }
+
+  .brandName {
+    font-size: 17px;
+  }
+
+  .nav,
+  .uploadButton {
+    display: none;
+  }
+
+  .right {
+    gap: 10px;
+  }
+
+  .menuButton {
+    display: inline-flex;
+  }
+
+  /* 窄屏由移动端面板提供账号入口，桌面区隐藏避免重复 */
+  .accountArea {
+    display: none;
+  }
+}
+
+/* 中等宽度先收窄账号名，再退化为纯头像按钮，避免顶栏溢出 */
+@media (max-width: 1000px) {
+  .accountName {
+    max-width: 64px;
+  }
+}
+
+@media (max-width: 860px) {
+  .accountName {
+    display: none;
+  }
+
+  .accountButton {
+    padding: 0 6px 0 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .link,
+  .brand,
+  .accountLoginLink,
+  .accountButton {
+    transition: none;
+  }
+}
+/* 主页导航；外观通过显式属性隔离，不影响其他工作台。 */
+.header[data-appearance='studio'] {
+  --color-indigo: #b65a3c; --color-indigo-strong: #99482f;
+  --color-indigo-soft: #f4e9e1; --color-indigo-softer: #faf2eb;
+  --color-coral: #b65a3c; --hairline: #e5e3dc; --hairline-strong: #d2d2c8;
+  --ink-900: #252b28; --ink-700: #424941; --ink-400: #687060;
+  height: 80px; background: rgba(248, 247, 243, .93);
+  font-family: 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+}
+.header[data-appearance='studio'] .inner { max-width: 1408px; padding-inline: clamp(24px, 4.4vw, 64px); }
+.header[data-appearance='studio'] .brand { gap: 10px; }
+.header[data-appearance='studio'] .mark { filter: none; }
+.header[data-appearance='studio'] .brandName { letter-spacing: .12em; }
+.header[data-appearance='studio'] .brandLatin { font-size: 8px; letter-spacing: .19em; }
+.header[data-appearance='studio'] .link { font-size: 13px; font-weight: 500; }
+.header[data-appearance='studio'] .uploadButton { height: 38px; border-radius: 5px; background: transparent; }
+.header[data-appearance='studio'] .accountRegisterLink { height: 38px; padding-inline: 18px; border: 1px solid #252b28; border-radius: 5px; background: #252b28; color: #fff; transition: background-color 160ms ease; }
+.header[data-appearance='studio'] .accountRegisterLink:hover { background: #41483f; }
+.header[data-appearance='studio'] .panel { top: 80px; }
+.header[data-appearance='studio'] .menuButton { background: transparent; }
+@media (min-width: 769px) and (max-width: 1050px) {
+  .header[data-appearance='studio'] .right { gap: 18px; }
+  .header[data-appearance='studio'] .nav { gap: 20px; }
+}
+@media (max-width: 768px) {
+  .header[data-appearance='studio'] { height: 68px; }
+  .header[data-appearance='studio'] .inner { padding-inline: 22px; }
+  .header[data-appearance='studio'] .panel { top: 68px; }
+}

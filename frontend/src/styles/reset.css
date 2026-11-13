@@ -1,0 +1,91 @@
+/* ---------------------------------------------------------------------------
+ * reset.css —— 最小化重置，只处理跨浏览器差异，不覆盖设计系统
+ * ------------------------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+svg,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* 键盘可达性：只在键盘聚焦时出现焦点环 */
+:focus-visible {
+  outline: 2px solid var(--color-focus-ring, #4f46e5);
+  outline-offset: 2px;
+}
+
+/* 尊重系统的减少动效偏好（同时由 tokens.css 的变量开关 + matchMedia 共同保证） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

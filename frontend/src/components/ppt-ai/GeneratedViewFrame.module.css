@@ -1,0 +1,48 @@
+.frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.iframe {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  left: -9999px;
+  top: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.view {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.notice {
+  margin: 0;
+  color: #64748b;
+  font-size: 11.5px;
+}
+
+.frame[data-status='failed'] .notice,
+.frame[data-status='timeout'] .notice {
+  color: #b45309;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0;
+  color: #94a3b8;
+  font-size: 10px;
+}

@@ -1,0 +1,20 @@
+{
+  "id": "mat_matrix_courseware",
+  "material_id": "mat_matrix_courseware",
+  "title": "用空间视角理解矩阵运算",
+  "source_filename": "用空间视角理解矩阵运算.pptx",
+  "source_file": "用空间视角理解矩阵运算.pptx",
+  "page_count": 24,
+  "slide_width_emu": 12192000,
+  "slide_height_emu": 6858000,
+  "size_bytes": 1553974,
+  "sha256": "d04563a81c17e62e91971977e911cad5eb1ad26d0fcd2e8f7b7a4ad2393ff837",
+  "source_sha256": "d04563a81c17e62e91971977e911cad5eb1ad26d0fcd2e8f7b7a4ad2393ff837",
+  "parsed_at": "2026-11-01T11:31:21Z",
+  "status": "ready",
+  "generator": "build_courseware_fixture.py@1",
+  "parser_version": "pptx_parser_v1",
+  "retention": "static_fixture",
+  "source_created_at": "2026-10-30T13:49:18Z",
+  "source_modified_at": "2026-10-30T13:49:18Z"
+}

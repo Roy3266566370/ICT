@@ -1,0 +1,205 @@
+{
+  "schema_version": "0.2",
+  "material_id": "mat_matrix_courseware",
+  "objects": [
+    {
+      "schema_version": "0.2",
+      "object_id": "obj_matrix_courseware_main",
+      "title": "三条向量，各去哪了：矩阵 A 的空间作用",
+      "material_id": "mat_matrix_courseware",
+      "model_version": 1,
+      "revision": 0,
+      "template_id": "matrix_2d",
+      "kernel_version": "linear_v1",
+      "config": {
+        "operation": "matrix_apply",
+        "matrix_parameter_id": "matrix_A",
+        "second_matrix_parameter_id": null,
+        "compose_order": null,
+        "angle_unit": "deg"
+      },
+      "parameters": [
+        {
+          "id": "matrix_A",
+          "name": "矩阵 A",
+          "type": "matrix2",
+          "value": [
+            [
+              2,
+              1
+            ],
+            [
+              1,
+              2
+            ]
+          ],
+          "unit": "1",
+          "range": {
+            "min": -3,
+            "max": 3,
+            "step": 0.1
+          },
+          "source_ref_ids": [
+            "src_s6",
+            "src_s9"
+          ],
+          "provenance": "inferred",
+          "editable": true
+        },
+        {
+          "id": "vector_x",
+          "name": "输入向量 x",
+          "type": "vector2",
+          "value": [
+            1,
+            1
+          ],
+          "unit": "1",
+          "range": {
+            "min": -3,
+            "max": 3,
+            "step": 0.1
+          },
+          "source_ref_ids": [
+            "src_s6"
+          ],
+          "provenance": "original",
+          "editable": true
+        }
+      ],
+      "views": [
+        "geometry",
+        "numeric_table",
+        "steps",
+        "sources"
+      ],
+      "bindings": [
+        {
+          "parameter_id": "matrix_A",
+          "view_id": "geometry",
+          "target": "transform.columns"
+        },
+        {
+          "parameter_id": "matrix_A",
+          "view_id": "numeric_table",
+          "target": "table.matrix_a"
+        },
+        {
+          "parameter_id": "matrix_A",
+          "view_id": "steps",
+          "target": "steps.terms"
+        },
+        {
+          "parameter_id": "vector_x",
+          "view_id": "geometry",
+          "target": "input.vector"
+        },
+        {
+          "parameter_id": "vector_x",
+          "view_id": "steps",
+          "target": "steps.coefficients"
+        }
+      ],
+      "source_refs": [
+        {
+          "id": "src_s6",
+          "provenance": "original",
+          "label": "第 6 页：三条向量，各去哪了",
+          "material_id": "mat_matrix_courseware",
+          "page": 6,
+          "element_id": null,
+          "bbox": null,
+          "excerpt": "三条向量，各去哪了\n(1, 0) → (2, 1)\n(1, 1) → (3, 3)\n(1, -1) → (1, -1)\n特征值 λ = 3。\n特征值 λ = 1。"
+        },
+        {
+          "id": "src_s9",
+          "provenance": "original",
+          "label": "第 9 页：矩阵的每一列是一个基向量的去向",
+          "material_id": "mat_matrix_courseware",
+          "page": 9,
+          "element_id": null,
+          "bbox": null,
+          "excerpt": "矩阵的每一列是一个基向量的去向\n动作是：拿输入坐标当倍数，去组合矩阵的各列。\n各列未必还是基：可能共线，甚至被压成零。"
+        },
+        {
+          "id": "src_s10",
+          "provenance": "original",
+          "label": "第 10 页：为什么换个顺序结果就不一样",
+          "material_id": "mat_matrix_courseware",
+          "page": 10,
+          "element_id": null,
+          "bbox": null,
+          "excerpt": "为什么换个顺序结果就不一样\n相乘 = 两次动作接成一次；离输入最近的先执行，从右往左读。\n换顺序，中间状态就不同：先转后拉，长度还是 1；先拉后转，落地就是 2。"
+        },
+        {
+          "id": "src_s14",
+          "provenance": "original",
+          "label": "第 14 页：圆变成椭圆：SVD 的三步",
+          "material_id": "mat_matrix_courseware",
+          "page": 14,
+          "element_id": null,
+          "bbox": null,
+          "excerpt": "圆变成椭圆：SVD 的三步\n输入侧转正 → 各自伸缩 → 转向输出侧；非方阵则衔接两个不同维度。"
+        },
+        {
+          "id": "src_s18",
+          "provenance": "original",
+          "label": "第 18 页：一块小方格怎样改变",
+          "material_id": "mat_matrix_courseware",
+          "page": 18,
+          "element_id": null,
+          "bbox": null,
+          "excerpt": "一块小方格怎样改变\n绝对值是面积倍率；符号是定向：翻了为负，没翻为正。\n二阶 = 两列围成的有向面积 ad−bc；乘积的行列式 = 各自之积。"
+        }
+      ],
+      "validation_profile": "matrix_2d_v1_full",
+      "created_at": "2026-10-30T13:49:18Z",
+      "updated_at": "2026-10-30T13:49:18Z"
+    }
+  ],
+  "merge_conflicts": [
+    {
+      "symbol": "λ",
+      "reason": "同名符号在原文中出现多个不同取值；按契约不自动合并，全部候选保留待确认",
+      "pages": [
+        6,
+        7
+      ],
+      "occurrences": [
+        {
+          "candidate_id": "cand_011",
+          "page": 6,
+          "element_id": "p06_s13",
+          "raw_text": "特征值 λ = 3。",
+          "value": 3,
+          "source_status": "original"
+        },
+        {
+          "candidate_id": "cand_013",
+          "page": 6,
+          "element_id": "p06_s15",
+          "raw_text": "特征值 λ = 1。",
+          "value": 1,
+          "source_status": "original"
+        },
+        {
+          "candidate_id": "cand_014",
+          "page": 7,
+          "element_id": "p07_s08",
+          "raw_text": "一句话：A v = λ v。压成零也算，此时特征值为 0。",
+          "value": 0,
+          "source_status": "original"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "objects[0].kernel_version 取 linear_v1：knowledge_object.schema.json 的 kernel_version enum 只允许 linear_v1/force_v1/bfs_v1/budget_v1，matrix_v1 无法通过校验。",
+    "matrix_A 的 4 个元素原文未直接印刷：第 6 页给出 (1,0)→(2,1)、(1,1)→(3,3)、(1,-1)→(1,-1) 三条映射，脚本按线性性反推得 A，故 parameter.provenance=inferred；任务口径的 source_status 与 schema 的 provenance 同义。",
+    "vector_x=[1,1] 直接取自第 6 页映射输入 (1, 1)，provenance=original。",
+    "5 条 source_refs 均为页级来源：element_id 与 bbox 一律为 null，excerpt 由该页原文段落拼接，逐条断言可在 paragraphs 中找到。",
+    "material.json 主键用任务口径 id/source_filename/status/generator/size_bytes/sha256/source_sha256，同时保留 C-MAT@1 的 material_id/source_file/slide_width_emu/slide_height_emu/parser_version/retention 兼容别名。",
+    "slides.json 的 slides 为权威列表，pages 为同一内容的兼容镜像（C-API@1 MaterialDetail 用 slides，C-MAT@1 用 pages）；bbox 单位为 EMU。",
+    "同名符号不自动合并：第 6 页 λ=3 与 λ=1 保留为两条候选，merge_conflicts 中如实列出。"
+  ]
+}

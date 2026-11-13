@@ -1,0 +1,55 @@
+# 象生 XiangSheng v0.2 后端依赖（Python 3.11）
+# 版本与 plan.md §2.1.5「沿用环境已安装版本」一致，不引入额外框架。
+# 安装：cd backend && python -m pip install -r requirements.txt
+
+# Web 框架与数据校验
+# 2026-11 安全升级：starlette>=0.40 修复 multipart 内存放大（CVE-2024-47874），
+# FastAPI 需同步升级到与其兼容的版本。升级后必须回归表单/文件上传路径。
+fastapi==0.115.14
+starlette==0.40.0
+uvicorn==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# multipart/form-data（POST /api/v1/materials 的文件字段）
+# >=0.0.27 覆盖 CVE-2024-24762 / CVE-2024-53981 / CVE-2026-42561 的修复。
+python-multipart==0.0.27
+
+# 存储（SQLite 单文件，metadata.create_all 建表，不用 Alembic）
+SQLAlchemy==2.0.23
+
+# MySQL 数据层（T1；版本区间与实测安装一致：PyMySQL 1.1.1 / alembic 1.12.1 / argon2-cffi 23.1.0）
+# 默认 DATABASE_URL 仍为 SQLite；仅在显式配置 MySQL 连接串时才使用 PyMySQL。
+PyMySQL>=1.1,<2.0
+alembic>=1.12,<2.0
+# 账号密码哈希（Argon2id）；不引入 passlib
+argon2-cffi>=23.1,<24.0
+
+# 解析（C-MAT@1；T11 实现 parse_pptx/map_candidates）
+python-pptx==1.0.2
+
+# 确定性内核与独立校验（C-ENGINE@1）
+numpy==1.26.2
+sympy==1.14.0
+
+# 契约与夹具读取
+PyYAML==6.0.2
+jsonschema==4.23.0
+rapidocr_onnxruntime==1.4.4
+# 公式截图转 LaTeX（本地 ONNX，CPU 推理）。首次使用会下载约 180MB 权重；
+# 模型不可用/下载失败时 extract.py 自动回退到 rapidocr，不影响上传。
+rapid-latex-ocr==0.0.9
+
+# 题目实验室：PDF 文字层与页预览（扫描版 PDF 走本地 OCR）
+PyMuPDF>=1.23
+
+# 自检（tests/**、scripts/dev_run.py 使用）
+httpx==0.25.1
+pytest==7.4.3
+pytest-asyncio==0.21.1
+# 渲染链路（R1 / spec §3：整页底图 + 擦除底图）
+# Pillow 为必需依赖（擦除填充、页图尺寸校验）。
+Pillow==10.1.0
+# 以下是**可选**引擎依赖，缺任一即自动降级到下一个引擎（不阻断启动）：
+#   pywin32>=306 ; sys_platform == "win32"   # PowerPoint COM 引擎（fidelity=high）
+#   PyMuPDF>=1.23                            # LibreOffice 的 PDF→PNG（fidelity=high）

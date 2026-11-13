@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:schema:template_bfs_flow:1",
+  "title": "bfs_flow template contract",
+  "description": "C-BFS@1（§2.2.5）：bfs_flow 的 config 与 result 结构，供 T6（交互视图：邻接表/队列/visited/逐步轨迹）、T8（内核）、T9（独立校验）共用。注意：BFS 允许环（R8-AC3/R8-AC7），与 budget_compare 的依赖图必须无环严格区分。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["template_id", "config"],
+  "properties": {
+    "template_id": { "description": "固定为 bfs_flow。", "const": "bfs_flow" },
+    "config": { "$ref": "#/$defs/BfsFlowConfig" },
+    "result": { "$ref": "#/$defs/BfsFlowResult" }
+  },
+  "$defs": {
+    "BfsFlowConfig": {
+      "description": "bfs_flow 配置。start_node_id 必须存在于图参数的 nodes[].id 中。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "directed", "start_node_id", "neighbor_order", "max_steps"],
+      "properties": {
+        "operation": { "description": "首版唯一取值 bfs。", "const": "bfs" },
+        "directed": { "description": "true 表示有向图，边 from→to 为单向。", "type": "boolean" },
+        "start_node_id": {
+          "description": "起点节点 id，必须存在于 nodes[].id。",
+          "type": "string",
+          "minLength": 1
+        },
+        "neighbor_order": {
+          "description": "邻居遍历顺序，首版唯一允许值：按 id 的 Unicode 码点字典序升序（R8-AC1）。",
+          "const": "lexicographic_by_id"
+        },
+        "max_steps": {
+          "description": "防御性步数上限，默认 200；命中时 terminated_reason=\"max_steps_reached\"，不用于限制环（§2.2.5 规则 4）。",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 200
+        }
+      }
+    },
+    "GraphNode": {
+      "description": "图节点。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "description": "节点唯一标识，也是遍历排序键。", "type": "string", "minLength": 1 },
+        "label": { "description": "界面显示名。", "type": "string" }
+      }
+    },
+    "GraphEdge": {
+      "description": "图边；directed=true 时为 from→to。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "description": "起点节点 id。", "type": "string", "minLength": 1 },
+        "to": { "description": "终点节点 id。", "type": "string", "minLength": 1 }
+      }
+    },
+    "RejectedEdge": {
+      "description": "被拒绝的边及其判定依据（R8-AC2：D 只入队一次时必须给出跳过的理由）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to", "reason"],
+      "properties": {
+        "from": { "description": "边的起点。", "type": "string", "minLength": 1 },
+        "to": { "description": "边的终点。", "type": "string", "minLength": 1 },
+        "reason": {
+          "description": "人类可读原因，如 \"D 已在队列中\"。",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "BfsStepDequeue": {
+      "description": "出队事件：visited 在此刻标记（§2.2.5 规则 1）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "kind", "node", "queue_after", "visited_after"],
+      "properties": {
+        "index": { "description": "轨迹序号，从 0 递增。", "type": "integer", "minimum": 0 },
+        "kind": { "const": "dequeue" },
+        "node": { "description": "本次出队的节点 id。", "type": "string", "minLength": 1 },
+        "queue_after": { "description": "出队后的队列内容。", "type": "array", "items": { "type": "string" } },
+        "visited_after": { "description": "出队后的 visited 集合。", "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "BfsStepEnqueue": {
+      "description": "入队事件。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "kind", "node", "from", "queue_after"],
+      "properties": {
+        "index": { "description": "轨迹序号，从 0 递增。", "type": "integer", "minimum": 0 },
+        "kind": { "const": "enqueue" },
+        "node": { "description": "本次入队的节点 id。", "type": "string", "minLength": 1 },
+        "from": { "description": "触发本次入队的已出队节点 id。", "type": "string", "minLength": 1 },
+        "queue_after": { "description": "入队后的队列内容。", "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "BfsStepSkip": {
+      "description": "跳过事件：邻居已访问、已在队列中或不构成邻接。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["index", "kind", "node", "from", "reason"],
+      "properties": {
+        "index": { "description": "轨迹序号，从 0 递增。", "type": "integer", "minimum": 0 },
+        "kind": { "const": "skip" },
+        "node": { "description": "被跳过的节点 id。", "type": "string", "minLength": 1 },
+        "from": { "description": "产生该次判定的已出队节点 id。", "type": "string", "minLength": 1 },
+        "reason": {
+          "description": "跳过原因枚举。",
+          "enum": ["already_visited", "already_queued", "not_adjacent"]
+        }
+      }
+    },
+    "BfsStep": {
+      "description": "BFS 轨迹事件，三选一（§2.2.5）。",
+      "oneOf": [
+        { "$ref": "#/$defs/BfsStepDequeue" },
+        { "$ref": "#/$defs/BfsStepEnqueue" },
+        { "$ref": "#/$defs/BfsStepSkip" }
+      ]
+    },
+    "BfsFlowResult": {
+      "description": "bfs_flow 内核输出。order 为访问（出队）序列；不可达节点列入 unvisited，不伪造访问（R8-AC4）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order",
+        "enqueue_order",
+        "visited",
+        "unvisited",
+        "parent",
+        "level",
+        "edges_of_spanning_tree",
+        "rejected_edges",
+        "trace",
+        "terminated_reason",
+        "has_cycle"
+      ],
+      "properties": {
+        "order": { "description": "访问（出队）序列，如 [\"A\",\"B\",\"C\",\"D\"]。", "type": "array", "items": { "type": "string" } },
+        "enqueue_order": {
+          "description": "入队序列；同一节点只出现一次（R8-AC2 的 D 只入队一次）。",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "visited": { "description": "已访问集合，与 order 元素相同但顺序按出队。", "type": "array", "items": { "type": "string" } },
+        "unvisited": {
+          "description": "不可达节点；空数组表示全部可达，不得与\"无数据\"混同（§2.3.6）。",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "parent": {
+          "description": "父节点映射：node id -> parent id 或 null（起点为 null）。",
+          "type": "object",
+          "additionalProperties": { "type": ["string", "null"] }
+        },
+        "level": {
+          "description": "层级映射：node id -> 从起点出发的层数（起点为 0）。",
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "edges_of_spanning_tree": {
+          "description": "生成树边，按父子关系导出。",
+          "type": "array",
+          "items": { "$ref": "#/$defs/GraphEdge" }
+        },
+        "rejected_edges": {
+          "description": "未进入生成树的边及原因，必须逐条可读（R8-AC2）。",
+          "type": "array",
+          "items": { "$ref": "#/$defs/RejectedEdge" }
+        },
+        "trace": {
+          "description": "逐步轨迹，供单步/连续执行与暂停回放（R8-AC5）。",
+          "type": "array",
+          "items": { "$ref": "#/$defs/BfsStep" }
+        },
+        "terminated_reason": {
+          "description": "终止原因：normal 完成或命中防御上限。",
+          "enum": ["completed", "max_steps_reached"]
+        },
+        "has_cycle": {
+          "description": "有向图 DFS 判定结果，仅用于展示提示，不阻止执行（R8-AC3、R8-AC7）。",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

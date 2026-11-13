@@ -1,0 +1,405 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:schema:knowledge_object:1",
+  "title": "KnowledgeObject",
+  "description": "C-KO@1 统一对象模型（§2.2.1）：由材料派生的、可执行的最小单元，绑定唯一 template_id。前端 frontend/src/api/types.ts、后端 backend/app/schemas/knowledge_object.py 与本文件逐字对应。字段名一律 snake_case，前后端不做自动命名转换。additionalProperties 全部为 false，禁止夹带未定义字段。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "object_id",
+    "title",
+    "material_id",
+    "model_version",
+    "revision",
+    "template_id",
+    "kernel_version",
+    "config",
+    "parameters",
+    "views",
+    "bindings",
+    "source_refs",
+    "validation_profile",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "契约版本。§2.2.1 校验规则 1：必须为 \"0.2\"。",
+      "const": "0.2"
+    },
+    "object_id": {
+      "description": "对象全局唯一标识；参数与 revision 只在同一 object_id 内共享（R5-AC5）。",
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "description": "界面显示标题。",
+      "type": "string",
+      "minLength": 1
+    },
+    "material_id": {
+      "description": "来源材料 id；手工示例（provenance=manual_demo）与课程静态夹具之外的独立示例为 null。",
+      "type": ["string", "null"]
+    },
+    "model_version": {
+      "description": "结构版本：图节点/边、模板或表达式依赖变化时递增，起始值 >= 1（R5-AC4）。",
+      "type": "integer",
+      "minimum": 1
+    },
+    "revision": {
+      "description": "数值修订：同一 model_version 下数值型参数改值时递增，起始值 >= 0，结构变更时归 0（R5-AC3）。",
+      "type": "integer",
+      "minimum": 0
+    },
+    "template_id": {
+      "description": "白名单模板标识，共四个取值（R12-AC3）。",
+      "enum": ["matrix_2d", "force_2d", "bfs_flow", "budget_compare"]
+    },
+    "kernel_version": {
+      "description": "产出该对象结果的内核版本，必须与 template_id 对应：matrix_2d→linear_v1、force_2d→force_v1、bfs_flow→bfs_v1、budget_compare→budget_v1。",
+      "enum": ["linear_v1", "force_v1", "bfs_v1", "budget_v1"]
+    },
+    "config": {
+      "description": "模板专属配置，形状由 C-MX@1 / C-FC@1 / C-BFS@1 / C-BUD@1 定义（见 contracts/schemas/template_*.schema.json）。config 内引用参数一律写 parameter_id 字符串，不得内联数值（§2.2.1 校验规则 4）。",
+      "type": "object"
+    },
+    "parameters": {
+      "description": "参数列表；每个参数的 id 在对象内唯一（§2.2.1 校验规则 2）。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/Parameter" }
+    },
+    "views": {
+      "description": "该对象可用的视图 id 字符串列表；bindings[].view_id 必须能在本数组中找到（§2.2.1 校验规则 3）。",
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "bindings": {
+      "description": "参数到视图消费点的绑定；parameter_id / view_id 必须分别命中 parameters / views，否则返回 MISSING_FIELD（§2.2.1 校验规则 3）。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/ViewBinding" }
+    },
+    "source_refs": {
+      "description": "来源引用列表；id 在对象内唯一并带 src_ 前缀（§2.2.1 校验规则 2）。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/SourceRef" }
+    },
+    "validation_profile": {
+      "description": "校验档案标识，与 ValidationReport.validation_profile 一致，用于确定校验项集合（R11-AC2）。",
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "description": "创建时间，ISO 8601 UTC。",
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "description": "最近更新时间，ISO 8601 UTC。",
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "template_id": { "const": "matrix_2d" } }, "required": ["template_id"] },
+      "then": { "properties": { "kernel_version": { "const": "linear_v1" } } }
+    },
+    {
+      "if": { "properties": { "template_id": { "const": "force_2d" } }, "required": ["template_id"] },
+      "then": { "properties": { "kernel_version": { "const": "force_v1" } } }
+    },
+    {
+      "if": { "properties": { "template_id": { "const": "bfs_flow" } }, "required": ["template_id"] },
+      "then": { "properties": { "kernel_version": { "const": "bfs_v1" } } }
+    },
+    {
+      "if": { "properties": { "template_id": { "const": "budget_compare" } }, "required": ["template_id"] },
+      "then": { "properties": { "kernel_version": { "const": "budget_v1" } } }
+    }
+  ],
+  "$defs": {
+    "DecimalString": {
+      "description": "十进制字符串，禁止二进制浮点参与金额传输与计算（R9-AC3）。例：\"9400.00\"、\"-600.00\"。",
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "Provenance": {
+      "description": "来源状态：original=原文提取、inferred=系统推断、user_confirmed=用户确认、manual_demo=示例预置（§1.1）。展示优先级 user_confirmed > original > inferred > manual_demo。",
+      "enum": ["original", "inferred", "user_confirmed", "manual_demo"]
+    },
+    "ParameterType": {
+      "description": "参数类型；value 的具体形状由该类型决定（见 Parameter.oneOf 分支）。",
+      "enum": ["matrix2", "vector2", "force_list", "graph", "integer", "decimal", "enum", "text"]
+    },
+    "ParameterRange": {
+      "description": "参数取值范围。金额类参数的十进制边界写在 min_decimal / max_decimal，避免浮点误差（§2.2.1）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max", "step"],
+      "properties": {
+        "min": { "description": "下界；无下界为 null。", "type": ["number", "null"] },
+        "max": { "description": "上界；无上界为 null。", "type": ["number", "null"] },
+        "step": { "description": "步长；离散或无数值步长时为 null。", "type": ["number", "null"] },
+        "min_decimal": { "description": "金额类参数下界（十进制字符串），与 min 并存。", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/DecimalString" }] },
+        "max_decimal": { "description": "金额类参数上界（十进制字符串），与 max 并存。", "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/DecimalString" }] }
+      }
+    },
+    "Vector2": {
+      "description": "二维实向量 [x, y]。",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "number" }
+    },
+    "Matrix2": {
+      "description": "2×2 实矩阵，按行存储 [[a11, a12], [a21, a22]]。",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/Vector2" }
+    },
+    "ForceInput": {
+      "description": "共点力输入项：magnitude 为十进制字符串（N，0..1000），angle_deg 为度（0 指向 x 轴正方向，逆时针为正，取值 [0, 360)）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["magnitude", "angle_deg"],
+      "properties": {
+        "magnitude": {
+          "description": "力的大小，十进制字符串，单位 N，允许范围 0..1000（R7-AC5）。",
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+        },
+        "angle_deg": {
+          "description": "力的方向，单位度，取值 [0, 360)（R7-AC5、§2.3.6）。",
+          "type": "number",
+          "minimum": 0,
+          "exclusiveMaximum": 360
+        }
+      }
+    },
+    "GraphValue": {
+      "description": "bfs_flow 的图输入；规模上限 nodes<=20、edges<=40，超限返回 MISSING_FIELD（R8-AC6）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "edges"],
+      "properties": {
+        "nodes": {
+          "description": "节点列表；id 为邻接遍历排序依据（字典序）。",
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label"],
+            "properties": {
+              "id": { "description": "节点唯一标识，字典序排序键。", "type": "string", "minLength": 1 },
+              "label": { "description": "界面显示名。", "type": "string" }
+            }
+          }
+        },
+        "edges": {
+          "description": "边列表；directed=true 时 from→to 为单向。",
+          "type": "array",
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from", "to"],
+            "properties": {
+              "from": { "description": "起点节点 id。", "type": "string", "minLength": 1 },
+              "to": { "description": "终点节点 id。", "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "Parameter": {
+      "description": "参数：带 name/unit/range/source_ref_ids 与来源状态的输入量（R5-AC2）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "type", "value", "unit", "range", "source_ref_ids", "provenance", "editable"],
+      "properties": {
+        "id": {
+          "description": "对象内唯一，如 matrix_A / vector_x；config 以该 id 引用参数。",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "description": "界面显示名（中文）。",
+          "type": "string",
+          "minLength": 1
+        },
+        "type": { "$ref": "#/$defs/ParameterType" },
+        "value": {
+          "description": "参数值，形状由 type 决定（见下方 oneOf 分支，来源 C-MX/C-FC/C-BFS/C-BUD）。"
+        },
+        "unit": {
+          "description": "单位：无量纲固定 \"1\"；力 \"N\"；角度 \"deg\"；人数 \"人\"；金额 \"元\"（§2.3.6）。",
+          "type": "string",
+          "minLength": 1
+        },
+        "range": { "$ref": "#/$defs/ParameterRange" },
+        "source_ref_ids": {
+          "description": "指向本对象 source_refs[].id，至少 1 个；同一参数多个来源时全量保留（§2.2.1）。",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "provenance": {
+          "description": "参数级来源状态；界面与来源级 provenance 同时展示，用于表达\"该参数是否被用户确认过\"（§2.2.1 校验规则 6）。",
+          "$ref": "#/$defs/Provenance"
+        },
+        "editable": {
+          "description": "是否允许用户改值；false 时前端只读展示。",
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "matrix2" } }, "required": ["type"] },
+          "then": { "properties": { "value": { "$ref": "#/$defs/Matrix2" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "vector2" } }, "required": ["type"] },
+          "then": { "properties": { "value": { "$ref": "#/$defs/Vector2" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "force_list" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "value": {
+                "description": "共点力列表，长度 2..4，不计算运动、摩擦或碰撞（R7-AC6）。",
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 4,
+                "items": { "$ref": "#/$defs/ForceInput" }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "graph" } }, "required": ["type"] },
+          "then": { "properties": { "value": { "$ref": "#/$defs/GraphValue" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "integer" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "value": { "description": "整数标量，如人数 n（0..2000）。", "type": "integer" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "decimal" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "value": { "description": "金额等十进制字符串（禁止 float，R9-AC3）。", "$ref": "#/$defs/DecimalString" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "enum" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "value": { "description": "枚举取值，合法集合由模板契约给出。", "type": "string" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "text" } }, "required": ["type"] },
+          "then": {
+            "properties": {
+              "value": { "description": "自由文本，如方案名。", "type": "string" }
+            }
+          }
+        }
+      ]
+    },
+    "Bbox": {
+      "description": "元素外接框，单位 EMU，绝对坐标。仅在 element_id != null 且 page != null 时允许非空（R4-AC3、§2.2.1 校验规则 5）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "w", "h"],
+      "properties": {
+        "x": { "description": "左上角 x，EMU。", "type": "number" },
+        "y": { "description": "左上角 y，EMU。", "type": "number" },
+        "w": { "description": "宽度，EMU。", "type": "number" },
+        "h": { "description": "高度，EMU。", "type": "number" }
+      }
+    },
+    "SourceRef": {
+      "description": "来源引用：保留 page / element_id / bbox / excerpt 四类溯源字段，不得由前端推断生成（R4-AC4）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "provenance", "label", "material_id", "page", "element_id", "bbox", "excerpt"],
+      "properties": {
+        "id": {
+          "description": "对象内唯一，前缀 src_（§2.2.1）。",
+          "type": "string",
+          "pattern": "^src_"
+        },
+        "provenance": { "$ref": "#/$defs/Provenance" },
+        "label": {
+          "description": "界面可显示的中文短标签。",
+          "type": "string",
+          "minLength": 1
+        },
+        "material_id": {
+          "description": "来源材料 id；手工示例为 null。",
+          "type": ["string", "null"]
+        },
+        "page": {
+          "description": "页码，1-based；无页码为 null。",
+          "oneOf": [{ "type": "null" }, { "type": "integer", "minimum": 1 }]
+        },
+        "element_id": {
+          "description": "元素级来源 id；只有页级来源时为 null。",
+          "type": ["string", "null"]
+        },
+        "bbox": {
+          "description": "元素外接框；页级来源必须为 null，禁止伪造元素框（§2.2.1 校验规则 5）。",
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/Bbox" }]
+        },
+        "excerpt": {
+          "description": "原文摘录，<= 160 字；无摘录为 null。",
+          "oneOf": [{ "type": "null" }, { "type": "string", "maxLength": 160 }]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "element_id": { "type": "null" } }, "required": ["element_id"] },
+          "then": { "properties": { "bbox": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "page": { "type": "null" } }, "required": ["page"] },
+          "then": { "properties": { "bbox": { "type": "null" } } }
+        }
+      ]
+    },
+    "ViewBinding": {
+      "description": "视图绑定：把某个参数接到某个视图的消费点，保证同一参数驱动多个视图（R10-AC1）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parameter_id", "view_id", "target"],
+      "properties": {
+        "parameter_id": {
+          "description": "必须命中 parameters[].id。",
+          "type": "string",
+          "minLength": 1
+        },
+        "view_id": {
+          "description": "必须命中 views 中的字符串。",
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "description": "视图内的消费点标识，见各模板契约。",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

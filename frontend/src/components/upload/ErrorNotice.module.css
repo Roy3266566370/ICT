@@ -1,0 +1,132 @@
+.notice {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 122, 89, 0.4);
+  background: #fff5f1;
+  color: var(--color-navy, #0a1a33);
+}
+
+.notice[data-tone='info'] {
+  border-color: rgba(37, 43, 40, 0.22);
+  background: rgba(37, 43, 40, 0.05);
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+  background: var(--color-coral, #ff7a59);
+  line-height: 1;
+}
+
+.notice[data-tone='info'] .icon {
+  background: var(--color-indigo, #4f46e5);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.code {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(10, 26, 51, 0.08);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-muted, #5b6478);
+}
+
+.message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #1d3350;
+  overflow-wrap: anywhere;
+}
+
+.guidance {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-muted, #5b6478);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.retry {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--color-coral, #ff7a59);
+  color: #1b0d07;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.retry:hover {
+  filter: brightness(1.05);
+}
+
+.dismiss {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-muted, #5b6478);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.dismiss:hover {
+  background: rgba(10, 26, 51, 0.06);
+}
+
+.retry:focus-visible,
+.dismiss:focus-visible {
+  outline: 2px solid var(--color-coral, #ff7a59);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .notice {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .actions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}

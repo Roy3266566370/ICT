@@ -1,0 +1,742 @@
+/* 登录 / 注册页共享骨架：明亮纸感底色 + 浅色表单卡片。
+ *
+ * 页面底色使用暖纸白叠加淡靛蓝与淡珊瑚光晕，强调色只取 tokens.css 的靛蓝与珊瑚；
+ * 表单卡片沿用纸白与发丝线，保证与站内其它页面属于同一套设计语言。
+ */
+
+/* 登录 / 注册页不显示右侧滚动条（内容仍可滚动），由 AuthShell 挂载时给 <html> 加类。 */
+:global(html.auth-no-scrollbar),
+:global(html.auth-no-scrollbar) body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+:global(html.auth-no-scrollbar)::-webkit-scrollbar,
+:global(html.auth-no-scrollbar) body::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  overflow: clip;
+  background:
+    radial-gradient(1200px 820px at 8% -8%, #eef1ff 0%, rgba(238, 241, 255, 0) 62%),
+    radial-gradient(1000px 760px at 96% 6%, #fff1e8 0%, rgba(255, 241, 232, 0) 60%),
+    linear-gradient(168deg, #fcfbf7 0%, #f8f6ff 50%, #fdf8f2 100%);
+  color: var(--ink-900);
+}
+
+/* 数学主题背景：微积分曲面、神经网络、最优化等高线。
+ * 浅色版插画以“墨线压在纸面”的方式叠加（multiply），叠一层很轻的漂移让页面“透气”；
+ * 减少动效时完全静止。 */
+.artwork {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 46%;
+  opacity: 0.9;
+  filter: saturate(1.12) contrast(1.05);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  transform-origin: center;
+  animation: art-drift 46s ease-in-out infinite alternate;
+}
+
+/* 左侧品牌文案与顶部/底部导航需要更高对比度，用暖纸色薄雾托底。 */
+.artScrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      980px 720px at 22% 38%,
+      rgba(251, 249, 244, 0.74) 0%,
+      rgba(251, 249, 244, 0.3) 46%,
+      rgba(251, 249, 244, 0) 74%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(251, 249, 244, 0.78) 0%,
+      rgba(251, 249, 244, 0.16) 10%,
+      rgba(251, 249, 244, 0) 22%,
+      rgba(251, 249, 244, 0) 78%,
+      rgba(251, 249, 244, 0.76) 100%
+    );
+  pointer-events: none;
+}
+
+@keyframes art-drift {
+  from {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.045) translate3d(-0.8%, -0.6%, 0);
+  }
+}
+
+/* 深度学习主题：在左下角留白处放一条清晰的神经网络线稿，
+ * 与背景图中的微积分曲面、最优化等高线形成三种学科的对照。 */
+.networkMotif {
+  position: absolute;
+  bottom: clamp(40px, 5.8vh, 52px);
+  left: clamp(20px, 6vw, 96px);
+  width: clamp(280px, 31vw, 440px);
+  opacity: 0.72;
+  pointer-events: none;
+  animation: motif-float 16s ease-in-out infinite alternate;
+}
+
+.networkSvg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+@keyframes motif-float {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(0, -5px, 0);
+  }
+}
+
+/* 两层径向光晕：靛蓝在左上、珊瑚在右下，只做氛围，不承载信息。 */
+.aura {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(760px 560px at 10% 6%, rgba(79, 70, 229, 0.1), transparent 68%),
+    radial-gradient(700px 540px at 90% 90%, rgba(255, 122, 89, 0.1), transparent 66%),
+    radial-gradient(900px 700px at 55% 112%, rgba(31, 95, 168, 0.07), transparent 70%);
+  pointer-events: none;
+}
+
+/* 极淡网格：像坐标纸，暗示「可推演」，不干扰阅读。 */
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(18, 27, 39, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(18, 27, 39, 0.045) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 78% 68% at 50% 40%, #000 26%, transparent 100%);
+  pointer-events: none;
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: clamp(20px, 2.6vw, 34px) clamp(20px, 4vw, 56px) 0;
+}
+
+/* ---------------- 顶栏 ---------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: clamp(12px, 1.6vw, 22px);
+}
+
+.topActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  color: var(--ink-500);
+  font-size: var(--font-size-sm);
+}
+
+.homeLink {
+  padding: var(--space-2) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-500);
+  text-decoration: none;
+  transition: color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.homeLink:hover {
+  color: var(--ink-900);
+}
+
+.homeLink:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.topDivider {
+  width: 1px;
+  height: 16px;
+  background: rgba(18, 27, 39, 0.12);
+}
+
+.switchText {
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+.switchButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 var(--space-4);
+  border: 1px solid rgba(18, 27, 39, 0.12);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--ink-900);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px -12px rgba(35, 28, 80, 0.4);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.switchButton:hover {
+  border-color: rgba(79, 70, 229, 0.4);
+  background: #ffffff;
+  box-shadow: 0 10px 22px -14px rgba(79, 70, 229, 0.55);
+}
+
+.switchButton:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ---------------- 主体两栏 ---------------- */
+
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(400px, 0.92fr);
+  align-items: center;
+  gap: clamp(36px, 5.5vw, 88px);
+  flex: 1 1 auto;
+  padding: clamp(24px, 3.6vw, 56px) 0 clamp(28px, 3.4vw, 52px);
+}
+
+.brandColumn {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 640px;
+  animation: rise-in var(--motion-duration-slow) var(--motion-easing-out) both;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+  color: var(--ink-500);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.eyebrowDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-coral);
+  box-shadow: 0 0 0 4px rgba(255, 122, 89, 0.2);
+}
+
+.headline {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  color: var(--ink-900);
+  font-size: clamp(2.6rem, 4.3vw, 4.15rem);
+  font-weight: var(--font-weight-black);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+}
+
+.headlineAccent {
+  background: linear-gradient(96deg, #191547 4%, #4f46e5 52%, #c9502a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lead {
+  max-width: 36em;
+  margin: var(--space-5) 0 0;
+  color: var(--ink-700);
+  font-size: clamp(1rem, 1.1vw, 1.1rem);
+  line-height: var(--line-height-relaxed);
+}
+
+/* ---------------- 产品框架：三维场景 ---------------- */
+
+/* 场景压成一块深色“观测窗”：在明亮纸面里形成稳定的负空间，
+ * 曲面与暖色观察点才有明暗层次。 */
+.stage {
+  margin: clamp(24px, 3vw, 36px) 0 0;
+  overflow: hidden;
+  border: 1px solid rgba(11, 22, 38, 0.42);
+  border-radius: var(--radius-xl);
+  background: #050b14;
+  box-shadow:
+    0 40px 84px -44px rgba(6, 14, 28, 0.72),
+    0 16px 34px -26px rgba(6, 14, 28, 0.5),
+    inset 0 1px 0 rgba(159, 220, 255, 0.12);
+}
+
+.stageBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px var(--space-4);
+  border-bottom: 1px solid rgba(159, 220, 255, 0.1);
+  background: linear-gradient(180deg, rgba(12, 24, 40, 0.96), rgba(8, 17, 30, 0.96));
+}
+
+.stageDots {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.stageDots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(159, 220, 255, 0.2);
+}
+
+.stageDots i:first-child {
+  background: var(--color-coral);
+}
+
+.stageDots i:nth-child(2) {
+  background: rgba(159, 220, 255, 0.48);
+}
+
+.stageCaption {
+  color: rgba(178, 208, 238, 0.62);
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stageBody {
+  position: relative;
+  height: clamp(260px, 23vw, 320px);
+  background:
+    radial-gradient(120% 92% at 72% 24%, #11263c 0%, #0a1727 46%, #050b14 100%);
+}
+
+/* 场景组件自带 aspect-ratio；在固定高度的框架里改为填满。 */
+.stageBody > * {
+  height: 100%;
+  aspect-ratio: auto;
+}
+
+/* ---------------- 权益清单（注册页） ---------------- */
+
+.highlights {
+  margin-top: clamp(22px, 2.6vw, 30px);
+  padding: clamp(18px, 2.2vw, 24px);
+  border: 1px solid rgba(18, 27, 39, 0.07);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow:
+    0 22px 44px -36px rgba(35, 28, 80, 0.32),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.highlightsTitle {
+  margin: 0 0 var(--space-3);
+  color: var(--ink-900);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+}
+
+.highlightList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.highlightItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  color: var(--ink-700);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+}
+
+.check {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--color-indigo-soft);
+  color: var(--color-indigo);
+}
+
+/* ---------------- 右侧表单卡片 ---------------- */
+
+.formColumn {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  margin-left: auto;
+  gap: var(--space-4);
+  animation: rise-in var(--motion-duration-slow) var(--motion-easing-out) 80ms both;
+}
+
+/* 注册字段更多，用更宽的卡片承载两列字段，避免首屏放不下主按钮。 */
+.formColumnWide {
+  max-width: 580px;
+}
+
+.formColumnWide .formCard {
+  padding: clamp(24px, 2.6vw, 34px);
+}
+
+.formCard {
+  position: relative;
+  padding: clamp(26px, 3vw, 42px);
+  overflow: hidden;
+  border-radius: var(--radius-2xl);
+  background: linear-gradient(180deg, #ffffff 0%, #fffefc 100%);
+  color: var(--ink-900);
+  box-shadow:
+    0 48px 96px -42px rgba(35, 28, 80, 0.32),
+    0 24px 48px -34px rgba(35, 28, 80, 0.18),
+    0 0 0 1px rgba(18, 27, 39, 0.05);
+}
+
+/* 卡片顶部一条细的靛蓝→珊瑚渐变，在浅色页面上点出品牌色。 */
+.formCard::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-indigo) 0%, #8f8cf2 48%, var(--color-coral) 100%);
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(15, 123, 95, 0.28);
+  border-radius: var(--radius-md);
+  background: var(--color-pass-soft);
+  color: var(--color-pass);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+}
+
+.noticeIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--color-pass);
+  color: var(--paper-0);
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+}
+
+.statusNote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 220px;
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--font-size-md);
+  text-align: center;
+}
+
+.statusDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-indigo);
+  box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+  animation: pulse 1.4s var(--motion-easing-standard) infinite;
+}
+
+.securityNote {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 7px 14px;
+  border: 1px solid rgba(18, 27, 39, 0.06);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.66);
+  color: var(--ink-500);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-snug);
+  text-align: center;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* ---------------- 页脚 ---------------- */
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-5) 0 var(--space-6);
+  border-top: 1px solid rgba(18, 27, 39, 0.08);
+  color: var(--ink-500);
+  font-size: var(--font-size-xs);
+}
+
+.footerDivider {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(18, 27, 39, 0.24);
+}
+
+
+/* ---------------- 动效 ---------------- */
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(79, 70, 229, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brandColumn,
+  .formColumn {
+    animation: none;
+  }
+
+  .artwork {
+    animation: none;
+  }
+
+  .networkMotif {
+    animation: none;
+  }
+
+  .statusDot {
+    animation: none;
+  }
+}
+
+/* ---------------- 响应式 ---------------- */
+
+/* 1024–1279px：两栏收紧，标题与卡片同步缩小 */
+@media (max-width: 1279px) {
+  .main {
+    grid-template-columns: minmax(0, 1fr) minmax(380px, 0.94fr);
+    gap: clamp(28px, 4vw, 56px);
+  }
+
+  .headline {
+    font-size: clamp(2.35rem, 4vw, 3.4rem);
+  }
+}
+
+/* 矮屏笔记本（≤860px 高）：压缩纵向留白，保证底部信息与主按钮不被挤出首屏 */
+@media (min-width: 1024px) and (max-height: 860px) {
+  .shell {
+    padding-top: 16px;
+  }
+
+  .main {
+    padding: 18px 0 22px;
+  }
+
+  .headline {
+    font-size: clamp(2.2rem, 3.7vw, 3.4rem);
+  }
+
+  .lead {
+    margin-top: var(--space-4);
+  }
+
+  .stage {
+    margin-top: var(--space-5);
+  }
+
+  .stageBody {
+    height: clamp(220px, 20vw, 270px);
+  }
+
+  .footer {
+    padding: var(--space-3) 0 var(--space-4);
+  }
+}
+
+/* <1024px：单列。品牌文案缩成页头，场景与清单隐藏，表单优先展示。 */
+@media (max-width: 1023px) {
+  .networkMotif {
+    display: none;
+  }
+
+  .artwork {
+    object-position: 30% 40%;
+    opacity: 0.6;
+  }
+
+  .artScrim {
+    background:
+      radial-gradient(
+        720px 540px at 26% 16%,
+        rgba(251, 249, 244, 0.92) 0%,
+        rgba(251, 249, 244, 0.52) 50%,
+        rgba(251, 249, 244, 0) 78%
+      ),
+      linear-gradient(
+        180deg,
+        rgba(251, 249, 244, 0.86) 0%,
+        rgba(251, 249, 244, 0.22) 12%,
+        rgba(251, 249, 244, 0) 26%,
+        rgba(251, 249, 244, 0) 78%,
+        rgba(251, 249, 244, 0.86) 100%
+      );
+  }
+
+  .main {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 560px;
+    margin: 0 auto;
+    gap: var(--space-6);
+    padding-top: var(--space-6);
+  }
+
+  .brandColumn {
+    max-width: none;
+  }
+
+  .eyebrow {
+    margin-bottom: var(--space-3);
+  }
+
+  .headline {
+    font-size: clamp(2rem, 6.4vw, 2.7rem);
+  }
+
+  .lead {
+    margin-top: var(--space-3);
+    font-size: var(--font-size-md);
+  }
+
+  .stage,
+  .highlights {
+    display: none;
+  }
+
+  .formColumn {
+    max-width: none;
+    margin-left: 0;
+  }
+
+  .footer {
+    justify-content: center;
+    text-align: center;
+  }
+}
+
+/* <640px：手机端收紧内边距，隐藏顶部「还没有账号？」文字，仅保留切换按钮 */
+@media (max-width: 639px) {
+  .shell {
+    padding: 16px 18px 0;
+  }
+
+  .switchText,
+  .topDivider {
+    display: none;
+  }
+
+  .homeLink {
+    padding-inline: 4px;
+    font-size: var(--font-size-xs);
+  }
+
+  .switchButton {
+    min-height: 36px;
+    padding: 0 var(--space-3);
+    font-size: var(--font-size-xs);
+  }
+
+  .formCard {
+    padding: var(--space-6) var(--space-5);
+    border-radius: var(--radius-xl);
+  }
+
+  .securityNote {
+    padding: 0 var(--space-2);
+  }
+
+  .footer {
+    gap: var(--space-1) var(--space-3);
+    padding-bottom: var(--space-5);
+  }
+
+}

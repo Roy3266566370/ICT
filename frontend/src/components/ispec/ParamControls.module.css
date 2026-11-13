@@ -1,0 +1,391 @@
+/**
+ * ParamControls.module.css —— 参数控件样式。
+ * 只用现有设计令牌 + 规定色板（橙 var(--color-coral-ink, #b8431f)、藏青 var(--ink-900, #121b27)、轴灰 #8B9AB3），不引入新配色。
+ */
+
+.root {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-caps);
+  color: var(--color-navy-subtle);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-3);
+}
+
+.row {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--paper-0, #ffffff);
+  transition: border-color 150ms linear, box-shadow 150ms linear;
+}
+
+.row:focus-within {
+  border-color: var(--color-coral-ink, #b8431f);
+  box-shadow: 0 0 0 3px rgba(196, 98, 45, 0.16);
+}
+
+.row[data-invalid='true'] {
+  border-color: var(--color-fail);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.label {
+  font-weight: var(--font-weight-medium);
+  color: var(--ink-900, #121b27);
+}
+
+.unit {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-navy-subtle);
+}
+
+.meta {
+  font-size: var(--font-size-xs);
+  color: #8b9ab3;
+  font-variant-numeric: tabular-nums;
+}
+
+.numberRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.range {
+  width: 100%;
+  accent-color: var(--color-coral-ink, #b8431f);
+}
+
+.range:focus-visible,
+.number:focus-visible,
+.matrixCell:focus-visible,
+.select:focus-visible,
+.text:focus-visible,
+.switchInput:focus-visible {
+  outline: 2px solid var(--color-coral-ink, #b8431f);
+  outline-offset: 2px;
+}
+
+.number,
+.text,
+.select {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: var(--ink-900, #121b27);
+  font-variant-numeric: tabular-nums;
+}
+
+.number:focus-visible,
+.text:focus-visible,
+.select:focus-visible {
+  border-color: var(--color-coral-ink, #b8431f);
+}
+
+.noRange {
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.switchInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.switchTrack {
+  display: inline-flex;
+  align-items: center;
+  width: 44px;
+  height: 24px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: #c3cbdd;
+  transition: background-color 150ms linear;
+}
+
+.switchThumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 150ms linear;
+}
+
+.switchInput:checked + .switchTrack {
+  background: var(--color-coral-ink, #b8431f);
+}
+
+.switchInput:checked + .switchTrack .switchThumb {
+  transform: translateX(20px);
+}
+
+.switchInput:focus-visible + .switchTrack {
+  outline: 2px solid var(--color-coral-ink, #b8431f);
+  outline-offset: 2px;
+}
+
+.switchText {
+  font-size: var(--font-size-sm);
+  color: var(--ink-900, #121b27);
+  font-variant-numeric: tabular-nums;
+}
+
+.error {
+  display: flex;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-fail);
+  font-size: var(--font-size-sm);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-navy-subtle);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------------- 矩阵实验台 ---------------- */
+
+.matrixGroup {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, #fffdf7 0%, #fbf7ee 100%);
+}
+
+.matrixHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.matrixTitle {
+  font-weight: var(--font-weight-semibold);
+  color: var(--ink-900, #121b27);
+}
+
+.matrixMetrics {
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.matrixBody {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.matrixPad {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(56px, 72px));
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-inline-start: 2px solid var(--color-coral-ink, #b8431f);
+  border-inline-end: 2px solid var(--color-coral-ink, #b8431f);
+  border-radius: 2px;
+}
+
+.matrixCell {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: var(--ink-900, #121b27);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm);
+}
+
+.matrixCell[aria-invalid='true'] {
+  border-color: var(--color-fail);
+}
+
+.matrixStats {
+  display: grid;
+  gap: 2px;
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.presetRow,
+.opsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.presetRow button,
+.opsRow button {
+  padding: 4px 9px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: #ffffff;
+  color: var(--ink-900, #121b27);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.presetRow button:hover:not(:disabled),
+.opsRow button:hover:not(:disabled) {
+  border-color: var(--color-coral-ink, #b8431f);
+  color: var(--color-coral-ink, #b8431f);
+}
+
+.presetRow button:focus-visible,
+.opsRow button:focus-visible {
+  outline: 2px solid var(--color-coral-ink, #b8431f);
+  outline-offset: 2px;
+}
+
+.presetRow button:disabled,
+.opsRow button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.matrixHint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-snug);
+  color: var(--color-navy-subtle);
+}
+
+.matrixError {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-fail);
+}
+
+/* ---------------- 行列式四格 ---------------- */
+
+.detGroup {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #fffdf7;
+}
+
+.detHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.detGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-2);
+}
+
+.detCell {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+}
+
+.detCellHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-navy-subtle);
+}
+
+.detLabelInput {
+  min-width: 0;
+  width: 100%;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  font-size: var(--font-size-xs);
+  color: var(--ink-900, #121b27);
+}
+
+.detLabelInput:hover,
+.detLabelInput:focus-visible {
+  border-color: var(--color-border-strong);
+  background: #fffdf7;
+  outline: none;
+}
+
+.detMatrix {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(44px, 1fr));
+  gap: 3px;
+  padding-inline-start: 4px;
+  border-inline-start: 2px solid var(--color-coral-ink, #b8431f);
+  border-inline-end: 2px solid var(--color-coral-ink, #b8431f);
+}
+
+.detMatrix input {
+  width: 100%;
+  min-width: 0;
+  font-size: var(--font-size-xs);
+  padding: 2px 4px;
+}
+
+.detMetrics {
+  font-size: 10px;
+  color: var(--color-navy-subtle);
+  font-variant-numeric: tabular-nums;
+}

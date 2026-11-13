@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  象生 XiangSheng —— 单色标志（mono）
+  与 logo-mark.svg 同构，但全部使用 currentColor：
+  “开放方框 + 穿行曲线”取描边色，圆点取填充色，由外层 CSS 统一着色
+  （例：color: var(--color-navy); 或白色版本 color: #FFFFFF）。
+  纯手写 path，不引用任何外部字体或位图。
+-->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 64 64"
+  width="64"
+  height="64"
+  role="img"
+  aria-labelledby="xs-mono-title"
+  fill="none"
+  stroke="currentColor"
+>
+  <title id="xs-mono-title">象生 XiangSheng 单色标志</title>
+
+  <path
+    d="M10 54 V10 H54 V38"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M14 46 C 24 46 26 30 36 30 S 48 40 54 22"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="4.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.92"
+  />
+
+  <circle cx="54" cy="22" r="6" fill="currentColor" stroke="none" />
+</svg>

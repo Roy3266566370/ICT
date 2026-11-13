@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:schema:template_matrix_2d:1",
+  "title": "matrix_2d template contract",
+  "description": "C-MX@1（§2.2.3）：matrix_2d 的 config 与 result 结构，供 T5（交互视图）、T8（内核）、T9（独立校验）、T10（对象与运行端点）共用。顶层对象描述\"一个模板绑定的自检载荷\"：template_id + config（必填）+ 可选 result。参数 value 的类型见 C-KO@1 的 Parameter.matrix2 / vector2 分支。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["template_id", "config"],
+  "properties": {
+    "template_id": { "description": "固定为 matrix_2d。", "const": "matrix_2d" },
+    "config": { "$ref": "#/$defs/Matrix2dConfig" },
+    "result": { "$ref": "#/$defs/Matrix2dResult" }
+  },
+  "$defs": {
+    "Matrix2dConfig": {
+      "description": "matrix_2d 配置。引用的矩阵/向量一律写 parameter_id 字符串，不得内联数值（§2.2.1 校验规则 4）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "matrix_parameter_id", "second_matrix_parameter_id", "compose_order", "angle_unit"],
+      "properties": {
+        "operation": {
+          "description": "matrix_apply=单矩阵作用于向量；matrix_compose=两矩阵复合（R6-AC2/AC3）。",
+          "enum": ["matrix_apply", "matrix_compose"]
+        },
+        "matrix_parameter_id": {
+          "description": "主矩阵参数 id，必填，如 \"matrix_A\"。",
+          "type": "string",
+          "minLength": 1
+        },
+        "second_matrix_parameter_id": {
+          "description": "第二矩阵参数 id；operation=matrix_compose 时必填（非 null），matrix_apply 时为 null。",
+          "type": ["string", "null"]
+        },
+        "compose_order": {
+          "description": "界面当前展示的复合顺序；operation=matrix_apply 时为 null。注意 §2.3.6：AB 表示\"先 B 后 A\"，(AB)x = A(Bx)；界面文案必须写清\"先执行哪个\"，不得只用符号。",
+          "enum": ["A_then_B", "B_then_A", null]
+        },
+        "angle_unit": {
+          "description": "角度单位，固定 deg，仅供展示；矩阵模板不涉及角度计算（§2.3.6）。",
+          "const": "deg"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "operation": { "const": "matrix_compose" } }, "required": ["operation"] },
+          "then": { "properties": { "second_matrix_parameter_id": { "type": "string", "minLength": 1 }, "compose_order": { "enum": ["A_then_B", "B_then_A"] } } }
+        },
+        {
+          "if": { "properties": { "operation": { "const": "matrix_apply" } }, "required": ["operation"] },
+          "then": { "properties": { "second_matrix_parameter_id": { "type": "null" }, "compose_order": { "type": "null" } } }
+        }
+      ]
+    },
+    "Vector2": {
+      "description": "二维实向量 [x, y]。",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "type": "number" }
+    },
+    "Matrix2": {
+      "description": "2×2 实矩阵，按行存储 [[a11, a12], [a21, a22]]。",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/Vector2" }
+    },
+    "Matrix2dTerm": {
+      "description": "步骤 1 的一项：把输入向量的第 column_index 个分量当作第 column_index 列的倍数（R6-AC9 的\"取输入坐标当倍数\"）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coefficient", "column_index", "column"],
+      "properties": {
+        "coefficient": {
+          "description": "倍数，等于输入向量对应分量。",
+          "type": "number"
+        },
+        "column_index": {
+          "description": "列下标，0 或 1。",
+          "type": "integer",
+          "enum": [0, 1]
+        },
+        "column": {
+          "description": "矩阵该列的取值 [a1i, a2i]。",
+          "$ref": "#/$defs/Vector2"
+        }
+      }
+    },
+    "Matrix2dStepOne": {
+      "description": "步骤 1 固定形状：取输入坐标当倍数。terms 与输入向量分量一一对应（二维即 2 项，顺序按 column_index 升序）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step", "title", "terms"],
+      "properties": {
+        "step": { "description": "固定为 1。", "const": 1 },
+        "title": { "description": "固定文案。", "const": "取输入坐标当倍数" },
+        "terms": {
+          "description": "两项，顺序按 column_index 升序。",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "$ref": "#/$defs/Matrix2dTerm" }
+        }
+      }
+    },
+    "Matrix2dStepTwo": {
+      "description": "步骤 2 固定形状：组合各列。partial 为第一项执行后的部分和（coefficient[0]·column[0]），result 为两步求和后的最终 Ax。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step", "title", "partial", "result"],
+      "properties": {
+        "step": { "description": "固定为 2。", "const": 2 },
+        "title": { "description": "固定文案。", "const": "组合各列" },
+        "partial": {
+          "description": "第一项（column_index=0）执行后的部分和，用于逐步演示。",
+          "$ref": "#/$defs/Vector2"
+        },
+        "result": {
+          "description": "最终 Ax，必须与 result.ax 逐分量相等。",
+          "$ref": "#/$defs/Vector2"
+        }
+      }
+    },
+    "Matrix2dEigenvalues": {
+      "description": "实特征值：disc >= 0 时返回两个值（升序）；disc < 0 时 real=false 并给出原因文本，禁止输出 NaN（§2.2.3 规则 4）。",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["real", "values"],
+          "properties": {
+            "real": { "description": "存在实特征值。", "const": true },
+            "values": { "description": "两个实特征值，升序 [(trace-sqrt(disc))/2, (trace+sqrt(disc))/2]。", "$ref": "#/$defs/Vector2" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["real", "reason"],
+          "properties": {
+            "real": { "description": "不存在实特征值。", "const": false },
+            "reason": {
+              "description": "原因文本，契约给定：\"判别式小于 0，该矩阵没有实特征值（对应纯旋转/螺旋型变换）\"。",
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "Matrix2dComposition": {
+      "description": "两矩阵复合结果（R6-AC2/AC3）：ab = A·B 即先 B 后 A；ba = B·A 即先 A 后 B。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["order", "ab", "ba", "abx", "bax", "commutes"],
+      "properties": {
+        "order": { "description": "界面当前展示顺序，与 config.compose_order 一致。", "enum": ["A_then_B", "B_then_A"] },
+        "ab": { "description": "AB = A·B（先 B 后 A）。", "$ref": "#/$defs/Matrix2" },
+        "ba": { "description": "BA = B·A（先 A 后 B）。", "$ref": "#/$defs/Matrix2" },
+        "abx": { "description": "(AB)x = A(Bx)。", "$ref": "#/$defs/Vector2" },
+        "bax": { "description": "(BA)x = B(Ax)。", "$ref": "#/$defs/Vector2" },
+        "commutes": { "description": "|abx - bax| <= 1e-9 时为 true（§2.2.3 规则 2）。", "type": "boolean" }
+      }
+    },
+    "Matrix2dEllipse": {
+      "description": "单位圆像（椭圆）的半轴长：对 A 做 SVD 后 a=max(singular values)、b=min；rank<2 时整字段为 null（§2.2.3 规则 6）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["a", "b"],
+      "properties": {
+        "a": { "description": "长半轴。", "type": "number" },
+        "b": { "description": "短半轴；b < 1e-12 时仍返回 b=0。", "type": "number" }
+      }
+    },
+    "Matrix2dResult": {
+      "description": "matrix_2d 内核输出。所有数值由确定性内核产生（R12-AC4），按 round(v, 10) 归一以消除 -0（§2.2.3 规则 1）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ax",
+        "columns",
+        "det",
+        "trace",
+        "rank",
+        "eigenvalues",
+        "invertible",
+        "inverse",
+        "singular_reason",
+        "steps",
+        "composition",
+        "ellipse"
+      ],
+      "properties": {
+        "ax": { "description": "Ax = A·x，按 (a11*x1+a12*x2, a21*x1+a22*x2) 计算。", "$ref": "#/$defs/Vector2" },
+        "columns": {
+          "description": "两个基向量列的去向，等于 A 的两列（R6-AC7）。",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "$ref": "#/$defs/Vector2" }
+        },
+        "det": { "description": "det = a11*a22 - a12*a21。", "type": "number" },
+        "trace": { "description": "trace = a11 + a22。", "type": "number" },
+        "rank": { "description": "rank：|det|>1e-12 判 2；否则任一分量绝对值>1e-12 判 1；否则 0。", "type": "integer", "enum": [0, 1, 2] },
+        "eigenvalues": { "$ref": "#/$defs/Matrix2dEigenvalues" },
+        "invertible": { "description": "|det| > 1e-12 时为 true（R6-AC10）。", "type": "boolean" },
+        "inverse": {
+          "description": "可逆时 = [[a22, -a12], [-a21, a11]] / det；奇异时必须为 null，禁止伪造逆矩阵（R6-AC10）。",
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/Matrix2" }]
+        },
+        "singular_reason": {
+          "description": "invertible=false 时非空，契约文案：\"矩阵奇异（det=0），零空间非平凡，无法把每个点送回原位\"；可逆时为 null。",
+          "type": ["string", "null"]
+        },
+        "steps": {
+          "description": "固定两步步骤视图（R6-AC9），每步数值必须与数值表一致。",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false,
+          "prefixItems": [{ "$ref": "#/$defs/Matrix2dStepOne" }, { "$ref": "#/$defs/Matrix2dStepTwo" }]
+        },
+        "composition": {
+          "description": "复合模式下的并列结果；operation=matrix_apply 时为 null。",
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/Matrix2dComposition" }]
+        },
+        "ellipse": {
+          "description": "单位圆像的半轴长；rank<2 时为 null（R6-AC6）。",
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/Matrix2dEllipse" }]
+        }
+      }
+    }
+  }
+}

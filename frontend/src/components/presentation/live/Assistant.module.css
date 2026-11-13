@@ -1,0 +1,141 @@
+.pill {
+  position: fixed;
+  right: 18px;
+  bottom: 64px;
+  z-index: 40;
+  padding: 8px 14px;
+  border: 1px solid #c7d2fe;
+  border-radius: 20px;
+  background: #fff;
+  color: #4338ca;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: 0 6px 20px rgba(30, 41, 59, 0.18);
+  cursor: pointer;
+}
+
+.dock {
+  position: fixed;
+  right: 18px;
+  bottom: 64px;
+  z-index: 40;
+  width: 320px;
+  max-width: calc(100vw - 36px);
+  padding: 10px 12px 12px;
+  border: 1px solid #c7d2fe;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 50px rgba(30, 41, 59, 0.22);
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.dock header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #1e1b4b;
+}
+
+.dock header span {
+  flex: 1;
+  color: #6366f1;
+  font-size: 11px;
+}
+
+.dock header button {
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.message {
+  margin: 0 0 8px;
+  padding: 7px 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #f8faff;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.dock form {
+  display: flex;
+  gap: 6px;
+}
+
+.dock input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1.5px solid #c7d2fe;
+  border-radius: 9px;
+  font: inherit;
+}
+
+.dock input:focus {
+  outline: none;
+  border-color: #4f46e5;
+}
+
+.dock form button {
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: #4f46e5;
+  color: #fff;
+  cursor: pointer;
+}
+
+.lasso {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px;
+  border: 1.5px dashed #6366f1;
+  border-radius: 9px;
+  background: #eef2ff;
+  color: #4338ca;
+  cursor: pointer;
+}
+
+.lasso[aria-pressed='true'] {
+  background: #4f46e5;
+  color: #fff;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.suggestions button {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 12px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lassoLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  cursor: crosshair;
+  background: rgba(79, 70, 229, 0.04);
+  touch-action: none;
+}
+
+.lassoBox {
+  position: absolute;
+  border: 2px dashed #4f46e5;
+  background: rgba(99, 102, 241, 0.12);
+  pointer-events: none;
+}

@@ -1,0 +1,402 @@
+.page {
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 420px at 88% -10%, rgba(182, 90, 60, 0.06), transparent 60%),
+    radial-gradient(700px 360px at 4% 4%, rgba(37, 43, 40, 0.035), transparent 55%),
+    var(--paper-2);
+  color: var(--ink-700);
+}
+
+.main {
+  max-width: var(--layout-content-max, 1440px);
+  margin: 0 auto;
+  padding: 0 var(--layout-gutter, 40px) 76px;
+}
+
+.pageHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 36px;
+  padding: clamp(44px, 5vw, 72px) 0 28px;
+}
+
+.headText {
+  max-width: 900px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-family: var(--font-family-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.eyebrow::before {
+  content: '';
+  width: 22px;
+  height: 1px;
+  background: var(--color-coral);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--studio-page-title, clamp(2rem, 3.6vw, 3.2rem));
+  font-weight: var(--font-weight-black);
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+  color: var(--ink-900);
+}
+
+.lead {
+  margin: 16px 0 0;
+  max-width: 62em;
+  font-size: var(--studio-page-lead, 14px);
+  line-height: 1.8;
+  color: var(--ink-500);
+}
+
+.headNote {
+  flex: none;
+  width: 258px;
+  padding: 13px 15px;
+  border: 1px solid var(--hairline);
+  border-left: 2px solid var(--color-coral);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.headNote span {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--ink-700);
+}
+
+.headNote p {
+  margin: 5px 0 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--ink-400);
+}
+
+/* ---------------- 分类卡 ---------------- */
+
+.labTabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.labTab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-xl);
+  background: var(--paper-0);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--motion-duration-base) var(--motion-easing-out),
+    border-color var(--motion-duration-base) var(--motion-easing-out),
+    box-shadow var(--motion-duration-base) var(--motion-easing-out);
+}
+
+.labTab:hover {
+  transform: translateY(-2px);
+  border-color: var(--hairline-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.labTab:focus-visible {
+  outline: 2px solid var(--color-coral);
+  outline-offset: 3px;
+}
+
+.tabPreview {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 118px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(120% 120% at 20% 0%, rgba(79, 70, 229, 0.35), transparent 60%),
+    linear-gradient(160deg, #101d31, #0a1424);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.tabPreview::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(232, 236, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(232, 236, 255, 0.05) 1px, transparent 1px);
+  background-size: 22px 22px;
+  pointer-events: none;
+}
+
+.tabPreview svg {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tabBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 6px 6px;
+  min-width: 0;
+}
+
+.tabMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+}
+
+.tabIndex {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-300);
+}
+
+.tabSubtitle {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  color: var(--ink-400);
+}
+
+.tabName {
+  font-size: 21px;
+  font-weight: var(--font-weight-black);
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--ink-900);
+}
+
+.tabKicker {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-indigo-strong);
+}
+
+.labTab[data-accent='mint'] .tabKicker {
+  color: #0d6b5f;
+}
+
+.labTab[data-accent='amber'] .tabKicker {
+  color: #8a5208;
+}
+
+.labTab[data-accent='bronze'] .tabKicker {
+  color: var(--color-coral-ink);
+}
+
+.tabDescription {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--ink-500);
+}
+
+/* ---------------- 实验面板 ---------------- */
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 7px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: var(--paper-0);
+  color: var(--ink-700);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--motion-duration-base) var(--motion-easing-out),
+    border-color var(--motion-duration-base) var(--motion-easing-out),
+    box-shadow var(--motion-duration-base) var(--motion-easing-out);
+}
+
+.backButton:hover {
+  transform: translateY(-1px);
+  border-color: var(--hairline-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.backButton:focus-visible {
+  outline: 2px solid var(--color-coral);
+  outline-offset: 3px;
+}
+
+.labPanel {
+  margin-top: 14px;
+  scroll-margin-top: 90px;
+}
+
+.labLoading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 320px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-2xl);
+  background: var(--paper-0);
+  color: var(--ink-500);
+  font-size: var(--font-size-sm);
+}
+
+.labLoadingDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-coral);
+  box-shadow: 0 0 0 4px rgba(255, 122, 89, 0.12);
+}
+
+/* ---------------- 底部说明 ---------------- */
+
+.footNote {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 28px;
+  margin-top: 22px;
+  padding: 22px 24px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-xl);
+  background: var(--paper-0);
+  box-shadow: var(--shadow-xs);
+}
+
+.footNote h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ink-900);
+}
+
+.footNote p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-500);
+}
+
+.footNote ul {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footNote li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 11.5px;
+  line-height: 1.65;
+  color: var(--ink-500);
+}
+
+.footNote li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.68em;
+  width: 7px;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+
+.footNote li strong {
+  color: var(--ink-700);
+}
+
+@media (max-width: 1320px) {
+  .labTabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .pageHead {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .headNote {
+    width: 100%;
+  }
+
+  .labTabs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .labTab {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .tabPreview {
+    flex: none;
+    width: 190px;
+    height: 112px;
+  }
+
+  .tabBody {
+    flex: 1;
+    padding: 4px 6px 4px 0;
+  }
+
+  .footNote {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .labTab {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tabPreview {
+    width: 100%;
+    height: 104px;
+  }
+
+  .tabDescription {
+    display: none;
+  }
+}

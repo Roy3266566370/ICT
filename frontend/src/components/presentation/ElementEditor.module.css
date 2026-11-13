@@ -1,0 +1,9 @@
+.panel{width:360px;flex:none;background:white;border-left:1px solid #dddfea;display:flex;flex-direction:column;min-height:0;color:#202b43;font-size:13px}
+.panel header{padding:16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #eceef3}
+.panel header div{display:grid;gap:5px}.panel header span{font-size:11px;color:#939bab}.panel header button{border:0;background:#f3f3f8;border-radius:5px;width:28px;height:28px}
+.body{overflow:auto;padding:16px;flex:1}.field{display:grid;gap:8px;margin:16px 0;font-size:12px;color:#596176}
+.field input,.field select,.field textarea,.scroller input{font:inherit;padding:9px;border:1px solid #d6dcea;border-radius:5px;min-width:0;width:100%;box-sizing:border-box;color:#202b43;background:#fcfcfe}
+.field textarea{resize:vertical;line-height:1.6}.matrix{display:grid;grid-template-columns:1fr 1fr;gap:8px}.hint{font-size:11px;line-height:1.7;color:#8c93a3;margin:0 0 14px}.warning{background:#fff4e4;padding:9px;border-radius:6px;color:#946524;font-size:11px;line-height:1.6}
+.panel footer{padding:14px 16px;border-top:1px solid #eceef3}.save{border:0;background:#5145df;color:white;border-radius:6px;padding:11px;width:100%;font-size:12px}.save:disabled{opacity:.5;cursor:wait}
+.scroller{overflow:auto}.scroller table{width:100%;border-collapse:collapse;font-size:11px}.scroller td,.scroller th{padding:3px;min-width:80px}.scroller input{padding:7px;font-size:11px}
+@media(max-width:760px){.panel{width:100%;flex:0 1 48%;max-height:48%;border-left:0;border-top:1px solid #dddfea;min-height:180px}}

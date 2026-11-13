@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:ppt-ai:experiment:1",
+  "title": "PPT AI ExperimentDraft / Result ppt-ai.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["draft_id", "experiment_id", "recipe_id", "question", "context", "original_conditions", "supplement_conditions", "variables", "frozen_variables", "search_ranges", "comparison_scale", "stop_rule", "predicate", "candidates", "status", "review_items", "notes", "result_hash"],
+  "properties": {
+    "draft_id": {"type": "string", "minLength": 1, "maxLength": 96},
+    "experiment_id": {"type": ["string", "null"], "maxLength": 96},
+    "recipe_id": {"enum": ["compare", "counterexample", "boundary", "sensitivity"]},
+    "question": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundle_id", "bundle_revision", "branch_id", "branch_revision", "values", "evaluation_hash", "selection", "source_projection"],
+      "properties": {
+        "bundle_id": {"type": "string", "maxLength": 96},
+        "bundle_revision": {"type": "integer", "minimum": 1},
+        "branch_id": {"type": "string", "maxLength": 96},
+        "branch_revision": {"type": "integer", "minimum": 1},
+        "values": {"type": "object"},
+        "evaluation_hash": {"type": "string", "minLength": 8, "maxLength": 64},
+        "selection": {"type": "object"},
+        "source_projection": {"type": "array", "maxItems": 100, "items": {"type": "object"}}
+      }
+    },
+    "original_conditions": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/condition"}},
+    "supplement_conditions": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/condition"}},
+    "variables": {"type": "array", "maxItems": 20, "items": {"type": "string"}},
+    "frozen_variables": {"type": "array", "maxItems": 100, "items": {"type": "string"}},
+    "search_ranges": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}},
+    "comparison_scale": {"type": "string", "maxLength": 300},
+    "stop_rule": {"type": "string", "maxLength": 300},
+    "predicate": {"type": ["object", "null"]},
+    "candidates": {"type": "array", "maxItems": 500, "items": {"$ref": "#/$defs/candidate"}},
+    "status": {"enum": ["draft", "needs_review", "unsupported"]},
+    "review_items": {"type": "array", "maxItems": 40, "items": {"type": "object"}},
+    "notes": {"type": "array", "maxItems": 40, "items": {"type": "string"}},
+    "result_hash": {"type": "string", "maxLength": 64}
+  },
+  "$defs": {
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["concept_id", "label", "value", "origin_type", "note"],
+      "properties": {
+        "concept_id": {"type": "string", "maxLength": 96},
+        "label": {"type": "string", "maxLength": 120},
+        "value": {
+          "oneOf": [
+            {"type": "number"}, {"type": "boolean"}, {"type": "string"},
+            {"type": "array", "items": {"type": "number"}},
+            {"type": "array", "items": {"type": "array", "items": {"type": "number"}}}
+          ]
+        },
+        "origin_type": {"enum": ["native", "ocr", "model_inference", "user_input", "supplement", "teaching"]},
+        "note": {"type": "string", "maxLength": 300}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path_id", "label", "values", "output_value", "result", "checks", "witness"],
+      "properties": {
+        "path_id": {"type": "string", "maxLength": 96},
+        "label": {"type": "string", "maxLength": 160},
+        "values": {"type": "object"},
+        "output_value": {"type": ["number", "null"]},
+        "result": {"type": "object"},
+        "checks": {"type": "array", "maxItems": 100, "items": {"type": "object"}},
+        "witness": {"type": ["object", "null"]}
+      }
+    }
+  }
+}

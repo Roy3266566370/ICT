@@ -1,0 +1,26 @@
+# Dockerfile.frontend 专属忽略规则（BuildKit 支持 <Dockerfile>.dockerignore）。
+# 构建上下文是仓库根；只保留前端构建与 fixtures JSON 所需内容。
+**/node_modules
+**/dist
+**/__pycache__
+**/.pytest_cache
+**/*.pyc
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+
+frontend/tmp-*
+frontend/package-lock.json.bak
+
+backend
+contracts
+design
+.codeartsdoer
+.arts
+fixtures/ppt
+
+*.pptx
+*.docx
+.git
+.gitignore

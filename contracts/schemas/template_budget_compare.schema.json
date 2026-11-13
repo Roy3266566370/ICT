@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:schema:template_budget_compare:1",
+  "title": "budget_compare template contract",
+  "description": "C-BUD@1（§2.2.6）：budget_compare 的 config、表达式 AST 与 result 结构，供 T6（交互视图）、T8（内核）、T9（独立校验）共用。金额一律十进制字符串，后端用 decimal.Decimal（精度 28、ROUND_HALF_UP），禁止二进制浮点参与金额运算（R9-AC3）。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["template_id", "config"],
+  "properties": {
+    "template_id": { "description": "固定为 budget_compare。", "const": "budget_compare" },
+    "config": { "$ref": "#/$defs/BudgetCompareConfig" },
+    "result": { "$ref": "#/$defs/BudgetCompareResult" }
+  },
+  "$defs": {
+    "DecimalString": {
+      "description": "十进制字符串（可带符号），如 \"9400.00\"、\"-600.00\"。禁止 float（R9-AC3）。",
+      "type": "string",
+      "pattern": "^[+-]?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "BudgetCompareConfig": {
+      "description": "budget_compare 配置。方案固定为 plan_a / plan_b 两个，顺序即结果中 scenarios/remaining/over_budget/lines 的顺序。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "scenarios", "budget_limit_parameter_id"],
+      "properties": {
+        "operation": { "description": "首版唯一取值 compare_two_plans。", "const": "compare_two_plans" },
+        "scenarios": {
+          "description": "固定两个方案 id，顺序固定为 [\"plan_a\", \"plan_b\"]。",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false,
+          "prefixItems": [{ "const": "plan_a" }, { "const": "plan_b" }]
+        },
+        "budget_limit_parameter_id": {
+          "description": "预算上限参数 id；null 表示未设上限，此时界面不画预算线、不显示余量（R9-AC5）。",
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "AstNode": {
+      "description": "预算表达式 AST。只允许 constant / ref / add / multiply 四种节点；出现其他 op、ref 指向不存在参数或依赖成环，返回 MISSING_FIELD 并指明节点（R9-AC7）。",
+      "oneOf": [
+        {
+          "description": "constant：十进制字符串常量。",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "value"],
+          "properties": {
+            "op": { "const": "constant" },
+            "value": { "description": "常量值，十进制字符串。", "$ref": "#/$defs/DecimalString" }
+          }
+        },
+        {
+          "description": "ref：引用参数 id（不含内联数值）。",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "parameter_id"],
+          "properties": {
+            "op": { "const": "ref" },
+            "parameter_id": { "description": "被引用的参数 id，必须已定义。", "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "description": "add：求和，至少 2 个参数。",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "args"],
+          "properties": {
+            "op": { "const": "add" },
+            "args": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/AstNode" } }
+          }
+        },
+        {
+          "description": "multiply：相乘，至少 2 个参数。",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "args"],
+          "properties": {
+            "op": { "const": "multiply" },
+            "args": { "type": "array", "minItems": 2, "items": { "$ref": "#/$defs/AstNode" } }
+          }
+        }
+      ]
+    },
+    "BudgetScenario": {
+      "description": "单个方案的计算结果；scenario_id 固定为 plan_a 或 plan_b。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scenario_id", "name", "total", "per_person", "fixed"],
+      "properties": {
+        "scenario_id": { "description": "方案标识。", "enum": ["plan_a", "plan_b"] },
+        "name": { "description": "方案显示名。", "type": "string" },
+        "total": { "description": "总金额，如 \"9400.00\"。", "$ref": "#/$defs/DecimalString" },
+        "per_person": { "description": "人均金额，如 \"80.00\"。", "$ref": "#/$defs/DecimalString" },
+        "fixed": { "description": "固定金额，如 \"3000.00\"。", "$ref": "#/$defs/DecimalString" }
+      }
+    },
+    "LineSeries": {
+      "description": "供界面画直线的两点式数据，n ∈ [0, 2000]（R9-AC4）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scenario_id", "at_zero", "at_max", "slope"],
+      "properties": {
+        "scenario_id": { "description": "方案标识。", "enum": ["plan_a", "plan_b"] },
+        "at_zero": { "description": "n=0 时的总额。", "$ref": "#/$defs/DecimalString" },
+        "at_max": { "description": "n=2000 时的总额。", "$ref": "#/$defs/DecimalString" },
+        "slope": { "description": "每人增量（斜率）。", "$ref": "#/$defs/DecimalString" }
+      }
+    },
+    "BudgetCompareResult": {
+      "description": "budget_compare 内核输出。总金额统一格式化为 str(quantize(Decimal('0.01')))，如 \"9400.00\"（§2.2.6 规则 7）。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputs",
+        "scenarios",
+        "difference",
+        "equal",
+        "budget_limit",
+        "remaining",
+        "over_budget",
+        "lines",
+        "display_precision"
+      ],
+      "properties": {
+        "inputs": {
+          "description": "本次计算的标量输入。",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["people"],
+          "properties": {
+            "people": { "description": "人数 n，整数 0..2000（R9-AC1）。", "type": "integer", "minimum": 0, "maximum": 2000 }
+          }
+        },
+        "scenarios": {
+          "description": "两个方案结果，顺序固定为 [plan_a, plan_b]，与 remaining / over_budget / lines 一一对应。",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false,
+          "prefixItems": [
+            {
+              "allOf": [
+                { "$ref": "#/$defs/BudgetScenario" },
+                { "properties": { "scenario_id": { "const": "plan_a" } } }
+              ]
+            },
+            {
+              "allOf": [
+                { "$ref": "#/$defs/BudgetScenario" },
+                { "properties": { "scenario_id": { "const": "plan_b" } } }
+              ]
+            }
+          ]
+        },
+        "difference": {
+          "description": "plan_a - plan_b，带符号十进制字符串，如 \"-600.00\"、\"0.00\"。",
+          "$ref": "#/$defs/DecimalString"
+        },
+        "equal": { "description": "difference == 0 时为 true（R9-AC2）。", "type": "boolean" },
+        "budget_limit": {
+          "description": "预算上限（十进制字符串）；未设上限时为 null。",
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/DecimalString" }]
+        },
+        "remaining": {
+          "description": "余量 = limit - total，保留 2 位；budget_limit=null 时必须为 null（R9-AC5）。",
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": false,
+              "prefixItems": [{ "$ref": "#/$defs/DecimalString" }, { "$ref": "#/$defs/DecimalString" }]
+            }
+          ]
+        },
+        "over_budget": {
+          "description": "余量为负即为 true；budget_limit=null 时必须为 null（R9-AC4/AC5）。",
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": false,
+              "prefixItems": [{ "type": "boolean" }, { "type": "boolean" }]
+            }
+          ]
+        },
+        "lines": {
+          "description": "两个方案的直线数据，顺序与 scenarios 对应。",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": false,
+          "prefixItems": [
+            {
+              "allOf": [
+                { "$ref": "#/$defs/LineSeries" },
+                { "properties": { "scenario_id": { "const": "plan_a" } } }
+              ]
+            },
+            {
+              "allOf": [
+                { "$ref": "#/$defs/LineSeries" },
+                { "properties": { "scenario_id": { "const": "plan_b" } } }
+              ]
+            }
+          ]
+        },
+        "display_precision": {
+          "description": "金额展示小数位，默认 2（前端展示时去掉无意义的尾随 .00）。",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6,
+          "default": 2
+        }
+      }
+    }
+  }
+}

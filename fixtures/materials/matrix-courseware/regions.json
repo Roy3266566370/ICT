@@ -1,0 +1,748 @@
+[
+  {
+    "region_id": "rgn_s06_vectors",
+    "material_id": "mat_matrix_courseware",
+    "page": 6,
+    "bbox": {
+      "x": 0.58,
+      "y": 1.27,
+      "w": 6.67,
+      "h": 4.69
+    },
+    "coordinate_system": {
+      "view_box": [
+        1920,
+        1350
+      ],
+      "origin": [
+        640,
+        770
+      ],
+      "unit": 150,
+      "y_axis": "up"
+    },
+    "script_id": "matrix_eigen_2d",
+    "status": "confirmed",
+    "original_params": {
+      "a11": 2,
+      "a12": 1,
+      "a21": 1,
+      "a22": 2,
+      "vectors": [
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          -1
+        ]
+      ]
+    },
+    "linked_texts": [
+      {
+        "element_id": "p06_s09",
+        "bbox": {
+          "x": 7.67,
+          "y": 2.9,
+          "w": 1.75,
+          "h": 0.23
+        },
+        "template": "({x0}, {y0}) → ({x1}, {y1})",
+        "kind": "result"
+      },
+      {
+        "element_id": "p06_s12",
+        "bbox": {
+          "x": 7.67,
+          "y": 3.94,
+          "w": 1.75,
+          "h": 0.23
+        },
+        "template": "({x0}, {y0}) → ({x1}, {y1})",
+        "kind": "result"
+      },
+      {
+        "element_id": "p06_s14",
+        "bbox": {
+          "x": 7.67,
+          "y": 4.98,
+          "w": 1.75,
+          "h": 0.23
+        },
+        "template": "({x0}, {y0}) → ({x1}, {y1})",
+        "kind": "result"
+      }
+    ],
+    "assets": {
+      "page_image": "pages/s06.png",
+      "erased_image": "pages/s06_erased.png"
+    },
+    "notes": "S6 左图（整块独立图片）。矩阵 A=[[2,1],[1,2]] 由三条映射反解：(1,0)→(2,1)、(1,1)→(3,3)、(1,-1)→(1,-1)；特征值 λ=3/1，对应特征向量 (1,1)/(1,-1)。provenance=inferred",
+    "erase_bboxes": [
+      {
+        "x": 0.58,
+        "y": 1.27,
+        "w": 6.67,
+        "h": 4.69
+      }
+    ],
+    "erase_check": [
+      {
+        "region_id": "rgn_s06_vectors",
+        "bbox": {
+          "x": 0.58,
+          "y": 1.27,
+          "w": 6.67,
+          "h": 4.69
+        },
+        "status": "erased",
+        "ring_variance": 0.0,
+        "ring_pixel_count": 6572,
+        "fill_rgb": [
+          246,
+          243,
+          236
+        ],
+        "reason": null
+      }
+    ]
+  },
+  {
+    "region_id": "rgn_s09_columns",
+    "material_id": "mat_matrix_courseware",
+    "page": 9,
+    "bbox": {
+      "x": 0.58,
+      "y": 1.38,
+      "w": 7.29,
+      "h": 5.21
+    },
+    "coordinate_system": {
+      "view_box": [
+        1920,
+        1350
+      ],
+      "origin": [
+        640,
+        770
+      ],
+      "unit": 150,
+      "y_axis": "up"
+    },
+    "script_id": "matrix_columns_2d",
+    "status": "confirmed",
+    "original_params": {
+      "a11": 2,
+      "a12": 1,
+      "a21": 1,
+      "a22": 2,
+      "v1": 1,
+      "v2": 1,
+      "vector": [
+        1,
+        1
+      ],
+      "matrix": [
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "columns": [
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "basis": [
+        [
+          1,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "basis_labels": [
+        "e1",
+        "e2"
+      ],
+      "column_labels": [
+        "c1 = (2, 1)",
+        "c2 = (1, 2)"
+      ]
+    },
+    "linked_texts": [],
+    "assets": {
+      "page_image": "pages/s09.png",
+      "erased_image": "pages/s09_erased.png"
+    },
+    "notes": "S9 左图（整块独立图片）。原图标注 c₁=(2,1)、c₂=(1,2)，即矩阵的两列；虚线单位方格被拉成平行四边形。右侧说明文字为定性描述，不随参数变化。provenance=read_from_figure",
+    "erase_bboxes": [
+      {
+        "x": 0.58,
+        "y": 1.38,
+        "w": 7.29,
+        "h": 5.21
+      }
+    ],
+    "erase_check": [
+      {
+        "region_id": "rgn_s09_columns",
+        "bbox": {
+          "x": 0.58,
+          "y": 1.38,
+          "w": 7.29,
+          "h": 5.21
+        },
+        "status": "erased",
+        "ring_variance": 0.0,
+        "ring_pixel_count": 7224,
+        "fill_rgb": [
+          246,
+          243,
+          236
+        ],
+        "reason": null
+      }
+    ]
+  },
+  {
+    "region_id": "rgn_s10_order",
+    "material_id": "mat_matrix_courseware",
+    "page": 10,
+    "bbox": {
+      "x": 5.73,
+      "y": 1.76,
+      "w": 6.96,
+      "h": 5.0
+    },
+    "coordinate_system": {
+      "view_box": [
+        1920,
+        1350
+      ],
+      "origin": [
+        640,
+        770
+      ],
+      "unit": 150,
+      "y_axis": "up"
+    },
+    "script_id": "matrix_order_2d",
+    "status": "confirmed",
+    "original_params": {
+      "probe": [
+        1,
+        0
+      ],
+      "steps": {
+        "rotate": {
+          "angle_deg": 90,
+          "matrix": [
+            [
+              0,
+              -1
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "stretch": {
+          "factor_x": 2,
+          "factor_y": 1,
+          "matrix": [
+            [
+              2,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        }
+      },
+      "sequences": [
+        [
+          "rotate",
+          "stretch"
+        ],
+        [
+          "stretch",
+          "rotate"
+        ]
+      ],
+      "outcome_lengths": [
+        1,
+        2
+      ],
+      "intermediate_lengths": [
+        1,
+        2
+      ]
+    },
+    "linked_texts": [],
+    "assets": {
+      "page_image": "pages/s10.png",
+      "erased_image": "pages/s10_erased.png"
+    },
+    "notes": "S10 右图（整块独立图片）。原图三栏「输入 / 中间状态 / 输出」：先转 90° 再横拉 2 倍，长度仍是 1（已竖立，横拉无效）；先横拉 2 倍再转 90°，长度 2。provenance=read_from_figure",
+    "erase_bboxes": [
+      {
+        "x": 5.73,
+        "y": 1.76,
+        "w": 6.96,
+        "h": 5.0
+      }
+    ],
+    "erase_check": [
+      {
+        "region_id": "rgn_s10_order",
+        "bbox": {
+          "x": 5.73,
+          "y": 1.76,
+          "w": 6.96,
+          "h": 5.0
+        },
+        "status": "erased",
+        "ring_variance": 0.0,
+        "ring_pixel_count": 6912,
+        "fill_rgb": [
+          246,
+          243,
+          236
+        ],
+        "reason": null
+      }
+    ]
+  },
+  {
+    "region_id": "rgn_s14_svd",
+    "material_id": "mat_matrix_courseware",
+    "page": 14,
+    "bbox": {
+      "x": 0.75,
+      "y": 1.21,
+      "w": 11.83,
+      "h": 2.23
+    },
+    "coordinate_system": {
+      "view_box": [
+        1920,
+        1350
+      ],
+      "origin": [
+        640,
+        770
+      ],
+      "unit": 150,
+      "y_axis": "up"
+    },
+    "script_id": "svd_steps_2d",
+    "status": "confirmed",
+    "original_params": {
+      "sigma": [
+        1.618,
+        0.618
+      ],
+      "u": [
+        [
+          1,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "v": [
+        [
+          1,
+          0
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "markers": [
+        [
+          1,
+          0
+        ]
+      ],
+      "steps": [
+        "align",
+        "scale",
+        "align"
+      ],
+      "is_square": true
+    },
+    "linked_texts": [
+      {
+        "element_id": "p14_s09",
+        "bbox": {
+          "x": 5.42,
+          "y": 3.97,
+          "w": 3.54,
+          "h": 0.27
+        },
+        "template": "{s1} 与 {s2}，圆在这里才变成椭圆",
+        "kind": "result"
+      }
+    ],
+    "assets": {
+      "page_image": "pages/s14.png",
+      "erased_image": "pages/s14_erased.png"
+    },
+    "notes": "S14 三张子图（单位圆 → 沿坐标轴伸缩 → 转向输出方向），契约 bbox 取三块包络。奇异值 1.618 / 0.618 取自原页文字；标记点取 (1,0)，用于盯住第一步。provenance=partly_inferred",
+    "erase_bboxes": [
+      {
+        "x": 0.75,
+        "y": 1.21,
+        "w": 3.54,
+        "h": 2.23
+      },
+      {
+        "x": 4.9,
+        "y": 1.21,
+        "w": 3.54,
+        "h": 2.23
+      },
+      {
+        "x": 9.04,
+        "y": 1.21,
+        "w": 3.54,
+        "h": 2.23
+      }
+    ],
+    "erase_check": [
+      {
+        "region_id": "rgn_s14_svd#0",
+        "bbox": {
+          "x": 0.75,
+          "y": 1.21,
+          "w": 3.54,
+          "h": 2.23
+        },
+        "status": "erased",
+        "ring_variance": 0.0,
+        "ring_pixel_count": 3344,
+        "fill_rgb": [
+          246,
+          243,
+          236
+        ],
+        "reason": null
+      },
+      {
+        "region_id": "rgn_s14_svd#1",
+        "bbox": {
+          "x": 4.9,
+          "y": 1.21,
+          "w": 3.54,
+          "h": 2.23
+        },
+        "status": "erased",
+        "ring_variance": 0.0,
+        "ring_pixel_count": 3348,
+        "fill_rgb": [
+          246,
+          243,
+          236
+        ],
+        "reason": null
+      },
+      {
+        "region_id": "rgn_s14_svd#2",
+        "bbox": {
+          "x": 9.04,
+          "y": 1.21,
+          "w": 3.54,
+          "h": 2.23
+        },
+        "status": "erased",
+        "ring_variance": 0.0,
+        "ring_pixel_count": 3348,
+        "fill_rgb": [
+          246,
+          243,
+          236
+        ],
+        "reason": null
+      }
+    ]
+  },
+  {
+    "region_id": "rgn_s18_det_area",
+    "material_id": "mat_matrix_courseware",
+    "page": 18,
+    "bbox": {
+      "x": 0.79,
+      "y": 1.38,
+      "w": 6.42,
+      "h": 4.62
+    },
+    "coordinate_system": {
+      "view_box": [
+        1920,
+        1350
+      ],
+      "origin": [
+        640,
+        770
+      ],
+      "unit": 150,
+      "y_axis": "up"
+    },
+    "script_id": "det_area_2d",
+    "status": "confirmed",
+    "original_params": {
+      "cells": [
+        {
+          "cell_id": "unit",
+          "op": "identity",
+          "matrix": [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          "determinant": 1,
+          "area": 1,
+          "label": "单位方格"
+        },
+        {
+          "cell_id": "stretch",
+          "op": "stretch",
+          "matrix": [
+            [
+              2,
+              0
+            ],
+            [
+              0,
+              3
+            ]
+          ],
+          "determinant": 6,
+          "area": 6,
+          "label": "横向 2 倍、纵向 3 倍"
+        },
+        {
+          "cell_id": "shear",
+          "op": "shear",
+          "matrix": [
+            [
+              1,
+              1
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          "determinant": 1,
+          "area": 1,
+          "label": "剪切"
+        },
+        {
+          "cell_id": "flip",
+          "op": "flip",
+          "matrix": [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          "determinant": 0,
+          "area": 0,
+          "label": "压到横轴",
+          "note": "压扁后定向丢失（det=0），符号语义退化"
+        }
+      ],
+      "cells_order": [
+        "unit",
+        "stretch",
+        "shear",
+        "flip"
+      ]
+    },
+    "linked_texts": [
+      {
+        "element_id": "p18_s05",
+        "bbox": {
+          "x": 0.79,
+          "y": 3.35,
+          "w": 2.96,
+          "h": 0.19
+        },
+        "template": "{label}　面积 {area}",
+        "kind": "result"
+      },
+      {
+        "element_id": "p18_s08",
+        "bbox": {
+          "x": 4.25,
+          "y": 3.35,
+          "w": 2.96,
+          "h": 0.19
+        },
+        "template": "{label}　面积 {area}",
+        "kind": "result"
+      },
+      {
+        "element_id": "p18_s11",
+        "bbox": {
+          "x": 0.79,
+          "y": 6.0,
+          "w": 2.96,
+          "h": 0.19
+        },
+        "template": "{label}　面积 {area}",
+        "kind": "result"
+      },
+      {
+        "element_id": "p18_s14",
+        "bbox": {
+          "x": 4.25,
+          "y": 6.0,
+          "w": 2.96,
+          "h": 0.19
+        },
+        "template": "{label}　面积 {area}",
+        "kind": "result"
+      }
+    ],
+    "assets": {
+      "page_image": "pages/s18.png",
+      "erased_image": "pages/s18_erased.png"
+    },
+    "notes": "S18 四格（单位方格 / 横向 2 倍纵向 3 倍 / 剪切 / 压到横轴），契约 bbox 取四格包络。四格各自独立图片、落在浅色卡片内，擦除逐格进行；填充色取各自环带中位色。provenance=read_from_figure",
+    "erase_bboxes": [
+      {
+        "x": 0.79,
+        "y": 1.38,
+        "w": 2.96,
+        "h": 1.98
+      },
+      {
+        "x": 4.25,
+        "y": 1.38,
+        "w": 2.96,
+        "h": 1.98
+      },
+      {
+        "x": 0.79,
+        "y": 4.02,
+        "w": 2.96,
+        "h": 1.98
+      },
+      {
+        "x": 4.25,
+        "y": 4.02,
+        "w": 2.96,
+        "h": 1.98
+      }
+    ],
+    "erase_check": [
+      {
+        "region_id": "rgn_s18_det_area#0",
+        "bbox": {
+          "x": 0.79,
+          "y": 1.38,
+          "w": 2.96,
+          "h": 1.98
+        },
+        "status": "erased",
+        "ring_variance": 0.0,
+        "ring_pixel_count": 2872,
+        "fill_rgb": [
+          234,
+          233,
+          227
+        ],
+        "reason": null
+      },
+      {
+        "region_id": "rgn_s18_det_area#1",
+        "bbox": {
+          "x": 4.25,
+          "y": 1.38,
+          "w": 2.96,
+          "h": 1.98
+        },
+        "status": "erased",
+        "ring_variance": 0.0237,
+        "ring_pixel_count": 2868,
+        "fill_rgb": [
+          234,
+          233,
+          227
+        ],
+        "reason": null
+      },
+      {
+        "region_id": "rgn_s18_det_area#2",
+        "bbox": {
+          "x": 0.79,
+          "y": 4.02,
+          "w": 2.96,
+          "h": 1.98
+        },
+        "status": "erased",
+        "ring_variance": 0.0,
+        "ring_pixel_count": 2872,
+        "fill_rgb": [
+          234,
+          233,
+          227
+        ],
+        "reason": null
+      },
+      {
+        "region_id": "rgn_s18_det_area#3",
+        "bbox": {
+          "x": 4.25,
+          "y": 4.02,
+          "w": 2.96,
+          "h": 1.98
+        },
+        "status": "erased",
+        "ring_variance": 0.0,
+        "ring_pixel_count": 2868,
+        "fill_rgb": [
+          234,
+          233,
+          227
+        ],
+        "reason": null
+      }
+    ]
+  }
+]

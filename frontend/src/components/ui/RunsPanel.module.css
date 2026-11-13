@@ -1,0 +1,116 @@
+.list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.item {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.active {
+  border-color: var(--color-indigo);
+  box-shadow: inset 3px 0 0 var(--color-indigo);
+}
+
+.trigger {
+  display: grid;
+  gap: var(--space-1);
+  width: 100%;
+  padding: 0;
+  text-align: left;
+  color: var(--color-navy);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.runId {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-navy);
+}
+
+.time {
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-muted);
+}
+
+.meta code {
+  color: var(--color-navy);
+}
+
+.kernel {
+  font-family: var(--font-family-mono);
+  color: var(--color-navy-subtle);
+}
+
+.result {
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+}
+
+.validation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-muted);
+}
+
+.validationText {
+  color: var(--color-navy-subtle);
+}
+
+.coverage {
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.restore {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-raised);
+  color: var(--color-navy-muted);
+  font-size: var(--font-size-xs);
+  transition:
+    border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.restore:hover {
+  border-color: var(--color-indigo);
+  color: var(--color-indigo);
+}
+
+.empty {
+  margin: 0;
+  color: var(--color-navy-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}

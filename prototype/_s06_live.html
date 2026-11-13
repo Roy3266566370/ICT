@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>S6 原位动态原型 v4</title>
+<style>
+  :root{--bg:#f6f3ec;--axis:#8b9ab3;--orange:#c4622d;--navy:#16233a;--ink:#1b2a44}
+  *{box-sizing:border-box}
+  body{margin:0;background:#dcd8cf;font-family:"Microsoft YaHei","Segoe UI",system-ui,sans-serif;color:var(--ink)}
+  .wrap{width:1200px;margin:20px auto 40px;position:relative}
+  .stage{position:relative;width:1200px;height:675px;background:var(--bg);box-shadow:0 14px 44px rgba(20,30,50,.18);overflow:hidden}
+  .slideimg{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .slideimg.erased{opacity:0;transition:opacity .28s ease}
+  .stage.live .slideimg.erased{opacity:1}
+
+  /* 默认：可交互区域提示（很克制，只在悬停时显形） */
+  .hotspot{position:absolute;border-radius:6px;cursor:pointer;border:1.5px dashed transparent;transition:border-color .18s,background .18s}
+  .hotspot:hover,.hotspot:focus-visible{border-color:rgba(196,98,45,.55);background:rgba(196,98,45,.045);outline:none}
+  .hotspot .badge{position:absolute;right:8px;top:8px;display:none;align-items:center;gap:5px;font-size:11px;
+    background:rgba(22,35,58,.86);color:#fff;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .hotspot:hover .badge,.hotspot:focus-visible .badge{display:flex}
+  .stage.live .hotspot{display:none}
+
+  .region{position:absolute;opacity:0;pointer-events:none;transition:opacity .28s ease}
+  .stage.live .region{opacity:1;pointer-events:auto}
+  .region svg{display:block;width:100%;height:100%;overflow:visible}
+
+  .textlayer{position:absolute;display:none;align-items:center;font-size:12.5px}
+  .stage.live .textlayer{display:flex}
+  .textlayer .pill{background:var(--bg);padding:0 5px;border-radius:3px;white-space:nowrap;color:#243247}
+  .textlayer.changed .pill{box-shadow:0 0 0 1.5px var(--orange) inset;color:#8a4419}
+  .textlayer .tag{font-size:9.5px;color:#8d8579;margin-left:4px}
+
+  .modeTag{position:absolute;left:14px;top:12px;display:none;align-items:center;gap:8px;font-size:11.5px;color:#6b7385;
+    background:rgba(246,243,236,.92);border:1px solid #e2dccd;border-radius:999px;padding:4px 10px}
+  .stage.live .modeTag{display:flex}
+  .modeTag b{color:#a9531f;font-weight:600}
+
+  .drawer{position:absolute;right:-14px;top:58px;width:282px;background:rgba(255,255,255,.975);
+    border:1px solid #ded7c9;border-radius:10px;padding:12px 14px;box-shadow:0 12px 34px rgba(20,30,50,.16);
+    transform:translateX(calc(100% - 42px));transition:transform .22s ease;z-index:5}
+  .drawer.open{transform:translateX(0)}
+  .drawer h4{margin:0 0 8px;font-size:12.5px;color:#5b6678;font-weight:600}
+  .row{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px}
+  .row label{width:30px;color:#4a5568;font-family:ui-monospace,Consolas,monospace}
+  .row input[type=range]{flex:1;min-width:0}
+  .row input[type=number]{width:56px;padding:2px 4px;border:1px solid #d8d2c6;border-radius:4px;font-size:12px}
+  .stat{margin-top:8px;font-size:11.5px;color:#4a5568;line-height:1.7}
+  .stat code{background:#f3f0e9;padding:0 4px;border-radius:3px}
+  .handle{position:absolute;left:0;top:0;bottom:0;width:42px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:#8d8579;font-size:11px;writing-mode:vertical-rl;letter-spacing:2px;border-right:1px solid #eee7d9}
+
+  .bar{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);display:none;gap:8px;align-items:center;
+    background:rgba(27,42,68,.86);backdrop-filter:blur(6px);padding:8px 12px;border-radius:999px;z-index:6}
+  .stage.live .bar{display:flex}
+  .bar button{border:0;background:rgba(255,255,255,.14);color:#fff;padding:6px 14px;border-radius:999px;font-size:12.5px;cursor:pointer}
+  .bar button.primary{background:#e07a3f}
+  .bar button:focus-visible{outline:2px solid #ffd7bd;outline-offset:2px}
+  .bar .sep{width:1px;height:18px;background:rgba(255,255,255,.28)}
+  .bar .pos{color:#cfd8e6;font-size:11.5px;padding:0 4px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage live" id="stage">
+    <img class="slideimg original" src="../fixtures/pages/s06.png" alt="PPT 第 6 页原貌">
+    <img class="slideimg erased" src="../fixtures/pages/s06_erased.png" alt="">
+
+    <!-- 默认可交互热区（点它才进入交互） -->
+    <div class="hotspot" id="hotspot" role="button" tabindex="0" aria-label="激活此图示：矩阵作用在三条向量上"
+         style="left:4.346%;top:16.933%;width:50.025%;height:62.533%">
+      <span class="badge">点击激活此图示</span>
+    </div>
+
+    <div class="modeTag">已激活：<b>矩阵作用在三条向量上</b>　·　拖端点或调参数，右侧文字同步</div>
+
+    <div class="region" style="left:4.346%;top:16.933%;width:50.025%;height:62.533%">
+      <svg id="dyn" viewBox="0 0 1920 1350" preserveAspectRatio="xMidYMid meet" role="img"
+           aria-label="矩阵作用在三条向量上：浅色虚线为原向量，实线为变换后的像，可拖动端点">
+        <defs>
+          <marker id="arwAxis" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8b9ab3"/></marker>
+          <marker id="arwNavy" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#16233a"/></marker>
+          <marker id="arwOrange" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#c4622d"/></marker>
+          <marker id="arwGhost" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#a9b4c7"/></marker>
+        </defs>
+
+        <g id="ticks" stroke="#8b9ab3" stroke-width="1.8" opacity=".8"></g>
+        <g stroke="#8b9ab3" stroke-width="1.8" fill="none">
+          <line x1="120" y1="770" x2="1700" y2="770" marker-end="url(#arwAxis)"/>
+          <line x1="640" y1="1270" x2="640" y2="120" marker-end="url(#arwAxis)"/>
+        </g>
+        <circle cx="640" cy="770" r="5" fill="#16233a"/>
+
+        <circle cx="640" cy="770" r="150" fill="none" stroke="#8494ad" stroke-width="2.2" stroke-dasharray="9 7"/>
+        <text x="470" y="778" text-anchor="end" font-size="26" font-weight="600" fill="#6f7f99">单位圆</text>
+
+        <path id="ellipse" fill="#c4622d" fill-opacity="0.055" stroke="#c4622d" stroke-width="3.2"/>
+        <text id="ellipseLabel" x="1075" y="1120" font-size="25" font-weight="600" fill="#a9531f">变换后：椭圆</text>
+
+        <g id="imageVectors" stroke-width="3.2" fill="none">
+          <line class="iv" data-i="0" stroke="#16233a" marker-end="url(#arwNavy)"/>
+          <line class="iv" data-i="1" stroke="#c4622d" marker-end="url(#arwOrange)"/>
+          <line class="iv" data-i="2" stroke="#c4622d" marker-end="url(#arwOrange)"/>
+        </g>
+
+        <g id="ghost" stroke="#a9b4c7" stroke-width="3.2" fill="none" stroke-dasharray="9 8" opacity=".95">
+          <line class="gv" data-i="0" marker-end="url(#arwGhost)"/>
+          <line class="gv" data-i="1" marker-end="url(#arwGhost)"/>
+          <line class="gv" data-i="2" marker-end="url(#arwGhost)"/>
+        </g>
+        <g id="ghostDots" fill="#9fabbd">
+          <circle class="gd" data-i="0" r="5"/><circle class="gd" data-i="1" r="5"/><circle class="gd" data-i="2" r="5"/>
+        </g>
+        <g id="ghostLabels" font-size="23" fill="#8b97ab" font-weight="600">
+          <text class="gl" data-i="0"></text><text class="gl" data-i="1"></text><text class="gl" data-i="2"></text>
+        </g>
+
+        <g id="labels" font-size="26" font-weight="600">
+          <text class="lb" data-i="0" fill="#16233a"></text>
+          <text class="lb" data-i="1" fill="#c4622d"></text>
+          <text class="lb" data-i="2" fill="#c4622d"></text>
+        </g>
+        <g id="scaleLabels" font-size="25" font-weight="700" fill="#c4622d" stroke="#f6f3ec" stroke-width="5" paint-order="stroke">
+          <text class="sl" data-i="0"></text><text class="sl" data-i="1"></text><text class="sl" data-i="2"></text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="textlayer" id="tl0" style="left:57.53%;top:38.67%;width:13.13%;height:3.4%"><span class="pill"></span></div>
+    <div class="textlayer" id="tl1" style="left:57.53%;top:52.53%;width:13.13%;height:3.4%"><span class="pill"></span></div>
+    <div class="textlayer" id="tl2" style="left:57.53%;top:66.4%;width:13.13%;height:3.4%"><span class="pill"></span></div>
+
+    <div class="drawer" id="drawer">
+      <div class="handle" id="handle">参数</div>
+      <h4>矩阵 A（作用于本页图示）</h4>
+      <div class="row"><label>a11</label><input id="a11" type="range" min="-3" max="3" step="0.1" value="2"><input id="a11n" type="number" min="-3" max="3" step="0.1" value="2"></div>
+      <div class="row"><label>a12</label><input id="a12" type="range" min="-3" max="3" step="0.1" value="1"><input id="a12n" type="number" min="-3" max="3" step="0.1" value="1"></div>
+      <div class="row"><label>a21</label><input id="a21" type="range" min="-3" max="3" step="0.1" value="1"><input id="a21n" type="number" min="-3" max="3" step="0.1" value="1"></div>
+      <div class="row"><label>a22</label><input id="a22" type="range" min="-3" max="3" step="0.1" value="2"><input id="a22n" type="number" min="-3" max="3" step="0.1" value="2"></div>
+      <div class="stat" id="stat"></div>
+    </div>
+
+    <div class="bar">
+      <button class="primary" id="play">播放</button>
+      <button id="pause">暂停</button>
+      <button id="step">单步</button>
+      <span class="sep"></span>
+      <span class="pos" id="pos">步骤 2/2</span>
+      <span class="sep"></span>
+      <button id="reset">恢复原稿</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const OX=640, OY=770, U=150;
+const ORIGINAL={a11:2,a12:1,a21:1,a22:2};
+const ORIG_V=[[1,0],[1,1],[1,-1]];
+const state={A:{...ORIGINAL}, V:ORIG_V.map(v=>[...v]), stage:2, timer:null, drag:null};
+const $=id=>document.getElementById(id);
+const sx=x=>OX+x*U, sy=y=>OY-y*U;
+const apply=(A,v)=>[A.a11*v[0]+A.a12*v[1], A.a21*v[0]+A.a22*v[1]];
+const fmt=n=>{const r=Math.round(n*100)/100;return Math.abs(r-Math.round(r))<1e-9?String(Math.round(r)):String(r);};
+
+(function ticks(){
+  let s='';
+  for(let k=-4;k<=7;k++){
+    if(k===0) continue;
+    const X=sx(k);
+    if(X>150&&X<1660){
+      s+=`<line x1="${X}" y1="761" x2="${X}" y2="779"/>`;
+      s+=`<text x="${X}" y="812" text-anchor="middle" font-size="20" fill="#8b97ab" font-weight="600">${k}</text>`;
+    }
+    const Y=sy(k);
+    if(Y>140&&Y<1240){
+      s+=`<line x1="631" y1="${Y}" x2="649" y2="${Y}"/>`;
+      s+=`<text x="612" y="${Y+7}" text-anchor="end" font-size="20" fill="#8b97ab" font-weight="600">${k}</text>`;
+    }
+  }
+  $('ticks').innerHTML=s;
+})();
+
+function ellipsePath(A){
+  const pts=[];
+  for(let i=0;i<=180;i++){
+    const t=i/180*Math.PI*2, p=apply(A,[Math.cos(t),Math.sin(t)]);
+    pts.push(sx(p[0]).toFixed(1)+','+sy(p[1]).toFixed(1));
+  }
+  return 'M'+pts.join('L')+'Z';
+}
+function eigenInfo(A){
+  const tr=A.a11+A.a22, det=A.a11*A.a22-A.a12*A.a21, disc=tr*tr-4*det;
+  if(disc<0) return {real:false,det,tr};
+  const r=Math.sqrt(disc); return {real:true,det,tr,values:[(tr+r)/2,(tr-r)/2]};
+}
+function eigenScale(A,v){
+  const p=apply(A,v), cross=v[0]*p[1]-v[1]*p[0], den=v[0]*v[0]+v[1]*v[1];
+  if(den<1e-12) return null;
+  if(Math.abs(cross)>1e-7*Math.max(1,Math.abs(p[0])+Math.abs(p[1]))) return null;
+  const s=(v[0]*p[0]+v[1]*p[1])/den;
+  return Math.abs(s)<1e-9?null:s;
+}
+
+function render(){
+  const A=state.A;
+  $('ellipse').setAttribute('d',ellipsePath(A));
+  const o=state.stage>=2?1:0;
+  $('ellipse').style.opacity=o; $('ellipseLabel').style.opacity=o?0.95:0;
+  $('imageVectors').style.opacity=o; $('labels').style.opacity=o; $('scaleLabels').style.opacity=o;
+
+  document.querySelectorAll('.gv').forEach((el,i)=>{
+    const v=state.V[i];
+    el.setAttribute('x1',sx(0));el.setAttribute('y1',sy(0));
+    el.setAttribute('x2',sx(v[0]));el.setAttribute('y2',sy(v[1]));
+  });
+  document.querySelectorAll('.gd').forEach((el,i)=>{
+    const v=state.V[i];el.setAttribute('cx',sx(v[0]));el.setAttribute('cy',sy(v[1]));
+  });
+  document.querySelectorAll('.gl').forEach((el,i)=>{
+    const v=state.V[i];
+    let dx,dy,anchor;
+    if(v[1]>0.2){dx=-12;dy=-14;anchor='end';}
+    else if(v[1]<-0.2){dx=-12;dy=30;anchor='end';}
+    else {dx=0;dy=-18;anchor='middle';}
+    el.setAttribute('x',sx(v[0])+dx);el.setAttribute('y',sy(v[1])+dy);
+    el.setAttribute('text-anchor',anchor);
+    el.textContent='('+fmt(v[0])+','+fmt(v[1])+')';
+  });
+
+  document.querySelectorAll('.iv').forEach((el,i)=>{
+    const p=apply(A,state.V[i]);
+    el.setAttribute('x1',sx(0));el.setAttribute('y1',sy(0));
+    el.setAttribute('x2',sx(p[0]));el.setAttribute('y2',sy(p[1]));
+  });
+  document.querySelectorAll('.lb').forEach((el,i)=>{
+    const p=apply(A,state.V[i]);
+    const dx=p[0]>=0?16:-16, dy=p[1]>=0?-14:34;
+    el.setAttribute('x',sx(p[0])+dx);el.setAttribute('y',sy(p[1])+dy);
+    el.setAttribute('text-anchor',p[0]>=0?'start':'end');
+    el.textContent='('+fmt(p[0])+','+fmt(p[1])+')';
+  });
+  document.querySelectorAll('.sl').forEach((el,i)=>{
+    const v=state.V[i], s=eigenScale(A,v);
+    if(s===null||state.stage<2){el.textContent='';return;}
+    const p=apply(A,[v[0]*0.6,v[1]*0.6]);
+    el.setAttribute('x',sx(p[0])+(p[0]>=0?18:-18));
+    el.setAttribute('y',sy(p[1])+(p[1]>=0?-18:26));
+    el.setAttribute('text-anchor',p[0]>=0?'start':'end');
+    el.textContent='×'+fmt(s);
+  });
+
+  for(let i=0;i<3;i++){
+    const v=state.V[i],p=apply(A,v),o0=ORIG_V[i];
+    const changed=Math.abs(v[0]-o0[0])>1e-9||Math.abs(v[1]-o0[1])>1e-9||
+      Math.abs(A.a11-ORIGINAL.a11)>1e-9||Math.abs(A.a12-ORIGINAL.a12)>1e-9||
+      Math.abs(A.a21-ORIGINAL.a21)>1e-9||Math.abs(A.a22-ORIGINAL.a22)>1e-9;
+    const box=$('tl'+i);
+    box.classList.toggle('changed',changed);
+    box.querySelector('.pill').textContent='('+fmt(v[0])+', '+fmt(v[1])+') → ('+fmt(p[0])+', '+fmt(p[1])+')';
+    const tag=box.querySelector('.tag');
+    if(changed&&!tag){const t=document.createElement('span');t.className='tag';t.textContent='当前值';box.appendChild(t);}
+    if(!changed&&tag) tag.remove();
+  }
+
+  const eg=eigenInfo(A);
+  $('stat').innerHTML='det A = <code>'+fmt(eg.det)+'</code>　tr A = <code>'+fmt(eg.tr)+'</code><br>'+
+    (eg.real?'特征值 <code>'+eg.values.map(x=>fmt(x)).join(' / ')+'</code>':'特征值为复数（旋转型）');
+  $('pos').textContent='步骤 '+state.stage+'/2';
+}
+
+function setA(k,val){
+  const n=Number(val); if(!Number.isFinite(n)) return;
+  const v=Math.max(-3,Math.min(3,Math.round(n*10)/10));
+  state.A[k]=v; $(k).value=v; $(k+'n').value=v; render();
+}
+['a11','a12','a21','a22'].forEach(k=>{
+  $(k).addEventListener('input',e=>setA(k,e.target.value));
+  $(k+'n').addEventListener('change',e=>setA(k,e.target.value));
+});
+
+document.querySelectorAll('.gd').forEach(dot=>{
+  const i=Number(dot.dataset.i);
+  dot.style.cursor='grab';
+  dot.addEventListener('pointerdown',e=>{state.drag=i;dot.setPointerCapture?.(e.pointerId);});
+  dot.addEventListener('pointermove',e=>{
+    if(state.drag!==i) return;
+    const r=$('dyn').getBoundingClientRect();
+    const mx=((e.clientX-r.left)/r.width*1920-OX)/U;
+    const my=(OY-(e.clientY-r.top)/r.height*1350)/U;
+    state.V[i]=[Math.round(mx*10)/10,Math.round(my*10)/10]; render();
+  });
+  ['pointerup','pointercancel'].forEach(t=>dot.addEventListener(t,()=>{state.drag=null;}));
+});
+
+function activate(){ $('stage').classList.add('live'); render(); }
+$('hotspot').addEventListener('click',activate);
+$('hotspot').addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();activate();} });
+
+function stop(){ if(state.timer){clearInterval(state.timer);state.timer=null;} }
+$('play').onclick=()=>{stop();state.stage=0;render();
+  state.timer=setInterval(()=>{ if(state.stage>=2){stop();return;} state.stage++;render(); },1100);};
+$('step').onclick=()=>{stop();state.stage=state.stage>=2?0:state.stage+1;render();};
+$('pause').onclick=()=>stop();
+$('reset').onclick=()=>{stop();state.A={...ORIGINAL};state.V=ORIG_V.map(v=>[...v]);state.stage=2;
+  ['a11','a12','a21','a22'].forEach(k=>{$(k).value=ORIGINAL[k];$(k+'n').value=ORIGINAL[k];});
+  $('stage').classList.remove('live'); render();};
+$('handle').onclick=()=>$('drawer').classList.toggle('open');
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+{
+  "schema_version": "0.2",
+  "object_id": "obj_example_force_2d",
+  "title": "力与向量：两力合成",
+  "material_id": null,
+  "model_version": 1,
+  "revision": 0,
+  "template_id": "force_2d",
+  "kernel_version": "force_v1",
+  "config": {
+    "operation": "resultant",
+    "angle_unit": "deg",
+    "display_precision": 2,
+    "compute_precision": 6
+  },
+  "parameters": [
+    {
+      "id": "force_list",
+      "name": "共点力（大小 N / 方向 °）",
+      "type": "force_list",
+      "value": [
+        { "magnitude": "10", "angle_deg": 0 },
+        { "magnitude": "10", "angle_deg": 90 }
+      ],
+      "unit": "N",
+      "range": { "min": 0, "max": 1000, "step": 0.1 },
+      "source_ref_ids": ["src_example_force"],
+      "provenance": "manual_demo",
+      "editable": true
+    }
+  ],
+  "views": ["geometry", "numeric_table", "sources"],
+  "bindings": [
+    { "parameter_id": "force_list", "view_id": "geometry", "target": "vectors.list" },
+    { "parameter_id": "force_list", "view_id": "numeric_table", "target": "table.forces" }
+  ],
+  "source_refs": [
+    {
+      "id": "src_example_force",
+      "provenance": "manual_demo",
+      "label": "示例预置：力与向量",
+      "material_id": null,
+      "page": null,
+      "element_id": null,
+      "bbox": null,
+      "excerpt": "手工构造的示例对象，含两个等大垂直共点力；不来自任何 PPT 解析结果。"
+    }
+  ],
+  "validation_profile": "force_2d_v1_full",
+  "created_at": "2026-11-01T00:00:00Z",
+  "updated_at": "2026-11-01T00:00:00Z"
+}

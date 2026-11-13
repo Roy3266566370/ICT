@@ -1,0 +1,82 @@
+/**
+ * TableSpecView.module.css —— 表格视图样式（等宽字体 + 数值对齐）。
+ */
+
+.root {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid #d9d2c2;
+  border-radius: var(--radius-sm);
+  background: #fffdf7;
+}
+
+.title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--ink-900, #121b27);
+}
+
+.scroller {
+  max-height: 360px;
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm);
+}
+
+.headCell {
+  position: sticky;
+  top: 0;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid #8b9ab3;
+  background: #fffdf7;
+  color: var(--ink-900, #121b27);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cell {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid #e6e0d4;
+  color: var(--ink-900, #121b27);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.cell[data-missing='true'] {
+  color: #8b9ab3;
+}
+
+.badge {
+  justify-self: start;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-coral-ink, #b8431f);
+  border-radius: var(--radius-pill);
+  color: var(--color-coral-ink, #b8431f);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.missing {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed #8b9ab3;
+  border-radius: var(--radius-sm);
+  color: #8a5a12;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+}
+
+.truncated {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: #8b9ab3;
+}

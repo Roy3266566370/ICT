@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:xiangsheng:ppt-ai:manifest:1",
+  "title": "PPT AI InteractionBundle ppt-ai.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "bundle_id", "bundle_revision", "schema_version", "material_id",
+    "source_revision", "source_hash", "registry_version", "status",
+    "content_hash", "plans", "graph", "compiled", "seed_values", "created_at"
+  ],
+  "properties": {
+    "bundle_id": {"type": "string", "minLength": 1, "maxLength": 96},
+    "bundle_revision": {"type": "integer", "minimum": 1},
+    "schema_version": {"enum": ["ppt-ai.1", "ppt-ai.2"]},
+    "material_id": {"type": "string", "minLength": 1, "maxLength": 96},
+    "source_revision": {"type": "integer", "minimum": 0},
+    "source_hash": {"type": "string", "minLength": 8, "maxLength": 64},
+    "registry_version": {"type": "string", "minLength": 1, "maxLength": 64},
+    "status": {"enum": ["draft", "active", "superseded"]},
+    "content_hash": {"type": "string", "minLength": 8, "maxLength": 64},
+    "plans": {"type": "array", "maxItems": 100, "items": {"type": "object"}},
+    "graph": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "relations", "candidates", "conflicts", "graph_revision"],
+      "properties": {
+        "nodes": {"type": "array", "maxItems": 2000, "items": {"type": "object"}},
+        "relations": {"type": "array", "maxItems": 2000, "items": {"type": "object"}},
+        "candidates": {"type": "array", "maxItems": 1000, "items": {"type": "object"}},
+        "conflicts": {"type": "array", "maxItems": 200, "items": {"type": "object"}},
+        "graph_revision": {"type": "integer", "minimum": 1},
+        "dependency_order": {"type": "array", "maxItems": 200, "items": {"type": "string"}}
+      }
+    },
+    "compiled": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "order", "ispecs", "checks", "resources", "view_contract_version"],
+      "properties": {
+        "nodes": {"type": "array", "maxItems": 200, "items": {"type": "object"}},
+        "order": {"type": "array", "maxItems": 200, "items": {"type": "string"}},
+        "ispecs": {"type": "array", "maxItems": 200, "items": {"type": "object"}},
+        "checks": {"type": "array", "maxItems": 200, "items": {"type": "object"}},
+        "resources": {"type": "array", "maxItems": 100, "items": {"type": "object"}},
+        "view_contract_version": {"type": "string", "minLength": 1, "maxLength": 64}
+      }
+    },
+    "seed_values": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {"type": "number"},
+          {"type": "boolean"},
+          {"type": "string"},
+          {"type": "array", "items": {"type": "number"}},
+          {"type": "array", "items": {"type": "array", "items": {"type": "number"}}}
+        ]
+      }
+    },
+    "created_at": {"type": "string", "minLength": 10, "maxLength": 32}
+  }
+}

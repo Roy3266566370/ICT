@@ -1,0 +1,1112 @@
+{
+  "schema_version": "1.0",
+  "material_id": "mat_matrix_courseware",
+  "ispecs": [
+    {
+      "spec_version": "1.0",
+      "object_id": "spec_rgn_s06_vectors",
+      "title": "三条向量，各去哪了",
+      "kind": "geometric",
+      "parameters": [
+        {
+          "id": "a11",
+          "label": "a11",
+          "type": "integer",
+          "default": 2,
+          "source": {
+            "page": 6,
+            "element_id": "p06_s09",
+            "bbox": {
+              "x": 7.67,
+              "y": 2.9,
+              "w": 1.75,
+              "h": 0.23
+            },
+            "status": "confirmed",
+            "excerpt": "01 · 特征向量"
+          }
+        },
+        {
+          "id": "a12",
+          "label": "a12",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 6,
+            "element_id": "p06_s09",
+            "bbox": {
+              "x": 7.67,
+              "y": 2.9,
+              "w": 1.75,
+              "h": 0.23
+            },
+            "status": "confirmed",
+            "excerpt": "01 · 特征向量"
+          }
+        },
+        {
+          "id": "a21",
+          "label": "a21",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 6,
+            "element_id": "p06_s09",
+            "bbox": {
+              "x": 7.67,
+              "y": 2.9,
+              "w": 1.75,
+              "h": 0.23
+            },
+            "status": "confirmed",
+            "excerpt": "01 · 特征向量"
+          }
+        },
+        {
+          "id": "a22",
+          "label": "a22",
+          "type": "integer",
+          "default": 2,
+          "source": {
+            "page": 6,
+            "element_id": "p06_s09",
+            "bbox": {
+              "x": 7.67,
+              "y": 2.9,
+              "w": 1.75,
+              "h": 0.23
+            },
+            "status": "confirmed",
+            "excerpt": "01 · 特征向量"
+          }
+        }
+      ],
+      "expressions": [],
+      "views": [
+        {
+          "type": "figure",
+          "spec_ref": "circle_ellipse",
+          "title": "三条向量，各去哪了"
+        },
+        {
+          "type": "text",
+          "template": "A = [[{{a11}}, {{a12}}], [{{a21}}, {{a22}}]]",
+          "title": "与原页同步"
+        }
+      ],
+      "constraints": [],
+      "checks": [
+        {
+          "id": "C1",
+          "type": "source_match",
+          "page": 6,
+          "expect": "参数与第 6 页原文一致（excerpt 取自 slides.json）"
+        }
+      ],
+      "notes": "S6 左图（整块独立图片）。矩阵 A=[[2,1],[1,2]] 由三条映射反解：(1,0)→(2,1)、(1,1)→(3,3)、(1,-1)→(1,-1)；特征值 λ=3/1，对应特征向量 (1,1)/(1,-1)。provenance=inferred；原参数 vectors 为数组，iSpec 参数只支持标量，已跳过。"
+    },
+    {
+      "spec_version": "1.0",
+      "object_id": "spec_rgn_s09_columns",
+      "title": "矩阵的每一列是一个基向量的去向",
+      "kind": "geometric",
+      "parameters": [
+        {
+          "id": "a11",
+          "label": "a11",
+          "type": "integer",
+          "default": 2,
+          "source": {
+            "page": 9,
+            "element_id": null,
+            "bbox": null,
+            "status": "confirmed",
+            "excerpt": "矩阵的每一列是一个基向量的去向"
+          }
+        },
+        {
+          "id": "a12",
+          "label": "a12",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 9,
+            "element_id": null,
+            "bbox": null,
+            "status": "confirmed",
+            "excerpt": "矩阵的每一列是一个基向量的去向"
+          }
+        },
+        {
+          "id": "a21",
+          "label": "a21",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 9,
+            "element_id": null,
+            "bbox": null,
+            "status": "confirmed",
+            "excerpt": "矩阵的每一列是一个基向量的去向"
+          }
+        },
+        {
+          "id": "a22",
+          "label": "a22",
+          "type": "integer",
+          "default": 2,
+          "source": {
+            "page": 9,
+            "element_id": null,
+            "bbox": null,
+            "status": "confirmed",
+            "excerpt": "矩阵的每一列是一个基向量的去向"
+          }
+        },
+        {
+          "id": "v1",
+          "label": "v1",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 9,
+            "element_id": null,
+            "bbox": null,
+            "status": "confirmed",
+            "excerpt": "矩阵的每一列是一个基向量的去向"
+          }
+        },
+        {
+          "id": "v2",
+          "label": "v2",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 9,
+            "element_id": null,
+            "bbox": null,
+            "status": "confirmed",
+            "excerpt": "矩阵的每一列是一个基向量的去向"
+          }
+        }
+      ],
+      "expressions": [],
+      "views": [
+        {
+          "type": "figure",
+          "spec_ref": "grid_transform",
+          "title": "矩阵的每一列是一个基向量的去向"
+        },
+        {
+          "type": "text",
+          "template": "A = [[{{a11}}, {{a12}}], [{{a21}}, {{a22}}]]",
+          "title": "与原页同步"
+        }
+      ],
+      "constraints": [],
+      "checks": [
+        {
+          "id": "C1",
+          "type": "source_match",
+          "page": 9,
+          "expect": "参数与第 9 页原文一致（excerpt 取自 slides.json）"
+        }
+      ],
+      "notes": "S9 左图（整块独立图片）。原图标注 c₁=(2,1)、c₂=(1,2)，即矩阵的两列；虚线单位方格被拉成平行四边形。右侧说明文字为定性描述，不随参数变化。provenance=read_from_figure；原参数 vector 为数组，iSpec 参数只支持标量，已跳过。；原参数 matrix 为数组，iSpec 参数只支持标量，已跳过。；原参数 columns 为数组，iSpec 参数只支持标量，已跳过。；原参数 basis 为数组，iSpec 参数只支持标量，已跳过。；原参数 basis_labels 为数组，iSpec 参数只支持标量，已跳过。；原参数 column_labels 为数组，iSpec 参数只支持标量，已跳过。"
+    },
+    {
+      "spec_version": "1.0",
+      "object_id": "spec_rgn_s10_order",
+      "title": "为什么换个顺序结果就不一样",
+      "kind": "step",
+      "parameters": [
+        {
+          "id": "steps_rotate_angle_deg",
+          "label": "steps / rotate / angle_deg",
+          "type": "integer",
+          "default": 90,
+          "source": {
+            "page": 10,
+            "element_id": null,
+            "bbox": null,
+            "status": "confirmed",
+            "excerpt": "为什么换个顺序结果就不一样"
+          }
+        },
+        {
+          "id": "steps_stretch_factor_x",
+          "label": "steps / stretch / factor_x",
+          "type": "integer",
+          "default": 2,
+          "source": {
+            "page": 10,
+            "element_id": null,
+            "bbox": null,
+            "status": "confirmed",
+            "excerpt": "为什么换个顺序结果就不一样"
+          }
+        },
+        {
+          "id": "steps_stretch_factor_y",
+          "label": "steps / stretch / factor_y",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 10,
+            "element_id": null,
+            "bbox": null,
+            "status": "confirmed",
+            "excerpt": "为什么换个顺序结果就不一样"
+          }
+        }
+      ],
+      "expressions": [],
+      "views": [
+        {
+          "type": "figure",
+          "spec_ref": "step_diagram",
+          "title": "为什么换个顺序结果就不一样"
+        },
+        {
+          "type": "text",
+          "template": "为什么换个顺序结果就不一样 · steps_rotate_angle_deg = {{steps_rotate_angle_deg}}",
+          "title": "与原页同步"
+        }
+      ],
+      "constraints": [],
+      "checks": [
+        {
+          "id": "C1",
+          "type": "source_match",
+          "page": 10,
+          "expect": "参数与第 10 页原文一致（excerpt 取自 slides.json）"
+        }
+      ],
+      "notes": "S10 右图（整块独立图片）。原图三栏「输入 / 中间状态 / 输出」：先转 90° 再横拉 2 倍，长度仍是 1（已竖立，横拉无效）；先横拉 2 倍再转 90°，长度 2。provenance=read_from_figure；原参数 probe 为数组，iSpec 参数只支持标量，已跳过。；原参数 steps.rotate.matrix 为数组，iSpec 参数只支持标量，已跳过。；原参数 steps.stretch.matrix 为数组，iSpec 参数只支持标量，已跳过。；原参数 sequences 为数组，iSpec 参数只支持标量，已跳过。；原参数 outcome_lengths 为数组，iSpec 参数只支持标量，已跳过。；原参数 intermediate_lengths 为数组，iSpec 参数只支持标量，已跳过。"
+    },
+    {
+      "spec_version": "1.0",
+      "object_id": "spec_rgn_s14_svd",
+      "title": "圆变成椭圆：SVD 的三步",
+      "kind": "geometric",
+      "parameters": [
+        {
+          "id": "is_square",
+          "label": "is_square",
+          "type": "boolean",
+          "default": true,
+          "source": {
+            "page": 14,
+            "element_id": "p14_s09",
+            "bbox": {
+              "x": 5.42,
+              "y": 3.97,
+              "w": 3.54,
+              "h": 0.27
+            },
+            "status": "confirmed",
+            "excerpt": "02 · 奇异值分解"
+          }
+        }
+      ],
+      "expressions": [],
+      "views": [
+        {
+          "type": "figure",
+          "spec_ref": "step_diagram",
+          "title": "圆变成椭圆：SVD 的三步"
+        },
+        {
+          "type": "text",
+          "template": "圆变成椭圆：SVD 的三步 · is_square = {{is_square}}",
+          "title": "与原页同步"
+        }
+      ],
+      "constraints": [],
+      "checks": [
+        {
+          "id": "C1",
+          "type": "source_match",
+          "page": 14,
+          "expect": "参数与第 14 页原文一致（excerpt 取自 slides.json）"
+        }
+      ],
+      "notes": "S14 三张子图（单位圆 → 沿坐标轴伸缩 → 转向输出方向），契约 bbox 取三块包络。奇异值 1.618 / 0.618 取自原页文字；标记点取 (1,0)，用于盯住第一步。provenance=partly_inferred；原参数 sigma 为数组，iSpec 参数只支持标量，已跳过。；原参数 u 为数组，iSpec 参数只支持标量，已跳过。；原参数 v 为数组，iSpec 参数只支持标量，已跳过。；原参数 markers 为数组，iSpec 参数只支持标量，已跳过。；原参数 steps 为数组，iSpec 参数只支持标量，已跳过。"
+    },
+    {
+      "spec_version": "1.0",
+      "object_id": "spec_rgn_s18_det_area",
+      "title": "一块小方格怎样改变",
+      "kind": "step",
+      "parameters": [
+        {
+          "id": "cells_0_cell_id",
+          "label": "cells / 0 / cell_id",
+          "type": "string",
+          "default": "unit",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_0_op",
+          "label": "cells / 0 / op",
+          "type": "string",
+          "default": "identity",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_0_matrix_0_0",
+          "label": "cells / 0 / matrix / 0 / 0",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_0_matrix_0_1",
+          "label": "cells / 0 / matrix / 0 / 1",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_0_matrix_1_0",
+          "label": "cells / 0 / matrix / 1 / 0",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_0_matrix_1_1",
+          "label": "cells / 0 / matrix / 1 / 1",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_0_determinant",
+          "label": "cells / 0 / determinant",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_0_area",
+          "label": "cells / 0 / area",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_0_label",
+          "label": "cells / 0 / label",
+          "type": "string",
+          "default": "单位方格",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_1_cell_id",
+          "label": "cells / 1 / cell_id",
+          "type": "string",
+          "default": "stretch",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_1_op",
+          "label": "cells / 1 / op",
+          "type": "string",
+          "default": "stretch",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_1_matrix_0_0",
+          "label": "cells / 1 / matrix / 0 / 0",
+          "type": "integer",
+          "default": 2,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_1_matrix_0_1",
+          "label": "cells / 1 / matrix / 0 / 1",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_1_matrix_1_0",
+          "label": "cells / 1 / matrix / 1 / 0",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_1_matrix_1_1",
+          "label": "cells / 1 / matrix / 1 / 1",
+          "type": "integer",
+          "default": 3,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_1_determinant",
+          "label": "cells / 1 / determinant",
+          "type": "integer",
+          "default": 6,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_1_area",
+          "label": "cells / 1 / area",
+          "type": "integer",
+          "default": 6,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_1_label",
+          "label": "cells / 1 / label",
+          "type": "string",
+          "default": "横向 2 倍、纵向 3 倍",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_2_cell_id",
+          "label": "cells / 2 / cell_id",
+          "type": "string",
+          "default": "shear",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_2_op",
+          "label": "cells / 2 / op",
+          "type": "string",
+          "default": "shear",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_2_matrix_0_0",
+          "label": "cells / 2 / matrix / 0 / 0",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_2_matrix_0_1",
+          "label": "cells / 2 / matrix / 0 / 1",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_2_matrix_1_0",
+          "label": "cells / 2 / matrix / 1 / 0",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_2_matrix_1_1",
+          "label": "cells / 2 / matrix / 1 / 1",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_2_determinant",
+          "label": "cells / 2 / determinant",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_2_area",
+          "label": "cells / 2 / area",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_2_label",
+          "label": "cells / 2 / label",
+          "type": "string",
+          "default": "剪切",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_cell_id",
+          "label": "cells / 3 / cell_id",
+          "type": "string",
+          "default": "flip",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_op",
+          "label": "cells / 3 / op",
+          "type": "string",
+          "default": "flip",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_matrix_0_0",
+          "label": "cells / 3 / matrix / 0 / 0",
+          "type": "integer",
+          "default": 1,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_matrix_0_1",
+          "label": "cells / 3 / matrix / 0 / 1",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_matrix_1_0",
+          "label": "cells / 3 / matrix / 1 / 0",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_matrix_1_1",
+          "label": "cells / 3 / matrix / 1 / 1",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_determinant",
+          "label": "cells / 3 / determinant",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_area",
+          "label": "cells / 3 / area",
+          "type": "integer",
+          "default": 0,
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_label",
+          "label": "cells / 3 / label",
+          "type": "string",
+          "default": "压到横轴",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_3_note",
+          "label": "cells / 3 / note",
+          "type": "string",
+          "default": "压扁后定向丢失（det=0），符号语义退化",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_order_0",
+          "label": "cells_order / 0",
+          "type": "string",
+          "default": "unit",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_order_1",
+          "label": "cells_order / 1",
+          "type": "string",
+          "default": "stretch",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_order_2",
+          "label": "cells_order / 2",
+          "type": "string",
+          "default": "shear",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        },
+        {
+          "id": "cells_order_3",
+          "label": "cells_order / 3",
+          "type": "string",
+          "default": "flip",
+          "source": {
+            "page": 18,
+            "element_id": "p18_s05",
+            "bbox": {
+              "x": 0.79,
+              "y": 3.35,
+              "w": 2.96,
+              "h": 0.19
+            },
+            "status": "confirmed",
+            "excerpt": "03 · 行列式"
+          }
+        }
+      ],
+      "expressions": [],
+      "views": [
+        {
+          "type": "figure",
+          "spec_ref": "det_area",
+          "title": "一块小方格怎样改变"
+        },
+        {
+          "type": "text",
+          "template": "一块小方格怎样改变 · cells_0_cell_id = {{cells_0_cell_id}}",
+          "title": "与原页同步"
+        }
+      ],
+      "constraints": [],
+      "checks": [
+        {
+          "id": "C1",
+          "type": "source_match",
+          "page": 18,
+          "expect": "参数与第 18 页原文一致（excerpt 取自 slides.json）"
+        }
+      ],
+      "notes": "S18 四格（单位方格 / 横向 2 倍纵向 3 倍 / 剪切 / 压到横轴），契约 bbox 取四格包络。四格各自独立图片、落在浅色卡片内，擦除逐格进行；填充色取各自环带中位色。provenance=read_from_figure；原参数 cells 为数组，iSpec 参数只支持标量，已跳过。；原参数 cells_order 为数组，iSpec 参数只支持标量，已跳过。；原参数全部是数组/对象，已按索引展开为标量参数（iSpec 参数只支持标量）。"
+    }
+  ],
+  "recognition": {
+    "found": true,
+    "reason": "已迁移 5 条 iSpec（来自 regions.json）"
+  },
+  "errors": [],
+  "generated_at": "2026-11-02T02:23:41Z"
+}

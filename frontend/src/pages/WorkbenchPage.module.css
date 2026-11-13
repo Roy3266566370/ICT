@@ -1,0 +1,363 @@
+/*
+ * WorkbenchPage.module.css —— 以页为中心的工作台布局（rebuild-spec §6）
+ *
+ * 布局原则：
+ *  - 中央页面是主角：保持 16:9 原比例，宽度优先，任何侧栏都不压缩它；
+ *  - 左侧缩略图固定宽度；右侧参数抽屉是浮层（不参与 flex 计算）；
+ *  - 详情面板是右侧浮层（<1024px 全屏）；
+ *  - <1024px 缩略图折叠为顶部下拉，<768px 页面横向可缩放。
+ */
+
+.reader {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: #f6f3ec;
+  color: #16233a;
+}
+
+/* ---------------- 顶部 ---------------- */
+
+/* P0-03：面包屑条（首页 / 材料名 / 第 N 页）+ 来源感知返回 */
+.breadcrumbBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  padding: 5px 18px;
+  border-bottom: 1px solid #e7e1d2;
+  background: #f7f4ea;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.crumb {
+  color: #6f5127;
+  text-decoration: none;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crumb:hover {
+  color: #8a4419;
+  text-decoration: underline;
+}
+
+.crumb[aria-current='page'] {
+  color: #16233a;
+  font-weight: 600;
+}
+
+.crumbSep {
+  color: #9a8b73;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: none;
+  padding: 9px 18px;
+  border-bottom: 1px solid #e2dccd;
+  background: #f2eee3;
+  z-index: 12;
+}
+
+.back {
+  flex: none;
+  color: #8a4419;
+  font-size: 12.5px;
+  text-decoration: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.back:hover {
+  background: #eae4d6;
+}
+
+.back:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 1px;
+}
+
+.heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subtitle {
+  margin: 2px 0 0;
+  color: #6b7385;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.headActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  max-width: 46%;
+}
+
+.notice {
+  margin: 0;
+  color: #24543f;
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailsButton {
+  flex: none;
+  padding: 6px 14px;
+  border: 1px solid #d8d2c6;
+  border-radius: 999px;
+  background: #fff;
+  color: #33415c;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.detailsButton:hover {
+  border-color: #c4622d;
+  background: #faf7ef;
+}
+
+.detailsButton[aria-expanded='true'] {
+  background: #16233a;
+  border-color: #16233a;
+  color: #fff;
+}
+
+.detailsButton:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 1px;
+}
+
+.errorBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  margin: 0;
+  padding: 7px 18px;
+  border-bottom: 1px solid #efd7ce;
+  background: #fdecea;
+  color: #8c2f21;
+  font-size: 12px;
+}
+
+.retryButton {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid #d9a79c;
+  border-radius: 999px;
+  background: #fff;
+  color: #8c2f21;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+/* ---------------- 主体 ---------------- */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 12px 12px;
+}
+
+.stageTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: none;
+  padding: 7px 4px;
+}
+
+.stageState,
+.stageNote {
+  margin: 0;
+  color: #6b7385;
+  font-size: 11.5px;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stageNote {
+  color: #8a4419;
+}
+
+.stageArea {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------------- iSpec 通用运行时（P1-07 / #26 接入） ---------------- */
+
+.specPanel {
+  flex: none;
+  max-height: 46%;
+  overflow: auto;
+  margin: 0 0 8px;
+  padding: 12px 14px;
+  border: 1px solid #ddd5c3;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.specHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.specTitle {
+  margin: 0;
+  color: #16233a;
+  font-size: 13.5px;
+}
+
+.specNote {
+  margin: 3px 0 0;
+  color: #6b7385;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.specBadge {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3b3f8f;
+  font-size: 11px;
+}
+
+/* ---------------- 窄屏 ---------------- */
+
+@media (max-width: 1023px) {
+  .body {
+    flex-direction: column;
+  }
+
+  .main {
+    padding: 0 8px 8px;
+  }
+}
+
+@media (max-width: 767px) {
+  .breadcrumbBar {
+    padding: 4px 10px;
+    gap: 8px;
+  }
+
+  .crumb {
+    max-width: 16ch;
+  }
+
+  .header {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    padding: 8px 12px;
+  }
+
+  .heading {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .title {
+    font-size: 14px;
+  }
+
+  .headActions {
+    max-width: none;
+    margin-inline-start: auto;
+  }
+
+  .notice {
+    display: none;
+  }
+
+  .stageTop {
+    padding: 5px 2px;
+  }
+
+  .stageState,
+  .stageNote {
+    font-size: 10.5px;
+  }
+
+  .stageNote {
+    display: none;
+  }
+}
+
+/* ---------------- 无材料编号 ---------------- */
+
+.statePage {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding: 32px 20px;
+  color: #16233a;
+}
+
+.statePage a {
+  color: #8a4419;
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detailsButton,
+  .back {
+    transition: none;
+  }
+}

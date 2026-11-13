@@ -1,0 +1,35 @@
+{
+  "spec_version": "1.0",
+  "object_id": "obj_matrix_det",
+  "title": "行列式与面积倍率",
+  "kind": "parametric",
+  "parameters": [
+    { "id": "a", "label": "a", "min": -3, "max": 3, "step": 0.1, "default": 2, "unit": "",
+      "source": { "page": 18, "element_id": "p18_s03", "bbox": null, "status": "original", "excerpt": "二阶 = 两列围成的有向面积 ad−bc" } },
+    { "id": "b", "label": "b", "min": -3, "max": 3, "step": 0.1, "default": 1, "unit": "",
+      "source": { "page": 18, "element_id": "p18_s03", "bbox": null, "status": "inferred", "excerpt": "A = [[2,1],[1,2]]" } },
+    { "id": "c", "label": "c", "min": -3, "max": 3, "step": 0.1, "default": 1, "unit": "",
+      "source": { "page": 18, "element_id": "p18_s03", "bbox": null, "status": "inferred", "excerpt": "A = [[2,1],[1,2]]" } },
+    { "id": "d", "label": "d", "min": -3, "max": 3, "step": 0.1, "default": 2, "unit": "",
+      "source": { "page": 18, "element_id": "p18_s03", "bbox": null, "status": "inferred", "excerpt": "A = [[2,1],[1,2]]" } }
+  ],
+  "expressions": [
+    { "id": "det", "expr": "a * d - b * c", "unit": "", "label": "行列式" },
+    { "id": "area", "expr": "abs(det)", "unit": "", "label": "面积倍率" },
+    { "id": "orientation", "expr": "det < 0 ? -1 : 1", "unit": "", "label": "定向" },
+    { "id": "rank", "expr": "det == 0 ? 1 : 2", "unit": "", "label": "秩" }
+  ],
+  "views": [
+    { "type": "figure", "spec_ref": "det_area", "title": "两列围成的有向面积" },
+    { "type": "table", "columns": ["a", "b", "c", "d", "det", "area", "orientation", "rank"], "title": "当前参数" },
+    { "type": "text", "template": "det = {{det}}，面积倍率 = {{area}}，秩 = {{rank}}", "title": "结论" }
+  ],
+  "constraints": [
+    { "expr": "abs(det) > 0.000000000001", "message": "矩阵奇异（det=0），平面被压成一条线", "severity": "warn" }
+  ],
+  "checks": [
+    { "id": "C1", "type": "consistency", "expr": "abs(det - (a*d - b*c)) < 0.000000000001" },
+    { "id": "C2", "type": "source_match", "page": 18, "expect": "行列式 = 两列围成的有向面积" }
+  ],
+  "notes": "手工示例：参数由 S18 的矩阵反推，不是自动识别结果"
+}

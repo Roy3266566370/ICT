@@ -1,0 +1,23 @@
+# Dockerfile.backend 专属忽略规则（BuildKit 支持 <Dockerfile>.dockerignore）。
+# 构建上下文是仓库根；只保留后端代码、依赖清单与只读 fixtures。
+**/node_modules
+**/dist
+**/__pycache__
+**/.pytest_cache
+**/*.pyc
+**/.env
+**/.env.*
+!**/.env.example
+
+contracts
+design
+.codeartsdoer
+.arts
+
+# 宿主机的 SQLite 与上传件通过 compose 卷挂载，不打进镜像。
+backend/data
+
+*.pptx
+*.docx
+.git
+.gitignore

@@ -1,0 +1,109 @@
+.wrap { position: relative; margin: 0; }
+.pair { display: grid; grid-template-columns: minmax(240px, .85fr) minmax(0, 2fr); gap: 20px; align-items: stretch; }
+.originalCard { display: flex; flex-direction: column; min-width: 0; padding: 23px 26px 18px; border: 1px solid #e7e0d3; border-radius: 7px; background: #fffefa; box-shadow: 0 4px 0 -1px #f4efe6, 0 5px 0 #e7e0d3; }
+.sourceMeta { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 22px; color: #566074; font-family: var(--font-family-mono); font-size: 9px; letter-spacing: .09em; }
+.sourceMeta > span:first-child { font-family: var(--font-family-sans); font-size: 10px; letter-spacing: .05em; }
+.originalTitle { margin: 0; color: #121b27; font-size: clamp(20px, 1.65vw, 25px); font-weight: 550; letter-spacing: -.04em; }
+.titleRule { width: 33px; height: 2px; margin: 12px 0 14px; background: #ff7a59; }
+.originalFormula { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 82px; color: #2f3a49; font-family: 'Cambria Math', Georgia, serif; font-size: 23px; font-variant-numeric: tabular-nums; }
+.mathVar { font-style: italic; }
+.bracket { font-size: 62px; font-weight: 300; line-height: .72; transform: translateY(3px); }
+.matrixCells { display: grid; grid-template-columns: repeat(2, minmax(20px, auto)); gap: 0 16px; line-height: 1.55; text-align: center; }
+.miniPair { display: flex; align-items: center; justify-content: center; gap: 8px; flex: 1; min-height: 165px; padding: 4px 0 10px; }
+.miniPair svg { display: block; width: min(46%, 220px); height: auto; }
+.miniArrow { flex: none; color: #8a93a6; font-size: 23px; line-height: 1; }
+.originalFoot { display: flex; justify-content: space-between; align-items: center; margin: auto 0 0; padding-top: 15px; border-top: 1px solid #efe9de; color: #566074; font-size: 9px; letter-spacing: .02em; }
+.originalFoot > span:last-child { color: #ff7a59; font-size: 18px; }
+.demoCard { display: flex; flex-direction: column; min-width: 0; min-height: 430px; overflow: hidden; border: 1px solid #dcd9f5; border-radius: 7px; background: #ffffff; color: #121b27; box-shadow: 0 14px 30px #4f46e51a; }
+.demoHead { flex: none; padding: 19px 24px 12px; background: #f4f3fd; }
+.demoHeadTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 21px; color: #566074; font-family: var(--font-family-mono); font-size: 9px; letter-spacing: .055em; }
+.liveLabel { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-family-sans); font-size: 9px; letter-spacing: .03em; }
+.liveLabel i { display: block; width: 5px; height: 5px; border-radius: 50%; background: #ff7a59; }
+.demoHead h2 { margin: 0 0 10px; color: #121b27; font-size: clamp(16px, 1.45vw, 21px); font-weight: 500; letter-spacing: .015em; }
+.demoHead p { display: flex; align-items: center; gap: 8px; margin: 0; color: #566074; font-family: 'Cambria Math', Georgia, serif; font-size: 12px; font-variant-numeric: tabular-nums; }
+.inlineMatrix { display: inline-flex; align-items: center; color: #2f3a49; }
+.inlineBracket { font-family: 'Cambria Math', Georgia, serif; font-size: 28px; font-weight: 300; line-height: .8; }
+.inlineCells { display: grid; grid-template-columns: repeat(2, minmax(16px, auto)); gap: 0 12px; padding: 0 2px; font-size: 11px; line-height: 1.45; text-align: center; }
+.mapText { margin-left: 4px; color: #b8431f; font-family: var(--font-family-sans); font-size: 11px; }
+.demoBody { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 195px; flex: 1; min-height: 0; }
+.plot { display: flex; align-items: center; min-width: 0; min-height: 245px; padding: 6px 9px 9px 15px; }
+.plot svg { display: block; width: 100%; height: 100%; }
+.demoRail { display: flex; flex-direction: column; min-width: 0; padding: 16px 19px 20px; border-left: 1px solid #ece8f7; }
+.controlLabel { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 12px; color: #2f3a49; font-size: 11px; font-weight: 500; }
+.controlLabel button { min-height: 24px; border: 0; background: none; font-size: 9px; color: #4f46e5; }
+.controlLabel button:disabled { color: #a8afba; cursor: default; }
+.controlRow { display: flex; align-items: center; gap: 11px; }
+.controlRow input[type='range'] { flex: 1; min-width: 0; accent-color: #4f46e5; cursor: pointer; }
+.controlRow output { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 43px; height: 33px; border: 1px solid #c9c6ee; border-radius: 4px; background: #f4f3fd; color: #121b27; font-family: var(--font-family-mono); font-size: 15px; font-variant-numeric: tabular-nums; }
+.railRule { height: 1px; margin: 18px 0 13px; background: #ece8f7; }
+.metricLabel { margin: 3px 0 5px; color: #566074; font-size: 10px; }
+.metricResult { margin: 0 0 13px; color: #b8431f; font-family: var(--font-family-mono); font-size: 19px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -.05em; white-space: nowrap; }
+.metricNote { margin: auto 0 0; color: #566074; font-size: 9px; line-height: 1.8; }
+.workPanel { position: absolute; inset: auto 195px 0 0; z-index: 4; padding: 17px 22px; border-top: 1px solid #e7e0d3; background: #fffffffa; box-shadow: 0 -10px 24px #4f46e51a; backdrop-filter: blur(8px); }
+.workTitle { margin-bottom: 10px; color: #2f3a49; font-size: 11px; font-weight: 500; letter-spacing: .08em; }
+.workRows { display: grid; gap: 7px; margin: 0; }
+.workRows > div { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.workRows dt { color: #566074; font-size: 10px; }
+.workRows dd { margin: 0; color: #121b27; font-family: var(--font-family-mono); font-size: 10px; line-height: 1.7; overflow-wrap: anywhere; }
+.demoFoot { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex: none; padding: 14px 24px; border-top: 1px solid #ece8f7; background: #faf9ff; color: #566074; font-size: 10px; }
+.demoFoot button { display: inline-flex; align-items: center; gap: 8px; flex: none; min-height: 26px; border: 0; background: transparent; color: #4f46e5; font-size: 10px; font-weight: 500; cursor: pointer; }
+.demoFoot button:hover { color: #4038c9; }
+.demoCard button:focus-visible, .demoCard input:focus-visible { outline: 2px solid #4f46e5; outline-offset: 3px; }
+@media (max-width: 1180px) {
+  .pair { grid-template-columns: minmax(220px, .8fr) minmax(0, 1.9fr); gap: 15px; }
+  .demoBody { grid-template-columns: minmax(0, 1fr) 175px; }
+  .demoRail { padding-inline: 15px; }
+  .workPanel { right: 175px; }
+  .metricResult { font-size: 17px; }
+  .originalCard { padding-inline: 21px; }
+}
+@media (max-width: 900px) {
+  .pair { grid-template-columns: minmax(185px, .75fr) minmax(0, 1.8fr); gap: 13px; }
+  .demoBody { grid-template-columns: minmax(0, 1fr); }
+  .demoCard { min-height: 430px; }
+  .demoRail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 4px 20px; padding: 14px 20px; border-left: 0; border-top: 1px solid #ece8f7; }
+  .controlLabel { grid-column: 1; margin: 0; }
+  .controlRow { grid-column: 1; grid-row: 2; }
+  .demoRail .railRule, .demoRail > .metricLabel, .demoRail > .metricNote, .demoRail > .areaResult { display: none; }
+  .metricResult { grid-column: 2; grid-row: 1 / 3; margin: 0; font-size: 19px; }
+  .plot { min-height: 205px; }
+  .workPanel { position: static; grid-column: 1; }
+  .originalCard { padding-inline: 17px; }
+  .originalTitle { font-size: 19px; }
+  .miniPair { flex-direction: column; gap: 0; min-height: 220px; }
+  .miniPair svg { width: 140px; }
+  .miniArrow { transform: rotate(90deg); font-size: 19px; }
+  .demoFoot { padding: 10px 19px; gap: 10px; }
+  .demoFoot > span { max-width: 110px; line-height: 1.7; }
+  .demoHead { padding: 18px 19px 8px; }
+}
+@media (max-width: 640px) {
+  .pair { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .originalCard { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 12px; padding: 18px 20px 14px; }
+  .sourceMeta { grid-column: 1 / -1; padding-bottom: 17px; }
+  .originalTitle { grid-column: 1; font-size: 18px; }
+  .titleRule { display: none; }
+  .originalFormula { grid-column: 1; min-height: 85px; font-size: 19px; }
+  .bracket { font-size: 48px; }
+  .matrixCells { gap: 0 10px; }
+  .miniPair { grid-column: 2; grid-row: 2 / 4; min-height: 100px; padding: 0; flex-direction: row; gap: 0; }
+  .miniPair svg { width: 48%; }
+  .miniArrow { display: none; }
+  .originalFoot { grid-column: 1 / -1; font-size: 9px; padding-top: 9px; }
+  .demoCard { min-height: 385px; }
+  .demoCard { scroll-margin-top: 90px; }
+  .demoHeadTop { margin-bottom: 18px; font-size: 8px; }
+  .liveLabel { font-size: 8px; }
+  .demoHead h2 { font-size: 16px; }
+  .demoHead p { font-size: 11px; }
+  .mapText { font-size: 10px; margin-left: 0; }
+  .demoRail { gap: 3px 16px; padding: 14px 18px; }
+  .controlLabel { font-size: 10px; }
+  .controlRow output { width: 35px; height: 29px; font-size: 13px; }
+  .metricResult { font-size: 18px; }
+  .demoFoot { padding-inline: 18px; font-size: 9px; }
+  .demoFoot button { font-size: 9px; }
+  .demoFoot > span { max-width: 130px; }
+  .plot { min-height: 200px; padding: 8px 12px; }
+  .plot svg text { font-size: 20px; }
+}

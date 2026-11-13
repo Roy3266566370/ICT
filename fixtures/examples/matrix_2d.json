@@ -1,0 +1,76 @@
+{
+  "schema_version": "0.2",
+  "object_id": "obj_example_matrix_2d",
+  "title": "空间与矩阵：两个矩阵，两种顺序",
+  "material_id": null,
+  "model_version": 1,
+  "revision": 0,
+  "template_id": "matrix_2d",
+  "kernel_version": "linear_v1",
+  "config": {
+    "operation": "matrix_compose",
+    "matrix_parameter_id": "matrix_A",
+    "second_matrix_parameter_id": "matrix_B",
+    "compose_order": "A_then_B",
+    "angle_unit": "deg"
+  },
+  "parameters": [
+    {
+      "id": "matrix_A",
+      "name": "矩阵 A",
+      "type": "matrix2",
+      "value": [[1, 1], [0, 1]],
+      "unit": "1",
+      "range": { "min": -3, "max": 3, "step": 0.1 },
+      "source_ref_ids": ["src_example_matrix"],
+      "provenance": "manual_demo",
+      "editable": true
+    },
+    {
+      "id": "matrix_B",
+      "name": "矩阵 B",
+      "type": "matrix2",
+      "value": [[1, 0], [1, 1]],
+      "unit": "1",
+      "range": { "min": -3, "max": 3, "step": 0.1 },
+      "source_ref_ids": ["src_example_matrix"],
+      "provenance": "manual_demo",
+      "editable": true
+    },
+    {
+      "id": "vector_x",
+      "name": "输入向量 x",
+      "type": "vector2",
+      "value": [1, 1],
+      "unit": "1",
+      "range": { "min": -3, "max": 3, "step": 0.1 },
+      "source_ref_ids": ["src_example_matrix"],
+      "provenance": "manual_demo",
+      "editable": true
+    }
+  ],
+  "views": ["geometry", "numeric_table", "steps", "sources"],
+  "bindings": [
+    { "parameter_id": "matrix_A", "view_id": "geometry", "target": "transform.columns" },
+    { "parameter_id": "matrix_A", "view_id": "numeric_table", "target": "table.matrix_a" },
+    { "parameter_id": "matrix_A", "view_id": "steps", "target": "steps.terms" },
+    { "parameter_id": "matrix_B", "view_id": "geometry", "target": "composition.second_matrix" },
+    { "parameter_id": "vector_x", "view_id": "geometry", "target": "input.vector" },
+    { "parameter_id": "vector_x", "view_id": "steps", "target": "steps.coefficients" }
+  ],
+  "source_refs": [
+    {
+      "id": "src_example_matrix",
+      "provenance": "manual_demo",
+      "label": "示例预置：空间与矩阵",
+      "material_id": null,
+      "page": null,
+      "element_id": null,
+      "bbox": null,
+      "excerpt": "手工构造的示例对象，用于演示 A、B 两个矩阵复合顺序的差异；不来自任何 PPT 解析结果。"
+    }
+  ],
+  "validation_profile": "matrix_2d_v1_full",
+  "created_at": "2026-11-01T00:00:00Z",
+  "updated_at": "2026-11-01T00:00:00Z"
+}

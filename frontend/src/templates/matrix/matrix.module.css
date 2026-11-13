@@ -1,0 +1,917 @@
+/* ---------------------------------------------------------------------------
+ * matrix.module.css —— matrix_2d 交互视图样式（T5）
+ *
+ * 约定：
+ *  - 颜色/字号/间距/圆角/动效时长一律取 T2 的 CSS 变量（styles/tokens.css），
+ *    不写死十六进制值，保证与设计令牌同步。
+ *  - 断点：<960px 主栅格单列（控件在图形下方堆叠）；<768px 进一步压缩留白。
+ *  - 任何容器都带 `min-width: 0`，避免 SVG/等宽文本把页面撑出横向滚动条。
+ * ------------------------------------------------------------------------- */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  color: var(--color-navy);
+  font-family: var(--font-family-sans);
+}
+
+/* ---------- 头部与模式切换 ---------- */
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: var(--line-height-tight);
+}
+
+.lead {
+  margin: var(--space-1) 0 0;
+  max-width: 56ch;
+  color: var(--color-navy-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.modeGroup {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-pill);
+}
+
+.modeButton {
+  appearance: none;
+  border: 1px solid transparent;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-navy-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    box-shadow var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.modeButton:hover {
+  color: var(--color-navy);
+}
+
+.modeButton:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.modeButtonActive {
+  background: var(--color-surface-raised);
+  color: var(--color-indigo);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: var(--shadow-xs);
+}
+
+.button {
+  appearance: none;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid var(--color-border-strong);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-navy);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard),
+    background-color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--color-indigo);
+  color: var(--color-indigo);
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.button:disabled {
+  border-color: var(--color-border);
+  background: var(--color-surface-sunken);
+  color: var(--color-navy-subtle);
+  cursor: not-allowed;
+}
+
+/* ---------- 摘要条 ---------- */
+
+.summaryBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-indigo);
+  border-radius: var(--radius-md);
+  background: var(--color-indigo-soft);
+}
+
+.summaryItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-navy-muted);
+  white-space: nowrap;
+}
+
+.summaryValue {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-navy);
+}
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-fail);
+  border-radius: var(--radius-sm);
+  background: var(--color-fail-soft);
+  color: var(--color-navy);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+}
+
+/* ---------- 布局 ---------- */
+
+.mainGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.lowerGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.card {
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-xs);
+}
+
+.canvasCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cardTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.canvasCard .cardTitle {
+  margin-bottom: 0;
+}
+
+.stack {
+  display: block;
+}
+
+.subtle {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-navy-subtle);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-snug);
+}
+
+/* ---------- 画布 ---------- */
+
+.canvasFigure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.canvasWrap {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 620px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+.gridLine {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+
+.axisLine {
+  stroke: var(--color-navy-subtle);
+  stroke-width: 1.5;
+}
+
+.tickLabel {
+  fill: var(--color-navy-subtle);
+  font-family: var(--font-family-mono);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.axisLabel {
+  fill: var(--color-navy-muted);
+  font-family: var(--font-family-mono);
+  font-size: 18px;
+  font-style: italic;
+}
+
+/* 原像：灰蓝虚线 */
+.originalSquare {
+  fill: rgb(79 70 229 / 4%);
+  stroke: var(--color-navy-subtle);
+  stroke-width: 1.5;
+  stroke-dasharray: 7 5;
+}
+
+.originalCircle {
+  fill: none;
+  stroke: var(--color-navy-subtle);
+  stroke-width: 1.5;
+  stroke-dasharray: 7 5;
+}
+
+.inputVector {
+  stroke: var(--color-navy-subtle);
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+}
+
+/* 像：珊瑚橙实线 */
+.imageSquare {
+  fill: rgb(255 122 89 / 18%);
+  stroke: var(--color-coral);
+  stroke-width: 2.5;
+}
+
+.imageEllipse {
+  fill: rgb(255 122 89 / 8%);
+  stroke: var(--color-coral);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.imageVector {
+  stroke: var(--color-coral);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+/* 列向量：靛蓝 */
+.columnVector {
+  stroke: var(--color-indigo);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.mappingLine {
+  stroke: var(--color-coral);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+  opacity: 0.75;
+}
+
+/* 标签统一加白色光晕（paint-order），零向量等退化场景下互相重叠仍可读 */
+.vectorLabel,
+.inputLabel,
+.imageLabel,
+.mappingLabel,
+.canvasFootnote,
+.canvasNote {
+  paint-order: stroke;
+  stroke: var(--color-surface-raised);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.vectorLabel {
+  fill: var(--color-indigo);
+  font-family: var(--font-family-mono);
+  font-size: 17px;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.inputLabel {
+  fill: var(--color-navy-muted);
+  font-family: var(--font-family-mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.imageLabel {
+  fill: var(--color-navy);
+  font-family: var(--font-family-mono);
+  font-size: 18px;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.mappingLabel {
+  fill: var(--color-navy-muted);
+  font-family: var(--font-family-mono);
+  font-size: 15px;
+}
+
+.canvasFootnote {
+  fill: var(--color-navy-subtle);
+  font-family: var(--font-family-mono);
+  font-size: 14px;
+}
+
+/* rank<2 的退化提示（画在 SVG 顶部留白里） */
+.canvasNote {
+  fill: var(--color-warn);
+  font-family: var(--font-family-sans);
+  font-size: 17px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.zeroDot {
+  fill: var(--color-indigo);
+}
+
+.zeroDotAccent {
+  fill: var(--color-coral);
+}
+
+/* ---------- 可拖动的向量端点 ---------- */
+
+.handle {
+  cursor: grab;
+  outline: none;
+}
+
+.handleDragging {
+  cursor: grabbing;
+}
+
+.handleHit {
+  fill: transparent;
+}
+
+.handleDot {
+  fill: var(--color-surface-raised);
+  stroke: var(--color-coral);
+  stroke-width: 3;
+  transition: stroke var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.handle:hover .handleDot {
+  stroke: var(--color-indigo);
+}
+
+.handle:focus .handleDot,
+.handle:focus-visible .handleDot {
+  stroke: var(--color-indigo);
+  stroke-width: 4;
+}
+
+.handle:focus .handleHit,
+.handle:focus-visible .handleHit {
+  fill: rgb(79 70 229 / 12%);
+}
+
+/* ---------- 图例 ---------- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-muted);
+  line-height: var(--line-height-snug);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.swatchOriginal,
+.swatchImage,
+.swatchColumn {
+  display: inline-block;
+  width: 20px;
+  height: 0;
+  border-top-width: 3px;
+  border-top-style: solid;
+}
+
+.swatchOriginal {
+  border-top-style: dashed;
+  border-top-color: var(--color-navy-subtle);
+}
+
+.swatchImage {
+  border-top-color: var(--color-coral);
+}
+
+.swatchColumn {
+  border-top-color: var(--color-indigo);
+}
+
+.legendHint {
+  color: var(--color-navy-subtle);
+}
+
+/* ---------- 数值表 ---------- */
+
+.axHeadline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.tag {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--color-coral-soft);
+  color: var(--color-navy);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.numeric {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+}
+
+.numericStrong {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-navy);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.table th,
+.table td {
+  padding: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table tr:first-child th,
+.table tr:first-child td {
+  border-top: none;
+}
+
+.table th {
+  width: 32%;
+  color: var(--color-navy-muted);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.note {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--color-warn);
+  border-radius: var(--radius-xs);
+  background: var(--color-warn-soft);
+  color: var(--color-navy);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-snug);
+}
+
+.errorText {
+  margin: var(--space-2) 0 0;
+  color: var(--color-fail);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-snug);
+}
+
+.inverseBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.inverseValue {
+  color: var(--color-navy);
+}
+
+/* ---------- 参数控件 ---------- */
+
+.controlsGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.legendTitle {
+  padding: 0 var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-navy);
+}
+
+.fieldsetHint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-navy-subtle);
+  line-height: var(--line-height-snug);
+}
+
+/* ---------- 两步步骤 ---------- */
+
+.stepList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stepBlock {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.stepHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.stepTitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-navy);
+}
+
+.stepBadge,
+.stepBadgeWarn {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.stepBadge {
+  background: var(--color-pass-soft);
+  color: var(--color-pass);
+}
+
+.stepBadgeWarn {
+  background: var(--color-fail-soft);
+  color: var(--color-fail);
+}
+
+.formulaBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm);
+  color: var(--color-navy);
+}
+
+.formulaLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  line-height: var(--line-height-snug);
+}
+
+.formulaKey {
+  color: var(--color-navy-muted);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+}
+
+.formulaOp {
+  color: var(--color-navy-subtle);
+}
+
+.termGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.termCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+}
+
+.termHead {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-indigo);
+}
+
+.termBody {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-xs);
+  color: var(--color-navy);
+  line-height: var(--line-height-snug);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- 组合顺序对比 ---------- */
+
+.composeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.composeCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.composeOrderBadge {
+  align-self: flex-start;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-indigo-soft);
+  color: var(--color-indigo);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.composeFlow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-sm);
+  color: var(--color-navy);
+}
+
+.flowRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  line-height: var(--line-height-snug);
+}
+
+.flowStep {
+  color: var(--color-navy-subtle);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-xs);
+}
+
+.flowValue {
+  overflow-wrap: anywhere;
+}
+
+.composeMatrix {
+  margin: 0;
+  color: var(--color-navy-muted);
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-snug);
+  overflow-wrap: anywhere;
+}
+
+.verdict {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-info-soft);
+  color: var(--color-navy);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-snug);
+}
+
+.verdictDiffer {
+  background: var(--color-coral-soft);
+}
+
+/* ---------- 来源 ---------- */
+
+.sourceSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.coursePages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.coursePageButton {
+  align-items: flex-start;
+  text-align: left;
+  max-width: 15rem;
+}
+
+.coursePageLabel {
+  font-weight: var(--font-weight-semibold);
+}
+
+.coursePageMeta {
+  color: var(--color-navy-subtle);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-snug);
+}
+
+.sourceNote {
+  margin: 0;
+  color: var(--color-navy-subtle);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-snug);
+}
+
+/* ---------- 无障碍与动效 ---------- */
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* R6/T5 验收 10：reducedMotion=true 时不播放任何过渡；数值由 React 直接渲染，不等动画 */
+.root[data-reduced-motion='true'] *,
+.canvasFigure[data-reduced-motion='true'] * {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* ---------- 响应式：<960px 主栅格单列，控件落到图形下方 ---------- */
+
+@media (max-width: 960px) {
+  .mainGrid,
+  .lowerGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .root {
+    gap: var(--space-4);
+  }
+
+  .header {
+    flex-direction: column;
+  }
+
+  .headerActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .summaryBar {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .card {
+    padding: var(--space-3);
+  }
+
+  .table th {
+    width: 40%;
+    white-space: normal;
+  }
+
+  .termGrid,
+  .composeGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .coursePageButton {
+    max-width: none;
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modeButton,
+  .button,
+  .handleDot {
+    transition: none;
+  }
+}

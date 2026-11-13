@@ -1,0 +1,68 @@
+{
+  "schema_version": "0.2",
+  "generated_at": "2026-11-01T00:00:00Z",
+  "description": "手工示例索引（T1 定义，plan.md 未规定其结构，见 contracts/README.md 契约矛盾 C-13）。前端 mockClient 在 VITE_API_BASE 为空时按 file 读取同目录对象，并把 example_id 映射到 GET /api/v1/templates 的 TemplateDescriptor.example_id；POST /api/v1/examples/{example_id}/clone 以 example_id 为路径参数。",
+  "example_count": 4,
+  "examples": [
+    {
+      "example_id": "example_matrix_2d",
+      "template_id": "matrix_2d",
+      "kernel_version": "linear_v1",
+      "scenario_slug": "matrix",
+      "name": "空间与矩阵",
+      "headline": "两个矩阵，两种顺序",
+      "summary": "拖动 A、B 与输入向量 x，观察 ABx 与 BAx 并列出现的差异，以及单位圆如何变成椭圆。",
+      "object_id": "obj_example_matrix_2d",
+      "material_id": null,
+      "provenance": "manual_demo",
+      "file": "matrix_2d.json",
+      "golden_file": "../golden/matrix_2d.json",
+      "golden_case_ids": ["mx_basic", "mx_noncommute", "mx_textbook_s6"]
+    },
+    {
+      "example_id": "example_force_2d",
+      "template_id": "force_2d",
+      "kernel_version": "force_v1",
+      "scenario_slug": "force",
+      "name": "力与向量",
+      "headline": "两力合成，方向从哪里来",
+      "summary": "两个共点力 10N/0° 与 10N/90°，合力大小为 10√2，方向 45°；同时展示舍入值与计算精度。",
+      "object_id": "obj_example_force_2d",
+      "material_id": null,
+      "provenance": "manual_demo",
+      "file": "force_2d.json",
+      "golden_file": "../golden/force_2d.json",
+      "golden_case_ids": ["fc_perpendicular", "fc_cancel", "fc_three"]
+    },
+    {
+      "example_id": "example_bfs_flow",
+      "template_id": "bfs_flow",
+      "kernel_version": "bfs_v1",
+      "scenario_slug": "bfs",
+      "name": "计算机过程",
+      "headline": "广度优先搜索一步一步走",
+      "summary": "菱形图 A→B→D、A→C→D，起点 A，邻居按节点 id 字典序；D 只入队一次，另一次被记为跳过。",
+      "object_id": "obj_example_bfs_flow",
+      "material_id": null,
+      "provenance": "manual_demo",
+      "file": "bfs_flow.json",
+      "golden_file": "../golden/bfs_flow.json",
+      "golden_case_ids": ["bfs_golden", "bfs_cycle", "bfs_unreachable"]
+    },
+    {
+      "example_id": "example_budget_compare",
+      "template_id": "budget_compare",
+      "kernel_version": "budget_v1",
+      "scenario_slug": "budget",
+      "name": "办公推演",
+      "headline": "两方案预算，人数一改就见分晓",
+      "summary": "方案A 3000+80n、方案B 6000+50n，n=80 时总额 9400 与 10000；预算上限 10000 时余量为 600 与 0。",
+      "object_id": "obj_example_budget_compare",
+      "material_id": null,
+      "provenance": "manual_demo",
+      "file": "budget_compare.json",
+      "golden_file": "../golden/budget_compare.json",
+      "golden_case_ids": ["bd_n80", "bd_n100", "bd_limit_ok", "bd_over_budget", "bd_cycle"]
+    }
+  ]
+}

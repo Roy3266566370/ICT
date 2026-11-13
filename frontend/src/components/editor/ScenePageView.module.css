@@ -1,0 +1,19 @@
+.canvas { position:absolute; left:0; top:0; transform-origin:0 0; isolation:isolate; color:#18233d; }
+.contentLayer { position:absolute; inset:0; overflow:hidden; }
+.pageBackground { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.node { position:absolute; transform-origin:center; outline:none; box-sizing:border-box; }
+.node:focus-visible { outline:1px solid #7561d6; }
+.node[role=button] { cursor:move; }
+.node[data-locked=true] { cursor:default; }
+.raster { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; user-select:none; pointer-events:none; }
+.imageClip { position:absolute; inset:0; overflow:hidden; }
+.textFrame { position:absolute; inset:0; box-sizing:border-box; display:flex; flex-direction:column; overflow:visible; pointer-events:none; }
+.textContent { white-space:pre-wrap; overflow-wrap:break-word; flex-shrink:0; width:100%; text-rendering:geometricPrecision; }
+.textContent p { margin:0; padding:0; line-height:inherit; }
+.inlineText { position:absolute; inset:0; width:100%; height:100%; box-sizing:border-box; margin:0; background:transparent; border:0; outline:1px solid #7b63db; resize:none; overflow:auto; white-space:pre-wrap; }
+.shape { width:100%; height:100%; box-sizing:border-box; }
+.table { width:100%; height:100%; border-collapse:collapse; table-layout:fixed; background:#fff; }
+.table td { border:1px solid #b6bed0; padding:4px 7px; overflow-wrap:anywhere; }
+.chart { width:100%; height:100%; overflow:hidden; background:#fff; }
+.chart figure { margin:0; height:100%; padding:0; }
+.chart svg { width:100%; height:calc(100% - 24px); }

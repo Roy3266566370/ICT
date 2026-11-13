@@ -1,0 +1,212 @@
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: var(--paper-2, #f7f4ed);
+  overflow: hidden;
+  outline: none;
+}
+
+.page:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: -2px;
+}
+
+.image,
+.erased {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.erased {
+  opacity: 0;
+  transition: opacity 250ms ease;
+  pointer-events: none;
+}
+
+.erased[data-active='true'] {
+  opacity: 1;
+}
+
+.page[data-reduced-motion='true'] .erased {
+  transition: none;
+}
+
+.imageFallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 8%;
+  color: var(--ink-400, #7c8694);
+  font-size: 0.95em;
+  text-align: center;
+}
+
+/* ---------- 热点：默认完全隐形，只在悬停/聚焦时显形 ---------- */
+
+.hotspot {
+  position: absolute;
+  padding: 0;
+  border: 1.5px dashed transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    border-color 180ms,
+    background-color 180ms;
+  z-index: 3;
+}
+
+.hotspot:hover,
+.hotspot:focus-visible {
+  border-color: rgba(196, 98, 45, 0.55);
+  background: rgba(196, 98, 45, 0.045);
+  outline: none;
+}
+
+.hotspot:focus-visible {
+  box-shadow: 0 0 0 3px rgba(196, 98, 45, 0.28);
+}
+
+.badge {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  background: rgba(22, 35, 58, 0.88);
+  color: #fff;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.hotspot:hover .badge,
+.hotspot:focus-visible .badge {
+  display: flex;
+}
+
+/* ---------- 动态层 ---------- */
+
+.dynamic {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 250ms ease;
+  z-index: 2;
+}
+
+.dynamic[data-active='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.dynamic :global(svg) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.page[data-reduced-motion='true'] .dynamic {
+  transition: none;
+}
+
+/* ---------- 不支持的区域 ---------- */
+
+.unsupported {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  width: min(78%, 520px);
+  padding: 10px 14px;
+  border: 1px solid var(--hairline, #e7e0d3);
+  border-inline-start-width: 4px;
+  border-inline-start-color: #a8630c;
+  border-radius: 10px;
+  background: rgba(246, 243, 236, 0.97);
+  box-shadow: 0 8px 22px rgba(20, 30, 50, 0.12);
+  z-index: 5;
+  text-align: left;
+}
+
+.unsupported p {
+  margin: 0;
+  color: var(--ink-700, #2f3a49);
+  font-size: 0.92em;
+  line-height: 1.5;
+}
+
+.unsupportedHint {
+  margin-top: 4px !important;
+  color: var(--ink-400, #7c8694) !important;
+  font-size: 0.86em !important;
+}
+
+.unsupportedButton {
+  margin-top: 8px;
+  padding: 5px 12px;
+  border: 1px solid var(--hairline-strong, #d5ccb9);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-700, #2f3a49);
+  font-size: 0.88em;
+  cursor: pointer;
+}
+
+.unsupportedButton:hover {
+  background: var(--paper-3, #f1ece2);
+}
+
+.unsupportedButton:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 1px;
+}
+
+.modeTag {
+  position: absolute;
+  left: 26px;
+  top: 24px;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--hairline, #e7e0d3);
+  background: rgba(246, 243, 236, 0.94);
+  color: var(--ink-400, #7c8694);
+  font-size: 11.5px;
+  pointer-events: none;
+  z-index: 8;
+}
+
+@media (max-width: 767px) {
+  .modeTag {
+    left: 12px;
+    top: 10px;
+    max-width: calc(100% - 24px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .unsupported {
+    width: 86%;
+    top: 6px;
+  }
+}
