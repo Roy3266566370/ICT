@@ -390,7 +390,7 @@ def _validate(task, c):
     if 'learning_rate' in c and c['learning_rate']<=0: raise ValueError('学习率必须大于零')
 
 
-def compile_kernel_problem(plan: Mapping):
+def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
     from .recognize import build_problem, _attach_solution
     from .expr import expression_text, parse_expression, safe_float
     from .exam_math import _condition
@@ -571,7 +571,7 @@ def compile_kernel_problem(plan: Mapping):
         if outcome.get('status')!='ok' or 'compare_count' not in outcome:
             raise ModelConditionsError(['当前堆操作无法给出确定的关键字比较次数'])
         p['solution']['answer']=f"{outcome['answer']}；共 {outcome['compare_count']} 次关键字比较"
-    if p['status']!='ready' or not p['solution'].get('answer'):
+    if not allow_unfinished and (p['status']!='ready' or not p['solution'].get('answer')):
         raise ModelConditionsError([p['solution'].get('summary') or '当前条件无法求解'])
     p['model']['modeling_task']=task
     return p

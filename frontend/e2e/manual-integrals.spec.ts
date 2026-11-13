@@ -63,8 +63,56 @@ test('含 pi 的积分保留精确端点，不定积分保留常数和求导步�
   await page.getByRole('textbox', { name: '被积函数', exact: true }).fill('x*cos(x)');
   const indefinite = await confirmAndCompute(page);
   expect(indefinite.problems[0].solution.answer).toContain('+C');
+  expect(indefinite.problems[0].solution.verification.level).toBe('symbolic');
+  await expect(page.getByRole('region', { name: '原题计算结果与过程' })).toContainText('符号求导核验通过');
   await expect(page.getByRole('region', { name: '原题计算结果与过程' })).toContainText('求导核对');
+  await expect(page.getByRole('region', { name: '原题计算结果与过程' })).toContainText('分部积分：选择 u 与 dv');
   await expect(page.getByRole('button', { name: '播放执行轨迹', exact: true })).toBeVisible();
+});
+
+test('不定积分展示经核验的换元与实数对数原函数', async ({ page }) => {
+  await page.goto('/labs');
+  await page.getByRole('button', { name: '不定积分 求原函数族', exact: false }).click();
+  await page.getByRole('button', { name: '填入可修改示例', exact: true }).click();
+  await page.getByRole('textbox', { name: '被积函数', exact: true }).fill('x*cos(x^2)');
+  const substituted = await confirmAndCompute(page);
+  expect(substituted.problems[0].solution.answer).toBe('F(x)=sin(x^2)/2+C');
+  await expect(page.getByRole('region', { name: '原题计算结果与过程' })).toContainText('换元：配对复合结构与它的导数');
+
+  await page.goto('/labs');
+  await page.getByRole('button', { name: '不定积分 求原函数族', exact: false }).click();
+  await page.getByRole('button', { name: '填入可修改示例', exact: true }).click();
+  await page.getByRole('textbox', { name: '被积函数', exact: true }).fill('1/x');
+  const reciprocal = await confirmAndCompute(page);
+  expect(reciprocal.problems[0].solution.answer).toContain('Abs(x)');
+  await expect(page.getByRole('region', { name: '原题计算结果与过程' })).toContainText('对数参数写成绝对值');
+});
+
+test('数值抽查通过的原函数标注非全域证明', async ({ page }) => {
+  await page.goto('/labs');
+  await page.getByRole('button', { name: '不定积分 求原函数族', exact: false }).click();
+  await page.getByRole('textbox', { name: '被积函数', exact: true }).fill('1/(x*log(x))');
+  const document = await confirmAndCompute(page);
+  expect(document.problems[0].solution.verification.level).toBe('numeric');
+  const region = page.getByRole('region', { name: '原题计算结果与过程', exact: true });
+  await expect(region.locator('[data-verification="numeric"]')).toContainText('数值抽查通过（非全域证明）');
+  await expect(region).toContainText('数值抽查核对');
+  await expect(region).toContainText('不是全域证明');
+});
+
+test('无法核验原函数时明确标记为不支持，不展示伪造答案', async ({ page }) => {
+  await page.goto('/labs');
+  await page.getByRole('button', { name: '不定积分 求原函数族', exact: false }).click();
+  await page.getByRole('textbox', { name: '被积函数', exact: true }).fill('sin(1/x)');
+  const document = await confirmAndCompute(page);
+  expect(document.problems[0].manual_input.result_status).toBe('unsupported');
+  expect(document.problems[0].manual_input.result_answer).toBe('');
+  expect(document.problems[0].solution.verification.level).toBe('unconfirmed');
+  const region = page.getByRole('region', { name: '原题计算结果与过程', exact: true });
+  await expect(region.locator('[data-verification="unconfirmed"]')).toContainText('尚未确认');
+  await expect(region.getByRole('status')).toContainText('当前内核未能给出可核验的闭式原函数');
+  await expect(region).toContainText('未能通过求导核对');
+  await expect(region).not.toContainText('+C');
 });
 
 test('缺条件及非法公式不能计算，保留文件识别与原有示例', async ({ page }) => {
@@ -78,4 +126,31 @@ test('缺条件及非法公式不能计算，保留文件识别与原有示例',
   await expect(page.getByRole('button', { name: '选择或拖入题目文件，也可以粘贴截图' })).toBeVisible();
   await page.getByRole('button', { name: '微积分 定积分 曲线、积分区域与黎曼和 打开示例 →', exact: true }).click();
   await expect(page.getByRole('heading', { name: '定积分 · 黎曼和', exact: true })).toBeVisible();
+});
+
+test.describe('移动端共用数学键盘', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('单一键盘跟随焦点，确认公式正确并自动进入视口', async ({ page }) => {
+    await page.goto('/labs');
+    await expect(page.locator('[role="group"][aria-label$="数学键盘"]')).toHaveCount(1);
+    const lower = page.getByRole('textbox', { name: '积分下限', exact: true });
+    await lower.click();
+    await expect(page.getByRole('group', { name: '积分下限数学键盘', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '7', exact: true }).click();
+    await expect(lower).toHaveValue('7');
+    await page.getByRole('button', { name: '收起键盘', exact: true }).click();
+    await expect(page.locator('[role="group"][aria-label$="数学键盘"]')).toHaveCount(0);
+    await page.getByRole('button', { name: '展开键盘', exact: true }).click();
+    await page.getByRole('textbox', { name: '被积函数', exact: true }).fill('1/(1+x^2)');
+    await lower.fill('0');
+    await page.getByRole('textbox', { name: '积分上限', exact: true }).fill('1');
+    await page.getByRole('button', { name: '预览并确认题目', exact: true }).click();
+    const heading = page.getByRole('heading', { name: '确认这是你要计算的题目' });
+    await expect(heading).toBeVisible();
+    await expect(heading).toBeInViewport();
+    const tex = await page.locator('[aria-label="确认题目"] annotation').first().textContent();
+    expect(tex).toContain('\\frac{1}{x^{2} + 1}');
+    expect(tex).not.toContain('1 \\frac');
+  });
 });

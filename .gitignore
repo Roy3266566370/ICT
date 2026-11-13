@@ -34,6 +34,15 @@ coverage/
 !/verify/manual-integrals-2026-11-13/01-confirmation.png
 !/verify/manual-integrals-2026-11-13/02-definite-result.png
 !/verify/manual-integrals-2026-11-13/03-indefinite-result.png
+!/verify/manual-integrals-2026-11-13/04-method-steps.png
+!/verify/manual-integrals-2026-11-13/05-real-log-antiderivative.png
+!/verify/manual-integrals-2026-11-13/06-unsupported-antiderivative.png
+!/verify/manual-integrals-2026-11-13/07-verification-levels.png
+!/verify/manual-integrals-2026-11-13/composer-shared-keypad.png
+!/verify/integral-acceptance-2026-11-13/
+/verify/integral-acceptance-2026-11-13/*
+!/verify/integral-acceptance-2026-11-13/report.md
+!/verify/integral-acceptance-2026-11-13/report.json
 /backend/verify/
 /frontend/verify/
 /frontend/.tmp/

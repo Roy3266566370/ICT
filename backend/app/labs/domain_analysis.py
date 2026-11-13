@@ -41,6 +41,10 @@ def _missing_components(missing: sp.Set, variable: sp.Symbol) -> tuple[list[sp.E
                 complete = False
             return points, False, complete
         return points, True, complete
+    if isinstance(missing, sp.ImageSet):
+        # 周期函数（tan/sec/csc/cot）的瑕点族是零测度孤立点；不展开具体数值，
+        # 但可以确认它不含正测度的实区间。
+        return points, False, True
     if isinstance(missing, sp.Union):
         for part in missing.args:
             found, part_gap, part_complete = _missing_components(part, variable)
@@ -119,6 +123,40 @@ def _mpf(value: sp.Expr):
         return None
 
 
+def _nonsmooth_breakpoints(expression: sp.Expr, variable: sp.Symbol, a: sp.Expr, b: sp.Expr) -> list[float]:
+    """Integrand 的折点（|u| 与 sqrt(u^2) 的零点）若不拆开，数值复核会被光滑求积低估。"""
+    left, right = safe_float(a), safe_float(b)
+    if left is None or right is None:
+        left, right = -math.inf, math.inf
+    candidates: list[sp.Expr] = []
+    for atom in expression.atoms(sp.Abs):
+        candidates.append(atom.args[0])
+    for atom in expression.atoms(sp.Pow):
+        if atom.exp != sp.Rational(1, 2):
+            continue
+        base = atom.base
+        squared = None
+        if isinstance(base, sp.Pow) and base.exp == 2:
+            squared = base.base
+        elif isinstance(base, sp.Mul):
+            squares = [factor.base for factor in base.args if isinstance(factor, sp.Pow) and factor.exp == 2]
+            if len(squares) == 1:
+                squared = squares[0]
+        if squared is not None:
+            candidates.append(squared)
+    points: set[float] = set()
+    for candidate in candidates:
+        try:
+            solutions = sp.solve(sp.Eq(candidate, 0), variable)
+        except Exception:  # noqa: BLE001
+            continue
+        for solution in solutions:
+            value = safe_float(solution)
+            if value is not None and left < value < right:
+                points.add(round(value, 12))
+    return sorted(points)
+
+
 def _numeric_quad(
     expression: sp.Expr,
     variable: sp.Symbol,
@@ -141,8 +179,14 @@ def _numeric_quad(
             left = left + delta
         if open_right and mp.isfinite(right):
             right = right - delta
+        path = [left]
+        for point in _nonsmooth_breakpoints(expression, variable, a, b):
+            value = _mpf(sp.Float(point))
+            if value is not None and left < value < right:
+                path.append(value)
+        path.append(right)
         with mp.workdps(25):
-            value = mp.quad(func, [left, right])
+            value = mp.quad(func, path if len(path) > 2 else [left, right])
         real = getattr(value, "real", value)
         imag = getattr(value, "imag", 0)
         if abs(float(imag)) > 1e-9 * max(1.0, abs(float(real))):
@@ -201,6 +245,46 @@ def _numeric_crosscheck(
     if abs(numeric - expected) <= NUMERIC_TOL * max(1.0, abs(expected)):
         return True, numeric
     return False, numeric
+
+
+def _abs_roots(expression: sp.Expr, variable: sp.Symbol, lower: sp.Expr, upper: sp.Expr) -> list[sp.Expr]:
+    """|u| 内部的零点；在分段内去掉绝对值后才能得到闭式原函数。"""
+    roots: list[sp.Expr] = []
+    left, right = safe_float(lower), safe_float(upper)
+    for atom in expression.atoms(sp.Abs):
+        try:
+            solutions = sp.solve(sp.Eq(atom.args[0], 0), variable)
+        except Exception:  # noqa: BLE001
+            continue
+        for solution in solutions:
+            value = safe_float(solution)
+            if value is None or left is None or right is None:
+                continue
+            if left < value < right:
+                roots.append(sp.simplify(solution))
+        if len(roots) >= 24:
+            break
+    return roots
+
+
+def _linearize_abs(expression: sp.Expr, variable: sp.Symbol, point: sp.Expr) -> sp.Expr | None:
+    """在分段中点按符号替换 |u|，让符号积分得到闭式结果；符号不确定时保持原式。"""
+    replacements: dict[sp.Expr, sp.Expr] = {}
+    for atom in expression.atoms(sp.Abs):
+        argument = atom.args[0]
+        try:
+            value = sp.N(argument.subs(variable, point))
+        except Exception:  # noqa: BLE001
+            return None
+        if value.is_real is not True:
+            return None
+        if value > 0:
+            replacements[atom] = argument
+        elif value < 0:
+            replacements[atom] = -argument
+        else:
+            return None
+    return expression.xreplace(replacements) if replacements else expression
 
 
 def _analyze_integral_forward(
@@ -275,8 +359,12 @@ def _analyze_integral_forward(
     for point in order:
         if sp.simplify(point - boundaries[-1]) != 0:
             boundaries.append(point)
+    for point in _abs_roots(expression, variable, lower, upper):
+        if all(sp.simplify(point - boundary) != 0 for boundary in boundaries):
+            boundaries.append(point)
     if sp.simplify(upper - boundaries[-1]) != 0:
         boundaries.append(upper)
+    boundaries = sorted(boundaries, key=lambda value: float(sp.N(value)))
 
     finite_values: list[sp.Expr] = []
     numeric_parts: list[float] = []
@@ -286,8 +374,16 @@ def _analyze_integral_forward(
         if sp.simplify(second - first) == 0:
             continue
         segment: dict[str, Any] = {"lower": _point_text(first), "upper": _point_text(second)}
+        integrand = expression
         try:
-            value = sp.integrate(expression, (variable, first, second))
+            midpoint = sp.simplify((first + second) / 2)
+            linearized = _linearize_abs(expression, variable, midpoint)
+            if linearized is not None:
+                integrand = linearized
+        except Exception:  # noqa: BLE001
+            integrand = expression
+        try:
+            value = sp.integrate(integrand, (variable, first, second))
         except Exception as exc:  # noqa: BLE001
             segment.update(status="undetermined", reason=f"符号积分失败：{type(exc).__name__}")
             report["segments"].append(segment)
@@ -410,6 +506,20 @@ def analyze_integral(
     return report
 
 
+def domain_gap_profile(expression: sp.Expr, variable: sp.Symbol, interval: sp.Set) -> dict[str, Any]:
+    """原式在给定区间内是否存在正测度的无定义段；周期瑕点视为零测度孤立点。"""
+    domain = continuous_domain(expression, variable, interval)
+    if isinstance(domain, sp.Complement):
+        # continuous_domain 对 tan/sec/csc/cot 常返回 Complement(区间, 瑕点集)；
+        # 直接做集合差会留下未化简的嵌套 Complement，这里还原为显式瑕点集。
+        base, excluded = domain.args
+        missing = (interval - base).union(interval.intersect(excluded))
+    else:
+        missing = interval - domain
+    points, gap, complete = _missing_components(missing, variable)
+    return {"domain": domain, "missing": missing, "gap": gap, "complete": complete, "points": points}
+
+
 def describe_singularities(report: dict[str, Any]) -> str:
     items = report.get("singularities") or []
     if not items:
@@ -420,4 +530,4 @@ def describe_singularities(report: dict[str, Any]) -> str:
     )
 
 
-__all__ = ["analyze_integral", "describe_singularities", "MAX_ANALYSIS_OPS"]
+__all__ = ["analyze_integral", "describe_singularities", "domain_gap_profile", "MAX_ANALYSIS_OPS"]

@@ -1,7 +1,12 @@
-import { useId, useMemo, useRef, type ReactNode } from 'react';
+import { useId, useImperativeHandle, useMemo, useRef, type MutableRefObject, type ReactNode } from 'react';
 import { editMath, inspectMath } from '@/labs/mathKeyboard';
 import Formula from '@/components/showcase/Formula';
 import styles from './MathExpressionInput.module.css';
+
+export interface MathKeyboardHandle {
+  press: (key: string) => void;
+  focus: () => void;
+}
 
 interface Props {
   label: string;
@@ -15,6 +20,9 @@ interface Props {
   autoFocus?: boolean;
   answerMode?: boolean;
   onSubmit?: () => void;
+  keyboard?: boolean;
+  apiRef?: MutableRefObject<MathKeyboardHandle | null>;
+  onActivate?: () => void;
 }
 
 const STRUCTURES = [
@@ -27,8 +35,45 @@ const MORE = ['arcsin', 'arccos', 'cot', 'sec', 'csc', 'sinh', 'cosh', 'tanh'];
 const NUMBERS = ['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', '0', '.', ')', '+'];
 const SYMBOLS: Record<string, string> = { '/': '÷', '*': '×', '-': '−' };
 
+interface KeyboardProps {
+  label: string;
+  variables: readonly string[];
+  onPress: (key: string) => void;
+  disabled?: boolean;
+  answerMode?: boolean;
+}
+
+export function MathKeyboard({ label, variables, onPress, disabled, answerMode = false }: KeyboardProps): ReactNode {
+  const button = (key: string, content: ReactNode, name = key): ReactNode => (
+    <button type="button" key={key} aria-label={name} title={name} disabled={disabled}
+      onMouseDown={(event) => event.preventDefault()} onClick={() => onPress(key)}>{content}</button>
+  );
+  const fn = (name: string): ReactNode => button(name,
+    <Formula tex={name === 'exp' ? 'e^{a}' : `\\${name}`} />, `${name}函数`);
+  return <div className={styles.keyboard} role="group" aria-label={`${label}数学键盘`}>
+    <div className={styles.symbols}>
+      {[...new Set(variables)].map((name) => button(name, <Formula tex={name} />, `变量${name}`))}
+      {STRUCTURES.map(([key, tex, name]) => button(key!, <Formula tex={tex!} />, name!))}
+      {COMMON.map(fn)}
+      {answerMode ? button(',', ',', '分隔符逗号') : null}
+    </div>
+    <div className={styles.digits}>
+      {NUMBERS.map((key) => button(key, SYMBOLS[key] ?? key, key === ')' ? '右括号' : SYMBOLS[key] ?? key))}
+    </div>
+    <div className={styles.controls}>
+      {button('left', '←', '光标左移')}{button('right', '→', '光标右移')}
+      {button('next', '下一项', '移到下一项')}{button('backspace', '⌫', '退格')}
+      {button('clear', '清空', '清空公式')}
+    </div>
+    <details className={styles.more}>
+      <summary>更多函数</summary>
+      <div className={styles.functions}>{MORE.map(fn)}</div>
+    </details>
+  </div>;
+}
+
 export function MathExpressionInput({ label, value, onChange, variables, disabled, provenance, describedBy,
-  placeholder, autoFocus, answerMode = false, onSubmit }: Props): ReactNode {
+  placeholder, autoFocus, answerMode = false, onSubmit, keyboard = true, apiRef, onActivate }: Props): ReactNode {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const selection = useRef({ start: value.length, end: value.length });
@@ -48,12 +93,10 @@ export function MathExpressionInput({ label, value, onChange, variables, disable
       input.current?.setSelectionRange(next.start, next.end);
     });
   };
-  const button = (key: string, content: ReactNode, name = key): ReactNode => (
-    <button type="button" key={key} aria-label={name} title={name} disabled={disabled}
-      onMouseDown={(event) => event.preventDefault()} onClick={() => press(key)}>{content}</button>
-  );
-  const fn = (name: string): ReactNode => button(name,
-    <Formula tex={name === 'exp' ? 'e^{a}' : `\\${name}`} />, `${name}函数`);
+  useImperativeHandle(apiRef, () => ({
+    press,
+    focus: () => input.current?.focus({ preventScroll: true }),
+  }));
 
   return <div className={styles.editor}>
     <label className={styles.label} htmlFor={id}>{label}<small>{provenance}</small></label>
@@ -61,7 +104,7 @@ export function MathExpressionInput({ label, value, onChange, variables, disable
       placeholder={placeholder} autoFocus={autoFocus}
       aria-describedby={`${id}-status${describedBy ? ` ${describedBy}` : ''}`}
       aria-invalid={answerMode ? undefined : !!inspection.error} inputMode="none" autoComplete="off" autoCapitalize="off" spellCheck={false}
-      onSelect={remember} onClick={remember} onKeyUp={remember}
+      onSelect={remember} onClick={remember} onKeyUp={remember} onFocus={onActivate}
       onKeyDown={(event) => {
         if (event.key === 'Enter' && !event.nativeEvent.isComposing && onSubmit) {
           event.preventDefault();
@@ -77,26 +120,8 @@ export function MathExpressionInput({ label, value, onChange, variables, disable
       {answerMode ? '输入完成后点击“检查”核对你的答案。'
         : inspection.error ? `请补全公式：${inspection.error}` : '公式结构完整，可对照原题确认。'}
     </p>
-    <div className={styles.keyboard} role="group" aria-label={`${label}数学键盘`}>
-      <div className={styles.symbols}>
-        {[...new Set(variables)].map((name) => button(name, <Formula tex={name} />, `变量${name}`))}
-        {STRUCTURES.map(([key, tex, name]) => button(key!, <Formula tex={tex!} />, name!))}
-        {COMMON.map(fn)}
-        {answerMode ? button(',', ',', '分隔符逗号') : null}
-      </div>
-      <div className={styles.digits}>
-        {NUMBERS.map((key) => button(key, SYMBOLS[key] ?? key, key === ')' ? '右括号' : SYMBOLS[key] ?? key))}
-      </div>
-      <div className={styles.controls}>
-        {button('left', '←', '光标左移')}{button('right', '→', '光标右移')}
-        {button('next', '下一项', '移到下一项')}{button('backspace', '⌫', '退格')}
-        {button('clear', '清空', '清空公式')}
-      </div>
-      <details className={styles.more}>
-        <summary>更多函数</summary>
-        <div className={styles.functions}>{MORE.map(fn)}</div>
-      </details>
-    </div>
-    <p className={styles.hint}>点击按钮输入；分式、根号和函数会自动配好括号。「下一项」可跳到分母或移出括号，也可直接键入、粘贴和选中替换。</p>
+    {keyboard ? <MathKeyboard label={label} variables={variables} onPress={press}
+      disabled={disabled} answerMode={answerMode} /> : null}
+    {keyboard ? <p className={styles.hint}>点击按钮输入；分式、根号和函数会自动配好括号。「下一项」可跳到分母或移出括号，也可直接键入、粘贴和选中替换。</p> : null}
   </div>;
 }

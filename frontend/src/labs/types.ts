@@ -259,6 +259,12 @@ export interface LabSolutionStep {
   detail: string;
 }
 
+export interface LabVerification {
+  level: 'symbolic' | 'numeric' | 'unconfirmed';
+  label: string;
+  detail: string;
+}
+
 export interface LabCheck {
   id: string;
   label: string;
@@ -286,6 +292,7 @@ export interface LabSolution {
   solution_status?: 'complete' | 'incomplete' | 'undetermined' | 'divergent' | 'unsupported' | 'undefined';
   solution_complete?: boolean;
   incomplete_reason?: string;
+  verification?: LabVerification | null;
   convergence?: 'finite' | 'divergent' | 'undefined' | 'undetermined' | 'numeric_only';
   singularities?: { point: string; kind: 'interior' | 'endpoint' | 'isolated' }[];
   global_minimum?: { exists: boolean | null; value: string | null; points: string[][] | 'all'; reason: string };
@@ -408,6 +415,11 @@ export interface LabProblem {
     confirmed: boolean;
     latex: string;
     result_latex: string;
+    result_status?: 'complete' | 'divergent' | 'unsupported';
+    result_answer?: string;
+    result_approx?: string;
+    result_note?: string;
+    verification?: LabVerification | null;
   };
   ai_solution?: LabAISolution;
   problem_id: string;

@@ -352,6 +352,30 @@ def _check_work_budget(tree: sp.Expr) -> None:
                 raise ExprError("指数超出可计算范围")
 
 
+def _strip_identity_factors(expression: sp.Expr) -> sp.Expr:
+    """去掉未求值解析留下的字面 1 因子，不动其余书写结构。
+
+    ``parse_expr(..., evaluate=False)`` 会保留 ``1/(x**2+1)`` 的书写结构，但把它表示成
+    ``Mul(1, Pow(...))``，渲染成 LaTeX 时会多出一个孤立的 1。这里只删除作为恒等因子的
+    字面 1，不做任何化简，因此 ``sqrt(x)**2`` 等结构仍保持原样。
+    """
+
+    if not expression.args:
+        return expression
+    args = [_strip_identity_factors(argument) for argument in expression.args]
+    if isinstance(expression, sp.Mul):
+        kept = [argument for argument in args if argument is not sp.S.One]
+        if not kept:
+            return sp.S.One
+        if len(kept) == 1:
+            return kept[0]
+        args = kept
+    try:
+        return expression.func(*args, evaluate=False)
+    except TypeError:
+        return expression.func(*args)
+
+
 def parse_expression(raw: str, variables: Iterable[str] = ("x",), *, preserve_structure: bool = False) -> sp.Expr:
     """解析并校验表达式；未知符号/函数一律拒绝。"""
 
@@ -378,6 +402,8 @@ def parse_expression(raw: str, variables: Iterable[str] = ("x",), *, preserve_st
         )
         _check_work_budget(unevaluated)
         expression = unevaluated if preserve_structure else unevaluated.doit()
+        if preserve_structure:
+            expression = _strip_identity_factors(expression)
         for integer in expression.atoms(sp.Integer):
             if abs(int(integer)).bit_length() > MAX_RESULT_INT_BITS:
                 raise ExprError("计算结果超出可处理范围")

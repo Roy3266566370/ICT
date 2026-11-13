@@ -15,7 +15,19 @@ import numpy as np
 import sympy as sp
 
 from .domain_analysis import analyze_integral, describe_singularities
-from .expr import ExprError, number_text, parse_expression, safe_float, to_latex
+from .expr import ExprError, expression_text, number_text, parse_expression, safe_float, to_latex
+from .integral_methods import (
+    VERIFICATION_LABELS,
+    VERIFICATION_NUMERIC,
+    VERIFICATION_SYMBOLIC,
+    VERIFICATION_UNCONFIRMED,
+    antiderivative_verification,
+    contains_absolute_log,
+    method_plan,
+    plan_steps,
+    real_antiderivative,
+    verifies_antiderivative,
+)
 
 MAX_TRACE = 200
 MAX_PLOT_POINTS = 260
@@ -44,7 +56,8 @@ def _safe_value(expression: sp.Expr, variables: Sequence[sp.Symbol], values: Seq
 
 
 def _numeric_function(expression: sp.Expr, variables: Sequence[sp.Symbol]) -> Callable[..., float]:
-    func = sp.lambdify(variables, expression, modules=["math"])
+    # math 覆盖常规初等函数；Si/Ci 等特殊函数回退到 mpmath，避免图像静默变成空线。
+    func = sp.lambdify(variables, expression, modules=["math", "mpmath"])
     return func  # type: ignore[return-value]
 
 
@@ -84,6 +97,12 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
                                   preserve_structure=bool(model.get('preserve_expression_structure')))
     kind = str(model.get("kind") or "integral")
     improper_upper = False
+    exact_latex = None
+    incomplete_reason = None
+    solution_status = "complete"
+    solution_complete = True
+    log_abs = False
+    verification_record = None
     conditions = ["题目中的函数与区间按识别结果求值；数值近似与解析结果分开标注。"]
     if kind == "integral":
         lower = float((model.get("defaults") or {}).get("lower", 0.0))
@@ -96,7 +115,22 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
             parse_expression(str(exact_bounds['upper'])) if 'upper' in exact_bounds else sp.Rational(str(upper)))
         lower_label = to_latex(lower_exact) if exact_bounds else f"{lower:g}"
         upper_label = r"+\infty" if improper_upper else to_latex(upper_exact) if exact_bounds else f"{upper:g}"
-        antiderivative = sp.integrate(expression, variable)
+        raw_antiderivative = sp.integrate(expression, variable)
+        method = None
+        antiderivative = raw_antiderivative
+        if not raw_antiderivative.has(sp.Integral):
+            try:
+                method = method_plan(expression, variable)
+            except Exception:  # noqa: BLE001 - 方法展示失败不影响积分结果
+                method = None
+        if method is not None:
+            antiderivative = method["result"]
+            log_abs = bool(method.get("log_abs"))
+        else:
+            antiderivative, log_abs = real_antiderivative(
+                raw_antiderivative, expression, variable)
+        log_abs = log_abs or contains_absolute_log(antiderivative)
+        method_steps = plan_steps(method, variable, constant=False)
         report = analyze_integral(expression, variable, lower_exact, upper_exact)
         convergence = report["status"]
         singularity_note = describe_singularities(report)
@@ -105,11 +139,15 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
         answer_value = None
         numeric = report.get("numeric")
         exact_text = ""
+        exact_latex = None
+        incomplete_reason = None
         solution_status = "complete"
         solution_complete = True
         if convergence == "divergent":
             exact = None
             exact_text = "发散"
+            exact_latex = r"\text{发散（不存在有限值）}"
+            incomplete_reason = "积分发散，不存在有限实数结果"
             answer_value = None
             numeric = None
             solution_status = "divergent"
@@ -123,12 +161,14 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
         elif convergence in ("numeric_only",):
             exact = None
             exact_text = "未能得到闭式解"
+            incomplete_reason = report.get("reason") or "符号积分未得到有限闭式解，只能提供数值参考"
             solution_status = "incomplete"
             solution_complete = False
             evaluate_latex = rf"\int_{{{lower_label}}}^{{{upper_label}}} {to_latex(expression)}\,\mathrm{{d}}{to_latex(variable)}\approx {_fmt(numeric)}"
         elif convergence != "finite":
             exact = None
             exact_text = "未能确认积分结果"
+            incomplete_reason = report.get("reason") or "当前内核未能确认该积分的收敛性与结果"
             numeric = None
             solution_status = "incomplete"
             solution_complete = False
@@ -141,6 +181,7 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
             answer_value = exact_value
             numeric = report.get("numeric") if report.get("numeric") is not None else exact_value
             exact_text = str(exact)
+            exact_latex = to_latex(exact)
             if singularity_note and not improper_upper:
                 evaluate_latex = (
                     rf"\lim_{{\varepsilon\to0^+}}\left(\sum_i\int_{{\text{{拆分段}}}}"
@@ -157,6 +198,21 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
             if improper_upper
             else f"原题区间为 [{exact_bounds.get('lower', _fmt(lower))}, {exact_bounds.get('upper', _fmt(upper))}]，被积变量为 {variable}。"
         )
+        antiderivative_detail = "对函数逐项积分；若含参数，按原题给出的符号条件处理。"
+        if method is not None:
+            method_level = (method.get("verification") or {}).get("level")
+            if method_level == VERIFICATION_SYMBOLIC:
+                antiderivative_detail = (
+                    "上面的换元或分部积分由内核实际执行，结果已通过符号求导核对；"
+                    "若含参数，按原题给出的符号条件处理。"
+                )
+            else:
+                antiderivative_detail = (
+                    "上面的换元或分部积分由内核实际执行，结果仅通过数值抽查（非全域证明）；"
+                    "若含参数，按原题给出的符号条件处理。"
+                )
+        if log_abs:
+            antiderivative_detail += "对数参数写成绝对值，使原函数在实定义域各段上保持实值。"
         steps = [
             {
                 "id": "limits",
@@ -164,11 +220,12 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
                 "latex": rf"\int_{{{lower_label}}}^{{{upper_label}}} {to_latex(expression)}\,\mathrm{{d}}{to_latex(variable)}",
                 "detail": interval_note,
             },
+            *method_steps,
             {
                 "id": "antiderivative",
                 "title": "求原函数",
                 "latex": f"F({to_latex(variable)})={to_latex(antiderivative)}+C",
-                "detail": "对函数逐项积分；若含参数，按原题给出的符号条件处理。",
+                "detail": antiderivative_detail,
             },
         ]
         if singularity_note:
@@ -204,51 +261,148 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
         )
     elif kind == "antiderivative":
         # 不定积分：答案是原函数族 F(x)+C，没有可代入的上下限。
-        antiderivative = sp.integrate(expression, variable)
-        unresolved = bool(antiderivative.has(sp.Integral))
-        try:
-            derivative_back = sp.simplify(sp.diff(antiderivative, variable))
-            verified = sp.simplify(derivative_back - expression) == 0
-        except Exception:  # noqa: BLE001
-            derivative_back = sp.diff(antiderivative, variable)
-            verified = False
-        antiderivative_tex = to_latex(antiderivative)
-        antiderivative_plain = str(antiderivative).replace("**", "^")
+        raw_antiderivative = sp.integrate(expression, variable)
+        method = None
+        antiderivative = raw_antiderivative
+        if not raw_antiderivative.has(sp.Integral):
+            try:
+                method = method_plan(expression, variable)
+            except Exception:  # noqa: BLE001 - 方法展示失败不影响积分结果
+                method = None
+        verification = None
+        if method is not None:
+            antiderivative = method["result"]
+            log_abs = bool(method.get("log_abs"))
+            verification = method.get("verification")
+        else:
+            antiderivative, log_abs = real_antiderivative(
+                raw_antiderivative, expression, variable)
+        log_abs = log_abs or contains_absolute_log(antiderivative)
+        unresolved = bool(antiderivative.has(sp.Integral, sp.Derivative))
+        if not verification:
+            verification = (
+                {"level": VERIFICATION_UNCONFIRMED, "symbolic": False, "numeric": False}
+                if unresolved
+                else antiderivative_verification(antiderivative, expression, variable)
+            )
+        verification_level = str(
+            verification.get("level") or VERIFICATION_UNCONFIRMED)
+        verification_label = VERIFICATION_LABELS.get(
+            verification_level, VERIFICATION_LABELS[VERIFICATION_UNCONFIRMED])
+        verified = verification_level in (VERIFICATION_SYMBOLIC, VERIFICATION_NUMERIC)
+        solution_status = "complete" if verified else "unsupported"
+        solution_complete = verified
         answer_value = None
         numeric = None
-        exact_text = f"{antiderivative_tex}+C"
-        answer = f"F({variable})={antiderivative_plain}+C"
-        steps = [
-            {
-                "id": "integrand",
-                "title": "确认被积函数",
-                "latex": rf"f({to_latex(variable)})={to_latex(expression)}",
-                "detail": "不定积分没有上下限；按原题识别出的被积函数与积分变量计算。",
-            },
-            {
-                "id": "antiderivative",
-                "title": "求原函数并加常数 C",
-                "latex": rf"\int {to_latex(expression)}\,\mathrm{{d}}{to_latex(variable)}={antiderivative_tex}+C",
-                "detail": (
-                    "逐项积分得到原函数；不定积分表示一族函数，必须写出任意常数 C。"
-                    if not unresolved
-                    else "符号积分未能化为初等函数，这里保留积分形式作为原函数；它仍可通过求导核对。"
-                ),
-            },
-            {
-                "id": "verify",
-                "title": "求导核对",
-                "latex": rf"\frac{{\mathrm{{d}}}}{{\mathrm{{d}}{to_latex(variable)}}}\left({antiderivative_tex}\right)={to_latex(derivative_back)}",
-                "detail": (
-                    "对原函数求导回到被积函数，说明结果正确；常数 C 的导数为 0，因此不影响导数。"
-                    if verified
-                    else "符号求导未能化简回被积函数；请核对被积函数或换用更明确的写法。"
-                ),
-            },
-        ]
+        integrand_step = {
+            "id": "integrand",
+            "title": "确认被积函数",
+            "latex": rf"f({to_latex(variable)})={to_latex(expression)}",
+            "detail": "不定积分没有上下限；按原题识别出的被积函数与积分变量计算。",
+        }
+        method_steps = plan_steps(method, variable, constant=True)
+        if verified:
+            antiderivative_tex = to_latex(antiderivative)
+            antiderivative_plain = str(antiderivative).replace("**", "^")
+            exact_text = f"{antiderivative_tex}+C"
+            exact_latex = exact_text
+            answer = f"F({variable})={antiderivative_plain}+C"
+            if isinstance(model, dict):
+                # 让图形评估复用同一个经核验的原函数，避免解答与曲线相差常数。
+                model["antiderivative_expression"] = expression_text(antiderivative)
+            if verification_level == VERIFICATION_SYMBOLIC:
+                derivative_back = sp.diff(antiderivative, variable)
+                derivative_display = derivative_back
+                try:
+                    simplified = sp.simplify(derivative_back)
+                    if simplified.has(sp.sign, sp.Piecewise):
+                        # log|·| 的求导结果会带 sign/Piecewise；核验已通过，直接展示被积函数。
+                        derivative_display = expression
+                    elif not simplified.has(sp.Integral):
+                        derivative_display = simplified
+                except Exception:  # noqa: BLE001
+                    derivative_display = derivative_back
+                verification_detail = (
+                    "对原函数求导并符号化简后回到被积函数，说明结果正确；"
+                    "常数 C 的导数为 0，因此不影响核验。"
+                )
+                if log_abs:
+                    verification_detail += "对数已写成 log|·|，并在实定义域的各段上核对。"
+                verify_step = {
+                    "id": "verify",
+                    "title": "符号求导核对",
+                    "latex": rf"\frac{{\mathrm{{d}}}}{{\mathrm{{d}}{to_latex(variable)}}}\left({antiderivative_tex}\right)={to_latex(derivative_display)}",
+                    "detail": verification_detail,
+                }
+            else:
+                verification_detail = (
+                    "符号求导未能化简回被积函数；改用多个远离常见瑕点的样本点，比较原函数中心差商与被积函数，结果一致。"
+                    "数值抽查不是全域证明，定义域、分支和绝对值处理仍需人工核对。"
+                )
+                verify_step = {
+                    "id": "verify",
+                    "title": "数值抽查核对",
+                    "latex": r"\left.\frac{\mathrm{d}}{\mathrm{d}x}F(x)\right|_{x=x_i}\approx f(x_i)",
+                    "detail": verification_detail,
+                }
+            steps = [
+                integrand_step,
+                *method_steps,
+                {
+                    "id": "antiderivative",
+                    "title": "求原函数并加常数 C",
+                    "latex": rf"\int {to_latex(expression)}\,\mathrm{{d}}{to_latex(variable)}={antiderivative_tex}+C",
+                    "detail": (
+                        "逐项积分得到原函数；不定积分表示一族函数，必须写出任意常数 C。"
+                        + (
+                            "对数参数写成绝对值，使原函数在实定义域各段上保持实值。"
+                            if log_abs else ""
+                        )
+                    ),
+                },
+                verify_step,
+            ]
+        else:
+            if unresolved:
+                incomplete_reason = (
+                    "当前内核未能给出可核验的闭式原函数；符号积分形式只是原题的重写，"
+                    "不能当作原题答案。"
+                )
+                step_title = "尝试求原函数（未完成）"
+            else:
+                incomplete_reason = "内核返回的候选原函数未能通过求导核对，不能作为原题答案展示。"
+                step_title = "尝试求原函数（未通过核验）"
+            verification_detail = incomplete_reason + "候选式不会作为答案展示。"
+            exact_text = "未能得到可核验的闭式原函数"
+            exact_latex = None
+            answer = ""
+            if isinstance(model, dict):
+                # 识别阶段可能存过未核验的候选式，不能让它继续驱动图像。
+                model["antiderivative_expression"] = None
+            steps = [
+                integrand_step,
+                *method_steps,
+                {
+                    "id": "antiderivative",
+                    "title": step_title,
+                    "latex": rf"\int {to_latex(expression)}\,\mathrm{{d}}{to_latex(variable)}",
+                    "detail": incomplete_reason + "这不等于原积分不存在，需换用其他工具或人工推导。",
+                },
+            ]
+        verification_record = {
+            "level": verification_level,
+            "label": verification_label,
+            "detail": verification_detail,
+        }
         conditions.append("不定积分的结果是一族原函数，相差一个常数；C 由附加的初始条件确定。")
-        if unresolved:
-            conditions.append("该被积函数未能由初等函数表示，解答保留符号积分形式。")
+        if verified and log_abs:
+            conditions.append("原函数中的对数按实定义域写成 log|·|；该改写已通过核验，在定义域各段上与内核结果一致。")
+        if verified and verification_level == VERIFICATION_SYMBOLIC:
+            conditions.append("原函数已通过符号求导核验：对结果求导可回到被积函数。")
+        elif verified:
+            conditions.append("原函数仅通过数值抽查，不是全域证明；定义域、分支和绝对值处理仍需人工核对。")
+        else:
+            conditions.append("当前内核未能给出通过求导核验的原函数；符号积分形式不代表已求出原函数。")
     else:
         point = float((model.get("defaults") or {}).get("point", 0.0))
         derivative = sp.simplify(sp.diff(expression, variable))
@@ -289,7 +443,11 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
     if kind == "derivative":
         tangent_tex = rf"y={_fmt(value)}+{_fmt(slope)}(x-{point:g})"
     if kind == "antiderivative":
-        summary_text = "不定积分题：先求原函数，再加任意常数 C；结果是一族函数。"
+        summary_text = (
+            "不定积分题：先求原函数，再加任意常数 C；结果是一族函数。"
+            if solution_complete
+            else "不定积分题：内核未能给出可核验的闭式原函数，不把符号积分形式当作答案。"
+        )
         answer_text = answer
         approx_text = None
     elif kind == "integral":
@@ -314,17 +472,22 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
             [f"原式在 {singularity_note} 处为瑕点；敛散性由拆分后的单侧极限判断。"]
             if singularity_note else []
         )
+        if log_abs:
+            conditions.append("原函数中的对数按实定义域写成 log|·|；该改写已通过核验，在定义域各段上与内核结果一致。")
     return {
         "summary": summary_text,
         "answer": answer_text,
         "answer_value": answer_value,
         "exact": exact_text,
+        "exact_latex": exact_latex,
         "approx": approx_text,
         "steps": steps,
         "conditions": conditions,
         "tangent_tex": tangent_tex,
-        "solution_status": solution_status if kind == "integral" else "complete",
-        "solution_complete": solution_complete if kind == "integral" else True,
+        "solution_status": solution_status,
+        "solution_complete": solution_complete,
+        "incomplete_reason": incomplete_reason,
+        "verification": verification_record,
         **({"convergence": convergence, "singularities": report.get("singularities") or []}
            if kind == "integral" else {}),
         "limitations": [
@@ -353,6 +516,11 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
         + (
             ["符号积分未得到有限闭式解；当前数值参考不能作为原题答案，需人工核对。"]
             if kind == "integral" and convergence not in ("finite", "divergent")
+            else []
+        )
+        + (
+            ["当前内核未能给出通过求导核验的原函数；这不等于原积分不存在，需人工推导或换用其他工具。"]
+            if kind == "antiderivative" and not solution_complete
             else []
         )
         + (
@@ -388,17 +556,25 @@ def _antiderivative_evaluate(
 
     antiderivative = None
     candidate_text = str(model.get("antiderivative_expression") or "").strip()
+    candidate_unreadable = False
     if candidate_text:
         try:
             antiderivative = parse_expression(candidate_text, (str(variable),))
         except ExprError:
             antiderivative = None
-    if antiderivative is None:
+            candidate_unreadable = True
+    if antiderivative is None and (candidate_unreadable or "antiderivative_expression" not in model):
+        # 识别或求解阶段已记录原函数（含明确的 None）时不再重复符号积分。
         try:
             candidate = sp.integrate(expression, variable)
             if not candidate.has(sp.Integral):
                 antiderivative = candidate
         except Exception:  # noqa: BLE001
+            antiderivative = None
+    if antiderivative is not None:
+        antiderivative, _ = real_antiderivative(antiderivative, expression, variable)
+        if not verifies_antiderivative(antiderivative, expression, variable):
+            # 未通过求导核验的候选式不能画成原函数族。
             antiderivative = None
     family = _numeric_function(antiderivative, [variable]) if antiderivative is not None else None
 
@@ -431,29 +607,25 @@ def _antiderivative_evaluate(
             if math.isfinite(derivative) and math.isfinite(target):
                 deviations.append(abs(derivative - target))
     deviation = max(deviations) if deviations else None
-    antiderivative_tex = (
-        to_latex(antiderivative) + "+C"
-        if antiderivative is not None
-        else r"\int f(x)\,\mathrm{d}x+C"
-    )
+    found = antiderivative is not None
+    antiderivative_tex = to_latex(antiderivative) + "+C" if found else None
     antiderivative_plain = (
-        str(antiderivative).replace("**", "^") + "+C"
-        if antiderivative is not None
-        else "∫f(x)dx+C"
+        str(antiderivative).replace("**", "^") + "+C" if found else ""
     )
 
     frames = []
-    for frame_index, value in enumerate(
-        sorted(set([-2.0, -1.0, 0.0, 1.0, 2.0, float(constant)]))
-    ):
-        frames.append(
-            {
-                "index": frame_index,
-                "label": f"C={_fmt(value)}",
-                "detail": "原函数族 F(x)+C 随 C 上下平移；导数处处等于被积函数 f(x)。",
-                "values": {"c": value},
-            }
-        )
+    if found:
+        for frame_index, value in enumerate(
+            sorted(set([-2.0, -1.0, 0.0, 1.0, 2.0, float(constant)]))
+        ):
+            frames.append(
+                {
+                    "index": frame_index,
+                    "label": f"C={_fmt(value)}",
+                    "detail": "原函数族 F(x)+C 随 C 上下平移；导数处处等于被积函数 f(x)。",
+                    "values": {"c": value},
+                }
+            )
 
     checks = [
         _check(
@@ -463,15 +635,20 @@ def _antiderivative_evaluate(
             (
                 f"抽样核对最大偏差 {_fmt(deviation)}；F(x)+C 的导数应等于 f(x)。"
                 if deviation is not None
-                else "未能得到可绘制的初等原函数；解答仍保留符号积分形式。"
+                else "当前内核未能给出通过求导核验的原函数，未绘制原函数族；这不等于原积分不存在。"
             ),
             warn=True,
         ),
         _check(
             "family",
             "常数 C 只改变平移",
-            True,
-            "改变 C 时曲线整体上下平移，形状与斜率不变，因此不定积分答案必须保留 +C。",
+            found,
+            (
+                "改变 C 时曲线整体上下平移，形状与斜率不变，因此不定积分答案必须保留 +C。"
+                if found
+                else "当前没有可核验的原函数族，不能讨论 C 的平移。"
+            ),
+            warn=True,
         ),
     ]
 
@@ -479,21 +656,29 @@ def _antiderivative_evaluate(
         "subject": "calculus",
         "kind": "antiderivative",
         "params": {"c": constant},
-        "headline": f"∫ f(x) dx = {antiderivative_plain}",
+        "headline": (
+            f"∫ f(x) dx = {antiderivative_plain}"
+            if found else "当前内核未能给出可核验的闭式原函数"
+        ),
         "metrics": [
-            {"id": "antiderivative", "label": "原函数 F(x)+C", "value": antiderivative_plain, "accent": True},
+            {"id": "antiderivative", "label": "原函数 F(x)+C",
+             "value": antiderivative_plain if found else "未能求出（不是答案）", "accent": True},
             {"id": "constant", "label": "积分常数 C", "value": _fmt(constant)},
             {"id": "expression", "label": "被积函数 f(x)", "value": str(expression).replace("**", "^")},
             {"id": "deviation", "label": "F′ 与 f 的偏差", "value": _fmt(deviation)},
         ],
         "checks": checks,
-        "notes": ["实线是原函数族 F(x)+C；拖动 C 观察整族曲线上下平移。"],
+        "notes": (
+            ["实线是原函数族 F(x)+C；拖动 C 观察整族曲线上下平移。"]
+            if found
+            else ["未绘制原函数族：内核结果无法通过求导核验；这不等于原积分不存在。"]
+        ),
         "trace": frames,
         "trace_kind": "family",
         "domain": {"x_min": x_min, "x_max": x_max},
         "series": series,
         "rects": [],
-        "exact": antiderivative_tex if antiderivative is not None else None,
+        "exact": antiderivative_tex,
         "approx": None,
         "error": None,
         "answer": antiderivative_plain,

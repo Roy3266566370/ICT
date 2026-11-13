@@ -18,14 +18,35 @@
 .inputHeading { justify-content: space-between; }
 .inputHeading button { border: 1px solid #d7d8d1; border-radius: 8px; padding: 8px 12px; background: transparent; color: var(--ink-700); cursor: pointer; }
 .bounds { margin-top: 20px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 18px 0 4px; }
+.actions .error { flex: 1 1 320px; margin: 0; }
+.busy { margin: 0; color: var(--ink-500); font-size: 13px; }
+.keyboardPanel { margin-top: 22px; padding-top: 14px; border-top: 1px solid #e7e6df; }
+.keyboardHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.keyboardHeading p { margin: 0; color: var(--ink-500); font-size: 12px; }
+.keyboardHeading strong { margin-left: 6px; color: var(--ink-900); }
+.keyboardHeading button { padding: 7px 14px; border: 1px solid #d7d8d1; border-radius: 8px; background: var(--paper-0); color: var(--ink-700); font-size: 12px; cursor: pointer; }
+.keyboardPanel button:focus-visible { outline: 2px solid var(--color-coral); outline-offset: 2px; }
 .primary { padding: 12px 22px; border: 0; border-radius: 9px; background: var(--ink-900, #252b28); color: white; cursor: pointer; font-weight: 600; }
 .primary:disabled { opacity: .45; cursor: not-allowed; }
-.confirmation { padding: 22px; margin-top: 24px; border: 1px solid var(--color-coral); border-radius: 12px; background: rgba(182, 90, 60, .035); }
+.confirmation { padding: 22px; margin-top: 18px; border: 1px solid var(--color-coral); border-radius: 12px; background: rgba(182, 90, 60, .035); scroll-margin-top: 16px; }
 .confirmation h3 { margin: 0 0 12px; }
 .confirmation p { font-size: 13px; color: var(--ink-500); line-height: 1.7; }
 .formula { overflow-x: auto; padding: 12px; background: var(--paper-0, white); border-radius: 8px; }
+.verification { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; }
+.verification strong { flex-shrink: 0; }
+.verificationSymbolic { background: rgba(47, 125, 88, .09); color: #23633f; }
+.verificationNumeric { background: rgba(190, 130, 30, .12); color: #7a5410; }
+.verificationUnconfirmed { background: #fff1ec; color: #a13e23; }
 .checkbox { display: flex; align-items: center; gap: 10px; margin: 18px 0; font-size: 14px; }
 .checkbox input { width: 18px; height: 18px; flex-shrink: 0; }
 .error { padding: 12px; border-radius: 8px; background: #fff1ec; color: #a13e23; line-height: 1.7; }
 .panel button:focus-visible, .panel select:focus-visible, .panel input:focus-visible { outline: 2px solid var(--color-coral); outline-offset: 3px; }
-@media (max-width: 720px) { .tasks, .bounds { grid-template-columns: 1fr; } .classification { align-items: flex-start; } .steps { gap: 12px; } }
+@media (max-width: 720px) {
+  .tasks, .bounds { grid-template-columns: 1fr; }
+  .classification { align-items: flex-start; }
+  .steps { gap: 12px; }
+  .actions .primary { width: 100%; }
+  .actions .error { flex-basis: 100%; }
+  .keyboardHeading { align-items: flex-start; }
+}
