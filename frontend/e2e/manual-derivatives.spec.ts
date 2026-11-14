@@ -1,0 +1,22 @@
+import { test, expect } from '@playwright/test';
+test('手动求导：确认、计算、重开，不调用AI', async ({ page }) => {
+  const ai: string[] = [];
+  page.on('request', r => { if (r.url().includes('/ai-solve')) ai.push(r.url()); });
+  await page.goto('/labs');
+  await page.getByRole('button', { name: '导数与切线 输入函数和求导点，求导数并观察切线。' }).click();
+  await page.getByRole('textbox', { name: '函数表达式', exact: true }).fill('x^3');
+  await page.getByRole('textbox', { name: '求导点', exact: true }).fill('2');
+  await page.getByRole('button', { name: '预览并确认题目', exact: true }).click();
+  await expect(page.getByRole('heading', { name: '确认这是你要计算的题目' })).toBeVisible();
+  await page.getByRole('checkbox', { name: '我已核对公式、求导点和全部条件' }).check();
+  const response = page.waitForResponse(r => r.url().endsWith('/api/v1/labs/manual') && r.request().method() === 'POST');
+  await page.getByRole('button', { name: '确认并计算', exact: true }).click();
+  const result = await response;
+  expect(result.status(), await result.text()).toBe(201);
+  const doc = (await result.json()).data;
+  expect(doc.problems[0].solution.answer).toBe('12');
+  await expect(page.getByRole('region', { name: '原题计算结果与过程' })).toContainText('求导函数');
+  await page.reload();
+  await expect(page.getByRole('region', { name: '原题计算结果与过程' })).toContainText('12');
+  expect(ai).toHaveLength(0);
+});

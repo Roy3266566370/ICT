@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f2f0e8">
+  <meta name="description" content="万象题目实验室准入登记：登录或建立一份新档案，进入个人空间与题目实验室。">
+  <title>准入登记 · 万象题目实验室</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23101211'/%3E%3Cpath d='M5 12V5h7M20 5h7v7M27 20v7h-7M12 27H5v-7' stroke='%23f2f0e8' stroke-width='1.8' fill='none'/%3E%3Ccircle cx='16' cy='16' r='2.6' fill='%23de421f'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/auth.css">
+  <script src="js/auth.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#auth-main">跳到登记表单</a>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="site-head">
+    <a class="brand" href="../home-redesign/index.html" aria-label="万象题目实验室首页">
+      <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <path d="M5 12V5h7M20 5h7v7M27 20v7h-7M12 27H5v-7" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <circle cx="16" cy="16" r="2.6" fill="currentColor"/>
+        <path d="M16 8.5v3M16 20.5v3M8.5 16h3M20.5 16h3" fill="none" stroke="currentColor" stroke-width="1.2"/>
+      </svg>
+      <span class="brand__name">万象</span>
+      <span class="brand__en">WANXIANG</span>
+      <span class="brand__divider" aria-hidden="true"></span>
+      <span class="brand__product">准入登记</span>
+    </a>
+
+    <div class="head-right">
+      <span class="head-meta">DESK 02 · 2026</span>
+      <a class="head-link" href="../home-redesign/index.html">返回首页 <span aria-hidden="true">↗</span></a>
+    </div>
+  </header>
+
+  <main class="desk" id="auth-main">
+    <section class="desk__paper" aria-labelledby="auth-title">
+      <div class="desk__meta">
+        <p class="eyebrow"><i class="cross" aria-hidden="true"></i> ACCESS DESK / 准入登记</p>
+        <span class="desk__form-no">IDENTITY &amp; RECORD</span>
+      </div>
+
+      <div class="auth-main">
+        <div class="auth-copy" id="auth-copy">
+          <h1 id="auth-title">欢迎回来，<br>实验还开着。</h1>
+          <p class="auth-lead" id="auth-lead">验证身份，回到个人空间或题目实验室。账号现在保存显示名与默认入口；材料与实验仍按当前浏览器会话保留。</p>
+        </div>
+
+        <div class="mode-switch" role="tablist" aria-label="选择登记方式">
+          <button class="mode-tab is-active" id="tab-login" type="button" role="tab" aria-selected="true" aria-controls="auth-panel" data-mode="login">
+            <span class="mode-tab__no">01</span>
+            <span class="mode-tab__body"><b>已有档案</b><em>SIGN IN / 登录</em></span>
+          </button>
+          <button class="mode-tab" id="tab-register" type="button" role="tab" aria-selected="false" aria-controls="auth-panel" data-mode="register" tabindex="-1">
+            <span class="mode-tab__no">02</span>
+            <span class="mode-tab__body"><b>新建档案</b><em>REGISTER / 注册</em></span>
+          </button>
+        </div>
+
+        <section class="auth-panel" id="auth-panel" role="tabpanel" aria-labelledby="tab-login">
+          <form class="auth-form" id="form-login" novalidate>
+            <div class="field">
+              <div class="field__top">
+                <label class="field__label" for="login-id">用户名或邮箱<span class="req" aria-hidden="true">*</span></label>
+                <span class="field__no">01</span>
+              </div>
+              <input class="input" id="login-id" name="identifier" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="lin_x 或 lin@example.com" required>
+              <p class="field__error" id="login-id-error" hidden></p>
+            </div>
+
+            <div class="field">
+              <div class="field__top">
+                <label class="field__label" for="login-pass">密码<span class="req" aria-hidden="true">*</span></label>
+                <span class="field__no">02</span>
+              </div>
+              <div class="input-wrap">
+                <input class="input" id="login-pass" name="password" type="password" autocomplete="current-password" placeholder="输入密码" required>
+                <button class="eye" type="button" data-eye="login-pass" aria-label="显示密码" aria-pressed="false">显示</button>
+              </div>
+              <p class="caps-hint" id="login-caps" hidden>大写锁定已开启</p>
+              <p class="field__error" id="login-pass-error" hidden></p>
+            </div>
+
+            <div class="form-meta">
+              <label class="remember"><input type="checkbox" id="login-remember"> 记住我</label>
+              <button class="text-link" type="button" id="forgot-toggle" aria-expanded="false" aria-controls="forgot-note">忘记密码？</button>
+            </div>
+            <p class="help-note" id="forgot-note" hidden>请联系课程管理员重置密码；也可以直接建立一份新档案。</p>
+
+            <p class="form-error" id="login-error" role="alert" hidden></p>
+            <button class="submit" type="submit" id="login-submit">
+              <span data-label>进入实验室</span>
+              <span class="submit__arrow" aria-hidden="true">↗</span>
+            </button>
+            <p class="privacy-note">密码只用于本次提交；本页不会写入浏览器存储。</p>
+            <p class="demo-note" id="login-demo" hidden><i aria-hidden="true"></i> 本地校验已通过。这是设计提案，没有提交或保存任何数据。</p>
+            <p class="form-switch"><span>还没有档案？</span><button class="text-link" type="button" data-switch="register">立即建立</button></p>
+          </form>
+
+          <form class="auth-form" id="form-register" novalidate hidden>
+            <div class="field-row">
+              <div class="field">
+                <div class="field__top">
+                  <label class="field__label" for="reg-username">用户名<span class="req" aria-hidden="true">*</span></label>
+                  <span class="field__no">01</span>
+                </div>
+                <input class="input" id="reg-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="lin_x" maxlength="20" required>
+                <p class="field__hint">3–20 位，字母开头；可用字母、数字、_、-</p>
+                <p class="field__error" id="reg-username-error" hidden></p>
+              </div>
+
+              <div class="field">
+                <div class="field__top">
+                  <label class="field__label" for="reg-email">邮箱<span class="req" aria-hidden="true">*</span></label>
+                  <span class="field__no">02</span>
+                </div>
+                <input class="input" id="reg-email" name="email" type="email" inputmode="email" autocomplete="email" spellcheck="false" placeholder="lin@example.com" maxlength="320" required>
+                <p class="field__hint">用于登录与通知</p>
+                <p class="field__error" id="reg-email-error" hidden></p>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <div class="field__top">
+                  <label class="field__label" for="reg-pass">密码<span class="req" aria-hidden="true">*</span></label>
+                  <span class="field__no">03</span>
+                </div>
+                <div class="input-wrap">
+                  <input class="input" id="reg-pass" name="password" type="password" autocomplete="new-password" placeholder="至少 8 位" maxlength="128" required>
+                  <button class="eye" type="button" data-eye="reg-pass" aria-label="显示密码" aria-pressed="false">显示</button>
+                </div>
+                <div class="strength" id="reg-strength" data-level="0" aria-live="polite">
+                  <span class="strength__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                  <span class="strength__label">至少 8 位</span>
+                </div>
+                <p class="caps-hint" id="reg-caps" hidden>大写锁定已开启</p>
+                <p class="field__error" id="reg-pass-error" hidden></p>
+              </div>
+
+              <div class="field">
+                <div class="field__top">
+                  <label class="field__label" for="reg-confirm">确认密码<span class="req" aria-hidden="true">*</span></label>
+                  <span class="field__no">04</span>
+                </div>
+                <div class="input-wrap">
+                  <input class="input" id="reg-confirm" name="confirmPassword" type="password" autocomplete="new-password" placeholder="再次输入密码" maxlength="128" required>
+                  <button class="eye" type="button" data-eye="reg-confirm" aria-label="显示确认密码" aria-pressed="false">显示</button>
+                </div>
+                <p class="caps-hint" id="reg-confirm-caps" hidden>大写锁定已开启</p>
+                <p class="field__error" id="reg-confirm-error" hidden></p>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <div class="field__top">
+                  <label class="field__label" for="reg-name">称呼 <span class="optional">（可选）</span></label>
+                  <span class="field__no">05</span>
+                </div>
+                <input class="input" id="reg-name" name="displayName" type="text" autocomplete="nickname" placeholder="留空时使用用户名" maxlength="64">
+                <p class="field__hint">留空时使用用户名</p>
+                <p class="field__error" id="reg-name-error" hidden></p>
+              </div>
+
+              <div class="field">
+                <div class="field__top">
+                  <label class="field__label" for="reg-identity">身份标签 <span class="optional">（可选）</span></label>
+                  <span class="field__no">06</span>
+                </div>
+                <div class="select-wrap">
+                  <select class="select" id="reg-identity" name="identityTag">
+                    <option value="">不填写</option>
+                    <option value="student">学生</option>
+                    <option value="teacher">教师</option>
+                    <option value="researcher">研究者</option>
+                    <option value="enterprise">企业员工</option>
+                    <option value="other">其他</option>
+                  </select>
+                </div>
+                <p class="field__hint">仅用于后续推荐</p>
+              </div>
+            </div>
+
+            <p class="form-error" id="register-error" role="alert" hidden></p>
+            <button class="submit" type="submit" id="register-submit">
+              <span data-label>建立档案</span>
+              <span class="submit__arrow" aria-hidden="true">↗</span>
+            </button>
+            <p class="privacy-note">密码只用于本次提交；本页不会写入浏览器存储。</p>
+            <p class="demo-note" id="register-demo" hidden><i aria-hidden="true"></i> 本地校验已通过。这是设计提案，没有创建账号或提交任何数据。</p>
+            <p class="form-switch"><span>已有档案？</span><button class="text-link" type="button" data-switch="login">直接登录</button></p>
+          </form>
+        </section>
+      </div>
+
+      <div class="desk__foot">
+        <p class="boundary-note"><i aria-hidden="true"></i> 材料与实验仍按当前浏览器会话保存；跨设备同步与永久保存尚未开放。</p>
+        <a class="guest-link" href="/examples" data-product>以访客身份浏览交互示例 <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+
+    <aside class="access" aria-labelledby="access-title">
+      <div class="access__meta">
+        <h2 id="access-title">LAB ACCESS / 通行证</h2>
+        <span class="access__live"><i aria-hidden="true"></i> LIVE · 随输入更新</span>
+      </div>
+
+      <figure class="pass-scene">
+        <span class="access__ghost" aria-hidden="true">入</span>
+        <div class="lanyard" aria-hidden="true"><span></span></div>
+
+        <div class="pass" id="pass">
+          <div class="pass__inner" id="pass-inner">
+            <div class="pass__face pass__front">
+              <div class="pass__top">
+                <span>WANXIANG / ACCESS PASS</span>
+                <span class="pass__hole" aria-hidden="true"></span>
+                <span>DESK 02 · 2026</span>
+              </div>
+
+              <div class="pass__head">
+                <div class="pass__monogram" id="pass-monogram" aria-hidden="true">万</div>
+                <div class="pass__role">
+                  <span id="pass-role-en">RETURNING MEMBER</span>
+                  <b id="pass-role-cn">回访者</b>
+                </div>
+              </div>
+
+              <div class="pass__name-block">
+                <span class="pass__label">DISPLAY NAME / 登记名 <i class="live-dot" aria-hidden="true"></i></span>
+                <strong class="pass__name is-empty" id="pass-name">待填写</strong>
+              </div>
+
+              <div class="pass__facts">
+                <div><span>SCOPE / 范围</span><b>个人空间 · 题目实验室</b></div>
+                <div><span>ENTRY / 入口</span><b id="pass-entry">个人空间（可设）</b></div>
+                <div><span>STATUS / 状态</span><b id="pass-status">回访</b></div>
+                <div><span>ISSUED / 签发</span><b>2026.11</b></div>
+              </div>
+
+              <div class="pass__perf" aria-hidden="true"></div>
+              <div class="pass__code">
+                <div class="pass__barcode" id="pass-barcode" aria-hidden="true"></div>
+                <span class="pass__no" id="pass-no">NO. WX-2026-••••</span>
+              </div>
+
+              <div class="pass__stamp" id="pass-stamp">再次入场</div>
+              <p class="pass__fine">设计提案 · 非真实凭证 / NOT A REAL CREDENTIAL</p>
+            </div>
+
+            <div class="pass__face pass__back" id="pass-back" aria-hidden="true">
+              <div class="pass__top">
+                <span>WANXIANG / ACCESS NOTES</span>
+                <span class="pass__hole" aria-hidden="true"></span>
+                <span>BACK · 02</span>
+              </div>
+
+              <div class="pass__back-head">
+                <span class="pass__label">READ BEFORE ENTRY</span>
+                <h3>这张证，<br>现在能做什么。</h3>
+              </div>
+
+              <ol class="pass-notes">
+                <li>
+                  <span>01</span>
+                  <div><b>能进入</b><p>个人空间与题目实验室；保存显示名、默认入口与账号资料。</p></div>
+                </li>
+                <li>
+                  <span>02</span>
+                  <div><b>还不能带走</b><p>材料、实验与分享记录仍随当前浏览器会话保存；跨设备同步与永久保存尚未开放。</p></div>
+                </li>
+                <li>
+                  <span>03</span>
+                  <div><b>忘记密码</b><p>联系课程管理员重置；也可以建立一份新档案。</p></div>
+                </li>
+                <li>
+                  <span>04</span>
+                  <div><b>不想登记</b><p>以访客身份浏览交互示例；换设备或清理会话后不会保留。</p></div>
+                </li>
+              </ol>
+
+              <div class="pass__back-foot">
+                <span id="pass-back-no">NO. WX-2026-••••</span>
+              </div>
+              <div class="pass__stamp pass__stamp--back">边界</div>
+              <p class="pass__fine">设计提案 · 非真实凭证</p>
+            </div>
+          </div>
+        </div>
+        <figcaption class="visually-hidden">一张会随表单输入更新登记名与编号的实验通行证，可翻面查看账号使用边界。</figcaption>
+      </figure>
+
+      <div class="access__controls">
+        <button class="flip-btn" id="flip-pass" type="button" aria-pressed="false" aria-controls="pass">翻到背面 · 使用边界 <span aria-hidden="true">↻</span></button>
+        <span class="access__hint">名字与编号会跟着输入更新</span>
+      </div>
+
+      <p class="access__quote">登记不是门槛，<br>是给好奇心留一个座位。</p>
+
+      <div class="access__foot">
+        <span><i aria-hidden="true"></i> 材料与实验仍按浏览器会话保存</span>
+        <span>跨设备同步尚未开放</span>
+      </div>
+    </aside>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

@@ -51,11 +51,14 @@ export default function LivingPagesPage(): ReactNode {
   const totalBlocks = pages === null ? null : pages.reduce((sum, p) => sum + p.block_count, 0);
   const pendingSuggestions = pages === null ? null : pages.reduce((sum, p) => sum + p.suggestions_pending, 0);
 
-  useEffect(() => {
+  const [loadError, setLoadError] = useState('');
+  const loadPages = (): void => {
+    setLoadError('');
     listLivingPages()
       .then(setPages)
-      .catch(() => setPages([]));
-  }, []);
+      .catch(() => setLoadError('活页列表加载失败，请重试。'));
+  };
+  useEffect(loadPages, []);
 
   const upload = async (files: FileList | null): Promise<void> => {
     if (!files?.length) return;
@@ -185,6 +188,7 @@ export default function LivingPagesPage(): ReactNode {
           </div>
         </section>
 
+        {loadError ? <p role="alert">{loadError} <button onClick={loadPages}>重试</button></p> : null}
         {error ? <p className={styles.uploadError} role="alert">{error}</p> : null}
 
         <section className={styles.listSection} aria-labelledby="living-mine-title">

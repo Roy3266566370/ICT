@@ -1,0 +1,848 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#faf9f4">
+<meta name="description" content="题目日报 · 读者服务部：回馆登录，或登记为新读者。题题有回应，过程可回放。">
+<title>读者服务部 · 题目日报 — 回馆 / 登记</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23141310'/%3E%3Crect x='5' y='6' width='22' height='3' fill='%23faf9f4'/%3E%3Crect x='5' y='12' width='22' height='1.6' fill='%23faf9f4'/%3E%3Crect x='5' y='17' width='13' height='1.6' fill='%23faf9f4'/%3E%3Crect x='5' y='21' width='13' height='1.6' fill='%23faf9f4'/%3E%3Crect x='20' y='16' width='7' height='10' fill='%23c93a22'/%3E%3C/svg%3E">
+<style>
+/* ============================================================
+   题目日报 · 读者服务部
+   与首页同一套报馆体：新闻纸白 / 墨色 / 朱砂 / 发丝线
+   ============================================================ */
+:root{
+  --paper:#faf9f4;
+  --sheet:#fffef9;
+  --ink:#141310;
+  --ink-2:#3d3a30;
+  --muted:#6f6a5a;
+  --faint:#a09a88;
+  --line:#ddd8c9;
+  --line-soft:#e9e5d8;
+  --red:#c93a22;
+  --red-deep:#a32b16;
+  --red-soft:#f6e3dd;
+  --ok:#0f7b5f;
+  --mark:#f3d96b;
+  --serif:"Noto Serif SC","Source Han Serif SC","Songti SC","STSong","STZhongsong","SimSun",serif;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Code","SFMono-Regular","Consolas","Liberation Mono",monospace;
+  --gutter:clamp(20px,4.6vw,64px);
+  --max:1220px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{
+  margin:0;min-height:100vh;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:15.5px;line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;
+}
+::selection{background:var(--mark)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+input{font:inherit;color:inherit}
+a{color:inherit}
+.mono{font-family:var(--mono);font-feature-settings:"tnum" 1}
+:focus-visible{outline:2px solid var(--red);outline-offset:3px}
+.skip-link{position:absolute;left:-999px;top:8px;z-index:99;background:var(--ink);color:var(--paper);padding:8px 14px;font-size:13px}
+.skip-link:focus{left:8px}
+
+/* ---------- 报头（紧凑版） ---------- */
+.masthead{border-bottom:1px solid var(--line)}
+.masthead-in{max-width:var(--max);margin:0 auto;padding:0 var(--gutter)}
+.mast-top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:14px 0 10px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;text-decoration:none}
+.brand-cn{font-family:var(--serif);font-weight:900;font-size:22px;letter-spacing:.06em;white-space:nowrap}
+.brand-en{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--muted);white-space:nowrap}
+.brand-div{width:1px;height:14px;background:var(--line);align-self:center}
+.brand-desk{font-size:13.5px;color:var(--ink-2);letter-spacing:.08em}
+.mast-meta{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;gap:14px;align-items:center;white-space:nowrap}
+.mast-meta b{color:var(--red);font-weight:600}
+.mast-nav{display:flex;justify-content:space-between;align-items:center;border-top:3px solid var(--ink);position:relative;padding:0 0 0 var(--gutter)}
+.mast-nav::before{content:"";position:absolute;left:0;right:0;top:3px;border-top:1px solid var(--ink)}
+.mast-nav a,.mast-nav .nav-back{
+  font-size:12.5px;text-decoration:none;color:var(--ink-2);padding:10px 0;
+  display:inline-flex;align-items:center;gap:6px;
+}
+.mast-nav a sup,.mast-nav .nav-back sup{font-family:var(--mono);font-size:9px;color:var(--faint)}
+.mast-nav a:hover{color:var(--red)}
+.nav-back{color:var(--ink);font-weight:600;border-left:1px solid var(--line);padding-left:16px}
+
+/* ---------- 页头 ---------- */
+.page-head{max-width:var(--max);margin:0 auto;padding:clamp(26px,3.6vw,44px) var(--gutter) 8px}
+.kicker{
+  font-family:var(--mono);font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--muted);display:flex;align-items:center;gap:12px;
+}
+.kicker::after{content:"";flex:0 0 56px;height:1px;background:var(--ink)}
+.page-head h1{
+  font-family:var(--serif);font-weight:900;
+  font-size:clamp(30px,4vw,46px);line-height:1.25;margin:12px 0 8px;letter-spacing:.02em;
+}
+.page-head h1 .u{position:relative;white-space:nowrap}
+.page-head h1 .u::after{content:"";position:absolute;left:0;right:0;bottom:.08em;height:.32em;background:var(--mark);z-index:-1}
+.page-head .lede{font-size:14.5px;color:var(--ink-2);max-width:44em;margin:0}
+.page-head .lede em{font-style:normal;color:var(--red)}
+
+/* ---------- 主区 ---------- */
+.auth-grid{
+  max-width:var(--max);margin:0 auto;padding:18px var(--gutter) 60px;
+  display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
+  gap:clamp(24px,3.4vw,56px);align-items:start;
+}
+
+/* ---------- 联别切换 ---------- */
+.mode-tabs{display:flex;gap:0;border:1px solid var(--ink);background:var(--sheet);width:fit-content;margin-bottom:14px}
+.mode-tab{
+  font-family:var(--serif);font-weight:700;font-size:15px;letter-spacing:.06em;
+  padding:10px 22px;color:var(--muted);position:relative;transition:color .15s;
+}
+.mode-tab small{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;font-weight:400;margin-top:1px}
+.mode-tab[aria-selected="true"]{color:var(--paper);background:var(--ink)}
+.mode-tab[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;border-bottom:2.5px solid var(--red)}
+.mode-tab + .mode-tab{border-left:1px solid var(--line)}
+.mode-note{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin:0 0 12px 2px}
+
+/* ---------- 登记联（表单） ---------- */
+.slip{
+  background:var(--sheet);border:1px solid var(--ink);
+  box-shadow:5px 5px 0 var(--line);position:relative;overflow:hidden;
+}
+.slip-head{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:10px 18px;border-bottom:1px solid var(--ink);
+  font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+}
+.slip-head .desk{color:var(--red);font-weight:700}
+.slip-head .form-no{color:var(--faint)}
+.slip-body{padding:8px 22px 20px;border-left:26px solid transparent;
+  background:linear-gradient(90deg,transparent 0,transparent 34px,var(--red) 34px,var(--red) 35px,transparent 35px),
+             repeating-linear-gradient(to bottom,transparent 0,transparent 55px,var(--line-soft) 55px,var(--line-soft) 56px);}
+
+/* 字段行：标签 | 输入 | 提示 */
+.frow{padding:14px 0 4px;position:relative}
+.frow-lab{
+  display:flex;align-items:baseline;gap:8px;margin-bottom:2px;
+  font-size:13px;color:var(--ink-2);letter-spacing:.04em;
+}
+.frow-lab .req{color:var(--red);font-family:var(--mono);font-size:10px}
+.frow-lab .opt{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.08em}
+.frow-in{position:relative}
+.frow-in input,.frow-in select{
+  width:100%;border:0;border-bottom:1.5px solid var(--ink-2);
+  background:transparent;padding:2px 0 6px;font-size:16px;color:var(--ink);
+  border-radius:0;
+}
+.frow-in input::placeholder{color:var(--faint)}
+.frow-in input:focus,.frow-in select:focus{outline:none;border-bottom-color:var(--red)}
+.frow-in input[aria-invalid="true"],.frow-in input.bad{border-bottom-color:var(--red)}
+.frow-meta{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:5px;min-height:16px}
+.frow-hint{font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.03em}
+.ferr{font-size:12px;color:var(--red-deep);margin:2px 0 0;line-height:1.5}
+.frow.bad .frow-lab{color:var(--red-deep)}
+.eye{
+  position:absolute;right:2px;bottom:8px;color:var(--muted);
+  width:34px;height:30px;display:inline-flex;align-items:center;justify-content:center;
+}
+.eye:hover{color:var(--red)}
+.eye svg{width:17px;height:17px}
+.caps-hint{
+  position:absolute;right:0;top:-2px;font-family:var(--mono);font-size:10.5px;
+  color:var(--red-deep);background:var(--red-soft);padding:1px 8px;letter-spacing:.06em;
+}
+
+/* 密码强度：印章格 */
+.strength{display:flex;align-items:center;gap:10px;margin-top:8px}
+.strength .segs{display:flex;gap:3px}
+.strength .seg{width:26px;height:5px;background:var(--line);transition:background .2s}
+.strength .seg.on-2{background:#b7791f}
+.strength .seg.on-3{background:var(--ink-2)}
+.strength .seg.on-4{background:var(--red)}
+.strength .lv{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.08em}
+
+/* 读者类别（注册专用） */
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.tag{
+  font-size:13px;border:1px solid var(--ink-2);padding:5px 14px;background:var(--sheet);
+  transition:all .15s;letter-spacing:.05em;
+}
+.tag:hover{border-color:var(--ink)}
+.tag[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.tag-note{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:8px}
+
+/* 表单底行：记住我 / 忘记密码 / 错误汇总 */
+.meta-row{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 0 4px}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;color:var(--ink-2);cursor:pointer;user-select:none}
+.chk input{appearance:none;width:15px;height:15px;border:1.5px solid var(--ink-2);background:var(--sheet);position:relative;cursor:pointer;margin:0;flex:none}
+.chk input:checked{background:var(--ink);border-color:var(--ink)}
+.chk input:checked::after{content:"";position:absolute;left:3.5px;top:1px;width:5px;height:8px;border:solid var(--paper);border-width:0 2px 2px 0;transform:rotate(40deg)}
+.chk:hover input{border-color:var(--red)}
+.help-link{font-size:13px;color:var(--ink-2);text-decoration:underline;text-decoration-style:dotted;text-underline-offset:4px}
+.help-link:hover{color:var(--red)}
+.help-note{
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-2);background:var(--paper);
+  border-left:3px solid var(--mark);padding:8px 12px;margin:8px 0 0;
+}
+.form-err{
+  display:flex;align-items:flex-start;gap:9px;font-size:13px;color:var(--red-deep);
+  border:1px solid var(--red);background:var(--red-soft);padding:9px 13px;margin:12px 0 0;
+}
+.form-err svg{flex:none;margin-top:2px}
+.form-err[hidden]{display:none}
+.svc-hint{
+  font-family:var(--mono);font-size:11px;color:var(--muted);border:1px dashed var(--line);
+  padding:6px 12px;margin:0 0 14px;background:var(--paper);
+}
+
+/* 提交 */
+.submit-row{padding:16px 0 4px}
+.submit-btn{
+  width:100%;display:inline-flex;align-items:center;justify-content:center;gap:10px;
+  background:var(--ink);color:var(--paper);font-size:15.5px;font-weight:600;
+  padding:13px 20px;border-radius:2px;letter-spacing:.12em;font-family:var(--serif);
+  position:relative;overflow:hidden;
+}
+.submit-btn:hover:not(:disabled){background:var(--red)}
+.submit-btn:disabled{opacity:.6;cursor:wait}
+.submit-btn .spin{
+  width:15px;height:15px;border:2px solid rgba(250,249,244,.35);border-top-color:var(--paper);
+  border-radius:50%;animation:spin .7s linear infinite;display:none;
+}
+.submit-btn.busy .spin{display:inline-block}
+.submit-btn.busy .arr{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.arr{font-family:var(--mono)}
+
+/* 联间链接 */
+.alt-row{display:flex;justify-content:center;align-items:center;gap:8px;padding:16px 0 2px;font-size:13.5px;color:var(--muted)}
+.alt-row button,.alt-row a{color:var(--ink);font-weight:600;text-decoration:none;border-bottom:1px solid var(--ink);padding-bottom:1px}
+.alt-row button:hover,.alt-row a:hover{color:var(--red);border-color:var(--red)}
+.slip-foot{
+  border-top:1px solid var(--line);padding:10px 18px;display:flex;justify-content:space-between;
+  font-family:var(--mono);font-size:10.5px;color:var(--faint);flex-wrap:wrap;gap:8px;
+}
+
+/* 成功印章 */
+.stamp-veil{
+  position:absolute;inset:0;background:rgba(250,249,244,.55);z-index:5;
+  display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s;
+}
+.stamp-veil.show{opacity:1}
+.pass-stamp{
+  font-family:var(--serif);font-weight:900;font-size:34px;letter-spacing:.2em;
+  color:var(--red);border:3.5px solid var(--red);border-radius:6px;padding:10px 26px;
+  transform:rotate(-8deg) scale(2);opacity:0;
+  box-shadow:0 0 0 4px rgba(201,58,34,.08) inset;
+}
+.stamp-veil.show .pass-stamp{animation:stampIn .45s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes stampIn{to{transform:rotate(-8deg) scale(1);opacity:1}}
+.pass-sub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:12px;letter-spacing:.1em}
+
+/* ---------- 右栏：品牌区 ---------- */
+.panel{
+  background:var(--sheet);border:1px solid var(--ink);padding:20px 22px 18px;
+  box-shadow:5px 5px 0 var(--line);
+}
+.panel + .panel{margin-top:22px}
+.panel-h{
+  display:flex;justify-content:space-between;align-items:baseline;
+  border-bottom:1px solid var(--ink);padding-bottom:7px;margin-bottom:14px;
+}
+.panel-h b{font-family:var(--serif);font-weight:900;font-size:16px;letter-spacing:.06em}
+.panel-h span{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.14em}
+
+/* 今日样刊小卡 */
+.specimen{border:1px solid var(--line);background:var(--paper);padding:14px 16px 12px;transform:rotate(.5deg)}
+.specimen .sp-k{font-family:var(--mono);font-size:9.5px;color:var(--red);letter-spacing:.2em;margin-bottom:6px}
+.specimen .sp-q{font-family:var(--serif);font-weight:700;font-size:14.5px;line-height:1.5;margin:0 0 10px}
+.specimen svg{width:100%;height:auto}
+.specimen .sp-r{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:8px;border-top:1px dashed var(--line);padding-top:7px}
+
+/* 权益 */
+.perks{list-style:none;margin:0;padding:0;counter-reset:pk}
+.perks li{
+  display:grid;grid-template-columns:34px 1fr;gap:10px;padding:11px 0;
+  border-bottom:1px dashed var(--line);align-items:baseline;
+}
+.perks li:last-child{border-bottom:0}
+.perks li::before{
+  counter-increment:pk;content:"0" counter(pk);
+  font-family:var(--mono);font-size:11px;color:var(--red);font-weight:700;
+}
+.perks h3{font-family:var(--serif);font-weight:900;font-size:14.5px;margin:0 0 2px;letter-spacing:.03em}
+.perks p{font-size:12.5px;color:var(--ink-2);margin:0;line-height:1.65}
+
+/* 须知 */
+.rules-mini{font-size:12.5px;color:var(--ink-2);margin:0;padding:0;list-style:none}
+.rules-mini li{padding:7px 0 7px 18px;position:relative;border-bottom:1px dashed var(--line-soft);line-height:1.6}
+.rules-mini li::before{content:"§";position:absolute;left:0;color:var(--red);font-family:var(--serif)}
+.rules-mini li:last-child{border-bottom:0}
+.rules-mini b{font-weight:600}
+
+.guest-box{
+  border:1px dashed var(--ink-2);padding:14px 16px;text-align:center;margin-top:6px;background:var(--paper);
+}
+.guest-box p{font-size:13px;color:var(--ink-2);margin:0 0 8px}
+.guest-box a{
+  font-family:var(--serif);font-weight:700;font-size:14.5px;text-decoration:none;
+  border-bottom:2px solid var(--red);padding-bottom:2px;color:var(--ink);
+}
+.guest-box a:hover{color:var(--red)}
+
+/* 读者来信 */
+.letter{font-family:var(--serif);font-style:italic;font-size:13.5px;line-height:1.9;color:var(--ink-2)}
+.letter .who{display:block;font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-top:8px;letter-spacing:.08em}
+
+/* ---------- 页脚 ---------- */
+.colophon{
+  border-top:3px solid var(--ink);position:relative;margin-top:auto;
+  padding:18px 0 26px;
+}
+.colophon::before{content:"";position:absolute;left:0;right:0;top:3px;border-top:1px solid var(--ink)}
+.colophon-in{max-width:var(--max);margin:0 auto;padding:0 var(--gutter);
+  display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center;
+  font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em}
+.colophon-in b{color:var(--ink-2);font-weight:600}
+.colophon-in a{color:var(--ink-2);text-decoration:none}
+.colophon-in a:hover{color:var(--red)}
+
+/* ---------- 响应式 ---------- */
+@media (max-width:960px){
+  .auth-grid{grid-template-columns:1fr}
+  .panel{max-width:560px}
+}
+@media (max-width:640px){
+  .mast-nav .hide-sm{display:none}
+  .mode-tab{flex:1;text-align:center}
+  .frow-in input{font-size:15.5px}
+  .slip-body{padding-left:16px;border-left-width:20px}
+  .slip-body textarea, .slip-body input{ /* n/a */ }
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+  .pass-stamp{transform:rotate(-8deg) scale(1);opacity:1}
+  .stamp-veil.show .pass-stamp{animation:none}
+}
+</style>
+</head>
+<body>
+<a class="skip-link" href="#desk">跳到登记台</a>
+
+<!-- ================= 报头 ================= -->
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="mast-top">
+      <a class="brand" href="index.html" aria-label="回到题目日报首页">
+        <span class="brand-cn">题目日报</span>
+        <span class="brand-en">QUESTION GAZETTE</span>
+        <span class="brand-div" aria-hidden="true"></span>
+        <span class="brand-desk">读者服务部</span>
+      </a>
+      <div class="mast-meta">
+        <span>第 <b id="issue-no">—</b> 期</span>
+        <span id="today">—</span>
+      </div>
+    </div>
+    <nav class="mast-nav" aria-label="辅助导航">
+      <a href="index.html"><sup>A1</sup> 回报纸首页</a>
+      <a class="nav-back" href="index.html#submit"><sup>→</sup> 先去投稿看看</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<!-- ================= 页头 ================= -->
+<div class="page-head">
+  <p class="kicker">读者服务部 · SUBSCRIBER DESK</p>
+  <h1 id="page-title">老读者，<span class="u">回馆</span>。</h1>
+  <p class="lede" id="page-lede">登一次记，报馆认得你。新读者请往下翻到「登记联」。</p>
+</div>
+
+<div class="auth-grid" id="desk">
+  <!-- ================= 左：登记联 ================= -->
+  <section aria-labelledby="slip-title">
+    <div class="mode-tabs" role="tablist" aria-label="选择回馆或登记">
+      <button class="mode-tab" id="tab-login" role="tab" aria-selected="true" aria-controls="pane-login">
+        回馆联<small>已有账号 · LOGIN</small>
+      </button>
+      <button class="mode-tab" id="tab-register" role="tab" aria-selected="false" aria-controls="pane-register">
+        登记联<small>新读者 · REGISTER</small>
+      </button>
+    </div>
+    <p class="mode-note" id="mode-note">此联供已登记读者核验身份使用。</p>
+
+    <div class="slip" id="slip">
+      <div class="slip-head">
+        <span class="desk" id="slip-desk">回馆核验单</span>
+        <span class="form-no" id="form-no">表格号 R-01</span>
+      </div>
+
+      <!-- ============ 回馆联 ============ -->
+      <form class="slip-body pane" id="pane-login" role="tabpanel" aria-labelledby="tab-login" novalidate>
+        <p class="svc-hint" id="svc-hint">账号服务：演示模式 · 校验规则与正式版一致，不连接后端</p>
+
+        <div class="frow" id="f-ident">
+          <label class="frow-lab" for="login-identifier">署名<span class="req">*</span></label>
+          <div class="frow-in">
+            <input id="login-identifier" name="identifier" type="text" autocomplete="username"
+              autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next"
+              placeholder="用户名或邮箱" aria-describedby="hint-ident">
+            <div class="frow-meta"><span class="frow-hint" id="hint-ident">用户名或注册邮箱</span></div>
+          </div>
+          <p class="ferr" id="err-ident" hidden></p>
+        </div>
+
+        <div class="frow" id="f-pass">
+          <label class="frow-lab" for="login-password">门卡密码<span class="req">*</span></label>
+          <div class="frow-in">
+            <input id="login-password" name="password" type="password" autocomplete="current-password"
+              enterkeyhint="go" placeholder="请输入密码" aria-describedby="hint-pass">
+            <button type="button" class="eye" id="eye-login" aria-label="显示密码" aria-pressed="false" aria-controls="login-password">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.4 10S5.2 4.9 10 4.9 17.6 10 17.6 10 14.8 15.1 10 15.1 2.4 10 2.4 10Z"/><circle cx="10" cy="10" r="2.5"/></svg>
+            </button>
+            <div class="frow-meta"><span class="frow-hint" id="hint-pass">区分大小写</span><span class="caps-hint" id="caps-login" hidden>大写锁已开</span></div>
+          </div>
+          <p class="ferr" id="err-pass" hidden></p>
+        </div>
+
+        <div class="meta-row">
+          <label class="chk" for="login-remember"><input type="checkbox" id="login-remember" name="remember"><span>留个记号，下次免核</span></label>
+          <button type="button" class="help-link" id="help-link" aria-expanded="false" aria-controls="help-note">门卡遗失？</button>
+        </div>
+        <p class="help-note" id="help-note" hidden>请联系课程管理员重置密码；也可以直接翻到「登记联」新开一张。</p>
+
+        <div class="form-err" id="login-err" role="alert" hidden>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 1.8 15 14H1L8 1.8Z" stroke-linejoin="round"/><path d="M8 6.2v3.4" stroke-linecap="round"/><circle cx="8" cy="11.9" r=".9" fill="currentColor" stroke="none"/></svg>
+          <span id="login-err-text"></span>
+        </div>
+
+        <div class="submit-row">
+          <button type="submit" class="submit-btn" id="login-btn">
+            <span class="spin" aria-hidden="true"></span><span class="arr">回馆 →</span>
+          </button>
+        </div>
+        <div class="alt-row"><span>还没有读者证？</span><button type="button" id="to-register">去登记联 →</button></div>
+      </form>
+
+      <!-- ============ 登记联 ============ -->
+      <form class="slip-body pane" id="pane-register" role="tabpanel" aria-labelledby="tab-register" hidden novalidate>
+        <p class="svc-hint">演示模式：字段校验与正式契约逐条一致，登记不会真实写入。</p>
+
+        <div class="frow" id="r-username">
+          <label class="frow-lab" for="reg-username">署名<span class="req">*</span></label>
+          <div class="frow-in">
+            <input id="reg-username" name="username" type="text" autocomplete="username"
+              autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next"
+              placeholder="3–20 字符，字母开头" aria-describedby="hint-uname">
+            <div class="frow-meta"><span class="frow-hint" id="hint-uname">字母、数字、_ 或 -</span></div>
+          </div>
+          <p class="ferr" id="err-uname" hidden></p>
+        </div>
+
+        <div class="frow" id="r-email">
+          <label class="frow-lab" for="reg-email">邮箱<span class="req">*</span></label>
+          <div class="frow-in">
+            <input id="reg-email" name="email" type="email" autocomplete="email" enterkeyhint="next"
+              placeholder="name@example.com" aria-describedby="hint-email">
+            <div class="frow-meta"><span class="frow-hint" id="hint-email">收回执与稿件通知用</span></div>
+          </div>
+          <p class="ferr" id="err-email" hidden></p>
+        </div>
+
+        <div class="frow" id="r-password">
+          <label class="frow-lab" for="reg-password">门卡密码<span class="req">*</span></label>
+          <div class="frow-in">
+            <input id="reg-password" name="password" type="password" autocomplete="new-password"
+              enterkeyhint="next" placeholder="8–128 个字符" aria-describedby="hint-rpass" aria-invalid="false">
+            <button type="button" class="eye" id="eye-reg" aria-label="显示密码" aria-pressed="false" aria-controls="reg-password">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2.4 10S5.2 4.9 10 4.9 17.6 10 17.6 10 14.8 15.1 10 15.1 2.4 10 2.4 10Z"/><circle cx="10" cy="10" r="2.5"/></svg>
+            </button>
+            <div class="frow-meta"><span class="frow-hint" id="hint-rpass">区分大小写</span><span class="caps-hint" id="caps-reg" hidden>大写锁已开</span></div>
+          </div>
+          <div class="strength" aria-live="polite">
+            <span class="segs" id="str-segs" aria-hidden="true">
+              <i class="seg"></i><i class="seg"></i><i class="seg"></i><i class="seg"></i>
+            </span>
+            <span class="lv" id="str-label">未填写</span>
+          </div>
+          <p class="ferr" id="err-rpass" hidden></p>
+        </div>
+
+        <div class="frow" id="r-confirm">
+          <label class="frow-lab" for="reg-confirm">再写一遍<span class="req">*</span></label>
+          <div class="frow-in">
+            <input id="reg-confirm" name="confirm" type="password" autocomplete="new-password"
+              enterkeyhint="next" placeholder="与上行一致" aria-describedby="hint-confirm">
+            <div class="frow-meta"><span class="frow-hint" id="hint-confirm">防止誊写出错</span></div>
+          </div>
+          <p class="ferr" id="err-confirm" hidden></p>
+        </div>
+
+        <div class="frow" id="r-display">
+          <label class="frow-lab" for="reg-display">称呼<span class="opt">可空</span></label>
+          <div class="frow-in">
+            <input id="reg-display" name="display" type="text" autocomplete="nickname" enterkeyhint="next"
+              maxlength="64" placeholder="稿件上署的名字，可留空">
+            <div class="frow-meta"><span class="frow-hint">≤ 64 字符</span></div>
+          </div>
+          <p class="ferr" id="err-display" hidden></p>
+        </div>
+
+        <div class="frow" id="r-tag" style="padding-bottom:10px">
+          <span class="frow-lab" id="tag-lab">读者类别<span class="opt">仅展示</span></span>
+          <div class="frow-in" role="group" aria-labelledby="tag-lab">
+            <div class="tags" id="tag-group">
+              <button type="button" class="tag" data-tag="student" aria-pressed="true">学生</button>
+              <button type="button" class="tag" data-tag="teacher" aria-pressed="false">教师</button>
+              <button type="button" class="tag" data-tag="researcher" aria-pressed="false">研究者</button>
+              <button type="button" class="tag" data-tag="enterprise" aria-pressed="false">企业员工</button>
+              <button type="button" class="tag" data-tag="other" aria-pressed="false">其他</button>
+            </div>
+            <div class="frow-meta"><span class="frow-hint">此栏只用于本页展示，不写入档案</span></div>
+          </div>
+        </div>
+
+        <div class="form-err" id="reg-err" role="alert" hidden>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 1.8 15 14H1L8 1.8Z" stroke-linejoin="round"/><path d="M8 6.2v3.4" stroke-linecap="round"/><circle cx="8" cy="11.9" r=".9" fill="currentColor" stroke="none"/></svg>
+          <span id="reg-err-text"></span>
+        </div>
+
+        <div class="submit-row">
+          <button type="submit" class="submit-btn" id="reg-btn">
+            <span class="spin" aria-hidden="true"></span><span class="arr">登记入册 →</span>
+          </button>
+        </div>
+        <div class="alt-row"><span>已经是读者？</span><button type="button" id="to-login">回馆联 →</button></div>
+      </form>
+
+      <div class="slip-foot">
+        <span>万象 · 题目实验室 读者服务部</span>
+        <span>本页为设计提案 · 不连接后端</span>
+      </div>
+
+      <!-- 成功印章 -->
+      <div class="stamp-veil" id="stamp-veil" aria-hidden="true">
+        <div style="text-align:center">
+          <div class="pass-stamp" id="pass-stamp">已放行</div>
+          <div class="pass-sub" id="pass-sub">演示通过 · 未连接后端</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 右：品牌区 ================= -->
+  <aside aria-label="读者服务说明">
+    <div class="panel">
+      <div class="panel-h"><b>今日样刊</b><span>SPECIMEN · 非卖品</span></div>
+      <div class="specimen">
+        <p class="sp-k">A1 · 微积分版</p>
+        <p class="sp-q">f(x)=½x² 在 x₀=1.20 处的切线斜率</p>
+        <svg viewBox="0 0 320 120" fill="none" aria-hidden="true">
+          <path d="M24 106h272M34 112V10" stroke="#141310" stroke-width="1"/>
+          <path d="M44 102 C110 96 132 30 270 24" stroke="#141310" stroke-width="1.6" fill="none"/>
+          <path d="M132 56v40" stroke="#c93a22" stroke-width="1" stroke-dasharray="3 3"/>
+          <line x1="60" y1="33" x2="238" y2="70" stroke="#c93a22" stroke-width="1.5"/>
+          <circle cx="132" cy="56" r="4" fill="#c93a22"/>
+        </svg>
+        <div class="sp-r"><span>f′(1.20) = 1.20</span><span>已核对 ✓</span></div>
+      </div>
+      <p style="font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.7">
+        登记之后，你投进来的每道题都会排成这样的版——可拖动、可核对、可回放。
+      </p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><b>登记之后，你将得到</b><span>BENEFITS</span></div>
+      <ol class="perks">
+        <li><div><h3>题题有回应</h3><p>PDF、截图、PPTX 或粘贴文字都收；原题一字不改，识别结果附来源。</p></div></li>
+        <li><div><h3>过程可回放</h3><p>条件、模型、内核演算分栏留档；改一个参数，重印一版，旧版不丢。</p></div></li>
+        <li><div><h3>作品可带走</h3><p>笔记、参数、分享快照随你保存；换机换浏览器，回到同一版本。</p></div></li>
+      </ol>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><b>发行部须知</b><span>HOUSE RULES</span></div>
+      <ul class="rules-mini">
+        <li><b>本地优先</b>——能本地识别、本地求解的，不麻烦云端；模型未配置时如实说明。</li>
+        <li><b>先核对再付印</b>——区间缺失、读数不全先挂「待核对」，不编造条件。</li>
+        <li><b>数值不冒充证明</b>——图像与采样是证据；未识别的题目如实登「暂不支持」。</li>
+      </ul>
+      <div class="guest-box">
+        <p>不想登记？可以先翻翻旧报。</p>
+        <a href="index.html">以访客身份浏览交互示例 →</a>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-h"><b>读者来信</b><span>LETTERS</span></div>
+      <p class="letter">
+        “投进来的积分题都排成了版，拖一下分割数就看见黎曼和走向真值。答案占一角，过程铺满全版。”
+        <span class="who">—— 第 317 期 · 微积分版读者</span>
+      </p>
+    </div>
+  </aside>
+</div>
+</main>
+
+<footer class="colophon">
+  <div class="colophon-in">
+    <span><b>主办</b> 万象 WANXIANG · 题目实验室</span>
+    <span><b>刊期</b> 每日付印</span>
+    <span><b>印张</b> HTML + CSS + JS</span>
+    <a href="index.html">回报纸首页 ↑</a>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   读者服务部 · 交互
+   校验规则与 frontend/src/components/auth/registerFields.ts
+   的契约逐条一致（仅为设计提案，不连接后端）
+   ============================================================ */
+(function(){
+"use strict";
+var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- 期号与日期 ---------- */
+(function(){
+  var now=new Date(), epoch=new Date(now.getFullYear(),0,1);
+  document.getElementById("issue-no").textContent=
+    String(Math.floor((now-epoch)/864e5)+1).padStart(3,"0");
+  document.getElementById("today").textContent=
+    now.getFullYear()+"年"+(now.getMonth()+1)+"月"+now.getDate()+"日";
+})();
+
+/* ---------- 两联切换（hash 路由） ---------- */
+var tabLogin=document.getElementById("tab-login"),
+    tabReg=document.getElementById("tab-register"),
+    paneLogin=document.getElementById("pane-login"),
+    paneReg=document.getElementById("pane-register"),
+    modeNote=document.getElementById("mode-note"),
+    pageTitle=document.getElementById("page-title"),
+    pageLede=document.getElementById("page-lede"),
+    slipDesk=document.getElementById("slip-desk"),
+    formNo=document.getElementById("form-no");
+
+var META={
+  login:{title:"老读者，<span class=\"u\">回馆</span>。",lede:"登一次记，报馆认得你。新读者请往下翻到「登记联」。",note:"此联供已登记读者核验身份使用。",desk:"回馆核验单",no:"表格号 R-01"},
+  register:{title:"新读者，<span class=\"u\">入册</span>。",lede:"填一张登记表，从此你的题目都有回音。已是读者请走「回馆联」。",note:"此联为新读者建立档案使用，一次填齐。",desk:"新读者登记表",no:"表格号 R-02"}
+};
+function setMode(mode){
+  var isLogin = mode==="login";
+  tabLogin.setAttribute("aria-selected", isLogin);
+  tabReg.setAttribute("aria-selected", !isLogin);
+  tabLogin.tabIndex = isLogin?0:-1;
+  tabReg.tabIndex = isLogin?-1:0;
+  paneLogin.hidden = !isLogin;
+  paneReg.hidden = isLogin;
+  var m=META[mode];
+  modeNote.textContent=m.note;
+  pageTitle.innerHTML=m.title;
+  pageLede.textContent=m.lede;
+  slipDesk.textContent=m.desk;
+  formNo.textContent=m.no;
+  if(location.hash !== "#"+mode) history.replaceState(null,"","#"+mode);
+}
+tabLogin.addEventListener("click",function(){setMode("login")});
+tabReg.addEventListener("click",function(){setMode("register")});
+tabLogin.addEventListener("keydown",function(e){if(e.key==="ArrowRight"){e.preventDefault();tabReg.click()}});
+tabReg.addEventListener("keydown",function(e){if(e.key==="ArrowLeft"){e.preventDefault();tabLogin.click()}});
+document.getElementById("to-register").addEventListener("click",function(){setMode("register");tabReg.focus()});
+document.getElementById("to-login").addEventListener("click",function(){setMode("login");tabLogin.focus()});
+window.addEventListener("hashchange",function(){
+  setMode(location.hash==="#register"?"register":"login");
+});
+setMode(location.hash==="#register"?"register":"login");
+
+/* ---------- 通用：错误行 ---------- */
+function showErr(errEl,rowEl,ok,msg){
+  if(ok){ errEl.hidden=true; errEl.textContent=""; rowEl.classList.remove("bad");
+    var inp=rowEl.querySelector("input"); if(inp) inp.removeAttribute("aria-invalid"); return; }
+  errEl.textContent=msg; errEl.hidden=false; rowEl.classList.add("bad");
+  var inp2=rowEl.querySelector("input"); if(inp2) inp2.setAttribute("aria-invalid","true");
+}
+function clearAll(ids){ ids.forEach(function(id){
+  var e=document.getElementById("err-"+id); if(e){e.hidden=true;e.textContent="";}
+  var r=document.getElementById("f-"+id)||document.getElementById("r-"+id);
+  if(r) r.classList.remove("bad");
+});}
+
+/* ---------- 密码显隐与大写锁 ---------- */
+function bindEye(btnId,inputId,capsId){
+  var btn=document.getElementById(btnId), inp=document.getElementById(inputId), caps=document.getElementById(capsId);
+  btn.addEventListener("click",function(){
+    var show=inp.type==="password";
+    inp.type=show?"text":"password";
+    btn.setAttribute("aria-pressed",show); btn.setAttribute("aria-label",show?"隐藏密码":"显示密码");
+    btn.classList.toggle("eye-on",show);
+  });
+  inp.addEventListener("keydown",function(e){caps.hidden=!e.getModifierState("CapsLock")});
+  inp.addEventListener("keyup",function(e){caps.hidden=!e.getModifierState("CapsLock")});
+  inp.addEventListener("blur",function(){caps.hidden=true});
+}
+bindEye("eye-login","login-password","caps-login");
+bindEye("eye-reg","reg-password","caps-reg");
+
+/* ---------- 读者类别 ---------- */
+var tags=document.querySelectorAll("#tag-group .tag");
+tags.forEach(function(t){
+  t.addEventListener("click",function(){
+    tags.forEach(function(x){x.setAttribute("aria-pressed","false")});
+    t.setAttribute("aria-pressed","true");
+  });
+});
+
+/* ---------- 忘记密码 ---------- */
+document.getElementById("help-link").addEventListener("click",function(){
+  var n=document.getElementById("help-note"), open=n.hidden;
+  n.hidden=!open; this.setAttribute("aria-expanded",open);
+});
+
+/* ---------- 印章 ---------- */
+var veil=document.getElementById("stamp-veil"),
+    passStamp=document.getElementById("pass-stamp"),
+    passSub=document.getElementById("pass-sub"),
+    veilTimer=null;
+function showPass(text,sub){
+  passStamp.textContent=text; passSub.textContent=sub||"演示通过 · 未连接后端";
+  veil.classList.add("show");
+  clearTimeout(veilTimer);
+  veilTimer=setTimeout(function(){veil.classList.remove("show")}, reduceMotion?1400:2200);
+}
+
+/* ---------- 回馆联校验 + 提交 ---------- */
+var loginForm=document.getElementById("pane-login"),
+    loginBtn=document.getElementById("login-btn"),
+    loginErr=document.getElementById("login-err"),
+    loginErrText=document.getElementById("login-err-text");
+
+function len(s){return Array.from(s).length}
+function isEmailLike(s){return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s.trim())}
+
+loginForm.addEventListener("submit",function(e){
+  e.preventDefault();
+  clearAll(["ident","pass"]);
+  loginErr.hidden=true;
+  var ident=document.getElementById("login-identifier").value.trim(),
+      pass=document.getElementById("login-password").value,
+      ok=true;
+  if(!ident){ showErr(document.getElementById("err-ident"),document.getElementById("f-ident"),false,"请填写用户名或邮箱"); ok=false; }
+  else if(ident.includes("@") && !isEmailLike(ident)){ showErr(document.getElementById("err-ident"),document.getElementById("f-ident"),false,"邮箱格式不合法，请检查 @ 与域名"); ok=false; }
+  if(!pass){ showErr(document.getElementById("err-pass"),document.getElementById("f-pass"),false,"请输入门卡密码"); ok=false; }
+  if(!ok){ loginErrText.textContent="登记单未填齐，请按退稿处补正后再送审。"; loginErr.hidden=false; return; }
+  loginBtn.classList.add("busy"); loginBtn.disabled=true;
+  setTimeout(function(){
+    loginBtn.classList.remove("busy"); loginBtn.disabled=false;
+    showPass("欢迎回馆","演示放行 · 真实环境将进入工作台");
+  }, reduceMotion?200:900);
+});
+
+/* ---------- 登记联校验 + 提交（与 registerFields.ts 对齐） ---------- */
+var regForm=document.getElementById("pane-register"),
+    regBtn=document.getElementById("reg-btn"),
+    regErr=document.getElementById("reg-err"),
+    regErrText=document.getElementById("reg-err-text"),
+    strSegs=document.querySelectorAll("#str-segs .seg"),
+    strLabel=document.getElementById("str-label");
+
+var E={
+  unameLen:"用户名长度需为 3–20 个字符",
+  unameStart:"用户名需以字母开头",
+  unameChar:"用户名只能包含字母、数字、下划线或短横线",
+  emailLen:"邮箱长度需为 3–320 个字符",
+  emailAt:"邮箱必须且只能包含一个 @",
+  emailLocal:"邮箱 @ 前的部分需为 1–64 个字符且不含空格",
+  emailDomain:"邮箱域名格式不合法",
+  emailTld:"邮箱域名末段至少需要 2 个字符",
+  passLen:"密码长度需为 8–128 个字符",
+  passConfirm:"两次输入的密码不一致",
+  displayLen:"称呼最多 64 个字符"
+};
+var LETTER=/^\p{L}$/u, DECIMAL=/^\p{Nd}$/u, SPACE=/\s/u;
+
+function vUser(u){
+  u=u.trim(); var n=len(u); if(n<3||n>20) return E.unameLen;
+  var cs=Array.from(u);
+  if(!LETTER.test(cs[0])) return E.unameStart;
+  for(var i=1;i<cs.length;i++){var c=cs[i];
+    if(LETTER.test(c)||DECIMAL.test(c)||c==="_"||c==="-") continue;
+    return E.unameChar;}
+  return null;
+}
+function vEmail(em){
+  em=em.trim(); var n=len(em); if(n<3||n>320) return E.emailLen;
+  var at=0; for(var i=0;i<em.length;i++) if(em[i]==="@") at++;
+  if(at!==1) return E.emailAt;
+  var idx=em.indexOf("@"), local=em.slice(0,idx), domain=em.slice(idx+1);
+  if(len(local)<1||len(local)>64||SPACE.test(local)) return E.emailLocal;
+  if(SPACE.test(domain)||domain.includes("..")||domain.startsWith(".")||domain.endsWith(".")||!domain.includes(".")) return E.emailDomain;
+  var tld=domain.slice(domain.lastIndexOf(".")+1);
+  if(len(tld)<2) return E.emailTld;
+  return null;
+}
+function vPass(p){ var n=len(p); return (n<8||n>128)?E.passLen:null; }
+
+/* 强度计 */
+var rp=document.getElementById("reg-password");
+rp.addEventListener("input",function(){
+  var p=rp.value,n=len(p),score=0;
+  strSegs.forEach(function(s){s.className="seg"});
+  if(n===0){strLabel.textContent="未填写";return}
+  if(n<8){strLabel.textContent="太短";strSegs[0].className="seg on-2";return}
+  score=2;
+  if(/[a-z]/.test(p)&&/[A-Z]/.test(p))score++;
+  if(/\d/.test(p))score++;
+  if(/[^A-Za-z0-9]/.test(p))score++;
+  score=Math.min(4,score);
+  for(var i=0;i<score;i++) strSegs[i].className="seg on-"+score;
+  strLabel.textContent=["","太短","较弱","良好","很强"][score];
+});
+
+regForm.addEventListener("submit",function(e){
+  e.preventDefault();
+  var clearMap={uname:["r-username","err-uname"],email:["r-email","err-email"],rpass:["r-password","err-rpass"],confirm:["r-confirm","err-confirm"],display:["r-display","err-display"]};
+  Object.keys(clearMap).forEach(function(k){
+    var row=document.getElementById(clearMap[k][0]), e2=document.getElementById(clearMap[k][1]);
+    if(row) row.classList.remove("bad");
+    if(e2){e2.hidden=true;e2.textContent=""}
+    if(row){var inp=row.querySelector("input"); if(inp) inp.removeAttribute("aria-invalid")}
+  });
+  regErr.hidden=true;
+  var u=document.getElementById("reg-username").value,
+      em=document.getElementById("reg-email").value,
+      pw=document.getElementById("reg-password").value,
+      cf=document.getElementById("reg-confirm").value,
+      dn=document.getElementById("reg-display").value,
+      msgs=[],ok=true;
+  /* 逐字段校验，全部一次报出（与真实页面一致） */
+  var eu=vUser(u); if(eu){showErr(document.getElementById("err-uname"),document.getElementById("r-username"),false,eu);msgs.push(eu);ok=false}
+  var ee=vEmail(em); if(ee){showErr(document.getElementById("err-email"),document.getElementById("r-email"),false,ee);msgs.push(ee);ok=false}
+  var ep=vPass(pw); if(ep){showErr(document.getElementById("err-rpass"),document.getElementById("r-password"),false,ep);msgs.push(ep);ok=false}
+  if(cf!==pw){showErr(document.getElementById("err-confirm"),document.getElementById("r-confirm"),false,E.passConfirm);msgs.push(E.passConfirm);ok=false}
+  if(len(dn.trim())>64){showErr(document.getElementById("err-display"),document.getElementById("r-display"),false,E.displayLen);msgs.push(E.displayLen);ok=false}
+  if(!ok){
+    regErrText.textContent="登记表有 "+msgs.length+" 处待改："+msgs[0]+(msgs.length>1?" 等":"")+"。";
+    regErr.hidden=false; return;
+  }
+  regBtn.classList.add("busy"); regBtn.disabled=true;
+  setTimeout(function(){
+    regBtn.classList.remove("busy"); regBtn.disabled=false;
+    showPass("已登记入册","读者档案已建立 · 演示环境未真实写入");
+  }, reduceMotion?200:1100);
+});
+
+/* 输入时即时清错 */
+document.querySelectorAll(".frow-in input").forEach(function(inp){
+  inp.addEventListener("input",function(){
+    var row=inp.closest(".frow"); if(row) row.classList.remove("bad");
+    inp.removeAttribute("aria-invalid");
+    var fe=row&&row.querySelector(".ferr"); if(fe){fe.hidden=true;fe.textContent=""}
+  });
+});
+})();
+</script>
+</body>
+</html>

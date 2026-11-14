@@ -101,7 +101,7 @@ def _limit_report(model: Mapping[str, Any]) -> dict[str, Any]:
     if point_raw in _LIMIT_INFINITIES:
         point = _LIMIT_INFINITIES[str(point_raw)]
     else:
-        point = sp.Rational(str(model.get("limit_point_value", 0.0)))
+        point = parse_expression(str(model.get("exact_point", model.get("limit_point_value", 0.0))))
     side = str(model.get("side") or "both")
     if point in (sp.oo, -sp.oo):
         both = _limit_at(expression, variable, point)
@@ -157,7 +157,7 @@ def _limit_report(model: Mapping[str, Any]) -> dict[str, Any]:
             "detail": (
                 f"左极限 {sides['left']['text'] if sides['left'] else '不适用'}；"
                 f"右极限 {sides['right']['text'] if sides['right'] else '不适用'}；"
-                f"双侧结论：{both['text']}。"
+                f"当前所选方向结论：{both['text']}。"
             ),
         },
         {
@@ -222,7 +222,7 @@ def _series_around(expression: sp.Expr, variable: sp.Symbol, center: float | Non
                 value = None
         if value is not None and not math.isfinite(value):
             value = None
-        series.append({"x": round(x_value, 6), "y": None if value is None else round(value, 6)})
+        series.append({"x": x_value, "y": None if value is None else round(value, 6)})
     return {"x_min": low, "x_max": high}, series
 
 
@@ -233,6 +233,8 @@ def _evaluate_limit(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict
     worked["side"] = str(params.get("side") or model.get("side") or "both")
     point_override = params.get("point")
     if point_override is not None and model.get("limit_point_value") is not None:
+        if float(point_override) != float(model.get("limit_point_value")):
+            worked.pop("exact_point", None)
         worked["limit_point_value"] = float(point_override)
         worked["limit_point"] = str(float(point_override))
     report = _limit_report(worked)
@@ -327,71 +329,14 @@ def _evaluate_limit(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict
 
 
 def _taylor_report(model: Mapping[str, Any]) -> dict[str, Any]:
-    variable = sp.Symbol(str(model.get("variable") or "x"), real=True)
-    expression = _parse(model.get("expression"), str(variable))
-    point = sp.Rational(str(model.get("taylor_point", 0.0)))
-    order = max(1, min(MAX_ORDER, int(model.get("order", 3))))
-    limit_value = _limit_at(expression, variable, point)
-    if limit_value["kind"] != "finite":
-        return {
-            "status": "undefined",
-            "reason": "函数在该点没有有限极限，不能作泰勒展开",
-            "expression": expression,
-            "variable": variable,
-            "point": point,
-            "order": order,
-        }
-    coefficients: list[sp.Expr] = []
-    try:
-        for k in range(order + 1):
-            derivative = sp.diff(expression, variable, k)
-            if k > 0:
-                left = sp.limit(derivative, variable, point, "-")
-                right = sp.limit(derivative, variable, point, "+")
-                if not _same_real_limit(left, right):
-                    raise ValueError("该点导数不存在或左右导数不一致")
-            derivative_limit = sp.limit(derivative, variable, point)
-            if derivative_limit in (sp.oo, -sp.oo, sp.nan, sp.zoo) or isinstance(derivative_limit, sp.AccumBounds):
-                raise ValueError("导数极限不存在")
-            coefficient = sp.simplify(derivative_limit / sp.factorial(k))
-            if safe_float(coefficient) is None:
-                raise ValueError("展开系数不是有限实数")
-            coefficients.append(coefficient)
-    except Exception as exc:  # noqa: BLE001
-        return {
-            "status": "incomplete",
-            "reason": f"泰勒系数未能全部求出：{exc}",
-            "expression": expression,
-            "variable": variable,
-            "point": point,
-            "order": order,
-        }
-    shift = variable - point
-    polynomial = sp.Add(*[coefficient * shift ** index for index, coefficient in enumerate(coefficients)])
-    remainder_text = f"O((x-{point})^{order + 1})" if point != 0 else f"O(x^{order + 1})"
-    return {
-        "status": "complete",
-        "expression": expression,
-        "variable": variable,
-        "point": point,
-        "order": order,
-        "limit_value": limit_value,
-        "coefficients": coefficients,
-        "polynomial": polynomial,
-        "shift": shift,
-        "remainder_text": remainder_text,
-    }
+    from .taylor_analysis import taylor_report
+    return taylor_report(model)
 
 
 def _taylor_answer(report: Mapping[str, Any]) -> str:
-    polynomial = report["polynomial"]
-    variable, point, order = report["variable"], report["point"], report["order"]
-    center = "" if point == 0 else f"(x-{point})" if point > 0 else f"(x+{-point})"
-    polynomial_text = str(polynomial).replace("**", "^")
-    return (
-        f"P_{order}(x)={polynomial_text}"
-        + (f"（在 x={point} 处展开，余项 O((x-{point})^{order + 1})）" if point != 0 else f"（麦克劳林展开，余项 O(x^{order + 1})）")
-    )
+    variable,point,order=report['variable'],report['point'],report['order']
+    polynomial_text=str(report['polynomial']).replace('**','^')
+    return f"P_{order}({variable})={polynomial_text}（在 {variable}={point} 处展开；余项 {report['remainder_text']}）"
 
 
 def _solve_taylor(model: Mapping[str, Any]) -> dict[str, Any]:
@@ -414,16 +359,18 @@ def _solve_taylor(model: Mapping[str, Any]) -> dict[str, Any]:
         for index, coefficient in enumerate(report["coefficients"])
     ]
     return {
-        "summary": "泰勒展开：逐阶求导并在展开点取极限，得到多项式与余项阶。",
+        "summary": "泰勒展开：核对原式定义域、精确系数与余项，再单独说明观察范围与误差保证。",
         "answer": answer,
         "answer_value": safe_float(report["limit_value"]["value"]),
         "exact": str(report["polynomial"]).replace("**", "^"),
+        "exact_latex": to_latex(report["polynomial"]),
+        "taylor_details": report["details"],
         "approx": None,
         "steps": [
             {
                 "id": "point",
                 "title": "确认展开点与阶数",
-                "latex": rf"x_0={to_latex(report['point'])},\quad n={report['order']}",
+                "latex": rf"a={to_latex(report['point'])},\quad n={report['order']}",
                 "detail": "展开点必须在函数的实定义域内且具有有限极限。",
             },
             {
@@ -435,18 +382,18 @@ def _solve_taylor(model: Mapping[str, Any]) -> dict[str, Any]:
             {
                 "id": "polynomial",
                 "title": "写出多项式与余项",
-                "latex": rf"{to_latex(report['polynomial'])}+{report['remainder_text']}",
+                "latex": report['details']['relation_latex'],
                 "detail": answer,
             },
         ],
-        "conditions": [f"在 x={report['point']} 处展开到 {report['order']} 阶。"],
+        "conditions": [f"在 {report['variable']}={report['point']} 处展开到 {report['order']} 阶。"],
         "limitations": ["泰勒多项式只在展开点附近逼近函数；余项阶不保证整个定义域内一致精度。"],
         "taylor_point": str(report["point"]),
         "taylor_point_value": safe_float(report["point"]),
         "order": report["order"],
         "coefficients": coefficients,
         "polynomial": str(report["polynomial"]).replace("**", "^"),
-        "remainder_order": report["order"] + 1,
+        "remainder_order": report["order"] if report["remainder_kind"] == "little_o" else report["order"] + 1,
         "solution_status": "complete",
         "solution_complete": True,
     }
@@ -456,6 +403,8 @@ def _evaluate_taylor(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
     order = int(params.get("order", model.get("order", 3)))
     point = float(params.get("point", model.get("taylor_point_value", 0.0)))
     worked = {**model, "order": order, "taylor_point": str(point), "taylor_point_value": point}
+    if point == (model.get("defaults") or {}).get("point"):
+        worked["taylor_point"] = model.get("taylor_point", str(point))
     report = _taylor_report(worked)
     variable = report["variable"]
     expression = report["expression"]
@@ -480,7 +429,7 @@ def _evaluate_taylor(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
     func = sp.lambdify(variable, expression, modules=["math"])
     polynomial_func = sp.lambdify(variable, report["polynomial"], modules=["math"])
     center = float(report["point"])
-    domain, series = _series_around(expression, variable, center)
+    domain, series = _series_around(expression, variable, center, float(report["radius"]))
     overlay: list[dict[str, Any]] = []
     errors: list[float] = []
     for index in range(240):
@@ -489,8 +438,8 @@ def _evaluate_taylor(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
             value = float(polynomial_func(x_value))
         except Exception:  # noqa: BLE001
             value = None
-        overlay.append({"x": round(x_value, 6), "y": None if value is None or not math.isfinite(value) else round(value, 6)})
-        if abs(x_value - center) <= 0.6 and abs(x_value - center) > 1e-6:
+        overlay.append({"x": x_value, "y": None if value is None or not math.isfinite(value) else round(value, 6)})
+        if abs(x_value - center) > 1e-6:
             try:
                 target = float(func(x_value))
                 if math.isfinite(target) and value is not None and math.isfinite(value):
@@ -505,7 +454,7 @@ def _evaluate_taylor(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
             partial_func = sp.lambdify(variable, partial, "math")
             partial_error = 0.0
             count = 0
-            for sample in [center + delta for delta in (-1.2, -0.8, -0.4, 0.4, 0.8, 1.2)]:
+            for sample in [center + float(report["radius"])*delta for delta in (-1, -0.5, 0.5, 1)]:
                 try:
                     a, b = float(func(sample)), float(partial_func(sample))
                     if math.isfinite(a) and math.isfinite(b):
@@ -515,7 +464,7 @@ def _evaluate_taylor(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
                     continue
             frames.append({
                 "index": k - 1, "label": f"n={k}",
-                "detail": f"最大偏差 {_fmt(partial_error if count else None)}",
+                "detail": f"样本最大偏差 {_fmt(partial_error if count else None)}",
                 "values": {"order": k, "error": round(partial_error, 8) if count else None},
             })
     except Exception:  # noqa: BLE001
@@ -528,13 +477,13 @@ def _evaluate_taylor(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
         "metrics": [
             {"id": "order", "label": "展开阶数", "value": str(report["order"]), "accent": True},
             {"id": "polynomial", "label": "泰勒多项式", "value": str(report["polynomial"])},
-            {"id": "max_error", "label": "附近最大偏差", "value": _fmt(max_error)},
+            {"id": "max_error", "label": "观察区间样本最大偏差", "value": _fmt(max_error)},
             {"id": "coefficients", "label": "系数个数", "value": str(len(report["coefficients"]))},
         ],
         "checks": [
             {"id": "expansion", "label": "系数全部求出", "status": "pass", "detail": "各阶导数在展开点均有有限极限。"},
-            {"id": "error", "label": "附近数值误差", "status": "pass" if max_error is not None and max_error <= 0.05 else "warn",
-             "detail": f"展开点附近抽样最大偏差 {_fmt(max_error)}；余项只说明局部逼近。"},
+            {"id": "error", "label": "样本误差（非上界）", "status": "warn",
+             "detail": f"观察区间抽样最大偏差 {_fmt(max_error)}；样本误差不保证整个区间精度，误差上界以原题结果中单独核验的信息为准。"},
         ],
         "notes": ["实线为原函数，虚线为泰勒多项式；改变阶数观察局部逼近。"],
         "series": series, "domain": domain, "rects": [],
@@ -577,7 +526,22 @@ def _derivative_report(model: Mapping[str, Any]) -> dict[str, Any]:
     point = model.get("derivative_point")
     point_value = None
     if point is not None:
-        point = sp.Rational(str(point))
+        point = parse_expression(str(point))
+        try:
+            original = parse_expression(str(model['expression']), (str(variable),), preserve_structure=True)
+            if continuous_domain(original, variable, sp.S.Reals).contains(point) is not sp.S.true:
+                raise ValueError('求值点不在原式已确认的实定义域内')
+            previous = original
+            for level in range(order):
+                quotient = (previous - previous.subs(variable, point))/(variable-point)
+                left = sp.limit(quotient, variable, point, '-')
+                right = sp.limit(quotient, variable, point, '+')
+                if safe_float(left) is None or safe_float(right) is None or sp.simplify(left-right) != 0:
+                    raise ValueError('该点相应阶双侧普通导数无法确认存在')
+                previous = sp.diff(previous, variable)
+        except (ValueError, NotImplementedError, TypeError) as exc:
+            return {'status': 'unsupported', 'reason': str(exc), 'variable': variable, 'expression': expression, 'order': order}
+
         try:
             left_limit = sp.limit(derivative, variable, point, "-")
             right_limit = sp.limit(derivative, variable, point, "+")
@@ -617,19 +581,20 @@ def _solve_higher_derivative(model: Mapping[str, Any]) -> dict[str, Any]:
     value = report.get("point_value")
     answer = f"f^({order})({variable})={derivative_text}"
     if point is not None:
-        answer += f"；f^({order})({point})={value}"
+        answer += f"；f^({order})({point})={sp.simplify(report['derivative'].subs(report['variable'], point))}"
     return {
         "summary": "高阶导数：对原函数连续求导指定阶数，并可在给定点取值。",
         "answer": answer,
         "answer_value": value,
         "exact": derivative_text.replace("**", "^"),
+        "exact_latex": to_latex(report["derivative"]) if point is None else to_latex(sp.simplify(report["derivative"].subs(report["variable"], point))),
         "approx": None,
         "steps": [
             {"id": "order", "title": "确认阶数", "latex": rf"n={order}", "detail": "阶数必须来自原题，不从一次导数外推。"},
             {"id": "differentiate", "title": "逐阶求导", "latex": rf"\frac{{d^{{{order}}}}}{{d{to_latex(sp.Symbol(variable))}^{{{order}}}}}{to_latex(report['expression'])}={to_latex(report['derivative'])}", "detail": "使用符号求导，未展开成数值差分。"},
         ],
         "conditions": [f"对 {variable} 求 {order} 阶导数。"],
-        "limitations": ["参数方程与反函数高阶导数暂未纳入本任务；仅支持显式函数。"],
+        "limitations": ["参数方程与反函数高阶导数暂未纳入本任务；仅支持显式函数，导数公式只在原式相应阶可导处适用。"],
         "derivative_order": order,
         "derivative_expression": derivative_text,
         "derivative_point": None if point is None else str(point),
@@ -641,7 +606,7 @@ def _solve_higher_derivative(model: Mapping[str, Any]) -> dict[str, Any]:
 
 def _evaluate_higher_derivative(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
     worked = {**model, "order": int(params.get("order", model.get("order", 1)))}
-    if params.get("point") is not None:
+    if params.get("point") is not None and params.get("point") != (model.get("defaults") or {}).get("point"):
         worked["derivative_point"] = str(params.get("point"))
     report = _derivative_report(worked)
     variable = report["variable"]
@@ -778,6 +743,9 @@ def _interval_label(low: sp.Expr, high: sp.Expr) -> str:
 
 
 def _study_report(model: Mapping[str, Any]) -> dict[str, Any]:
+    if model.get("manual_study"):
+        from .interval_study import interval_study_report
+        return interval_study_report(model)
     variable = sp.Symbol(str(model.get("variable") or "x"), real=True)
     expression = _parse(model.get("expression"), str(variable))
     lower = model.get("study_lower")
@@ -989,23 +957,34 @@ def _solve_function_study(model: Mapping[str, Any]) -> dict[str, Any]:
         return {
             "summary": report["reason"], "answer": "", "answer_value": None,
             "steps": [], "conditions": [], "limitations": [report["reason"]],
-            "study": {key: report.get(key) for key in ("monotonic", "concavity", "extrema", "inflections", "asymptotes", "domain")},
+            "study": {key: report.get(key) for key in ("monotonic", "concavity", "extrema", "inflections", "asymptotes", "domain", "absolute", "critical_points", "endpoints")},
             "solution_status": "incomplete", "solution_complete": False,
             "incomplete_reason": report["reason"],
         }
+    if model.get('manual_study'):
+        keys=('monotonic','concavity','extrema','inflections','asymptotes','domain','absolute','critical_points','endpoints')
+        return dict(summary='在原式实定义域内完整分段，区分局部极值与区间最值。',answer=report['answer'],exact=report['answer'],answer_value=None,
+            study={key:report.get(key) for key in keys},solution_status='complete',solution_complete=True,
+            conditions=['区间开闭与原式定义域均来自已确认条件。'],limitations=['只支持能完整分解的有限实区间；常值区间不枚举全部非严格极值点。未分析全局渐近线。'],
+            steps=[dict(id='domain',title='确认定义域与端点',detail='保留原式无定义点，将研究区间与实定义域求交；开端点不能当作函数取值。'),
+                dict(id='critical',title='检查导数零点与不可导点',detail='完整求解各光滑分支的一、二阶导数零点，并补入导数定义域边界及绝对值折点；无法确认完整性时停止给出完整结论。'),
+                dict(id='signs',title='逐段核对单调性与凹凸性',detail='确认分段内部导数连续且没有遗漏零点后，以符号判号；只有变号且函数在该点连续，才判极值或拐点。'),
+                dict(id='absolute',title='比较候选取值与边界极限',detail='闭端点、内部候选点和常值区间取值参与比较；开端点与缺口只贡献单侧极限，单独区分最值和未取到的上下确界。')])
     return {
         "summary": "函数研究：由一阶导数定单调区间与极值，由二阶导数定凹凸区间与拐点，并单独分析渐近线。",
         "answer": report["answer"],
         "answer_value": None,
+        "exact": report["answer"],
         "steps": [
             {"id": "domain", "title": "确定定义域", "latex": r"D_f", "detail": "先排除无定义点与定义域缺口，再在每段内部讨论。"},
-            {"id": "first", "title": "用一阶导数定单调性与极值", "latex": rf"{to_latex(sp.sympify(report['derivative']))}", "detail": "解 f'=0 并在各子区间取点判号。"},
-            {"id": "second", "title": "用二阶导数定凹凸与拐点", "latex": rf"{to_latex(sp.sympify(report['second_derivative']))}", "detail": "解 f''=0 并检查两侧符号是否改变。"},
+            {"id": "first", "title": "用一阶导数定单调性与极值", "latex": rf"{to_latex(sp.sympify(report['derivative']))}", "detail": "核对导数零点、不可导点与定义域分段，再在连续且无零点的子区间内符号判号。"},
+            {"id": "second", "title": "用二阶导数定凹凸与拐点", "latex": rf"{to_latex(sp.sympify(report['second_derivative']))}", "detail": "核对二阶导数零点和不存在点，并检查函数连续且凹凸方向改变。"},
+            *([{ "id": "absolute", "title": "比较端点与内部候选值", "detail": "闭端点、内部驻点及不可导候选点参与取值比较；开端点和定义域缺口仅比较单侧极限，不冒充取到的最值。" }] if model.get("manual_study") else []),
             {"id": "asymptote", "title": "求渐近线", "latex": r"\lim f(x),\quad \lim f(x)/x", "detail": "垂直渐近线由定义域缺口出发；水平/斜渐近线由无穷远极限确定。"},
         ],
         "conditions": ["研究区间与变量来自原题；没有指定区间时按实定义域分析。"],
         "limitations": ["周期临界点族、无法符号判号的区间会明确标为未完成，不把部分区间冒充完整答案。"],
-        "study": {key: report[key] for key in ("monotonic", "concavity", "extrema", "inflections", "asymptotes", "domain")},
+        "study": {key: report.get(key) for key in ("monotonic", "concavity", "extrema", "inflections", "asymptotes", "domain", "absolute", "critical_points", "endpoints")},
         "solution_status": "complete",
         "solution_complete": True,
     }
@@ -1027,7 +1006,18 @@ def _evaluate_function_study(model: Mapping[str, Any], params: Mapping[str, Any]
             value = None
         if value is not None and not math.isfinite(value):
             value = None
-        series.append({"x": round(x_value, 6), "y": None if value is None else round(value, 6)})
+        series.append({"x": x_value, "y": None if value is None else round(value, 6)})
+    if model.get('manual_study') and report['status'] == 'complete':
+        ranges=[(float(parse_expression(d['from'])),float(parse_expression(d['to'])),d['left_open'],d['right_open']) for d in report['domain']]
+        clipped=[]; previous=None
+        for item in series:
+            x=item['x']
+            component=next((i for i,(lo,hi,lop,rop) in enumerate(ranges) if (x>lo or x==lo and not lop) and (x<hi or x==hi and not rop)),None)
+            if component is None: item={**item,'y':None}
+            if previous is not None and component is not None and previous!=component:
+                clipped.append(dict(x=x,y=None))
+            clipped.append(item);previous=component
+        series=clipped
     if report["status"] != "complete":
         return {
             "subject": "calculus", "task": "function_study", "kind": "function_study",
@@ -1036,9 +1026,9 @@ def _evaluate_function_study(model: Mapping[str, Any], params: Mapping[str, Any]
             "checks": [{"id": "complete", "label": "区间分解完成", "status": "fail", "detail": report["reason"]}],
             "notes": [report["reason"]], "series": series, "domain": domain, "rects": [],
             "exact": None, "approx": None, "error": None, "answerText": "", "trace": [],
-            "study": {key: report.get(key) for key in ("monotonic", "concavity", "extrema", "inflections", "asymptotes", "domain")},
+            "study": {key: report.get(key) for key in ("monotonic", "concavity", "extrema", "inflections", "asymptotes", "domain", "absolute", "critical_points", "endpoints")},
         }
-    study = {key: report[key] for key in ("monotonic", "concavity", "extrema", "inflections", "asymptotes", "domain")}
+    study = {key: report.get(key) for key in ("monotonic", "concavity", "extrema", "inflections", "asymptotes", "domain", "absolute", "critical_points", "endpoints")}
     return {
         "subject": "calculus", "task": "function_study", "kind": "function_study",
         "params": {},
@@ -1051,7 +1041,7 @@ def _evaluate_function_study(model: Mapping[str, Any], params: Mapping[str, Any]
             {"id": "asymptotes", "label": "渐近线", "value": str(sum(len(report["asymptotes"][key]) for key in ("vertical", "horizontal", "oblique")))},
         ],
         "checks": [
-            {"id": "complete", "label": "区间分解完成", "status": "pass", "detail": "全部临界点、定义域缺口和渐近线均已核对。"},
+            {"id": "complete", "label": "区间分解完成", "status": "pass", "detail": "全部临界候选点、定义域缺口和区间端点均已核对。" if model.get("manual_study") else "全部临界点、定义域缺口和渐近线均已核对。"},
             {"id": "sign", "label": "区间判号", "status": "pass", "detail": "每个子区间取内点核对一阶、二阶导数符号。"},
         ],
         "notes": ["阴影带表示单调/凹凸区间；竖线和横线表示渐近线。"],
@@ -1071,6 +1061,9 @@ def _evaluate_function_study(model: Mapping[str, Any], params: Mapping[str, Any]
 def solve_analysis(model: Mapping[str, Any]) -> dict[str, Any] | None:
     kind = model.get("analysis_kind") or model.get("task")
     if kind == "limit":
+        if model.get("continuity_config"):
+            from .continuity import continuity_report
+            return continuity_report(model)
         return _limit_report(model)
     if kind == "taylor":
         return _solve_taylor(model)
@@ -1259,7 +1252,8 @@ def build_analysis_problem(text: str, source: Mapping[str, Any], overrides: Mapp
             ambiguities.append(_ambiguity("taylor_point", "point", "泰勒展开点必须是有限实数。", options=[]))
             point_value = 0.0
         defaults.update(point=point_value, order=order)
-        model["taylor_point"] = str(point_value)
+        model["taylor_point"] = expression_text(parse_expression(str(point_raw if point_raw is not None else 0)))
+        model["expression"] = str(overrides.get("expression") or raw_expr)
         model["taylor_point_value"] = point_value
         model["order"] = order
         params.extend([
@@ -1279,12 +1273,15 @@ def build_analysis_problem(text: str, source: Mapping[str, Any], overrides: Mapp
             if point_value is None:
                 ambiguities.append(_ambiguity("derivative_point", "point", "求值点必须是有限实数。", options=[]))
             else:
-                model["derivative_point"] = str(point_value)
+                model["derivative_point"] = expression_text(parse_expression(str(point_raw)))
                 defaults["point"] = point_value
                 params.append({"id": "point", "label": "求值点 x₀", "kind": "number", "min": -50, "max": 50, "step": 0.5, "options": []})
                 conditions.append(_condition("point", "求值点", str(point_raw), source))
         conditions.append(_condition("order", "导数阶数", order, source))
     elif kind == "function_study":
+        if overrides.get("manual_study"):
+            model["manual_study"] = overrides["manual_study"]
+            model["expression"] = str(overrides["expression"])
         if lower is None and upper is None and overrides.get("calculus_kind") is None:
             parsed_interval = _parse_study_interval(text)
             if parsed_interval is not None:

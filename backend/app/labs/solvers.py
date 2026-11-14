@@ -406,18 +406,21 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
     else:
         point = float((model.get("defaults") or {}).get("point", 0.0))
         derivative = sp.simplify(sp.diff(expression, variable))
-        slope = safe_float(derivative.subs(variable, point))
-        value = safe_float(expression.subs(variable, point))
+        exact_point = parse_expression(str(model.get("exact_point", point)))
+        exact_slope = sp.simplify(derivative.subs(variable, exact_point))
+        slope = safe_float(exact_slope)
+        value = safe_float(expression.subs(variable, exact_point))
         if slope is None or value is None:
             raise SolveError("无法在该点计算函数值与导数")
         answer_value = slope
-        exact_text = str(slope)
+        exact_text = expression_text(exact_slope)
+        exact_latex = to_latex(exact_slope)
         numeric = slope
         steps = [
             {
                 "id": "value",
                 "title": "确认研究点",
-                "latex": f"x_0={point:g}",
+                "latex": rf"{to_latex(variable)}_0={to_latex(exact_point)}",
                 "detail": f"在 x={point:g} 处，函数值为 {_fmt(value)}。",
             },
             {
@@ -429,7 +432,7 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
             {
                 "id": "slope",
                 "title": "代入研究点",
-                "latex": rf"k=f'({point:g})={to_latex(derivative.subs(variable, point))}",
+                "latex": rf"k=f'({to_latex(exact_point)})={to_latex(exact_slope)}",
                 "detail": f"切线斜率为 {_fmt(slope)}，切线方程见下方。",
             },
             {
@@ -2356,7 +2359,19 @@ def _deep_learning_evaluate(model: Mapping[str, Any], params: Mapping[str, Any])
 
 
 def solve_problem(model: Mapping[str, Any]) -> dict[str, Any]:
+    if model.get('manual_improper_conditions'):
+        from .manual_improper_integral import solve
+        return solve(model)
+    if model.get('task') == 'multivariable_extrema':
+        from .extrema import solve_extrema
+        return solve_extrema(model)
+    if model.get('task') == 'multivariable':
+        from .multivariable import solve_multivariable
+        return solve_multivariable(model)
     if model.get('task') == 'double_integral':
+        if model.get('manual_double_conditions'):
+            from .manual_double_integral import solve
+            return solve(model)
         from .double_integral import solve_double_integral
         return solve_double_integral(model)
     subject = str(model.get("subject") or "")
@@ -2463,7 +2478,19 @@ def solve_problem(model: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    if model.get('manual_improper_conditions'):
+        from .manual_improper_integral import evaluate
+        return evaluate(model)
+    if model.get('task') == 'multivariable_extrema':
+        from .extrema import evaluate
+        return evaluate(model, params)
+    if model.get('task') == 'multivariable':
+        from .multivariable import evaluate_multivariable
+        return evaluate_multivariable(model, params)
     if model.get('task') == 'double_integral':
+        if model.get('manual_double_failure') or 'double_extension_solution' in model or (model.get('manual_double_conditions') or {}).get('region_mode')=='improper':
+            from .manual_double_integral import evaluate_unfinished
+            return evaluate_unfinished(model)
         from .double_integral import evaluate_double_integral
         return evaluate_double_integral(model, params)
     subject = str(model.get("subject") or "")

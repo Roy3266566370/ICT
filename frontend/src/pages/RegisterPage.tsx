@@ -2,8 +2,8 @@
  * `/register` 注册页（契约 `C-REGISTER-UI@1`）。
  *
  * 组装说明：
- *  - 页面骨架交给 `AuthShell`，注册页只额外提供权益清单；
- *  - 左列是受控 `RegisterForm`，右列是主题文案 + 权益说明（不含 3D 场景）；
+ *  - 页面骨架交给 `AuthShell`（准入登记台 + 实时通行证）；
+ *  - 左列是受控 `RegisterForm`，通行证登记名优先取称呼，其次用户名；
  *  - 表单输入 `values` 留在页面，`status`/`message`/`fieldErrors` 收敛在
  *    `useRegisterSubmit`；
  *  - 注册 + 自动登录成功后写入唯一账号状态源（`C-SESSION@1` 的 store），
@@ -47,12 +47,6 @@ const AUTO_LOGIN_FAILED_NOTICE = '注册成功，请登录';
 const RESTORING_NOTICE = '正在恢复账号状态…';
 const REDIRECTING_NOTICE = '正在进入你的空间…';
 const UNAVAILABLE_HINT = '账号服务暂时不可用，注册可能失败；可稍后重试';
-
-const HIGHLIGHTS: readonly string[] = [
-  '把上传的课件转成可调参数的交互对象',
-  '保存参数修改与运行快照，随时回到同一版本',
-  '按账号隔离本地草稿与查询缓存',
-];
 
 export default function RegisterPage(): JSX.Element {
   const navigate = useNavigate();
@@ -130,11 +124,10 @@ export default function RegisterPage(): JSX.Element {
   return (
     <AuthShell
       variant="register"
-      eyebrow="创建万象账号"
-      headline={['把每一次探索，', '留在自己的空间里。']}
-      lead="注册后即可保存材料、参数与运行记录。一个账号，贯穿材料、实验与分享。"
-      highlightsTitle="注册后可以做什么"
-      highlights={HIGHLIGHTS}
+      eyebrow="ACCESS DESK / 准入登记"
+      headline={['建一份档案，', '把问题|留下。']}
+      lead="注册后会直接进入个人空间。先用一个名字和一组密码，留下自己的显示名、默认入口与账号资料。"
+      passName={values.displayName.trim() || values.username.trim()}
       statusText={showForm ? null : statusText}
     >
       {showForm ? (

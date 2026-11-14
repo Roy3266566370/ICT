@@ -130,8 +130,8 @@ export interface LabModel {
   goal?: 'extrema' | 'gradient_descent' | 'radius' | 'sum' | 'expand';
   engine: string;
   subject: LabSubject;
-  kind?: 'integral' | 'derivative' | 'antiderivative' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space' | 'proof';
-  task?: 'geometric_area' | 'area_volume' | 'implicit_normal' | 'double_integral' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'constrained_extrema' | 'series_convergence' | 'power_series' | 'fourier_series' | 'triple_integral' | 'line_integral' | 'surface_integral' | 'green' | 'gauss' | 'stokes' | 'space_geometry' | 'proof';
+  kind?: 'integral' | 'derivative' | 'antiderivative' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space' | 'proof' | 'multivariable' | 'multivariable_extrema';
+  task?: 'geometric_area' | 'area_volume' | 'implicit_normal' | 'double_integral' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'constrained_extrema' | 'series_convergence' | 'power_series' | 'fourier_series' | 'triple_integral' | 'line_integral' | 'surface_integral' | 'green' | 'gauss' | 'stokes' | 'space_geometry' | 'proof' | 'multivariable' | 'multivariable_extrema';
   analysis_kind?: 'limit' | 'taylor' | 'higher_derivative' | 'function_study';
   side?: 'both' | 'left' | 'right';
   limit_point?: string;
@@ -169,7 +169,7 @@ export interface LabModel {
   inner_variable?: 'x' | 'y' | 'r';
   outer_bounds?: [string, string];
   inner_bounds?: [string, string];
-  region_kind?: 'strip' | 'pieces' | 'polar';
+  region_kind?: 'strip' | 'pieces' | 'polar' | 'improper' | 'polar_improper' | 'strip_improper' | 'affine' | 'change_variables';
   pieces?: DoubleIntegralPiece[];
   polar?: DoubleIntegralPolar;
   swapped?: DoubleIntegralSwapped | DoubleIntegralSwapped[] | null;
@@ -311,6 +311,8 @@ export interface LabSolution {
   derivative_point?: string | null;
   derivative_value?: number | null;
   study?: CalculusResult['study'];
+  multi_details?: MultivariableDetails;
+  extrema_details?: ExtremaDetails;
   ode_order?: number;
   ode_hints?: string[];
   ode_equation?: string;
@@ -318,6 +320,7 @@ export interface LabSolution {
   general_solution?: string | null;
   particular_solution?: string | null;
   plot_expression?: string | null;
+  plot_window?: {x_min:number;x_max:number} | null;
   residual_verified?: boolean;
   initial_conditions_verified?: boolean;
   target?: { status: string; kind?: string; value?: string; text?: string; lower?: string; upper?: string; reason?: string } | null;
@@ -408,14 +411,53 @@ export interface LabState {
   evaluated: LabEvaluated | null;
 }
 
+export interface MultivariableDetails {
+  operation: string; variables: string[]; point: string[] | null;
+  partials: {variable:string;expression:string;latex:string;value:string | null}[];
+  smooth_conditions: string[]; differentiability: string; method:string; result_latex:string; note:string;
+  direction: {raw:string[];unit:string[];norm:string;convention:string} | null;
+}
+
+export interface ExtremaDetails {
+  operation: 'unconstrained' | 'constrained';
+  variables: string[];
+  constraint: string | null;
+  stationary_complete: boolean;
+  classification_complete: boolean;
+  singular_complete: boolean | null;
+  scope_note: string;
+  result_latex: string;
+  candidates: {point:string[];value:string;kind:'stationary'|'regular'|'singular';multiplier:string|null;
+    classification:'minimum'|'maximum'|'saddle'|'undetermined';evidence:string;residual_verified:boolean;constraint_verified:boolean|null}[];
+}
+
+export interface DoubleIntegralExtension {
+  kind: 'affine' | 'applications' | 'polar_improper' | 'strip_improper';
+  title: string;
+  facts: {label:string;latex:string}[];
+  values: {id:string;label:string;latex:string;value:number|null}[];
+  notes: string[];
+  region_points?: {x:number;y:number}[];
+}
+
 export interface LabProblem {
   manual_input?: {
-    task: 'integral' | 'antiderivative';
+    task: 'integral' | 'antiderivative' | 'derivative' | 'limit' | 'higher_derivative' | 'continuity' | 'implicit_normal' | 'function_study' | 'taylor' | 'geometric_area' | 'rotation_volume' | 'ode' | 'multivariable' | 'multivariable_extrema' | 'double_integral';
     conditions: Record<string, string>;
     confirmed: boolean;
     latex: string;
     result_latex: string;
     result_status?: 'complete' | 'divergent' | 'unsupported';
+    multi_details?: MultivariableDetails | null;
+    extrema_details?: ExtremaDetails | null;
+    double_extension?: DoubleIntegralExtension | null;
+    double_details?: {region_kind?:'strip'|'pieces'|'polar'|'improper';region_description?:string;outer_variable:'x'|'y'|'theta';inner_variable:'x'|'y'|'r';outer_bounds:string[];inner_bounds:string[];region_verified:boolean;continuous_verified:boolean;inner_integral_latex:string;zero_area:boolean;note:string} | null;
+    ode_details?: { ode_order?:number; ode_hints?:string[]; solution_latex?:string; initial_conditions?:string[]; residual_verified?:boolean; initial_conditions_verified?:boolean; free_constants?:boolean; solution_domain?:string | null; scope_note?:string } | null;
+    geometry_details?: { region_kind: string; rotation_axis: string | null; quantities: { id:string; label:string; exact:string; latex:string }[]; zero_points:string[]; effective_intervals:string[][] | null } | null;
+    taylor_details?: { point: string; order: number; coefficients: { order: number; value: string; latex: string }[]; polynomial_latex: string; remainder_kind: string; remainder_latex: string; relation_latex: string; window_lower: string; window_upper: string; error_bound: string | null; range_note: string } | null;
+    study?: CalculusResult['study'];
+    line_geometry?: { tangent: string; normal: string; tangent_direction: string; normal_direction: string; point_x: string; point_y: string } | null;
+    continuity?: { classification: string; label: string; value: { text: string }; left: { text: string }; right: { text: string } } | null;
     result_answer?: string;
     result_approx?: string;
     result_note?: string;
@@ -445,6 +487,7 @@ export interface LabProblem {
 }
 
 export interface LabAISolution {
+  failure_stage?: 'task_support' | 'source_coverage' | 'model_mapping' | string;
   source_review_required?: boolean;
   agent_understanding?: {
     question: string; subquestions: string[]; relations: string[]; target: string;
@@ -607,7 +650,7 @@ export interface CalculusRect {
 export interface CalculusResult extends LabResultBase {
   subject: 'calculus';
   task?: LabModel['task'];
-  kind: 'integral' | 'derivative' | 'antiderivative' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'constrained_extrema' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space' | 'proof';
+  kind: 'integral' | 'derivative' | 'antiderivative' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'constrained_extrema' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space' | 'proof' | 'multivariable' | 'multivariable_extrema';
   domain: { x_min: number; x_max: number };
   series: CalculusPoint[];
   rects: CalculusRect[];
@@ -671,8 +714,11 @@ export interface CalculusResult extends LabResultBase {
   series_status?: string;
   series_method?: string;
   study?: {
-    monotonic: { kind: 'increasing' | 'decreasing'; label: string; interval: string; from: number | null; to: number | null }[];
-    concavity: { kind: 'concave_up' | 'concave_down'; label: string; interval: string }[];
+    absolute?: { minimum: { value: string; attained: boolean; points: string[] }; maximum: { value: string; attained: boolean; points: string[] } };
+    critical_points?: { point: string; value: string }[];
+    endpoints?: { point: string; included: boolean; value: string }[];
+    monotonic: { kind: 'increasing' | 'decreasing' | 'constant'; label: string; interval: string; from: number | null; to: number | null }[];
+    concavity: { kind: 'concave_up' | 'concave_down' | 'linear'; label: string; interval: string }[];
     extrema: { point: string; value: string; classification: string; label: string }[];
     inflections: { point: string; value: string }[];
     asymptotes: {
@@ -716,6 +762,8 @@ export interface DoubleIntegralPolar {
 }
 
 export interface DoubleIntegralSwapped {
+  region_verified?: boolean;
+  numeric_verified?: boolean;
   outer_variable: 'x' | 'y';
   inner_variable: 'x' | 'y';
   outer_bounds: [string, string];

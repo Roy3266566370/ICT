@@ -83,9 +83,9 @@ def test_order_swap_derives_new_limits_and_verifies_numerically(inner_bounds):
     assert swapped['numeric_verified'] is True
 
 
-def test_order_swap_is_rejected_when_boundaries_are_not_monotone():
+def test_order_swap_is_rejected_for_unsupported_nonmonotone_cubic():
     with pytest.raises(ValueError, match='换序'):
-        strip('1', inner_lower='0', inner_upper='x*(1-x)', swap_order=True)
+        strip('1', inner_lower='0', inner_upper='x*(1-x)*(x+1)', swap_order=True)
 
 
 @pytest.mark.parametrize('integrand,polar,expected', [

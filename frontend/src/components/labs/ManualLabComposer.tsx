@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import { calculusCatalog } from '@/labs/calculusCatalog';
+import { doubleIntegralExamples, doubleIntegralExample } from '@/labs/doubleIntegralExamples';
 import { useNavigate } from 'react-router-dom';
 import { createManualLab, previewManualLab } from '@/api/labs';
 import { errorMessage } from '@/api/client';
@@ -8,9 +10,9 @@ import { MathExpressionInput, MathKeyboard, type MathKeyboardHandle } from './Ma
 import { Formula } from '@/components/showcase/Formula';
 import styles from './ManualLabComposer.module.css';
 
-const EMPTY: ManualIntegralDraft = { task: 'integral', expression: '', variable: 'x', lower: '', upper: '' };
-type FieldKey = 'expression' | 'lower' | 'upper';
-const FIELD_LABELS: Record<FieldKey, string> = { expression: '被积函数', lower: '积分下限', upper: '积分上限' };
+const EMPTY: ManualIntegralDraft = { task: 'integral', expression: '', variable: 'x', lower: '', upper: '', point: '', order: '1', side: 'both', valueMode: 'expression', pointValue: '', intervalType: 'closed' };
+type FieldKey = 'xMap' | 'yMap' | 'eventOuterLower' | 'eventOuterUpper' | 'eventInnerLower' | 'eventInnerUpper' | 'expression' | 'constraint' | 'innerLower' | 'innerUpper' | 'lower' | 'upper' | 'point' | 'pointValue' | 'pointY';
+const FIELD_LABELS: Record<FieldKey, string> = { xMap:'映射x(u,v)',yMap:'映射y(u,v)',eventOuterLower:'事件外层下限',eventOuterUpper:'事件外层上限',eventInnerLower:'事件内层下界',eventInnerUpper:'事件内层上界',expression: '函数表达式', constraint:'完整等式约束', innerLower:'内层下界',innerUpper:'内层上界',lower: '积分下限', upper: '积分上限', point: '研究点', pointValue: '单点函数值', pointY: '研究点纵坐标' };
 
 export function ManualLabComposer(): JSX.Element {
   const navigate = useNavigate();
@@ -25,10 +27,27 @@ export function ManualLabComposer(): JSX.Element {
   const confirmation = useRef<HTMLHeadingElement>(null);
   const confirmationSection = useRef<HTMLElement>(null);
   const expressionHandle = useRef<MathKeyboardHandle | null>(null);
+  const constraintHandle = useRef<MathKeyboardHandle | null>(null);
+  const innerLowerHandle = useRef<MathKeyboardHandle | null>(null);
+  const innerUpperHandle = useRef<MathKeyboardHandle | null>(null);
   const lowerHandle = useRef<MathKeyboardHandle | null>(null);
   const upperHandle = useRef<MathKeyboardHandle | null>(null);
-  const activeHandle = activeField === 'lower' ? lowerHandle
-    : activeField === 'upper' ? upperHandle : expressionHandle;
+  const pointYHandle = useRef<MathKeyboardHandle | null>(null);
+  const pointValueHandle = useRef<MathKeyboardHandle | null>(null);
+  const pointHandle = useRef<MathKeyboardHandle | null>(null);
+  const xMapHandle=useRef<MathKeyboardHandle|null>(null);
+  const yMapHandle=useRef<MathKeyboardHandle|null>(null);
+  const eventOuterLowerHandle=useRef<MathKeyboardHandle|null>(null);
+  const eventOuterUpperHandle=useRef<MathKeyboardHandle|null>(null);
+  const eventInnerLowerHandle=useRef<MathKeyboardHandle|null>(null);
+  const eventInnerUpperHandle=useRef<MathKeyboardHandle|null>(null);
+  const activeHandle={expression:expressionHandle,constraint:constraintHandle,innerLower:innerLowerHandle,innerUpper:innerUpperHandle,lower:lowerHandle,upper:upperHandle,point:pointHandle,pointValue:pointValueHandle,pointY:pointYHandle,xMap:xMapHandle,yMap:yMapHandle,eventOuterLower:eventOuterLowerHandle,eventOuterUpper:eventOuterUpperHandle,eventInnerLower:eventInnerLowerHandle,eventInnerUpper:eventInnerUpperHandle}[activeField];
+  const polarMode=draft.doubleMode==='polar' || draft.doubleMode==='polar_improper';
+  const affineMode=draft.doubleMode==='affine' || draft.doubleMode==='change_variables';
+  const improperMode=['improper','polar_improper','strip_improper'].includes(draft.doubleMode ?? '');
+  const applicationMode=!!draft.doubleApplication && draft.doubleApplication!=='integral';
+  const innerVariable=affineMode ? 'v' : polarMode ? 'r' : draft.doubleOuter==='y' ? 'x' : 'y';
+  const outerVariable=affineMode ? 'u' : polarMode ? 'theta' : draft.doubleOuter ?? 'x';
   const update = (patch: Partial<ManualIntegralDraft>): void => {
     requestId.current += 1;
     setDraft(current => ({ ...current, ...patch }));
@@ -69,38 +88,154 @@ export function ManualLabComposer(): JSX.Element {
     <ol className={styles.steps} aria-label="解题流程">
       {['选择题型', '填写条件', '确认题目', '计算与展示'].map((step, i) => <li key={step} data-active={preview ? i === 2 : i < 2}>{i + 1} · {step}</li>)}
     </ol>
+    <details><summary>高数题型目录与支持范围</summary>
+      <p>以下“已有内核”表示已实现部分计算能力，尚不等于该模块所有题目均可求解。</p>
+      <ul>{calculusCatalog.map(item => <li key={item.module}><strong>{item.module}</strong>：{item.manual ? `可手动求解：${item.manual}。` : ''}{item.pending}</li>)}</ul>
+    </details>
     <fieldset className={styles.fields} disabled={busy !== null}>
       <div className={styles.classification}>
         <label>科目<select aria-label="科目" defaultValue="calculus"><option value="calculus">高等数学</option></select></label>
-        <span>知识模块<strong>积分</strong></span>
-        <p>本阶段开放定积分与不定积分；文件识别和其他科目示例仍可在下方使用。</p>
+        <span>知识模块<strong>{draft.task === 'double_integral' ? '重积分' : draft.task === 'multivariable_extrema' ? '多元极值' : draft.task === 'multivariable' ? '多元微分' : draft.task === 'ode' ? '微分方程' : ['geometric_area','rotation_volume'].includes(draft.task) ? '定积分应用' : draft.task === 'taylor' ? '泰勒展开' : draft.task === 'function_study' ? '函数研究' : draft.task === 'implicit_normal' ? '切线与法线' : draft.task === 'continuity' ? '连续性' : draft.task === 'limit' ? '极限' : ['derivative', 'higher_derivative'].includes(draft.task) ? '导数' : '积分'}</strong></span>
+        <p>手动求解：定积分、不定积分、导函数与高阶导数、指定点导数与切线、极限、连续性与间断点、切线与法线、函数区间研究、泰勒展开、定积分应用、常微分方程、多元微分、多元局部极值与等式约束极值、分片与极坐标二重积分、自动换序、反常积分、仿射变量代换与密度应用。408等其他题型可使用下方文件识别或示例入口。</p>
       </div>
-      <div className={styles.tasks} role="group" aria-label="选择积分题型">
-        <button type="button" aria-pressed={draft.task === 'integral'} onClick={() => update({ task: 'integral' })}>
+      <div className={styles.tasks} role="group" aria-label="选择高数题型">
+        <button type="button" aria-pressed={draft.task === 'integral' && draft.integralMode !== 'improper'} onClick={() => update({ task: 'integral', integralMode:'proper' })}>
           <strong>定积分</strong><span>给出函数与上下限，求积分值并观察黎曼和。</span>
         </button>
         <button type="button" aria-pressed={draft.task === 'antiderivative'} onClick={() => update({ task: 'antiderivative' })}>
           <strong>不定积分</strong><span>求原函数族 F(x) + C，并通过求导核对。</span>
         </button>
+        <button type="button" aria-pressed={draft.task === 'derivative'} onClick={() => update({ task: 'derivative' })}>
+          <strong>导数与切线</strong><span>输入函数和求导点，求导数并观察切线。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'limit'} onClick={() => update({ task: 'limit' })}>
+          <strong>极限</strong><span>输入函数、趋近点和方向，检查左右极限。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'higher_derivative'} onClick={() => update({ task: 'higher_derivative', order: '1', point: '' })}>
+          <strong>导函数与高阶导数</strong><span>选择1至10阶，可选填求值点。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'continuity'} onClick={() => update({ task: 'continuity', point: '', valueMode: 'expression', pointValue: '', intervalType: 'closed' })}>
+          <strong>连续性与间断点</strong><span>核对函数值、左右极限并分类。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'implicit_normal'} onClick={() => update({ task: 'implicit_normal', expression: '', point: '', pointY: '' })}>
+          <strong>切线与法线</strong><span>输入曲线方程与研究点，核对隐函数分支。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'function_study'} onClick={() => update({ task: 'function_study' })}>
+          <strong>函数区间研究</strong><span>分析单调性、极值最值、凹凸性与拐点。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'taylor'} onClick={() => update({ task: 'taylor', point: '', order: '3' })}>
+          <strong>泰勒展开</strong><span>选择精确展开点与阶数，核对系数、余项和观察范围。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'geometric_area'} onClick={() => update({ task:'geometric_area',variable:'x',regionKind:'' })}>
+          <strong>平面区域面积</strong><span>确认曲线与x轴的区域，按几何面积计算。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'rotation_volume'} onClick={() => update({ task:'rotation_volume',variable:'x',regionKind:'',rotationAxis:'' })}>
+          <strong>旋转体积</strong><span>确认区域与旋转轴，用圆盘法计算体积。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'ode'} onClick={() => update({task:'ode',variable:'x',expression:'',initialConditions:''})}>
+          <strong>常微分方程</strong><span>输入方程与可选条件，代回核验解或解族。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'multivariable'} onClick={() => update({task:'multivariable',expression:'',multiVariables:'x,y',multiOperation:'partial',partialVariable:'x',multiPoint:'',multiDirection:'',directionLimit:'forward'})}>
+          <strong>多元函数微分</strong><span>偏导数、全微分、方向导数与梯度。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'multivariable_extrema'} onClick={() => update({task:'multivariable_extrema',expression:'',extremaOperation:'unconstrained',extremaConstraint:''})}>
+          <strong>多元函数极值与条件极值</strong><span>核对全部驻点、Hessian判别与完整等式约束。</span>
+        </button>
+        <button type="button" aria-pressed={draft.task === 'double_integral'} onClick={()=>update({task:'double_integral',expression:'',doubleOuter:'x',lower:'',upper:'',innerLower:'',innerUpper:''})}>
+          <strong>二重积分</strong><span>区域与换序、反常积分、变量代换和密度应用。</span>
+        </button>
       </div>
+      {draft.task === 'integral' ? <label className={styles.modeField}>积分类型<select aria-label="积分类型" value={draft.integralMode ?? 'proper'} onChange={e=>update({integralMode:e.target.value as 'proper'|'improper'})}><option value="proper">有限定积分</option><option value="improper">反常积分（无穷限或瑕点）</option></select>{draft.integralMode === 'improper' ? <small>上下限可输入 oo、-oo 或 ±∞。逐个瑕点分别检查两侧收敛；不使用柯西主值，不计算有限截断黎曼和。</small> : null}</label> : null}
       <div className={styles.inputHeading}>
-        <label>积分变量<select aria-label="积分变量" value={draft.variable} onChange={e => update({ variable: e.target.value })}>
-          {['x', 't', 'y', 'z'].map(v => <option key={v} value={v}>{v}</option>)}
-        </select></label>
+        {!['implicit_normal','geometric_area','rotation_volume','multivariable','multivariable_extrema','double_integral'].includes(draft.task) ? <label>计算变量<select aria-label="计算变量" value={draft.variable} onChange={e => update({ variable: e.target.value })}>
+          {(draft.task === 'ode' ? ['x','t'] : ['x', 't', 'y', 'z']).map(v => <option key={v} value={v}>{v}</option>)}
+        </select></label> : <p>{draft.task === 'double_integral' ? '被积函数变量：x、y' : draft.task === 'multivariable_extrema' ? '变量顺序：x,y（二元）' : draft.task === 'multivariable' ? `变量顺序：${draft.multiVariables ?? 'x,y'}` : '曲线坐标：x、y'}</p>}
         <button type="button" onClick={() => update(draft.task === 'integral'
-          ? { expression: 'x^2', variable: 'x', lower: '0', upper: '2' }
-          : { expression: 'x*cos(x)', variable: 'x', lower: '', upper: '' })}>填入可修改示例</button>
+          ? draft.integralMode==='improper' ? {expression:'exp(-x)',variable:'x',lower:'0',upper:'oo'} : { expression: 'x^2', variable: 'x', lower: '0', upper: '2' }
+          : draft.task === 'double_integral' ? doubleIntegralExample(draft) : draft.task === 'multivariable_extrema' ? {expression:'x*y',extremaOperation:'constrained',extremaConstraint:'x+y=2'} : draft.task === 'multivariable' ? {expression:'x^2+y^2',multiVariables:'x,y',multiOperation:'directional',multiPoint:'1,2',multiDirection:'3,4',directionLimit:'forward'} : draft.task === 'ode' ? {expression:"y''+y=0",variable:'x',initialConditions:"y(0)=0\ny'(0)=1"} : ['geometric_area','rotation_volume'].includes(draft.task) ? { expression:'x', variable:'x', lower:'-1',upper:'1',regionKind:'between_axis',rotationAxis:'x' } : draft.task === 'taylor' ? { expression: 'exp(x)', variable: 'x', point: '0', order: '3' } : draft.task === 'function_study' ? { expression: 'x^3-3*x', variable: 'x', lower: '-2', upper: '2', intervalType: 'closed' } : draft.task === 'implicit_normal' ? { expression: 'x^2+y^2=1', point: '0', pointY: '1' } : draft.task === 'continuity' ? { expression: 'sin(x)/x', variable: 'x', point: '0', valueMode: 'value', pointValue: '1' } : draft.task === 'higher_derivative' ? { expression: 'x^4', variable: 'x', order: '2', point: '' } : draft.task === 'limit' ? { expression: 'sin(x)/x', variable: 'x', point: '0', side: 'both' } : draft.task === 'derivative' ? { expression: 'x^3', variable: 'x', point: '2' } : { expression: 'x*cos(x)', variable: 'x', lower: '', upper: '' })}>填入可修改示例</button>
       </div>
-      <MathExpressionInput label="被积函数" value={draft.expression} variables={[draft.variable]}
-        onChange={expression => update({ expression })} placeholder={`例如 ${draft.variable}^2；只填函数，不含积分符号`}
+      <MathExpressionInput answerMode={['implicit_normal','ode'].includes(draft.task)} label={draft.task==='double_integral' && applicationMode ? '密度函数' : draft.task === 'multivariable_extrema' ? '极值目标函数' : draft.task === 'multivariable' ? '多元函数表达式' : draft.task === 'ode' ? '微分方程' : ['geometric_area','rotation_volume'].includes(draft.task) ? '区域边界函数' : draft.task === 'implicit_normal' ? '曲线方程' : ['derivative', 'limit', 'higher_derivative', 'continuity', 'function_study', 'taylor'].includes(draft.task) ? '函数表达式' : '被积函数'} value={draft.expression} variables={draft.task === 'double_integral' ? ['x','y'] : draft.task === 'multivariable_extrema' ? ['x','y'] : draft.task === 'multivariable' ? (draft.multiVariables ?? 'x,y').split(',') : draft.task === 'implicit_normal' ? ['x', 'y'] : draft.task === 'ode' ? [draft.variable,'y'] : [draft.variable]}
+        onChange={expression => update({ expression })} placeholder={draft.task === 'multivariable_extrema' ? '例如 x^4-2*x^2+y^2' : draft.task === 'multivariable' ? '例如 x^2*y+sin(y)' : draft.task === 'ode' ? "例如 y'=x+y 或 y''+y=0，未知函数固定y" : draft.task === 'implicit_normal' ? '例如 y=x^2 或 x^2+y^2=1' : `例如 ${draft.variable}^2；只填函数，不含积分符号`}
         keyboard={false} apiRef={expressionHandle} onActivate={() => setActiveField('expression')} />
-      {draft.task === 'integral' ? <div className={styles.bounds}>
-        <MathExpressionInput label="积分下限" value={draft.lower} variables={[]} onChange={lower => update({ lower })}
+      {draft.task === 'double_integral' ? <>
+        {!improperMode && !affineMode ? <label className={styles.modeField}>计算任务<select aria-label="二重积分任务" value={draft.doubleApplication ?? 'integral'} onChange={e=>update({doubleApplication:e.target.value as ManualIntegralDraft['doubleApplication'],swapOrder:false})}><option value="integral">求积分值</option><option value="mass">质量</option><option value="centroid">质心</option><option value="inertia">转动惯量</option><option value="probability">联合概率：事件概率</option></select></label> : null}
+        {applicationMode ? <p>原函数作为密度ρ(x,y)；非负性必须核验。质心要求严格正质量；联合概率要求完整支持区域的密度积分等于1，不自动归一化。</p> : null}
+        {draft.doubleApplication==='inertia' ? <label className={styles.modeField}>惯量轴<select aria-label="惯量轴" value={draft.inertiaAxis ?? ''} onChange={e=>update({inertiaAxis:e.target.value as ManualIntegralDraft['inertiaAxis']})}><option value="">请选择轴</option><option value="x">x轴：∬ y²ρ dA</option><option value="y">y轴：∬ x²ρ dA</option><option value="origin">过原点垂直平面的轴：∬ (x²+y²)ρ dA</option></select></label> : null}
+        {affineMode ? <div className={styles.bounds}>
+          <MathExpressionInput label="映射 x(u,v)" value={draft.xMap ?? ''} variables={['u','v']} onChange={xMap=>update({xMap})} keyboard={false} apiRef={xMapHandle} onActivate={()=>setActiveField('xMap')} placeholder="例如 2*u+v" />
+          <MathExpressionInput label="映射 y(u,v)" value={draft.yMap ?? ''} variables={['u','v']} onChange={yMap=>update({yMap})} keyboard={false} apiRef={yMapHandle} onActivate={()=>setActiveField('yMap')} placeholder="例如 u-v" />
+        </div> : null}
+        <label className={styles.modeField}>二重积分例题<select aria-label="二重积分例题" value="" onChange={e=>{const sample=doubleIntegralExamples.find(item=>item.id===e.target.value);if(sample)update({...sample.draft,doubleApplication:'integral'});}}><option value="">选择例题后可修改全部条件</option>{doubleIntegralExamples.map(sample=><option key={sample.id} value={sample.id}>{sample.label}</option>)}</select></label>
+        <label className={styles.modeField}>区域模式<select aria-label="二重积分区域模式" value={draft.doubleMode ?? 'strip'} onChange={e=>{update({doubleMode:e.target.value as ManualIntegralDraft['doubleMode'],doubleApplication:'integral',xMap:'',yMap:'',lower:'',upper:'',innerLower:'',innerUpper:'',piecesText:'',swapOrder:false});setActiveField('expression');}}><option value="strip">直角坐标单片</option><option value="pieces">直角坐标分片</option><option value="polar">极坐标</option><option value="improper">二重反常积分（矩形可分离乘积）</option><option value="polar_improper">极坐标反常积分</option><option value="strip_improper">曲边区域反常积分</option><option value="affine">仿射变量代换</option><option value="change_variables">非线性代换（可核验三角/分离映射）</option></select></label>
+        {!polarMode && !affineMode ? <>
+          <label className={styles.modeField}>积分次序<select aria-label="二重积分次序" value={draft.doubleOuter ?? 'x'} onChange={e=>{update({doubleOuter:e.target.value as 'x'|'y',lower:'',upper:'',innerLower:'',innerUpper:'',piecesText:''});setActiveField('expression');}}><option value="x">先对y、再对x（dy dx）</option><option value="y">先对x、再对y（dx dy）</option></select></label>
+          {!improperMode && !applicationMode ? <label className={styles.checkbox}><input type="checkbox" checked={draft.swapOrder ?? false} onChange={e=>update({swapOrder:e.target.checked})} />自动换序：由原区域推导新积分限并核验等价性</label> : improperMode ? <p>{draft.doubleMode==='strip_improper' ? '曲边反常积分使用有限外层区间与完整曲边，内核在参数域核验实定义域、绝对收敛或Tonelli条件。' : '矩形反常积分可填±∞，逐方向核验绝对收敛；不把条件收敛的累次积分当作二重积分。'}</p> : null}
+          <p>切换输入次序会清空积分限；勾选自动换序会保留原区域并推导等价表示。二次多项式边界可自动分段；三角、指数、对数与更高次边界在临界点及反函数可完整核验时，也支持分段换序。全部分段一起核验，不能完整推导时保留未完成原因。</p>
+        </> : affineMode ? <p>输入原函数f(x,y)，完整填写x(u,v)、y(u,v)与参数域。内核核验映射在参数域一一对应，乘雅可比绝对值；非线性模式支持x仅依赖u且y可分离或关于v为一次式的映射。图形显示原坐标区域。</p> : <p>输入原函数 f(x,y)；内核按 x=r*cos(theta)、y=r*sin(theta) 代换并自动乘雅可比 r。普通模式的极径边界可含theta；反常模式极径为常数，上限可为∞。极角跨度不超过2*pi，极径非负。</p>}
+        {draft.doubleMode==='pieces' ? <label>全部分片<textarea aria-label="全部分片" rows={5} value={draft.piecesText ?? ''} onChange={e=>update({piecesText:e.target.value})} placeholder={'每行：外层下限;外层上限;内层下界;内层上界\n例如：0;1;0;x\n1;2;0;2-x'} /><small>每行四个限，用英文分号分隔；外层区间不得重叠，最多20片。所有片之并就是完整区域，不能省略任何片。分片可直接键入或粘贴，数学键盘用于被积函数。</small></label> : null}
+        {draft.doubleApplication==='probability' ? <>
+          <h4>事件区域（须完整包含在支持区域内）</h4>
+          <p>上方函数与下方普通积分限定义整个支持区域；事件使用相同积分次序，需另外完整填写四个限。不会把支持区域误当事件，也不会自动截断越界事件。</p>
+          <div className={styles.bounds}>{([
+            ['eventOuterLower','事件外层下限',[],eventOuterLowerHandle],['eventOuterUpper','事件外层上限',[],eventOuterUpperHandle],
+            ['eventInnerLower','事件内层下界',[draft.doubleOuter ?? 'x'],eventInnerLowerHandle],['eventInnerUpper','事件内层上界',[draft.doubleOuter ?? 'x'],eventInnerUpperHandle],
+          ] as const).map(([field,label,variables,handle])=><MathExpressionInput key={field} label={label} value={draft[field] ?? ''} variables={variables} onChange={value=>update({[field]:value})} keyboard={false} apiRef={handle} onActivate={()=>setActiveField(field)} />)}</div>
+        </> : null}
+      </> : null}
+      {draft.task === 'multivariable_extrema' ? <>
+        <label>极值任务<select aria-label="极值任务" value={draft.extremaOperation ?? 'unconstrained'} onChange={e=>{update({extremaOperation:e.target.value as ManualIntegralDraft['extremaOperation']});setActiveField('expression');}}><option value="unconstrained">无约束局部极值与鞍点</option><option value="constrained">单等式约束局部极值</option></select></label>
+        {draft.extremaOperation === 'constrained' ? <MathExpressionInput label="完整等式约束" value={draft.extremaConstraint ?? ''} answerMode variables={['x','y']} onChange={extremaConstraint=>update({extremaConstraint})} placeholder="例如 x+y=2；不能省略其他原题条件" keyboard={false} apiRef={constraintHandle} onActivate={()=>setActiveField('constraint')} /> : <p>无约束任务研究整个实平面；如原题另有限制，请选择对应任务并保留全部条件。</p>}
+        <p>首批支持二元多项式目标（至6次）及单个多项式等式约束（至4次）。求驻点、检查候选全集与二阶判别；退化点不强行分类，奇异约束点另行检查。不等式、多约束和额外区域边界暂不支持，不能省略后计算；结果为局部极值，不宣称全局最值。</p>
+      </> : null}
+      {draft.task === 'multivariable' ? <>
+        <label>计算任务<select aria-label="多元计算任务" value={draft.multiOperation ?? 'partial'} onChange={e=>update({multiOperation:e.target.value as ManualIntegralDraft['multiOperation']})}><option value="partial">一阶偏导数</option><option value="differential">全微分</option><option value="directional">方向导数</option><option value="gradient">梯度</option></select></label>
+        <label>变量顺序<select aria-label="多元变量顺序" value={draft.multiVariables ?? 'x,y'} onChange={e=>update({multiVariables:e.target.value as ManualIntegralDraft['multiVariables'],partialVariable:'x'})}><option value="x,y">x,y（二元）</option><option value="x,y,z">x,y,z（三元）</option></select></label>
+        {(draft.multiOperation ?? 'partial') === 'partial' ? <label>偏导变量<select aria-label="偏导变量" value={draft.partialVariable ?? 'x'} onChange={e=>update({partialVariable:e.target.value})}>{(draft.multiVariables ?? 'x,y').split(',').map(v=><option key={v} value={v}>{v}</option>)}</select></label> : null}
+        <label>求值点（{draft.multiOperation === 'directional' ? '必填' : '可选，留空求符号公式'}）<input aria-label="多元求值点" value={draft.multiPoint ?? ''} onChange={e=>update({multiPoint:e.target.value})} placeholder="按变量顺序填写，如 1,pi/2 或 1,2,3" /></label>
+        {draft.multiOperation === 'directional' ? <><label>方向向量<input aria-label="方向向量" value={draft.multiDirection ?? ''} onChange={e=>update({multiDirection:e.target.value})} placeholder="如 3,4；会明确归一化为单位向量" /></label><label>方向导数约定<select aria-label="方向导数约定" value={draft.directionLimit ?? 'forward'} onChange={e=>update({directionLimit:e.target.value as ManualIntegralDraft['directionLimit']})}><option value="forward">正向单侧 h→0+</option><option value="two_sided">双侧 h→0</option></select></label></> : null}
+        <p>首批为显式二元/三元函数的一阶微分。坐标和方向分量必须完整，不能补0；偏导存在不代表可微。方向导数在不能确认可微时用所选方向的定义核对。</p>
+      </> : null}
+      {draft.task === 'ode' ? <>
+        <div role="group" aria-label="输入导数记号">{["y'", "y''", "y'''"].map(token=><button key={token} type="button" onClick={()=>expressionHandle.current?.press(token)}>{token}</button>)}<button type="button" onClick={()=>expressionHandle.current?.press('=')}>=</button></div>
+        <label>初值条件（可选，每行一条）<textarea aria-label="初值条件" rows={3} value={draft.initialConditions ?? ''} onChange={e=>update({initialConditions:e.target.value})} placeholder={"y(0)=1\ny'(0)=0"} /></label>
+        <p>未知函数固定为y，自变量为x或t；导数用y'、y''、y'''。支持内核能显式求解并核验的1至3阶常微分方程。留空条件时保留任意常数，不自动选取示例初值；部分条件也可能不能唯一确定解。</p>
+      </> : null}
+      {['derivative', 'limit', 'higher_derivative', 'continuity', 'implicit_normal', 'taylor'].includes(draft.task) ? <MathExpressionInput label={draft.task === 'taylor' ? '展开点' : draft.task === 'implicit_normal' ? '研究点横坐标' : draft.task === 'continuity' ? '研究点' : draft.task === 'limit' ? '趋近点' : draft.task === 'higher_derivative' ? '求值点（可选）' : '求导点'} value={draft.point ?? ''} variables={[]}
+        answerMode={draft.task === 'limit' && ['oo', '+oo', '-oo', 'inf', '+inf', '-inf', '∞', '+∞', '-∞'].includes((draft.point ?? '').trim())}
+        onChange={point => update({ point })} placeholder={draft.task === 'limit' ? '例如 0、1/3、pi、oo、-oo' : '例如 1/3、pi/2'}
+        keyboard={false} apiRef={pointHandle} onActivate={() => setActiveField('point')} /> : null}
+      {draft.task === 'implicit_normal' ? <><MathExpressionInput label="研究点纵坐标（可选）" value={draft.pointY ?? ''} variables={[]} onChange={pointY => update({ pointY })} placeholder="多分支时必填，如 1、-1、sqrt(2)/2" keyboard={false} apiRef={pointYHandle} onActivate={() => setActiveField('pointY')} /><p>可填 y=x^2 或 F(x,y)=0。纵坐标省略时仅接受能唯一确认的实分支，确认页会展示完整点；奇异点不自动指定切线。</p></> : null}
+      {draft.task === 'continuity' ? <>
+        <label>该点函数值的定义<select aria-label="该点函数值的定义" value={draft.valueMode ?? 'expression'} onChange={e => update({ valueMode: e.target.value as 'expression' | 'undefined' | 'value' })}>
+          <option value="expression">按原式取值</option><option value="undefined">题目说明该点未定义</option><option value="value">题目另给单点值</option>
+        </select></label>
+        {draft.valueMode === 'value' ? <MathExpressionInput label="单点函数值" value={draft.pointValue ?? ''} variables={[]} onChange={pointValue => update({ pointValue })}
+          placeholder="例如 1、1/3、pi" keyboard={false} apiRef={pointValueHandle} onActivate={() => setActiveField('pointValue')} /> : null}
+        <p>支持单个表达式和单点补定义。另给的值只作用于研究点，不改变左右极限；定义域边界单独提示。</p>
+      </> : null}
+      {['higher_derivative','taylor'].includes(draft.task) ? <label>{draft.task === 'taylor' ? '展开阶数' : '导数阶数'}<input aria-label={draft.task === 'taylor' ? '展开阶数' : '导数阶数'} type="number" min={1} max={10} step={1} value={draft.order ?? '1'} onChange={e => update({ order: e.target.value })} /><small>{draft.task === 'taylor' ? '支持1至10阶；必须明确展开点。余项和观察区间分别核验。' : '1阶求导函数；留空求值点时只求导函数，不补入默认点。'}</small></label> : null}
+      {draft.task === 'limit' ? <label>趋近方向<select aria-label="趋近方向" value={draft.side ?? 'both'} onChange={e => update({ side: e.target.value as 'both' | 'left' | 'right' })}>
+        <option value="both">双侧（无穷远时为通常极限）</option><option value="left">从左侧趋近</option><option value="right">从右侧趋近</option>
+      </select></label> : null}
+      {['geometric_area','rotation_volume'].includes(draft.task) ? <>
+        <label>区域定义<select aria-label="区域定义" value={draft.regionKind ?? ''} onChange={e => update({regionKind:e.target.value as ManualIntegralDraft['regionKind']})}>
+          <option value="">请选择题目区域</option><option value="between_axis">曲线与x轴之间（包含负函数区域）</option><option value="vertical_inequality">不等式 0≤y≤f(x)（负值处为空）</option>
+        </select></label>
+        {draft.task === 'rotation_volume' ? <label>旋转轴<select aria-label="旋转轴" value={draft.rotationAxis ?? ''} onChange={e => update({rotationAxis:e.target.value as ManualIntegralDraft['rotationAxis']})}><option value="">请选择旋转轴</option><option value="x">x轴</option><option value="y">y轴（暂不支持）</option></select></label> : null}
+        <p>首批支持有限区间内连续实函数与x轴之间的区域，或明确的0≤y≤f(x)区域。两条非零曲线之间的区域、其他旋转轴及反常积分应用暂未开放。</p>
+      </> : null}
+      {draft.task === 'function_study' ? <label>区间端点<select aria-label="区间端点" value={draft.intervalType ?? 'closed'} onChange={e => update({ intervalType: e.target.value as ManualIntegralDraft['intervalType'] })}><option value="closed">闭区间 [a,b]</option><option value="open">开区间 (a,b)</option><option value="left_open">左开右闭 (a,b]</option><option value="right_open">左闭右开 [a,b)</option></select></label> : null}
+      {['integral','function_study','geometric_area','rotation_volume','double_integral'].includes(draft.task) && !(draft.task==='double_integral' && draft.doubleMode==='pieces') ? <div className={styles.bounds}>
+        <MathExpressionInput label={draft.task === 'double_integral' ? polarMode ? '极角下限 theta' : `外层下限 ${outerVariable}` : ['function_study','geometric_area','rotation_volume'].includes(draft.task) ? '区间下限' : '积分下限'} value={draft.lower} allowInfinity={(draft.task==='integral' && draft.integralMode==='improper' || draft.task==='double_integral' && draft.doubleMode==='improper')} variables={[]} onChange={lower => update({ lower })}
           placeholder="例如 0、1/3" keyboard={false} apiRef={lowerHandle} onActivate={() => setActiveField('lower')} />
-        <MathExpressionInput label="积分上限" value={draft.upper} variables={[]} onChange={upper => update({ upper })}
+        <MathExpressionInput label={draft.task === 'double_integral' ? polarMode ? '极角上限 theta' : `外层上限 ${outerVariable}` : ['function_study','geometric_area','rotation_volume'].includes(draft.task) ? '区间上限' : '积分上限'} value={draft.upper} allowInfinity={(draft.task==='integral' && draft.integralMode==='improper' || draft.task==='double_integral' && draft.doubleMode==='improper')} variables={[]} onChange={upper => update({ upper })}
           placeholder="例如 2、pi" keyboard={false} apiRef={upperHandle} onActivate={() => setActiveField('upper')} />
-      </div> : <p className={styles.note}>不定积分不需要上下限；任意常数 C 会保留在答案中。</p>}
-      <p className={styles.note}>{draft.task === 'integral' ? '当前支持有限实数上下限。公式结构、定义域与计算能力会分别检查；不会自动补条件。' : '当前输入单变量实函数；图形用于观察原函数族，符号求导用于核对。'}</p>
+      </div> : draft.task === 'antiderivative' ? <p className={styles.note}>不定积分不需要上下限；任意常数 C 会保留在答案中。</p> : draft.task === 'limit' ? <p>区分有限极限、无穷发散、左右不一致与无法判定；趋近点无定义不等于没有极限。</p> : draft.task === 'higher_derivative' ? <p>支持显式单变量函数1至10阶普通导数；公式仅在原式相应阶可导处适用。</p> : draft.task === 'continuity' ? <p>连续性检查分别保留函数值和左右极限，不会自动填补单点定义。</p> : draft.task === 'implicit_normal' ? <p>光滑点使用梯度确定切线与法线；水平、竖直方向单独处理。</p> : draft.task === 'double_integral' ? <p>区域与上下限按完整区间核验，不能以交换微分符号代替同一区域的重新定限。</p> : draft.task === 'multivariable_extrema' ? <p>驻点、奇异约束点与极值分类分别核验，不以一次数值优化代替候选全集。</p> : draft.task === 'multivariable' ? <p>一阶偏导、全微分、方向导数和梯度分别核验，不将多元问题替换成单变量或最优化示例。</p> : draft.task === 'ode' ? <p>不自动取多解列表的第一支；未给初值时求解族，给定条件仍会逐条核验。</p> : ['geometric_area','rotation_volume'].includes(draft.task) ? <p>按完整区域和明确旋转轴计算；不支持两条非零边界之间的区域。</p> : draft.task === 'taylor' ? <p>展示精确系数、展开式、经核验的余项及局部观察区间。</p> : <p>求双侧有限导数；不支持的边界点或不可导点会明确提示。</p>}
+      {draft.task === 'double_integral' && draft.doubleMode!=='pieces' ? <div className={styles.bounds}>
+        <MathExpressionInput label={polarMode ? '极径下界 r' : `内层下界 ${innerVariable}`}  value={draft.innerLower ?? ''} allowInfinity={draft.doubleMode==='improper'} variables={draft.doubleMode==='improper' || draft.doubleMode==='polar_improper' ? [] : [outerVariable]} onChange={innerLower=>update({innerLower})} placeholder={`如 0 或 ${draft.doubleOuter ?? 'x'}^2；只能含外层变量`} keyboard={false} apiRef={innerLowerHandle} onActivate={()=>setActiveField('innerLower')} />
+        <MathExpressionInput label={polarMode ? '极径上界 r' : `内层上界 ${innerVariable}`}  value={draft.innerUpper ?? ''} allowInfinity={draft.doubleMode==='improper' || draft.doubleMode==='polar_improper'} variables={draft.doubleMode==='improper' || draft.doubleMode==='polar_improper' ? [] : [outerVariable]} onChange={innerUpper=>update({innerUpper})} placeholder={`如 1 或 ${draft.doubleOuter ?? 'x'}；不能填内层变量自身`} keyboard={false} apiRef={innerUpperHandle} onActivate={()=>setActiveField('innerUpper')} />
+      </div> : null}
+      <p className={styles.note}>{draft.task === 'integral' ? '有限定积分与反常积分分别选择输入类型；原式定义域、瑕点和收敛性单独检查，不会自动补条件。' : draft.task === 'double_integral' ? '普通二重积分检查连续实定义；反常模式单独检查原式定义域和绝对收敛，区域条件必须完整。' : draft.task === 'multivariable_extrema' ? '完整约束必须保留；二阶判别不足不等于无极值，局部极值不等于全局最值。' : draft.task === 'multivariable' ? '区分偏导、可微充分条件和方向定义；不能把形式梯度内积当作所有点的方向导数。' : draft.task === 'ode' ? '代回原方程和条件核验；多个分支不默认选第一支，不将已核验的一个解当作唯一性证明。' : ['geometric_area','rotation_volume'].includes(draft.task) ? '几何面积不作正负抵消；旋转轴与区域定义按已确认条件计算，不能互相替代。' : draft.task === 'taylor' ? '余项阶只说明展开点附近的性质；观察区间不等于保证精度的范围，数值抽查不是误差上界。' : draft.task === 'function_study' ? '先按原式定义域分段，再检查端点、驻点与不可导点；未取到的上下确界不会显示成最值。' : draft.task === 'implicit_normal' ? '确认完整研究点和分支；图形用于局部观察，直线方程由内核计算。' : draft.task === 'continuity' ? '先确认该点定义；图像仅辅助观察，不替代单点值与极限的核对。' : draft.task === 'limit' ? '输入趋近点和方向；数值图像用于辅助观察，结论由极限内核给出。' : draft.task === 'derivative' ? '输入单变量实函数和求导点，展示求导、代入与切线；差商仅作辅助观察。' : '当前输入单变量实函数；图形用于观察原函数族，符号求导用于核对。'}</p>
       <p className={styles.note}>{draft.task === 'integral'
         ? '三个输入框共用一个数学键盘：点到哪个框，键盘就作用于哪个框。'
         : '输入框与下方数学键盘联动：点进输入框后，键盘即作用于该字段。'}</p>
@@ -112,10 +247,11 @@ export function ManualLabComposer(): JSX.Element {
     </div>
     {preview ? <section className={styles.confirmation} aria-label="确认题目" ref={confirmationSection}>
       <h3 ref={confirmation} tabIndex={-1}>确认这是你要计算的题目</h3>
-      <p>高等数学 / 积分 / {preview.data.label} · 积分变量 {preview.data.conditions.variable}</p>
+      <p>高等数学 / {draft.task === 'double_integral' ? '重积分' : draft.task === 'multivariable_extrema' ? '多元极值' : draft.task === 'multivariable' ? '多元微分' : draft.task === 'ode' ? '微分方程' : ['geometric_area','rotation_volume'].includes(draft.task) ? '定积分应用' : draft.task === 'taylor' ? '泰勒展开' : draft.task === 'function_study' ? '函数研究' : draft.task === 'implicit_normal' ? '切线与法线' : draft.task === 'continuity' ? '连续性' : draft.task === 'limit' ? '极限' : ['derivative', 'higher_derivative'].includes(draft.task) ? '导数' : '积分'} / {preview.data.label} {['implicit_normal','geometric_area','rotation_volume'].includes(draft.task) ? '· 区域坐标 x、y' : `· 计算变量 ${preview.data.conditions.variable ?? preview.data.conditions.independent_variable ?? preview.data.conditions.variables ?? preview.data.conditions.outer_variable}`}</p>
       <div className={styles.formula}><Formula tex={preview.data.latex} block /></div>
+      <p>{preview.data.question}</p>
       <p>如有遗漏或错误，请修改上方字段；修改后需要重新预览与确认。</p>
-      <label className={styles.checkbox}><input type="checkbox" checked={confirmed} disabled={busy !== null} onChange={e => setConfirmed(e.target.checked)} />我已核对公式、积分变量和全部条件</label>
+      <label className={styles.checkbox}><input type="checkbox" checked={confirmed} disabled={busy !== null} onChange={e => setConfirmed(e.target.checked)} />{draft.task === 'double_integral' ? '我已核对被积函数、区域模式、全部积分限或分片，以及换序要求，没有遗漏区域限制' : draft.task === 'multivariable_extrema' ? '我已核对目标函数、研究范围和全部约束，没有省略附加条件' : draft.task === 'multivariable' ? '我已核对变量顺序、求值点和全部方向条件' : draft.task === 'ode' ? '我已核对方程、自变量和全部条件' : ['geometric_area','rotation_volume'].includes(draft.task) ? '我已核对区域、完整区间和旋转条件' : draft.task === 'taylor' ? '我已核对函数、精确展开点和阶数' : draft.task === 'function_study' ? '我已核对函数、区间和端点开闭' : draft.task === 'implicit_normal' ? '我已核对曲线、完整研究点和分支' : draft.task === 'continuity' ? '我已核对公式、研究点和单点定义' : draft.task === 'higher_derivative' ? '我已核对公式、阶数和可选求值点' : draft.task === 'limit' ? '我已核对公式、趋近点和方向' : draft.task === 'derivative' ? '我已核对公式、求导点和全部条件' : '我已核对公式、积分变量和全部条件'}</label>
       <button type="button" className={styles.primary} disabled={!confirmed || busy !== null} onClick={() => void compute()}>{busy === 'compute' ? '内核正在计算…' : '确认并计算'}</button>
     </section> : null}
     <section className={styles.keyboardPanel} aria-label="共用数学键盘">
@@ -126,8 +262,9 @@ export function ManualLabComposer(): JSX.Element {
         </button>
       </div>
       {keyboardOpen ? <MathKeyboard label={FIELD_LABELS[activeField]}
-        variables={activeField === 'expression' ? [draft.variable] : []}
-        disabled={busy !== null} onPress={key => activeHandle.current?.press(key)} /> : null}
+        variables={draft.task === 'double_integral' ? activeField==='expression' ? ['x','y'] : ['xMap','yMap'].includes(activeField) ? ['u','v'] : ['eventInnerLower','eventInnerUpper'].includes(activeField) ? [draft.doubleOuter ?? 'x'] : ['innerLower','innerUpper'].includes(activeField) ? draft.doubleMode==='improper' || draft.doubleMode==='polar_improper' ? [] : [outerVariable] : [] : activeField === 'constraint' || (activeField === 'expression' && draft.task === 'multivariable_extrema') ? ['x','y'] : activeField === 'expression' ? draft.task === 'multivariable' ? (draft.multiVariables ?? 'x,y').split(',') : draft.task === 'implicit_normal' ? ['x', 'y'] : draft.task === 'ode' ? [draft.variable,'y'] : [draft.variable] : []}
+        allowInfinity={((draft.task==='integral' && draft.integralMode==='improper' || draft.task==='double_integral' && draft.doubleMode==='improper') && ['lower','upper','innerLower','innerUpper'].includes(activeField)) || (draft.task==='double_integral' && draft.doubleMode==='polar_improper' && activeField==='innerUpper')} disabled={busy !== null} onPress={key => activeHandle.current?.press(key)} /> : null}
+      {activeField === 'constraint' && draft.task === 'multivariable_extrema' && draft.extremaOperation === 'constrained' ? <button type="button" disabled={busy !== null} aria-label="输入约束等号" onClick={()=>constraintHandle.current?.press('=')}>=</button> : null}
     </section>
   </section>;
 }

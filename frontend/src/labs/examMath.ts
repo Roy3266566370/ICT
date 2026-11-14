@@ -7,6 +7,7 @@ type ExamModel = LabModel & {
   reference_quantities?: Quantity[];
   point_x?: string;
   partial_y?: string;
+  partial_x?: string;
   vertical_normal?: boolean;
   region_kind?: 'vertical_inequality' | 'between_axis';
   effective_intervals?: string[][];
@@ -72,12 +73,14 @@ export function evaluateExamMath(model: LabModel, params: Record<string, unknown
 function normal(model: ExamModel): CalculusResult {
   if (model.point_y === undefined || model.point_y === null) throw new Error('请先核对曲线研究点与分支。');
   const implicit = compileExpression(expression(model.implicit_expression ?? model.expression ?? ''), ['x','y']);
-  const fy = model.partial_y ? compileExpression(expression(model.partial_y), ['x','y']) : null;
+  const swap = model.normal_slope != null && scalar(model.normal_slope, NaN) === 0;
+  const partial = swap ? model.partial_x : model.partial_y;
+  const fy = partial ? compileExpression(expression(partial), ['x','y']) : null;
   const px = scalar(model.point_x ?? model.defaults.point,0);
   const py = scalar(model.point_y,0);
   const vertical = model.vertical_normal === true;
   const slope = vertical ? null : scalar(model.normal_slope, NaN);
-  const evaluate = (x:number,y:number) => implicit.evalOrNull({x,y});
+  const evaluate = (x:number,y:number) => implicit.evalOrNull(swap ? {x:y,y:x} : {x,y});
   function branch(x:number,initial:number): number | null {
     let y = initial;
     for (let iteration=0; iteration<35; iteration+=1) {
@@ -87,7 +90,7 @@ function normal(model: ExamModel): CalculusResult {
       const epsilon = 1e-5;
       const left = evaluate(x,y-epsilon);
       const right = evaluate(x,y+epsilon);
-      const derivative = fy?.evalOrNull({x,y}) ?? (left !== null && right !== null ? (right-left)/(2*epsilon) : null);
+      const derivative = fy?.evalOrNull(swap ? {x:y,y:x} : {x,y}) ?? (left !== null && right !== null ? (right-left)/(2*epsilon) : null);
       if (derivative === null || Math.abs(derivative)<1e-12) return null;
       const next = y-value/derivative;
       if (!Number.isFinite(next) || Math.abs(next-initial)>1) return null;
@@ -97,13 +100,15 @@ function normal(model: ExamModel): CalculusResult {
   }
   const series:CalculusPoint[] = [];
   for (const direction of [-1,1]) {
-    let current = py;
+    let current = swap ? px : py;
+    let stopped = false;
     const half:CalculusPoint[] = [];
     for (let i=1; i<=80; i+=1) {
-      const x = px+direction*i/80;
-      const y = branch(x,current);
+      const x = (swap ? py : px)+direction*i/80;
+      const y = stopped ? null : branch(x,current);
+      if (y === null) stopped = true;
       if (y !== null) current=y;
-      half.push({x,y});
+      half.push(swap ? {x:y ?? px,y:y === null ? null : x} : {x,y});
     }
     series.push(...(direction<0 ? half.reverse() : [{x:px,y:py},...half]));
   }
@@ -112,7 +117,7 @@ function normal(model: ExamModel): CalculusResult {
   return {
     subject:'calculus',kind:'derivative',headline:answerText,
     metrics:[{id:'normal_slope',label:'法线斜率',value:vertical ? '不存在（竖直法线）' : formatNumber(slope)}],
-    checks:[],notes:['仅展示经过已核对研究点的局部隐式曲线分支；叠加直线为法线。'],
+    checks:[],notes:['仅展示经过已核对研究点的局部隐式曲线分支；切线与法线方向分别显示。'],
     trace:[{index:0,label:'曲线研究点',detail:answerText,values:{x:px,y:py,slope}}],
     domain:{x_min:px-1,x_max:px+1},series,rects:[],exact:validSlope ? slope : null,
     approx:validSlope ? slope : null,error:validSlope ? 0 : null,answerText,

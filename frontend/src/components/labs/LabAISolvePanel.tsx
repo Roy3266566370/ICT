@@ -47,11 +47,15 @@ export function LabAISolvePanel({ problem, configured, autoReady = true, onSolve
   if (!onSolve && !solution) return null;
   const hasKernel = solution?.verification === 'kernel' && !!solution.computation;
   const needsHelp = !hasKernel && !action;
+  const failureTitle = solution?.failure_stage === 'task_support' ? '当前题型尚不支持'
+    : solution?.failure_stage === 'source_coverage' ? '原题条件尚未完整对应到模型'
+    : solution?.failure_stage === 'model_mapping' ? '题目条件转换为模型时失败'
+    : solution?.missing_conditions.length ? '请补充题目条件' : '当前未能完成题目计算';
   return <section className={hasKernel ? undefined : styles.panel} aria-label="实验准备与计算结果">
     {action ? <p role="status">{action === 'check' ? '正在检验…' : '正在准备可视化实验…'}</p> : null}
     {error ? <p className={styles.error} role="alert">{error}</p> : null}
     {needsHelp ? <>
-      <h3>{solution ? '这道题还需要补充信息' : '准备实验'}</h3>
+      <h3>{solution ? failureTitle : '准备实验'}</h3>
       {solution?.missing_conditions.length ? <ul>{solution.missing_conditions.map((c,i) => <li key={i}>{c}</li>)}</ul> : null}
       {solution?.limitations.length ? <ul>{solution.limitations.map((c,i) => <li key={i}>{c}</li>)}</ul> : null}
       {!configured ? <p>本地模型服务尚未就绪，请启动 Ollama 后重试。</p> : null}
@@ -63,6 +67,7 @@ export function LabAISolvePanel({ problem, configured, autoReady = true, onSolve
       <p className={styles.answerText}><MathText text={solution.answer} /></p>
       <ol>{solution.steps.map((s,i) => <li key={i}><strong>{s.title}</strong><p><MathText text={s.detail} /></p>{s.latex ? <Formula tex={s.latex} block /> : null}</li>)}</ol>
       {solution.computation?.checks.map(c => <p key={c.id}>{c.label}：{c.detail}</p>)}
+      {solution.limitations.map((item, i) => <p key={`limit-${i}`} role="status">{item}</p>)}
       <p className={styles.meta}>计算与复核针对当前模型；请对照原题确认条件。</p>
       {onCheck && solution.checkable ? <details>
         <summary>检验我的答案</summary>

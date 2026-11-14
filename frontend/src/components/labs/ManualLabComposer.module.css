@@ -10,6 +10,10 @@
 .classification > span { display: flex; gap: 10px; align-items: center; font-size: 13px; }
 .classification p { margin: 0; color: var(--ink-500); font-size: 12px; }
 .panel select { padding: 8px 12px; border: 1px solid #d7d8d1; border-radius: 8px; background: var(--paper-0, #fff); color: inherit; }
+.modeField { display: block; margin: 16px 0; }
+.modeField select { display: block; max-width: 100%; margin-top: 8px; }
+.panel textarea { display: block; box-sizing: border-box; width: 100%; margin: 10px 0; padding: 12px; border: 1px solid #d7d8d1; border-radius: 8px; background: var(--paper-0, #fff); color: inherit; font: 14px/1.6 var(--font-family-mono); resize: vertical; }
+.panel textarea:focus-visible { outline: 2px solid var(--color-coral); outline-offset: 3px; }
 .tasks, .bounds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .tasks button { text-align: left; padding: 18px; border: 1px solid #d7d8d1; border-radius: 10px; background: var(--paper-2); color: inherit; cursor: pointer; }
 .tasks button[aria-pressed='true'] { border-color: var(--color-coral); background: rgba(182, 90, 60, .06); }
@@ -33,6 +37,11 @@
 .confirmation h3 { margin: 0 0 12px; }
 .confirmation p { font-size: 13px; color: var(--ink-500); line-height: 1.7; }
 .formula { overflow-x: auto; padding: 12px; background: var(--paper-0, white); border-radius: 8px; }
+.extensionTable { width: 100%; margin: 16px 0; border-collapse: collapse; text-align: left; }
+.extensionTable th, .extensionTable td { padding: 10px 12px; border-bottom: 1px solid var(--line-200, #deded7); }
+.extensionTable caption { margin-bottom: 8px; text-align: left; }
+.mappingFigure { margin: 16px 0; }
+.mappingFigure figcaption { font-size: 13px; line-height: 1.7; }
 .verification { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 12px 0 0; padding: 10px 12px; border-radius: 8px; }
 .verification strong { flex-shrink: 0; }
 .verificationSymbolic { background: rgba(47, 125, 88, .09); color: #23633f; }

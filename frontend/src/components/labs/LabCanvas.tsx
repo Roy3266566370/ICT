@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
+import {Formula} from '@/components/showcase/Formula';
 import {
   clampBox,
   contourLevels,
@@ -153,17 +154,28 @@ function CalculusCanvas({
       : result.kind === 'integral'
         ? 'f(x)'
         : isNormal
-          ? '曲线 / 法线'
+          ? '曲线 / 切线 / 法线'
           : 'f(x) / 切线';
   const emphasis = selected?.kind === 'solution-step' ? selected.id : selected?.id;
 
   const pointCandidate = result.point;
+  const linePoint = result.trace[0]?.values ?? {};
+  const curveX = Number(linePoint.x), curveY = Number(linePoint.y);
+  const normalSlope = pointCandidate?.slope;
+  const tangentSlope = verticalNormal ? 0 : typeof normalSlope === 'number' && normalSlope !== 0 ? -1 / normalSlope : null;
+  const extraTangent = isNormal && Number.isFinite(curveX) && Number.isFinite(curveY) ? <g aria-label="切线">
+    {tangentSlope === null ? <line x1={xScale(curveX)} x2={xScale(curveX)} y1={MARGIN.top} y2={MARGIN.top + PLOT_H} className={styles.compareCurve} />
+      : <line x1={xScale(result.domain.x_min)} x2={xScale(result.domain.x_max)} y1={yScale(curveY + tangentSlope * (result.domain.x_min - curveX))} y2={yScale(curveY + tangentSlope * (result.domain.x_max - curveX))} className={styles.compareCurve} />}
+    <text x={MARGIN.left + 16} y={MARGIN.top + PLOT_H - 12} className={styles.canvasNote}>切线与法线方程见原题计算结果</text>
+  </g> : null;
+
   if (isNormal && verticalNormal) {
     const values = result.trace[0]?.values ?? {};
     const px = Number(values.x), py = Number(values.y);
     return <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label="隐式曲线与竖直法线">
       <PlotAxes xScale={xScale} yScale={yScale} xTicks={xTicks} yTicks={yTicks} xLabel="x" yLabel={yLabel} />
       <path d={path} className={styles.curve} />
+      {extraTangent}
       <line x1={xScale(px)} x2={xScale(px)} y1={MARGIN.top} y2={MARGIN.top + PLOT_H} className={styles.tangent} />
       <circle cx={xScale(px)} cy={yScale(py)} r="7" className={styles.currentPoint} />
       <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>法线 x = {formatNumber(px)}，斜率不存在</text>
@@ -179,6 +191,7 @@ function CalculusCanvas({
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label={isNormal ? '隐式曲线、研究点与法线' : '函数、切线与差商'}>
         <PlotAxes xScale={xScale} yScale={yScale} xTicks={xTicks} yTicks={yTicks} xLabel="x" yLabel={yLabel} />
         {comparePath ? <path d={comparePath} className={styles.compareCurve} /> : null}
+        {extraTangent}
         <path d={path} className={emphasis === 'derivative' ? `${styles.curve} ${styles.curveStrong}` : styles.curve} />
         <line
           x1={xScale(left)}
@@ -350,7 +363,7 @@ function CalculusCanvas({
               y={MARGIN.top}
               width={Math.max(1, xScale(to) - xScale(from))}
               height={PLOT_H}
-              fill={band.kind === 'increasing' ? '#16a34a' : '#dc2626'}
+              fill={band.kind === 'increasing' ? '#16a34a' : band.kind === 'constant' ? '#64748b' : '#dc2626'}
               opacity={0.08}
             />
           );
@@ -1304,6 +1317,21 @@ export function LabCanvas(props: Props): ReactNode {
     return <div className={styles.canvasRoot}><p>请先核对题目类型与条件，再建立可操作模型。</p></div>;
   }
   if (result.subject === 'calculus') {
+    if(props.problem.manual_input?.double_extension){
+      const input=props.problem.manual_input;
+      return <section className={styles.canvasRoot} aria-label="二重积分计算依据"><h3>{input.double_extension!.title}</h3><Formula tex={input.latex} block /><p>{props.problem.solution.summary}</p><p>计算使用已确认的原区域；参数代换、收敛依据与应用题的逐项结果见“原题计算结果与过程”。</p></section>;
+    }
+    if (props.problem.manual_input?.task === 'double_integral' && props.problem.solution.solution_complete !== true) {
+      return <section className={styles.canvasRoot} aria-label="二重积分未完成"><h3>已记录完整积分区域</h3><Formula tex={props.problem.manual_input.latex} block /><p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p><p>当前不生成未核验的积分结果或替代示例；可在核对窗口修改原题字段后重算。</p></section>;
+    }
+    if (result.kind === 'multivariable_extrema') {
+      const data=props.problem.solution.extrema_details;
+      return <section className={styles.canvasRoot} aria-label="多元极值结果"><h3>多元局部极值计算</h3><p>{data?.constraint ? `完整约束：${data.constraint}` : '无约束，整个实平面'}</p>{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p>}<p>候选点与判定依据见原题结果；未运行梯度下降示例，局部分类不代替全局最值证明。</p></section>;
+    }
+    if (result.kind === 'multivariable') {
+      const data=props.problem.solution.multi_details;
+      return <section className={styles.canvasRoot} aria-label="多元微分结果"><h3>多元微分计算</h3><p>变量顺序：{data?.variables.join('、')}</p>{data?.point ? <p>求值点：({data.point.join(', ')})</p> : <p>未指定求值点，展示条件适用的符号公式。</p>}{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p>}<p>本任务展示符号结果与核验依据；求值点或方向修改后需要重新确认计算。</p></section>;
+    }
     if (result.kind === 'proof' || result.proof) return <div className={styles.canvasRoot} data-subject="calculus"><ProofCanvas result={result} /></div>;
     if (result.kind === 'space' || result.space) return <div className={styles.canvasRoot} data-subject="calculus"><SpaceCanvas result={result} /></div>;
     if (result.task === 'double_integral') return <DoubleIntegralCanvas model={props.problem.model} result={result as DoubleIntegralResult} />;

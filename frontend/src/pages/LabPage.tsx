@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
 import { createTextLab, listLabs, uploadLab, type LabUploadFile } from '@/api/labs';
 import { errorMessage } from '@/api/client';
@@ -116,13 +116,15 @@ function statusLabel(status: string, aiVerification?: string | null): string {
 
 export function LabPage(): JSX.Element {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialQuestion = searchParams.get('question')?.trim() ?? '';
   const inputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
-  const [mode, setMode] = useState<'files' | 'text'>('files');
+  const [mode, setMode] = useState<'files' | 'text'>(initialQuestion === '' ? 'files' : 'text');
   const [entries, setEntries] = useState<LabUploadFile[]>([]);
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState<LabSubject | ''>('');
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialQuestion);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -249,7 +251,7 @@ export function LabPage(): JSX.Element {
             </h1>
             <p className={styles.lead}>
               选择题型，输入公式与条件，确认题目后由内核计算，再亲手观察每一步。
-              首批开放高数定积分与不定积分；也可继续上传文件识别，或修改示例进行学习。
+              手动输入开放高数定积分、不定积分、导函数、高阶导数、指定点求导、极限、连续性、函数区间研究、泰勒展开、定积分应用、常微分方程、多元微分及多元局部极值与等式约束极值、直角坐标二重积分；也可继续上传文件识别，或修改示例进行学习。
             </p>
             <div className={styles.heroStats}>
               <span>

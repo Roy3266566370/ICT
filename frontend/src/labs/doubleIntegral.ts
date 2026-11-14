@@ -67,6 +67,7 @@ function swappedNotes(model: LabModel): string[] {
   const swapped = model.swapped;
   if (!swapped) return [];
   const items = Array.isArray(swapped) ? swapped : [swapped];
+  if(items.some(item=>!item.region_verified)) return ['旧存档的换序区域需要重新核验，请通过核对条件重新计算。'];
   return items.map(item => `换序后：${item.outer_variable} ∈ [${item.outer_bounds[0]}, ${item.outer_bounds[1]}]，${item.inner_variable} 从 ${item.inner_bounds[0]} 到 ${item.inner_bounds[1]}；结果 ${item.exact}。`);
 }
 

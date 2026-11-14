@@ -14,36 +14,36 @@
 
 :root {
   /* ---------- 纸面（由亮到暗） ---------- */
-  --paper-0: #ffffff; /* 卡片/浮层：最亮 */
-  --paper-1: #fbf9f4; /* 次级卡片、表单底 */
-  --paper-2: #f7f4ed; /* 页面底部画布 */
-  --paper-3: #f1ece2; /* inset、工具条、缩略图轨道 */
-  --paper-4: #e9e3d5; /* hover/按下、进度槽 */
+  --paper-0: #fbf9f2; /* 卡片/浮层：最亮 */
+  --paper-1: #f6f3ea; /* 次级卡片、表单底 */
+  --paper-2: #f2f0e8; /* 页面底色 */
+  --paper-3: #e9e5d9; /* inset、工具条、缩略图轨道 */
+  --paper-4: #ddd8ca; /* hover/按下、进度槽 */
 
   /* ---------- 墨色（由深到浅） ---------- */
-  --ink-900: #121b27; /* 标题、关键数值 */
-  --ink-700: #2f3a49; /* 正文 */
-  --ink-500: #58636f; /* 次级正文 */
-  --ink-400: #7c8694; /* 说明、占位 */
-  --ink-300: #a8afba; /* 禁用、分隔文字 */
+  --ink-900: #101211; /* 标题、关键数值 */
+  --ink-700: #34372f; /* 正文 */
+  --ink-500: #5f6257; /* 次级正文 */
+  --ink-400: #7f8175; /* 说明、占位 */
+  --ink-300: #9a9b8f; /* 禁用、分隔文字 */
 
   /* ---------- 发丝线 ---------- */
-  --hairline: #e7e0d3;
-  --hairline-strong: #d5ccb9;
+  --hairline: #d8d3c4;
+  --hairline-strong: #c5c0b0;
   --hairline-dark: rgba(255, 255, 255, 0.1); /* 深底上的分隔 */
 
   /* ---------- 品牌色 ---------- */
-  --color-indigo: #4f46e5; /* 靛蓝：可操作 / 激活 / 主按钮 */
-  --color-coral: #ff7a59; /* 珊瑚橙：活跃数值 / 强调点（仅装饰） */
-  --color-coral-ink: #b8431f; /* 珊瑚橙的文字安全版（对纸底 4.6:1） */
-  --color-navy: var(--ink-900); /* 兼容别名：v0.2 的标题色 */
-  --color-surface: var(--paper-2); /* 兼容别名：v0.2 的页面底色 */
+  --color-indigo: #1c2ecb; /* 钴蓝：可操作 / 激活 / 主按钮 */
+  --color-coral: #de421f; /* 朱砂：活跃数值 / 强调点 */
+  --color-coral-ink: #ac2c10; /* 朱砂的文字安全版 */
+  --color-navy: var(--ink-900); /* 兼容别名 */
+  --color-surface: var(--paper-2); /* 兼容别名 */
 
   /* ---------- 派生色 ---------- */
-  --color-indigo-strong: #4038c9;
-  --color-indigo-soft: #ecebfb;
-  --color-indigo-softer: #f4f3fd;
-  --color-coral-soft: #ffece5;
+  --color-indigo-strong: #101a63;
+  --color-indigo-soft: #e8e9f8;
+  --color-indigo-softer: #f2f2fa;
+  --color-coral-soft: #fbe9e3;
   --color-navy-muted: var(--ink-500);
   --color-navy-subtle: var(--ink-400);
   --color-surface-raised: var(--paper-0);
@@ -68,6 +68,8 @@
   --font-family-sans: 'Inter', 'Sora', 'HarmonyOS Sans SC', 'PingFang SC',
     'Microsoft YaHei', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue',
     Arial, 'Noto Sans SC', sans-serif;
+  --font-family-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC',
+    'STSong', 'SimSun', Georgia, serif;
   --font-family-mono: 'JetBrains Mono', 'SFMono-Regular', 'Cascadia Code',
     Consolas, 'Liberation Mono', monospace;
   --font-family-math: 'KaTeX_Main', 'Latin Modern Math', 'Times New Roman', serif;
@@ -120,13 +122,13 @@
   --space-20: 5rem; /* 80 */
   --space-24: 6rem; /* 96 */
 
-  /* ---------- 圆角 ---------- */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
-  --radius-2xl: 24px;
+  /* ---------- 圆角（纸面仪器：更接近裁切与印刷边） ---------- */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 7px;
+  --radius-xl: 9px;
+  --radius-2xl: 14px;
   --radius-pill: 999px;
 
   /* ---------- 阴影（暖调、双层：贴地 1px + 扩散） ---------- */
@@ -134,7 +136,7 @@
   --shadow-sm: 0 1px 2px rgba(38, 30, 16, 0.05), 0 4px 12px rgba(38, 30, 16, 0.06);
   --shadow-md: 0 2px 4px rgba(38, 30, 16, 0.04), 0 12px 28px rgba(38, 30, 16, 0.09);
   --shadow-lg: 0 4px 8px rgba(38, 30, 16, 0.05), 0 24px 56px rgba(38, 30, 16, 0.13);
-  --shadow-focus: 0 0 0 3px rgba(79, 70, 229, 0.22);
+  --shadow-focus: 0 0 0 3px rgba(28, 46, 203, 0.2);
   --shadow-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.75);
   --shadow-inset-bottom: inset 0 -1px 0 rgba(38, 30, 16, 0.06);
 

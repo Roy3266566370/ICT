@@ -221,10 +221,13 @@ export function WorkshopPage(): JSX.Element {
   const [creating, setCreating] = useState<string | null>(null);
   const [category, setCategory] = useState<'calculus' | 'mechanics' | 'all'>('calculus');
 
-  useEffect(() => {
-    worksApi.list().then((r) => setWorks(r.works)).catch(() => setWorks([]));
-    worksApi.gallery().then((r) => setGallery(r.items)).catch(() => setGallery([]));
-  }, []);
+  const [loadError, setLoadError] = useState('');
+  const loadWorks = (): void => {
+    setLoadError('');
+    worksApi.list().then((r) => setWorks(r.works)).catch(() => setLoadError('作品列表加载失败，请重试。'));
+    worksApi.gallery().then((r) => setGallery(r.items)).catch(() => setLoadError('公开作品加载失败，请重试。'));
+  };
+  useEffect(loadWorks, []);
 
   const fromTemplate = useCallback(async (kind: TemplateKind, name: string) => {
     setCreating(kind);
@@ -260,6 +263,7 @@ export function WorkshopPage(): JSX.Element {
       <SiteNav current="canvas" appearance="studio" />
 
       <main className={styles.main}>
+        {loadError ? <p role="alert">{loadError} <button onClick={loadWorks}>重试</button></p> : null}
         <header className={styles.pageHead}>
           <div className={styles.headText}>
             <p className={styles.eyebrow}>万象工坊 · Workshop</p>

@@ -78,3 +78,9 @@ test('swapped order is surfaced without replacing the original region', async ()
   assert.equal(r.swapped ? 1 : 0, 1);
   assert.ok(r.notes.some(note => note.includes('换序')));
 });
+
+test('legacy swap formulas are not described as verified geometry',async()=>{
+ const r=await evaluate({swapped:{outer_variable:'y',inner_variable:'x',outer_bounds:['0','2'],inner_bounds:['y-1','1'],formula_tex:'old',exact:'2',answer_value:2}});
+ assert.ok(r.notes.some(note=>note.includes('重新核验')));
+ assert.ok(!r.notes.some(note=>note.includes('结果 2')));
+});

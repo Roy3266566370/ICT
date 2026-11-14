@@ -2,10 +2,9 @@
  * `/login` 登录页（契约 `C-LOGIN-UI@1`）。
  *
  * 组装说明：
- *  - 页面骨架交给 `AuthShell`（明亮品牌区 + 浅色表单卡片）；
- *  - 左列是受控 `LoginForm`，右侧品牌区放置主题文案与 `LoginSurface`；
- *  - 表单输入 `values` 与焦点态 `formFocused` 留在页面，提交 `status`/`message`
- *    收敛在 `useLoginSubmit`，两者互不越界；
+ *  - 页面骨架交给 `AuthShell`（准入登记台 + 右侧实时通行证）；
+ *  - 左列是受控 `LoginForm`，通行证上的登记名跟随输入实时更新；
+ *  - 表单输入 `values` 留在页面，提交 `status`/`message` 收敛在 `useLoginSubmit`；
  *  - 页面按账号四态渲染（`state/accountSession.ts` 是唯一状态源）：
  *      `restoring`      → 只渲染占位，不渲染表单、不跳转（R4-AC9）；
  *      `authenticated`  → 渲染「正在进入你的空间…」占位，并跳转一次（R4-AC6）；
@@ -17,9 +16,8 @@
  *    `Record<string, unknown>` + `typeof` 收窄读取，展示一次后清除 history.state，
  *    刷新不重复出现。
  *
- * 隐私：本页只把布尔状态传给三维场景，用户名/邮箱/密码不进入 `LoginSurface`；
- * 不写 Cookie/localStorage/sessionStorage，登录态完全由 `api/client` 与
- * 服务端 `xs_auth` Cookie 负责（mock 模式为内存态）。
+ * 隐私：通行证只接收登记名文本，不接收密码；不写 Cookie/localStorage/sessionStorage，
+ * 登录态完全由 `api/client` 与服务端 `xs_auth` Cookie 负责（mock 模式为内存态）。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -28,11 +26,9 @@ import { isMockMode } from '@/api/client';
 import type { LoginResult } from '@/api/types';
 import AuthShell from '@/components/auth/AuthShell';
 import LoginForm, { type LoginFormValues } from '@/components/auth/LoginForm';
-import { LoginSurface } from '@/components/auth/LoginSurface';
 import { DEFAULT_RETURN_TO, safeReturnTo } from '@/components/auth/returnTo';
 import { useLoginSubmit } from '@/components/auth/useLoginSubmit';
 import { useAccountSessionActions } from '@/hooks/useAccountBootstrap';
-import { useReducedMotion } from '@/hooks/useMotionPreference';
 import { useAccountStatus } from '@/state/accountSession';
 
 /** 表单初值：只在挂载时作为 `useState` 初始值使用（之后一律由 `onChange` 替换）。 */
@@ -67,13 +63,11 @@ function readNotice(state: unknown): string | null {
 export default function LoginPage(): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
-  const reducedMotion = useReducedMotion();
   const mockMode = isMockMode();
   const accountStatus = useAccountStatus();
   const { applyLogin, refreshAccount } = useAccountSessionActions();
 
   const [values, setValues] = useState<LoginFormValues>(INITIAL_VALUES);
-  const [formFocused, setFormFocused] = useState(false);
 
   /**
    * 一次性提示：初值取自 `location.state`，随后冻结在本地 state 中。
@@ -168,17 +162,10 @@ export default function LoginPage(): JSX.Element {
   return (
     <AuthShell
       variant="login"
-      eyebrow="万象 · 可推演的课堂"
-      headline={['让想法，', '进入可推演的世界。']}
-      lead="从一个问题，走向更多可能。上传一份课件，把它变成能调参、能演示、能留存的交互对象。"
-      scene={
-        <LoginSurface
-          formFocused={formFocused}
-          submitting={status === 'submitting'}
-          reducedMotion={reducedMotion}
-        />
-      }
-      sceneCaption="Live surface · 参数驱动"
+      eyebrow="ACCESS DESK / 准入登记"
+      headline={['欢迎回来，', '实验还开着。']}
+      lead="验证身份，回到个人空间或题目实验室。账号现在保存显示名与默认入口；材料与实验仍按当前浏览器会话保留。"
+      passName={values.identifier.trim().split('@')[0] ?? ''}
       notice={showForm ? notice : null}
       statusText={statusText}
     >
@@ -189,7 +176,6 @@ export default function LoginPage(): JSX.Element {
           errorMessage={message}
           onChange={setValues}
           onSubmit={handleSubmit}
-          onFocusChange={setFormFocused}
           mockMode={mockMode}
           serviceHint={serviceHint}
         />

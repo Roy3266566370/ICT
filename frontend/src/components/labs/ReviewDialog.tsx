@@ -27,7 +27,7 @@ interface Props {
 
 const EDITABLE_SPECIAL = new Set(['expression', 'implicit_expression', 'lower', 'upper', 'start', 'x0', 'y0', 'learning_rate', 'iterations', 'point', 'point_y', 'h', 'n', 'epochs', 'initial_heap', 'heap_type', 'deletion_count', 'scalar', 'processes', 'quantum', 'reference', 'frames', 'requests', 'head', 'max_track', 'allocation', 'max', 'available', 'request']);
 
-const TEXT_CONDITION_KEYS = ['expression', 'implicit_expression', 'lower', 'upper', 'point_y', 'heap_type', 'graph_edges', 'layers', 'matrix_a', 'matrix_b', 'vector_b', 'processes', 'reference', 'requests', 'allocation', 'max', 'available', 'request'];
+const TEXT_CONDITION_KEYS = ['point_x', 'point_value', 'value_mode', 'expression', 'implicit_expression', 'lower', 'upper', 'point_y', 'heap_type', 'graph_edges', 'layers', 'matrix_a', 'matrix_b', 'vector_b', 'processes', 'reference', 'requests', 'allocation', 'max', 'available', 'request'];
 
 function asText(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -48,7 +48,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
     setSubject(problem.subject);
     const initial: Record<string, string> = {};
     for (const condition of problem.recognition.conditions) {
-      if (EDITABLE_SPECIAL.has(condition.id)) {
+      if (EDITABLE_SPECIAL.has(condition.id) || (problem.manual_input && condition.id in problem.manual_input.conditions)) {
         initial[condition.id] = asText(condition.id === 'expression' ? problem.model.expression : condition.value);
       }
     }
@@ -83,17 +83,22 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
 
   const variables = problem.model.variables ?? (problem.model.task === 'implicit_normal'
     ? ['x', 'y'] : [problem.model.variable ?? 'x']);
-  const invalidExpression = ['expression', 'implicit_expression'].some((key) =>
+  const invalidExpression = ['expression', 'implicit_expression', 'integrand'].some((key) =>
     key in values && (text.trim() === problem.text.trim() || values[key] !== initialValues[key])
     && !!inspectMath(values[key] ?? '', variables).error);
-  const missingManualCondition = !!problem.manual_input &&
-    Object.keys(problem.manual_input.conditions).some(key => key in values && !values[key]?.trim());
+  const missingPointValue = problem.manual_input?.task === 'continuity' && values.value_mode === 'value' && !values.point_value?.trim();
+  const missingManualCondition = missingPointValue || !!problem.manual_input &&
+    Object.keys(problem.manual_input.conditions).some(key => key !== 'initial_conditions' && !(key === 'point' && problem.manual_input?.task === 'multivariable' && problem.manual_input.conditions.operation !== 'directional') && !(key === 'point_value' && values.value_mode !== 'value') && key in values && !values[key]?.trim());
 
   const submit = (): void => {
     if (invalidExpression || missingManualCondition) return;
     const conditionValues: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(values)) {
+      if (problem.manual_input?.task === 'multivariable' && key === 'point') {conditionValues[key]=value.trim();continue;}
+      if (problem.manual_input?.task === 'ode' && key === 'initial_conditions') {conditionValues[key]=value.trim();continue;}
       if (!value.trim()) continue;
+      if (problem.manual_input?.task === 'continuity' && key === 'point_value' && values.value_mode !== 'value') continue;
+      if (problem.manual_input && key in problem.manual_input.conditions) { conditionValues[key] = value.trim(); continue; }
       if (problem.ai_solution?.agent_understanding && value === initialValues[key]) continue;
       // A corrected question must not be overwritten by old, unchanged fields.
       if (text.trim() !== problem.text.trim() && value === initialValues[key]) continue;
@@ -154,7 +159,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
             <label className={styles.formField}>
               <span>题目文字</span>
               <textarea value={text} rows={7} readOnly={!!problem.manual_input} onChange={(event) => setText(event.target.value)} />
-              {problem.manual_input ? <small>题目由已确认的字段生成；请修改下方公式与积分条件，再确认并重新求解。</small> : null}
+              {problem.manual_input ? <small>题目由已确认的字段生成；请修改下方公式与计算条件，再确认并重新求解。</small> : null}
             </label>
             <label className={styles.formField}>
               <span>题目类型</span>
@@ -175,8 +180,14 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
             <h3>条件与数据</h3>
             <div className={styles.reviewGrid}>
               {problem.recognition.conditions
-                .filter((condition) => EDITABLE_SPECIAL.has(condition.id) && condition.editable !== false)
-                .map((condition) => ['expression', 'implicit_expression'].includes(condition.id) ? (
+                .filter((condition) => (EDITABLE_SPECIAL.has(condition.id) || !!problem.manual_input && condition.id in problem.manual_input.conditions) && condition.editable !== false && !(condition.id === 'point_value' && values.value_mode !== 'value'))
+                .map((condition) => condition.id === 'direction_limit' && problem.manual_input?.task === 'multivariable' ? (<label key={condition.id} className={styles.formField}>方向导数约定<select aria-label="方向导数约定" value={values.direction_limit ?? 'forward'} onChange={e=>setValues(current=>({...current,direction_limit:e.target.value}))}><option value="forward">正向单侧 h→0+</option><option value="two_sided">双侧 h→0</option></select></label>) : condition.id === 'independent_variable' && problem.manual_input?.task === 'ode' ? (<label key={condition.id} className={styles.formField}>自变量<select aria-label="自变量" value={values.independent_variable ?? 'x'} onChange={e=>setValues(current=>({...current,independent_variable:e.target.value}))}><option value="x">x</option><option value="t">t</option></select></label>) : condition.id === 'pieces_text' ? (<label key={condition.id} className={styles.formFieldWide}>{condition.label}<textarea aria-label={condition.label} rows={5} value={values.pieces_text ?? ''} onChange={e=>setValues(current=>({...current,pieces_text:e.target.value}))} /></label>) : condition.id === 'initial_conditions' && problem.manual_input?.task === 'ode' ? (<label key={condition.id} className={styles.formFieldWide}>初值条件（每行一条，留空求解族）<textarea aria-label="初值条件" rows={3} value={values.initial_conditions ?? ''} onChange={e=>setValues(current=>({...current,initial_conditions:e.target.value}))} /></label>) : condition.id === 'region_kind' ? (<label key={condition.id} className={styles.formField}>区域定义<select aria-label="区域定义" value={values.region_kind ?? ''} onChange={e=>setValues(current=>({...current,region_kind:e.target.value}))}><option value="between_axis">曲线与x轴之间（包含负函数区域）</option><option value="vertical_inequality">0≤y≤f(x)（负值处为空）</option></select></label>) : condition.id === 'rotation_axis' ? (<label key={condition.id} className={styles.formField}>旋转轴<select aria-label="旋转轴" value={values.rotation_axis ?? ''} onChange={e=>setValues(current=>({...current,rotation_axis:e.target.value}))}><option value="x">x轴</option><option value="y">y轴（暂不支持）</option></select></label>) : condition.id === 'interval_type' ? (<label key={condition.id} className={styles.formField}>区间端点<select aria-label="区间端点" value={values.interval_type ?? 'closed'} onChange={e => setValues(current => ({...current,interval_type:e.target.value}))}><option value="closed">闭区间 [a,b]</option><option value="open">开区间 (a,b)</option><option value="left_open">左开右闭 (a,b]</option><option value="right_open">左闭右开 [a,b)</option></select></label>) : condition.id === 'value_mode' ? (
+                  <label key={condition.id} className={styles.formField}>该点函数值的定义
+                    <select aria-label="该点函数值的定义" value={values.value_mode ?? 'expression'} onChange={e => setValues(current => ({ ...current, value_mode: e.target.value }))}>
+                      <option value="expression">按原式取值</option><option value="undefined">该点未定义</option><option value="value">题目另给单点值</option>
+                    </select>
+                  </label>
+                ) : ['expression', 'implicit_expression', 'integrand'].includes(condition.id) ? (
                   <div key={condition.id} className={styles.formFieldWide}>
                     <MathExpressionInput
                       label={condition.label}
@@ -211,6 +222,8 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
                     {condition.source.excerpt ? <em>{condition.source.excerpt.slice(0, 80)}</em> : null}
                   </label>
                 ))}
+              {problem.manual_input?.task === 'multivariable' && !('point' in problem.manual_input.conditions) ? <label className={styles.formField}>求值点（可选）<input aria-label="求值点" value={values.point ?? ''} onChange={e=>setValues(current=>({...current,point:e.target.value}))} placeholder="按已确认的变量顺序，如1,2" /></label> : null}
+              {problem.manual_input?.task === 'continuity' && values.value_mode === 'value' && !problem.recognition.conditions.some(c => c.id === 'point_value') ? <label className={styles.formField}>单点函数值<input aria-label="单点函数值" value={values.point_value ?? ''} onChange={e => setValues(current => ({ ...current, point_value: e.target.value }))} /></label> : null}
               {problem.subject === 'algorithm' && problem.model.engine !== 'heap_v1' ? (
                 <label className={styles.formFieldWide}>
                   <span>图的边（每行一条；有向图用 →）</span>

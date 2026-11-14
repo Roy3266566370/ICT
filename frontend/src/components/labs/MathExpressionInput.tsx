@@ -19,6 +19,7 @@ interface Props {
   placeholder?: string;
   autoFocus?: boolean;
   answerMode?: boolean;
+  allowInfinity?: boolean;
   onSubmit?: () => void;
   keyboard?: boolean;
   apiRef?: MutableRefObject<MathKeyboardHandle | null>;
@@ -41,9 +42,10 @@ interface KeyboardProps {
   onPress: (key: string) => void;
   disabled?: boolean;
   answerMode?: boolean;
+  allowInfinity?: boolean;
 }
 
-export function MathKeyboard({ label, variables, onPress, disabled, answerMode = false }: KeyboardProps): ReactNode {
+export function MathKeyboard({ label, variables, onPress, disabled, answerMode = false, allowInfinity = false }: KeyboardProps): ReactNode {
   const button = (key: string, content: ReactNode, name = key): ReactNode => (
     <button type="button" key={key} aria-label={name} title={name} disabled={disabled}
       onMouseDown={(event) => event.preventDefault()} onClick={() => onPress(key)}>{content}</button>
@@ -55,6 +57,8 @@ export function MathKeyboard({ label, variables, onPress, disabled, answerMode =
       {[...new Set(variables)].map((name) => button(name, <Formula tex={name} />, `变量${name}`))}
       {STRUCTURES.map(([key, tex, name]) => button(key!, <Formula tex={tex!} />, name!))}
       {COMMON.map(fn)}
+      {allowInfinity ? button('∞', '∞', '正无穷') : null}
+      {allowInfinity ? button('-∞', '−∞', '负无穷') : null}
       {answerMode ? button(',', ',', '分隔符逗号') : null}
     </div>
     <div className={styles.digits}>
@@ -73,11 +77,12 @@ export function MathKeyboard({ label, variables, onPress, disabled, answerMode =
 }
 
 export function MathExpressionInput({ label, value, onChange, variables, disabled, provenance, describedBy,
-  placeholder, autoFocus, answerMode = false, onSubmit, keyboard = true, apiRef, onActivate }: Props): ReactNode {
+  placeholder, autoFocus, answerMode = false, allowInfinity = false, onSubmit, keyboard = true, apiRef, onActivate }: Props): ReactNode {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   const selection = useRef({ start: value.length, end: value.length });
-  const inspection = useMemo(() => inspectMath(value, variables), [value, variables]);
+  const inspection = useMemo(() => allowInfinity && /^(?:[+-]?(?:oo|inf|∞))$/.test(value.trim())
+    ? {error:null,tex:value.trim().startsWith('-') ? '-\\infty' : '\\infty'} : inspectMath(value, variables), [value, variables, allowInfinity]);
   const remember = (): void => {
     if (input.current) selection.current = {
       start: input.current.selectionStart ?? value.length, end: input.current.selectionEnd ?? value.length,
@@ -121,7 +126,7 @@ export function MathExpressionInput({ label, value, onChange, variables, disable
         : inspection.error ? `请补全公式：${inspection.error}` : '公式结构完整，可对照原题确认。'}
     </p>
     {keyboard ? <MathKeyboard label={label} variables={variables} onPress={press}
-      disabled={disabled} answerMode={answerMode} /> : null}
+      disabled={disabled} answerMode={answerMode} allowInfinity={allowInfinity} /> : null}
     {keyboard ? <p className={styles.hint}>点击按钮输入；分式、根号和函数会自动配好括号。「下一项」可跳到分母或移出括号，也可直接键入、粘贴和选中替换。</p> : null}
   </div>;
 }

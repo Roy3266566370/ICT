@@ -54,7 +54,7 @@ export function DoubleIntegralCanvas({model,result}:{model:LabModel;result:Doubl
   const hi = vertical ? {x:slice.position,y:slice.upper} : {x:slice.upper,y:slice.position};
   const maximum = Math.max(...result.sliceValues.map(p=>Math.abs(p.value)),1e-12);
   const a = model.outer_bounds![0], b = model.outer_bounds![1];
-  const swapped = model.swapped ? (Array.isArray(model.swapped) ? model.swapped : [model.swapped]) : [];
+  const swapped = model.swapped ? (Array.isArray(model.swapped) ? model.swapped : [model.swapped]).filter(item=>item.region_verified) : [];
   return <div className={styles.root} data-testid="double-integral-model">
     <div className={styles.explanation}>
       <span className={styles.tag}>积分区域 D</span>
@@ -101,7 +101,7 @@ function PiecesDoubleIntegralCanvas({model,result}:{model:LabModel;result:Double
   const points = pieces.flatMap(piece => (piece.region ?? []).flatMap(p => outer === 'x'
     ? [{x:p.outer,y:p.lower},{x:p.outer,y:p.upper}]
     : [{x:p.lower,y:p.outer},{x:p.upper,y:p.outer}]));
-  const swapped = model.swapped ? (Array.isArray(model.swapped) ? model.swapped : [model.swapped]) : [];
+  const swapped = model.swapped ? (Array.isArray(model.swapped) ? model.swapped : [model.swapped]).filter(item=>item.region_verified) : [];
   return <div className={styles.root} data-testid="double-integral-model">
     <div className={styles.explanation}>
       <span className={styles.tag}>分片区域 D</span>

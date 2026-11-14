@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f6f5ef">
+  <meta name="description" content="万象题目实验室：从你的题目出发，拆解思路、建立模型，在亲手改变条件的过程中理解答案。">
+  <title>万象 · 题目实验室 — 让好问题，长出新理解</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%232c473d'/%3E%3Cpath d='M10 13h20L15 28V10m-5 17h20L25 12v18' stroke='%23f6f5ef' stroke-width='2' fill='none'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳转到主要内容</a>
+  <header class="site-header">
+    <a class="brand" href="#" aria-label="万象首页">
+      <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 11h28L13 32V5M6 29h28L27 8v27"/></svg>
+      <span>万象<span class="brand-en">WANXIANG</span></span>
+    </a>
+    <nav class="desktop-nav" aria-label="主导航">
+      <a class="active" href="#lab">题目实验室<span class="nav-dot"></span></a>
+      <a href="#workshop">万象工坊</a>
+      <a href="#examples">探索实例</a>
+    </nav>
+    <a class="header-action" href="#question">带一道题来 <span aria-hidden="true">↗</span></a>
+    <button class="menu-toggle" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="mobile-nav"><span></span><span></span></button>
+  </header>
+  <nav id="mobile-nav" class="mobile-nav" aria-label="移动端导航" hidden>
+    <a href="#lab">题目实验室</a><a href="#workshop">万象工坊</a><a href="#examples">探索实例</a>
+  </nav>
+
+  <main id="main">
+    <section id="lab" class="hero section-shell">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="tiny-cross" aria-hidden="true">+</span> 题目实验室 <span class="eyebrow-line"></span> 为每一个「为什么」</p>
+        <h1>好问题，<br>值得一场<span class="marked-word">实验<svg viewBox="0 0 210 16" preserveAspectRatio="none" aria-hidden="true"><path d="M3 9Q81 0 204 7M12 14Q100 6 198 12"/></svg></span>。</h1>
+        <p class="hero-description">把你的题目交给万象。<br>一起拆开思路，建立模型，再亲手验证答案。</p>
+
+        <form id="question-form" class="question-composer">
+          <div class="composer-heading"><label for="question">从你的题目开始</label><span class="composer-index">Q. 001</span></div>
+          <textarea id="question" name="question" maxlength="4000" rows="3" placeholder="输入或粘贴一道题目，剩下的交给我们。" aria-describedby="question-error"></textarea>
+          <div id="attachment" class="attachment" hidden><span id="filename"></span><button type="button" id="remove-file" aria-label="移除附件">×</button></div>
+          <div class="composer-actions">
+            <button type="button" id="attach-button" class="attach-button"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m7 10 5-5a2.8 2.8 0 0 1 4 4l-7 7a4.2 4.2 0 0 1-6-6l7-7M5.5 12l6.7-6.7"/></svg><span>图片 / 文件</span></button>
+            <input id="file-input" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.pptx,.txt,.md,.csv" hidden>
+            <button class="button button-primary" id="submit-question" type="submit">开始解题 <span aria-hidden="true">↗</span></button>
+          </div>
+          <p class="form-error" id="question-error" role="status" hidden></p>
+        </form>
+        <div class="try-question"><span>还没想好？试试</span><button type="button" data-fill="derivative">导数为什么是斜率 <span>↗</span></button><button type="button" data-fill="integral">曲线下的面积 <span>↗</span></button></div>
+      </div>
+
+      <div class="hero-experiment">
+        <div class="experiment-overline"><span>一张草稿纸，也是一间实验室。</span><span class="mono">FIG. 01</span></div>
+        <div class="experiment-sheet">
+          <div class="sheet-heading"><span><span class="status-dot"></span> <span id="experiment-category">微积分 · 导数的几何意义</span></span><span class="sheet-live">动手试一试</span></div>
+          <div class="formula-row"><span id="experiment-formula">f(x) = x²</span><span class="pencil-note" id="experiment-note">让抽象的关系，变得具体。</span></div>
+          <div id="hero-plot" class="plot" role="img" aria-label="函数 y=x² 与观察点处的切线"></div>
+          <div class="plot-legend" id="hero-legend"><span><i class="legend-curve"></i>函数曲线</span><span><i class="legend-tangent"></i>此刻的切线</span><span class="mono" id="hero-result">f′(x) = 2.40</span></div>
+          <div class="experiment-controls">
+            <div class="control-title"><label for="hero-slider" id="hero-slider-label">移动观察点 x</label><output id="hero-value" for="hero-slider">1.20</output></div>
+            <input type="range" id="hero-slider" min="-1.8" max="1.8" step="0.01" value="1.2">
+            <div class="range-labels"><span id="hero-min">−1.8</span><span id="hero-slider-hint">拖动滑杆，看看切线如何变化</span><span id="hero-max">1.8</span></div>
+          </div>
+        </div>
+        <div class="sheet-bottom"><div class="experiment-switch" role="group" aria-label="切换交互模型"><button type="button" data-model="derivative" class="selected" aria-pressed="true">01 导数</button><button type="button" data-model="integral" aria-pressed="false">02 积分</button><button type="button" data-model="matrix" aria-pressed="false">03 矩阵</button></div><span class="hand-note">答案之外，还有发现。<svg viewBox="0 0 48 25" aria-hidden="true"><path d="M2 20Q30 26 43 4m-11 2 12-3-1 12"/></svg></span></div>
+      </div>
+    </section>
+
+    <div class="subject-strip section-shell"><span>好奇心，不分学科</span><div><span>微积分</span><i></i><span>线性代数</span><i></i><span>最优化</span><i></i><span>数据结构与算法</span><i></i><span>深度学习</span></div><a href="#examples">找到你的问题 <span aria-hidden="true">↓</span></a></div>
+
+    <section class="examples-section section-shell" id="examples" aria-labelledby="examples-title">
+      <div class="section-heading"><div><p class="eyebrow">01 <span class="eyebrow-line"></span> 从解答，到理解</p><h2 id="examples-title">不只算出来，<br><span class="serif">还要看明白。</span></h2></div><p class="section-description">一道题，一份有来有回的解答。<br>改变条件、观察变化，让知识留下痕迹。</p></div>
+      <div class="example-grid">
+        <article class="example-card example-featured"><div class="card-top"><span>01 / 微积分</span><span class="card-label">斜率，原来如此</span></div><div class="example-art" id="art-derivative" aria-hidden="true"></div><div class="card-copy"><h3>导数，是怎样「切」出来的？</h3><p>移动一个点，看函数的变化率如何变成一条切线。</p></div><button type="button" class="card-action" data-open="derivative">打开这场实验 <span aria-hidden="true">↗</span></button></article>
+        <article class="example-card example-integral"><div class="card-top"><span>02 / 微积分</span><span class="card-label">把无限变成可见</span></div><div class="example-art" id="art-integral" aria-hidden="true"></div><div class="card-copy"><h3>一块面积，怎样一点点相加？</h3><p>把长方形分得更细，看黎曼和走向定积分。</p></div><button type="button" class="card-action" data-open="integral">打开这场实验 <span aria-hidden="true">↗</span></button></article>
+        <article class="example-card example-matrix"><div class="card-top"><span>03 / 线性代数</span><span class="card-label">给空间换个样子</span></div><div class="example-art" id="art-matrix" aria-hidden="true"></div><div class="card-copy"><h3>一个矩阵，能把平面怎样？</h3><p>亲手改变剪切系数，看看形状与面积的关系。</p></div><button type="button" class="card-action" data-open="matrix">打开这场实验 <span aria-hidden="true">↗</span></button></article>
+      </div>
+      <p class="example-footnote"><span class="tiny-cross" aria-hidden="true">+</span> 这里是三个可以即刻动手的例子。真正的起点，是你自己的问题。</p>
+    </section>
+
+    <section class="journey-section" aria-labelledby="journey-title"><div class="section-shell"><div class="journey-intro"><p class="eyebrow">02 <span class="eyebrow-line"></span> 理解，有迹可循</p><h2 id="journey-title">从一个问号，到你的「原来如此」。</h2><span class="journey-doodle" aria-hidden="true">? <svg viewBox="0 0 150 30"><path d="M3 18c40-30 70 30 136-5m-13-7 14 6-8 11"/></svg> !</span></div><ol class="journey-steps"><li><span class="step-number">01</span><h3>带来问题</h3><p>输入文字，或上传题目。<br>你的原题，是一切的起点。</p></li><li><span class="step-number">02</span><h3>拆开思路</h3><p>核对条件，梳理推导。<br>知道每一步，为什么这样走。</p></li><li><span class="step-number">03</span><h3>让模型动起来</h3><p>拖动参数，换一个条件。<br>在变化中，发现不变的规律。</p></li><li><span class="step-number">04</span><h3>带走自己的理解</h3><p>留下笔记，保存探索。<br>把这次发现，变成下次的起点。</p></li></ol></div></section>
+
+    <section class="workshop-section section-shell" id="workshop" aria-labelledby="workshop-title"><div class="workshop-art" aria-hidden="true"><div class="workshop-art-heading"><span>WANXIANG / OPEN WORKSHOP</span><span>自由搭建中</span></div><svg class="workshop-diagram" viewBox="0 0 580 290" fill="none"><defs><pattern id="workshop-dots" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1" fill="#b7c1b4"/></pattern></defs><rect width="580" height="290" fill="url(#workshop-dots)"/><path d="M166 96h55q22 0 22 22v45q0 22 22 22h52M166 96h182M430 96h27q22 0 22 22v67h-54" stroke="#5e7868" stroke-width="1.5"/><g class="diagram-node"><rect x="28" y="57" width="140" height="80" rx="5" fill="#f7f7f0" stroke="#647a69"/><text x="44" y="82" class="node-label">函数源</text><text x="44" y="112" class="node-formula">f(x) = sin x</text><circle cx="168" cy="96" r="5" fill="#a9513e"/></g><g><rect x="320" y="52" width="137" height="88" rx="5" fill="#f7f7f0" stroke="#647a69"/><text x="337" y="78" class="node-label">函数图像</text><path d="M338 111q21-42 43-9t56-4" stroke="#466852" stroke-width="2"/><circle cx="320" cy="96" r="5" fill="#a9513e"/></g><g><rect x="314" y="162" width="142" height="80" rx="5" fill="#f7f7f0" stroke="#647a69"/><text x="331" y="188" class="node-label">导数 · 观察点</text><text x="331" y="219" class="node-formula">f′(x) = cos x</text><circle cx="314" cy="185" r="5" fill="#a9513e"/></g><g transform="rotate(-5 125 227)"><rect x="48" y="186" width="171" height="67" fill="#e8e5ce"/><text x="65" y="212" class="node-label">如果再接一块积木呢？</text><path d="M66 233h105m-40 0h45" stroke="#9b9c7d" stroke-width="2"/><circle cx="131" cy="233" r="5" fill="#a9513e"/></g></svg><span class="workshop-caption">一个函数，连接更多可能。</span></div><div class="workshop-copy"><p class="eyebrow">03 <span class="eyebrow-line"></span> 万象工坊</p><h2 id="workshop-title">没有标准题目，<br>也可以<span class="serif">尽兴探索。</span></h2><p>如果一个答案又带来了新的好奇，<br>就到工坊去。把函数、图像和参数连起来，<br>搭一场属于你自己的数学实验。</p><button type="button" class="text-action" id="open-workshop">看看积木如何连接 <span aria-hidden="true">↗</span></button></div></section>
+
+    <section class="closing-section section-shell"><span class="closing-mark" aria-hidden="true">↗</span><div><p>理解的第一步，不是知道答案。</p><h2>是提出你的问题。</h2></div><a class="button button-primary" href="#question">从一道题开始 <span aria-hidden="true">↗</span></a></section>
+  </main>
+  <footer class="site-footer section-shell"><a class="footer-brand" href="#">万象 <span>让知识，回应好奇。</span></a><span>题目实验室 · 首页设计提案</span><a href="#main">回到起点 ↑</a></footer>
+
+  <dialog id="experiment-dialog" aria-labelledby="dialog-title"><div class="dialog-topline"><span>万象 / 一场小实验</span><button type="button" id="close-dialog" aria-label="关闭实验">×</button></div><div id="dialog-content"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+</body>
+</html>

@@ -5,8 +5,8 @@ export function evaluateOde(problem: LabProblem): CalculusResult {
   const model = problem.model;
   const solution = problem.solution;
   const variable = model.independent_variable ?? 'x';
-  const lower = Number(model.defaults.x_min ?? -3);
-  const upper = Number(model.defaults.x_max ?? 3);
+  const lower = Number(solution.plot_window?.x_min ?? model.defaults.x_min ?? -3);
+  const upper = Number(solution.plot_window?.x_max ?? model.defaults.x_max ?? 3);
   const series: CalculusPoint[] = [];
   const source = solution.plot_expression;
   if (source) {
@@ -23,9 +23,9 @@ export function evaluateOde(problem: LabProblem): CalculusResult {
   }
   const target = solution.target ?? null;
   const exact = typeof solution.answer_value === 'number' ? solution.answer_value : null;
-  const residual = solution.residual_verified !== false;
-  const initial = solution.initial_conditions_verified !== false;
-  const complete = solution.solution_complete !== false && solution.solution_status !== 'incomplete';
+  const residual = solution.residual_verified === true;
+  const initial = solution.initial_conditions_verified === true;
+  const complete = solution.solution_complete === true && solution.solution_status === 'complete';
   return {
     subject: 'calculus', task: 'ode', kind: 'ode',
     headline: solution.answer || solution.summary || '微分方程',
@@ -37,7 +37,7 @@ export function evaluateOde(problem: LabProblem): CalculusResult {
     ],
     checks: [
       { id: 'residual', label: '代入原方程残差', status: residual ? 'pass' : 'fail', detail: residual ? 'checkodesol 残差为 0。' : '残差核验未通过。' },
-      { id: 'initial', label: '初值条件', status: initial ? 'pass' : 'fail', detail: initial ? '初值逐条满足。' : '初值条件未满足。' },
+      { id: 'initial', label: '初值条件', status: !solution.initial_conditions?.length ? 'warn' : initial ? 'pass' : 'fail', detail: !solution.initial_conditions?.length ? '未给初值，不自动补入条件或声称唯一解。' : initial ? '初值逐条满足。' : '初值条件未满足。' },
       { id: 'explicit', label: '显式解与组合量', status: complete ? 'pass' : 'warn', detail: complete ? '已得到显式解并完成组合量。' : solution.incomplete_reason ?? '存在未完成项。' },
     ],
     notes: solution.limitations ?? [],

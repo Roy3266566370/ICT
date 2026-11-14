@@ -78,6 +78,8 @@ def _numeric_real(value: sp.Expr) -> float | None:
 
 
 def _classify_value(value: sp.Expr) -> dict[str, Any]:
+    if isinstance(value, sp.Expr) and value.has(sp.Integral, sp.Limit) and _contains_infinity(value):
+        return {"status": "undetermined", "reason": "无穷端积分或极限尚未求值，不能把积分限中的无穷当成结果发散"}
     if value is sp.nan or _contains_infinity(value):
         return {
             "status": "divergent",

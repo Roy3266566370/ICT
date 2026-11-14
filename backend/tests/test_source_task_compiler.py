@@ -1,3 +1,4 @@
+import math
 import pytest
 
 
@@ -144,7 +145,7 @@ def test_compiled_models_are_kernel_consumable():
         '已知f(x)=x^2*(exp(x)-1)，求f在x=1处的第五阶导数。')
     _validate('higher_derivative',model['conditions'])
     problem=compile_kernel_problem(model)
-    assert '84.26' in problem['solution']['answer']
+    assert problem['solution']['derivative_value'] == pytest.approx(31*math.e)
 
 
 def test_higher_derivative_binds_english_order_fact():

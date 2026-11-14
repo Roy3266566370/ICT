@@ -1114,6 +1114,22 @@ function computeDeepLearning(problem: LabProblem, params: Params): DlResult {
 export function computeLab(problem: LabProblem, params: Record<string, unknown>): LabResult {
   switch (problem.subject) {
     case 'calculus': {
+      if (problem.manual_input?.double_extension || problem.manual_input?.conditions?.integral_mode === 'improper' || problem.manual_input?.conditions?.region_mode === 'improper') {
+        const s=problem.solution;
+        return {subject:'calculus',kind:'integral',headline:s.summary,metrics:[],checks:[],notes:s.limitations ?? [],series:[],rects:[],domain:{x_min:-1,x_max:1},exact:s.answer_value ?? null,approx:null,error:null,answerText:s.answer,trace:s.steps.map((step,index)=>({index,label:step.title,detail:step.detail,values:{}}))};
+      }
+      if (problem.manual_input?.task === 'double_integral' && problem.solution.solution_complete !== true) {
+        const s=problem.solution;
+        return {subject:'calculus',task:'double_integral',kind:'integral',headline:s.incomplete_reason || s.summary,answerText:'',metrics:[],checks:[],notes:s.limitations ?? [],series:[],rects:[],domain:{x_min:-1,x_max:1},exact:null,approx:null,error:null,trace:s.steps.map((step,index)=>({index,label:step.title,detail:step.detail,values:{}}))};
+      }
+      if (problem.model.task === 'multivariable_extrema') {
+        const s=problem.solution;
+        return {subject:'calculus',kind:'multivariable_extrema',task:'multivariable_extrema',headline:s.answer || s.summary,metrics:[],checks:[{id:'result',label:'候选与分类核验',status:s.solution_complete === true ? 'pass' : 'warn',detail:s.incomplete_reason || s.summary}],notes:s.limitations ?? [],series:[],domain:{x_min:-1,x_max:1},rects:[],exact:null,approx:null,error:null,answerText:s.answer || '',trace:s.steps.map((step,index)=>({index,label:step.title,detail:step.detail,values:{}}))};
+      }
+      if (problem.model.task === 'multivariable') {
+        const s=problem.solution;
+        return {subject:'calculus',kind:'multivariable',task:'multivariable',headline:s.answer || s.summary,metrics:[],checks:[{id:'result',label:'本任务核验',status:s.solution_complete === true ? 'pass' : 'warn',detail:s.incomplete_reason || s.summary}],notes:s.limitations ?? [],series:[],domain:{x_min:-1,x_max:1},rects:[],exact:s.answer_value ?? null,approx:null,error:null,answerText:s.answer || '',trace:s.steps.map((step,index)=>({index,label:step.title,detail:step.detail,values:{}}))};
+      }
       if (problem.model.task === 'ode') return evaluateOde(problem);
       if (problem.model.task === 'series_convergence') return evaluateSeriesConvergence(problem);
       if (problem.model.task === 'power_series') return evaluatePowerSeries(problem);
@@ -1171,7 +1187,7 @@ export function defaultParams(problem: LabProblem): Record<string, unknown> {
 export function currentFrame(result: LabResult, step: number): LabResultFrame | DlFrame | BfsResultFrame {
   const frames = result.trace;
   const index = clamp(Math.round(step), 0, Math.max(0, frames.length - 1));
-  return frames[index] ?? frames[0]!;
+  return frames[index] ?? frames[0] ?? {index:0,label:'暂无执行步骤',detail:result.headline,values:{}};
 }
 
 export function currentMetrics(result: LabResult, step: number): LabResultMetric[] {

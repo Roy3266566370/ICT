@@ -65,3 +65,13 @@ test('inequality region preview hides empty negative fibers', async () => {
   assert.ok(result?.rects.filter(r=>r.mid<0).every(r=>r.height === 0));
   assert.ok(Math.abs((result?.approx ?? 0)-0.5)<1e-8);
 });
+
+test('竖直切线附近改用x(y)追踪已确认的圆分支', async () => {
+  const result = await evaluate({subject:'calculus',task:'implicit_normal',implicit_expression:'x**2+y**2-1',
+    point_x:'1',point_y:'0',normal_slope:'0',vertical_normal:false,partial_x:'2*x',partial_y:'2*y',defaults:{point:1}});
+  const points=result!.series.filter(p=>p.y!==null);
+  assert.ok(points.some(p=>p.y!>0.5));
+  assert.ok(points.some(p=>p.y!< -0.5));
+  for (const p of points) assert.ok(Math.abs(p.x*p.x+p.y!*p.y!-1)<1e-6);
+  assert.equal(result?.point?.slope,0);
+});

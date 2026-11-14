@@ -111,19 +111,19 @@ function GlobalHomeShortcut(): ReactElement | null {
         display: 'inline-flex',
         alignItems: 'center',
         gap: '6px',
-        padding: '6px 12px',
-        borderRadius: '999px',
-        border: '1px solid #e7e0d3',
-        background: 'rgba(255, 255, 255, 0.9)',
-        backdropFilter: 'blur(8px)',
-        color: '#58636f',
-        fontSize: '11.5px',
-        fontWeight: 600,
+        padding: '7px 11px',
+        borderRadius: 0,
+        border: '1px solid #101211',
+        background: 'rgba(250, 248, 241, 0.94)',
+        color: '#34372f',
+        fontSize: '10px',
+        fontFamily: 'var(--font-family-mono)',
+        letterSpacing: '.05em',
         textDecoration: 'none',
-        boxShadow: '0 1px 2px rgb(38 30 16 / 6%), 0 6px 16px rgb(38 30 16 / 8%)',
+        boxShadow: '3px 3px 0 #de421f',
       }}
     >
-      <span aria-hidden="true" style={{ fontSize: '11px', color: '#a8afba' }}>
+      <span aria-hidden="true" style={{ fontSize: '10px', color: '#ac2c10' }}>
         ↑
       </span>
       首页

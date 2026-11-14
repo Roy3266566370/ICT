@@ -7,6 +7,8 @@ from typing import Any, Mapping
 
 import sympy as sp
 
+from sympy.calculus.util import continuous_domain
+
 from .expr import expression_text, parse_expression, safe_float, to_latex
 
 MAX_ORDER = 3
@@ -18,7 +20,7 @@ def _constant(raw: Any, label: str) -> sp.Expr:
     value = parse_expression(raw, ('x',))
     if value.free_symbols or safe_float(value) is None:
         raise ValueError(f'{label}必须是有限实数')
-    return value
+    return value.xreplace({n:sp.Rational(str(n)) for n in value.atoms(sp.Float)})
 
 
 def _normalize_equation(raw: Any, independent: str, dependent: str) -> tuple[str, str]:
@@ -26,7 +28,7 @@ def _normalize_equation(raw: Any, independent: str, dependent: str) -> tuple[str
         raise ValueError('微分方程必须是600字以内的字符串')
     text = raw.replace('′', "'").replace('’', "'").replace('−', '-').replace('＝', '=')
     text = text.replace(f'{dependent}({independent})', dependent)
-    text = re.sub(r'\b' + re.escape(dependent) + r'\s*\(\s*[xt]\s*\)', dependent, text)
+    text = re.sub(r'\b' + re.escape(dependent) + r'\s*\(\s*' + re.escape(independent) + r'\s*\)', dependent, text)
     if text.count('=') != 1:
         raise ValueError('微分方程必须包含且只包含一个等号')
     left, right = [item.strip() for item in text.split('=')]
@@ -85,8 +87,8 @@ def parse_initial_conditions(raw: Any, independent: str, dependent: str, order: 
     for item in raw:
         if not isinstance(item, str) or not item.strip():
             raise ValueError('初值条件格式不正确')
-        text = item.replace('−', '-').replace('＝', '=').strip()
-        match = re.fullmatch(r"y\s*('{0,3})\s*\(\s*([^)]+)\s*\)\s*=\s*(.+)", text)
+        text = item.replace('−', '-').replace('＝', '=').replace('′', "'").replace('’', "'").strip()
+        match = re.fullmatch(r"y\s*('{0,3})\s*\(\s*(.+)\s*\)\s*=\s*(.+)", text)
         if not match:
             raise ValueError('初值条件应写成 y(0)=1、y\'(0)=2 这样的形式')
         primes, point_raw, value_raw = match.groups()
@@ -137,6 +139,7 @@ def build_ode_problem(conditions: Mapping[str, Any]) -> dict:
     }
     condition_list = [
         _condition('equation', '微分方程', model['equation'], {}, kind='expr'),
+        _condition('independent_variable', '自变量', independent, {}, kind='text'),
         _condition('initial_conditions', '初值条件', ic_texts, {}, kind='json'),
     ]
     if target_kind != 'none':
@@ -214,6 +217,8 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
             'incomplete_reason': f'微分方程未能求解：{exc}',
         }
     if isinstance(dsolve_result, list):
+        if len(dsolve_result) > 1:
+            return dict(summary='返回多个候选解分支，当前未确认应选哪一支，不自动取第一支', answer='', steps=[], conditions=ic_texts, limitations=['需进一步明确解分支，当前不声明已求得完整答案'], solution_status='unsupported', solution_complete=False, incomplete_reason='解分支尚未确认')
         dsolve_result = dsolve_result[0] if dsolve_result else None
     if dsolve_result is None or not isinstance(dsolve_result, sp.Eq):
         return {
@@ -240,19 +245,54 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
                 initial_ok = False
         except Exception:  # noqa: BLE001
             initial_ok = False
+    domain = None
+    domain_reason = None
+    try:
+        if not implicit and not solution_expr.free_symbols - {x}:
+            domain = continuous_domain(solution_expr, x, sp.S.Reals)
+        normalized, _ = _normalize_equation(model['equation'], independent, 'y')
+        names = (independent, 'y', 'D1', 'D2', 'D3')
+        replacements = {sp.Symbol('y', real=True):solution_expr}
+        replacements.update({sp.Symbol(f'D{k}',real=True):sp.diff(solution_expr,x,k) for k in (1,2,3)})
+        for raw in normalized.split('='):
+            preserved = parse_expression(raw, names, preserve_structure=True)
+            for node in sp.preorder_traversal(preserved):
+                if isinstance(node,sp.Pow) and node.exp.is_number and node.exp<0:
+                    base=sp.simplify(node.base.xreplace(replacements))
+                    for _,point,_ in ic_terms:
+                        if sp.simplify(base.subs(x,point))==0: raise ValueError('原方程在给定条件点分母为零，不能用化简后的残差补回定义')
+                    if domain is not None:
+                        if base==0: raise ValueError('候选解使原方程分母恒为零')
+                        domain=domain.intersect(continuous_domain(1/base,x,sp.S.Reals))
+        if domain is not None and ic_terms:
+            from .calculus_analysis import _interval_components
+            parts=_interval_components(domain)
+            component=next((p for p in parts or [] if all(p[0]<point<p[1] for _,point,_ in ic_terms)),None)
+            if component is None: raise ValueError('条件点不在同一个可确认的双侧实解区间内')
+            domain=sp.Interval(component[0],component[1],component[2],component[3])
+    except (ValueError,TypeError,NotImplementedError) as exc:
+        domain_reason=str(exc)
+        initial_ok=False
     complete = complete and initial_ok
     if implicit:
         complete = False
     target = _target_value(solution_expr, x, model) if not implicit else {'status': 'incomplete', 'reason': '隐式解无法直接计算组合量'}
     if target and target.get('status') != 'complete':
         complete = False
+    plot_window = None
+    if complete and isinstance(domain, sp.Interval) and not solution_expr.free_symbols - {x}:
+        center=float(ic_terms[0][1]) if ic_terms else 0.0
+        low,high=center-3,center+3
+        if domain.start is not -sp.oo and low<=float(domain.start): low=center-(center-float(domain.start))/2
+        if domain.end is not sp.oo and high>=float(domain.end): high=center+(float(domain.end)-center)/2
+        if low<high: plot_window={'x_min':low,'x_max':high}
     hints = []
     try:
         hints = _hint_labels(sp.classify_ode(equation, y))
     except Exception:  # noqa: BLE001
         hints = []
     solution_text = f"y = {expression_text(solution_expr)}"
-    if ics and not solution_expr.free_symbols - {x}:
+    if ics and initial_ok and not solution_expr.free_symbols - {x}:
         solution_text += f"（满足初值 {', '.join(ic_texts)}）"
     answer_parts = [solution_text]
     if target and target.get('status') == 'complete':
@@ -265,13 +305,19 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
         'answer': answer if complete else '',
         'answer_value': target.get('numeric') if target and target.get('status') == 'complete' else None,
         'exact': solution_text,
+        'exact_latex': to_latex(dsolve_result) if complete else '',
+        'solution_latex': to_latex(dsolve_result) if complete else '',
+        'free_constants': bool(solution_expr.free_symbols - {x}),
+        'plot_window': plot_window,
+        'solution_domain': (('(' if domain.left_open else '[')+('-∞' if domain.start is -sp.oo else str(domain.start))+', '+('+∞' if domain.end is sp.oo else str(domain.end))+(')' if domain.right_open else ']')) if isinstance(domain,sp.Interval) else str(domain) if domain is not None else None,
+        'scope_note': '所示解或解族已代回方程核验，不据此宣称覆盖所有奇解、平衡解或非线性分支；条件不足时保留任意常数，不声明唯一性。',
         'approx': None,
         'steps': [
             {'id': 'equation', 'title': '确认方程与阶数', 'latex': to_latex(equation),
              'detail': f'{order} 阶常微分方程；初值条件 {len(ics)} 条。'},
-            {'id': 'dsolve', 'title': '求通解/特解', 'latex': to_latex(dsolve_result), 'detail': solution_text},
-            {'id': 'verify', 'title': '代入残差与初值核对', 'latex': r'\text{residual}=0',
-             'detail': f'checkodesol：{residual_ok}；初值核对：{initial_ok}。'},
+            {'id': 'dsolve', 'title': '求得显式解或解族' if complete else '候选解（未完成核验）', 'latex': to_latex(dsolve_result), 'detail': solution_text},
+            {'id': 'verify', 'title': '代入残差与初值核对', 'latex': r'\text{residual}=0' if residual_ok is True else r'\text{残差未通过核验}',
+             'detail': f'代回方程残差核对：{residual_ok}；逐条条件及原式定义核对：{initial_ok}。'},
         ] + ([{'id': 'target', 'title': '计算组合量', 'latex': to_latex(target.get('integrand', '')), 'detail': target.get('text', '')}] if target else []),
         'conditions': [f'自变量 {independent}，未知函数 y。'] + ic_texts,
         'limitations': [
@@ -282,15 +328,15 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
         'ode_equation': str(model.get('equation')),
         'ode_hints': hints,
         'initial_conditions': ic_texts,
-        'general_solution': expression_text(dsolve_result.rhs) if not ics else None,
+        'general_solution': expression_text(dsolve_result.rhs) if not ics or solution_expr.free_symbols - {x} else None,
         'particular_solution': expression_text(dsolve_result.rhs) if ics and not solution_expr.free_symbols - {x} else None,
-        'plot_expression': expression_text(solution_expr) if not solution_expr.free_symbols - {x} and not implicit else None,
+        'plot_expression': expression_text(solution_expr) if complete and plot_window is not None and not solution_expr.free_symbols - {x} and not implicit else None,
         'residual_verified': bool(residual_ok is True),
         'initial_conditions_verified': initial_ok,
         'target': target,
         'solution_status': 'complete' if complete else 'incomplete',
         'solution_complete': complete,
-        'incomplete_reason': None if complete else '方程未完全显式求解、初值/残差核验失败或组合量未完成',
+        'incomplete_reason': None if complete else domain_reason or '方程未完全显式求解、初值/残差核验失败或组合量未完成',
     }
 
 
@@ -299,11 +345,13 @@ def evaluate_ode(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict:
     plot_expression = solution.get('plot_expression')
     plot_lower = float(model.get('defaults', {}).get('x_min', -3.0))
     plot_upper = float(model.get('defaults', {}).get('x_max', 3.0))
+    if solution.get('plot_window'):
+        plot_lower=solution['plot_window']['x_min'];plot_upper=solution['plot_window']['x_max']
     variable = str(model.get('independent_variable') or 'x')
     series = []
     if plot_expression:
         try:
-            compiled = sp.lambdify(sp.Symbol(variable), parse_expression(plot_expression, (variable,)), 'math')
+            compiled = sp.lambdify(sp.Symbol(variable,real=True), parse_expression(plot_expression, (variable,)), 'math')
             for index in range(260):
                 value_x = plot_lower + (plot_upper - plot_lower) * index / 259
                 try:
@@ -320,8 +368,8 @@ def evaluate_ode(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict:
     checks = [
         {'id': 'residual', 'label': '代入原方程残差', 'status': 'pass' if solution.get('residual_verified') else 'fail',
          'detail': 'checkodesol 返回方程残差为 0。' if solution.get('residual_verified') else '方程残差未通过，不能判为求解成功。'},
-        {'id': 'initial', 'label': '初值条件核对', 'status': 'pass' if solution.get('initial_conditions_verified') else 'fail',
-         'detail': '初值逐条代入解后成立。' if solution.get('initial_conditions_verified') else '至少一条初值条件未满足。'},
+        {'id': 'initial', 'label': '初值条件核对', 'status': 'warn' if not model.get('initial_conditions') else 'pass' if solution.get('initial_conditions_verified') else 'fail',
+         'detail': '未给条件，不补初值或声称唯一性。' if not model.get('initial_conditions') else '初值逐条代入解后成立。' if solution.get('initial_conditions_verified') else '至少一条初值条件未满足或尚未核验。'},
         {'id': 'explicit', 'label': '显式解与组合量', 'status': 'pass' if solution.get('solution_complete') else 'warn',
          'detail': solution.get('incomplete_reason') or '已得到显式解并完成组合量。'},
     ]

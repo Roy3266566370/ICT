@@ -59,8 +59,14 @@ def _depends_on(node, names):
 
 
 def _validate_curve_domain(curve, t, domain, label):
-    if curve.has(sp.Function) or any(p.exp.is_Rational is not True or abs(p.exp) > 6 for p in curve.atoms(sp.Pow)):
-        raise ValueError(f'{label}暂仅支持低阶代数函数')
+    allowed=(sp.sin,sp.cos,sp.tan,sp.exp,sp.log,sp.asin,sp.acos,sp.atan)
+    if any(node.func not in allowed for node in curve.atoms(sp.Function)) or any(p.exp.is_Rational is not True or abs(p.exp) > 6 for p in curve.atoms(sp.Pow)):
+        raise ValueError(f'{label}暂仅支持可核验的代数与常见初等函数')
+    for node in curve.atoms(sp.sin,sp.cos,sp.tan):
+        argument=function_range(node.args[0],t,domain)
+        width=safe_float(argument.sup-argument.inf)
+        if width is None or width>16*math.pi:
+            raise ValueError('周期边界跨度过长，请分片输入较短区间后再核验')
     if domain.is_subset(continuous_domain(curve, t, sp.S.Reals)) is not True:
         raise ValueError(f'{label}在积分区间内不连续或不是有限实数')
     span = function_range(curve, t, domain)
@@ -75,6 +81,16 @@ def _quantifier_check(inequality, t, domain, message):
         return
     if not isinstance(inequality, sp.Rel):
         raise ValueError(message)
+    if (inequality.lhs-inequality.rhs).has(sp.Function):
+        # solve_univariate_inequality may return only one period; range is over the actual interval.
+        try:
+            span=function_range(inequality.lhs-inequality.rhs,t,domain)
+            if inequality.rel_op=='<' and span.inf.is_nonnegative is True:return
+            if inequality.rel_op=='>' and span.sup.is_nonpositive is True:return
+            proved_invalid=(inequality.rel_op=='<' and span.inf.is_negative is True) or (inequality.rel_op=='>' and span.sup.is_positive is True)
+        except (NotImplementedError,ValueError,TypeError) as exc:
+            raise ValueError('尚不能确认整个区间内的边界关系，请核对区域') from exc
+        raise ValueError(message if proved_invalid else '尚不能确认整个区间内的边界关系，请核对区域')
     try:
         invalid = sp.solve_univariate_inequality(inequality, t, relational=False)
     except NotImplementedError as exc:
@@ -92,9 +108,12 @@ def _validate_strip(outer: str, outer_bounds, inner_bounds):
         for node in ast.walk(_boundary_syntax(raw)):
             base, power = None, None
             if isinstance(node, ast.Call) and _depends_on(node, ('x', 'y')):
-                if not isinstance(node.func, ast.Name) or node.func.id != 'sqrt' or len(node.args) != 1:
-                    raise ValueError('区域边界暂仅支持低阶代数函数')
-                base, power = _expression(ast.unparse(node.args[0]), (outer,)), sp.Rational(1, 2)
+                if not isinstance(node.func, ast.Name) or node.func.id not in ('sqrt','sin','cos','tan','exp','log','ln','asin','acos','atan','arcsin','arccos','arctan') or len(node.args) != 1:
+                    raise ValueError('区域边界暂仅支持可核验的代数与常见初等函数')
+                original=_expression(ast.unparse(node),(outer,))
+                if domain.is_subset(continuous_domain(original,t,sp.S.Reals)) is not True:
+                    raise ValueError('原始边界函数在整个区间内不连续或无实定义')
+                if node.func.id=='sqrt':base, power = _expression(ast.unparse(node.args[0]), (outer,)), sp.Rational(1, 2)
             if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Pow) and _depends_on(node.left, ('x', 'y')):
                 base, power = _expression(ast.unparse(node.left), (outer,)), _expression(ast.unparse(node.right), ())
             if base is not None and power is not None:
@@ -267,12 +286,20 @@ def _monotone_direction(expression, t, a, b):
     derivative = sp.simplify(sp.diff(expression, t))
     if derivative == 0:
         return 0
+    if derivative.has(sp.Function):
+        try:
+            span=function_range(derivative,t,sp.Interval.open(a,b))
+            if span.inf.is_nonnegative is True:return 1
+            if span.sup.is_nonpositive is True:return -1
+        except (NotImplementedError,ValueError,TypeError):pass
+        return None
     try:
         positive = sp.solve_univariate_inequality(derivative >= 0, t, relational=False)
         negative = sp.solve_univariate_inequality(derivative <= 0, t, relational=False)
     except NotImplementedError:
         return None
-    domain = sp.Interval(a, b)
+    # The boundary itself is continuous at endpoints; its derivative may have a vertical tangent there.
+    domain = sp.Interval.open(a, b)
     if domain.is_subset(positive) is True:
         return 1
     if domain.is_subset(negative) is True:
@@ -289,12 +316,21 @@ def _inverse_expression(expression, new_outer, t, a, b):
         sp.simplify(solution) for solution in solutions
         if solution.free_symbols <= {new_outer} and solution.is_real is not False
     ]
+    test=sp.simplify((expression.subs(t,a)+expression.subs(t,b))/2)
+    if expression.func in (sp.sin,sp.cos) and expression.args[0].is_polynomial(t) and sp.degree(expression.args[0],t)==1:
+        period=2*sp.pi/abs(sp.diff(expression.args[0],t))
+        periodic=[]
+        for candidate in candidates:
+            value=safe_float(candidate.subs(new_outer,test))
+            if value is None:continue
+            shift=round(float(((a+b)/2-value)/period))
+            periodic.extend(candidate+index*period for index in range(shift-2,shift+3))
+        candidates=periodic
     if len(candidates) == 1:
         return candidates[0]
     numeric_a, numeric_b = safe_float(a), safe_float(b)
     if numeric_a is None or numeric_b is None:
         return None
-    test = sp.Rational(str((numeric_a + numeric_b) / 2))
     valid = []
     for candidate in candidates:
         numeric = safe_float(candidate.subs(new_outer, test))
@@ -303,7 +339,7 @@ def _inverse_expression(expression, new_outer, t, a, b):
     return sp.simplify(valid[0]) if len(valid) == 1 else None
 
 
-def _derive_swap(f, outer, a, b, lo, hi):
+def _derive_monotone_swap(f, outer, a, b, lo, hi):
     t, s = (X, Y) if outer == 'x' else (Y, X)
     new_outer = s
     lo_const, hi_const = not lo.has(t), not hi.has(t)
@@ -355,6 +391,18 @@ def _derive_swap(f, outer, a, b, lo, hi):
         _validate_curve_domain(new_lo, new_outer, new_domain, '换序后的内层下边界')
         _validate_curve_domain(new_hi, new_outer, new_domain, '换序后的内层上边界')
         _quantifier_check(new_hi - new_lo < 0, new_outer, new_domain, '换序后内层上边界低于下边界')
+        _quantifier_check(new_lo < a,new_outer,new_domain,'换序下界超出原区域')
+        _quantifier_check(new_hi > b,new_outer,new_domain,'换序上界超出原区域')
+        lower_peak=lo.subs(t,new_hi if lo_dir==1 else new_lo)
+        upper_floor=hi.subs(t,new_lo if hi_dir==1 else new_hi)
+        if new_a.is_nonnegative is True or new_b.is_nonpositive is True:
+            sign=sp.Q.nonnegative(new_outer) if new_a.is_nonnegative is True else sp.Q.nonpositive(new_outer)
+            lower_peak=sp.refine(lower_peak,sign)
+            upper_floor=sp.refine(upper_floor,sign)
+        _quantifier_check(lower_peak > new_outer,new_outer,new_domain,'换序区域越过原下边界')
+        _quantifier_check(upper_floor < new_outer,new_outer,new_domain,'换序区域越过原上边界')
+        if sp.simplify(sp.integrate(hi-lo,(t,a,b))-sp.integrate(new_hi-new_lo,(new_outer,new_a,new_b)))!=0:
+            return None
         swapped_inner, swapped_exact, _ = _integrate_strip(f, s.name, new_a, new_b, new_lo, new_hi)
     except (ValueError, TypeError, NotImplementedError, sp.PolynomialError):
         return None
@@ -368,6 +416,7 @@ def _derive_swap(f, outer, a, b, lo, hi):
         'exact': expression_text(swapped_exact),
         'answer_value': float(swapped_exact),
         'numeric_verified': True,
+        'region_verified': True,
         'formula_tex': (
             rf'\int_{{{to_latex(new_a)}}}^{{{to_latex(new_b)}}}'
             rf'\int_{{{to_latex(new_lo)}}}^{{{to_latex(new_hi)}}}{to_latex(f)}'
@@ -376,13 +425,34 @@ def _derive_swap(f, outer, a, b, lo, hi):
     }
 
 
-def _swap_step(swapped):
+def _derive_swap(f, outer, a, b, lo, hi):
+    from .order_swap import quadratic_swap
+    try:
+        derived=quadratic_swap(f,outer,a,b,lo,hi)
+        if derived is not None:
+            return derived
+        monotone=_derive_monotone_swap(f,outer,a,b,lo,hi)
+        if monotone is not None:return monotone
+        from .order_swap_general import general_swap
+        return general_swap(f,outer,a,b,lo,hi)
+    except (ValueError,TypeError,NotImplementedError,ArithmeticError,sp.PolynomialError):
+        return None
+
+
+def _verify_swap_value(swapped, exact):
+    records=swapped if isinstance(swapped,list) else [swapped]
+    total=sum(sp.sympify(part['exact'],locals={'e':sp.E}) for part in records)
+    if sp.simplify(total-exact)!=0:
+        raise ValueError('换序前后的精确值不一致，不能判定等价')
+
+
+def _swap_step(swapped, index=None):
     return {
-        'id': 'swap',
-        'title': '交换积分次序',
+        'id': 'swap' if index is None else f'swap_{index}',
+        'title': '交换积分次序' if index is None else f'换序后的第 {index} 段',
         'latex': swapped['formula_tex'],
         'detail': f"换序后：{swapped['outer_variable']}∈[{swapped['outer_bounds'][0]},{swapped['outer_bounds'][1]}]，"
-                  f"{swapped['inner_variable']} 从 {swapped['inner_bounds'][0]} 到 {swapped['inner_bounds'][1]}；两种次序的独立数值复核一致。",
+                  f"{swapped['inner_variable']} 从 {swapped['inner_bounds'][0]} 到 {swapped['inner_bounds'][1]}；区域边界与覆盖已核验，各段分别积分，全部分段之和与原积分精确值一致，并通过独立数值复核。",
     }
 
 
@@ -400,7 +470,8 @@ def _compile_single_strip(plan, f):
     if plan.get('swap_order'):
         swapped = _derive_swap(f, outer, a, b, lo, hi)
         if swapped is None:
-            raise ValueError('当前区域不能自动换序：只支持矩形、常量边界或单调边界的单连通区域')
+            raise ValueError('当前区域不能完成可验证换序，请按原区域手动分片或保留原次序')
+        _verify_swap_value(swapped,exact)
     formula = (
         rf'\int_{{{to_latex(a)}}}^{{{to_latex(b)}}}'
         rf'\int_{{{to_latex(lo)}}}^{{{to_latex(hi)}}}{to_latex(f)}\,d{inner}\,d{outer}'
@@ -413,6 +484,7 @@ def _compile_single_strip(plan, f):
         inner_bounds=[expression_text(lo), expression_text(hi)],
         inner_bounds_tex=[to_latex(lo), to_latex(hi)],
         inner_integral=expression_text(inner_value), exact=expression_text(exact),
+        inner_integral_tex=to_latex(inner_value), exact_latex=to_latex(exact),
         answer_value=float(exact), numeric_value=numeric, formula_tex=formula, teaching=False,
         swap_order=bool(plan.get('swap_order')), swapped=swapped,
         defaults={'slice': float((a + b) / 2), 'n': 20},
@@ -456,7 +528,8 @@ def _compile_pieces(plan, f):
             derived = _derive_swap(f, outer, item['a'], item['b'], item['lo'], item['hi'])
             if derived is None:
                 raise ValueError('至少一个分片不能自动换序，不能把部分换序冒充完整结果')
-            swapped.append(derived)
+            _verify_swap_value(derived,item['exact'])
+            swapped.extend(derived if isinstance(derived,list) else [derived])
     inner = 'y' if outer == 'x' else 'x'
     formula = r'\sum_{i=1}^{N}' + rf'\int_{{a_i}}^{{b_i}}\int_{{lo_i}}^{{hi_i}}{to_latex(f)}\,d{inner}\,d{outer}'
     model_pieces = []
@@ -731,7 +804,22 @@ def build_double_integral(text: str, source: Mapping, overrides: Mapping) -> dic
                 recognized=not ambiguities)
 
 
+def _refresh_legacy_swap(model):
+    saved=model.get('swapped')
+    records=saved if isinstance(saved,list) else [saved] if saved else []
+    if not records or all(part.get('region_verified') is True for part in records):
+        return model
+    plan=dict(integrand=model['integrand'],outer_variable=model['outer_variable'],swap_order=True)
+    if model.get('region_kind')=='pieces':
+        plan['pieces']=[dict(outer_bounds=part['outer_bounds'],inner_bounds=part['inner_bounds']) for part in model['pieces']]
+    else:
+        plan.update(outer_bounds=model['outer_bounds'],inner_bounds=model['inner_bounds'])
+    fresh=compile_model(plan)
+    return {**model,'swapped':fresh['swapped']}
+
+
 def solve_double_integral(model: Mapping) -> dict:
+    model=_refresh_legacy_swap(model)
     if 'exact' not in model:
         raise ValueError('请先核对二重积分的被积函数和区域边界')
     kind = model.get('region_kind', 'strip')
@@ -775,7 +863,7 @@ def solve_double_integral(model: Mapping) -> dict:
     if model.get('swapped'):
         swapped = model['swapped']
         if isinstance(swapped, list):
-            steps.extend(_swap_step(item) for item in swapped)
+            steps.extend(_swap_step(item,index+1) for index,item in enumerate(swapped))
         else:
             steps.append(_swap_step(swapped))
     return dict(summary=summary, answer=model['exact'], exact=model['exact'], answer_value=model['answer_value'],
@@ -788,6 +876,7 @@ def solve_double_integral(model: Mapping) -> dict:
 
 
 def evaluate_double_integral(model: Mapping, params: Mapping) -> dict:
+    model=_refresh_legacy_swap(model)
     kind = model.get('region_kind', 'strip')
     if kind == 'pieces':
         return _evaluate_pieces(model, params)

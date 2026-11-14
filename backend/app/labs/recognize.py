@@ -729,7 +729,7 @@ def _calculus_model(
         lower = 0.0
         upper = 1.0
 
-    variable = (integral or {}).get("variable") or (variables[:1] if variables else "x") or "x"
+    variable = overrides.get("variable") or (integral or {}).get("variable") or (variables[:1] if variables else "x") or "x"
     if not re.fullmatch(r"[A-Za-z]", variable):
         variable = "x"
     try:

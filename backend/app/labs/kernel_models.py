@@ -39,11 +39,14 @@ TASKS = {
     'rotation_volume':_spec('绕坐标轴的旋转体积','calculus','expression lower upper region_kind rotation_axis'),
     'implicit_normal':_spec('隐函数法线','calculus','implicit_expression point_x','point_y'),
     'double_integral':_spec('二重积分区域','calculus','integrand','outer_variable outer_bounds inner_bounds pieces polar swap_order region_text'),
+    'continuity':_spec('连续性与间断点','calculus','expression variable point value_mode','point_value'),
     'limit':_spec('函数极限','calculus','expression variable point','side'),
     'taylor':_spec('泰勒展开','calculus','expression variable point order'),
     'higher_derivative':_spec('高阶导数','calculus','expression variable order','point'),
-    'function_study':_spec('函数区间研究','calculus','expression variable','lower upper'),
+    'function_study':_spec('函数区间研究','calculus','expression variable','lower upper interval_type'),
     'constrained_extrema':_spec('等式约束极值','optimization','expression variables constraint'),
+    'multivariable':_spec('多元函数微分','calculus','expression operation variables','point partial_variable direction direction_limit'),
+    'multivariable_extrema':_spec('多元局部极值与条件极值','calculus','expression operation variables','constraint'),
     'ode':_spec('常微分方程','calculus','equation','initial_conditions independent_variable dependent_variable target_kind target_point target_lower target_upper'),
     'series_convergence':_spec('数项级数敛散性','calculus','term','index_start'),
     'power_series':_spec('幂级数','calculus','goal','coefficient expression center index_start order'),
@@ -221,12 +224,34 @@ def _validate(task, c):
     extra=set(c)-set(spec['required'])-set(spec['optional'])
     if extra:
         raise ValueError('存在该内核不能消费的条件：'+', '.join(sorted(extra)))
+    if task == 'multivariable_extrema':
+        from .extrema import parse_inputs
+        parse_inputs(c)
+        return
+    if task == 'multivariable':
+        from .multivariable import parse_inputs
+        parse_inputs(c)
+        return
     for key in ('matrix_a','matrix_b','allocation','max'):
         if key in c: _matrix(c[key])
     for key in ('vector_b','available','requests','initial_heap','input','target','initial_point'):
         if key in c: _vector(c[key])
     for key in ('point','point_x','point_y','head','max_track','learning_rate','scalar','quantum'):
         if key in c:
+            if key in ('point_x', 'point_y') and task == 'implicit_normal' and isinstance(c[key], str):
+                from .expr import parse_expression, safe_float
+                constant = parse_expression(c[key])
+                if constant.free_symbols or constant.is_real is not True or safe_float(constant) is None:
+                    raise ValueError('研究点坐标必须是有限实常数')
+                _number(float(constant))
+                continue
+            if key == 'point' and task in ('higher_derivative', 'continuity', 'taylor') and isinstance(c[key], str):
+                from .expr import parse_expression, safe_float
+                constant = parse_expression(c[key])
+                if constant.free_symbols or constant.is_real is not True or safe_float(constant) is None:
+                    raise ValueError('求值点必须是有限实常数')
+                _number(float(constant))
+                continue
             if key == 'point' and task == 'limit':
                 continue
             _number(c[key])
@@ -255,9 +280,16 @@ def _validate(task, c):
         if has_lower != has_upper:
             raise ValueError('研究区间的上下限必须同时给出或同时省略')
         if has_lower:
-            _number(c['lower']); _number(c['upper'])
-            if c['lower'] >= c['upper']:
+            from .expr import parse_expression, safe_float
+            bounds = [parse_expression(str(c[k])) for k in ('lower','upper')]
+            if any(v.free_symbols or v.is_real is not True or safe_float(v) is None for v in bounds):
+                raise ValueError('研究区间端点必须是有限实常数')
+            for v in bounds: _number(float(v))
+            if bounds[0] >= bounds[1]:
                 raise ValueError('研究区间的下限必须小于上限')
+        if 'interval_type' in c:
+            if not has_lower: raise ValueError('选择端点开闭方式时必须给出完整区间')
+            _choice(c['interval_type'], ('closed','open','left_open','right_open'))
     if task=='matmul':
         _choice(c['op'],('mul','add','sub','scalar'))
         _require(c,['scalar'] if c['op']=='scalar' else ['matrix_b'])
@@ -407,6 +439,20 @@ def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
             raise ValueError('隐式曲线方程必须只有一个等号')
         c['implicit_expression']=f'({parts[0]})-({parts[1]})'
     _validate(task,c)
+    if task == 'continuity':
+        from .manual import preview_integral
+        preview = preview_integral(task, c)
+        c = preview['conditions']
+        p = compile_kernel_problem({'task': 'limit', 'conditions': {
+            'expression': c['expression'], 'variable': c['variable'],
+            'point': float(parse_expression(c['point'])), 'side': 'both'}}, allow_unfinished=True)
+        p['model'].update(exact_point=c['point'], preserve_expression_structure=True,
+            continuity_config={'mode': c['value_mode'], 'value': c.get('point_value')}, params=[], modeling_task=task)
+        p['text'] = preview['question']
+        for key in ('value_mode', 'point_value'):
+            if key in c: p['recognition']['conditions'].append(_condition(key, key, c[key], {}))
+        _attach_solution(p)
+        return p
     if task=='constrained_extrema':
         from .constrained import build_constrained_problem
         from .recognize import _attach_solution
@@ -416,13 +462,29 @@ def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
         if p['status']!='ready' or not p['solution'].get('answer'):
             raise ModelConditionsError([p['solution'].get('summary') or '当前等式约束极值无法完整求解'])
         return p
+    if task == 'multivariable_extrema':
+        from .extrema import build_problem
+        p=build_problem(c)
+        p['model']['modeling_task']=task
+        _attach_solution(p)
+        if not allow_unfinished and not p['solution'].get('answer'):
+            raise ModelConditionsError([p['solution'].get('summary') or '多元极值尚未完成核验'])
+        return p
+    if task == 'multivariable':
+        from .multivariable import build_multivariable_problem
+        p=build_multivariable_problem(c)
+        p['model']['modeling_task']=task
+        _attach_solution(p)
+        if not allow_unfinished and not p['solution'].get('answer'):
+            raise ModelConditionsError([p['solution'].get('summary') or '多元微分尚未完成核验'])
+        return p
     if task=='ode':
         from .ode import build_ode_problem
         from .recognize import _attach_solution
         p=build_ode_problem(c)
         p['model']['modeling_task']=task
         _attach_solution(p)
-        if p['status']!='ready' or not p['solution'].get('answer'):
+        if not allow_unfinished and (p['status']!='ready' or not p['solution'].get('answer')):
             raise ModelConditionsError([p['solution'].get('summary') or '当前微分方程无法完整求解'])
         return p
     if task == 'proof':
@@ -469,6 +531,9 @@ def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
     subject=TASKS[task]['subject']
     text=TASKS[task]['label']
     overrides={**c}
+    if task == 'function_study' and 'interval_type' in c:
+        overrides['manual_study'] = {k: str(c[k]) for k in ('lower','upper','interval_type')}
+        overrides.update(lower=float(parse_expression(str(c['lower']))), upper=float(parse_expression(str(c['upper']))))
     if task in ('limit','taylor','higher_derivative','function_study'):
         overrides['calculus_kind']=task
         overrides.setdefault('side','both')

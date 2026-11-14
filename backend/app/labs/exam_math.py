@@ -179,7 +179,7 @@ def build_exam_math(text: str, source: Mapping[str, Any] | None = None,
                                _condition('upper', '积分上界', '+∞' if b == sp.oo else str(b), source)])
             model['params'] = [dict(id='n', label='分割数', kind='number', min=2, max=80, step=1, options=[])]
             if 'boundary_roots' not in model:
-                roots = _real_roots(function, X, sp.Interval(a,b))
+                roots = [] if function == 0 else _real_roots(function, X, sp.Interval(a,b))
                 model['boundary_roots'] = [str(v) for v in (roots or []) if bool(v > a) and (b == sp.oo or bool(v < b))]
                 model['boundary_roots_complete'] = roots is not None
             else:
@@ -274,8 +274,10 @@ def _build_normal(text: str, source: Mapping, overrides: Mapping) -> dict:
             model['branch_candidates'] = [str(v) for v in (roots or [])]
             ambiguities.append(_ambiguity('point_y', '该横坐标可能对应多个曲线分支，请提供研究点的 y 坐标。'))
             return _built(model, conditions, ambiguities)
-        fx = sp.diff(equation, X).subs({X:point_x,Y:point_y})
-        fy = sp.diff(equation, Y).subs({X:point_x,Y:point_y})
+        fx = sp.simplify(sp.diff(equation, X).subs({X:point_x,Y:point_y}))
+        fy = sp.simplify(sp.diff(equation, Y).subs({X:point_x,Y:point_y}))
+        if safe_float(fx) is None or safe_float(fy) is None:
+            raise ExprError('该点偏导数不是有限实数')
         if sp.simplify(fx) == 0 and sp.simplify(fy) == 0:
             raise ExprError('研究点为奇点，无法唯一确定法线')
         model['point_y'] = str(point_y)
@@ -327,13 +329,18 @@ def solve_exam_math(model: Mapping[str, Any]) -> dict | None:
         equation = _expr(str(model['implicit_expression']), ('x','y'))
         px,py = _bound(str(model['point_x'])),_bound(str(model['point_y']))
         slope = None if model.get('vertical_normal') else _expr(str(model['normal_slope']))
+        fx = sp.simplify(sp.diff(equation, X).subs({X:px,Y:py}))
+        fy = sp.simplify(sp.diff(equation, Y).subs({X:px,Y:py}))
+        tangent = ('x='+to_latex(px) if fy == 0 else 'y-('+to_latex(py)+')='+to_latex(sp.simplify(-fx/fy))+'(x-('+to_latex(px)+'))')
         line = 'x='+to_latex(px) if slope is None else 'y-('+to_latex(py)+')='+to_latex(slope)+'(x-('+to_latex(px)+'))'
         return dict(summary='隐函数偏导确定切线，再求过研究点的法线。',
                     answer='法线 '+line if slope is None else '法线斜率 '+str(slope),
                     answer_value=safe_float(slope), exact=str(slope) if slope is not None else '斜率不存在（竖直法线）',
-                    tangent_tex=line, normal_tex=line, steps=[
+                    tangent_tex=tangent, normal_tex=line, exact_latex=line,
+                    line_geometry=dict(tangent=tangent, normal=line, tangent_direction='vertical' if fy == 0 else 'horizontal' if fx == 0 else 'oblique', normal_direction='vertical' if fx == 0 else 'horizontal' if fy == 0 else 'oblique', point_x=str(px), point_y=str(py)), steps=[
                         dict(id='point',title='确认曲线上研究点',latex=f'P=({to_latex(px)},{to_latex(py)})',detail='将给定横坐标代入曲线，保留唯一实分支或已核对的纵坐标。'),
-                        dict(id='implicit',title='隐式求导与法线',latex=r'y\prime=-F_x/F_y,\quad k_n=F_y/F_x',detail='光滑点法线方向为梯度 (F_x,F_y)；F_x=0 时法线竖直。'),
+                        dict(id='implicit',title='由梯度确定切线与法线',latex=r'F_x\,\Delta x+F_y\,\Delta y=0',detail='梯度非零时确定唯一切线；法线方向为梯度。F_y=0 时切线竖直；F_x=0 时法线竖直，不作除零运算。'),
+                        dict(id='tangent',title='写出切线',latex=tangent,detail='切线经过已确认的曲线研究点。'),
                         dict(id='normal',title='写出法线',latex=line,detail='法线经过研究点，方向与切线垂直。')],
                     conditions=['研究点必须位于曲线上，且梯度非零。'], limitations=[])
     quantities = _quantities(model)
@@ -342,7 +349,7 @@ def solve_exam_math(model: Mapping[str, Any]) -> dict | None:
     return dict(summary='按完整区域边界计算几何面积与题目要求的旋转体积。',
                 answer='；'.join(q['label']+' = '+q['exact'] for q in quantities),
                 answer_value=quantities[0]['value'], exact=quantities[0]['exact'],
-                approx=number_text(quantities[0]['value'],10), quantities=quantities,
+                approx=number_text(quantities[0]['value'],10), quantities=quantities, exact_latex=quantities[0]['latex'],
                 steps=[dict(id='region',title='确定区域与分段点',latex=f'y={to_latex(function)},\\quad x\\in[{to_latex(a)},{to_latex(b)}]',detail='不等式区域仅保留 f(x)≥0 的非空纤维。' if model.get('region_kind')=='vertical_inequality' else '与 x 轴的全部实交点用于分段，几何面积逐段取绝对值。')]+
                       [dict(id=q['id'],title=q['label'],latex=((r'S=\int \max(f(x),0)\,dx=' if q['id']=='area' else r'V=\pi\int \max(f(x),0)^2\,dx=') if model.get('region_kind')=='vertical_inequality' else (r'S=\int |f(x)|\,dx=' if q['id']=='area' else r'V=\pi\int f(x)^2\,dx='))+q['latex'],detail=q['label']+'解析值为 '+q['exact']) for q in quantities],
                 conditions=['旋转轴为 x 轴；图形截断展示与原题广义积分分别标注。'] if model.get('improper_upper') else [],
@@ -392,28 +399,33 @@ def evaluate_exam_math(model: Mapping[str, Any], params: Mapping[str, Any]) -> d
 def _normal_evaluate(model: Mapping, params: Mapping, solution: Mapping) -> dict:
     equation=_expr(str(model['implicit_expression']),('x','y'))
     px,py=float(_bound(str(model['point_x']))),float(_bound(str(model['point_y'])))
-    current=py
+    swap = model.get('normal_slope') is not None and sp.simplify(_expr(str(model['normal_slope']))) == 0
+    independent, dependent = (Y, X) if swap else (X, Y)
+    center, seed = (py, px) if swap else (px, py)
     series=[]
-    # Continue the confirmed branch from the point separately in each direction.
+    # 垂直切线附近改为 x(y)，避免把同一点的两个 y 分支混成一条。
     for direction in (-1,1):
-        current=py
+        current=seed
         half=[]
+        stopped=False
         for i in range(1,81):
-            x=px+direction*i/80
+            coordinate=center+direction*i/80
             try:
-                root=sp.nsolve(equation.subs(X,x),Y,current,verify=True)
+                if stopped: raise ValueError('branch stopped')
+                root=sp.nsolve(equation.subs(independent,coordinate),dependent,current,verify=True)
                 value=safe_float(root)
                 if value is None or abs(value-current)>0.5:
                     raise ValueError('branch discontinuity')
                 current=value
             except Exception:
                 value=None
-            half.append(dict(x=x,y=value))
+                stopped=True
+            half.append(dict(x=value if value is not None else px,y=coordinate if value is not None else None) if swap else dict(x=coordinate,y=value))
         series.extend(reversed(half) if direction<0 else [dict(x=px,y=py)]+half)
     slope=safe_float(_expr(str(model['normal_slope']))) if model.get('normal_slope') is not None else None
     result = dict(subject='calculus',kind='derivative',headline=solution['answer'],
                 metrics=[dict(id='normal_slope',label='法线斜率',value=solution['exact'])],
-                checks=[],notes=['仅展示经过已核对研究点的局部隐式曲线分支；叠加直线为法线。'],
+                checks=[],notes=['仅展示经过已核对研究点的局部隐式曲线分支；切线与法线方向分别显示。'],
                 trace=[dict(index=0,label='曲线研究点',detail=solution['answer'],values=dict(x=px,y=py,slope=slope))],
                 series=series,domain=dict(x_min=px-1,x_max=px+1),rects=[],exact=solution['answer_value'],approx=solution['answer_value'],error=0,
                 answerText=solution['answer'],vertical_normal=model.get('vertical_normal',False))
