@@ -8,6 +8,7 @@ import {
 import styles from './labs.module.css';
 import { MathExpressionInput } from './MathExpressionInput';
 import { inspectMath } from '@/labs/mathKeyboard';
+import { CURVE_SURFACE_ORIENTATIONS, type CurveSurfaceIntegralKind } from '@/labs/manualInput';
 
 export interface ReviewPayload {
   text: string;
@@ -48,6 +49,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
     setSubject(problem.subject);
     const initial: Record<string, string> = {};
     for (const condition of problem.recognition.conditions) {
+      if (problem.manual_input?.task === 'implicit_normal' && condition.id === 'point') continue;
       if (EDITABLE_SPECIAL.has(condition.id) || (problem.manual_input && condition.id in problem.manual_input.conditions)) {
         initial[condition.id] = asText(condition.id === 'expression' ? problem.model.expression : condition.value);
       }
@@ -81,11 +83,19 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
 
   if (!open) return null;
 
-  const variables = problem.model.variables ?? (problem.model.task === 'implicit_normal'
-    ? ['x', 'y'] : [problem.model.variable ?? 'x']);
-  const invalidExpression = ['expression', 'implicit_expression', 'integrand'].some((key) =>
-    key in values && (text.trim() === problem.text.trim() || values[key] !== initialValues[key])
-    && !!inspectMath(values[key] ?? '', variables).error);
+  const variables = problem.model.variables ?? (problem.manual_input?.task === 'curve_surface_integral' || problem.model.task === 'space_geometry'
+    ? ['x', 'y', 'z'] : problem.model.task === 'implicit_normal' ? ['x', 'y'] : [problem.model.variable ?? 'x']);
+  const invalidExpression = ['expression', 'implicit_expression', 'integrand', 'surface'].some((key) => {
+    if (!(key in values) || !(text.trim() === problem.text.trim() || values[key] !== initialValues[key])) return false;
+    const raw = values[key] ?? '';
+    if ((problem.model.task === 'space_geometry' && (key === 'expression' || key === 'surface'))
+      || (problem.manual_input?.task === 'implicit_normal' && key === 'implicit_expression')) {
+      const parts = raw.split('=');
+      if (parts.length > 2 || parts.some(part => !part.trim())) return true;
+      return parts.some(part => !!inspectMath(part, variables).error);
+    }
+    return !!inspectMath(raw, variables).error;
+  });
   const missingPointValue = problem.manual_input?.task === 'continuity' && values.value_mode === 'value' && !values.point_value?.trim();
   const missingManualCondition = missingPointValue || !!problem.manual_input &&
     Object.keys(problem.manual_input.conditions).some(key => key !== 'initial_conditions' && !(key === 'point' && problem.manual_input?.task === 'multivariable' && problem.manual_input.conditions.operation !== 'directional') && !(key === 'point_value' && values.value_mode !== 'value') && key in values && !values[key]?.trim());
@@ -187,12 +197,34 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
                       <option value="expression">按原式取值</option><option value="undefined">该点未定义</option><option value="value">题目另给单点值</option>
                     </select>
                   </label>
-                ) : ['expression', 'implicit_expression', 'integrand'].includes(condition.id) ? (
+                ) : condition.id === 'orientation' && problem.manual_input?.task === 'curve_surface_integral' ? (
+                  <label key={condition.id} className={styles.formField}>定向
+                    <select aria-label="定向" value={values.orientation ?? ''} onChange={e => setValues(current => ({ ...current, orientation: e.target.value }))}>
+                      {(CURVE_SURFACE_ORIENTATIONS[problem.manual_input.conditions.integral_kind as CurveSurfaceIntegralKind] ?? []).map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
+                    </select>
+                  </label>
+                ) : condition.id === 'steps' && problem.manual_input?.task === 'proof' ? (
+                  <label key={condition.id} className={styles.formFieldWide}>证明步骤（每行一个等式）
+                    <textarea aria-label="证明步骤" rows={5} value={values.steps ?? ''} onChange={e => setValues(current => ({ ...current, steps: e.target.value }))} />
+                  </label>
+                ) : condition.id === 'statement' && problem.manual_input?.task === 'proof' ? (
+                  <label key={condition.id} className={styles.formFieldWide}>命题陈述（可选）
+                    <textarea aria-label="命题陈述" rows={2} value={values.statement ?? ''} onChange={e => setValues(current => ({ ...current, statement: e.target.value }))} />
+                  </label>
+                ) : condition.id === 'relation' && problem.manual_input?.task === 'proof' ? (
+                  <label key={condition.id} className={styles.formField}>关系符号
+                    <select aria-label="证明关系符号" value={values.relation ?? '>='} onChange={e => setValues(current => ({ ...current, relation: e.target.value }))}>
+                      <option value=">=">&gt;=</option><option value="<=">&lt;=</option>
+                      {(problem.manual_input.conditions.proof_kind === 'counterexample') ? <><option value=">">&gt;</option><option value="<">&lt;</option><option value="=">=</option></> : null}
+                    </select>
+                  </label>
+                ) : ['expression', 'implicit_expression', 'integrand', 'surface'].includes(condition.id) ? (
                   <div key={condition.id} className={styles.formFieldWide}>
                     <MathExpressionInput
                       label={condition.label}
                       value={values[condition.id] ?? ''}
                       variables={variables}
+                      answerMode={(problem.model.task === 'space_geometry' && (condition.id === 'expression' || condition.id === 'surface')) || (problem.manual_input?.task === 'implicit_normal' && condition.id === 'implicit_expression')}
                       disabled={busy}
                       provenance={PROVENANCE_LABELS[condition.provenance]}
                       describedBy={problem.subject === 'calculus' ? 'lab-expression-help' : undefined}

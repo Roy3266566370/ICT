@@ -63,12 +63,17 @@ const ENGINE_LABELS: Record<string, string> = {
   antiderivative_v1: '不定积分 · 原函数族',
   riemann_v1: '定积分 · 黎曼和',
   tangent_v1: '导数 · 切线',
+  series_v1: '数项级数 · 部分和',
+  power_series_v1: '幂级数 · 收敛域',
+  fourier_v1: '傅里叶级数 · 系数',
   gradient_descent_v1: '梯度下降',
   bfs_v1: '广度优先搜索',
   mlp_v1: '小型全连接网络',
   heap_v1: '堆顶删除 · 向下筛选',
   gauss_v1: '高斯消元 · 线性代数',
   matmul_v1: '矩阵运算',
+  space_v1: '空间对象 · 曲线、曲面与几何',
+  proof_v1: '证明与存在性 · 证书核对',
   unsupported_v1: '待核对的题目',
   sympy: '数学模型',
 };
@@ -1101,7 +1106,12 @@ export function LabWorkbenchPage(): JSX.Element {
             <div className={styles.modelCard} style={(problem.model.teaching || (problem.ai_solution && blocking)) ? { display: 'none' } : undefined}>
               <div className={styles.modelHead}>
                 <div>
-                  <h2>{problem.model.task === 'double_integral' ? '二重积分 · 区域与切片'
+                  <h2>{problem.model.task === 'triple_integral' ? '三重积分 · 区域与坐标变换'
+                    : problem.model.task === 'double_integral' ? '二重积分 · 区域与切片'
+                    : problem.model.task === 'series_convergence' ? '数项级数 · 部分和观察'
+                    : problem.model.task === 'power_series' ? '幂级数 · 收敛域与和函数'
+                    : problem.model.task === 'fourier_series' ? '傅里叶级数 · 系数与部分和'
+                    : problem.model.task === 'taylor' ? '泰勒展开 · 系数与余项'
                     : problem.model.task === 'area_volume' ? '区域面积与旋转体积'
                     : problem.model.task === 'geometric_area' ? '几何面积 · 分段积分'
                     : problem.model.task === 'implicit_normal' ? '隐函数 · 法线'
@@ -1109,7 +1119,11 @@ export function LabWorkbenchPage(): JSX.Element {
                   <p>
                     {problem.model.teaching
                       ? '教学示例：题目未提供完整可计算数据，图形与结论已明确标注。'
-                      : '拖动参数或播放切片，观察区域与积分过程。'}
+                      : problem.model.engine === 'space_v1'
+                        ? '空间对象由符号计算给出；图形为有限范围采样，用于辅助观察。'
+                        : problem.model.engine === 'proof_v1'
+                          ? '证明义务与证书由本地内核核验；图形与抽样仅辅助观察，不替代证明。'
+                          : '拖动参数或播放切片，观察区域与积分过程。'}
                   </p>
                 </div>
                 <div className={styles.modelMeta}>

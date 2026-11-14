@@ -101,3 +101,46 @@ def test_local_text_routes_ivt_and_rolle_proofs():
 def test_verified_proof_is_json_serializable():
     result = proof_plan(proof_kind='rolle', expression='x^2', lower='-1', upper='1')
     json.dumps(result, ensure_ascii=False, allow_nan=False)
+
+
+def test_unique_root_certificate():
+    verified = proof_plan(proof_kind='ivt_unique_root', expression='x^3+x-1', lower='0', upper='1')
+    solution = verified['interactive_solution']
+    assert solution['proof_status'] == 'verified'
+    assert '唯一' in verified['answer']
+    obligations = {item['id']: item['status'] for item in solution['obligations']}
+    assert obligations['sign_change'] == 'pass'
+    assert obligations['strict_monotone'] == 'pass'
+
+    failed = solve_proof({
+        'proof_kind': 'ivt_unique_root', 'expression': 'x^2-1', 'lower': '-1', 'upper': '1',
+        'conditions': {'lower': '-1', 'upper': '1'},
+    })
+    assert failed['proof_status'] == 'unverified'
+    assert failed['solution_complete'] is False
+
+
+def test_cauchy_mvt_certificate():
+    verified = proof_plan(proof_kind='cauchy_mvt', left='x^2', right='x', lower='1', upper='2')
+    solution = verified['interactive_solution']
+    assert solution['proof_status'] == 'verified'
+    assert solution['certificate']['slope'] == '3'
+    obligations = {item['id']: item['status'] for item in solution['obligations']}
+    assert obligations['g_prime_nonzero'] == 'pass'
+    assert obligations['denominator'] == 'pass'
+
+
+def test_function_inequality_certificate():
+    verified = proof_plan(proof_kind='inequality', left='x^2', right='x',
+                          relation='>=', lower='1', upper='2')
+    solution = verified['interactive_solution']
+    assert solution['proof_status'] == 'verified'
+    assert solution['certificate']['relation'] == '>='
+    assert solution['certificate']['left'] == 'x^2'
+
+    insufficient = solve_proof({
+        'proof_kind': 'inequality', 'left': 'x^2', 'right': 'x',
+        'relation': '<=', 'lower': '0', 'upper': '1',
+        'conditions': {'lower': '0', 'upper': '1'},
+    })
+    assert insufficient['proof_status'] == 'unverified'

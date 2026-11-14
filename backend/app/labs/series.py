@@ -41,6 +41,58 @@ def _parse_coefficient(raw: Any) -> sp.Expr:
     return value
 
 
+def _tail_singularity(expression: sp.Expr, start: int) -> tuple[bool, int | None]:
+    """Whether a pole provably lands on an integer index at or after start."""
+    try:
+        singular = sp.singularities(expression, N)
+        suspects = sp.Intersection(singular, sp.S.Integers, sp.Interval(start, sp.oo))
+        empty = suspects.is_empty
+    except (TypeError, ValueError, NotImplementedError):
+        return False, None
+    if empty is not False:
+        return False, None
+    point = None
+    if isinstance(suspects, sp.FiniteSet):
+        points = [int(item) for item in suspects.args if item.is_integer is True]
+        point = min(points) if points else None
+    return True, point
+
+
+def _tail_domain_gap(expression: sp.Expr, start: int) -> tuple[bool, int | None]:
+    """Whether the real domain provably misses an integer index at or after start."""
+    from sympy.calculus.util import continuous_domain
+    try:
+        domain = continuous_domain(expression, N, sp.S.Reals)
+        tail = sp.Interval(start, sp.oo)
+        if tail.is_subset(domain) is True:
+            return False, None
+        gap = sp.Intersection(sp.Complement(tail, domain), sp.S.Integers)
+        empty = gap.is_empty
+    except (TypeError, ValueError, NotImplementedError):
+        return False, None
+    if empty is not False:
+        return False, None
+    point = None
+    if isinstance(gap, sp.FiniteSet):
+        points = [int(item) for item in gap.args if item.is_integer is True]
+        point = min(points) if points else None
+    elif isinstance(gap, sp.Range) and gap.start.is_integer is True:
+        point = int(gap.start)
+    return True, point
+
+
+def ensure_defined_from(expression: sp.Expr, start: int, label: str = '通项') -> None:
+    """Reject an item that is not a finite real number at every index n >= start."""
+    if safe_float(sp.simplify(expression.subs(N, start))) is None:
+        raise ValueError(f'{label}在 n={start} 处必须取有限实数值')
+    undefined, point = _tail_singularity(expression, start)
+    if not undefined:
+        undefined, point = _tail_domain_gap(expression, start)
+    if undefined:
+        where = f'n={point}' if point is not None else f'n≥{start} 的某些整数点'
+        raise ValueError(f'{label}在 {where} 处无定义，不能继续级数判定')
+
+
 def _positive_test(term: sp.Expr, start: int) -> tuple[bool | None, str]:
     try:
         total = sp.summation(term, (N, start, sp.oo))
@@ -54,9 +106,9 @@ def _positive_test(term: sp.Expr, start: int) -> tuple[bool | None, str]:
         pass
     try:
         test = sp.Sum(term, (N, start, sp.oo)).is_convergent()
-        if test is True:
+        if test == True:  # SymPy returns BooleanTrue/BooleanFalse, not Python bool
             return True, 'SymPy 收敛判定'
-        if test is False:
+        if test == False:  # noqa: E712
             return False, 'SymPy 发散判定'
     except Exception:  # noqa: BLE001
         pass
@@ -95,17 +147,62 @@ def _positive_test(term: sp.Expr, start: int) -> tuple[bool | None, str]:
     return None, '常用判别法未给出结论'
 
 
-def _alternating_part(term: sp.Expr) -> sp.Expr | None:
+def _nonincreasing_from(candidate: sp.Expr, start: int) -> bool:
+    try:
+        difference = sp.simplify(candidate.subs(N, N + 1) - candidate)
+    except Exception:  # noqa: BLE001
+        return False
+    if difference.is_nonpositive is True or difference.is_zero is True:
+        return True
+    t = sp.Symbol('t', positive=True)
+    try:
+        derivative = sp.simplify(sp.diff(candidate.xreplace({N: t}), t))
+        if derivative.is_nonpositive is True:
+            return True
+    except Exception:  # noqa: BLE001
+        derivative = None
+    from sympy.solvers.inequalities import solve_univariate_inequality
+    for expression in (difference.xreplace({N: t}), derivative):
+        if expression is None:
+            continue
+        try:
+            region = solve_univariate_inequality(expression <= 0, t, relational=False)
+            if sp.Interval(start, sp.oo).is_subset(region):
+                return True
+        except Exception:  # noqa: BLE001
+            continue
+    return False
+
+
+def _positive_from(candidate: sp.Expr, start: int) -> bool:
+    """A candidate may only be real-signed from the series start, e.g. 1/(n-2) from n=3."""
+    if candidate.is_nonnegative is True or candidate.is_positive is True:
+        return True
+    k = sp.Symbol('k', integer=True, positive=True)
+    try:
+        shifted = sp.simplify(candidate.subs(N, k + start - 1))
+    except Exception:  # noqa: BLE001
+        return False
+    return shifted.is_nonnegative is True or shifted.is_positive is True
+
+
+def _alternating_part(term: sp.Expr, start: int = 1) -> tuple[sp.Expr, int] | None:
+    """Return the positive alternating factor and the first index where Leibniz applies.
+
+    Dropping finitely many initial terms does not affect convergence, so a sequence that is
+    eventually nonnegative and nonincreasing is still eligible for the alternating test.
+    """
     for sign in (-1) ** N, (-1) ** (N + 1), (-1) ** (N - 1):
-        candidate = sp.simplify(term / sign)
+        candidate = sp.simplify(sp.powsimp(term / sign, force=True))
         if candidate.has((-1) ** N):
             continue
         try:
-            if sp.limit(candidate, N, sp.oo) != 0 or candidate.is_nonnegative is not True:
+            if sp.limit(candidate, N, sp.oo) != 0:
                 continue
-            difference = sp.simplify(candidate.subs(N, N + 1) - candidate)
-            if difference.is_nonpositive is True:
-                return sp.simplify(candidate)
+            offsets = [start] + [start + step for step in range(1, 11)] + [start + 20, start + 50]
+            for offset in offsets:
+                if _positive_from(candidate, offset) and _nonincreasing_from(candidate, offset):
+                    return sp.simplify(candidate), offset
         except Exception:  # noqa: BLE001
             continue
     return None
@@ -125,11 +222,15 @@ def classify_series(term: sp.Expr, start: int = 1) -> dict[str, Any]:
         return {'status': 'divergent', 'method': f'通项不趋于 0（|a_n|→{limit_numeric:g}）', 'absolute': False}
     if absolute is False and sp.simplify(term - sp.Abs(term)) == 0:
         return {'status': 'divergent', 'method': absolute_method, 'absolute': False}
-    alternating = _alternating_part(term)
+    alternating = _alternating_part(term, start)
     if alternating is not None:
-        absolute_check, _ = _positive_test(sp.Abs(term), start)
-        if absolute_check is False:
-            return {'status': 'conditionally_convergent', 'method': 'Leibniz 交错级数判别法', 'absolute': False}
+        _, offset = alternating
+        method = 'Leibniz 交错级数判别法'
+        if offset != start:
+            method += f'（从 n={offset} 起满足条件）'
+        if absolute is False:
+            return {'status': 'conditionally_convergent', 'method': method, 'absolute': False}
+        return {'status': 'undetermined', 'method': method + '；绝对收敛性未判定', 'absolute': None}
     if absolute is False:
         return {'status': 'divergent', 'method': absolute_method, 'absolute': False}
     return {'status': 'undetermined', 'method': absolute_method, 'absolute': None}
@@ -137,12 +238,15 @@ def classify_series(term: sp.Expr, start: int = 1) -> dict[str, Any]:
 
 def _series_answer(term: sp.Expr, start: int) -> dict[str, Any]:
     classification = classify_series(term, start)
-    try:
-        total = sp.summation(term, (N, start, sp.oo))
-        total_text = None if total.has(sp.Sum) or safe_float(total) is None else str(total)
-    except Exception:  # noqa: BLE001
-        total_text = None
     status = classification['status']
+    total_text = None
+    if status in ('absolutely_convergent', 'conditionally_convergent'):
+        try:
+            total = sp.summation(term, (N, start, sp.oo))
+            if not total.has(sp.Sum) and safe_float(total) is not None:
+                total_text = str(total)
+        except Exception:  # noqa: BLE001
+            total_text = None
     labels = {
         'absolutely_convergent': '绝对收敛',
         'conditionally_convergent': '条件收敛',
@@ -165,9 +269,11 @@ def _series_answer(term: sp.Expr, start: int) -> dict[str, Any]:
 def build_series_problem(conditions: Mapping[str, Any]) -> dict:
     from .exam_math import _condition
     term = _parse_term(conditions.get('term'))
-    start = int(conditions.get('index_start') or 1)
+    raw_start = conditions.get('index_start')
+    start = int(1 if raw_start in (None, '') else raw_start)
     if start < 0 or start > 100:
         raise ValueError('级数起始指标必须在 0 至 100 之间')
+    ensure_defined_from(term, start, '级数通项')
     model = {
         'engine': 'series_v1', 'subject': 'calculus', 'task': 'series_convergence',
         'kind': 'series_convergence', 'term': expression_text(term), 'index_variable': 'n',
@@ -192,10 +298,35 @@ def build_series_problem(conditions: Mapping[str, Any]) -> dict:
     }
 
 
+def _undefined_series_solution(term: sp.Expr, start: int, reason: str) -> dict:
+    return {
+        'summary': reason, 'answer': '', 'answer_value': None, 'exact': '', 'approx': None,
+        'steps': [{'id': 'term', 'title': '检查通项', 'latex': to_latex(term),
+                   'detail': '通项必须在每个整数指标上取有限实数值，当前条件不满足。'}],
+        'conditions': [f'从 n={start} 开始。'],
+        'limitations': [reason, '通项存在无定义的整数项，因此不给出敛散性或和。'],
+        'series_status': 'undetermined', 'series_method': None, 'series_sum': None,
+        'series_details': {
+            'term': expression_text(term), 'index_start': start,
+            'status': 'undetermined', 'status_label': '无法判定',
+            'method': None, 'sum_value': None, 'note': reason,
+        },
+        'solution_status': 'unsupported', 'solution_complete': False, 'incomplete_reason': reason,
+    }
+
+
 def solve_series_convergence(model: Mapping[str, Any]) -> dict:
     term = _parse_term(model.get('term'))
-    start = int(model.get('index_start') or 1)
+    start = int(1 if model.get('index_start') in (None, '') else model.get('index_start'))
+    try:
+        ensure_defined_from(term, start, '级数通项')
+    except ValueError as exc:
+        return _undefined_series_solution(term, start, str(exc))
     result = _series_answer(term, start)
+    status_labels = {
+        'absolutely_convergent': '绝对收敛', 'conditionally_convergent': '条件收敛',
+        'divergent': '发散', 'undetermined': '无法判定',
+    }
     return {
         'summary': '数项级数：先看通项是否趋于 0，再判断绝对收敛、条件收敛或发散。',
         'answer': result['answer'],
@@ -212,6 +343,12 @@ def solve_series_convergence(model: Mapping[str, Any]) -> dict:
         'series_status': result['status'],
         'series_method': result.get('method'),
         'series_sum': result.get('sum_value'),
+        'series_details': {
+            'term': expression_text(term), 'index_start': start,
+            'status': result['status'], 'status_label': status_labels[result['status']],
+            'method': result.get('method'), 'sum_value': result.get('sum_value'),
+            'note': '结论来自符号判别；数值部分和只用于观察，不替代敛散性结论。',
+        },
         'solution_status': 'complete' if result['complete'] else 'incomplete',
         'solution_complete': result['complete'],
         'incomplete_reason': None if result['complete'] else '常用级数判别法未给出确定结论',
@@ -239,6 +376,9 @@ def build_power_series_problem(conditions: Mapping[str, Any]) -> dict:
     ]
     if goal in ('radius', 'sum'):
         coefficient = _parse_coefficient(conditions.get('coefficient'))
+        # 只有显式给出起始指标时才校验尾部定义域；文本识别沿用历史默认 n=0。
+        if conditions.get('index_start') not in (None, ''):
+            ensure_defined_from(coefficient, start, '幂级数系数')
         model['coefficient'] = expression_text(coefficient)
         model['formula_tex'] = rf'\sum_{{n={start}}}^{{\infty}} {to_latex(coefficient)}(x-{to_latex(center)})^n'
         conditions_list.append(_condition('coefficient', '幂级数系数', model['coefficient'], {}, kind='expr'))
@@ -282,27 +422,52 @@ def _power_radius(coefficient: sp.Expr) -> tuple[sp.Expr | None, str]:
         return sp.oo, '零幂级数'
     try:
         ratio = sp.limit(sp.Abs(coefficient.subs(N, N + 1) / coefficient), N, sp.oo)
-        numeric = safe_float(ratio)
         if ratio == sp.oo:
             return sp.Integer(0), '比值审敛法：ρ=∞'
+        if ratio.is_zero is True:
+            return sp.oo, '比值审敛法：ρ=0'
+        numeric = safe_float(ratio)
         if numeric is not None:
-            if abs(numeric) < 1e-12:
-                return sp.oo, '比值审敛法：ρ=0'
+            if numeric == 0:  # exact value below float range: keep the reciprocal exact
+                return sp.simplify(1 / ratio), '比值审敛法：R=1/ρ'
             return sp.simplify(1 / ratio), f'比值审敛法：R=1/ρ={1 / numeric:g}'
     except Exception:  # noqa: BLE001
         pass
     try:
         root = sp.limit(sp.Abs(coefficient) ** (1 / N), N, sp.oo)
-        numeric = safe_float(root)
         if root == sp.oo:
             return sp.Integer(0), '根值审敛法：ρ=∞'
+        if root.is_zero is True:
+            return sp.oo, '根值审敛法：ρ=0'
+        numeric = safe_float(root)
         if numeric is not None:
-            if abs(numeric) < 1e-12:
-                return sp.oo, '根值审敛法：ρ=0'
+            if numeric == 0:
+                return sp.simplify(1 / root), '根值审敛法：R=1/ρ'
             return sp.simplify(1 / root), f'根值审敛法：R=1/ρ={1 / numeric:g}'
     except Exception:  # noqa: BLE001
         pass
     return None, '无法由比值或根值审敛法确定收敛半径'
+
+
+def _undefined_power_solution(coefficient: sp.Expr, center: sp.Expr, start: int,
+                              goal: str, reason: str) -> dict:
+    return {
+        'summary': reason, 'answer': '', 'answer_value': None, 'exact': '', 'approx': None,
+        'steps': [{'id': 'coefficient', 'title': '检查系数', 'latex': to_latex(coefficient),
+                   'detail': '幂级数系数必须在每个整数指标上取有限实数值，当前条件不满足。'}],
+        'conditions': [f'展开中心 {center}，从 n={start} 开始。'],
+        'limitations': [reason, '系数存在无定义的整数项，因此不给出收敛半径、收敛域或和函数。'],
+        'power_goal': goal, 'center': str(center), 'radius': None, 'radius_method': None,
+        'interval': None, 'endpoint_status': [], 'sum_function': None,
+        'coefficient': expression_text(coefficient), 'index_start': start,
+        'power_details': {
+            'goal': goal, 'center': str(center), 'index_start': start,
+            'coefficient': expression_text(coefficient), 'radius': None,
+            'radius_method': None, 'interval': None, 'endpoints': [],
+            'sum_function': None, 'note': reason,
+        },
+        'solution_status': 'unsupported', 'solution_complete': False, 'incomplete_reason': reason,
+    }
 
 
 def solve_power_series(model: Mapping[str, Any]) -> dict:
@@ -333,9 +498,21 @@ def solve_power_series(model: Mapping[str, Any]) -> dict:
             'limitations': ['余项只说明局部逼近；收敛域需另行判断。'],
             'power_goal': 'expand', 'center': str(center), 'order': report['order'],
             'coefficients': coefficients, 'polynomial': polynomial,
+            'power_details': {
+                'goal': 'expand', 'center': str(center), 'index_start': start,
+                'coefficient': expression_text(parse_expression(str(model.get('expression')), ('x',))),
+                'radius': None, 'radius_method': None, 'interval': None,
+                'endpoints': [], 'sum_function': polynomial,
+                'note': '余项只说明局部逼近；收敛域需另行判断。',
+            },
             'solution_status': 'complete', 'solution_complete': True,
         }
     coefficient = _parse_coefficient(model.get('coefficient'))
+    if model.get('manual_series_conditions') is not None:
+        try:
+            ensure_defined_from(coefficient, start, '幂级数系数')
+        except ValueError as exc:
+            return _undefined_power_solution(coefficient, center, start, goal, str(exc))
     radius, radius_method = _power_radius(coefficient)
     endpoint_data = []
     complete = radius is not None
@@ -390,6 +567,14 @@ def solve_power_series(model: Mapping[str, Any]) -> dict:
         'power_goal': goal, 'center': str(center), 'radius': str(radius) if radius is not None else None,
         'radius_method': radius_method, 'interval': interval, 'endpoint_status': endpoint_data,
         'sum_function': sum_function, 'coefficient': expression_text(coefficient), 'index_start': start,
+        'power_details': {
+            'goal': goal, 'center': str(center), 'index_start': start,
+            'coefficient': expression_text(coefficient),
+            'radius': str(radius) if radius is not None else None,
+            'radius_method': radius_method, 'interval': interval,
+            'endpoints': endpoint_data, 'sum_function': sum_function,
+            'note': '端点必须单独代入原级数判断；和函数只在符号求和成功时给出。',
+        },
         'solution_status': 'complete' if complete else 'incomplete',
         'solution_complete': complete,
         'incomplete_reason': None if complete else '收敛半径、端点敛散性或和函数尚未完成',
@@ -468,11 +653,15 @@ def evaluate_power_series(model: Mapping[str, Any], params: Mapping[str, Any]) -
 
 def build_fourier_problem(conditions: Mapping[str, Any]) -> dict:
     from .exam_math import _condition
-    expression = parse_expression(str(conditions.get('expression') or ''), ('x',))
+    from sympy.calculus.util import continuous_domain
+    expression = parse_expression(str(conditions.get('expression') or ''), ('x',), preserve_structure=True)
     lower = _constant(str(conditions.get('lower') or '-pi'), '区间下限')
     upper = _constant(str(conditions.get('upper') or 'pi'), '区间上限')
     if not bool(lower < upper):
         raise ValueError('傅里叶区间必须从小到大')
+    domain = continuous_domain(expression, X, sp.S.Reals)
+    if sp.Interval(lower, upper).is_subset(domain) is not True:
+        raise ValueError('傅里叶级数要求函数在整个闭区间上有实定义且连续，不自动跨越无定义点')
     order = int(conditions.get('order') or 5)
     if order < 1 or order > 12:
         raise ValueError('傅里叶级数阶数必须在 1 至 12 之间')
@@ -575,6 +764,13 @@ def solve_fourier(model: Mapping[str, Any]) -> dict:
         'fourier': {'a0': str(a0), 'coefficients': coefficients, 'partial': expression_text(partial),
                     'order': order, 'lower': str(lower), 'upper': str(upper), 'period': str(period),
                     'discontinuities': discontinuities, 'endpoint_jump': endpoint_jump, 'convergence_note': note},
+        'fourier_details': {
+            'a0': str(a0), 'coefficients': coefficients, 'partial': expression_text(partial),
+            'order': order, 'lower': str(lower), 'upper': str(upper), 'period': str(period),
+            'discontinuities': discontinuities, 'endpoint_jump': endpoint_jump,
+            'convergence_note': note,
+            'note': '系数按给定区间计算；连续点收敛到函数值，间断点按 Dirichlet 定理取左右极限平均。',
+        },
         'solution_status': 'complete' if complete else 'incomplete',
         'solution_complete': complete,
         'incomplete_reason': None if complete else '傅里叶系数或部分和未得到有限闭式结果',

@@ -75,7 +75,40 @@ def _limit_at(expression: sp.Expr, variable: sp.Symbol, point: sp.Expr, directio
     return _point_payload(value)
 
 
+def _side_domain_defined(domain: sp.Set, point: sp.Expr, side: str) -> bool:
+    if domain == sp.S.Reals:
+        return True
+    if isinstance(domain, sp.Complement):
+        excluded = domain.args[1]
+        parts = excluded.args if isinstance(excluded, sp.Union) else (excluded,)
+        for part in parts:
+            if not isinstance(part, sp.Interval) or part.is_empty is True:
+                continue
+            if part.left < point < part.right:
+                return False
+            if side == 'right' and part.left <= point < part.right:
+                return False
+            if side == 'left' and part.left < point <= part.right:
+                return False
+        return True
+    parts = domain.args if isinstance(domain, sp.Union) else (domain,)
+    for part in parts:
+        if not isinstance(part, sp.Interval) or part.is_empty is True:
+            continue
+        if side == 'right' and part.left <= point < part.right:
+            return True
+        if side == 'left' and part.left < point <= part.right:
+            return True
+    return False
+
+
 def _real_side_defined(expression: sp.Expr, variable: sp.Symbol, point: sp.Expr) -> dict[str, bool]:
+    try:
+        domain = continuous_domain(expression, variable, sp.S.Reals)
+    except Exception:  # noqa: BLE001
+        domain = None
+    if domain is not None:
+        return {side: _side_domain_defined(domain, point, side) for side in ('left', 'right')}
     result: dict[str, bool] = {}
     for name, sign in (("left", -1), ("right", 1)):
         try:
@@ -90,7 +123,10 @@ def _same_limit(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
     if left["kind"] == "infinite" and right["kind"] == "infinite":
         return left.get("sign") == right.get("sign")
     if left["kind"] == "finite" and right["kind"] == "finite":
-        return abs(float(left["value"]) - float(right["value"])) <= 1e-9 * max(1.0, abs(float(left["value"])))
+        try:
+            return sp.simplify(sp.sympify(left["text"]) - sp.sympify(right["text"])) == 0
+        except Exception:  # noqa: BLE001
+            return float(left["value"]) == float(right["value"])
     return left["kind"] == right["kind"] == "does_not_exist"
 
 
@@ -531,6 +567,9 @@ def _derivative_report(model: Mapping[str, Any]) -> dict[str, Any]:
             original = parse_expression(str(model['expression']), (str(variable),), preserve_structure=True)
             if continuous_domain(original, variable, sp.S.Reals).contains(point) is not sp.S.true:
                 raise ValueError('求值点不在原式已确认的实定义域内')
+            side_domain = _real_side_defined(original, variable, point)
+            if not side_domain.get('left') or not side_domain.get('right'):
+                raise ValueError('该点在原式只有单侧实邻域，不能按双侧普通导数判定')
             previous = original
             for level in range(order):
                 quotient = (previous - previous.subs(variable, point))/(variable-point)

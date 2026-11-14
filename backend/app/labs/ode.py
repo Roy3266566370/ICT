@@ -201,11 +201,134 @@ def _target_value(solution_expr, x: sp.Symbol, model: Mapping[str, Any]) -> dict
     }
 
 
+def _known_values_at(point: sp.Expr, ic_terms) -> dict[sp.Symbol, sp.Expr]:
+    values = {}
+    for order_k, ic_point, value in ic_terms:
+        if sp.simplify(ic_point - point) == 0:
+            values[sp.Symbol('y', real=True) if order_k == 0 else sp.Symbol(f'D{order_k}', real=True)] = value
+    return values
+
+
+def _check_side_at_point(side: sp.Expr, x: sp.Symbol, point: sp.Expr,
+                         known: dict[sp.Symbol, sp.Expr]) -> None:
+    replacements = {x: point, **known}
+    for node in sp.preorder_traversal(side):
+        if isinstance(node, sp.Pow) and node.exp.is_number and node.exp < 0:
+            base = node.base.subs(replacements)
+            if not base.free_symbols and sp.simplify(base) == 0:
+                raise ValueError('原方程在给定条件点分母为零，不能用化简后的残差补回定义')
+        if node.free_symbols <= set(replacements):
+            local = node.subs(replacements)
+            if local.free_symbols:
+                continue
+            if local.is_real is False or safe_float(local) is None:
+                raise ValueError('原方程在初值点没有实定义，不能给出满足该初值的解')
+
+
+def _check_solution_points(raw: Any, independent: str, solution_expr: sp.Expr, ic_terms) -> None:
+    normalized, _ = _normalize_equation(raw, independent, 'y')
+    names = (independent, 'y', 'D1', 'D2', 'D3')
+    x = sp.Symbol(independent, real=True)
+    y_symbol = sp.Symbol('y', real=True)
+    base = {y_symbol: solution_expr}
+    for order_k in (1, 2, 3):
+        base[sp.Symbol(f'D{order_k}', real=True)] = sp.diff(solution_expr, x, order_k)
+    for side_raw in normalized.split('='):
+        try:
+            side = parse_expression(side_raw, names, preserve_structure=True)
+        except Exception:  # noqa: BLE001
+            continue
+        for _, point, _ in ic_terms:
+            substitutions = {x: point, **base}
+            for node in sp.preorder_traversal(side):
+                if not node.free_symbols <= set(substitutions):
+                    continue
+                local = node.subs(substitutions)
+                if local.free_symbols:
+                    continue
+                if local.is_real is False or safe_float(local) is None:
+                    raise ValueError('候选解使原方程在给定条件点没有实定义')
+
+
+def _original_equation_domain(raw: Any, independent: str, ic_terms) -> sp.Set:
+    normalized, _ = _normalize_equation(raw, independent, 'y')
+    names = (independent, 'y', 'D1', 'D2', 'D3')
+    x = sp.Symbol(independent, real=True)
+    sides = []
+    domain = sp.S.Reals
+    for side_raw in normalized.split('='):
+        try:
+            side = parse_expression(side_raw, names, preserve_structure=True)
+        except Exception:  # noqa: BLE001
+            continue
+        sides.append(side)
+        try:
+            side_domain = continuous_domain(side, x, sp.S.Reals)
+        except Exception:  # noqa: BLE001 - 无法确认时不强行加限制
+            continue
+        domain = domain.intersect(side_domain)
+    for _, point, _ in ic_terms:
+        for side in sides:
+            _check_side_at_point(side, x, point, _known_values_at(point, ic_terms))
+        if sp.Interval(point, point).is_subset(domain) is not True:
+            raise ValueError('原方程在初值点没有实定义，不能给出满足该初值的解')
+    return domain
+
+
+def _equation_restricted_domain(raw: Any, independent: str, solution_expr: sp.Expr, order: int) -> sp.Set:
+    """Restrict the solution interval by the original equation's sqrt/log/denominator nodes."""
+    normalized, _ = _normalize_equation(raw, independent, 'y')
+    names = (independent, 'y', 'D1', 'D2', 'D3')
+    x = sp.Symbol(independent, real=True)
+    replacements = {sp.Symbol('y', real=True): solution_expr}
+    for order_k in range(1, order + 1):
+        replacements[sp.Symbol(f'D{order_k}', real=True)] = sp.diff(solution_expr, x, order_k)
+    domain = sp.S.Reals
+    for side_raw in normalized.split('='):
+        try:
+            side = parse_expression(side_raw, names, preserve_structure=True)
+        except Exception:  # noqa: BLE001
+            continue
+        seen = set()
+        for node in sp.preorder_traversal(side):
+            if node in seen:
+                continue
+            seen.add(node)
+            local = node.xreplace(replacements)
+            if local.free_symbols - {x}:
+                continue
+            try:
+                node_domain = continuous_domain(local, x, sp.S.Reals)
+            except Exception:  # noqa: BLE001
+                continue
+            domain = domain.intersect(node_domain)
+    return domain
+
+
+def _unsupported_ode(reason: str, model: Mapping[str, Any], order: int, ic_texts: list[str]) -> dict:
+    return {
+        'summary': reason, 'answer': '', 'answer_value': None, 'exact': '', 'exact_latex': '',
+        'solution_latex': '', 'free_constants': False, 'plot_window': None,
+        'solution_domain': None, 'scope_note': '原方程实定义域未满足，不输出候选解。',
+        'steps': [{'id': 'domain', 'title': '核对原方程实定义域', 'latex': '', 'detail': reason}],
+        'conditions': [f'自变量 {model.get("independent_variable") or "x"}，未知函数 y。'] + ic_texts,
+        'limitations': [reason], 'ode_order': order, 'ode_equation': str(model.get('equation')),
+        'ode_hints': [], 'initial_conditions': ic_texts, 'general_solution': None,
+        'particular_solution': None, 'plot_expression': None, 'residual_verified': False,
+        'initial_conditions_verified': False, 'target': None,
+        'solution_status': 'unsupported', 'solution_complete': False, 'incomplete_reason': reason,
+    }
+
+
 def solve_ode(model: Mapping[str, Any]) -> dict:
     independent = str(model.get('independent_variable') or 'x')
     equation, x, order = parse_equation(model.get('equation'), independent, 'y')
     y = sp.Function('y')(x)
     ics, ic_texts, ic_terms = parse_initial_conditions(model.get('initial_conditions'), independent, 'y', order)
+    try:
+        equation_domain = _original_equation_domain(model.get('equation'), independent, ic_terms)
+    except ValueError as exc:
+        return _unsupported_ode(str(exc), model, order, ic_texts)
     complete = True
     try:
         dsolve_result = sp.dsolve(equation, y, ics=ics or None)
@@ -249,7 +372,14 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
     domain_reason = None
     try:
         if not implicit and not solution_expr.free_symbols - {x}:
-            domain = continuous_domain(solution_expr, x, sp.S.Reals)
+            domain = continuous_domain(solution_expr, x, sp.S.Reals).intersect(equation_domain)
+            for derivative_order in range(1, order + 1):
+                derivative_domain = continuous_domain(
+                    sp.diff(solution_expr, x, derivative_order), x, sp.S.Reals)
+                domain = domain.intersect(derivative_domain)
+            domain = domain.intersect(_equation_restricted_domain(
+                model['equation'], independent, solution_expr, order))
+            _check_solution_points(model['equation'], independent, solution_expr, ic_terms)
         normalized, _ = _normalize_equation(model['equation'], independent, 'y')
         names = (independent, 'y', 'D1', 'D2', 'D3')
         replacements = {sp.Symbol('y', real=True):solution_expr}

@@ -22,18 +22,35 @@ def fourier_plan(**conditions):
     return compute_plan({'kind': 'kernel', 'task': 'fourier_series', 'conditions': conditions})
 
 
-@pytest.mark.parametrize('term,status', [
-    ('1/n^2', 'absolutely_convergent'),
-    ('1/n', 'divergent'),
-    ('(-1)^n/n', 'conditionally_convergent'),
-    ('(-1)^n/n^2', 'absolutely_convergent'),
-    ('n/factorial(n)', 'absolutely_convergent'),
+@pytest.mark.parametrize('term,status,start', [
+    ('1/n^2', 'absolutely_convergent', 1),
+    ('1/n', 'divergent', 1),
+    ('(-1)^n/n', 'conditionally_convergent', 1),
+    ('(-1)^n/n^2', 'absolutely_convergent', 1),
+    ('n/factorial(n)', 'absolutely_convergent', 1),
+    ('(-1)^n/sqrt(n)', 'conditionally_convergent', 1),
+    ('n/(n^2+1)', 'divergent', 1),
+    ('1/(n*log(n))', 'divergent', 2),
+    ('1/(n*log(n)^2)', 'absolutely_convergent', 2),
+    ('(-1)^(n+1)/log(n+1)', 'conditionally_convergent', 1),
+    ('cos(n*pi)/n', 'conditionally_convergent', 1),
+    ('(-1)^n/(n-2)', 'conditionally_convergent', 3),
 ])
-def test_numerical_series_classification(term, status):
-    result = series_plan(term=term)
+def test_numerical_series_classification(term, status, start):
+    result = series_plan(term=term, index_start=start)
     assert result['interactive_solution']['series_status'] == status
     assert result['interactive_solution']['solution_complete'] is True
     assert all(check['status'] != 'fail' for check in result['checks'])
+
+
+@pytest.mark.parametrize('term,start', [
+    ('1/(n-3)^2', 1),
+    ('1/(n*log(n))', 1),
+    ('sqrt(n-5)', 1),
+])
+def test_series_terms_undefined_on_tail_are_rejected(term, start):
+    with pytest.raises(ValueError, match='无定义|有限实数'):
+        series_plan(term=term, index_start=start)
 
 
 def test_unknown_numerical_series_is_not_marked_convergent():
@@ -48,6 +65,23 @@ def test_power_series_radius_and_endpoints():
     assert solution['interval'] == '[-1, 1)'
     assert solution['solution_complete'] is True
     assert any(item['label'] == '右端点' and item['status'] == 'divergent' for item in solution['endpoint_status'])
+
+
+def test_power_series_later_start_keeps_conditional_left_endpoint():
+    result = power_plan(goal='radius', coefficient='1/(n-2)', index_start=3)
+    solution = result['interactive_solution']
+    assert solution['radius'] == '1'
+    assert solution['interval'] == '[-1, 1)'
+    left = next(item for item in solution['endpoint_status'] if item['label'] == '左端点')
+    assert left['status'] == 'conditionally_convergent'
+    assert left['included'] is True
+
+
+def test_tiny_but_nonzero_ratio_keeps_finite_radius():
+    result = power_plan(goal='radius', coefficient='10^(-13*n)', index_start=0)
+    solution = result['interactive_solution']
+    assert solution['radius'] == '10000000000000'
+    assert solution['solution_complete'] is True
 
 
 def test_power_series_infinite_radius_and_zero_radius():

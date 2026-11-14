@@ -1,6 +1,156 @@
 import { inspectMath } from './mathKeyboard.ts';
 
-export type IntegralTask = 'integral' | 'antiderivative' | 'derivative' | 'limit' | 'higher_derivative' | 'continuity' | 'implicit_normal' | 'function_study' | 'taylor' | 'geometric_area' | 'rotation_volume' | 'ode' | 'multivariable' | 'multivariable_extrema' | 'double_integral';
+export type IntegralTask = 'integral' | 'antiderivative' | 'derivative' | 'limit' | 'higher_derivative' | 'continuity' | 'implicit_normal' | 'function_study' | 'taylor' | 'geometric_area' | 'rotation_volume' | 'ode' | 'multivariable' | 'multivariable_extrema' | 'double_integral' | 'triple_integral' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space_geometry' | 'curve_surface_integral' | 'proof';
+export type SpaceGeometryKind = 'vector_operations' | 'vector_products' | 'line_from_points' | 'line_point_direction' | 'plane_point_normal' | 'plane_three_points' | 'line_line_relation' | 'line_plane_relation' | 'plane_plane_relation' | 'point_line_distance' | 'point_plane_distance' | 'line_plane_projection' | 'surface_tangent' | 'quadric_surface';
+export type SpaceFieldKey = 'spaceA' | 'spaceB' | 'spaceC' | 'spaceD';
+export interface SpaceFieldSpec { key: SpaceFieldKey; condition: string; label: string; placeholder: string; }
+export const SPACE_KIND_FIELDS: Record<SpaceGeometryKind, readonly SpaceFieldSpec[]> = {
+  vector_operations: [{ key: 'spaceA', condition: 'vector_a', label: '向量 a', placeholder: '如 1,2,3' }, { key: 'spaceB', condition: 'vector_b', label: '向量 b', placeholder: '如 -1,0,2' }],
+  vector_products: [{ key: 'spaceA', condition: 'vector_a', label: '向量 a', placeholder: '如 1,0,0' }, { key: 'spaceB', condition: 'vector_b', label: '向量 b', placeholder: '如 0,1,0' }, { key: 'spaceC', condition: 'vector_c', label: '向量 c', placeholder: '如 0,0,1' }],
+  line_from_points: [{ key: 'spaceA', condition: 'point_a', label: '点 A', placeholder: '如 0,0,0' }, { key: 'spaceB', condition: 'point_b', label: '点 B', placeholder: '如 1,2,3' }],
+  line_point_direction: [{ key: 'spaceA', condition: 'line_point', label: '直线过点', placeholder: '如 1,0,0' }, { key: 'spaceB', condition: 'line_direction', label: '方向向量', placeholder: '如 1,2,3' }],
+  plane_point_normal: [{ key: 'spaceA', condition: 'point', label: '平面过点', placeholder: '如 1,2,3' }, { key: 'spaceB', condition: 'normal', label: '法向量', placeholder: '如 2,3,4' }],
+  plane_three_points: [{ key: 'spaceA', condition: 'point_a', label: '点 A', placeholder: '如 1,0,0' }, { key: 'spaceB', condition: 'point_b', label: '点 B', placeholder: '如 0,1,0' }, { key: 'spaceC', condition: 'point_c', label: '点 C', placeholder: '如 0,0,1' }],
+  line_line_relation: [{ key: 'spaceA', condition: 'point_a', label: '直线1过点', placeholder: '如 0,0,0' }, { key: 'spaceB', condition: 'direction_a', label: '直线1方向', placeholder: '如 1,0,0' }, { key: 'spaceC', condition: 'point_b', label: '直线2过点', placeholder: '如 0,0,0' }, { key: 'spaceD', condition: 'direction_b', label: '直线2方向', placeholder: '如 0,1,0' }],
+  line_plane_relation: [{ key: 'spaceA', condition: 'line_point', label: '直线过点', placeholder: '如 0,0,0' }, { key: 'spaceB', condition: 'line_direction', label: '直线方向', placeholder: '如 0,0,1' }, { key: 'spaceC', condition: 'plane', label: '平面 (a,b,c,d)', placeholder: '如 0,0,1,-2' }],
+  plane_plane_relation: [{ key: 'spaceA', condition: 'plane', label: '平面1 (a,b,c,d)', placeholder: '如 1,0,0,0' }, { key: 'spaceB', condition: 'plane2', label: '平面2 (a,b,c,d)', placeholder: '如 0,1,0,0' }],
+  point_line_distance: [{ key: 'spaceA', condition: 'point', label: '点 P', placeholder: '如 0,1,0' }, { key: 'spaceB', condition: 'line_point', label: '直线过点', placeholder: '如 0,0,0' }, { key: 'spaceC', condition: 'line_direction', label: '直线方向', placeholder: '如 1,0,0' }],
+  point_plane_distance: [{ key: 'spaceA', condition: 'point', label: '点 P', placeholder: '如 0,0,0' }, { key: 'spaceB', condition: 'plane', label: '平面 (a,b,c,d)', placeholder: '如 1,0,0,-2' }],
+  line_plane_projection: [{ key: 'spaceA', condition: 'line_point', label: '直线过点', placeholder: '如 0,0,1' }, { key: 'spaceB', condition: 'line_direction', label: '直线方向', placeholder: '如 1,0,1' }, { key: 'spaceC', condition: 'plane', label: '平面 (a,b,c,d)', placeholder: '如 0,0,1,0' }],
+  surface_tangent: [{ key: 'spaceA', condition: 'point', label: '曲面上的点 P', placeholder: '如 1,1,2' }],
+  quadric_surface: [],
+};
+export const SPACE_SURFACE_KINDS: readonly SpaceGeometryKind[] = ['surface_tangent', 'quadric_surface'];
+export type CurveSurfaceIntegralKind = 'line_scalar' | 'line_vector' | 'surface_scalar_graph' | 'surface_scalar_param' | 'surface_flux_graph' | 'surface_flux_param' | 'green' | 'gauss' | 'stokes';
+export type CurveSurfaceFieldKey = 'curveX' | 'curveY' | 'curveZ' | 'surfaceZ' | 'surfaceX' | 'surfaceY' | 'surfaceZuv' | 'fieldP' | 'fieldQ' | 'fieldR' | 'lower' | 'upper' | 'innerLower' | 'innerUpper' | 'tripleInnerLower' | 'tripleInnerUpper';
+export interface CurveSurfaceFieldSpec { key: CurveSurfaceFieldKey; condition: string; label: string; placeholder: string; }
+export const CURVE_SURFACE_SCALAR_KINDS: readonly CurveSurfaceIntegralKind[] = ['line_scalar', 'surface_scalar_graph', 'surface_scalar_param'];
+export const CURVE_SURFACE_FORMULA_KINDS: readonly CurveSurfaceIntegralKind[] = ['green', 'gauss', 'stokes'];
+export const CURVE_SURFACE_ORIENTATIONS: Partial<Record<CurveSurfaceIntegralKind, { value: string; label: string }[]>> = {
+  line_vector: [{ value: 'forward', label: '参数增大方向' }, { value: 'reverse', label: '反向' }],
+  surface_flux_graph: [{ value: 'up', label: '上侧' }, { value: 'down', label: '下侧' }],
+  surface_flux_param: [{ value: 'positive', label: '正向 r_u×r_v' }, { value: 'negative', label: '反向' }],
+  green: [{ value: 'positive', label: '正向（逆时针）' }, { value: 'negative', label: '负向（顺时针）' }],
+  stokes: [{ value: 'up', label: '上侧（边界逆时针）' }, { value: 'down', label: '下侧（边界顺时针）' }],
+};
+export const CURVE_SURFACE_KIND_LABELS: Record<CurveSurfaceIntegralKind, string> = {
+  line_scalar: '第一类曲线积分（对弧长）',
+  line_vector: '第二类曲线积分（对坐标）',
+  surface_scalar_graph: '第一类曲面积分（显式曲面）',
+  surface_scalar_param: '第一类曲面积分（参数曲面）',
+  surface_flux_graph: '第二类曲面积分（显式曲面）',
+  surface_flux_param: '第二类曲面积分（参数曲面）',
+  green: 'Green 公式',
+  gauss: 'Gauss 公式',
+  stokes: 'Stokes 公式',
+};
+const LINE_FIELDS: readonly CurveSurfaceFieldSpec[] = [
+  { key: 'curveX', condition: 'curve_x', label: '曲线 x(t)', placeholder: '例如 t 或 2*cos(t)' },
+  { key: 'curveY', condition: 'curve_y', label: '曲线 y(t)', placeholder: '例如 t 或 2*sin(t)' },
+  { key: 'curveZ', condition: 'curve_z', label: '曲线 z(t)（平面曲线填0）', placeholder: '例如 0 或 t' },
+  { key: 'lower', condition: 't_lower', label: 't 下限', placeholder: '例如 0' },
+  { key: 'upper', condition: 't_upper', label: 't 上限', placeholder: '例如 pi' },
+];
+const GRAPH_SURFACE_FIELDS: readonly CurveSurfaceFieldSpec[] = [
+  { key: 'surfaceZ', condition: 'surface_z', label: '曲面 z(x,y)', placeholder: '例如 x+y 或 x^2+y^2' },
+  { key: 'lower', condition: 'x_lower', label: 'x 下限', placeholder: '例如 0' },
+  { key: 'upper', condition: 'x_upper', label: 'x 上限', placeholder: '例如 1' },
+  { key: 'innerLower', condition: 'y_lower', label: 'y 下界', placeholder: '例如 0 或 x^2' },
+  { key: 'innerUpper', condition: 'y_upper', label: 'y 上界', placeholder: '例如 1 或 x' },
+];
+const PARAM_SURFACE_FIELDS: readonly CurveSurfaceFieldSpec[] = [
+  { key: 'surfaceX', condition: 'surface_x', label: '曲面 x(u,v)', placeholder: '例如 u' },
+  { key: 'surfaceY', condition: 'surface_y', label: '曲面 y(u,v)', placeholder: '例如 v' },
+  { key: 'surfaceZuv', condition: 'surface_z_uv', label: '曲面 z(u,v)', placeholder: '例如 u+v 或 u^2+v^2' },
+  { key: 'lower', condition: 'u_lower', label: 'u 下限', placeholder: '例如 0' },
+  { key: 'upper', condition: 'u_upper', label: 'u 上限', placeholder: '例如 1' },
+  { key: 'innerLower', condition: 'v_lower', label: 'v 下限', placeholder: '例如 0' },
+  { key: 'innerUpper', condition: 'v_upper', label: 'v 上限', placeholder: '例如 1' },
+];
+const PQR_FIELDS: readonly CurveSurfaceFieldSpec[] = [
+  { key: 'fieldP', condition: 'field_p', label: 'P', placeholder: '例如 -y' },
+  { key: 'fieldQ', condition: 'field_q', label: 'Q', placeholder: '例如 x' },
+  { key: 'fieldR', condition: 'field_r', label: 'R', placeholder: '例如 0' },
+];
+const PQ_FIELDS: readonly CurveSurfaceFieldSpec[] = [
+  { key: 'fieldP', condition: 'field_p', label: 'P(x,y)', placeholder: '例如 -y' },
+  { key: 'fieldQ', condition: 'field_q', label: 'Q(x,y)', placeholder: '例如 x' },
+];
+const RECT_FIELDS: readonly CurveSurfaceFieldSpec[] = [
+  { key: 'lower', condition: 'x_lower', label: 'x 下限', placeholder: '例如 0' },
+  { key: 'upper', condition: 'x_upper', label: 'x 上限', placeholder: '例如 1' },
+  { key: 'innerLower', condition: 'y_lower', label: 'y 下界', placeholder: '例如 0' },
+  { key: 'innerUpper', condition: 'y_upper', label: 'y 上界', placeholder: '例如 1' },
+];
+const BOX_FIELDS: readonly CurveSurfaceFieldSpec[] = [
+  { key: 'lower', condition: 'x_lower', label: 'x 下限', placeholder: '例如 0' },
+  { key: 'upper', condition: 'x_upper', label: 'x 上限', placeholder: '例如 1' },
+  { key: 'innerLower', condition: 'y_lower', label: 'y 下限', placeholder: '例如 0' },
+  { key: 'innerUpper', condition: 'y_upper', label: 'y 上限', placeholder: '例如 1' },
+  { key: 'tripleInnerLower', condition: 'z_lower', label: 'z 下限', placeholder: '例如 0' },
+  { key: 'tripleInnerUpper', condition: 'z_upper', label: 'z 上限', placeholder: '例如 1' },
+];
+const STOKES_REGION_FIELDS: readonly CurveSurfaceFieldSpec[] = [
+  { key: 'surfaceZ', condition: 'surface_z', label: '曲面 z(x,y)', placeholder: '例如 0 或 x+y' },
+  { key: 'lower', condition: 'x_lower', label: 'x 下限', placeholder: '例如 0' },
+  { key: 'upper', condition: 'x_upper', label: 'x 上限', placeholder: '例如 1' },
+  { key: 'innerLower', condition: 'y_lower', label: 'y 下限', placeholder: '例如 0' },
+  { key: 'innerUpper', condition: 'y_upper', label: 'y 上限', placeholder: '例如 1' },
+];
+export const CURVE_SURFACE_KIND_FIELDS: Record<CurveSurfaceIntegralKind, readonly CurveSurfaceFieldSpec[]> = {
+  line_scalar: LINE_FIELDS,
+  line_vector: [...LINE_FIELDS, ...PQR_FIELDS],
+  surface_scalar_graph: GRAPH_SURFACE_FIELDS,
+  surface_scalar_param: PARAM_SURFACE_FIELDS,
+  surface_flux_graph: [...GRAPH_SURFACE_FIELDS, ...PQR_FIELDS],
+  surface_flux_param: [...PARAM_SURFACE_FIELDS, ...PQR_FIELDS],
+  green: [...PQ_FIELDS, ...RECT_FIELDS],
+  gauss: [...PQR_FIELDS, ...BOX_FIELDS],
+  stokes: [...PQR_FIELDS, ...STOKES_REGION_FIELDS],
+};
+const CURVE_SURFACE_FIELD_VARIABLES: Record<string, readonly string[]> = {
+  curve_x: ['t'], curve_y: ['t'], curve_z: ['t'],
+  surface_z: ['x', 'y'], surface_x: ['u', 'v'], surface_y: ['u', 'v'], surface_z_uv: ['u', 'v'],
+  y_lower: ['x'], y_upper: ['x'],
+  field_p: ['x', 'y', 'z'], field_q: ['x', 'y', 'z'], field_r: ['x', 'y', 'z'],
+};
+export function curveSurfaceFieldError(kind: CurveSurfaceIntegralKind, field: CurveSurfaceFieldSpec, value: string | undefined): string | null {
+  const raw = (value ?? '').trim();
+  if (!raw) return `请填写${field.label}。`;
+  let variables = CURVE_SURFACE_FIELD_VARIABLES[field.condition] ?? [];
+  if (kind === 'green' && (field.condition === 'field_p' || field.condition === 'field_q')) variables = ['x', 'y'];
+  if (kind === 'stokes' && (field.condition === 'y_lower' || field.condition === 'y_upper')) variables = [];
+  if (inspectMath(raw, variables).error) {
+    return variables.length ? `${field.label}只能含 ${variables.join('、')} 或常数。` : `${field.label}必须是有限实常数表达式。`;
+  }
+  return null;
+}
+export type ProofKind = 'ivt_root' | 'ivt_unique_root' | 'rolle' | 'mvt' | 'cauchy_mvt' | 'monotone_inequality' | 'inequality' | 'counterexample' | 'steps';
+export const PROOF_KIND_LABELS: Record<ProofKind, string> = {
+  ivt_root: '零点存在性（介值定理）',
+  ivt_unique_root: '零点存在且唯一（介值定理+单调性）',
+  rolle: '罗尔定理',
+  mvt: '拉格朗日中值定理',
+  cauchy_mvt: '柯西中值定理',
+  monotone_inequality: '函数不等式（单调性，f≥0）',
+  inequality: '函数不等式（两个函数作差）',
+  counterexample: '反例否定全称命题',
+  steps: '综合题步骤核对',
+};
+export const PROOF_SINGLE_KINDS: readonly ProofKind[] = ['ivt_root', 'ivt_unique_root', 'rolle', 'mvt', 'monotone_inequality'];
+export const PROOF_BOUND_KINDS: readonly ProofKind[] = ['ivt_root', 'ivt_unique_root', 'rolle', 'mvt', 'cauchy_mvt', 'monotone_inequality', 'inequality'];
+export const PROOF_RELATION_KINDS: readonly ProofKind[] = ['inequality', 'counterexample'];
+export function proofStepError(raw: string): string | null {
+  const lines = raw.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (lines.length < 1 || lines.length > 20) return '请填写1至20行证明步骤。';
+  for (const [index, line] of lines.entries()) {
+    const parts = line.split('=');
+    if (parts.length !== 2 || parts.some(part => !part.trim())) return `第 ${index + 1} 步必须是 lhs=rhs 形式。`;
+    if (parts.some(part => inspectMath(part, ['x']).error)) return `第 ${index + 1} 步只能使用变量 x，或为代数式。`;
+  }
+  return null;
+}
+export type TripleMode = 'box' | 'z_simple' | 'cylindrical' | 'spherical';
 export interface ManualIntegralDraft {
   task: IntegralTask;
   expression: string;
@@ -15,6 +165,9 @@ export interface ManualIntegralDraft {
   initialConditions?: string;
   doubleOuter?: 'x' | 'y';
   doubleMode?: 'strip' | 'pieces' | 'polar' | 'improper' | 'polar_improper' | 'strip_improper' | 'affine' | 'change_variables';
+  tripleMode?: TripleMode;
+  tripleInnerLower?: string;
+  tripleInnerUpper?: string;
   doubleApplication?: 'integral' | 'mass' | 'centroid' | 'inertia' | 'probability';
   inertiaAxis?: '' | 'x' | 'y' | 'origin';
   xMap?: string;
@@ -40,6 +193,32 @@ export interface ManualIntegralDraft {
   rotationAxis?: '' | 'x' | 'y';
   intervalType?: 'closed' | 'open' | 'left_open' | 'right_open';
   side?: 'both' | 'left' | 'right';
+  indexStart?: string;
+  powerGoal?: 'radius' | 'sum';
+  powerCenter?: string;
+  spaceKind?: SpaceGeometryKind;
+  spaceA?: string;
+  spaceB?: string;
+  spaceC?: string;
+  spaceD?: string;
+  integralKind?: CurveSurfaceIntegralKind;
+  curveX?: string;
+  curveY?: string;
+  curveZ?: string;
+  surfaceZ?: string;
+  surfaceX?: string;
+  surfaceY?: string;
+  surfaceZuv?: string;
+  fieldP?: string;
+  fieldQ?: string;
+  fieldR?: string;
+  integralOrientation?: string;
+  proofKind?: ProofKind;
+  proofLeft?: string;
+  proofRight?: string;
+  proofRelation?: string;
+  proofSteps?: string;
+  proofStatement?: string;
 }
 export interface ManualIntegralPreview {
   task: IntegralTask;
@@ -49,7 +228,73 @@ export interface ManualIntegralPreview {
   question: string;
 }
 
+export function spaceFieldSize(condition: string): number {
+  return ['plane', 'plane2'].includes(condition) ? 4 : 3;
+}
+
+export function spaceFieldError(value: string | undefined, label: string, size: number): string | null {
+  const parts = (value ?? '').trim().split(/[,，;；\s]+/).filter(Boolean);
+  if (parts.length !== size) return `${label}需要${size}个分量，用逗号分隔。`;
+  for (const part of parts) {
+    if (inspectMath(part, []).error) return `请检查${label}的分量“${part}”，只能填写有限实常数表达式。`;
+  }
+  return null;
+}
+
 export function manualConditions(draft: ManualIntegralDraft): Record<string, string> {
+  if (draft.task === 'space_geometry') {
+    const kind = draft.spaceKind ?? 'vector_operations';
+    const conditions: Record<string, string> = { geometry_kind: kind };
+    for (const field of SPACE_KIND_FIELDS[kind]) conditions[field.condition] = (draft[field.key] ?? '').trim();
+    if (kind === 'surface_tangent') conditions.surface = draft.expression.trim();
+    if (kind === 'quadric_surface') conditions.expression = draft.expression.trim();
+    return conditions;
+  }
+  if (draft.task === 'curve_surface_integral') {
+    const kind = draft.integralKind ?? 'line_scalar';
+    const conditions: Record<string, string> = { integral_kind: kind };
+    for (const field of CURVE_SURFACE_KIND_FIELDS[kind]) conditions[field.condition] = (draft[field.key] ?? '').trim();
+    if (CURVE_SURFACE_SCALAR_KINDS.includes(kind)) conditions.integrand = draft.expression.trim();
+    const orientations = CURVE_SURFACE_ORIENTATIONS[kind];
+    if (orientations) conditions.orientation = draft.integralOrientation ?? orientations[0]?.value ?? '';
+    return conditions;
+  }
+  if (draft.task === 'proof') {
+    const kind = draft.proofKind ?? 'ivt_root';
+    const conditions: Record<string, string> = { proof_kind: kind };
+    if (PROOF_SINGLE_KINDS.includes(kind)) conditions.expression = draft.expression.trim();
+    if (kind === 'cauchy_mvt' || kind === 'inequality' || kind === 'counterexample') {
+      conditions.left = draft.proofLeft?.trim() ?? '';
+      conditions.right = draft.proofRight?.trim() ?? '';
+    }
+    if (PROOF_RELATION_KINDS.includes(kind)) conditions.relation = draft.proofRelation ?? '>=';
+    if (PROOF_BOUND_KINDS.includes(kind)) {
+      conditions.lower = draft.lower.trim();
+      conditions.upper = draft.upper.trim();
+    }
+    if (kind === 'counterexample') conditions.point = draft.point?.trim() ?? '';
+    if (kind === 'steps') conditions.steps = draft.proofSteps?.trim() ?? '';
+    if (draft.proofStatement?.trim()) conditions.statement = draft.proofStatement.trim();
+    return conditions;
+  }
+  if (draft.task === 'series_convergence') return { term: draft.expression.trim(), index_start: draft.indexStart?.trim() ?? '' };
+  if (draft.task === 'power_series') return { goal: draft.powerGoal ?? 'radius', coefficient: draft.expression.trim(),
+    center: draft.powerCenter?.trim() ?? '', index_start: draft.indexStart?.trim() ?? '' };
+  if (draft.task === 'fourier_series') return { expression: draft.expression.trim(), lower: draft.lower.trim(),
+    upper: draft.upper.trim(), order: draft.order ?? '3' };
+  if (draft.task === 'triple_integral') {
+    const integrand = draft.expression.trim();
+    const mode = draft.tripleMode ?? 'box';
+    const outerLower = draft.lower.trim(), outerUpper = draft.upper.trim();
+    const middleLower = draft.innerLower?.trim() ?? '', middleUpper = draft.innerUpper?.trim() ?? '';
+    const innerLower = draft.tripleInnerLower?.trim() ?? '', innerUpper = draft.tripleInnerUpper?.trim() ?? '';
+    if (mode === 'cylindrical') return { integrand, region_mode: mode, theta_lower: outerLower, theta_upper: outerUpper,
+      radius_lower: middleLower, radius_upper: middleUpper, z_lower: innerLower, z_upper: innerUpper };
+    if (mode === 'spherical') return { integrand, region_mode: mode, theta_lower: outerLower, theta_upper: outerUpper,
+      phi_lower: middleLower, phi_upper: middleUpper, rho_lower: innerLower, rho_upper: innerUpper };
+    return { integrand, region_mode: mode, x_lower: outerLower, x_upper: outerUpper,
+      y_lower: middleLower, y_upper: middleUpper, z_lower: innerLower, z_upper: innerUpper };
+  }
   if (draft.task === 'double_integral') {
     const integrand=draft.expression.trim();
     const swap:Record<string,string>=draft.swapOrder ? {swap_order:'true'} : {};
@@ -85,7 +330,104 @@ export function manualInputKey(draft: ManualIntegralDraft): string {
 }
 
 export function manualInputError(draft: ManualIntegralDraft): string | null {
-  if (!draft.expression.trim()) return ['integral', 'antiderivative'].includes(draft.task) ? '请填写被积函数。' : '请填写函数表达式。';
+  if (draft.task === 'space_geometry') {
+    const kind = draft.spaceKind ?? 'vector_operations';
+    for (const field of SPACE_KIND_FIELDS[kind]) {
+      const invalid = spaceFieldError(draft[field.key], field.label, spaceFieldSize(field.condition));
+      if (invalid) return invalid;
+    }
+    if (kind === 'surface_tangent' || kind === 'quadric_surface') {
+      const raw = draft.expression.trim();
+      if (!raw) return kind === 'surface_tangent' ? '请填写曲面方程。' : '请填写二次曲面方程。';
+      const parts = raw.split('=');
+      if (parts.length > 2 || parts.some(part => !part.trim())) return '曲面方程最多有一个等号，且两边不能为空。';
+      if (parts.some(part => inspectMath(part, ['x', 'y', 'z']).error)) return '请检查曲面方程，只使用 x、y、z。';
+    }
+    return null;
+  }
+  if (draft.task === 'curve_surface_integral') {
+    const kind = draft.integralKind ?? 'line_scalar';
+    for (const field of CURVE_SURFACE_KIND_FIELDS[kind]) {
+      const invalid = curveSurfaceFieldError(kind, field, draft[field.key]);
+      if (invalid) return invalid;
+    }
+    if (CURVE_SURFACE_SCALAR_KINDS.includes(kind)) {
+      if (!draft.expression.trim()) return '请填写被积函数。';
+      if (inspectMath(draft.expression, ['x', 'y', 'z']).error) return '请检查被积函数，只使用 x、y、z。';
+    }
+    const orientations = CURVE_SURFACE_ORIENTATIONS[kind];
+    const orientation = draft.integralOrientation ?? orientations?.[0]?.value;
+    if (orientations && !orientations.some(item => item.value === orientation)) return '请选择该积分类型的定向。';
+    return null;
+  }
+  if (draft.task === 'proof') {
+    const kind = draft.proofKind ?? 'ivt_root';
+    if (PROOF_SINGLE_KINDS.includes(kind)) {
+      if (!draft.expression.trim()) return '请填写函数 f(x)。';
+      if (inspectMath(draft.expression, ['x']).error) return '请检查函数 f(x)，只使用变量 x。';
+    }
+    if (kind === 'cauchy_mvt' || kind === 'inequality' || kind === 'counterexample') {
+      if (!draft.proofLeft?.trim()) return '请填写左端函数或左式。';
+      if (!draft.proofRight?.trim()) return '请填写右端函数或右式。';
+      if (inspectMath(draft.proofLeft, ['x']).error || inspectMath(draft.proofRight, ['x']).error) return '请检查左、右表达式，只使用变量 x。';
+    }
+    if (PROOF_BOUND_KINDS.includes(kind)) {
+      if (!draft.lower.trim() || inspectMath(draft.lower, []).error) return '区间下限必须是有限实常数表达式。';
+      if (!draft.upper.trim() || inspectMath(draft.upper, []).error) return '区间上限必须是有限实常数表达式。';
+    }
+    if (PROOF_RELATION_KINDS.includes(kind)) {
+      const allowed = kind === 'inequality' ? ['>=', '<='] : ['>=', '<=', '>', '<', '='];
+      if (!allowed.includes(draft.proofRelation ?? '>=')) return '请选择该证明类型允许的关系符号。';
+    }
+    if (kind === 'counterexample' && (!draft.point?.trim() || inspectMath(draft.point, []).error)) return '反例点必须是有限实常数表达式。';
+    if (kind === 'steps') {
+      const invalid = proofStepError(draft.proofSteps?.trim() ?? '');
+      if (invalid) return invalid;
+    }
+    if ((draft.proofStatement?.trim().length ?? 0) > 600) return '命题陈述不能超过600字。';
+    return null;
+  }
+  if (draft.task === 'series_convergence' || draft.task === 'power_series') {
+    const raw = draft.expression.trim();
+    if (!raw) return draft.task === 'series_convergence' ? '请填写级数通项。' : '请填写幂级数系数。';
+    if (inspectMath(raw, ['n']).error) return draft.task === 'series_convergence' ? '请检查级数通项，只使用指标 n。' : '请检查幂级数系数，只使用指标 n。';
+    const start = (draft.indexStart ?? '').trim();
+    if (!/^\d+$/.test(start) || Number(start) > 100) return '起始指标必须是0至100的整数，不自动补默认值。';
+    if (draft.task === 'power_series') {
+      if (!['radius', 'sum'].includes(draft.powerGoal ?? 'radius')) return '请选择求收敛域或收敛域与和函数。';
+      const center = (draft.powerCenter ?? '').trim();
+      if (!center || inspectMath(center, []).error) return '请填写有限实展开中心，如 0、-1/2 或 pi。';
+    }
+    return null;
+  }
+  if (draft.task === 'fourier_series') {
+    const raw = draft.expression.trim();
+    if (!raw) return '请填写周期函数表达式。';
+    if (inspectMath(raw, ['x']).error) return '请检查傅里叶级数函数，只使用变量 x。';
+    for (const [key, label] of [['lower', '区间下限'], ['upper', '区间上限']] as const) {
+      if (!draft[key].trim() || inspectMath(draft[key], []).error) return `${label}必须是有限实常数表达式，如 -pi 或 0。`;
+    }
+    if (!/^(?:[1-9]|1[0-2])$/.test(draft.order ?? '3')) return '傅里叶截断阶数必须是1至12的整数。';
+    return null;
+  }
+  if (!draft.expression.trim()) return ['integral', 'antiderivative', 'triple_integral'].includes(draft.task) ? '请填写被积函数。' : '请填写函数表达式。';
+  if (draft.task === 'triple_integral') {
+    if (inspectMath(draft.expression,['x','y','z']).error) return '请检查三重积分被积函数，只使用x、y、z。';
+    const mode = draft.tripleMode ?? 'box';
+    const layers: [string,string,string[]][] = mode === 'box'
+      ? [['lower','x 下限',[]],['upper','x 上限',[]],['innerLower','y 下限',[]],['innerUpper','y 上限',[]],['tripleInnerLower','z 下限',[]],['tripleInnerUpper','z 上限',[]]]
+      : mode === 'z_simple'
+      ? [['lower','x 下限',[]],['upper','x 上限',[]],['innerLower','y 下界',['x']],['innerUpper','y 上界',['x']],['tripleInnerLower','z 下界',['x','y']],['tripleInnerUpper','z 上界',['x','y']]]
+      : mode === 'cylindrical'
+      ? [['lower','极角 theta 下限',[]],['upper','极角 theta 上限',[]],['innerLower','半径 r 下界',['theta']],['innerUpper','半径 r 上界',['theta']],['tripleInnerLower','z 下界',['theta','r']],['tripleInnerUpper','z 上界',['theta','r']]]
+      : [['lower','方位角 theta 下限',[]],['upper','方位角 theta 上限',[]],['innerLower','极角 phi 下限',[]],['innerUpper','极角 phi 上限',[]],['tripleInnerLower','径向 rho 下界',['theta','phi']],['tripleInnerUpper','径向 rho 上界',['theta','phi']]];
+    for (const [key,label,variables] of layers) {
+      const raw = (draft[key as keyof ManualIntegralDraft] as string | undefined)?.trim() ?? '';
+      if (!raw) return `请填写${label}，不自动补0。`;
+      if (inspectMath(raw,variables).error) return variables.length ? `${label}只能含已列出的外层变量(${variables.join('、')})，或为常数。` : `${label}必须是完整填写的有限实常数表达式。`;
+    }
+    return null;
+  }
   if (draft.task === 'double_integral') {
     if (inspectMath(draft.expression,['x','y']).error) return '请检查二重积分被积函数，只使用x、y。';
     if(draft.doubleApplication && draft.doubleApplication!=='integral'){

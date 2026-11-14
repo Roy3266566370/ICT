@@ -1135,6 +1135,18 @@ export function computeLab(problem: LabProblem, params: Record<string, unknown>)
       if (problem.model.task === 'power_series') return evaluatePowerSeries(problem);
       if (problem.model.task === 'fourier_series') return evaluateFourierSeries(problem);
       if (problem.model.task === 'proof') return evaluateProof(problem);
+      if (problem.manual_input?.task === 'triple_integral') {
+        const s=problem.solution, complete=s.solution_complete === true;
+        return {subject:'calculus',task:'triple_integral',kind:'space',
+          headline:s.answer || s.summary || '三重积分',answerText:s.answer || '',
+          metrics:[{id:'value',label:'结果',value:s.answer || '—',tone:'accent'},{id:'method',label:'方法',value:s.summary || '—'}],
+          checks:[{id:'region',label:'区域、次序与连续性',status:complete?'pass':'warn',detail:s.incomplete_reason || s.summary},
+            {id:'numeric',label:'独立数值复核',status:complete?'pass':'warn',detail:complete?'解析结果与独立数值积分一致。':'尚未完成独立数值复核。'}],
+          notes:s.limitations ?? [],series:[],rects:[],domain:{x_min:-1,x_max:1},
+          exact:typeof s.answer_value === 'number' ? s.answer_value : null,approx:null,error:null,
+          trace:s.steps.map((step,index)=>({index,label:step.title,detail:step.detail,values:{}})),
+          space:s.space};
+      }
       if (['triple_integral','line_integral','surface_integral','green','gauss','stokes','space_geometry'].includes(problem.model.task ?? '')) return evaluateSpace(problem);
       const analysisKind = problem.model.analysis_kind
         ?? (['limit', 'taylor', 'higher_derivative', 'function_study'].includes(problem.model.task ?? '')

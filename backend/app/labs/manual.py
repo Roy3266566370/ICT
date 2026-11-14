@@ -12,14 +12,29 @@ from .kernel_models import FIELD_LABELS, TASKS, _validate
 
 
 def preview_integral(task: str, conditions: dict[str, Any]) -> dict[str, Any]:
-    if task not in ('integral', 'antiderivative', 'derivative', 'limit', 'higher_derivative', 'continuity', 'implicit_normal', 'function_study', 'taylor', 'geometric_area', 'rotation_volume', 'ode', 'multivariable', 'multivariable_extrema', 'double_integral'):
-        raise ValueError('手动输入目前支持积分、指定点求导、导函数与高阶导数及极限')
+    if task not in ('integral', 'antiderivative', 'derivative', 'limit', 'higher_derivative', 'continuity', 'implicit_normal', 'function_study', 'taylor', 'geometric_area', 'rotation_volume', 'ode', 'multivariable', 'multivariable_extrema', 'double_integral', 'triple_integral', 'series_convergence', 'power_series', 'fourier_series', 'space_geometry', 'curve_surface_integral', 'proof'):
+        raise ValueError('手动输入目前支持积分、导数与极限、级数与展开等题型')
     c = copy.deepcopy(conditions)
+    if task in ('series_convergence', 'power_series', 'fourier_series'):
+        from .manual_series import preview
+        return preview(task, c)
     if task == 'integral' and 'integral_mode' in c:
         from .manual_improper_integral import preview
         return preview(c)
     if task == 'double_integral':
         from .manual_double_integral import preview
+        return preview(c)
+    if task == 'triple_integral':
+        from .manual_triple_integral import preview
+        return preview(c)
+    if task == 'space_geometry':
+        from .manual_space_geometry import preview
+        return preview(c)
+    if task == 'curve_surface_integral':
+        from .manual_space_integrals import preview
+        return preview(c)
+    if task == 'proof':
+        from .manual_proof import preview
         return preview(c)
     if task == 'multivariable_extrema':
         from .extrema import preview
@@ -166,8 +181,12 @@ def preview_integral(task: str, conditions: dict[str, Any]) -> dict[str, Any]:
         point = exact_point
         symbol = sp.Symbol(variable, real=True)
         from sympy.calculus.util import continuous_domain
+        from .calculus_analysis import _real_side_defined
         if continuous_domain(expression, symbol, sp.S.Reals).contains(point) is not sp.S.true:
             raise ValueError('求导点不在原式已确认的实定义域内')
+        side_domain = _real_side_defined(expression, symbol, point)
+        if not side_domain.get('left') or not side_domain.get('right'):
+            raise ValueError('该点在原式只有单侧实邻域；当前导数入口只支持双侧实邻域，不能按双侧导数判定')
         left = sp.limit((expression - expression.subs(symbol, point))/(symbol-point), symbol, point, dir='-')
         right = sp.limit((expression - expression.subs(symbol, point))/(symbol-point), symbol, point, dir='+')
         if safe_float(left) is None or safe_float(right) is None or sp.simplify(left-right) != 0:
@@ -247,6 +266,35 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
         problem=build_problem(c)
         problem['model']['modeling_task']=task
         _attach_solution(problem)
+    elif task == 'triple_integral':
+        from .manual_triple_integral import build_problem
+        from .recognize import _attach_solution
+        problem=build_problem(c)
+        problem['model']['modeling_task']=task
+        _attach_solution(problem)
+    elif task == 'space_geometry':
+        from .manual_space_geometry import build_problem
+        from .recognize import _attach_solution
+        problem=build_problem(c)
+        problem['model']['modeling_task']=task
+        _attach_solution(problem)
+    elif task == 'curve_surface_integral':
+        from .manual_space_integrals import build_problem
+        from .recognize import _attach_solution
+        problem=build_problem(c)
+        problem['model']['modeling_task']=task
+        _attach_solution(problem)
+    elif task == 'proof':
+        from .manual_proof import build_problem
+        from .recognize import _attach_solution
+        problem=build_problem(c)
+        problem['model']['modeling_task']=task
+        _attach_solution(problem)
+    elif task in ('series_convergence', 'power_series', 'fourier_series'):
+        from .manual_series import build_problem
+        from .recognize import _attach_solution
+        problem=build_problem(task, c)
+        _attach_solution(problem)
     else:
         problem = compile_kernel_problem({'task': task, 'conditions': kernel_conditions}, allow_unfinished=True)
     if task in ('derivative', 'limit', 'continuity', 'taylor') or (task == 'higher_derivative' and 'point' in c):
@@ -288,6 +336,31 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
             problem['status'] = 'ready'
             if not result_latex:
                 raise ValueError('内核未提供可展示的精确结果') from None
+    elif task in ('series_convergence', 'power_series', 'fourier_series'):
+        if (solution_status in ('incomplete', 'undetermined', 'unsupported', 'undefined')
+                or solution.get('solution_complete') is False or not solution.get('answer')):
+            result_status = 'unsupported'
+            result_latex = ''
+            result_note = (solution.get('incomplete_reason') or solution.get('summary')
+                           or (solution.get('limitations') or ['当前级数内核未给出确定结论'])[0])
+            problem['status'] = 'unsupported'
+        else:
+            result_status = 'complete'
+            result_latex = ''
+            result_note = ''
+            problem['status'] = 'ready'
+    elif task == 'proof':
+        if solution.get('proof_status') in ('verified', 'disproved'):
+            result_status = 'complete'
+            result_latex = ''
+            result_note = ''
+            problem['status'] = 'ready'
+        else:
+            result_status = 'unsupported'
+            result_latex = ''
+            result_note = (solution.get('incomplete_reason') or solution.get('summary')
+                           or '当前证明未获得整体认证，只保留已核验的证明义务。')
+            problem['status'] = 'unsupported'
     else:
         if (solution_status in ('incomplete', 'undetermined', 'unsupported', 'undefined')
                 or solution.get('solution_complete') is False or not solution.get('answer')):
@@ -303,6 +376,19 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
             problem['status'] = 'ready'
             if not result_latex:
                 raise ValueError('内核未提供可展示的精确结果') from None
+    proof_details = None
+    if task == 'proof':
+        from .manual_proof import KIND_LABELS, certificate_facts
+        certificate = solution.get('certificate') or {}
+        proof_details = {'label': KIND_LABELS.get(str(c.get('proof_kind')), '证明'),
+                         'proof_kind': solution.get('proof_kind'),
+                         'proof_status': solution.get('proof_status'),
+                         'verification_level': solution.get('verification_level'),
+                         'obligations': solution.get('obligations') or [],
+                         'certificate': certificate,
+                         'certificate_facts': certificate_facts(certificate),
+                         'statement': c.get('statement') or '',
+                         'reason': solution.get('incomplete_reason')}
     problem['manual_input'] = {'task': task, 'conditions': {k: str(v) for k, v in c.items()}, 'confirmed': True,
                                'latex': preview['latex'], 'result_latex': result_latex,
                                'result_status': result_status,
@@ -313,6 +399,13 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
                                'multi_details': solution.get('multi_details'),
                                'extrema_details': solution.get('extrema_details'),
                                'double_details': solution.get('double_details'),
+                               'triple_details': solution.get('triple_details'),
+                               'space_details': solution.get('space_details'),
+                               'space_integral_details': solution.get('space_integral_details'),
+                               'proof_details': proof_details,
+                               'series_details': solution.get('series_details'),
+                               'power_details': solution.get('power_details'),
+                               'fourier_details': solution.get('fourier_details'),
                                'double_extension': solution.get('double_extension'),
                                'ode_details': {key: solution.get(key) for key in ('ode_order','ode_hints','solution_latex','initial_conditions','residual_verified','initial_conditions_verified','free_constants','solution_domain','scope_note')} if task == 'ode' else None,
                                'geometry_details': {'region_kind': c['region_kind'], 'rotation_axis': c.get('rotation_axis'), 'quantities': solution.get('quantities', []), 'zero_points': problem['model'].get('boundary_roots', []), 'effective_intervals': problem['model'].get('effective_intervals')} if task in ('geometric_area','rotation_volume') else None,
@@ -326,15 +419,25 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
     problem['text'] = preview['question']
     problem['title'] = preview['question']
     problem['model']['formula_tex'] = preview['latex']
-    if task == 'double_integral':
+    if task in ('series_convergence', 'power_series', 'fourier_series'):
+        pass
+    elif task == 'double_integral':
         problem['model']['expression'] = c['integrand']
+    elif task == 'triple_integral':
+        problem['model']['expression'] = c['integrand']
+    elif task == 'space_geometry':
+        problem['model']['expression'] = c.get('expression') or c.get('surface') or ''
+    elif task == 'curve_surface_integral':
+        problem['model']['expression'] = c.get('integrand') or ''
+    elif task == 'proof':
+        problem['model']['expression'] = c.get('expression') or c.get('left') or ''
     elif task not in ('implicit_normal','ode'):
         problem['model']['expression'] = c['expression']
     else:
         problem['model']['params'] = []
     problem['model']['preserve_expression_structure'] = True
     for formula in problem['recognition']['formulas']:
-        if r'\int' in formula.get('tex', ''):
+        if r'\int' in formula.get('tex', '') or task in ('series_convergence', 'power_series', 'fourier_series'):
             formula['tex'] = preview['latex']
     for item in problem['recognition']['conditions']:
         if item['id'] in c:
@@ -345,6 +448,21 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
             item['label']={'expression':'目标函数','constraint':'完整等式约束','variables':'变量顺序','operation':'极值任务'}.get(item['id'],item['label'])
         if task == 'double_integral':
             from .manual_double_integral import labels
+            item['label']=labels(c).get(item['id'],item['label'])
+        if task == 'triple_integral':
+            from .manual_triple_integral import labels
+            item['label']=labels(c).get(item['id'],item['label'])
+        if task in ('series_convergence', 'power_series', 'fourier_series'):
+            from .manual_series import labels
+            item['label']=labels(c).get(item['id'],item['label'])
+        if task == 'space_geometry':
+            from .manual_space_geometry import labels
+            item['label']=labels(c).get(item['id'],item['label'])
+        if task == 'curve_surface_integral':
+            from .manual_space_integrals import labels
+            item['label']=labels(c).get(item['id'],item['label'])
+        if task == 'proof':
+            from .manual_proof import labels
             item['label']=labels(c).get(item['id'],item['label'])
     # 发散或内核未完成不是“缺条件”，结果区会单独说明；不要在这里要求用户补条件。
     problem['recognition']['ambiguities'] = [

@@ -79,7 +79,7 @@ def test_space_geometry_distances_intersection_and_angle():
 
 def test_invalid_space_dimensions_are_rejected():
     with pytest.raises(ValueError):
-        plan('line_integral', curve=['t', 't'], t_bounds=['0', '1'], kind='scalar', field='1')
+        plan('line_integral', curve=['t'], t_bounds=['0', '1'], kind='scalar', field='1')
     with pytest.raises(ValueError):
         plan('gauss', field=['x', 'y'], region={'kind': 'box', 'x': ['0', '1'], 'y': ['0', '1'], 'z': ['0', '1']})
     with pytest.raises(ValueError):

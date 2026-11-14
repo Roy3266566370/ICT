@@ -52,12 +52,12 @@ TASKS = {
     'power_series':_spec('幂级数','calculus','goal','coefficient expression center index_start order'),
     'fourier_series':_spec('傅里叶级数','calculus','expression lower upper','order variable'),
     'triple_integral':_spec('三重积分','calculus','integrand region'),
-    'line_integral':_spec('曲线积分','calculus','curve t_bounds kind field'),
-    'surface_integral':_spec('曲面积分','calculus','surface uv_bounds kind field'),
-    'green':_spec('Green公式','calculus','field region'),
+    'line_integral':_spec('曲线积分','calculus','curve t_bounds kind field','orientation'),
+    'surface_integral':_spec('曲面积分','calculus','kind field','surface uv_bounds surface_mode surface_z region orientation'),
+    'green':_spec('Green公式','calculus','field region','orientation'),
     'gauss':_spec('Gauss公式','calculus','field region'),
-    'stokes':_spec('Stokes公式','calculus','field surface_z region'),
-    'space_geometry':_spec('空间解析几何','calculus','geometry_kind', 'point plane line_point line_direction plane2'),
+    'stokes':_spec('Stokes公式','calculus','field surface_z region','orientation'),
+    'space_geometry':_spec('空间解析几何','calculus','geometry_kind','point plane line_point line_direction plane2 vector_a vector_b vector_c point_a point_b point_c normal direction_a direction_b surface expression'),
     'proof':_spec('证明与存在性','calculus','proof_kind','expression lower upper left right relation point steps statement'),
     'optimization':_spec('极值与梯度下降','optimization','expression variables goal bounds','initial_point learning_rate iterations'),
     'bfs':_spec('广度优先遍历','algorithm','nodes edges start directed neighbor_order'),
@@ -101,13 +101,13 @@ def task_catalog():
         'power_series':'goal=radius|sum|expand；radius/sum需要coefficient，expand需要expression与order；端点单独判断。',
         'fourier_series':'expression为x的函数；lower/upper为有限周期区间；order为1至12。',
         'triple_integral':'region.kind=box|z_simple|cylindrical|spherical；柱/球坐标自动乘Jacobian。',
-        'line_integral':'curve=[x(t),y(t),z(t)]；kind=scalar|vector；vector时field=[P,Q,R]。',
-        'surface_integral':'surface=[x(u,v),y(u,v),z(u,v)]；kind=scalar|flux；flux时field=[P,Q,R]。',
-        'green':'field=[P,Q]；region={x:[a,b],y:[y0(x),y1(x)]}；边界逆时针。',
+        'line_integral':'curve=[x(t),y(t)]或[x(t),y(t),z(t)]；kind=scalar|vector；vector时field=[P,Q,R]，orientation=forward|reverse。',
+        'surface_integral':'surface_mode=parametric时surface=[x(u,v),y(u,v),z(u,v)]、uv_bounds；graph时surface_z与region={x:[a,b],y:[y0(x),y1(x)]}；kind=scalar|flux；flux时orientation=positive|negative（graph为up|down）。',
+        'green':'field=[P,Q]；region={x:[a,b],y:[y0(x),y1(x)]}；orientation=positive|negative。',
         'gauss':'field=[P,Q,R]；region={kind:"box",x:[a,b],y:[c,d],z:[e,f]}；外法向。',
-        'stokes':'field=[P,Q,R]；surface_z为z(x,y)，region={x:[a,b],y:[c,d]}；向上法向。',
-        'space_geometry':'geometry_kind=point_plane_distance|point_line_distance|line_plane_intersection|plane_plane_angle；按类型提供point、plane、line_point等。',
-        'proof':'proof_kind=ivt_root|rolle|mvt|monotone_inequality|counterexample|steps；只认证模板条件与局部等式，未认证证明不判分。',
+        'stokes':'field=[P,Q,R]；surface_z为z(x,y)，region={x:[a,b],y:[c,d]}；orientation=up|down。',
+        'space_geometry':'geometry_kind=vector_operations|vector_products|line_from_points|line_point_direction|plane_point_normal|plane_three_points|line_line_relation|line_plane_relation|plane_plane_relation|point_line_distance|point_plane_distance|line_plane_projection|surface_tangent|quadric_surface；点、向量与平面系数按类型提供。',
+        'proof':'proof_kind=ivt_root|ivt_unique_root|rolle|mvt|cauchy_mvt|monotone_inequality|inequality|counterexample|steps；只认证模板条件与局部等式，未认证证明不判分。',
     }.get(key,'所有必需条件均须来自原题；矩阵、向量使用JSON数组，数学表达式使用显式乘号。')}
             for key,spec in TASKS.items()}
 
@@ -490,7 +490,7 @@ def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
     if task == 'proof':
         from .proof import build_proof_problem
         from .recognize import _attach_solution
-        _choice(c.get('proof_kind'), ('ivt_root','rolle','mvt','monotone_inequality','counterexample','steps'))
+        _choice(c.get('proof_kind'), ('ivt_root','ivt_unique_root','rolle','mvt','cauchy_mvt','monotone_inequality','inequality','counterexample','steps'))
         p=build_proof_problem(c)
         p['model']['modeling_task']=task
         _attach_solution(p)

@@ -2374,6 +2374,9 @@ def solve_problem(model: Mapping[str, Any]) -> dict[str, Any]:
             return solve(model)
         from .double_integral import solve_double_integral
         return solve_double_integral(model)
+    if model.get('task') == 'triple_integral' and model.get('manual_triple_conditions'):
+        from .manual_triple_integral import solve
+        return solve(model)
     subject = str(model.get("subject") or "")
     if subject == "unknown":
         return {"summary": "题目类型尚未确认，请先核对原题。", "answer": "", "steps": [],
@@ -2493,6 +2496,9 @@ def evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
             return evaluate_unfinished(model)
         from .double_integral import evaluate_double_integral
         return evaluate_double_integral(model, params)
+    if model.get('task') == 'triple_integral' and model.get('manual_triple_conditions'):
+        from .manual_triple_integral import evaluate
+        return evaluate(model)
     subject = str(model.get("subject") or "")
     if subject == "calculus":
         if model.get('task') == 'ode':
@@ -2532,6 +2538,9 @@ def evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
                 'exact': solution.get('answer_value'), 'approx': None, 'error': None,
                 'answerText': solution.get('answer') or '',
                 'trace': [{'index': 0, 'label': '判别', 'detail': solution.get('answer') or '', 'values': {}}],
+                'series_status': solution.get('series_status'),
+                'series_method': solution.get('series_method'),
+                'series_details': solution.get('series_details'),
                 'series_solution': solution,
             }
         from .exam_math import evaluate_exam_math

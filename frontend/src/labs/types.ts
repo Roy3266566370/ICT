@@ -343,6 +343,7 @@ export interface LabSolution {
   obligations?: { id: string; label: string; status: 'pass' | 'fail' | 'warn'; detail: string }[];
   certificate?: Record<string, unknown>;
   space?: CalculusResult['space'];
+  space_integral_details?: SpaceIntegralDetails;
   answer_choice?: string | null;
 }
 
@@ -431,6 +432,60 @@ export interface ExtremaDetails {
     classification:'minimum'|'maximum'|'saddle'|'undetermined';evidence:string;residual_verified:boolean;constraint_verified:boolean|null}[];
 }
 
+export interface TripleDetails {
+  region_mode: 'box' | 'z_simple' | 'cylindrical' | 'spherical';
+  outer_variable: 'x' | 'theta';
+  middle_variable: 'y' | 'r' | 'phi';
+  inner_variable: 'z' | 'rho';
+  outer_bounds: string[];
+  middle_bounds: string[];
+  inner_bounds: string[];
+  region_description: string;
+  region_verified: boolean;
+  continuous_verified: boolean;
+  jacobian: string;
+  jacobian_latex: string;
+  numeric_value?: number;
+  note: string;
+}
+
+export interface SeriesDetails {
+  term: string;
+  index_start: number;
+  status: string;
+  status_label: string;
+  method: string | null;
+  sum_value: string | null;
+  note: string;
+}
+
+export interface PowerSeriesDetails {
+  goal: 'radius' | 'sum' | 'expand';
+  center: string;
+  index_start: number;
+  coefficient: string;
+  radius: string | null;
+  radius_method: string | null;
+  interval: string | null;
+  endpoints: { label: string; point: string; status: string; method?: string | null; included: boolean }[];
+  sum_function: string | null;
+  note: string;
+}
+
+export interface FourierDetails {
+  a0: string;
+  coefficients: { n: number; an: string; bn: string }[];
+  partial: string;
+  order: number;
+  lower: string;
+  upper: string;
+  period: string;
+  discontinuities: string[];
+  endpoint_jump: boolean;
+  convergence_note: string;
+  note: string;
+}
+
 export interface DoubleIntegralExtension {
   kind: 'affine' | 'applications' | 'polar_improper' | 'strip_improper';
   title: string;
@@ -440,9 +495,45 @@ export interface DoubleIntegralExtension {
   region_points?: {x:number;y:number}[];
 }
 
+export interface SpaceGeometryDetails {
+  kind: string;
+  label: string;
+  relation?: string | null;
+  angle?: string | null;
+  distance?: string | null;
+  intersection?: string | null;
+  equations?: { label: string; latex: string }[];
+  standard_form?: string | null;
+  classification?: string | null;
+  center?: string | null;
+  facts: { label: string; latex?: string; text?: string }[];
+  notes?: string[];
+}
+
+export interface SpaceIntegralDetails {
+  kind: string;
+  label: string;
+  facts: { label: string; latex?: string; text?: string }[];
+  equations?: { label: string; latex: string }[];
+  orientation?: string | null;
+  notes?: string[];
+}
+
+export interface ProofDetails {
+  label: string;
+  proof_kind: string;
+  proof_status: string;
+  verification_level: string;
+  obligations: { id: string; label: string; status: 'pass' | 'fail' | 'warn'; detail: string }[];
+  certificate: Record<string, unknown>;
+  certificate_facts?: { label: string; text: string }[];
+  statement: string;
+  reason?: string | null;
+}
+
 export interface LabProblem {
   manual_input?: {
-    task: 'integral' | 'antiderivative' | 'derivative' | 'limit' | 'higher_derivative' | 'continuity' | 'implicit_normal' | 'function_study' | 'taylor' | 'geometric_area' | 'rotation_volume' | 'ode' | 'multivariable' | 'multivariable_extrema' | 'double_integral';
+    task: 'integral' | 'antiderivative' | 'derivative' | 'limit' | 'higher_derivative' | 'continuity' | 'implicit_normal' | 'function_study' | 'taylor' | 'geometric_area' | 'rotation_volume' | 'ode' | 'multivariable' | 'multivariable_extrema' | 'double_integral' | 'triple_integral' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space_geometry' | 'curve_surface_integral' | 'proof';
     conditions: Record<string, string>;
     confirmed: boolean;
     latex: string;
@@ -452,6 +543,13 @@ export interface LabProblem {
     extrema_details?: ExtremaDetails | null;
     double_extension?: DoubleIntegralExtension | null;
     double_details?: {region_kind?:'strip'|'pieces'|'polar'|'improper';region_description?:string;outer_variable:'x'|'y'|'theta';inner_variable:'x'|'y'|'r';outer_bounds:string[];inner_bounds:string[];region_verified:boolean;continuous_verified:boolean;inner_integral_latex:string;zero_area:boolean;note:string} | null;
+    triple_details?: TripleDetails | null;
+    series_details?: SeriesDetails | null;
+    space_details?: SpaceGeometryDetails | null;
+    space_integral_details?: SpaceIntegralDetails | null;
+    proof_details?: ProofDetails | null;
+    power_details?: PowerSeriesDetails | null;
+    fourier_details?: FourierDetails | null;
     ode_details?: { ode_order?:number; ode_hints?:string[]; solution_latex?:string; initial_conditions?:string[]; residual_verified?:boolean; initial_conditions_verified?:boolean; free_constants?:boolean; solution_domain?:string | null; scope_note?:string } | null;
     geometry_details?: { region_kind: string; rotation_axis: string | null; quantities: { id:string; label:string; exact:string; latex:string }[]; zero_points:string[]; effective_intervals:string[][] | null } | null;
     taylor_details?: { point: string; order: number; coefficients: { order: number; value: string; latex: string }[]; polynomial_latex: string; remainder_kind: string; remainder_latex: string; relation_latex: string; window_lower: string; window_upper: string; error_bound: string | null; range_note: string } | null;

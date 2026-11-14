@@ -66,12 +66,123 @@ def _rectangles(clean,plan):
     return rects
 
 
+def _rect_interval(rect,variable):
+    x0,x1,y0,y1=rect
+    if variable==X:return sp.Interval(x0,x1)
+    if variable==Y:return sp.Interval(y0,y1)
+    return None
+
+
+def _range_on_rect(expression,rect):
+    if len(expression.free_symbols)!=1:return None
+    variable=next(iter(expression.free_symbols))
+    interval=_rect_interval(rect,variable)
+    if interval is None:return None
+    try:span=function_range(expression,variable,interval)
+    except (ValueError,TypeError,NotImplementedError):return None
+    if not isinstance(span,sp.Interval):return None
+    if span.inf.is_finite is not True or span.sup.is_finite is not True:return None
+    return span
+
+
+def _strict_positive(expression,rect):
+    if expression.is_positive is True:return True
+    if expression.is_number:return expression.is_extended_positive is True
+    if expression.func==sp.exp:return True
+    span=_range_on_rect(expression,rect)
+    if span is not None:return span.inf.is_positive is True
+    if expression.is_Add:
+        pairs=[_sign_pair(arg,rect) for arg in expression.args]
+        return all(pair is not None and pair[0] for pair in pairs) and any(_strict_positive(arg,rect) for arg in expression.args)
+    if expression.is_Mul:
+        return all(_strict_positive(arg,rect) for arg in expression.args)
+    if expression.is_Pow:
+        base,exponent=expression.base,expression.exp
+        if exponent.is_integer and exponent.is_positive:
+            if exponent.is_even:return _strict_positive(base,rect) or _strict_negative(base,rect)
+            return _strict_positive(base,rect)
+    return False
+
+
+def _strict_negative(expression,rect):
+    if expression.is_negative is True:return True
+    if expression.is_number:return expression.is_extended_negative is True
+    span=_range_on_rect(expression,rect)
+    if span is not None:return span.sup.is_negative is True
+    if expression.is_Add:
+        pairs=[_sign_pair(arg,rect) for arg in expression.args]
+        return all(pair is not None and pair[1] for pair in pairs) and any(_strict_negative(arg,rect) for arg in expression.args)
+    if expression.is_Mul:
+        signs=[_strict_sign(arg,rect) for arg in expression.args]
+        if any(sign is None for sign in signs):return False
+        product=1
+        for sign in signs:product*=sign
+        return product<0
+    if expression.is_Pow:
+        base,exponent=expression.base,expression.exp
+        if exponent.is_integer and exponent.is_positive:
+            if exponent.is_even:return False
+            return _strict_negative(base,rect)
+    return False
+
+
+def _strict_sign(expression,rect):
+    if _strict_positive(expression,rect):return 1
+    if _strict_negative(expression,rect):return -1
+    return None
+
+
+def _sign_pair(expression,rect):
+    if expression.is_zero:return (True,True)
+    if expression.is_number:return (expression.is_nonnegative is True,expression.is_nonpositive is True)
+    if expression.is_nonnegative is True and expression.is_nonpositive is True:return (True,True)
+    if expression.is_nonnegative is True:return (True,False)
+    if expression.is_nonpositive is True:return (False,True)
+    span=_range_on_rect(expression,rect)
+    if span is not None:return (span.inf.is_nonnegative is True,span.sup.is_nonpositive is True)
+    if expression.is_Add:
+        pairs=[_sign_pair(arg,rect) for arg in expression.args]
+        if any(pair is None for pair in pairs):return None
+        return (all(pair[0] for pair in pairs),all(pair[1] for pair in pairs))
+    if expression.is_Mul:
+        pairs=[_sign_pair(arg,rect) for arg in expression.args]
+        if any(pair is None for pair in pairs):return None
+        if not all(pair[0] or pair[1] for pair in pairs):return None
+        if any(pair==(True,True) for pair in pairs):return (True,True)
+        negative=sum(1 for pair in pairs if pair==(False,True))
+        return (negative%2==0,negative%2==1 and not any(pair==(True,False) for pair in pairs))
+    if expression.is_Pow:
+        base,exponent=expression.base,expression.exp
+        if exponent.is_integer:
+            if exponent.is_positive:
+                if exponent.is_even:return (True,False) if base.is_real is not False else None
+                return _sign_pair(base,rect)
+            if exponent.is_negative:
+                pair=_sign_pair(sp.Pow(base,-exponent),rect)
+                if pair is None or not (_strict_positive(base,rect) or _strict_negative(base,rect)):return None
+                return pair
+            return (True,False)
+        if exponent.is_Rational:
+            if exponent.is_negative:
+                pair=_sign_pair(sp.Pow(base,-exponent),rect)
+                if pair is None or not (_strict_positive(base,rect) or _strict_negative(base,rect)):return None
+                return pair
+            numerator,denominator=exponent.p,exponent.q
+            if denominator.is_odd:
+                if numerator.is_even:return (True,False)
+                return _sign_pair(base,rect)
+            pair=_sign_pair(base,rect)
+            return (True,False) if pair is not None and pair[0] else None
+        return None
+    if expression.func==sp.Abs:return (True,False)
+    if expression.func==sp.exp:return (True,False)
+    return None
+
+
 def _nonnegative(f,clean,plan):
     f=sp.simplify(f)
-    if f.is_nonnegative is True: return True
-    if len(f.free_symbols)==1:
-        v=next(iter(f.free_symbols))
-        return all(function_range(f,v,sp.Interval(a,b) if v==X else sp.Interval(lo,hi)).inf.is_nonnegative is True for a,b,lo,hi in _rectangles(clean,plan))
+    rectangles=_rectangles(clean,plan)
+    if all((lambda pair: pair is not None and pair[0])(_sign_pair(f,rect)) for rect in rectangles):return True
     # Tensor-product Bernstein coefficients on each projection rectangle provide
     # a sufficient whole-domain proof, including boundaries. Work is bounded.
     if not f.is_polynomial(X,Y): return False

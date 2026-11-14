@@ -76,3 +76,51 @@ def test_dependent_denominator_pole_is_not_cancelled():
     p=document("(y/y)*y'=1",'y(0)=0')['problems'][0]
     assert p['manual_input']['result_status']=='unsupported'
     assert '分母为零' in p['manual_input']['result_note']
+
+
+def test_original_equation_domain_at_initial_point_is_checked():
+    p = document("sqrt(x)^2*y'=x", 'y(-1)=0')['problems'][0]
+    assert p['manual_input']['result_status'] == 'unsupported'
+    assert p['solution']['answer'] == ''
+    assert p['solution']['particular_solution'] is None
+    assert p['solution']['residual_verified'] is False
+    assert p['solution']['initial_conditions_verified'] is False
+    assert '实定义' in p['manual_input']['result_note']
+
+
+def test_solution_domain_excludes_derivative_singular_endpoint():
+    p = document("sqrt(y)*y'=1", 'y(0)=1')['problems'][0]
+    assert p['manual_input']['result_status'] == 'complete'
+    assert p['solution']['solution_domain'] == '(-2/3, +∞)'
+
+    p = document("y*y'=1", 'y(0)=1')['problems'][0]
+    assert p['manual_input']['result_status'] == 'complete'
+    assert p['solution']['solution_domain'] == '(-1/2, +∞)'
+
+
+def test_original_equation_requires_real_values_of_y_and_derivatives_at_initial_point():
+    p = document("sqrt(y)^2*y'=1", 'y(0)=-1')['problems'][0]
+    assert p['manual_input']['result_status'] == 'unsupported'
+    assert p['solution']['answer'] == ''
+    assert '实定义' in p['manual_input']['result_note']
+
+    p = document("log(y)*y'=1", 'y(0)=-1')['problems'][0]
+    assert p['manual_input']['result_status'] == 'unsupported'
+    assert p['solution']['answer'] == ''
+    assert '实定义' in p['manual_input']['result_note']
+
+    p = document("sqrt(y')=x", "y(0)=0\ny'(0)=-1")['problems'][0]
+    assert p['manual_input']['result_status'] == 'unsupported'
+    assert p['solution']['answer'] == ''
+    assert '实定义' in p['manual_input']['result_note']
+
+
+@pytest.mark.parametrize('equation,conditions,domain', [
+    ("log(y)-log(y)+y'=1", 'y(0)=1', '(-1, +∞)'),
+    ("log(y)-log(y)+y'=1", 'y(0)=2', '(-2, +∞)'),
+    ("sqrt(y)^2+y'=y-1", 'y(0)=1', '(-∞, 1]'),
+])
+def test_solution_domain_preserves_original_equation_restrictions(equation, conditions, domain):
+    p = document(equation, conditions)['problems'][0]
+    assert p['manual_input']['result_status'] == 'complete'
+    assert p['solution']['solution_domain'] == domain

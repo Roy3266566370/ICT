@@ -35,3 +35,22 @@ test('多分支未指定纵坐标时阻止确认',async({page})=>{
   await expect(page.getByRole('alert')).toContainText('分支');
   await expect(page.getByRole('heading',{name:'确认这是你要计算的题目'})).toHaveCount(0);
 });
+
+test('核对窗口接受曲线方程等号写法并允许重新求解',async({page})=>{
+  await page.goto('/labs');
+  await page.getByRole('button',{name:/^切线与法线/}).click();
+  await page.getByRole('textbox',{name:'曲线方程',exact:true}).fill('y=x^2');
+  await page.getByRole('textbox',{name:'研究点横坐标',exact:true}).fill('0');
+  await page.getByRole('button',{name:'预览并确认题目',exact:true}).click();
+  await page.getByRole('checkbox',{name:'我已核对曲线、完整研究点和分支'}).check();
+  await page.getByRole('button',{name:'确认并计算',exact:true}).click();
+  await expect(page.getByRole('region',{name:'原题计算结果与过程'})).toBeVisible();
+  await page.getByRole('button',{name:'核对识别条件',exact:true}).click();
+  const dialog=page.getByRole('dialog',{name:'核对与修正条件'});
+  await expect(dialog.getByRole('button',{name:'确认并重新求解',exact:true})).toBeEnabled();
+  await expect(dialog.getByRole('textbox',{name:/曲线方程/})).toHaveValue('(y)-(x^2)');
+  const response=page.waitForResponse(r=>r.url().endsWith('/review')&&r.request().method()==='POST');
+  await dialog.getByRole('button',{name:'确认并重新求解',exact:true}).click();
+  const result=await response;
+  expect(result.status(),await result.text()).toBe(200);
+});

@@ -11,7 +11,7 @@ export function ManualIntegralResult({ problem, params }: { problem: LabProblem;
   const swapped=problem.model.swapped ? (Array.isArray(problem.model.swapped) ? problem.model.swapped : [problem.model.swapped]) : [];
   const changed = status === 'complete' && (input.task === 'taylor' ? ['order','point'] : input.task === 'integral' ? ['lower', 'upper'] : input.task === 'higher_derivative' ? ['order', 'point'] : input.task === 'limit' ? ['point', 'side'] : input.task === 'derivative' ? ['point'] : ['c'])
     .some(key => params[key] !== problem.model.defaults[key]);
-  const formula = status === 'complete' && !input.double_extension && !['limit', 'continuity', 'implicit_normal', 'function_study', 'taylor', 'geometric_area', 'rotation_volume', 'ode', 'multivariable', 'multivariable_extrema'].includes(input.task) && input.result_latex
+  const formula = status === 'complete' && !input.double_extension && !['limit', 'continuity', 'implicit_normal', 'function_study', 'taylor', 'geometric_area', 'rotation_volume', 'ode', 'multivariable', 'multivariable_extrema', 'series_convergence', 'power_series', 'fourier_series', 'space_geometry', 'curve_surface_integral', 'proof'].includes(input.task) && input.result_latex
     ? `${input.latex}=${input.result_latex}` : input.latex;
   const approx = input.result_approx && input.result_approx !== '—' ? input.result_approx : '';
   const verification = input.verification ?? problem.solution.verification ?? null;
@@ -46,6 +46,17 @@ export function ManualIntegralResult({ problem, params }: { problem: LabProblem;
       </section> : null}
       <p>阴影与切片使用内核确认的同一组边界；分割数只影响中点和近似，不改变原题积分限和精确值。</p>
     </> : null}
+    {input.triple_details ? <>
+      <h4>三重积分区域、坐标变换与次序核查</h4>
+      <p>固定次序：先对{input.triple_details.inner_variable}积分，再对{input.triple_details.middle_variable}积分，最后对{input.triple_details.outer_variable}积分。</p>
+      <p>完整区域：{input.triple_details.outer_bounds[0]} ≤ {input.triple_details.outer_variable} ≤ {input.triple_details.outer_bounds[1]}；{input.triple_details.middle_bounds[0]} ≤ {input.triple_details.middle_variable} ≤ {input.triple_details.middle_bounds[1]}；{input.triple_details.inner_bounds[0]} ≤ {input.triple_details.inner_variable} ≤ {input.triple_details.inner_bounds[1]}。</p>
+      <p>区域类型：{{box:'长方体',z_simple:'z型区域',cylindrical:'柱坐标区域',spherical:'球坐标区域'}[input.triple_details.region_mode]}；坐标变换雅可比：<Formula tex={input.triple_details.jacobian_latex} /></p>
+      <p>全区域边界关系：{input.triple_details.region_verified ? '已核验' : '未确认'}；原被积函数连续实定义：{input.triple_details.continuous_verified ? '已确认的充分条件通过' : '尚未确认，不能由抽样通过推定'}。</p>
+      {status === 'complete' && typeof input.triple_details.numeric_value === 'number' ? <p>独立数值复核：≈ {input.triple_details.numeric_value.toPrecision(10)}</p> : null}
+      {input.triple_details.region_description ? <p>{input.triple_details.region_description}</p> : null}
+      <p>{input.triple_details.note}</p>
+      <p>空间网格、曲面与边界曲线使用内核确认的同一区域；它们只辅助观察，不改变原题积分限和精确值。</p>
+    </> : null}
     {input.extrema_details ? <>
       <h4>驻点、极值判定与约束核查</h4>
       <p>变量顺序：x、y；{input.extrema_details.constraint ? `完整等式约束：${input.extrema_details.constraint}` : '无额外约束，研究整个实平面上的局部极值'}</p>
@@ -74,6 +85,44 @@ export function ManualIntegralResult({ problem, params }: { problem: LabProblem;
       </> : null}
       <p>{input.multi_details.note}</p>
     </> : null}
+    {input.space_details ? <>
+      <h4>{input.space_details.label} · 结果与依据</h4>
+      {input.space_details.classification ? <p>曲面类型：{input.space_details.classification}</p> : input.space_details.relation ? <p>位置关系：{input.space_details.relation}</p> : null}
+      {input.space_details.angle ? <p>夹角：{input.space_details.angle}</p> : null}
+      {input.space_details.distance !== null && input.space_details.distance !== undefined ? <p>距离：{input.space_details.distance}</p> : null}
+      {input.space_details.intersection ? <p>交点/交线：{input.space_details.intersection}</p> : null}
+      {input.space_details.center ? <p>配方中心：{input.space_details.center}</p> : null}
+      <table><caption>符号计算结果</caption><thead><tr><th>项目</th><th>结果</th></tr></thead><tbody>
+        {input.space_details.facts.map((fact, index) => <tr key={`${fact.label}-${index}`}><th>{fact.label}</th><td>{fact.text ?? <Formula tex={fact.latex ?? ''} />}</td></tr>)}
+      </tbody></table>
+      {input.space_details.equations?.length ? <>{input.space_details.equations.map((equation, index) => <div key={`${equation.label}-${index}`}><p>{equation.label}</p><Formula tex={equation.latex} block /></div>)}</> : null}
+      {input.space_details.notes?.length ? <p>{input.space_details.notes.join('；')}</p> : null}
+      <p>空间图形为有限范围采样，仅辅助观察；距离、夹角、方程与关系由符号计算给出。</p>
+    </> : null}
+    {input.proof_details ? <>
+      <h4>{input.proof_details.label} · 证明核对</h4>
+      <p>证明状态：{{verified:'已认证',disproved:'已反例否定',local_steps_verified:'局部步骤通过（整体未认证）',invalid:'证明无效',unverified:'未认证'}[input.proof_details.proof_status] ?? input.proof_details.proof_status}；认证级别：{input.proof_details.verification_level}</p>
+      {input.result_answer ? <p role="status"><MathText text={input.result_answer} /></p> : null}
+      {input.proof_details.statement ? <p>命题陈述：{input.proof_details.statement}</p> : null}
+      <table><caption>证明义务逐项核对</caption><thead><tr><th>义务</th><th>结果</th><th>说明</th></tr></thead><tbody>
+        {input.proof_details.obligations.map((item, index) => <tr key={`${item.id}-${index}`}><td>{item.label}</td><td>{item.status === 'pass' ? '通过' : item.status === 'warn' ? '待确认' : '未通过'}</td><td>{item.detail}</td></tr>)}
+      </tbody></table>
+      {input.proof_details.certificate_facts?.length ? <table><caption>证明证书与关键依据</caption><thead><tr><th>项目</th><th>内容</th></tr></thead><tbody>
+        {input.proof_details.certificate_facts.map((fact, index) => <tr key={`${fact.label}-${index}`}><th>{fact.label}</th><td>{fact.text}</td></tr>)}
+      </tbody></table> : null}
+      {input.proof_details.reason ? <p>{input.proof_details.reason}</p> : null}
+      <p>证明题不以数值抽样代替证明；局部等式通过不等于整段证明成立，未认证结果不自动判分。</p>
+    </> : null}
+    {input.space_integral_details ? <>
+      <h4>{input.space_integral_details.label} · 结果与依据</h4>
+      {input.space_integral_details.orientation ? <p>定向：{input.space_integral_details.orientation}</p> : null}
+      <table><caption>符号计算结果</caption><thead><tr><th>项目</th><th>结果</th></tr></thead><tbody>
+        {input.space_integral_details.facts.map((fact, index) => <tr key={`${fact.label}-${index}`}><th>{fact.label}</th><td>{fact.text ?? <Formula tex={fact.latex ?? ''} />}</td></tr>)}
+      </tbody></table>
+      {input.space_integral_details.equations?.length ? <>{input.space_integral_details.equations.map((equation, index) => <div key={`${equation.label}-${index}`}><p>{equation.label}</p><Formula tex={equation.latex} block /></div>)}</> : null}
+      {input.space_integral_details.notes?.length ? <p>{input.space_integral_details.notes.join('；')}</p> : null}
+      <p>积分值由符号积分与独立数值复核给出；空间曲线、曲面与边界仅为采样观察，不代替原题条件。</p>
+    </> : null}
     {input.ode_details ? <>
       <h4>微分方程解与核验</h4>
       <p>方程阶数：{input.ode_details.ode_order ?? '未确认'}；识别类型：{input.ode_details.ode_hints?.join('、') || '尚未确认'}</p>
@@ -100,6 +149,34 @@ export function ManualIntegralResult({ problem, params }: { problem: LabProblem;
       <p>局部观察区间：[{input.taylor_details.window_lower}, {input.taylor_details.window_upper}]</p>
       <p>{input.taylor_details.range_note}</p>
       <p>{input.taylor_details.error_bound !== null ? `该观察区间的误差上界：${input.taylor_details.error_bound}` : '当前没有整个观察区间的误差保证。'}</p>
+    </> : null}
+    {input.series_details ? <>
+      <h4>数项级数敛散性判定</h4>
+      <p>通项：<code>{input.series_details.term}</code>；起始项 n={input.series_details.index_start}。</p>
+      <p role="status">判定：{input.series_details.status_label}{input.series_details.method ? `；依据：${input.series_details.method}` : ''}</p>
+      {input.series_details.sum_value ? <p>收敛时级数和：<code>{input.series_details.sum_value}</code></p> : null}
+      <p>{input.series_details.note}</p>
+    </> : null}
+    {input.power_details ? <>
+      <h4>幂级数收敛域与端点核查</h4>
+      <p>目标：{input.power_details.goal === 'sum' ? '和函数（同时核验收敛域）' : '收敛半径与收敛域'}；中心 c={input.power_details.center}；起始项 n={input.power_details.index_start}；系数 a_n=<code>{input.power_details.coefficient}</code>。</p>
+      {input.power_details.radius ? <p>收敛半径：R=<code>{input.power_details.radius}</code>{input.power_details.radius_method ? `；判别依据：${input.power_details.radius_method}` : ''}</p> : <p role="status">收敛半径尚未确认，不补默认半径。</p>}
+      {input.power_details.interval ? <p>收敛区间：<code>{input.power_details.interval}</code></p> : <p>当前未能完整写出收敛区间（例如半径为零或待核验）。</p>}
+      {input.power_details.endpoints.length ? <table><caption>端点逐点代入原级数</caption><thead><tr><th>端点</th><th>代入点</th><th>判定</th><th>是否计入收敛域</th></tr></thead><tbody>{input.power_details.endpoints.map((endpoint, index) => <tr key={index}><td>{endpoint.label}</td><td><code>{endpoint.point}</code></td><td>{endpoint.status === 'absolutely_convergent' ? '绝对收敛' : endpoint.status === 'conditionally_convergent' ? '条件收敛' : endpoint.status === 'divergent' ? '发散' : '尚未判定'}</td><td>{endpoint.included ? '计入' : '不计入'}</td></tr>)}</tbody></table> : <p>当前没有可逐点判断的有限端点；端点结论不自动并入收敛域。</p>}
+      {input.power_details.sum_function ? <><p>和函数（收敛域内）：</p><p><code>{input.power_details.sum_function}</code></p></> : input.power_details.goal === 'sum' ? <p role="status">当前未能核验闭式和函数，不输出数值近似冒充答案。</p> : null}
+      <p>{input.power_details.note}</p>
+    </> : null}
+    {input.fourier_details ? <>
+      <h4>傅里叶系数与前n阶部分和</h4>
+      <p>区间：[{input.fourier_details.lower}, {input.fourier_details.upper}]；周期 T={input.fourier_details.period}；展开到 n={input.fourier_details.order}。</p>
+      <table><caption>按给定区间计算的傅里叶系数</caption><thead><tr><th>n</th><th>a_n</th><th>b_n</th></tr></thead><tbody>
+        <tr><td>0</td><td><code>{input.fourier_details.a0}</code></td><td>—</td></tr>
+        {input.fourier_details.coefficients.map(c => <tr key={c.n}><td>{c.n}</td><td><code>{c.an}</code></td><td><code>{c.bn}</code></td></tr>)}
+      </tbody></table>
+      <p>前 {input.fourier_details.order} 阶部分和：<code>{input.fourier_details.partial}</code></p>
+      <p>区间内间断点：{input.fourier_details.discontinuities.join('、') || '未列出'}{input.fourier_details.endpoint_jump ? '；端点在周期延拓下存在跳跃' : '；端点无跳跃'}。</p>
+      <p>{input.fourier_details.convergence_note}</p>
+      <p>{input.fourier_details.note}</p>
     </> : null}
     {input.study ? <>
       <h4>区间研究结果</h4>
@@ -132,13 +209,19 @@ export function ManualIntegralResult({ problem, params }: { problem: LabProblem;
     </p> : null}
     {status === 'divergent' ? <p role="status">该定积分发散，不存在有限实数结果；不把柯西主值或原函数端点差当作积分值。</p> : null}
     {status === 'unsupported' ? <>
-      <p role="status">{input.task === 'double_integral' ? '当前二重积分尚未完成全域核验或解析计算；保留完整区域，不输出数值替代答案。' : input.task === 'multivariable_extrema' ? '当前内核尚未完成候选全集或极值分类，不把候选表当作最终答案。' : input.task === 'continuity' ? '当前内核无法确认连续性分类，请核对实定义域与原题定义。' : input.task === 'higher_derivative' ? '当前内核未能完成该普通导数计算，请核对函数及可导范围。' : input.task === 'limit' ? '当前内核无法判定该极限；请保留原题条件并核对适用范围。' : input.task === 'derivative' ? '当前内核未能完成该点的导数计算，请核对定义域和求导点。' : input.task === 'antiderivative'
+      <p role="status">{input.task === 'proof' ? '当前证明未获得整体认证；保留已通过的义务、反例或局部步骤，不自动判分。' : input.task === 'triple_integral' ? '当前三重积分尚未完成全域核验或解析计算；保留完整区域与坐标变换，不输出数值替代答案。' : input.task === 'double_integral' ? '当前二重积分尚未完成全域核验或解析计算；保留完整区域，不输出数值替代答案。' : input.task === 'multivariable_extrema' ? '当前内核尚未完成候选全集或极值分类，不把候选表当作最终答案。' : input.task === 'continuity' ? '当前内核无法确认连续性分类，请核对实定义域与原题定义。' : input.task === 'higher_derivative' ? '当前内核未能完成该普通导数计算，请核对函数及可导范围。' : input.task === 'limit' ? '当前内核无法判定该极限；请保留原题条件并核对适用范围。' : input.task === 'derivative' ? '当前内核未能完成该点的导数计算，请核对定义域和求导点。' : input.task === 'series_convergence'
+        ? '当前内核尚未判定该数项级数的敛散性；保留通项、起始项与判别记录，不猜测结论。'
+        : input.task === 'power_series'
+        ? '当前幂级数的收敛半径、端点或和函数尚未全部核验；保留已知部分，不补默认收敛域。'
+        : input.task === 'fourier_series'
+        ? '当前傅里叶系数或部分和尚未得到可核验的闭式结果；保留完整区间与已计算系数。'
+        : input.task === 'antiderivative'
         ? '当前内核未能给出可核验的闭式原函数，不把符号积分形式当作原题答案。'
         : '当前内核未能给出可信的闭式结果，不把数值参考当作原题答案。'}</p>
       {approx ? <p>数值参考：≈ {approx}</p> : null}
       {input.result_note ? <p>{input.result_note}</p> : null}
     </> : null}
-    {status === 'complete' ? <p role="status">{input.double_extension ? '当前展示已确认原题的专用计算结果；修改映射、密度、区域或事件后，请通过核对条件重新计算。' : input.task === 'multivariable_extrema' ? '当前展示已确认原题的驻点与局部判定；修改目标或约束后需要重新核验。' : input.task === 'ode' && input.ode_details?.free_constants ? '当前展示解族及核验依据；未选择任意常数，不绘制单条示例轨迹。' : changed ? '当前图形为修改后的实验，以下保留原题结果。点击“恢复原题”可返回已确认条件。'
+    {status === 'complete' ? <p role="status">{input.double_extension ? '当前展示已确认原题的专用计算结果；修改映射、密度、区域或事件后，请通过核对条件重新计算。' : input.task === 'space_geometry' ? '当前展示已确认空间对象与符号结果；空间图形为有限范围采样，用于辅助观察。' : input.task === 'curve_surface_integral' ? '当前展示已确认的曲线/曲面积分结果；曲线、曲面与边界图形为有限采样，用于辅助观察。' : input.task === 'proof' ? '当前展示已确认命题的证明证书或未认证义务；图形与抽样仅辅助观察。' : input.task === 'multivariable_extrema' ? '当前展示已确认原题的驻点与局部判定；修改目标或约束后需要重新核验。' : input.task === 'ode' && input.ode_details?.free_constants ? '当前展示解族及核验依据；未选择任意常数，不绘制单条示例轨迹。' : changed ? '当前图形为修改后的实验，以下保留原题结果。点击“恢复原题”可返回已确认条件。'
       : '当前图形对应已确认的原题；演示参数可调，数值近似与原题结果分开显示。'}</p> : null}
     <details open><summary>查看内核计算步骤</summary>
       <ol>{problem.solution.steps.map(step => <li key={step.id}>

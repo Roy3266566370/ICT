@@ -1,4 +1,5 @@
 import json
+import math
 import pytest
 from app.labs.double_applications import preview, solve
 
@@ -81,3 +82,24 @@ def test_univariate_density_nonnegativity_uses_actual_projection_interval():
     result=solve({**c(),'integrand':'log(x)','outer_lower':'1','outer_upper':'e'})
     assert result['solution_complete'],result
     assert result['answer_value']==pytest.approx(1)
+
+
+def test_trigonometric_density_sign_proof_and_rejection():
+    data={**c(),'integrand':'sin(x)*sin(y)','outer_upper':'pi','inner_upper':'pi'}
+    result=solve(data)
+    assert result['solution_complete'],result
+    assert result['answer_value']==pytest.approx(4)
+    assert not solve({**data,'integrand':'-sin(x)*sin(y)'})['solution_complete']
+
+
+def test_product_density_on_nonnegative_quadrant():
+    result=solve({**c(),'integrand':'x*y'})
+    assert result['solution_complete'],result
+    assert result['answer_value']==pytest.approx(1/4)
+
+
+def test_exponential_density_moment_uses_fast_outer_integration():
+    result=solve({**c('inertia',inertia_axis='origin'),'integrand':'exp(-x^2-y^2)'})
+    assert result['solution_complete'],result
+    expected=-math.sqrt(math.pi)*math.exp(-1)*math.erf(1)/2+math.pi*math.erf(1)**2/4
+    assert result['answer_value']==pytest.approx(expected,rel=1e-9)

@@ -263,6 +263,21 @@ def _numeric_2d(f, t, s, a, b, lo, hi) -> float | None:
             return None
 
 
+def _integrate_outer(expression, limit):
+    # SymPy's default outer integral can stall on erf/exp terms; Meijer-G
+    # evaluates those quickly, while the default path remains the fallback.
+    try:
+        result = sp.integrate(expression, limit, meijerg=True)
+        if not result.has(sp.Integral):
+            imaginary_erfs = {node: node.rewrite(sp.erfi) for node in result.atoms(sp.erf) if node.args[0].is_imaginary is True}
+            if imaginary_erfs:
+                result = result.xreplace(imaginary_erfs)
+            return result
+    except (ValueError, TypeError, NotImplementedError, ArithmeticError, sp.PolynomialError):
+        pass
+    return sp.integrate(expression, limit)
+
+
 def _integrate_strip(f, outer, a, b, lo, hi):
     t, s = (X, Y) if outer == 'x' else (Y, X)
     reason = _strip_domain_conflict(f, outer, a, b, lo, hi)
@@ -271,7 +286,7 @@ def _integrate_strip(f, outer, a, b, lo, hi):
     inner_value = sp.simplify(sp.integrate(f, (s, lo, hi)))
     if inner_value.has(sp.Integral):
         raise ValueError('内层积分未得到闭式结果，当前不能作为已完成的二重积分')
-    exact = sp.simplify(sp.integrate(inner_value, (t, a, b)))
+    exact = sp.simplify(_integrate_outer(inner_value, (t, a, b)))
     if exact.has(sp.Integral) or safe_float(exact) is None:
         raise ValueError('二重积分未得到有限实数结果，请核对区域和被积函数（含奇点）')
     numeric = _numeric_2d(f, t, s, a, b, lo, hi)
@@ -623,7 +638,7 @@ def _compile_polar(plan, f):
     inner_value = sp.simplify(sp.integrate(transformed, (RADIUS, rlo, rhi)))
     if inner_value.has(sp.Integral):
         raise ValueError('极坐标内层积分未得到闭式结果，当前不能作为已完成的二重积分')
-    exact = sp.simplify(sp.integrate(inner_value, (THETA, theta_a, theta_b)))
+    exact = sp.simplify(_integrate_outer(inner_value, (THETA, theta_a, theta_b)))
     if exact.has(sp.Integral) or safe_float(exact) is None:
         raise ValueError('极坐标二重积分未得到有限实数结果')
     try:

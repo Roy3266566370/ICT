@@ -1233,6 +1233,7 @@ function ConstrainedExtremaCanvas({ result }: { result: OptimizationResult }): R
 
 function SpaceCanvas({ result }: { result: CalculusResult }): ReactNode {
   const space = result.space;
+  const triple = result.task === 'triple_integral';
   const curves = space?.curves ?? [];
   const grid = space?.grid ?? [];
   const edges = space?.edges ?? [];
@@ -1246,8 +1247,8 @@ function SpaceCanvas({ result }: { result: CalculusResult }): ReactNode {
     ...line,
   ];
   if (!all.length) {
-    return <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label="空间对象">
-      <text x="380" y="200" textAnchor="middle" className={styles.canvasLabel}>{result.answerText || '空间对象待核对'}</text>
+    return <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label={triple ? '三重积分区域' : '空间对象'}>
+      <text x="380" y="200" textAnchor="middle" className={styles.canvasLabel}>{result.answerText || (triple ? '三重积分区域待核对' : '空间对象待核对')}</text>
     </svg>;
   }
   const xs = all.map(p => p.x), ys = all.map(p => p.y), zs = all.map(p => p.z);
@@ -1265,12 +1266,12 @@ function SpaceCanvas({ result }: { result: CalculusResult }): ReactNode {
     return `${index === 0 ? 'M' : 'L'}${q.x},${q.y}`;
   }).join(' ');
   return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label="空间曲线、曲面与空间对象">
+    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label={triple ? '三重积分区域、曲面网格与边界曲线' : '空间曲线、曲面与空间对象'}>
       <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>
-        空间对象 · {result.answerText}
+        {triple ? '三重积分区域' : '空间对象'} · {result.answerText}
       </text>
       <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
-        等轴投影；曲线、曲面网格、立方体边或几何点来自同一空间模型。
+        {triple ? '等轴投影；曲面网格与边界曲线来自已核验的积分区域。' : '等轴投影；曲线、曲面网格、立方体边或几何点来自同一空间模型。'}
       </text>
       {grid.map((row, index) => <path key={`row${index}`} d={path(row)} fill="none" stroke="#94a3b8" strokeWidth="0.8" opacity="0.55" />)}
       {grid.length ? Array.from({ length: grid[0]?.length ?? 0 }, (_, column) => <path key={`col${column}`} d={path(grid.map(row => row[column]).filter((point): point is { x: number; y: number; z: number } => point !== undefined))} fill="none" stroke="#94a3b8" strokeWidth="0.8" opacity="0.35" />) : null}
@@ -1282,7 +1283,7 @@ function SpaceCanvas({ result }: { result: CalculusResult }): ReactNode {
         return <g key={index}><circle cx={q.x} cy={q.y} r="5" className={styles.currentPoint} />
           <text x={q.x + 8} y={q.y - 8} className={styles.canvasNote}>{point.id ?? `P${index + 1}`}</text></g>;
       })}
-      <text x="388" y="400" textAnchor="middle">曲线/曲面由参数模型采样；三大公式同时核对两条路径</text>
+      <text x="388" y="400" textAnchor="middle">{triple ? '区域网格与边界曲线来自已确认条件；数值积分仅作独立复核' : '曲线/曲面由参数模型采样；三大公式同时核对两条路径'}</text>
     </svg>
   );
 }
@@ -1323,6 +1324,9 @@ export function LabCanvas(props: Props): ReactNode {
     }
     if (props.problem.manual_input?.task === 'double_integral' && props.problem.solution.solution_complete !== true) {
       return <section className={styles.canvasRoot} aria-label="二重积分未完成"><h3>已记录完整积分区域</h3><Formula tex={props.problem.manual_input.latex} block /><p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p><p>当前不生成未核验的积分结果或替代示例；可在核对窗口修改原题字段后重算。</p></section>;
+    }
+    if (props.problem.manual_input?.task === 'triple_integral' && props.problem.solution.solution_complete !== true) {
+      return <section className={styles.canvasRoot} aria-label="三重积分未完成"><h3>已记录完整三重积分区域</h3><Formula tex={props.problem.manual_input.latex} block />{result.space ? <SpaceCanvas result={result} /> : null}<p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p><p>当前不生成未核验的积分结果或替代示例；可在核对窗口修改原题字段后重算。</p></section>;
     }
     if (result.kind === 'multivariable_extrema') {
       const data=props.problem.solution.extrema_details;

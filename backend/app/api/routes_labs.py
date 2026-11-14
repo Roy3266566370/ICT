@@ -67,7 +67,7 @@ class TextLabRequest(BaseModel):
 
 
 class ManualLabRequest(BaseModel):
-    task: Literal['integral', 'antiderivative', 'derivative', 'limit', 'higher_derivative', 'continuity', 'implicit_normal', 'function_study', 'taylor', 'geometric_area', 'rotation_volume', 'ode', 'multivariable', 'multivariable_extrema', 'double_integral']
+    task: Literal['integral', 'antiderivative', 'derivative', 'limit', 'higher_derivative', 'continuity', 'implicit_normal', 'function_study', 'taylor', 'geometric_area', 'rotation_volume', 'ode', 'multivariable', 'multivariable_extrema', 'double_integral', 'triple_integral', 'series_convergence', 'power_series', 'fourier_series', 'space_geometry', 'curve_surface_integral', 'proof']
     conditions: dict[str, Any]
     title: str = Field(default='', max_length=120)
     confirmed: bool = False
