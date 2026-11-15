@@ -1131,8 +1131,12 @@ typeof value['schema_version'] === 'string' &&
  * （`xs_auth`）由服务端 HttpOnly 下发，前端不读取、不保存任何令牌。
  * ========================================================================== */
 
-/** 开发期降级标记：本版本未实现邮箱验证，注册即 active（R3-2）。 */
-export type EmailVerificationState = 'disabled_development';
+/**
+ * 邮箱验证状态：
+ *  - `verified`：注册时已通过 6 位邮箱验证码校验；
+ *  - `disabled_development`：邮箱验证上线前的历史账号（开发期降级标记）。
+ */
+export type EmailVerificationState = 'disabled_development' | 'verified';
 
 export interface AuthUser {
   user_id: string;
@@ -1199,8 +1203,25 @@ export interface RegisterRequestPayload {
   username: string;
   email: string;
   password: string;
+  /** 6 位邮箱验证码（由 `POST /auth/register/code` 下发，一次性使用） */
+  verification_code: string;
   /** 省略或 null 时由服务端用用户名填充 */
   display_name?: string | null;
+}
+
+/** `POST /api/v1/auth/register/code` 请求体（匿名）。 */
+export interface SendRegisterCodePayload {
+  email: string;
+}
+
+/** `POST /api/v1/auth/register/code` 响应。 */
+export interface SendRegisterCodeResult {
+  /** 服务端规范化后的邮箱展示值 */
+  email: string;
+  /** 验证码有效期（秒） */
+  expires_in_seconds: number;
+  /** 允许重发前需等待的秒数 */
+  resend_after_seconds: number;
 }
 
 export interface LoginResult {
@@ -1239,10 +1260,21 @@ export function isAuthUser(value: unknown): value is AuthUser {
     isNonEmptyString(value['display_name']) &&
     value['status'] === 'active' &&
     isNonEmptyString(value['created_at']) &&
-    value['email_verification'] === 'disabled_development' &&
+    (value['email_verification'] === 'disabled_development' ||
+      value['email_verification'] === 'verified') &&
     (value['avatar_url'] === undefined ||
       value['avatar_url'] === null ||
       typeof value['avatar_url'] === 'string')
+  );
+}
+
+/** 运行时收窄：`POST /auth/register/code` 的响应形状。 */
+export function isSendRegisterCodeResult(value: unknown): value is SendRegisterCodeResult {
+  if (!isPlainObject(value)) return false;
+  return (
+    isNonEmptyString(value['email']) &&
+    typeof value['expires_in_seconds'] === 'number' &&
+    typeof value['resend_after_seconds'] === 'number'
   );
 }
 

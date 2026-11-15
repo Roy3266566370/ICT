@@ -34,6 +34,7 @@ const OS_OPTION_LABELS: Record<string, string> = {
   srtf: '最短剩余时间优先 SRTF（抢占）',
   rr: '时间片轮转 RR',
   priority: '优先级（非抢占，数小优先）',
+  hrrn: '高响应比优先 HRRN（非抢占）',
   fifo: '先进先出 FIFO',
   lru: '最近最久未使用 LRU',
   opt: '最佳置换 OPT',
@@ -232,7 +233,7 @@ export function LabControls({
         ) : null}
       </div>
 
-      {model.subject === 'algorithm' && model.engine !== 'heap_v1' && onApplyGraph && !readOnly ? (
+      {model.subject === 'algorithm' && model.engine !== 'heap_v1' && !String(model.engine ?? '').startsWith('ds_') && onApplyGraph && !readOnly ? (
         <div className={styles.graphEditor}>
           <button
             type="button"

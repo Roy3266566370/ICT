@@ -61,6 +61,7 @@ TASKS = {
     'proof':_spec('证明与存在性','calculus','proof_kind','expression lower upper left right relation point steps statement'),
     'optimization':_spec('极值与梯度下降','optimization','expression variables goal bounds','initial_point learning_rate iterations'),
     'bfs':_spec('广度优先遍历','algorithm','nodes edges start directed neighbor_order'),
+    'dfs':_spec('深度优先遍历','algorithm','nodes edges start directed neighbor_order'),
     'heap':_spec('堆顶删除与插入建堆','algorithm','initial_heap heap_type','operation deletion_count count_comparisons'),
     'heap_compare':_spec('堆操作关键字比较次数','algorithm','initial_heap heap_type operation','deletion_count count_comparisons'),
     'binary_search_count':_spec('折半查找最坏比较次数','algorithm','n'),
@@ -84,6 +85,7 @@ def task_catalog():
         'matmul':'op=mul|add|sub|scalar；前三种需matrix_b，数乘需scalar。',
         'neural_training':'layers是2至4层、每层1至8维；weights与biases必须完整，隐藏层激活一致，输出层linear；MSE训练。',
         'bfs':'nodes为节点名数组；edges为from/to数组，directed为布尔值，neighbor_order仅lexicographic_by_id。',
+        'dfs':'nodes为节点名数组；edges为from/to数组，directed为布尔值，neighbor_order仅lexicographic_by_id（按节点编号升序访问邻居，沿路径走到底再回溯）。',
         'heap':'operation=delete|insert；delete需要deletion_count，insert把initial_heap当作依次插入序列（从空堆开始上滤）；count_comparisons=true时输出关键字比较次数。',
         'heap_compare':'operation=delete|insert；按固定口径统计关键字比较次数：删除时孩子比较加父子比较，插入时每次父节点比较计一次。',
         'binary_search_count':'n为有序表元素个数（1至10^9）；固定 mid=⌊(low+high)/2⌋ 向下取整，最坏比较次数=⌊log2 n⌋+1，不适用于其他取整约定。',
@@ -344,7 +346,7 @@ def _validate(task, c):
             if len(pair)!=2 or pair[0]>=pair[1]: raise ValueError('闭区间上下界不正确')
         if c['goal']=='gradient_descent': _require(c,['initial_point','learning_rate','iterations'])
         if 'initial_point' in c and len(c['initial_point'])!=len(c['variables']): raise ValueError('初始点与变量维数不一致')
-    if task=='bfs':
+    if task in ('bfs','dfs'):
         _names(c['nodes'])
         if type(c['directed']) is not bool or c['start'] not in c['nodes']: raise ValueError('请确认图的方向和有效起点')
         _choice(c['neighbor_order'],('lexicographic_by_id',))
@@ -561,7 +563,7 @@ def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
         overrides['variables']=','.join(c['variables'])
         overrides['condition_values']={k:c[k] for k in ('learning_rate','iterations') if k in c}
         overrides['condition_values'].update({f'{v}0':q for v,q in zip(c['variables'],c.get('initial_point',[]))})
-    elif task=='bfs': text=('有向图' if c['directed'] else '无向图')+' BFS'
+    elif task in ('bfs','dfs'): text=('有向图' if c['directed'] else '无向图')+(' DFS' if task=='dfs' else ' BFS')
     elif task in ('heap','heap_compare'):
         overrides['operation']=c.get('operation','delete')
         if task=='heap_compare': overrides['count_comparisons']=True
@@ -591,9 +593,10 @@ def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
         for item in p['recognition']['conditions']:
             if item['id'] in overrides['condition_values']:
                 item.update(value=overrides['condition_values'][item['id']],provenance='original',note=None)
-    if task=='bfs':
+    if task in ('bfs','dfs'):
         model.update(nodes=[{'id':n,'label':n} for n in c['nodes']],edges=c['edges'],directed=c['directed'],
-                     start=c['start'],defaults={'start':c['start']},teaching=False,provenance_note=None)
+                     start=c['start'],defaults={'start':c['start']},teaching=False,provenance_note=None,
+                     algorithm=task)
         model['params'][0]['options']=c['nodes']
         p['recognition']['conditions']=[]
         p['recognition']['ambiguities']=[]

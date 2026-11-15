@@ -101,6 +101,7 @@ def test_account_table_names_are_registered() -> None:
         "login_identities",
         "auth_sessions",
         "user_profiles",
+        "email_verification_codes",
     )
     for table_name in am.ACCOUNT_TABLE_NAMES:
         assert table_name in Base.metadata.tables, f"{table_name} 未注册到 Base.metadata"
@@ -444,8 +445,8 @@ def test_init_db_is_idempotent_and_returns_all_tables(account_engine: Engine) ->
     assert first == sorted(first)
     assert set(TABLE_NAMES).issubset(first)
     assert set(am.ACCOUNT_TABLE_NAMES).issubset(first)
-    # 返回值是 metadata 中全部表（存量/扩展 12 表 + 账号 4 表 + PPT AI 7 表 + 活页 3 表），不多不少。
-    assert len(first) == len(Base.metadata.tables) == 28
+    # 返回值是 metadata 中全部表（存量/扩展 12 表 + 账号 5 表 + PPT AI 7 表 + 活页 3 表），不多不少。
+    assert len(first) == len(Base.metadata.tables) == 29
 
 
 def test_sqlite_has_account_tables_after_init(account_engine: Engine) -> None:

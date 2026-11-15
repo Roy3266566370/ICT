@@ -13,6 +13,7 @@ import {
 import type {
   BfsResult,
   BfsResultFrame,
+  DsResult,
   CalculusResult,
   DoubleIntegralResult,
   DlFrame,
@@ -25,7 +26,9 @@ import type { LinAlgResult } from '@/labs/linalg';
 import { formatNumber } from '@/labs/expr';
 import styles from './LabCanvas.module.css';
 import { HeapCanvas } from './HeapCanvas';
+import { DsCanvas } from './DsCanvas';
 import { OsCanvas } from './OsCanvas';
+import { CoCanvas } from './CoCanvas';
 import { DoubleIntegralCanvas } from './DoubleIntegralCanvas';
 
 export interface LabSelection {
@@ -769,13 +772,17 @@ function BfsCanvas({
     });
     return map;
   }, [nodes]);
-  const queue = new Set(frame.queue);
+  const isDfs = result.algorithm === 'dfs';
+  // DFS 的等待集合是栈；BFS 是队列。节点状态与下方面板按同一字段渲染。
+  const queue = new Set(isDfs ? (frame.stack ?? []) : frame.queue);
   const visited = new Set(frame.visited);
   const tree = new Set(result.treeEdges.map((edge) => `${edge.from}->${edge.to}`));
   const emphasis = selected?.kind === 'solution-step' ? selected.id : null;
+  const discoverAction = isDfs ? 'push' : 'enqueue';
+  const orderWord = isDfs ? '访问' : '出队';
   return (
     <div className={styles.bfsLayout}>
-      <svg viewBox="0 0 520 400" className={styles.svgBfs} role="img" aria-label="BFS 图、队列与已访问集合">
+      <svg viewBox="0 0 520 400" className={styles.svgBfs} role="img" aria-label={`${isDfs ? 'DFS' : 'BFS'} 图、${isDfs ? '栈' : '队列'}与已访问集合`}>
         <defs>
           <marker id="bfs-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
             <path d="M0,0 L8,4 L0,8 Z" fill="context-stroke" />
@@ -794,7 +801,7 @@ function BfsCanvas({
               y1={from.y}
               x2={to.x}
               y2={to.y}
-              className={isTree ? (emphasis === 'enqueue' ? `${styles.treeEdge} ${styles.treeEdgeStrong}` : styles.treeEdge) : styles.graphEdge}
+              className={isTree ? (emphasis === discoverAction ? `${styles.treeEdge} ${styles.treeEdgeStrong}` : styles.treeEdge) : styles.graphEdge}
               markerEnd={result.directed ? 'url(#bfs-arrow)' : undefined}
             />
           );
@@ -808,7 +815,7 @@ function BfsCanvas({
             <g
               key={node.id}
               className={styles.nodeGroup}
-              data-emphasis={(emphasis === 'init' && node.id === result.start) || (emphasis === 'dequeue' && isCurrent) || undefined}
+              data-emphasis={(emphasis === 'init' && node.id === result.start) || (emphasis === (isDfs ? 'visit' : 'dequeue') && isCurrent) || undefined}
               onClick={() => onSelect({ id: `node:${node.id}`, label: `节点 ${node.label}`, kind: 'node' })}
               role="button"
               tabIndex={0}
@@ -834,7 +841,7 @@ function BfsCanvas({
       </svg>
       <aside className={styles.bfsState}>
         <div className={styles.stateBlock}>
-          <span className={styles.stateTitle}>队列（FIFO）</span>
+          <span className={styles.stateTitle}>{isDfs ? '栈（LIFO，栈顶在右）' : '队列（FIFO）'}</span>
           <div className={styles.queueRow}>
             {frame.queue.length ? (
               frame.queue.map((item, queueIndex) => (
@@ -858,8 +865,8 @@ function BfsCanvas({
           </div>
         </div>
         <div className={styles.stateBlock}>
-          <span className={styles.stateTitle}>出队顺序</span>
-          <p className={styles.orderText}>{frame.order.join(' → ') || '尚未出队'}</p>
+          <span className={styles.stateTitle}>{orderWord}顺序</span>
+          <p className={styles.orderText}>{frame.order.join(' → ') || `尚未${orderWord}`}</p>
         </div>
         <div className={styles.pseudocode} aria-label="伪代码">
           {result.pseudocode.map((line, lineIndex) => (
@@ -1364,6 +1371,14 @@ export function LabCanvas(props: Props): ReactNode {
   }
   if (result.subject === 'algorithm') {
     if (result.algorithm === 'heap') return <HeapCanvas result={result} step={step} selected={selected} onSelect={onSelect} />;
+    if ('dsKind' in result) {
+      return (
+        <div className={styles.canvasRoot} data-subject="algorithm">
+          <DsCanvas result={result} step={step} />
+          {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
+        </div>
+      );
+    }
     return (
       <div className={styles.canvasRoot} data-subject="algorithm">
         <BfsCanvas result={result} step={step} selected={selected} onSelect={onSelect} />
@@ -1383,6 +1398,14 @@ export function LabCanvas(props: Props): ReactNode {
     return (
       <div className={styles.canvasRoot} data-subject="operating_system">
         <OsCanvas result={result} step={step} selected={selected} onSelect={onSelect} />
+        {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
+      </div>
+    );
+  }
+  if (result.subject === 'computer_organization') {
+    return (
+      <div className={styles.canvasRoot} data-subject="computer_organization">
+        <CoCanvas result={result} step={step} />
         {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
       </div>
     );

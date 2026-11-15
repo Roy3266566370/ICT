@@ -119,6 +119,36 @@
 .inputWrap { position: relative; }
 .inputWrap .input { padding-right: 58px; }
 
+.codeRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.sendCode {
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid var(--ink-900);
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-900);
+  font: 10.5px/1 var(--font-family-mono);
+  letter-spacing: .05em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, opacity .15s ease;
+}
+.sendCode:hover:not(:disabled) { background: var(--ink-900); color: var(--paper-0); }
+.sendCode:disabled { opacity: .45; cursor: not-allowed; }
+.sendCode:focus-visible { outline: 2px solid var(--color-indigo); outline-offset: 2px; }
+
+.codeNotice {
+  margin-top: 5px;
+  color: var(--color-indigo-strong);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+
 .eye {
   position: absolute;
   top: 0;
@@ -351,6 +381,7 @@
   .fieldRow { grid-template-columns: 1fr; gap: 0; }
   .fieldRow .field { margin-bottom: 16px; }
   .input, .select { height: 46px; font-size: 15px; }
+  .sendCode { height: 46px; padding: 0 12px; }
   .field { margin-bottom: 15px; }
   .submit { height: 50px; }
 }

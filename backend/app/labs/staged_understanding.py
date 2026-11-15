@@ -42,7 +42,7 @@ def candidate_tasks(reading: dict) -> list[str]:
         'page_replace': ('页面', '缺页', 'lru', 'fifo', 'opt'),
         'disk_schedule': ('磁盘', '磁道', '磁头'),
         'banker': ('银行家',), 'cpu_schedule': ('cpu', '时间片', '进程调度'),
-        'bfs': ('bfs', '广度'), 'heap': ('堆',), 'integral': ('定积分',),
+        'bfs': ('bfs', '广度'), 'dfs': ('dfs', '深度优先'), 'heap': ('堆',), 'integral': ('定积分',),
         'derivative': ('求导', '导数', '切线'), 'optimization': ('极值', '梯度下降'),
         'limit': ('极限','lim('), 'ode': ('微分方程',),
     }
@@ -286,9 +286,32 @@ def validate_page_model(reading: dict, model: dict, source_text: str) -> None:
     """Check sequence order and multiplicity, not just claimed condition IDs."""
     if model['task'] != 'page_replace':
         return
-    if re.search(r'初始(?:状态)?(?:不为空|非空)|(?:内存|物理块|页框)(?:中)?(?:已|预先)', source_text):
-        raise ValueError('内核只支持空初态，原题非空初态不能丢弃')
+    # 内核已支持非空初态（initial_frames，可选字段）：不再以“只支持空初态”拒绝，
+    # 但原题给定的初始驻留页面必须进入模型，且值与来源一致。
     facts = {f['id']:f for f in reading['conditions']}
+    for ref in model['bindings'].get('initial_frames', []):
+        raw = facts[ref]['value'].strip()
+        if re.fullmatch(r'[\d\s,，、\[\]]+', raw):
+            stated = [str(v) for v in re.findall(r'\d+', raw)]
+            modelled = [str(v) for v in (model['conditions'].get('initial_frames') or [])]
+            if stated and modelled and stated != modelled:
+                raise ValueError('初始驻留页面与来源条件不一致：'+ref)
+    mentioned: set[str] = set()
+    initial_required = False
+    for clause in re.split(r'[，,。;；\n]+', source_text or ''):
+        if re.search(r'已(?:经)?将?[^，,。;；\n]{0,8}(?:调入|装入|驻留)|初始(?:状态)?(?:不为空|非空)|(?:内存|物理块|页框)(?:中)?(?:已|原有)', clause):
+            initial_required = True
+            for number in re.finditer(r'\d+', clause):
+                suffix = clause[number.end():number.end()+2]
+                if re.match(r'\s*(?:个|块|页框|片|次)', suffix):
+                    continue
+                mentioned.add(number.group())
+    if initial_required:
+        modelled = {str(v) for v in (model['conditions'].get('initial_frames') or [])}
+        if not modelled:
+            raise ValueError('原题给定初始驻留页面，模型未保留 initial_frames，不能按空初态处理')
+        if mentioned and mentioned != modelled:
+            raise ValueError('初始驻留页面与来源描述不一致：'+','.join(sorted(mentioned)))
     for ref in model['bindings'].get('reference', []):
         raw = facts[ref]['value'].strip()
         if re.fullmatch(r'[\d\s,，、\[\]]+', raw):
@@ -319,12 +342,14 @@ def compile_page_facts(reading: dict) -> dict | None:
             field, parsed = 'frames', int(re.search(r'\d+',value).group())
         elif ('访问序列' in excerpt or '引用串' in excerpt) and re.fullmatch(r'[\d\s,，、\[\]]+',value):
             field, parsed = 'reference', [int(v) for v in re.findall(r'\d+',value)]
+        elif re.fullmatch(r'[\d\s,，、\[\]]+',value) and re.search(r'初始|调入|装入|驻留|起始',excerpt):
+            field, parsed = 'initial_frames', [int(v) for v in re.findall(r'\d+',value)]
         if field:
             if field in values and values[field] != parsed:
                 raise ValueError('来源条件冲突：'+field)
             values[field] = parsed
             bindings.setdefault(field,[]).append(fact['id'])
-    if set(values) != {'algorithm','frames','reference'}:
+    if not {'algorithm','frames','reference'} <= set(values) or set(values) - {'algorithm','frames','reference','initial_frames'}:
         return None
     return dict(task='page_replace', conditions=values, bindings=bindings)
 

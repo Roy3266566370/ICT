@@ -35,11 +35,20 @@ from .profiles import (
     update_profile,
 )
 from .service import (
+    PendingRegistration,
     authenticate,
+    create_account,
     find_email_identity,
     find_username_identity,
     get_active_user,
     register_account,
+    validate_registration,
+)
+from .verification import (
+    EmailDeliveryError,
+    consume_registration_code,
+    issue_registration_code,
+    send_verification_code_email,
 )
 from .sessions import (
     CreatedAuthSession,
@@ -72,7 +81,14 @@ __all__ = [
     "normalize_email",
     "normalize_username",
     "validate_password_policy",
+    "EmailDeliveryError",
+    "issue_registration_code",
+    "consume_registration_code",
+    "send_verification_code_email",
+    "PendingRegistration",
     "register_account",
+    "validate_registration",
+    "create_account",
     "authenticate",
     "get_active_user",
     "find_email_identity",

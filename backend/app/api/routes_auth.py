@@ -21,6 +21,8 @@ from sqlalchemy.orm import Session, object_session
 from ..accounts import (
     authenticate,
     avatar_path,
+    consume_registration_code,
+    create_account,
     create_auth_session,
     csrf_token_for,
     delete_avatar,
@@ -30,11 +32,12 @@ from ..accounts import (
     get_or_create_profile,
     hash_token,
     interests_of,
-    register_account,
+    issue_registration_code,
     resolve_auth_session,
     revoke_auth_session,
     save_avatar,
     update_profile,
+    validate_registration,
     verify_csrf,
 )
 from ..db.account_models import (
@@ -43,6 +46,7 @@ from ..db.account_models import (
     UserProfileRecord,
     UserRecord,
     to_contract_iso,
+    utc_now,
 )
 from ..schemas.account_api_models import (
     AuthSessionSummary,
@@ -51,6 +55,8 @@ from ..schemas.account_api_models import (
     LoginResult,
     MeResponse,
     ProfileUpdateResult,
+    RegisterCodeRequest,
+    RegisterCodeResult,
     RegisterRequest,
     UpdateMeRequest,
     UserProfile,
@@ -164,7 +170,9 @@ def _auth_user(
         display_name=user.display_name,
         status="active",
         created_at=to_contract_iso(user.created_at),
-        email_verification="disabled_development",
+        email_verification=(
+            "verified" if identity.verified_at is not None else "disabled_development"
+        ),
         avatar_url=_avatar_url(profile),
     )
 
@@ -187,25 +195,49 @@ def _profile_result(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/auth/register", summary="注册账号")
-def register(request: Request, payload: RegisterRequest, db: DBDep) -> JSONResponse:
-    """注册账号：201，不下发任何登录 Cookie，也不发邮件（开发期降级）。
+@router.post("/auth/register/code", summary="发送注册邮箱验证码")
+def send_register_code(
+    request: Request, payload: RegisterCodeRequest, db: DBDep
+) -> JSONResponse:
+    """向未注册邮箱发送 6 位验证码（Brevo 事务邮件）。
 
-    写请求要求 Origin 在允许列表内（R7-6），不允许 → 422 ``MISSING_FIELD``；
-    缺省 Origin（curl/服务端调用）不参与判定。
-    重复用户名 → 409 ``USERNAME_ALREADY_REGISTERED``；重复邮箱 → 409
-    ``EMAIL_ALREADY_REGISTERED``；用户名/邮箱/密码不合规 → 422 ``MISSING_FIELD``。
+    - 验证码 5 分钟有效，60 秒内不能重发，最多尝试 5 次，成功后立即作废；
+    - 邮箱已注册 → 409 ``EMAIL_ALREADY_REGISTERED``；60 秒内重发 → 429
+      ``RATE_LIMITED``（``details.retry_after_seconds`` 给出等待秒数）；
+    - 邮件服务未配置或发送失败 → 503 ``MODEL_UNAVAILABLE``；邮箱格式非法 → 422。
     """
 
     check_origin(request)
 
-    user = register_account(
+    result = issue_registration_code(db, email=payload.email)
+    return ok(request, RegisterCodeResult(**result))
+
+
+@router.post("/auth/register", summary="注册账号")
+def register(request: Request, payload: RegisterRequest, db: DBDep) -> JSONResponse:
+    """校验邮箱验证码后注册账号：201，不下发任何登录 Cookie。
+
+    步骤：字段与唯一性预检查（422/409）→ 核验并作废验证码（422/429）→ 创建账号。
+    验证码错误、过期、失效 → 422 ``MISSING_FIELD``（``details.field`` 为
+    ``verification_code``）；尝试次数超限 → 429 ``RATE_LIMITED``。
+
+    写请求要求 Origin 在允许列表内（R7-6），不允许 → 422 ``MISSING_FIELD``；
+    缺省 Origin（curl/服务端调用）不参与判定。
+    """
+
+    check_origin(request)
+
+    pending = validate_registration(
         db,
         username=payload.username,
         email=payload.email,
         password=payload.password,
         display_name=payload.display_name,
     )
+    consume_registration_code(
+        db, email=payload.email, code=payload.verification_code
+    )
+    user = create_account(db, pending, verified_at=utc_now())
     identity = find_email_identity(db, user.id)
     username_identity = find_username_identity(db, user.id)
     profile = get_or_create_profile(db, user.id)

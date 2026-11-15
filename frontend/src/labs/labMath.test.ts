@@ -172,6 +172,86 @@ test('BFS 执行记录与邻居排序', () => {
   assert.equal(result.checks.find((item) => item.id === 'coverage')?.status, 'pass');
 });
 
+test('DFS 执行记录与回溯（不被当成 BFS）', () => {
+  const model: Partial<LabModel> = {
+    engine: 'dfs_v1',
+    nodes: ['A', 'B', 'C', 'D'].map((id) => ({ id, label: id })),
+    edges: [
+      { from: 'A', to: 'B' },
+      { from: 'A', to: 'C' },
+      { from: 'B', to: 'D' },
+    ],
+    directed: true,
+    start: 'A',
+    defaults: { start: 'A' },
+  };
+  const p = problem(model, { answer: 'A → B → D → C', answer_order: ['A', 'B', 'D', 'C'] }, 'algorithm');
+  const result = computeLab(p, { start: 'A' });
+  if (result.subject !== 'algorithm') return;
+  assert.equal(result.algorithm, 'dfs');
+  // 按编号优先的 DFS：A→B→D→C；若被当成 BFS 会得到 A→B→C→D。
+  assert.deepEqual(result.order, ['A', 'B', 'D', 'C']);
+  assert.equal(result.frames[0]?.stack?.[0], 'A');
+  assert.equal(result.frames[1]?.action, 'visit');
+  assert.ok(result.frames.some((frame) => frame.action === 'backtrack'));
+  assert.equal(result.checks.find((item) => item.id === 'coverage')?.status, 'pass');
+});
+
+test('中文天干节点按教材序遍历（DFS）', () => {
+  const model: Partial<LabModel> = {
+    engine: 'dfs_v1',
+    nodes: ['甲', '乙', '丙', '丁'].map((id) => ({ id, label: id })),
+    edges: [
+      { from: '甲', to: '乙' },
+      { from: '甲', to: '丙' },
+      { from: '乙', to: '丁' },
+    ],
+    directed: true,
+    start: '甲',
+    defaults: { start: '甲' },
+  };
+  const p = problem(model, { answer: '甲 → 乙 → 丁 → 丙', answer_order: ['甲', '乙', '丁', '丙'] }, 'algorithm');
+  const result = computeLab(p, { start: '甲' });
+  if (result.subject !== 'algorithm') return;
+  // 若按 Unicode 码点排序会得到 丙<乙<丁 的反教材顺序；这里应为 甲乙丁丙。
+  assert.deepEqual(result.order, ['甲', '乙', '丁', '丙']);
+});
+
+test('数据结构题型回放嵌入轨迹（ds_* 引擎，后端 snake_case 归一）', () => {
+  const frames = [
+    { index: 1, label: '初始化', detail: '空栈。', values: { '栈（底→顶）': '空栈' }, pseudocodeLine: 1 },
+    { index: 2, label: '入栈 1', detail: '1 进栈。', values: { '栈（底→顶）': '底 → 1' }, pseudocodeLine: 2 },
+  ];
+  const model: Partial<LabModel> = {
+    engine: 'ds_stack_v1',
+    defaults: {},
+    // 真实后端 ds_result 使用 snake_case（ds_kind）；前端必须归一为 dsKind，
+    // 否则画布分流失效误走 BFS 分支（TypeError: reading 'join'）。
+    ds_result: {
+      subject: 'algorithm',
+      algorithm: 'data_structure',
+      ds_kind: 'stack_ops',
+      headline: '最终栈（底→顶）：1',
+      answer: '最终栈（底→顶）：1',
+      metrics: [],
+      checks: [],
+      notes: [],
+      pseudocode: ['读入一个操作', '入栈：写入栈顶，栈顶指针 +1'],
+      frames,
+      trace: frames,
+    },
+  } as Partial<LabModel>;
+  const p = problem(model, { answer: '最终栈（底→顶）：1' }, 'algorithm');
+  const result = computeLab(p, {});
+  if (result.subject !== 'algorithm') return;
+  assert.equal((result as { dsKind?: string }).dsKind, 'stack_ops');
+  assert.equal(result.frames.length, 2);
+  assert.equal(String(result.frames[1]?.values['栈（底→顶）']), '底 → 1');
+  const metrics = currentMetrics(result, 1);
+  assert.equal(metrics[0]?.label, '当前动作');
+  assert.ok(metrics.slice(1).every((m) => typeof m.value === 'string'));
+});
+
 test('小型网络前向、反向传播与损失下降', () => {
   const model: Partial<LabModel> = {
     engine: 'mlp_v1',

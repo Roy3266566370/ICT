@@ -83,7 +83,8 @@ function mapRegisterError(error: unknown): string {
       case 'MISSING_FIELD':
         return preferServerMessage(error.message, FIELD_HINT_MESSAGE);
       case 'RATE_LIMITED':
-        return RATE_LIMITED_MESSAGE;
+        // 验证码尝试次数超限时服务端会给出更具体的文案，优先展示
+        return preferServerMessage(error.message, RATE_LIMITED_MESSAGE);
       case 'MODEL_UNAVAILABLE':
         return SERVICE_UNAVAILABLE_MESSAGE;
       default:

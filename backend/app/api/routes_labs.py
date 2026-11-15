@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix=API_PREFIX, tags=["labs"])
 
 PREVIEW_KEY = re.compile(r"^f\d+_p\d+$")
-SUBJECTS = {"calculus", "optimization", "algorithm", "deep_learning", "linear_algebra", "operating_system"}
+SUBJECTS = {"calculus", "optimization", "algorithm", "deep_learning", "linear_algebra", "operating_system", "computer_organization"}
 _AI_SOLVE_LOCK = threading.Lock()
 _AI_SOLVING: set[str] = set()
 
@@ -61,6 +61,7 @@ _AI_SOLVING: set[str] = set()
 
 
 class TextLabRequest(BaseModel):
+    orchestrate: bool = False
     title: str = Field(default="", max_length=120)
     text: str = Field(min_length=1, max_length=200000)
     subject: str | None = None
@@ -198,6 +199,9 @@ def _touch(record: LabRecord, document: dict[str, Any]) -> None:
     problem = _problem(document)
     document["subject"] = problem.get("subject") or document.get("subject")
     document["status"] = problem.get("status") or document.get("status")
+    orchestration = document.get("orchestration") or {}
+    if orchestration and (orchestration.get("stale") or orchestration.get("status") != "完成"):
+        document["status"] = "needs_review"
     record.document = document
     record.revision = int(document["revision"])
     record.title = str(document.get("title") or record.title)
@@ -237,6 +241,9 @@ def _build_and_store(
     except Exception as exc:  # noqa: BLE001 - 识别失败不留下半成品
         logger.exception("实验室识别失败 lab=%s", lab_id)
         raise invalid_file(f"题目识别失败：{type(exc).__name__}") from exc
+    if source.get("orchestrate"):
+        from ..labs.orchestrator import solve_composite
+        _apply_composite(document, solve_composite(str(source.get("original_text") or "")))
     ai_ready = LabAI().available()
     document.setdefault("capabilities", {})["ai_configured"] = ai_ready
     document["capabilities"]["ai_note"] = (
@@ -281,6 +288,8 @@ def lab_capabilities(request: Request, ctx: SessionDep) -> JSONResponse:
                 {"id": "deep_learning", "label": "深度学习"},
                 {"id": "linear_algebra", "label": "线性代数"},
                 {"id": "operating_system", "label": "操作系统"},
+                {"id": "computer_organization", "label": "计算机组成原理"},
+                {"id": "computer_network", "label": "计算机网络"},
             ],
             'modeling_tasks':task_catalog(),
             "max_files": settings.lab_max_files,
@@ -293,6 +302,95 @@ def lab_capabilities(request: Request, ctx: SessionDep) -> JSONResponse:
             "note": "优先本地识别与求解；未识别题目在工作台自动使用已配置模型理解、建模与计算。学习助手的模型增强仍需显式开启并勾选。",
         },
     )
+
+
+def _apply_composite(document: dict[str, Any], result: dict[str, Any]) -> None:
+    """Use the exact compiled kernel problems as interactive subquestions."""
+    from ..labs.recognize import _default_state
+    problems = []
+    for step in result.get("solve", {}).get("steps", []):
+        problem = step.get("outputs", {}).get("problem")
+        if not isinstance(problem, dict) or step.get("state") != "完成且满足要求":
+            continue
+        problem = copy.deepcopy(problem)
+        problem["problem_id"] = f"prb_{len(problems) + 1}"
+        problem["title"] = str(step.get("goal") or problem.get("title") or "分问")
+        problem["states"] = _default_state(problem)
+        problems.append(problem)
+    if problems:
+        document["problems"] = problems
+        document["selected_problem_id"] = problems[0]["problem_id"]
+        document["problem_count"] = len(problems)
+        document["subject"] = problems[0]["subject"]
+    else:
+        # Preserve the original material while preventing the old recognizer from
+        # presenting an answer for a question the orchestrator could not validate.
+        for problem in document["problems"]:
+            problem["status"] = "needs_review"
+            problem["model"] = {"subject": "unknown", "engine": "unsupported_v1", "defaults": {}, "params": [], "teaching": False}
+            problem["states"] = _default_state(problem)
+            problem["solution"] = {"answer": "", "steps": [], "summary": "请补充或修正完整题目后重新求解。"}
+    document["status"] = "ready" if result.get("status") == "完成" else "needs_review"
+    document["orchestration"] = result
+
+
+class CompositeRevisionRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
+    expected_revision: int = Field(ge=1)
+
+
+@router.post('/labs/{lab_id}/composite-solve', summary='修改完整题目并重新调度，保存版本')
+def revise_composite(lab_id: str, request: Request, ctx: WriteDep, db: DBDep,
+                     body: CompositeRevisionRequest) -> JSONResponse:
+    from ..labs.orchestrator import solve_composite, should_recompute
+    from ..labs.extract import text_source
+    record = _owned_lab(db, ctx, lab_id)
+    if record.revision != body.expected_revision:
+        raise version_conflict("题目或学习记录已有修改，请先同步再求解")
+    document = copy.deepcopy(record.document)
+    previous = document.get("orchestration")
+    if previous and previous.get("status") == "完成" and not previous.get("stale") and not should_recompute(previous, body.text):
+        return ok(request, _lab_payload(record))
+    db.rollback()
+    reusable = previous if (previous or {}).get("status") == "完成" and not (previous or {}).get("stale") else None
+    result = solve_composite(body.text, previous=reusable)
+    if previous:
+        result["previous_summary"] = {"version": previous.get("problem", {}).get("version"),
+                                      "answers": previous.get("answers", [])}
+    _apply_composite(document, result)
+    source = text_source(body.text, lab_id=lab_id)
+    document["source"].update(pages=source["pages"], method=source.get("method"))
+    document["revision"] = body.expected_revision + 1
+    document["updated_at"] = to_iso(utc_now())
+    written = db.execute(update(LabRecord).where(LabRecord.id == lab_id,
+        LabRecord.session_id == ctx.session_id, LabRecord.revision == body.expected_revision).values(
+        document=document, revision=document["revision"], updated_at=document["updated_at"],
+        status=document["status"], subject=document["subject"], problem_count=document["problem_count"]))
+    if written.rowcount != 1:
+        db.rollback()
+        raise version_conflict("求解期间题目已有修改，旧结果未覆盖新内容，请重新载入")
+    db.commit()
+    return ok(request, document)
+
+
+class CompositeSolveRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
+
+
+@router.get('/labs/capability-catalog', summary='AI 调度解题：能力目录（计算/检查/展示）')
+def lab_capability_catalog(request: Request) -> JSONResponse:
+    from ..labs.capabilities import capability_catalog
+    return ok(request, capability_catalog())
+
+
+@router.post('/labs/composite-solve', summary='AI 调度解题：理解 → 计划 → 校验 → 执行 → 三层结果')
+def labs_composite_solve(request: Request, ctx: WriteDep, body: CompositeSolveRequest) -> JSONResponse:
+    from ..labs.orchestrator import solve_composite
+    try:
+        result = solve_composite(body.text)
+    except (ValueError, TypeError, ArithmeticError) as exc:
+        raise missing_field('当前题目未能完成调度：' + str(exc)) from exc
+    return ok(request, result)
 
 
 @router.post('/labs/manual/preview', summary='校验手动输入并生成题目确认预览')
@@ -331,6 +429,11 @@ def create_text_lab(request: Request, ctx: WriteDep, db: DBDep, body: TextLabReq
     from ..labs.extract import text_source
 
     source = text_source(text, lab_id=lab_id)
+    if body.orchestrate:
+        from ..labs.recognize import classify_subject
+        classified, _ = classify_subject(text)
+        if body.subject == "calculus" or (body.subject is None and classified == "calculus"):
+            source.update(orchestrate=True, original_text=text)
     title = (body.title or text.splitlines()[0] or "题目实验室")[:120]
     subject = body.subject if body.subject in SUBJECTS else None
     return _build_and_store(
@@ -492,6 +595,8 @@ def review_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: Re
     replace_index = next(
         index for index, item in enumerate(document["problems"]) if item.get("problem_id") == body.problem_id
     )
+    if document.get("orchestration"):
+        document["orchestration"] = {**document["orchestration"], "stale": True}
     document["problems"][replace_index] = rebuilt
     document["selected_problem_id"] = body.problem_id
     save_state(document, body.problem_id, rebuilt.get("states") or {})

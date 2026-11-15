@@ -16,16 +16,17 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..schemas.common import to_iso
 from .base import Base
 
-#: 主键前缀（``usr_`` / ``lid_`` / ``aut_`` + 32 位 uuid4 hex = 36 字符）。
+#: 主键前缀（``usr_`` / ``lid_`` / ``aut_`` / ``evc_`` + 32 位 uuid4 hex = 36 字符）。
 USER_ID_PREFIX = "usr_"
 IDENTITY_ID_PREFIX = "lid_"
 AUTH_SESSION_ID_PREFIX = "aut_"
+EMAIL_VERIFICATION_ID_PREFIX = "evc_"
 
 #: 账号域的表名（``init_db`` 据此做完整性校验）。
 ACCOUNT_TABLE_NAMES: tuple[str, ...] = (
@@ -33,6 +34,7 @@ ACCOUNT_TABLE_NAMES: tuple[str, ...] = (
     "login_identities",
     "auth_sessions",
     "user_profiles",
+    "email_verification_codes",
 )
 
 #: 本版本只写 ``user``；``operator`` / ``admin`` 预留给后续管理端。
@@ -62,6 +64,12 @@ def new_auth_session_id() -> str:
     """生成登录会话主键：``aut_`` + 32 位 uuid4 hex（共 36 字符）。"""
 
     return AUTH_SESSION_ID_PREFIX + uuid4().hex
+
+
+def new_email_verification_id() -> str:
+    """生成邮箱验证码主键：``evc_`` + 32 位 uuid4 hex（共 36 字符）。"""
+
+    return EMAIL_VERIFICATION_ID_PREFIX + uuid4().hex
 
 
 def utc_now() -> datetime:
@@ -166,6 +174,40 @@ class UserProfileRecord(Base):
     __table_args__ = (MYSQL_TABLE_OPTIONS,)
 
 
+class EmailVerificationCodeRecord(Base):
+    """注册邮箱验证码：只存 HMAC 摘要，明文只出现在发送邮件中。
+
+    - 同一邮箱可保留多条历史记录；只有 ``consumed_at IS NULL`` 的最新一条有效；
+    - ``attempts`` 记录错误尝试次数，达到配置上限后把 ``consumed_at`` 置为当前时间；
+    - 时间列与账号域一致：UTC naive。
+    """
+
+    __tablename__ = "email_verification_codes"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    #: 规范化邮箱（``casefold()`` 后），与 ``login_identities.identifier`` 同口径。
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    #: 用途；当前只有 ``register``。
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False, default="register")
+    #: ``HMAC-SHA256(session_secret, code)`` 的 64 位小写 hex。
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    #: 非空即失效（核验成功、尝试超限、过期或被新验证码替换）。
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "ix_email_verification_email_purpose_created",
+            "email",
+            "purpose",
+            "created_at",
+        ),
+        MYSQL_TABLE_OPTIONS,
+    )
+
+
 class AuthSessionRecord(Base):
     """登录会话：只存 token/CSRF 的 SHA-256，明文只返回给客户端一次。"""
 
@@ -202,6 +244,8 @@ __all__ = [
     "AUTH_SESSION_ID_PREFIX",
     "AuthSessionRecord",
     "DEFAULT_PLATFORM_ROLE",
+    "EMAIL_VERIFICATION_ID_PREFIX",
+    "EmailVerificationCodeRecord",
     "IDENTITY_ID_PREFIX",
     "LoginIdentityRecord",
     "MYSQL_TABLE_OPTIONS",
@@ -209,6 +253,7 @@ __all__ = [
     "UserProfileRecord",
     "UserRecord",
     "new_auth_session_id",
+    "new_email_verification_id",
     "new_identity_id",
     "new_user_id",
     "to_contract_iso",

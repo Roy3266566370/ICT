@@ -382,6 +382,174 @@
   color: var(--ink-400);
 }
 
+/* ---------------- 数据结构结构化画面 ---------------- */
+
+.dsVisual {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--paper-0);
+  overflow-x: auto;
+}
+
+.dsVisualLabel {
+  color: var(--ink-400);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+}
+
+.dsVisualSvg {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+}
+
+.dsTreeEdge {
+  stroke: rgba(79, 70, 229, 0.32);
+  stroke-width: 1.4;
+}
+
+.dsTreeNode {
+  fill: var(--paper-0);
+  stroke: rgba(79, 70, 229, 0.45);
+  stroke-width: 1.5;
+}
+
+.dsTreeNodeActive {
+  fill: var(--color-indigo-softer);
+  stroke: var(--color-indigo-strong);
+  stroke-width: 2;
+}
+
+.dsTreeNodeText {
+  fill: var(--ink-800);
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.dsBarAxis {
+  stroke: var(--hairline);
+  stroke-width: 1;
+}
+
+.dsBar {
+  fill: var(--color-indigo-strong);
+  opacity: 0.88;
+}
+
+.dsBarValue {
+  fill: var(--ink-500);
+  font-family: var(--font-family-mono);
+  font-size: 9px;
+}
+
+.dsListRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-family-mono);
+  font-size: 10.5px;
+}
+
+.dsListRowLabel {
+  margin-right: 4px;
+  color: var(--ink-400);
+  font-weight: 700;
+}
+
+.dsListHead {
+  color: var(--color-indigo-strong);
+  font-weight: 700;
+}
+
+.dsListArrow {
+  color: var(--ink-400);
+}
+
+.dsListNodeWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dsListNode {
+  display: inline-grid;
+  place-items: center;
+  min-width: 32px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(79, 70, 229, 0.3);
+  border-radius: var(--radius-sm);
+  background: var(--color-indigo-softer);
+  color: var(--color-indigo-strong);
+  font-weight: 700;
+  box-shadow: var(--shadow-xs);
+}
+
+.dsListNull {
+  color: var(--ink-400);
+}
+
+/* ---------------- 计算机组成原理 ---------------- */
+
+.coBitPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--paper-0);
+  overflow-x: auto;
+}
+
+.coBitRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: max-content;
+}
+
+.coBitLabel {
+  flex: none;
+  min-width: 56px;
+  color: var(--ink-400);
+  font-family: var(--font-family-mono);
+  font-size: 9.5px;
+}
+
+.coBits {
+  display: flex;
+  gap: 2px;
+}
+
+.coBit {
+  display: inline-grid;
+  place-items: center;
+  width: 19px;
+  height: 24px;
+  border: 1px solid var(--hairline);
+  border-radius: 3px;
+  background: var(--paper-1);
+  color: var(--ink-500);
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.coBit[data-on] {
+  border-color: rgba(79, 70, 229, 0.35);
+  background: var(--color-indigo-softer);
+  color: var(--color-indigo-strong);
+}
+
 .emptyText {
   margin: 0;
   color: var(--ink-400);

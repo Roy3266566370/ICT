@@ -40,6 +40,8 @@ import type {
   RegisterRequestPayload,
   RegionOverrideResult,
   RunSnapshot,
+  SendRegisterCodePayload,
+  SendRegisterCodeResult,
   SessionInfo,
   SlideElement,
   SlidePage,
@@ -995,6 +997,12 @@ const MOCK_DEMO_ACCOUNT_KEY = mockAccountKey(MOCK_DEMO_EMAIL);
  */
 const mockAccounts = new Map<string, MockAccountRecord>();
 const mockAccountsByUsername = new Map<string, MockAccountRecord>();
+
+/* 演示模式的验证码：固定 6 位数字，不真正发邮件；仅记录发送时间用于重发节流。 */
+const MOCK_REGISTER_CODE = '123456';
+const MOCK_CODE_TTL_SECONDS = 300;
+const MOCK_CODE_RESEND_SECONDS = 60;
+const mockCodeSentAt = new Map<string, number>();
 
 const DEMO_ACCOUNT: MockAccountRecord = {
   user: {
@@ -2246,9 +2254,72 @@ export function createMockClient(options: MockClientOptions): ApiClient {
 
     /* ---------------- C-WEBAPI@1 追加：账号演示端点 ---------------- */
 
+    async sendRegisterCode(payload: SendRegisterCodePayload): Promise<SendRegisterCodeResult> {
+      const email = payload.email.trim();
+      if (email === '' || !email.includes('@')) {
+        throw makeError({
+          code: 'MISSING_FIELD',
+          message: '请填写正确的邮箱地址',
+          retryable: false,
+          status: 422,
+          requestId: nextRequestId(),
+        });
+      }
+      const key = mockAccountKey(email);
+      if (mockAccounts.has(key)) {
+        throw makeError({
+          code: 'EMAIL_ALREADY_REGISTERED',
+          message: '该邮箱已注册，可直接登录',
+          retryable: false,
+          status: 409,
+          requestId: nextRequestId(),
+        });
+      }
+      const sentAt = mockCodeSentAt.get(key);
+      const now = Date.now();
+      if (sentAt !== undefined && now - sentAt < MOCK_CODE_RESEND_SECONDS * 1000) {
+        const retryAfter = Math.ceil(
+          (MOCK_CODE_RESEND_SECONDS * 1000 - (now - sentAt)) / 1000,
+        );
+        throw makeError({
+          code: 'RATE_LIMITED',
+          message: `请 ${retryAfter} 秒后再发送验证码`,
+          retryable: false,
+          status: 429,
+          requestId: nextRequestId(),
+          details: { retry_after_seconds: retryAfter },
+        });
+      }
+      mockCodeSentAt.set(key, now);
+      return {
+        email,
+        expires_in_seconds: MOCK_CODE_TTL_SECONDS,
+        resend_after_seconds: MOCK_CODE_RESEND_SECONDS,
+      };
+    },
+
     async registerAccount(payload: RegisterRequestPayload) {
       const username = payload.username.trim();
       const email = payload.email.trim();
+      const verificationCode = payload.verification_code.trim();
+      if (!/^\d{6}$/.test(verificationCode)) {
+        throw makeError({
+          code: 'MISSING_FIELD',
+          message: '请输入 6 位数字验证码',
+          retryable: false,
+          status: 422,
+          requestId: nextRequestId(),
+        });
+      }
+      if (verificationCode !== MOCK_REGISTER_CODE) {
+        throw makeError({
+          code: 'MISSING_FIELD',
+          message: '验证码不正确，请重新获取',
+          retryable: false,
+          status: 422,
+          requestId: nextRequestId(),
+        });
+      }
       // 契约只规定"去空格后为空"判空；保存与比较都用原始密码，不做静默改写。
       if (username === '' || email === '' || payload.password.trim() === '') {
         throw makeError({
@@ -2299,7 +2370,7 @@ export function createMockClient(options: MockClientOptions): ApiClient {
         display_name: (requestedName === '' ? username : requestedName).slice(0, 64),
         status: 'active',
         created_at: nowIso(),
-        email_verification: 'disabled_development',
+        email_verification: 'verified',
         avatar_url: null,
       };
       const record: MockAccountRecord = {
@@ -2310,6 +2381,7 @@ export function createMockClient(options: MockClientOptions): ApiClient {
       };
       mockAccounts.set(key, record);
       mockAccountsByUsername.set(usernameKey, record);
+      mockCodeSentAt.delete(key);
       return cloneData(user);
     },
 

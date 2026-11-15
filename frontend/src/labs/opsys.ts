@@ -1,7 +1,8 @@
 import type { LabCheck, LabModel, LabResultBase, LabResultFrame, LabResultMetric } from './types.ts';
 import { readNumber, readString } from './types.ts';
 
-export type OsKind = 'cpu_schedule' | 'page_replace' | 'disk_schedule' | 'banker';
+export type OsKind = 'cpu_schedule' | 'page_replace' | 'disk_schedule' | 'banker'
+  | 'os_basics' | 'process_thread' | 'sync' | 'deadlock' | 'memory_alloc';
 
 export interface OsFrame extends LabResultFrame {
   action: string;
@@ -33,7 +34,7 @@ export interface OsBankerStats {
 
 interface OsResultBase extends LabResultBase {
   subject: 'operating_system';
-  engine: 'os_sched_v1' | 'os_page_v1' | 'os_disk_v1' | 'os_banker_v1';
+  engine: string;
   osKind: OsKind;
   status: 'ok' | 'blocked';
   reason?: string;
@@ -50,7 +51,11 @@ export interface OsSchedResult extends OsResultBase { osKind: 'cpu_schedule'; st
 export interface OsPageResult extends OsResultBase { osKind: 'page_replace'; stats: OsPageStats }
 export interface OsDiskResult extends OsResultBase { osKind: 'disk_schedule'; stats: OsDiskStats }
 export interface OsBankerResult extends OsResultBase { osKind: 'banker'; stats: OsBankerStats }
-export type OsResult = OsSchedResult | OsPageResult | OsDiskResult | OsBankerResult;
+export interface OsGenericResult extends OsResultBase {
+  osKind: 'os_basics' | 'process_thread' | 'sync' | 'deadlock' | 'memory_alloc';
+  stats: Record<string, unknown>;
+}
+export type OsResult = OsSchedResult | OsPageResult | OsDiskResult | OsBankerResult | OsGenericResult;
 
 const EPS = 1e-9;
 const MAX_PROCESSES = 12;
@@ -66,6 +71,7 @@ export const SCHED_LABELS: Record<string, string> = {
   srtf: '最短剩余时间优先 SRTF（抢占）',
   rr: '时间片轮转 RR',
   priority: '优先级调度（非抢占，数小优先）',
+  hrrn: '高响应比优先 HRRN（非抢占）',
 };
 export const PAGE_LABELS: Record<string, string> = {
   fifo: '先进先出 FIFO', lru: '最近最久未使用 LRU', opt: '最佳置换 OPT',
@@ -73,6 +79,12 @@ export const PAGE_LABELS: Record<string, string> = {
 export const DISK_LABELS: Record<string, string> = {
   fcfs: '先来先服务 FCFS', sstf: '最短寻道时间优先 SSTF', scan: 'SCAN（电梯）',
   cscan: 'C-SCAN（循环扫描）', look: 'LOOK', clook: 'C-LOOK',
+};
+
+export const OS_KIND_LABELS: Record<string, string> = {
+  cpu_schedule: 'CPU 调度', page_replace: '页面置换', disk_schedule: '磁盘调度', banker: '银行家算法',
+  os_basics: '操作系统基础', process_thread: '进程与线程', sync: '同步与互斥',
+  deadlock: '死锁', memory_alloc: '连续内存分配',
 };
 
 export const OS_PSEUDOCODE: Record<OsKind, string[]> = {
@@ -103,6 +115,32 @@ export const OS_PSEUDOCODE: Record<OsKind, string[]> = {
     '假定它运行完毕：Work = Work + Allocation',
     '重复直到全部完成（安全）或再无可选进程（不安全）',
     '安全序列即各轮选出进程的顺序',
+  ],
+  os_basics: [
+    '用户态只能执行非特权指令',
+    '系统调用/中断/异常进入内核态',
+    '内核处理完成后返回用户态',
+  ],
+  process_thread: [
+    '创建 → 就绪 → 运行 → 阻塞 → 就绪 → 终止',
+    'PCB 保存进程状态、寄存器和资源信息',
+    '同进程线程共享地址空间，栈/PC 独立',
+  ],
+  sync: [
+    'P(S)：S=S−1；S<0 则阻塞',
+    'V(S)：S=S+1；S≤0 则唤醒等待进程',
+    '临界区前后成对使用 P/V 或 lock/unlock',
+  ],
+  deadlock: [
+    '判断互斥、占有并等待、非抢占、循环等待四个必要条件',
+    '用资源分配图/银行家算法检测或避免',
+    '可预防、避免、检测或解除死锁',
+  ],
+  memory_alloc: [
+    '按首次/最佳/最坏/邻近适应选择空闲区',
+    '切分空闲区完成分配',
+    '回收并合并相邻空闲区',
+    '统计碎片与内存利用率',
   ],
 };
 
@@ -145,7 +183,8 @@ function pushFrame(
 function blocked(model: LabModel, reason: string): OsResult {
   const kind = (model.os_kind ?? 'cpu_schedule') as OsKind;
   const engine = ({ cpu_schedule: 'os_sched_v1', page_replace: 'os_page_v1', disk_schedule: 'os_disk_v1',
-    banker: 'os_banker_v1' } as const)[kind];
+    banker: 'os_banker_v1', os_basics: 'os_basics_v1', process_thread: 'os_process_v1',
+    sync: 'os_sync_v1', deadlock: 'os_deadlock_v1', memory_alloc: 'os_memory_v1' } as const)[kind];
   return {
     subject: 'operating_system', engine, osKind: kind, status: 'blocked', reason, headline: reason,
     algorithm: '', answer: '', answerValue: null, answerOrder: null, stopReason: null, pseudocode: [],
@@ -206,10 +245,11 @@ function simulateSchedule(processes: OsProcess[], algorithm: string, quantum: nu
     return clean(next);
   };
 
-  if (algorithm === 'fcfs' || algorithm === 'sjf' || algorithm === 'priority') {
+  if (algorithm === 'fcfs' || algorithm === 'sjf' || algorithm === 'priority' || algorithm === 'hrrn') {
     const key = (i: number): Key => {
       if (algorithm === 'fcfs') return [arrival[i]!, i];
       if (algorithm === 'sjf') return [burst[i]!, arrival[i]!, i];
+      if (algorithm === 'hrrn') return [-(Math.max(0, time - arrival[i]!) + burst[i]!) / burst[i]!, arrival[i]!, i];
       return [priority[i] ?? Infinity, arrival[i]!, i];
     };
     while (done < n) {
@@ -217,9 +257,12 @@ function simulateSchedule(processes: OsProcess[], algorithm: string, quantum: nu
       if (!available.length) { time = idle(); continue; }
       const pick = pickMin(available, key);
       const ready = sortedBy(available.filter((i) => i !== pick), key);
+      const ratio = (Math.max(0, time - arrival[pick]!) + burst[pick]!) / burst[pick]!;
       const reason = algorithm === 'fcfs' ? '就绪进程中最先到达'
         : algorithm === 'sjf' ? `就绪进程中服务时间最短（${fmt(burst[pick])}）`
-          : `就绪进程中优先级数最小（${fmt(priority[pick])}）`;
+          : algorithm === 'hrrn'
+            ? `就绪进程中响应比最高（(${fmt(Math.max(0, time - arrival[pick]!))}+${fmt(burst[pick])})/${fmt(burst[pick])}≈${fmt(ratio)}）`
+            : `就绪进程中优先级数最小（${fmt(priority[pick])}）`;
       const start = time;
       time = clean(time + remaining[pick]!);
       remaining[pick] = 0;
@@ -878,6 +921,38 @@ function evalBanker(model: LabModel, params: Record<string, unknown>): OsResult 
 
 /** 前端权威计算：与后端 app.labs.opsys 逐帧镜像。 */
 export function evaluateOs(model: LabModel, params: Record<string, unknown>): OsResult {
+  const kind = String(model.os_kind ?? 'cpu_schedule') as OsKind;
+  const genericKinds = new Set<OsKind>(['os_basics', 'process_thread', 'sync', 'deadlock', 'memory_alloc']);
+  if (genericKinds.has(kind)) {
+    const embedded = (model as unknown as { os_result?: Record<string, unknown> }).os_result;
+    if (!embedded || !Array.isArray(embedded.frames) || embedded.frames.length === 0) {
+      return blocked(model, '该操作系统题型的执行记录尚未生成，请重新打开或重建题目。');
+    }
+    const raw = embedded;
+    const frames = raw.frames as OsFrame[];
+    return {
+      subject: 'operating_system',
+      engine: String(raw.engine ?? `os_${kind}_v1`),
+      osKind: kind,
+      status: raw.status === 'ok' ? 'ok' : 'blocked',
+      reason: typeof raw.reason === 'string' ? raw.reason : undefined,
+      algorithm: String(raw.algorithm ?? ''),
+      answer: String(raw.answer ?? ''),
+      answerValue: typeof raw.answer_value === 'number' ? raw.answer_value
+        : (typeof raw.answerValue === 'number' ? raw.answerValue : null),
+      answerOrder: Array.isArray(raw.answer_order) ? raw.answer_order as string[]
+        : (Array.isArray(raw.answerOrder) ? raw.answerOrder as string[] : null),
+      stopReason: typeof raw.stop_reason === 'string' ? raw.stop_reason : null,
+      pseudocode: Array.isArray(raw.pseudocode) ? raw.pseudocode as string[] : [],
+      frames,
+      trace: frames,
+      headline: String(raw.headline ?? raw.answer ?? ''),
+      metrics: Array.isArray(raw.metrics) ? raw.metrics as OsResult['metrics'] : [],
+      checks: Array.isArray(raw.checks) ? raw.checks as OsResult['checks'] : [],
+      notes: Array.isArray(raw.notes) ? raw.notes as string[] : [],
+      stats: typeof raw.stats === 'object' && raw.stats !== null ? raw.stats as Record<string, unknown> : {},
+    } as OsGenericResult;
+  }
   switch (model.os_kind) {
     case 'page_replace': return evalPage(model, params);
     case 'disk_schedule': return evalDisk(model, params);

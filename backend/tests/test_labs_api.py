@@ -451,3 +451,33 @@ def test_cross_session_lab_is_404(app: Any, owner: TestClient) -> None:
         response = other.get(f"/api/v1/labs/{document['lab_id']}")
     assert response.status_code == 404
     assert response.json()["error"]["message"] == "资源不可用"
+
+
+def test_solver_capability_catalog_endpoint(owner: TestClient) -> None:
+    session = _session(owner)
+    response = owner.get("/api/v1/labs/capability-catalog", headers=_headers(session))
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    kinds = {c["kind"] for c in data["capabilities"]}
+    assert kinds == {"compute", "check", "visual"}
+    assert any(c["id"] == "geometric_area" for c in data["capabilities"])
+    assert any(c["id"] == "zeros_on_interval" for c in data["capabilities"])
+    assert data["kind_legend"]["check"]
+
+
+def test_composite_solve_endpoint(owner: TestClient) -> None:
+    import math
+
+    session = _session(owner)
+    text = "在0≤x≤2内，求曲线y=x²−x与x轴之间的面积，以及该区域绕x轴旋转所得旋转体的体积。"
+    response = owner.post("/api/v1/labs/composite-solve", headers=_headers(session), json={"text": text})
+    assert response.status_code == 200, response.text
+    data = response.json()["data"]
+    assert data["plan_check"]["ok"]
+    assert data["status"] == "完成"
+    answers = {a["goal"]: a for a in data["answers"]}
+    assert next(v["value"] for k, v in answers.items() if "面积" in k) == pytest.approx(1.0)
+    assert next(v["value"] for k, v in answers.items() if "体积" in k) == pytest.approx(16 * math.pi / 15)
+    assert {v["kind"] for v in data["presentation"]["visuals"]} >= {
+        "curve", "region_shade", "revolution_solid", "step_timeline"}
+    assert data["problem"]["version"]

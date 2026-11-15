@@ -184,15 +184,22 @@ def test_source_task_overrides_hallucinated_target():
 
 def test_boundary_is_unsupported_not_missing_data():
     from app.labs.staged_understanding import unsupported_boundary
+    for text in ('分时系统时间片轮转调度需要使用哪些组件？',
+                 '求微分方程解曲线在给定区间的弧长',
+                 '分析该程序段的时间复杂度'):
+        assert unsupported_boundary(text)
+    # 内核已支持：堆插入建堆、堆操作关键字比较次数、非空初态页面置换——不再是能力边界。
     for text in ('把序列逐个插入初始为空的大根堆',
                  '小根堆删除堆顶，求关键字比较次数',
-                 '分时系统时间片轮转调度需要使用哪些组件？',
-                 'LRU，0,1,2已调入内存，求缺页次数',
-                 '求微分方程解曲线在给定区间的弧长'):
-        assert unsupported_boundary(text)
+                 'LRU，0,1,2已调入内存，求缺页次数'):
+        assert not unsupported_boundary(text)
+    # 循环/递归复杂度已由 ds_analysis 内核支持：不再对包含“时间复杂度”的题一刀切拒绝。
+    assert not unsupported_boundary('外层 i 从 1 到 n，内层 j 从 1 到 i，求循环的时间复杂度')
     assert not unsupported_boundary('计算定积分从0到1对x积分')
     assert not unsupported_boundary('函数f(x)=x^2，不需要研究凹凸性，只求从0到1的定积分。')
-    assert unsupported_boundary('散列表采用线性探查，求查找失败的平均查找长度')
+    # 哈夫曼/散列已由 ds_advanced 支持：不再是能力边界。
+    assert not unsupported_boundary('散列表采用线性探查，求查找失败的平均查找长度')
+    assert not unsupported_boundary('对给定权值构造哈夫曼树并求带权路径长度')
 
 
 def test_analysis_image_preserves_original(tmp_path):

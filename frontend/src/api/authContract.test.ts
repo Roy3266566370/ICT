@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ERROR_CODES, ERROR_CODE_META, isAuthUser, isMeResponse } from './types.ts';
+import { ERROR_CODES, ERROR_CODE_META, isAuthUser, isMeResponse, isSendRegisterCodeResult } from './types.ts';
 
 /** C-ERR@1 既有 8 码：顺序与取值在本计划中冻结，只允许在末尾追加。 */
 const LEGACY_CODES: readonly string[] = [
@@ -165,7 +165,7 @@ test('isAuthUser：合法对象返回 true 并收窄字段', () => {
   }
 });
 
-test('isAuthUser：缺字段 / 错状态 / 非降级标记 / 非对象一律返回 false', () => {
+test('isAuthUser：缺字段 / 错状态 / 未知验证标记 / 非对象一律返回 false', () => {
   assert.equal(isAuthUser(authUserRecord({ user_id: undefined })), false);
   assert.equal(isAuthUser(authUserRecord({ username: undefined })), false);
   assert.equal(isAuthUser(authUserRecord({ username: '' })), false);
@@ -178,6 +178,14 @@ test('isAuthUser：缺字段 / 错状态 / 非降级标记 / 非对象一律返�
   assert.equal(isAuthUser(authUserRecord({ email_verification: 'enabled' })), false);
   assert.equal(isAuthUser(authUserRecord({ email_verification: null })), false);
   assert.equal(isAuthUser(authUserRecord({ user_id: 42 })), false);
+});
+
+test('isAuthUser：邮箱验证标记 verified 合法（注册验证码通过）', () => {
+  const value: unknown = authUserRecord({ email_verification: 'verified' });
+  assert.equal(isAuthUser(value), true);
+  if (isAuthUser(value)) {
+    assert.equal(value.email_verification, 'verified');
+  }
 });
 
 test('isAuthUser：null / 数组 / 原始值都不抛异常且返回 false', () => {
@@ -270,4 +278,24 @@ test('isMeResponse：null / 数组 / 原始值都不抛异常且返回 false', (
   assert.equal(isMeResponse({}), false);
   assert.equal(isMeResponse('me'), false);
   assert.equal(isMeResponse(1), false);
+});
+
+test('isSendRegisterCodeResult：合法形状收窄，缺字段 / 错类型一律拒绝', () => {
+  const value: unknown = {
+    email: 'a@example.com',
+    expires_in_seconds: 300,
+    resend_after_seconds: 60,
+  };
+  assert.equal(isSendRegisterCodeResult(value), true);
+  if (isSendRegisterCodeResult(value)) {
+    assert.equal(value.expires_in_seconds, 300);
+    assert.equal(value.resend_after_seconds, 60);
+  }
+
+  assert.equal(isSendRegisterCodeResult({ ...value, email: '' }), false);
+  assert.equal(isSendRegisterCodeResult({ ...value, expires_in_seconds: '300' }), false);
+  assert.equal(isSendRegisterCodeResult({ email: 'a@example.com' }), false);
+  assert.equal(isSendRegisterCodeResult(null), false);
+  assert.equal(isSendRegisterCodeResult([]), false);
+  assert.equal(isSendRegisterCodeResult('ok'), false);
 });

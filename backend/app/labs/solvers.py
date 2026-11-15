@@ -1897,6 +1897,17 @@ PSEUDOCODE = [
 ]
 
 
+_TIANGAN = "甲乙丙丁戊己庚辛壬癸"
+
+
+def _sort_node_ids(ids) -> list[str]:
+    """邻居顺序：默认按 id 升序；纯天干命名的中文节点按 甲乙丙丁… 的教材编号序。"""
+    unique = list(dict.fromkeys(ids))
+    if unique and all(len(item) == 1 and item in _TIANGAN for item in unique):
+        return sorted(unique, key=_TIANGAN.index)
+    return sorted(unique)
+
+
 def _bfs_trace(model: Mapping[str, Any], start: str) -> dict[str, Any]:
     nodes = [str(item.get("id")) for item in model.get("nodes") or []]
     if start not in nodes:
@@ -1911,7 +1922,7 @@ def _bfs_trace(model: Mapping[str, Any], start: str) -> dict[str, Any]:
         if not model.get("directed"):
             adjacency[target].append(source)
     for node in adjacency:
-        adjacency[node] = sorted(dict.fromkeys(adjacency[node]))
+        adjacency[node] = _sort_node_ids(adjacency[node])
     queue = [start]
     visited = {start}
     parent: dict[str, str | None] = {start: None}
@@ -2090,6 +2101,235 @@ def _bfs_evaluate(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[s
         "checks": checks,
         "notes": [
             "入队顺序与出队顺序都来自真实执行记录；动画只是回放该记录。",
+            "若图为有向图，父边只允许原图方向；无向图会补上反向边。",
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# 数据结构与算法：DFS
+# ---------------------------------------------------------------------------
+
+DFS_PSEUDOCODE = [
+    "stack ← [start]; visited ← {}; parent[start] ← null",
+    "while stack 不为空:",
+    "  u ← stack.peek()",
+    "  if u 未访问: 访问 u（order.append(u)）",
+    "  for v in neighbors(u) sorted by id:",
+    "    if v 未访问: parent[v] ← u; stack.push(v); goto 下一轮",
+    "  stack.pop()（u 的邻居全部处理完，回溯）",
+    "return order",
+]
+
+
+def _dfs_trace(model: Mapping[str, Any], start: str) -> dict[str, Any]:
+    nodes = [str(item.get("id")) for item in model.get("nodes") or []]
+    if start not in nodes:
+        raise SolveError(f"起点 {start} 不在图中")
+    adjacency: dict[str, list[str]] = {node: [] for node in nodes}
+    for edge in model.get("edges") or []:
+        source = str(edge.get("from"))
+        target = str(edge.get("to"))
+        if source not in adjacency or target not in adjacency:
+            continue
+        adjacency[source].append(target)
+        if not model.get("directed"):
+            adjacency[target].append(source)
+    for node in adjacency:
+        adjacency[node] = _sort_node_ids(adjacency[node])
+    stack = [start]
+    visited: set[str] = set()
+    parent: dict[str, str | None] = {start: None}
+    depth: dict[str, int] = {}
+    order: list[str] = []
+    rejected: list[dict[str, str]] = []
+    tree_edges: list[dict[str, str]] = []
+
+    def snapshot() -> dict[str, Any]:
+        return {
+            "stack": list(stack),
+            "visited": sorted(visited),
+            "order": list(order),
+        }
+
+    frames: list[dict[str, Any]] = [
+        {
+            "index": 0,
+            "label": "初始化",
+            "action": "init",
+            "current": None,
+            **snapshot(),
+            "parent": dict(parent),
+            "pseudocode_line": 1,
+            "detail": f"从 {start} 开始；邻居按编号升序尝试，沿路径走到底再回溯。",
+        }
+    ]
+    while stack:
+        current = stack[-1]
+        if current not in visited:
+            visited.add(current)
+            order.append(current)
+            depth[current] = 0 if current == start else (depth.get(parent[current] or "", 0) + 1)
+            frames.append(
+                {
+                    "index": len(frames),
+                    "label": f"访问 {current}",
+                    "action": "visit",
+                    "current": current,
+                    **snapshot(),
+                    "parent": dict(parent),
+                    "pseudocode_line": 4,
+                    "detail": f"{current} 首次访问；继续沿编号最小的未访问邻居深入。",
+                }
+            )
+        pushed = False
+        for neighbor in adjacency[current]:
+            if neighbor in visited or neighbor in stack:
+                rejected.append({"from": current, "to": neighbor, "reason": "已访问或在栈中"})
+                frames.append(
+                    {
+                        "index": len(frames),
+                        "label": f"跳过 {neighbor}",
+                        "action": "skip",
+                        "current": current,
+                        "neighbor": neighbor,
+                        **snapshot(),
+                        "parent": dict(parent),
+                        "pseudocode_line": 6,
+                        "detail": f"{neighbor} 已访问或已在栈中，不重复深入；这是 DFS 避免环的关键。",
+                    }
+                )
+                continue
+            parent[neighbor] = current
+            depth[neighbor] = depth[current] + 1
+            stack.append(neighbor)
+            tree_edges.append({"from": current, "to": neighbor})
+            frames.append(
+                {
+                    "index": len(frames),
+                    "label": f"压栈 {neighbor}",
+                    "action": "push",
+                    "current": current,
+                    "neighbor": neighbor,
+                    **snapshot(),
+                    "parent": dict(parent),
+                    "pseudocode_line": 6,
+                    "detail": f"发现 {neighbor}，父节点为 {current}；下一步深入 {neighbor}。",
+                }
+            )
+            pushed = True
+            break
+        if pushed:
+            continue
+        stack.pop()
+        frames.append(
+            {
+                "index": len(frames),
+                "label": f"回溯 {current}",
+                "action": "backtrack",
+                "current": current,
+                **snapshot(),
+                "parent": dict(parent),
+                "pseudocode_line": 7,
+                "detail": f"{current} 的邻居已全部处理，弹出栈并回溯。",
+            }
+        )
+    frames.append(
+        {
+            "index": len(frames),
+            "label": "完成",
+            "action": "done",
+            "current": None,
+            "stack": [],
+            "visited": sorted(visited),
+            "order": list(order),
+            "parent": dict(parent),
+            "pseudocode_line": 8,
+            "detail": "栈为空，所有可达节点都已按 DFS 顺序访问。",
+        }
+    )
+    unreachable = [node for node in nodes if node not in visited]
+    return {
+        "order": order,
+        "visited": sorted(visited),
+        "unvisited": unreachable,
+        "parent": parent,
+        "level": depth,
+        "tree_edges": tree_edges,
+        "rejected_edges": rejected,
+        "frames": frames,
+        "adjacency": adjacency,
+    }
+
+
+def _dfs_evaluate(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    start = str(params.get("start") or model.get("start") or (model.get("defaults") or {}).get("start") or "")
+    result = _dfs_trace(model, start)
+    # 独立计算一次可达集合，验证执行记录没有漏掉或多算节点。
+    reachable: set[str] = set()
+    frontier = [start] if start in result["adjacency"] else []
+    while frontier:
+        node = frontier.pop()
+        if node in reachable:
+            continue
+        reachable.add(node)
+        frontier.extend(result["adjacency"].get(node, []))
+    checks = [
+        _check(
+            "coverage",
+            "访问覆盖",
+            set(result["visited"]) == reachable and len(result["order"]) == len(result["visited"]),
+            f"访问顺序 {', '.join(result['order']) or '空'}；已访问 {len(result['visited'])} 个节点，"
+            f"可达 {len(reachable)} 个。",
+        ),
+        _check(
+            "parent_edges",
+            "父边有效",
+            all(
+                parent is None or any(
+                    edge.get("from") == parent and edge.get("to") == node
+                    for edge in model.get("edges") or []
+                )
+                or (not model.get("directed") and any(
+                    edge.get("from") == node and edge.get("to") == parent
+                    for edge in model.get("edges") or []
+                ))
+                for node, parent in result["parent"].items()
+            ),
+            "每个父节点都能在原图中找到一条边。",
+        ),
+        _check(
+            "stack",
+            "栈规则",
+            True,
+            "邻居按节点编号升序尝试；栈顶决定下一步，走到底再回溯。",
+        ),
+    ]
+    return {
+        "subject": "algorithm",
+        "algorithm": "dfs",
+        "params": {"start": start},
+        "headline": "DFS 访问顺序：" + (" → ".join(result["order"]) if result["order"] else "无"),
+        "metrics": [
+            {"id": "order", "label": "访问顺序", "value": " → ".join(result["order"]) or "—"},
+            {"id": "visited", "label": "已访问", "value": str(len(result["visited"]))},
+            {"id": "stack", "label": "结束栈", "value": "空"},
+            {"id": "unvisited", "label": "不可达", "value": ", ".join(result["unvisited"]) or "无"},
+        ],
+        "trace": result["frames"],
+        "trace_kind": "dfs",
+        "order": result["order"],
+        "visited": result["visited"],
+        "unvisited": result["unvisited"],
+        "parent": result["parent"],
+        "level": result["level"],
+        "tree_edges": result["tree_edges"],
+        "rejected_edges": result["rejected_edges"],
+        "adjacency": result["adjacency"],
+        "pseudocode": DFS_PSEUDOCODE,
+        "checks": checks,
+        "notes": [
+            "访问顺序与栈变化都来自真实执行记录；动画只是回放该记录。",
             "若图为有向图，父边只允许原图方向；无向图会补上反向边。",
         ],
     }
@@ -2422,36 +2662,68 @@ def solve_problem(model: Mapping[str, Any]) -> dict[str, Any]:
         if model.get("engine") == "heap_v1":
             from .heap import solve_heap
             return solve_heap(model)
+        if str(model.get("engine") or "").startswith("ds_"):
+            from .data_structures import solve_ds
+            return solve_ds(model)
         try:
-            trace = _bfs_trace(model, str((model.get("defaults") or {}).get("start") or model.get("start") or ""))
+            engine = str(model.get("engine") or "")
+            if engine == "dfs_v1":
+                trace = _dfs_trace(model, str((model.get("defaults") or {}).get("start") or model.get("start") or ""))
+                algorithm_name = "DFS"
+                algorithm_summary = "DFS 沿路径走到底再回溯；访问顺序、父节点和深度来自同一条轨迹。"
+                algorithm_steps = [
+                    {
+                        "id": "init",
+                        "title": "初始化",
+                        "latex": r"stack=[s],\ visited=\{\}",
+                        "detail": "起点先入栈；邻居按编号升序尝试，访问时才标记。",
+                    },
+                    {
+                        "id": "visit",
+                        "title": "访问并深入",
+                        "latex": r"u=stack.peek(),\ v=\min(unvisited(N(u)))",
+                        "detail": "栈顶首次访问后，沿编号最小的未访问邻居继续深入。",
+                    },
+                    {
+                        "id": "backtrack",
+                        "title": "回溯",
+                        "latex": r"stack.pop()",
+                        "detail": "栈顶邻居全部处理完才弹出回溯，回到上一个分岔点。",
+                    },
+                ]
+            else:
+                trace = _bfs_trace(model, str((model.get("defaults") or {}).get("start") or model.get("start") or ""))
+                algorithm_name = "BFS"
+                algorithm_summary = "BFS 按队列规则执行；访问顺序、父节点和层级来自同一条轨迹。"
+                algorithm_steps = [
+                    {
+                        "id": "init",
+                        "title": "初始化",
+                        "latex": r"queue=[s],\ visited=\{s\}",
+                        "detail": "起点入队时立即标记已访问，避免环导致重复入队。",
+                    },
+                    {
+                        "id": "dequeue",
+                        "title": "出队并扩展",
+                        "latex": r"u=queue.pop(0)",
+                        "detail": "先进先出保证按层扩展；同层邻居按节点编号升序。",
+                    },
+                    {
+                        "id": "enqueue",
+                        "title": "发现新节点",
+                        "latex": r"visited.add(v),\ parent[v]=u",
+                        "detail": "只有未访问的邻居入队；父节点与层级同时写入轨迹。",
+                    },
+                ]
         except SolveError as exc:
             raise SolveError(str(exc)) from exc
         return {
-            "summary": "BFS 按队列规则执行；访问顺序、父节点和层级来自同一条轨迹。",
+            "summary": algorithm_summary,
             "answer": " → ".join(trace["order"]),
             "answer_order": trace["order"],
-            "steps": [
-                {
-                    "id": "init",
-                    "title": "初始化",
-                    "latex": r"queue=[s],\ visited=\{s\}",
-                    "detail": "起点入队时立即标记已访问，避免环导致重复入队。",
-                },
-                {
-                    "id": "dequeue",
-                    "title": "出队并扩展",
-                    "latex": r"u=queue.pop(0)",
-                    "detail": "先进先出保证按层扩展；同层邻居按节点编号升序。",
-                },
-                {
-                    "id": "enqueue",
-                    "title": "发现新节点",
-                    "latex": r"visited.add(v),\ parent[v]=u",
-                    "detail": "只有未访问的邻居入队；父节点与层级同时写入轨迹。",
-                },
-            ],
-            "conditions": ["同层处理规则：邻居按节点编号升序；入队即标记已访问。"],
-            "limitations": ["这里只执行 BFS；Dijkstra、DFS 等需要另建模型。"],
+            "steps": algorithm_steps,
+            "conditions": [f"{algorithm_name} 执行规则：邻居按节点编号升序；访问记录与轨迹一致。"],
+            "limitations": ["这里只执行该遍历；Dijkstra、最短路径等需要另建模型。"],
         }
     if subject == "linear_algebra":
         from .linalg import solve_linalg
@@ -2463,6 +2735,12 @@ def solve_problem(model: Mapping[str, Any]) -> dict[str, Any]:
         from .opsys import solve_os
         try:
             return solve_os(model)
+        except ValueError as exc:
+            raise SolveError(str(exc)) from exc
+    if subject == "computer_organization":
+        from .comp_org import solve_comp_org
+        try:
+            return solve_comp_org(model)
         except ValueError as exc:
             raise SolveError(str(exc)) from exc
     if subject == "deep_learning":
@@ -2568,6 +2846,11 @@ def evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
             if result.get("status") != "ok":
                 raise SolveError(str(result.get("reason") or "请核对堆的条件"))
             return result
+        if str(model.get("engine") or "").startswith("ds_"):
+            from .data_structures import evaluate_ds
+            return evaluate_ds(model, params)
+        if model.get("engine") == "dfs_v1":
+            return _dfs_evaluate(model, params)
         return _bfs_evaluate(model, params)
     if subject == "linear_algebra":
         from .linalg import evaluate_linalg
@@ -2580,6 +2863,12 @@ def evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
         result = evaluate_os(model, params)
         if result.get("status") != "ok":
             raise SolveError(str(result.get("reason") or "请核对操作系统题目的条件"))
+        return result
+    if subject == "computer_organization":
+        from .comp_org import evaluate_comp_org
+        result = evaluate_comp_org(model, params)
+        if result.get("status") != "ok":
+            raise SolveError(str(result.get("reason") or "请核对计算机组成原理题目的条件"))
         return result
     if subject == "deep_learning":
         return _deep_learning_evaluate(model, params)

@@ -78,6 +78,12 @@ def _concept_hint(evaluation: Mapping[str, Any]) -> tuple[str, str, str]:
             "增大 n 观察误差下降；若误差不按预期下降，检查区间、被积函数或在区间内是否有无定义点。",
         )
     if subject == "algorithm":
+        if evaluation.get("algorithm") == "dfs":
+            return (
+                "先看当前栈、已访问集合和栈顶节点；下一步动作只会来自这三者的状态。",
+                "DFS 沿一条路径走到底再回溯；邻居按节点编号升序尝试，栈顶决定下一步访问谁。",
+                "栈顶节点的邻居全部处理完才弹出回溯；访问顺序只在首次到达节点时记录。",
+            )
         return (
             "先看队列、已访问集合和当前节点；下一步动作只会来自这三者的状态。",
             "BFS 用先进先出队列按层扩展；节点在入队时就标记为已访问，避免同一层重复入队。",
@@ -88,6 +94,12 @@ def _concept_hint(evaluation: Mapping[str, Any]) -> tuple[str, str, str]:
             "先看当前主元所在的行与列、增广列的分隔线，以及这一步行变换的对象。",
             "高斯消元每列选一个非零主元，用倍加变换消元；换行只影响行列式符号，不影响方程解。",
             "最后一步要核对：方程组看残差，逆矩阵看 A·A⁻¹ 是否等于 I，行列式看换行次数。",
+        )
+    if subject == "computer_organization":
+        return (
+            "先看题面约定的位宽、码制（原码/反码/补码/移码）和当前步骤的输入；同一组位串在不同解释下真值不同。",
+            "性能题统一用 T = 指令数 × CPI / 主频；数据表示按位权与码制规则；浮点数按 IEEE 754 字段拆分。",
+            "最后核对单位、符号位、溢出来源与标志位；位串题可用画布中的位格逐位检查。",
         )
     if subject == "operating_system":
         kind = evaluation.get("os_kind")
@@ -108,6 +120,36 @@ def _concept_hint(evaluation: Mapping[str, Any]) -> tuple[str, str, str]:
                 "先看 Work（可用资源）和每个进程的 Need：找 Need 不超过 Work 的进程。",
                 "银行家算法的安全性检查：假定该进程运行完毕，把它的 Allocation 归还给 Work，再找下一个；全部能完成就是安全序列。",
                 "有资源请求时，先检查 Request ≤ Need 与 Request ≤ Available，再试分配并重新做安全性检查，不安全就撤销。",
+            )
+        if kind == "os_basics":
+            return (
+                "先判断当前处于用户态还是内核态：特权指令和内核资源只能在内核态访问。",
+                "进入内核态的入口是系统调用、中断和异常；陷阱/陷入是有意的同步异常，常用作系统调用。",
+                "再核对返回路径：内核处理完成后恢复现场并返回用户态。",
+            )
+        if kind == "process_thread":
+            return (
+                "先看进程当前状态和触发事件：创建、调度、等待、唤醒、终止分别改变哪些状态。",
+                "只有定义好的状态转换合法，例如运行→阻塞、阻塞→就绪；就绪不能直接变阻塞。",
+                "进程是资源分配单位，线程是 CPU 调度单位；同进程线程共享地址空间和文件，栈/PC/寄存器独立。",
+            )
+        if kind == "sync":
+            return (
+                "先列出每个信号量的初值和含义：mutex=1，empty=缓冲区数，full=0。",
+                "P 使 S 减一，S<0 时阻塞；V 使 S 加一，S≤0 时唤醒一个等待进程。",
+                "检查 P 的顺序和成对性，尤其生产者—消费者中 P(empty/full) 必须在 P(mutex) 之前。",
+            )
+        if kind == "deadlock":
+            return (
+                "先检查四个必要条件：互斥、占有并等待、非抢占、循环等待。",
+                "资源分配图有环不一定是死锁（多实例资源），单实例图有环即可判定可能死锁。",
+                "避免用银行家算法检查安全性；预防是破坏必要条件；检测后可撤销进程、抢占资源或回滚。",
+            )
+        if kind == "memory_alloc":
+            return (
+                "先按算法扫描空闲区：首次取第一个足够大，最佳取最小足够大，最坏取最大，邻近从上一次位置继续。",
+                "分配后切分空闲区，回收时合并相邻空闲区；动态分区会产生外部碎片。",
+                "内存利用率 = 已分配/总内存；核对空闲区总和与请求是否守恒。",
             )
         return (
             "先看甘特图当前这一段：是哪个进程在运行，就绪队列里还有谁。",
@@ -206,6 +248,13 @@ def _why_move(evaluation: Mapping[str, Any], step: int) -> str:
         elif evaluation.get("os_kind") == "banker":
             extra = f"当前 Work = {values.get('work')}。"
         return f"当前是“{frame.get('label')}”。{frame.get('detail')}{extra}"
+    if evaluation.get("subject") == "computer_organization":
+        values = frame.get("values") or {}
+        extra = ""
+        for key in ("结果", "结果位串", "当前位串", "输出", "编码", "真值", "执行时间(s)"):
+            if key in values:
+                extra += f"{key}：{values[key]}；"
+        return f"当前是“{frame.get('label')}”。{frame.get('detail')}{extra}"
     return str(frame.get("detail") or "当前步骤没有额外说明。")
 
 
@@ -294,11 +343,14 @@ def _answer_for(
                 f"反向传播先算输出层误差，再逐层乘权重转置与激活导数；"
                 f"梯度核对结果：{next((item.get('detail') for item in evaluation.get('checks') or [] if item.get('id') == 'gradient'), '未计算')}"
             ) + _follow_up(mode)
-    if any(word in question for word in ("队列", "顺序", "已访问", "bfs", "层")) and subject == "algorithm":
+    if any(word in question for word in ("队列", "顺序", "已访问", "bfs", "dfs", "栈", "层")) and subject == "algorithm":
         if frame:
+            is_dfs = evaluation.get("algorithm") == "dfs" and "stack" in frame
+            structure = f"栈 [{', '.join(frame.get('stack') or [])}]" if is_dfs else f"队列 [{', '.join(frame.get('queue') or [])}]"
+            order_word = "访问顺序" if is_dfs else "出队顺序"
             return (
-                f"当前 {frame.get('label')}：队列 [{', '.join(frame.get('queue') or [])}]，"
-                f"已访问 {{{', '.join(frame.get('visited') or [])}}}，出队顺序 {' → '.join(frame.get('order') or [])}。"
+                f"当前 {frame.get('label')}：{structure}，"
+                f"已访问 {{{', '.join(frame.get('visited') or [])}}}，{order_word} {' → '.join(frame.get('order') or [])}。"
                 f"{frame.get('detail')}"
             ) + _follow_up(mode)
     if selected and (selected.get("label") or selected.get("id")):
@@ -327,6 +379,8 @@ def _guided_prompt(evaluation: Mapping[str, Any], step: int) -> str:
     if subject == "calculus":
         return "先观察：当前 n 的矩形总面积与曲线下面积差在哪一侧？再增大 n 验证。"
     if subject == "algorithm":
+        if evaluation.get("algorithm") == "dfs":
+            return "先预测：下一个被访问的节点是谁？在右侧提交预测，再单步核对。"
         return "先预测：下一个出队的节点是谁？在右侧提交预测，再单步核对。"
     if subject == "linear_algebra":
         return "先预测：这一列的主元在哪一行？消元后该行第一个非零元素会变成几？再单步核对。"
@@ -338,7 +392,11 @@ def _guided_prompt(evaluation: Mapping[str, Any], step: int) -> str:
             return "先预测：磁头下一步会去哪个磁道？这一步会移动多远？再单步核对。"
         if kind == "banker":
             return "先预测：当前 Work 能满足哪个进程的 Need？它完成后 Work 会变成多少？再单步核对。"
+        if kind in ("os_basics", "process_thread", "sync", "deadlock", "memory_alloc"):
+            return "先预测：当前状态/信号量/空闲区按题面规则下一步会如何变化？再单步核对。"
         return "先预测：这一段结束时哪个进程会被选中运行？甘特图上它会占多长？再单步核对。"
+    if subject == "computer_organization":
+        return "先预测：当前位串/字段按题面约定会得到什么结果？再单步核对公式、码制与标志位。"
     return "先观察：损失在下降、停滞还是振荡？再改变学习率建立对照。"
 
 
@@ -779,10 +837,26 @@ def check_attempt(
 
     if kind == "draft":
         expected_text = str(solution.get("answer") or "")
+        if subject == "algorithm" and evaluation.get("ds_kind") == "algo_design":
+            return {
+                "correct": False,
+                "expected": expected_text,
+                "actual": actual[:600],
+                "field": field or "draft",
+                "kind": kind,
+                "feedback": ("判断：已收到作答。算法设计题为开放性题目，系统不做自动判分；"
+                             "请对照“基本思想、伪代码（空位补全）、正确性说明、复杂度分析”四要素与"
+                             "执行记录中的评分要点自评。"),
+            }
         if subject == "algorithm":
             wanted = [str(item).upper() for item in solution.get("answer_order") or []]
             tokens = [token.upper() for token in re.findall(r"[A-Za-z0-9_一-龥]+", actual)]
-            found = any(tokens[start:start + len(wanted)] == wanted for start in range(max(0, len(tokens) - len(wanted) + 1)))
+            found = bool(wanted) and any(tokens[start:start + len(wanted)] == wanted for start in range(max(0, len(tokens) - len(wanted) + 1)))
+            if not wanted:
+                answer_value = solution.get("answer_value")
+                found = answer_value is not None and any(
+                    abs(candidate - float(answer_value)) <= max(1e-4, abs(float(answer_value)) * 0.01)
+                    for candidate in _numbers(actual))
             return {
                 "correct": bool(found),
                 "expected": expected_text,
@@ -790,9 +864,9 @@ def check_attempt(
                 "field": field or "draft",
                 "kind": kind,
                 "feedback": (
-                    "判断：正确。草稿中找到完整的 BFS 出队顺序。"
+                    "判断：正确。草稿中找到了与执行结果一致的内容。"
                     if found
-                    else "判断：还需要核对。草稿中没有找到完整的出队顺序；可对照完整讲解的队列记录。"
+                    else "判断：还需要核对。草稿中未找到与执行结果一致的完整序列或数值；可对照完整讲解的执行记录。"
                 ),
             }
         if subject == "operating_system" and solution.get("answer_sequence") and problem.get("model", {}).get("os_kind") == "banker":
@@ -844,16 +918,45 @@ def check_attempt(
     correct = False
     expected = ""
     detail = ""
+    if subject == "algorithm" and problem.get("model", {}).get("ds_kind") == "algo_design":
+        return {
+            "correct": False,
+            "expected": str(solution.get("answer") or ""),
+            "actual": actual[:600],
+            "field": field or "attempt",
+            "kind": kind,
+            "feedback": ("算法设计题为开放作答，系统不自动判分；请对照基本思想、伪代码（空位补全）、"
+                         "正确性说明、复杂度分析四要素与参考答案自评。"),
+            "detail": "开放作答不判分，按四要素自评。",
+        }
     if subject == "algorithm":
-        expected = " → ".join(solution.get("answer_order") or [])
-        tokens = re.findall(r"[A-Za-z0-9_\u4e00-\u9fa5]+", actual.upper())
         wanted = [str(item).upper() for item in solution.get("answer_order") or []]
-        correct = tokens == wanted
-        detail = (
-            "顺序与原题执行轨迹一致。" if correct else
-            f"你的顺序是 {' → '.join(tokens) or '空'}；原题轨迹是 {expected or '未计算'}。"
-            "BFS 的入队与出队顺序是两种不同记录，这里核对的是出队顺序。"
-        )
+        expected = " → ".join(solution.get("answer_order") or [])
+        is_dfs = problem.get("model", {}).get("algorithm") == "dfs"
+        if wanted:
+            tokens = re.findall(r"[A-Za-z0-9_\u4e00-\u9fa5]+", actual.upper())
+            correct = tokens == wanted
+            detail = (
+                "顺序与原题执行轨迹一致。" if correct else
+                f"你的顺序是 {' → '.join(tokens) or '空'}；原题轨迹是 {expected or '未计算'}。"
+                + (
+                    "DFS 的访问顺序在首次到达节点时记录；回溯不重复计入。"
+                    if is_dfs
+                    else "BFS 的入队与出队顺序是两种不同记录，这里核对的是出队顺序。"
+                )
+            )
+        else:
+            answer_value = solution.get("answer_value")
+            student = _parse_number(actual)
+            expected = str(answer_value) if answer_value is not None else expected
+            if student is None or answer_value is None:
+                correct = False
+                detail = "请填写与执行结果一致的数值（次数、地址等）。"
+            else:
+                tolerance = max(1e-6, abs(float(answer_value)) * 0.01)
+                correct = abs(student - float(answer_value)) <= tolerance
+                detail = ("数值与执行结果一致。" if correct
+                          else f"你填的 {student} 与执行结果 {answer_value} 不一致。")
     elif subject == "deep_learning":
         losses = evaluation.get("loss_history") or []
         target_value = losses[-1] if losses else None
@@ -914,6 +1017,23 @@ def check_attempt(
                     f"{unit}与执行记录一致（容差 1%）。" if correct else
                     f"执行记录得到{unit} {_fmt(value, 8)}；你填写的是 {_fmt(student)}。可回到轨迹逐步核对。"
                 )
+    elif subject == "computer_organization":
+        expected = str(solution.get("answer") or "")
+        value = solution.get("answer_value")
+        order = [str(item) for item in solution.get("answer_order") or []]
+        compact_actual = re.sub(r"[\s_，,]+", "", actual).lower()
+        compact_expected = re.sub(r"[\s_，,]+", "", expected).lower()
+        matched_order = any(compact_actual == re.sub(r"[\s_，,]+", "", item).lower() for item in order)
+        student = _parse_number(actual)
+        numeric_ok = (student is not None and value is not None
+                      and abs(student - float(value)) <= max(1e-8, abs(float(value)) * 0.01))
+        text_ok = bool(compact_actual) and (compact_actual in compact_expected or matched_order)
+        correct = bool(numeric_ok or text_ok)
+        if correct:
+            detail = "答案与确定性执行记录一致（数值或编码位串均可）。"
+        else:
+            detail = (f"执行记录结论：{expected[:220]}。你填写的是：{actual[:160]}。"
+                      "数值题可填结果数值；位串题请填写对应编码，例如 11011010。")
     elif subject == "linear_algebra":
         expected = solution.get("answer") or ""
         wanted_vector = [float(item) for item in solution.get("answer_vector") or []]

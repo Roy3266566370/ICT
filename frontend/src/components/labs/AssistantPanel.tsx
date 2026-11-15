@@ -75,7 +75,24 @@ function attemptField(problem: LabProblem): { field: string; label: string; plac
     if (kind === 'page_replace') return { field: 'numeric', label: '缺页次数', placeholder: '例如 15' };
     if (kind === 'disk_schedule') return { field: 'numeric', label: '磁头总移动距离', placeholder: '例如 640' };
     if (kind === 'banker') return { field: 'order', label: '安全序列（按完成顺序，任意合法序列均可）', placeholder: '例如 P1 → P3 → P4 → P0 → P2' };
+    if (kind === 'sync') return { field: 'text', label: '信号量值或同步结论', placeholder: '例如 S=0，等待 1 个' };
+    if (kind === 'deadlock') return { field: 'text', label: '死锁判断或必要条件', placeholder: '例如 存在环、可能死锁' };
+    if (kind === 'memory_alloc') return { field: 'text', label: '分配结果或内存利用率', placeholder: '例如 选择 500，剩余 380' };
+    if (kind === 'process_thread' || kind === 'os_basics') return { field: 'text', label: '状态/结论', placeholder: '例如 合法、内核态、PCB 保存…' };
     return { field: 'numeric', label: '平均等待时间', placeholder: '例如 4.75 或 19/4' };
+  }
+  if (problem.subject === 'computer_organization') {
+    const kind = problem.model.co_kind;
+    if (kind === 'performance') return { field: 'numeric', label: 'CPU 执行时间或加速比', placeholder: '例如 0.002 或 4' };
+    if (kind === 'data_repr') return { field: 'text', label: '编码位串或数值', placeholder: '例如 11011010、101101 或 -37' };
+    if (kind === 'fixed_point') return { field: 'numeric', label: '运算结果（数值）', placeholder: '例如 2 或 -128' };
+    if (kind === 'floating') return { field: 'text', label: 'IEEE 754 编码或十进制真值', placeholder: '例如 0xC1460000 或 -12.375' };
+    if (kind === 'memory') return { field: 'text', label: '芯片数、容量或地址范围', placeholder: '例如 8、64KB 或 0000H–FFFFH' };
+    if (kind === 'cache' || kind === 'virtual_memory') return { field: 'text', label: '地址字段、AMAT 或物理地址', placeholder: '例如 tag=18、2.5ns 或 5010H' };
+    if (kind === 'instruction') return { field: 'text', label: '指令编码、有效地址或 C 表达式', placeholder: '例如 0010...、8208 或 R1=R2+R3' };
+    if (kind === 'pipeline') return { field: 'numeric', label: '总周期数或加速比', placeholder: '例如 104 或 4.81' };
+    if (kind === 'bus_io') return { field: 'numeric', label: '带宽或 CPU 时间开销', placeholder: '例如 400 或 100' };
+    return { field: 'text', label: '控制器周期或寄存器结果', placeholder: '例如 5、1000ns 或 R3=8' };
   }
   if (problem.subject === 'linear_algebra') {
     const kind = problem.model.la_kind;
@@ -128,17 +145,19 @@ function ContextCard({ result, step }: { result: LabResult; step: number }): Rea
 
 function PredictionPrompt({ result, step, onRecord }: { result: BfsResult; step: number; onRecord: (text: string) => void }): ReactNode {
   const [guess, setGuess] = useState<string | null>(null);
-  const nextDequeue = result.frames.slice(step + 1).find((frame) => frame.action === 'dequeue');
-  if (!nextDequeue) {
-    return <p className={styles.smallNote}>当前已经是最后一步，没有下一个出队节点。</p>;
+  const isDfs = result.algorithm === 'dfs';
+  const orderWord = isDfs ? '访问' : '出队';
+  const nextFrame = result.frames.slice(step + 1).find((frame) => frame.action === (isDfs ? 'visit' : 'dequeue'));
+  if (!nextFrame) {
+    return <p className={styles.smallNote}>当前已经是最后一步，没有下一个{orderWord}节点。</p>;
   }
   const nodes = Array.from(
-    new Set([...result.nodes.map((node) => node.id), ...nextDequeue.queue]),
+    new Set([...result.nodes.map((node) => node.id), ...(isDfs ? (nextFrame.stack ?? []) : nextFrame.queue)]),
   ).sort();
-  const correct = guess === nextDequeue.current;
+  const correct = guess === nextFrame.current;
   return (
     <div className={styles.prediction}>
-      <span className={styles.stateTitle}>先预测：下一个出队节点是谁？</span>
+      <span className={styles.stateTitle}>先预测：下一个{orderWord}节点是谁？</span>
       <div className={styles.chipRow}>
         {nodes.map((node) => (
           <button
@@ -148,7 +167,7 @@ function PredictionPrompt({ result, step, onRecord }: { result: BfsResult; step:
             aria-pressed={guess === node}
             onClick={() => {
               setGuess(node);
-              onRecord(`预测下一个出队节点为 ${node}；实际为 ${nextDequeue.current}。`);
+              onRecord(`预测下一个${orderWord}节点为 ${node}；实际为 ${nextFrame.current}。`);
             }}
           >
             {node}
@@ -157,7 +176,7 @@ function PredictionPrompt({ result, step, onRecord }: { result: BfsResult; step:
       </div>
       {guess ? (
         <p className={correct ? styles.feedbackGood : styles.feedbackWarn}>
-          {correct ? `正确：下一步出队 ${nextDequeue.current}。` : `再看一下队列：下一步会出队 ${nextDequeue.current}，你选的是 ${guess}。`}
+          {correct ? `正确：下一步${orderWord} ${nextFrame.current}。` : `再看一下${isDfs ? '栈' : '队列'}：下一步会${orderWord} ${nextFrame.current}，你选的是 ${guess}。`}
         </p>
       ) : (
         <p className={styles.smallNote}>先写出判断，再点“下一步”核对，不直接看答案。</p>
@@ -367,6 +386,8 @@ export function AssistantPanel({
                         ? result.laKind === 'matmul'
                           ? ['为什么 A·B 和 B·A 不一样？', '下一步是什么？', '当前结果说明了什么？']
                           : ['为什么要交换这两行？', '下一步是什么？', '当前结果说明了什么？']
+                        : result.subject === 'computer_organization'
+                          ? ['这一步用了什么公式？', '位宽/码制是怎样约定的？', '下一步是什么？']
                         : ['损失为什么下降？', '梯度是怎么算的？', '下一步是什么？']
                   ).map((suggestion) => (
                     <button key={suggestion} type="button" onClick={() => void send(suggestion)} disabled={busy}>
@@ -415,7 +436,7 @@ export function AssistantPanel({
             </div>
           ) : null}
 
-          {result.subject === 'algorithm' && result.algorithm !== 'heap' ? (
+          {result.subject === 'algorithm' && result.algorithm !== 'heap' && !('dsKind' in result) ? (
             <PredictionPrompt result={result} step={step} onRecord={onRecordObservation} />
           ) : null}
 
@@ -439,7 +460,7 @@ export function AssistantPanel({
               </div>
             ) : null}
             <div className={styles.attemptRow}>
-              {problem.subject !== 'algorithm' && problem.subject !== 'linear_algebra' && problem.subject !== 'operating_system' ? <AttemptMathInput
+              {problem.subject !== 'algorithm' && problem.subject !== 'linear_algebra' && problem.subject !== 'operating_system' && problem.subject !== 'computer_organization' ? <AttemptMathInput
                 key={`${problem.problem_id}-${field.field}`}
                 label={field.label}
                 placeholder={field.placeholder}

@@ -21,6 +21,8 @@ export interface RegisterFormValues {
   readonly password: string;
   readonly confirmPassword: string;
   readonly displayName: string;
+  /** 6 位邮箱验证码（由「发送验证码」下发，一次性使用） */
+  readonly verificationCode: string;
   /** 仅展示，不提交（D-01） */
   readonly identityTag: IdentityTag | '';
 }
@@ -31,6 +33,7 @@ export interface RegisterFieldErrors {
   readonly password?: string;
   readonly confirmPassword?: string;
   readonly displayName?: string;
+  readonly verificationCode?: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -48,6 +51,8 @@ export const MIN_TLD_LENGTH = 2;
 export const MIN_PASSWORD_LENGTH = 8;
 export const MAX_PASSWORD_LENGTH = 128;
 export const MAX_DISPLAY_NAME_LENGTH = 64;
+/** 邮箱验证码固定 6 位数字（与后端 `CODE_LENGTH` 一致）。 */
+export const VERIFICATION_CODE_LENGTH = 6;
 
 /* -------------------------------------------------------------------------- */
 /* 错误文案（契约 §2.2 校验表逐字一致；界面直接展示，禁止回显输入值）           */
@@ -64,6 +69,7 @@ export const EMAIL_TLD_ERROR = '邮箱域名末段至少需要 2 个字符';
 export const PASSWORD_LENGTH_ERROR = `密码长度需为 ${MIN_PASSWORD_LENGTH}–${MAX_PASSWORD_LENGTH} 个字符`;
 export const PASSWORD_CONFIRM_ERROR = '两次输入的密码不一致';
 export const DISPLAY_NAME_LENGTH_ERROR = '称呼最多 64 个字符';
+export const VERIFICATION_CODE_FORMAT_ERROR = '请输入 6 位数字验证码';
 
 /** 身份标签下拉项；页面渲染用，`value` 不进入请求体。 */
 export const IDENTITY_TAGS: readonly { readonly value: IdentityTag; readonly label: string }[] = [
@@ -110,7 +116,7 @@ function validateUsername(rawUsername: string): string | null {
 }
 
 /** 校验邮箱；合法返回 `null`，非法返回可直接展示的中文文案。 */
-function validateEmail(rawEmail: string): string | null {
+export function validateEmailValue(rawEmail: string): string | null {
   const email = rawEmail.trim();
 
   const length = countCharacters(email);
@@ -169,6 +175,7 @@ export function validateRegisterValues(values: RegisterFormValues): RegisterFiel
     password?: string;
     confirmPassword?: string;
     displayName?: string;
+    verificationCode?: string;
   } = {};
 
   const usernameError = validateUsername(values.username);
@@ -176,9 +183,13 @@ export function validateRegisterValues(values: RegisterFormValues): RegisterFiel
     errors.username = usernameError;
   }
 
-  const emailError = validateEmail(values.email);
+  const emailError = validateEmailValue(values.email);
   if (emailError !== null) {
     errors.email = emailError;
+  }
+
+  if (!/^\d{6}$/u.test(values.verificationCode.trim())) {
+    errors.verificationCode = VERIFICATION_CODE_FORMAT_ERROR;
   }
 
   // 密码不 trim：首尾空格也是用户输入的一部分，长度按原值计算
@@ -210,16 +221,24 @@ export function validateRegisterValues(values: RegisterFormValues): RegisterFiel
  */
 export function buildRegisterPayload(
   values: RegisterFormValues,
-): { username: string; email: string; password: string; display_name?: string } {
+): {
+  username: string;
+  email: string;
+  password: string;
+  verification_code: string;
+  display_name?: string;
+} {
   const payload: {
     username: string;
     email: string;
     password: string;
+    verification_code: string;
     display_name?: string;
   } = {
     username: values.username.trim(),
     email: values.email.trim(),
     password: values.password,
+    verification_code: values.verificationCode.trim(),
   };
 
   const displayName = values.displayName.trim();

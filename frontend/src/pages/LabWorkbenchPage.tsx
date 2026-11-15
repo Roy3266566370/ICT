@@ -18,6 +18,7 @@ import {
   shareLab,
   submitLabAttempt,
   solveLabWithAI,
+  reviseCompositeLab,
 } from '@/api/labs';
 import { LabCanvas, type LabSelection } from '@/components/labs/LabCanvas';
 import { LabControls } from '@/components/labs/LabControls';
@@ -28,11 +29,14 @@ import { AssistantPanel } from '@/components/labs/AssistantPanel';
 import { ReviewDialog, type ReviewPayload } from '@/components/labs/ReviewDialog';
 import { OriginalCompare } from '@/components/labs/OriginalCompare';
 import { OutcomePanel } from '@/components/labs/OutcomePanel';
+import { CompositeSolvePanel } from '@/components/labs/CompositeSolvePanel';
 import { LabAISolvePanel } from '@/components/labs/LabAISolvePanel';
 import { ManualIntegralResult } from '@/components/labs/ManualIntegralResult';
 import { clamp, formatNumber } from '@/labs/expr';
 import { computeLab, currentFrame, defaultParams } from '@/labs/compute';
+import { OS_KIND_LABELS } from '@/labs/opsys';
 import { parseLabCommand, COMMAND_EXAMPLES } from '@/labs/commands';
+import { CO_KIND_LABELS } from '@/labs/compOrg';
 import {
   commitHistory,
   createHistory,
@@ -68,6 +72,7 @@ const ENGINE_LABELS: Record<string, string> = {
   fourier_v1: '傅里叶级数 · 系数',
   gradient_descent_v1: '梯度下降',
   bfs_v1: '广度优先搜索',
+  dfs_v1: '深度优先搜索',
   mlp_v1: '小型全连接网络',
   heap_v1: '堆顶删除 · 向下筛选',
   gauss_v1: '高斯消元 · 线性代数',
@@ -180,8 +185,11 @@ function scenarioName(problem: LabProblem, params: Record<string, unknown>): str
     }
     return `x=${formatNumber(Number(params.point))} · h=${formatNumber(Number(params.h), 3)}`;
   }
-  if (subject === 'algorithm') return problem.model.engine === 'heap_v1'
-    ? `删除 ${String(params.deletion_count ?? '')} 次` : `起点 ${String(params.start ?? problem.model.start ?? '')}`;
+  if (subject === 'algorithm') {
+    if (String(problem.model.engine ?? '').startsWith('ds_')) return '原题执行';
+    return problem.model.engine === 'heap_v1'
+      ? `删除 ${String(params.deletion_count ?? '')} 次` : `起点 ${String(params.start ?? problem.model.start ?? '')}`;
+  }
   if (subject === 'linear_algebra') {
     if (problem.model.la_kind === 'matmul') {
       const op = problem.model.op;
@@ -205,7 +213,10 @@ function scenarioName(problem: LabProblem, params: Record<string, unknown>): str
     if (problem.model.os_kind === 'banker') {
       return String(params.request_mode ?? problem.model.defaults.request_mode ?? 'ignore') === 'apply' ? '处理资源请求' : '当前状态';
     }
-    return algorithm || '原题条件';
+    return algorithm || OS_KIND_LABELS[String(problem.model.os_kind)] || '原题条件';
+  }
+  if (subject === 'computer_organization') {
+    return CO_KIND_LABELS[String(problem.model.co_kind ?? '')] ?? '原题条件';
   }
   return `η ${formatNumber(Number(params.learning_rate), 3)} · ${formatNumber(Number(params.epochs), 0)} 轮`;
 }
@@ -252,6 +263,11 @@ function solutionStepIndex(result: ReturnType<typeof computeLab>, stepId: string
   }
   if (result.subject === 'operating_system') {
     const match = /^os_(\d+)$/.exec(stepId);
+    if (match) return clamp(Number(match[1]), 0, last);
+    return null;
+  }
+  if (result.subject === 'computer_organization') {
+    const match = /^co_(\d+)$/.exec(stepId);
     if (match) return clamp(Number(match[1]), 0, last);
     return null;
   }
@@ -402,6 +418,19 @@ export function LabWorkbenchPage(): JSX.Element {
     setCompareScenarioId('baseline');
   }, []);
 
+  // 文档更新（AI 重解、核对修正等）后必须重新采纳：当前选中的分问可能已被替换或删除。
+  // 旧分问的参数、撤销历史与选中 id 不能残留，保存也不能再指向已不存在的题目（P2-5）。
+  const adoptDocument = useCallback((document: LabDocument): void => {
+    setLab(document);
+    revisionRef.current = document.revision;
+    setRevision(document.revision);
+    const nextProblem =
+      document.problems.find((item) => item.problem_id === problemIdRef.current) ??
+      document.problems.find((item) => item.problem_id === document.selected_problem_id) ??
+      document.problems[0];
+    if (nextProblem) applyProblemState(nextProblem, document.revision);
+  }, [applyProblemState]);
+
   useEffect(() => {
     if (!labId) return;
     let alive = true;
@@ -494,6 +523,10 @@ export function LabWorkbenchPage(): JSX.Element {
   const persistNow = useCallback(async (allowDuringAI = false): Promise<boolean> => {
     if (aiBusyRef.current && !allowDuringAI) return false;
     if (!lab || !problem || !stateRef.current) return false;
+    if (!lab.problems.some((item) => item.problem_id === problemIdRef.current)) {
+      // 选中的分问已不存在（如整题重解后旧分问被删除）：把保存目标纠正为当前展示的题目（P2-5）。
+      problemIdRef.current = problem.problem_id;
+    }
     if (savingRef.current) {
       queuedRef.current = true;
       return false;
@@ -800,13 +833,8 @@ export function LabWorkbenchPage(): JSX.Element {
         conditionValues: payload.conditionValues,
         ambiguityAnswers: payload.ambiguityAnswers,
       });
-      setLab(document);
-      const nextProblem =
-        document.problems.find((item) => item.problem_id === problem.problem_id) ?? document.problems[0];
-      if (!nextProblem) throw new Error('重新编译后没有可用题目');
-      revisionRef.current = document.revision;
-      setRevision(document.revision);
-      applyProblemState(nextProblem, document.revision);
+      if (!document.problems.length) throw new Error('重新编译后没有可用题目');
+      adoptDocument(document);
       setReviewOpen(false);
       setCommandMessage('条件已核对并重新求解；原题与来源仍保留。');
     } catch (cause) {
@@ -871,9 +899,7 @@ export function LabWorkbenchPage(): JSX.Element {
       if (activeLabIdRef.current !== labId) return;
       const document = await operation();
       if (activeLabIdRef.current !== labId) return;
-      setLab(document); revisionRef.current = document.revision; setRevision(document.revision);
-      const target = document.problems.find((p) => p.problem_id === problem.problem_id);
-      if (target) applyProblemState(target, document.revision);
+      adoptDocument(document);
       dirtyRef.current = false; setSaveStatus('saved');
     } finally { aiBusyRef.current = false; setAiBusy(false); }
   };
@@ -1088,6 +1114,10 @@ export function LabWorkbenchPage(): JSX.Element {
           </div>
         </header>
 
+        {lab.orchestration ? <CompositeSolvePanel key={lab.orchestration.problem.version + String(lab.orchestration.stale)}
+          result={lab.orchestration} onSolve={(text) => aiOperation(() => reviseCompositeLab({
+            labId, text, revision: revisionRef.current,
+          }))} /> : null}
         <div className={styles.layout}>
           <LabSourcePanel
             lab={lab}
@@ -1186,12 +1216,8 @@ export function LabWorkbenchPage(): JSX.Element {
                           problemId: problem.problem_id,
                           conditionValues: { graph_edges: edges },
                         });
-                        setLab(document);
-                        const nextProblem = document.problems.find((item) => item.problem_id === problem.problem_id);
-                        if (nextProblem) {
-                          revisionRef.current = document.revision;
-                          setRevision(document.revision);
-                          applyProblemState(nextProblem, document.revision);
+                        if (document.problems.length) {
+                          adoptDocument(document);
                           setCommandMessage('图数据已更新并重新计算；原图仍在来源中。');
                         }
                       } catch (cause) {
@@ -1278,7 +1304,7 @@ export function LabWorkbenchPage(): JSX.Element {
                 </>
               )}
             </div>
-            {!problem.manual_input ? <LabAISolvePanel key={problem.problem_id} problem={problem} configured={lab.capabilities?.ai_solver_configured}
+            {!problem.manual_input && !lab.orchestration ? <LabAISolvePanel key={problem.problem_id} problem={problem} configured={lab.capabilities?.ai_solver_configured}
               autoReady={aiPreparedState === stateSnapshot && !aiBusy && saveStatus !== 'saving' && !reviewBusy && !reviewOpen}
               onSolve={solveAI} onCheck={checkAI} /> : null}
           </section>

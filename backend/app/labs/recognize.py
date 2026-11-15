@@ -29,6 +29,8 @@ SUBJECT_LABELS = {
     "deep_learning": "深度学习",
     "linear_algebra": "线性代数",
     "operating_system": "操作系统",
+    "computer_organization": "计算机组成原理",
+    "computer_network": "计算机网络",
     "unknown": "待选择",
 }
 
@@ -45,6 +47,23 @@ SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
         ("广度优先", 8), ("bfs", 8), ("队列", 6), ("邻接", 5), ("图搜索", 7),
         ("最短路径", 7), ("遍历", 4), ("二叉", 5), ("算法", 3), ("节点", 3),
         ("边", 2), ("栈", 3), ("dfs", 5), ("复杂度", 4),
+        ("时间复杂度", 7), ("空间复杂度", 7), ("执行次数", 6), ("执行频度", 6), ("语句频度", 6),
+        ("入栈", 6), ("出栈", 6), ("压栈", 5), ("合法出栈", 8),
+        ("双端队列", 8), ("循环队列", 7), ("顺序队列", 7), ("队头", 5), ("队尾", 5),
+        ("入队", 6), ("出队", 6),
+        ("括号匹配", 8), ("中缀", 5), ("后缀", 5), ("逆波兰", 6), ("表达式", 3),
+        ("递归", 5), ("递归调用", 6), ("调用栈", 6),
+        ("模式匹配", 8), ("朴素匹配", 7), ("kmp", 8), ("next数组", 8), ("nextval", 8), ("主串", 6), ("模式串", 6),
+        ("逆置", 6), ("顺序表", 7), ("单链表", 8), ("双向链表", 8), ("循环链表", 7), ("链表", 6), ("去重", 5), ("有序表", 5),
+        ("对称矩阵", 9), ("三角矩阵", 9), ("三对角", 9), ("压缩存储", 9), ("三元组", 7), ("稀疏矩阵", 9),
+        ("地址计算", 7), ("首地址", 6), ("循环", 4), ("数组", 5), ("行优先", 6), ("列优先", 6),
+        ("哈夫曼", 8), ("并查集", 8), ("带权路径", 7), ("WPL", 7),
+        ("最小生成树", 8), ("Prim", 8), ("Kruskal", 8), ("Dijkstra", 8), ("Floyd", 8),
+        ("拓扑", 7), ("关键路径", 8), ("AOE", 8),
+        ("二叉排序树", 8), ("AVL", 7), ("平衡二叉树", 7), ("B树", 8), ("B+树", 8),
+        ("邻接矩阵", 8), ("邻接表", 8),
+        ("散列", 8), ("哈希", 8), ("判定树", 7), ("ASL", 7),
+        ("先序", 5), ("中序", 5), ("后序", 5), ("层序", 5), ("线索", 6), ("排序", 5), ("稳定性", 4),
         ("breadth-first", 8), ("queue", 6), ("adjacency", 5),
         ("shortest path", 7), ("binary tree", 5), ("algorithm", 3),
     ),
@@ -80,6 +99,7 @@ SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
         ("操作系统", 10), ("进程调度", 10), ("作业调度", 9), ("cpu调度", 9), ("处理机调度", 9),
         ("先来先服务", 8), ("短作业优先", 9), ("最短剩余时间", 9), ("时间片轮转", 10), ("时间片", 8),
         ("周转时间", 9), ("带权周转", 9), ("等待时间", 6), ("到达时间", 7), ("服务时间", 6), ("甘特图", 7),
+        ("高响应比", 10), ("响应比", 9), ("HRRN", 9),
         ("进程", 7), ("优先级调度", 8),
         ("页面置换", 10), ("缺页", 9), ("页框", 8), ("物理块", 8), ("页面访问", 8), ("置换算法", 8),
         ("最佳置换", 9), ("最近最久", 9), ("页面走向", 9), ("引用串", 8),
@@ -88,6 +108,52 @@ SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
         ("operating system", 10), ("page fault", 9), ("page replacement", 10), ("round robin", 9),
         ("turnaround", 9), ("disk scheduling", 10), ("banker", 10), ("deadlock", 8),
         ("fcfs", 5), ("sjf", 7), ("srtf", 8), ("sstf", 8), ("c-scan", 7), ("lru", 5),
+        ("内核态", 10), ("用户态", 10), ("管态", 8), ("系统调用", 9), ("访管", 8),
+        ("中断", 6), ("异常", 6), ("陷阱", 8), ("微内核", 9), ("宏内核", 8), ("原语", 7),
+        ("PCB", 9), ("进程控制块", 9), ("进程状态", 9), ("就绪态", 8), ("阻塞态", 8), ("唤醒", 8),
+        ("线程", 8), ("用户级线程", 9), ("内核级线程", 9),
+        ("信号量", 10), ("P操作", 9), ("V操作", 9), ("临界区", 9), ("互斥锁", 8),
+        ("生产者", 8), ("消费者", 8), ("读者", 7), ("写者", 7), ("哲学家", 9),
+        ("死锁", 10), ("资源分配图", 9), ("死锁预防", 9), ("死锁避免", 9), ("死锁检测", 9),
+        ("死锁解除", 9), ("循环等待", 7), ("占有并等待", 8), ("非抢占", 7),
+        ("首次适应", 10), ("最佳适应", 10), ("最坏适应", 10), ("邻近适应", 9),
+        ("空闲分区", 9), ("空闲区", 8), ("连续分配", 9), ("内碎片", 8), ("外碎片", 8), ("内存利用率", 8),
+    ),
+    "computer_organization": (
+        ("计算机组成原理", 12), ("组成原理", 10), ("CPU执行时间", 10), ("CPU 执行时间", 10),
+        ("主频", 9), ("时钟周期", 9), ("CPI", 9), ("MIPS", 8), ("指令数", 6), ("指令条数", 6),
+        ("加速比", 9), ("性能比较", 7), ("进制转换", 9), ("进制", 5), ("二进制", 7), ("十六进制", 6),
+        ("八进制", 5), ("十进制", 6), ("原码", 9), ("反码", 9), ("补码", 9),
+        ("移码", 9), ("符号扩展", 9), ("有符号数", 7), ("无符号数", 7),
+        ("溢出", 6), ("算术移位", 9), ("逻辑移位", 9), ("循环移位", 8), ("补码加", 8), ("补码减", 8),
+        ("乘法", 5), ("除法", 5), ("乘除", 7), ("Booth", 8), ("恢复余数", 8),
+        ("浮点数", 8), ("IEEE", 10), ("754", 9), ("单精度", 8), ("双精度", 8), ("阶码", 8), ("尾数", 7),
+        ("规格化", 8), ("舍入", 6), ("上溢", 7), ("下溢", 7),
+        ("ALU", 10), ("算术逻辑单元", 9), ("加法器", 7), ("寄存器", 8), ("寄存器传送", 9),
+        ("多路选择器", 9),
+        ("数据通路", 9), ("控制信号", 7), ("MUX", 8), ("数据选择器", 8),
+        ("存储容量", 9), ("地址线", 7), ("数据线", 6), ("字扩展", 9), ("位扩展", 9),
+        ("芯片", 5), ("交叉编址", 9), ("主存", 7), ("存储器", 7),
+        ("Cache", 9), ("缓存", 7), ("组相联", 9), ("直接映射", 8), ("全相联", 8),
+        ("命中率", 8), ("替换策略", 7), ("写直达", 8), ("写回", 7),
+        ("虚拟存储", 10), ("虚拟地址", 9), ("页表", 9), ("TLB", 9), ("快表", 8),
+        ("页框", 8), ("虚实地址", 9), ("物理地址", 7),
+        ("指令格式", 9), ("操作码", 8), ("寻址方式", 9), ("有效地址", 8), ("指令编码", 8),
+        ("机器指令", 7), ("C表达式", 6), ("C 表达式", 6),
+        ("控制器", 8), ("微程序", 9), ("微指令", 8), ("硬布线", 9), ("取指", 7), ("间址", 8),
+        ("单周期", 8), ("多周期", 8), ("控制存储器", 8),
+        ("流水线", 9), ("时空图", 9), ("吞吐率", 8), ("加速比", 9), ("数据冒险", 9),
+        ("控制冒险", 9), ("结构冒险", 9), ("转发", 6), ("暂停", 6),
+        ("总线", 9), ("总线带宽", 10), ("总线仲裁", 9), ("DMA", 10), ("程序查询", 9),
+        ("中断方式", 8), ("中断优先级", 9), ("嵌套", 7), ("中断", 6), ("CPU时间开销", 9),
+    ),
+    "computer_network": (
+        ("计算机网络", 10), ("tcp", 9), ("udp", 8), ("慢启动", 10), ("拥塞控制", 10), ("拥塞窗口", 10),
+        ("三次握手", 10), ("四次挥手", 10), ("滑动窗口", 8), ("流量控制", 7), ("子网掩码", 10),
+        ("ip地址", 9), ("路由", 7), ("以太网", 8), ("csma", 8), ("交换机", 7), ("集线器", 7),
+        ("报文", 6), ("rtt", 7), ("网络层", 8), ("传输层", 8), ("数据链路", 8), ("物理层", 7),
+        ("域名", 6), ("dns", 7), ("http", 6), ("mac地址", 8), ("arp", 7),
+        ("传输轮次", 8), ("cwnd", 10), ("ssthresh", 10),
     ),
 }
 
@@ -258,6 +324,11 @@ def classify_subject(text: str) -> tuple[str, float]:
         scores["optimization"] += 4
     if scores["operating_system"] >= max(scores.values() or [0]) and scores["operating_system"] >= 8:
         chosen = "operating_system"
+    elif scores["computer_network"] >= max(scores.values() or [0]) and scores["computer_network"] >= 8:
+        chosen = "computer_network"
+    elif (scores["computer_organization"] >= max(scores.values() or [0])
+          and scores["computer_organization"] >= 8):
+        chosen = "computer_organization"
     elif scores["deep_learning"] >= max(scores.values() or [0]) and scores["deep_learning"] > 0:
         chosen = "deep_learning"
     elif scores["linear_algebra"] > 0 and scores["linear_algebra"] >= max(
@@ -1184,8 +1255,16 @@ def _optimization_model(
 
 _NODE = r"[A-Za-z0-9_\u4e00-\u9fa5]{1,10}"
 
+# “边A→B”“结点B—C”这类写法会把量词/角色词粘在节点名前，先剥离再解析。
+_GRAPH_ROLE_WORDS = r"(?:有向边|无向边|边|结点|节点|顶点)"
+
+
+def _normalize_graph_text(text: str) -> str:
+    return re.sub(rf"(?<![A-Za-z0-9]){ _GRAPH_ROLE_WORDS}(?=[A-Za-z0-9])", "", text)
+
 
 def _parse_edges(text: str) -> tuple[list[dict[str, str]], bool]:
+    text = _normalize_graph_text(text)
     edges: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     directed = bool(re.search(r"有向|directed|->|→|—>", text))
@@ -1227,13 +1306,37 @@ def _algorithm_model(
     heap = build_heap(text, source, {**dict(overrides.get('condition_values') or {}), **overrides})
     if heap is not None:
         return heap
+    if not overrides.get("nodes") and not overrides.get("edges"):
+        from .data_structures import build_ds_problem
+        ds = build_ds_problem(text, source, overrides)
+        if ds is not None:
+            return ds
     edges, directed = _parse_edges(text)
     if overrides.get("edges"):
         edges = [dict(item) for item in overrides["edges"]]
     start = str(overrides.get("start") or "").strip() or None
-    start_match = re.search(r"(?:从|起点|开始节点|start)\s*[:：]?\s*([A-Za-z0-9_\u4e00-\u9fa5]{1,10})", text, flags=re.I)
-    if start_match and not start:
-        start = start_match.group(1)
+    start_match = None
+    if not start:
+        plain_text = _normalize_graph_text(text)
+        # 节点名可以是英文字母、数字或中文（甲、乙、A、1 等）。起点写法：
+        # 起点/源点/出发点（为|是|:）甲；从甲出发/开始；以甲为起点；start=A。
+        node_token = r"[A-Za-z0-9_\u4e00-\u9fa5]{1,10}"
+        for pattern in (
+            rf"(?:起点|起始节点|起始结点|起始顶点|开始节点|开始结点|源点|出发点)\s*(?:编号|代号)?\s*(?:为|是|[:：])?\s*({node_token})",
+            rf"从\s*({node_token})\s*(?:出发|开始)",
+            rf"以\s*({node_token})\s*(?:为|作为)?\s*(?:起点|源点|起始)",
+            rf"\bstart\b\s*[:：=]?\s*({node_token})",
+        ):
+            start_match = re.search(pattern, plain_text, flags=re.I)
+            if start_match:
+                break
+        if start_match:
+            start = start_match.group(1)
+    # 识别遍历算法：题目要求深度优先就用 DFS，不能退化为 BFS。
+    # \b 在中文与字母之间不成立（中文也是 \w），改用字母断言。
+    dfs_requested = bool(re.search(r"深度优先|(?<![A-Za-z])dfs(?![A-Za-z])", text, flags=re.I))
+    algorithm = "dfs" if dfs_requested else "bfs"
+    algorithm_name = "DFS" if dfs_requested else "BFS"
     teaching = False
     ambiguities: list[dict[str, Any]] = []
     conditions: list[dict[str, Any]] = []
@@ -1260,6 +1363,11 @@ def _algorithm_model(
             if edge[key] not in nodes:
                 nodes.append(edge[key])
     nodes = nodes[:20]
+    if start and start not in nodes:
+        # 中文起点捕获可能夹带修饰词（如“图中甲”“该点甲”）：取与节点名一致的结尾。
+        suffix_hits = [node for node in nodes if start.endswith(node)]
+        if suffix_hits:
+            start = max(suffix_hits, key=len)
     if not start or start not in nodes:
         suggested = nodes[0] if nodes else "A"
         start = suggested
@@ -1268,7 +1376,7 @@ def _algorithm_model(
                 _ambiguity(
                     "start",
                     "start",
-                    "没有明确识别出起点。请选择 BFS 的起始节点。",
+                    f"没有明确识别出起点。请选择 {algorithm_name} 的起始节点。",
                     options=[{"value": node, "label": f"从 {node} 开始"} for node in nodes[:6]],
                 )
             )
@@ -1289,16 +1397,16 @@ def _algorithm_model(
                 options=nodes[:8],
             ),
             _condition(
-                "neighbor_order", "同层顺序", "按节点编号升序（A→B→…）", kind="text",
+                "neighbor_order", "邻居顺序", "按节点编号升序（A→B→…）", kind="text",
                 provenance="inferred", source=source, editable=False,
-                note="执行顺序与队列规则会直接写入轨迹，动画与伪代码读取同一份记录。",
+                note=f"执行顺序与{'栈' if dfs_requested else '队列'}规则会直接写入轨迹，动画与伪代码读取同一份记录。",
             ),
         ]
     )
     model = {
-        "engine": "bfs_v1",
+        "engine": "dfs_v1" if dfs_requested else "bfs_v1",
         "subject": "algorithm",
-        "algorithm": "bfs",
+        "algorithm": algorithm,
         "nodes": [{"id": node, "label": node} for node in nodes],
         "edges": edges,
         "directed": directed,
@@ -1310,15 +1418,25 @@ def _algorithm_model(
         "provenance_note": "教学示例：题目未提供可计算的图数据" if teaching else None,
     }
     _add_defaults_conditions(model, conditions, text, source, overrides)
+    rule_tex = (
+        r"\text{栈（LIFO）;\;邻居按编号升序;\;走到底再回溯}"
+        if dfs_requested
+        else r"\text{队列（FIFO）;\;入队即标记已访问;\;邻居按编号升序}"
+    )
+    rule_plain = (
+        "DFS: 邻居按编号升序尝试；沿路径走到底再回溯"
+        if dfs_requested
+        else "BFS: 队列先进先出；入队时标记访问；邻居按编号升序"
+    )
     return {
         "model": model,
         "conditions": conditions,
         "ambiguities": ambiguities,
         "formulas": [
             {
-                "id": "bfs_rule",
-                "tex": r"\text{队列（FIFO）;\;入队即标记已访问;\;邻居按编号升序}",
-                "plain": "BFS: 队列先进先出；入队时标记访问；邻居按编号升序",
+                "id": f"{algorithm}_rule",
+                "tex": rule_tex,
+                "plain": rule_plain,
                 "role": "算法规则",
             }
         ],
@@ -1625,6 +1743,15 @@ def _operating_system_model(
     return build_os(text, source, overrides)
 
 
+def _computer_organization_model(
+    text: str,
+    source: Mapping[str, Any],
+    overrides: Mapping[str, Any],
+) -> dict[str, Any]:
+    from .comp_org import build_comp_org
+    return build_comp_org(text, source, overrides)
+
+
 BUILDERS = {
     "calculus": _calculus_model,
     "optimization": _optimization_model,
@@ -1632,6 +1759,7 @@ BUILDERS = {
     "deep_learning": _deep_learning_model,
     "linear_algebra": _linear_algebra_model,
     "operating_system": _operating_system_model,
+    "computer_organization": _computer_organization_model,
 }
 
 
@@ -1680,7 +1808,8 @@ def build_problem(
     classified, confidence = classify_subject(text)
     subject = str(override_values.get("subject") or subject_hint or classified)
     if subject not in BUILDERS:
-        subject = classified if classified in BUILDERS else "unknown"
+        # 计算机网络等 408 科目暂无执行内核：保留科目名以便展示，状态按 unsupported 处理。
+        subject = classified if (classified in BUILDERS or classified == "computer_network") else "unknown"
 
     builder = BUILDERS.get(subject, _unknown_model)
     built = builder(text, source, override_values)

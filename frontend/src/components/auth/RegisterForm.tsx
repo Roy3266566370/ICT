@@ -7,11 +7,13 @@ import {
   MAX_DISPLAY_NAME_LENGTH,
   MAX_USERNAME_LENGTH,
   MIN_PASSWORD_LENGTH,
+  VERIFICATION_CODE_LENGTH,
   type IdentityTag,
   type RegisterFieldErrors,
   type RegisterFormValues,
 } from './registerFields';
 import type { RegisterStatus } from './useRegisterSubmit';
+import type { SendCodeStatus } from './useSendRegisterCode';
 
 import styles from './AuthForm.module.css';
 
@@ -22,6 +24,13 @@ export interface RegisterFormProps {
   fieldErrors: RegisterFieldErrors;
   onChange: (next: RegisterFormValues) => void;
   onSubmit: (values: RegisterFormValues) => void;
+  /** 发送验证码按钮的状态与倒计时 */
+  codeStatus: SendCodeStatus;
+  codeMessage: string | null;
+  codeCooldown: number;
+  /** 冷却是否作用于当前邮箱 */
+  codeCooldownActive: boolean;
+  onSendCode: (email: string) => void;
   mockMode?: boolean;
   duplicateEmail?: boolean;
   duplicateUsername?: boolean;
@@ -30,6 +39,7 @@ export interface RegisterFormProps {
 
 const USERNAME_ID = 'register-username';
 const EMAIL_ID = 'register-email';
+const CODE_ID = 'register-code';
 const PASSWORD_ID = 'register-password';
 const CONFIRM_PASSWORD_ID = 'register-confirm-password';
 const DISPLAY_NAME_ID = 'register-display-name';
@@ -37,6 +47,8 @@ const IDENTITY_ID = 'register-identity';
 const ERROR_ID = 'register-error';
 const USERNAME_ERROR_ID = 'register-username-error';
 const EMAIL_ERROR_ID = 'register-email-error';
+const CODE_ERROR_ID = 'register-code-error';
+const CODE_NOTICE_ID = 'register-code-notice';
 const PASSWORD_ERROR_ID = 'register-password-error';
 const CONFIRM_PASSWORD_ERROR_ID = 'register-confirm-password-error';
 const DISPLAY_NAME_ERROR_ID = 'register-display-name-error';
@@ -79,6 +91,11 @@ export function RegisterForm({
   fieldErrors,
   onChange,
   onSubmit,
+  codeStatus,
+  codeMessage,
+  codeCooldown,
+  codeCooldownActive,
+  onSendCode,
   mockMode = false,
   duplicateEmail = false,
   duplicateUsername = false,
@@ -92,17 +109,44 @@ export function RegisterForm({
   const hasError = status === 'error' && errorMessage !== null && errorMessage.length > 0;
   const usernameError = fieldErrors.username;
   const emailError = fieldErrors.email;
+  const verificationCodeError = fieldErrors.verificationCode;
   const passwordError = fieldErrors.password;
   const confirmPasswordError = fieldErrors.confirmPassword;
   const displayNameError = fieldErrors.displayName;
   const strength = passwordStrength(values.password);
   const hasServiceHint = serviceHint !== null && serviceHint.trim() !== '';
+  const hasCodeMessage = codeMessage !== null && codeMessage.trim() !== '';
+  const sendingCode = codeStatus === 'sending';
+  /** 发送验证码期间也禁止提交，避免用旧/已作废的验证码抢占请求。 */
+  const submitDisabled = submitting || sendingCode;
+  const codeButtonDisabled = submitting || sendingCode || codeCooldownActive;
+  const codeButtonLabel = sendingCode
+    ? '发送中…'
+    : codeCooldownActive
+      ? `${codeCooldown}s 后重发`
+      : '发送验证码';
+  const codeDescribedBy =
+    [
+      verificationCodeError === undefined ? null : CODE_ERROR_ID,
+      hasCodeMessage ? CODE_NOTICE_ID : null,
+    ]
+      .filter((id): id is string => id !== null)
+      .join(' ') || undefined;
 
   const handleUsernameChange = (event: ChangeEvent<HTMLInputElement>): void => {
     onChange({ ...values, username: event.target.value });
   };
   const handleEmailChange = (event: ChangeEvent<HTMLInputElement>): void => {
     onChange({ ...values, email: event.target.value });
+  };
+  const handleVerificationCodeChange = (event: ChangeEvent<HTMLInputElement>): void => {
+    // 只保留数字并截断到 6 位，避免中文输入法/粘贴带入空白与符号
+    const digits = event.target.value.replace(/\D/gu, '').slice(0, VERIFICATION_CODE_LENGTH);
+    onChange({ ...values, verificationCode: digits });
+  };
+  const handleSendCode = (event: MouseEvent<HTMLButtonElement>): void => {
+    event.preventDefault();
+    onSendCode(values.email);
   };
   const handlePasswordChange = (event: ChangeEvent<HTMLInputElement>): void => {
     onChange({ ...values, password: event.target.value });
@@ -205,13 +249,61 @@ export function RegisterForm({
         </div>
       </div>
 
+      <div className={styles.field}>
+        <div className={styles.fieldHead}>
+          <label className={styles.label} htmlFor={CODE_ID}>
+            邮箱验证码<span className={styles.required} aria-hidden="true">*</span>
+          </label>
+          <span className={styles.fieldNo} aria-hidden="true">03</span>
+        </div>
+        <div className={styles.codeRow}>
+          <input
+            className={styles.input}
+            id={CODE_ID}
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="6 位数字"
+            maxLength={VERIFICATION_CODE_LENGTH}
+            required
+            value={values.verificationCode}
+            onChange={handleVerificationCodeChange}
+            aria-invalid={verificationCodeError === undefined ? undefined : 'true'}
+            aria-describedby={codeDescribedBy}
+          />
+          <button
+            type="button"
+            className={styles.sendCode}
+            disabled={codeButtonDisabled}
+            onClick={handleSendCode}
+          >
+            {codeButtonLabel}
+          </button>
+        </div>
+        <p className={styles.hint}>
+          {mockMode ? '演示模式：验证码固定为 123456，不会真的发邮件' : '6 位数字，5 分钟内有效'}
+        </p>
+        {verificationCodeError === undefined ? null : (
+          <p className={styles.error} id={CODE_ERROR_ID}>{verificationCodeError}</p>
+        )}
+        {hasCodeMessage ? (
+          <p
+            className={codeStatus === 'error' ? styles.error : styles.codeNotice}
+            id={CODE_NOTICE_ID}
+            role={codeStatus === 'error' ? 'alert' : 'status'}
+          >
+            {codeMessage}
+          </p>
+        ) : null}
+      </div>
+
       <div className={styles.fieldRow}>
         <div className={styles.field}>
           <div className={styles.fieldHead}>
             <label className={styles.label} htmlFor={PASSWORD_ID}>
               密码<span className={styles.required} aria-hidden="true">*</span>
             </label>
-            <span className={styles.fieldNo} aria-hidden="true">03</span>
+            <span className={styles.fieldNo} aria-hidden="true">04</span>
           </div>
           <div className={styles.inputWrap}>
             <input
@@ -258,7 +350,7 @@ export function RegisterForm({
             <label className={styles.label} htmlFor={CONFIRM_PASSWORD_ID}>
               确认密码<span className={styles.required} aria-hidden="true">*</span>
             </label>
-            <span className={styles.fieldNo} aria-hidden="true">04</span>
+            <span className={styles.fieldNo} aria-hidden="true">05</span>
           </div>
           <div className={styles.inputWrap}>
             <input
@@ -301,7 +393,7 @@ export function RegisterForm({
             <label className={styles.label} htmlFor={DISPLAY_NAME_ID}>
               称呼 <span className={styles.optional}>（可选）</span>
             </label>
-            <span className={styles.fieldNo} aria-hidden="true">05</span>
+            <span className={styles.fieldNo} aria-hidden="true">06</span>
           </div>
           <input
             className={styles.input}
@@ -326,7 +418,7 @@ export function RegisterForm({
             <label className={styles.label} htmlFor={IDENTITY_ID}>
               身份标签 <span className={styles.optional}>（可选）</span>
             </label>
-            <span className={styles.fieldNo} aria-hidden="true">06</span>
+            <span className={styles.fieldNo} aria-hidden="true">07</span>
           </div>
           <div className={styles.selectWrap}>
             <select
@@ -356,7 +448,7 @@ export function RegisterForm({
         </div>
       ) : null}
 
-      <button type="submit" className={styles.submit} disabled={submitting}>
+      <button type="submit" className={styles.submit} disabled={submitDisabled}>
         <span>{submitting ? '正在创建账号…' : '建立档案'}</span>
         {submitting ? (
           <span className={styles.spinner} aria-hidden="true" />

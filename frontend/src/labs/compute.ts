@@ -13,6 +13,7 @@ import { evaluateFourierSeries, evaluatePowerSeries, evaluateSeriesConvergence }
 import { evaluateSpace } from './space.ts';
 import { evaluateProof } from './proof.ts';
 import { evaluateConstrainedExtrema } from './constrainedExtrema.ts';
+import { replayDs } from './dataStructures.ts';
 import type {
   BfsResult,
   BfsResultFrame,
@@ -34,6 +35,7 @@ import { readNumber } from './types.ts';
 import { evaluateHeap } from './heap.ts';
 import { evaluateLinAlg } from './linalg.ts';
 import { evaluateOs } from './opsys.ts';
+import { replayCompOrg } from './compOrg.ts';
 import { evaluateExamMath } from './examMath.ts';
 
 type Params = Record<string, unknown>;
@@ -676,6 +678,17 @@ const PSEUDOCODE = [
   'return order',
 ];
 
+const TIANGAN = '甲乙丙丁戊己庚辛壬癸';
+
+/** 邻居顺序：默认按 id 升序；纯天干命名的中文节点按 甲乙丙丁… 的教材编号序。 */
+function sortNodeIds(ids: string[]): string[] {
+  const unique = Array.from(new Set(ids));
+  if (unique.length && unique.every((id) => id.length === 1 && TIANGAN.includes(id))) {
+    return unique.sort((a, b) => TIANGAN.indexOf(a) - TIANGAN.indexOf(b));
+  }
+  return unique.sort();
+}
+
 function computeBfs(problem: LabProblem, params: Params): BfsResult {
   const model = problem.model;
   const nodes = (model.nodes ?? []).map((node) => ({ id: String(node.id), label: String(node.label) }));
@@ -691,7 +704,7 @@ function computeBfs(problem: LabProblem, params: Params): BfsResult {
     if (!directed) adjacency[edge.to]!.push(edge.from);
   }
   for (const node of Object.keys(adjacency)) {
-    adjacency[node] = Array.from(new Set(adjacency[node]!)).sort();
+    adjacency[node] = sortNodeIds(adjacency[node]!);
   }
   const queue = start ? [start] : [];
   const visited = new Set(start ? [start] : []);
@@ -858,6 +871,202 @@ function computeBfs(problem: LabProblem, params: Params): BfsResult {
 /* -------------------------------------------------------------------------- */
 /* 深度学习                                                                   */
 /* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* DFS                                                                        */
+/* -------------------------------------------------------------------------- */
+
+const DFS_PSEUDOCODE = [
+  'stack ← [start]; visited ← {}',
+  'while stack 不为空:',
+  '  u ← stack.peek()',
+  '  if u 未访问: 访问 u（order.append(u)）',
+  '  for v in neighbors(u) sorted by id:',
+  '    if v 未访问: parent[v] ← u; stack.push(v); goto 下一轮',
+  '  stack.pop()（u 的邻居全部处理完，回溯）',
+  'return order',
+];
+
+function computeDfs(problem: LabProblem, params: Params): BfsResult {
+  const model = problem.model;
+  const nodes = (model.nodes ?? []).map((node) => ({ id: String(node.id), label: String(node.label) }));
+  const edges = (model.edges ?? []).map((edge) => ({ from: String(edge.from), to: String(edge.to) }));
+  const directed = !!model.directed;
+  let start = String(params.start ?? model.start ?? model.defaults.start ?? '');
+  if (!nodes.some((node) => node.id === start)) start = nodes[0]?.id ?? '';
+  const adjacency: Record<string, string[]> = {};
+  for (const node of nodes) adjacency[node.id] = [];
+  for (const edge of edges) {
+    if (!adjacency[edge.from] || !adjacency[edge.to]) continue;
+    adjacency[edge.from]!.push(edge.to);
+    if (!directed) adjacency[edge.to]!.push(edge.from);
+  }
+  for (const node of Object.keys(adjacency)) {
+    adjacency[node] = sortNodeIds(adjacency[node]!);
+  }
+  const stack = start ? [start] : [];
+  const visited = new Set<string>();
+  const parent: Record<string, string | null> = {};
+  const depth: Record<string, number> = {};
+  const order: string[] = [];
+  const treeEdges: { from: string; to: string }[] = [];
+  const rejectedEdges: { from: string; to: string; reason: string }[] = [];
+  const state = () => ({ stack: [...stack], visited: [...visited].sort(), order: [...order] });
+  const frames: BfsResultFrame[] = [
+    {
+      ...frame(0, '初始化', `从 ${start || '—'} 开始；邻居按编号升序尝试，沿路径走到底再回溯。`, state()),
+      action: 'init',
+      current: null,
+      ...state(),
+      parent: { ...parent },
+      level: { ...depth },
+      pseudocodeLine: 1,
+      queue: [],
+    },
+  ];
+  while (stack.length) {
+    const current = stack[stack.length - 1]!;
+    if (!visited.has(current)) {
+      visited.add(current);
+      order.push(current);
+      depth[current] = current === start ? 0 : (depth[parent[current] ?? ''] ?? 0) + 1;
+      frames.push({
+        ...frame(frames.length, `访问 ${current}`, `${current} 首次访问；继续沿编号最小的未访问邻居深入。`, state()),
+        action: 'visit',
+        current,
+        ...state(),
+        parent: { ...parent },
+        level: { ...depth },
+        pseudocodeLine: 4,
+        queue: [],
+      });
+    }
+    let pushed = false;
+    for (const neighbor of adjacency[current] ?? []) {
+      if (visited.has(neighbor) || stack.includes(neighbor)) {
+        rejectedEdges.push({ from: current, to: neighbor, reason: '已访问或在栈中' });
+        frames.push({
+          ...frame(frames.length, `跳过 ${neighbor}`, `${neighbor} 已访问或已在栈中，不重复深入；这是 DFS 避免环的关键。`, state()),
+          action: 'skip',
+          current,
+          neighbor,
+          ...state(),
+          parent: { ...parent },
+          level: { ...depth },
+          pseudocodeLine: 6,
+          queue: [],
+        });
+        continue;
+      }
+      parent[neighbor] = current;
+      depth[neighbor] = (depth[current] ?? 0) + 1;
+      stack.push(neighbor);
+      treeEdges.push({ from: current, to: neighbor });
+      frames.push({
+        ...frame(frames.length, `压栈 ${neighbor}`, `发现 ${neighbor}，父节点 ${current}；下一步深入 ${neighbor}。`, state()),
+        action: 'push',
+        current,
+        neighbor,
+        ...state(),
+        parent: { ...parent },
+        level: { ...depth },
+        pseudocodeLine: 6,
+        queue: [],
+      });
+      pushed = true;
+      break;
+    }
+    if (pushed) continue;
+    stack.pop();
+    frames.push({
+      ...frame(frames.length, `回溯 ${current}`, `${current} 的邻居已全部处理，弹出栈并回溯。`, state()),
+      action: 'backtrack',
+      current,
+      ...state(),
+      parent: { ...parent },
+      level: { ...depth },
+      pseudocodeLine: 7,
+      queue: [],
+    });
+  }
+  frames.push({
+    ...frame(frames.length, '完成', '栈为空，所有可达节点都已按 DFS 顺序访问。', { stack: [], visited: [...visited].sort(), order: [...order] }),
+    action: 'done',
+    current: null,
+    stack: [],
+    queue: [],
+    visited: [...visited].sort(),
+    order: [...order],
+    parent: { ...parent },
+    level: { ...depth },
+    pseudocodeLine: 8,
+  });
+  const unvisited = nodes.map((node) => node.id).filter((id) => !visited.has(id));
+  const reachable = new Set<string>();
+  if (start) {
+    const frontier = [start];
+    while (frontier.length) {
+      const node = frontier.pop()!;
+      if (reachable.has(node)) continue;
+      reachable.add(node);
+      frontier.push(...(adjacency[node] ?? []));
+    }
+  }
+  const coverage = visited.size === reachable.size && order.length === visited.size;
+  const checks = [
+    check(
+      'coverage',
+      '访问覆盖',
+      coverage ? 'pass' : 'fail',
+      `访问顺序 ${order.join(' → ') || '空'}；已访问 ${visited.size} 个，可达 ${reachable.size} 个。`,
+    ),
+    check(
+      'parent_edges',
+      '父边有效',
+      Object.entries(parent).every(([node, parentId]) =>
+        parentId === null
+          ? true
+          : edges.some(
+              (edge) =>
+                (edge.from === parentId && edge.to === node) ||
+                (!directed && edge.from === node && edge.to === parentId),
+            ),
+      )
+        ? 'pass'
+        : 'fail',
+      '每个父节点都能在原图中找到一条边。',
+    ),
+    check('stack', '栈规则', 'pass', '邻居按编号升序尝试；栈顶决定下一步，走到底再回溯。'),
+  ];
+  return {
+    subject: 'algorithm',
+    algorithm: 'dfs',
+    nodes,
+    edges,
+    directed,
+    adjacency,
+    order,
+    visited: [...visited].sort(),
+    unvisited,
+    parent,
+    level: depth,
+    treeEdges,
+    rejectedEdges,
+    pseudocode: DFS_PSEUDOCODE,
+    start,
+    headline: `DFS 访问顺序：${order.join(' → ') || '—'}`,
+    metrics: [
+      metric('order', '访问顺序', order.join(' → ') || '—', 'accent'),
+      metric('visited', '已访问', String(visited.size)),
+      metric('stack', '结束栈', '空'),
+      metric('unvisited', '不可达', unvisited.join(', ') || '无'),
+    ],
+    checks,
+    notes: ['动画只回放真实执行记录；栈顶决定下一步，访问顺序在首次到达节点时记录。'],
+    trace: frames,
+    frames,
+  };
+}
 
 function activation(name: string, values: number[]): number[] {
   if (name === 'relu') return values.map((value) => Math.max(0, value));
@@ -1172,6 +1381,12 @@ export function computeLab(problem: LabProblem, params: Record<string, unknown>)
         if (result.status !== 'ok') throw new Error(result.reason ?? '请核对堆的条件');
         return result;
       }
+      if (String(problem.model.engine ?? '').startsWith('ds_')) {
+        return replayDs(problem);
+      }
+      if (problem.model.engine === 'dfs_v1') {
+        return computeDfs(problem, params);
+      }
       return computeBfs(problem, params);
     case 'deep_learning':
       return computeDeepLearning(problem, params);
@@ -1185,6 +1400,8 @@ export function computeLab(problem: LabProblem, params: Record<string, unknown>)
       if (result.status !== 'ok') throw new Error(result.reason ?? '请核对操作系统题目的条件');
       return result;
     }
+    case 'computer_organization':
+      return replayCompOrg(problem);
     default:
       return { subject: 'unknown', headline: '请先核对题目类型与条件', metrics: [], checks: [],
         notes: ['尚未建立可执行模型。请核对原题并选择支持的类型。'],
@@ -1224,7 +1441,21 @@ export function currentMetrics(result: LabResult, step: number): LabResultMetric
         metric('deleted', '已删除', `[${frame?.deleted.join(', ') ?? ''}]`),
         metric('invariant', '当前堆序', frame?.heap_valid ? '满足' : '正在下滤恢复')];
     }
+    if ('dsKind' in result) {
+      const frame = result.frames[index] ?? result.frames[result.frames.length - 1]!;
+      const stateMetrics = Object.entries(frame.values ?? {}).slice(0, 3)
+        .map(([key, value]) => metric(`v_${key}`, key, String(value)));
+      return [metric('current', '当前动作', frame.label, 'accent'), ...stateMetrics];
+    }
     const frame = result.frames[index] ?? result.frames[result.frames.length - 1]!;
+    if (result.algorithm === 'dfs') {
+      return [
+        metric('current', '当前动作', frame.label, 'accent'),
+        metric('stack', '栈', `[${(frame.stack ?? []).join(', ')}]`),
+        metric('visited', '已访问', `{${frame.visited.join(', ')}}`),
+        metric('order', '访问顺序', frame.order.join(' → ') || '—'),
+      ];
+    }
     return [
       metric('current', '当前动作', frame.label, 'accent'),
       metric('queue', '队列', `[${frame.queue.join(', ')}]`),
@@ -1267,9 +1498,23 @@ export function currentMetrics(result: LabResult, step: number): LabResultMetric
     } else if (result.osKind === 'disk_schedule') {
       items.push(metric('head', '磁头位置', formatNumber(Number(values.head ?? 0))));
       items.push(metric('total', '累计移动', formatNumber(Number(values.total ?? 0))));
+    } else if (['os_basics', 'process_thread', 'sync', 'deadlock', 'memory_alloc'].includes(result.osKind)) {
+      for (const [key, value] of Object.entries(values).slice(0, 4)) {
+        items.push(metric(`os_${key}`, key, typeof value === 'string' || typeof value === 'number' ? String(value) : '—'));
+      }
     } else {
       const work = Array.isArray(values.work) ? (values.work as number[]) : [];
       items.push(metric('work', 'Work', `(${work.map((v) => formatNumber(v)).join(', ')})`));
+    }
+    items.push(metric('frames', '轨迹总步数', String(Math.max(0, result.frames.length - 1))));
+    return items;
+  }
+  if (result.subject === 'computer_organization') {
+    const frame = result.frames[index] ?? result.frames[0];
+    const values = frame?.values ?? {};
+    const items = [metric('action', '当前动作', frame?.label ?? '待核对', 'accent')];
+    for (const [key, value] of Object.entries(values).slice(0, 4)) {
+      items.push(metric(`co_${key}`, key, typeof value === 'string' || typeof value === 'number' ? String(value) : '—'));
     }
     items.push(metric('frames', '轨迹总步数', String(Math.max(0, result.frames.length - 1))));
     return items;

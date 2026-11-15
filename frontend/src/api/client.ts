@@ -39,6 +39,8 @@ import type {
   RevokePublishResult,
   RunSnapshot,
   RunsListResponse,
+  SendRegisterCodePayload,
+  SendRegisterCodeResult,
   SessionInfo,
   ShareSnapshot,
   TemplateDescriptor,
@@ -52,6 +54,7 @@ import {
   isAuthUser,
   isErrorCode,
   isMeResponse,
+  isSendRegisterCodeResult,
   isShareSnapshot,
   isUserProfile,
 } from './types';
@@ -192,6 +195,8 @@ export interface ApiClient {
 
   /* C-WEBAPI@1 追加：账号端点（既有 19 个端点的方法签名一律不变） */
 
+  /** AUTH：POST /api/v1/auth/register/code（匿名，发送 6 位邮箱验证码） */
+  sendRegisterCode(payload: SendRegisterCodePayload): Promise<SendRegisterCodeResult>;
   /** AUTH：POST /api/v1/auth/register（匿名，201，不下发 Cookie） */
   registerAccount(payload: RegisterRequestPayload): Promise<AuthUser>;
   /** AUTH：POST /api/v1/auth/login（匿名，200 + Set-Cookie `xs_auth`） */
@@ -720,16 +725,31 @@ export const httpApi: ApiClient = {
 
   /* ---------------- C-WEBAPI@1 追加：账号端点 ---------------- */
 
+  async sendRegisterCode(payload) {
+    // 匿名端点：不要求 CSRF（R11-6）。
+    const raw = await requestJson<unknown>(
+      `${P}/auth/register/code`,
+      { method: 'POST', body: JSON.stringify({ email: payload.email }) },
+      { csrfOverride: null },
+    );
+    if (!isSendRegisterCodeResult(raw)) {
+      throw contractViolationError('验证码发送响应格式异常，请稍后重试');
+    }
+    return raw;
+  },
+
   async registerAccount(payload) {
     const body: {
       username: string;
       email: string;
       password: string;
+      verification_code: string;
       display_name?: string;
     } = {
       username: payload.username,
       email: payload.email,
       password: payload.password,
+      verification_code: payload.verification_code,
     };
     // 契约：仅当 `display_name` 为非空字符串时附加该键，避免把 null/空串当成显式改名。
     if (typeof payload.display_name === 'string' && payload.display_name.trim() !== '') {

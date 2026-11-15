@@ -3,7 +3,7 @@
 每个用例使用独立临时 SQLite 库并走真实 FastAPI 栈（``TestClient`` + 生命周期内
 ``init_db()``），**不连接真实 MySQL**。覆盖验收清单：
 
-- 注册 201 / ``email_verification=disabled_development`` / 不下发 Cookie；
+- 注册 201 / ``email_verification=verified`` / 不下发 Cookie；
 - 重复邮箱 409；非法邮箱与短密码 422；未知字段 422；
 - 登录 200 + ``Set-Cookie`` 含 ``xs_auth`` 与 ``HttpOnly``；错误密码 401 且消息统一；
 - ``suspended`` 账号 403；
@@ -33,6 +33,9 @@ os.environ["DATABASE_URL"] = "sqlite:///" + (_TMP_DIR / "bootstrap.db").as_posix
 os.environ["SESSION_COOKIE_SECURE"] = "false"
 os.environ["ENFORCE_CSRF"] = "true"
 os.environ["AUTH_COOKIE_NAME"] = "xs_auth"
+# 测试不读取真实 Brevo 凭据，也不允许任何用例意外发送真实邮件。
+os.environ["BREVO_API_KEY"] = ""
+os.environ["BREVO_SENDER_EMAIL"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -49,11 +52,27 @@ reset_engine_cache()
 PASSWORD = "example-password-2026"
 #: 契约默认 Cookie 名（``C-DB@1``）。
 AUTH_COOKIE = "xs_auth"
+#: 测试替身捕获的明文验证码：规范化邮箱 → code。
+_VERIFICATION_CODES: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
 # 夹具与辅助
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _capture_verification_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """把 Brevo 发送替换为内存捕获，测试可直接取得明文验证码。"""
+
+    from app.accounts import verification
+
+    _VERIFICATION_CODES.clear()
+
+    def _capture(*, email: str, code: str, ttl_seconds: int) -> None:
+        _VERIFICATION_CODES[email.strip().casefold()] = code
+
+    monkeypatch.setattr(verification, "send_verification_code_email", _capture)
 
 
 @pytest.fixture()
@@ -90,10 +109,15 @@ def _register(
 ) -> Any:
     # 默认用户名每次唯一，避免「重复邮箱」用例被用户名唯一约束抢先命中。
     resolved_username = username or f"user_{uuid4().hex[:8]}"
+    email_key = email.strip().casefold()
+    client.post("/api/v1/auth/register/code", json={"email": email})
     payload: dict[str, Any] = {
         "username": resolved_username,
         "email": email,
         "password": password,
+        # 重复邮箱用例会在发送阶段就返回 409；注册路由先校验唯一性，
+        # 因此占位码不会影响这些用例的预期错误。
+        "verification_code": _VERIFICATION_CODES.get(email_key, "000000"),
     }
     if display_name is not None:
         payload["display_name"] = display_name
@@ -156,7 +180,7 @@ def test_register_returns_201_without_cookie(client: TestClient) -> None:
     assert data["email"] == "a@example.com"
     assert data["display_name"] == "Alice"
     assert data["status"] == "active"
-    assert data["email_verification"] == "disabled_development"
+    assert data["email_verification"] == "verified"
     assert data["created_at"].endswith("Z")
     assert body["request_id"]
 
@@ -192,15 +216,18 @@ def test_register_duplicate_email_returns_409(client: TestClient) -> None:
 @pytest.mark.parametrize(
     "payload",
     [
-        {"username": "alice", "email": "not-an-email", "password": PASSWORD},
-        {"username": "alice", "email": "a@example.com", "password": "short"},
-        {"username": "alice", "email": "a@example.com"},
-        {"email": "a@example.com", "password": PASSWORD},
-        {"username": "ab", "email": "a@example.com", "password": PASSWORD},
-        {"username": "1alice", "email": "a@example.com", "password": PASSWORD},
-        {"username": "ali ce", "email": "a@example.com", "password": PASSWORD},
-        {"username": "alice", "email": "a@example.com", "password": PASSWORD, "unknown": True},
-        {"username": "alice", "email": "a@example.com", "password": PASSWORD, "display_name": "x" * 65},
+        {"username": "alice", "email": "not-an-email", "password": PASSWORD, "verification_code": "123456"},
+        {"username": "alice", "email": "a@example.com", "password": "short", "verification_code": "123456"},
+        {"username": "alice", "email": "a@example.com", "verification_code": "123456"},
+        {"email": "a@example.com", "password": PASSWORD, "verification_code": "123456"},
+        {"username": "alice", "email": "a@example.com", "password": PASSWORD},
+        {"username": "alice", "email": "a@example.com", "password": PASSWORD, "verification_code": "12345"},
+        {"username": "alice", "email": "a@example.com", "password": PASSWORD, "verification_code": "abcdef"},
+        {"username": "ab", "email": "a@example.com", "password": PASSWORD, "verification_code": "123456"},
+        {"username": "1alice", "email": "a@example.com", "password": PASSWORD, "verification_code": "123456"},
+        {"username": "ali ce", "email": "a@example.com", "password": PASSWORD, "verification_code": "123456"},
+        {"username": "alice", "email": "a@example.com", "password": PASSWORD, "verification_code": "123456", "unknown": True},
+        {"username": "alice", "email": "a@example.com", "password": PASSWORD, "verification_code": "123456", "display_name": "x" * 65},
     ],
 )
 def test_register_invalid_payload_returns_422(
@@ -384,7 +411,7 @@ def test_me_returns_user_session_and_usable_csrf(client: TestClient) -> None:
     assert data["user"]["username"] == "alice"
     assert data["user"]["email"] == "a@example.com"
     assert data["user"]["display_name"] == "Alice Example"
-    assert data["user"]["email_verification"] == "disabled_development"
+    assert data["user"]["email_verification"] == "verified"
     assert data["session"]["session_id"].startswith("aut_")
     assert data["session"]["expires_at"] == data["session"]["idle_expires_at"]
     assert data["csrf_token"] == login.json()["data"]["csrf_token"]
@@ -462,7 +489,12 @@ def test_register_rejects_disallowed_origin_without_side_effects(
     response = client.post(
         "/api/v1/auth/register",
         headers={"Origin": "http://evil.example.com"},
-        json={"username": "evil", "email": "evil@example.com", "password": PASSWORD},
+        json={
+            "username": "evil",
+            "email": "evil@example.com",
+            "password": PASSWORD,
+            "verification_code": "123456",
+        },
     )
 
     assert response.status_code == 422
@@ -493,14 +525,26 @@ def test_login_rejects_disallowed_origin_without_session(client: TestClient) -> 
 
 def test_register_with_allowed_origin_still_succeeds(client: TestClient) -> None:
     allowed = get_settings().allowed_origins[0]
+    email = "allowed@example.com"
+    sent = client.post(
+        "/api/v1/auth/register/code",
+        headers={"Origin": allowed},
+        json={"email": email},
+    )
+    assert sent.status_code == 200
     response = client.post(
         "/api/v1/auth/register",
         headers={"Origin": allowed},
-        json={"username": "allowed", "email": "allowed@example.com", "password": PASSWORD},
+        json={
+            "username": "allowed",
+            "email": email,
+            "password": PASSWORD,
+            "verification_code": _VERIFICATION_CODES[email],
+        },
     )
 
     assert response.status_code == 201
-    assert response.json()["data"]["email"] == "allowed@example.com"
+    assert response.json()["data"]["email"] == email
 
 
 def test_login_with_allowed_origin_still_issues_cookie(client: TestClient) -> None:

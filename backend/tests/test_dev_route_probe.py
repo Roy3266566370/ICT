@@ -20,6 +20,9 @@ REQUIRED = ("/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/logout"
 
 PROBE = r"""
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 默认按系统代码页输出，这里统一为 UTF-8，避免中文断言在 GBK 控制台下乱码。
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Console]::OutputEncoding
 $backendLog = Join-Path ([System.IO.Path]::GetTempPath()) 'ict-route-probe-no-log'
 $tokens = $null
 $parseErrors = $null

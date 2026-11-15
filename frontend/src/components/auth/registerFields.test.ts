@@ -20,6 +20,7 @@ import {
   PASSWORD_CONFIRM_ERROR,
   PASSWORD_LENGTH_ERROR,
   DISPLAY_NAME_LENGTH_ERROR,
+  VERIFICATION_CODE_FORMAT_ERROR,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_PASSWORD_LENGTH,
   MAX_USERNAME_LENGTH,
@@ -42,6 +43,7 @@ function makeValues(overrides: Partial<RegisterFormValues> = {}): RegisterFormVa
     password,
     confirmPassword: password,
     displayName: '',
+    verificationCode: '123456',
     identityTag: '',
     ...overrides,
   };
@@ -189,6 +191,26 @@ test('密码 129 字符时给出长度错误', () => {
   assert.equal(errors.password, PASSWORD_LENGTH_ERROR);
 });
 
+test('验证码 6 位数字为合法边界', () => {
+  assert.deepEqual(validateRegisterValues(makeValues({ verificationCode: '000000' })), {});
+  assert.deepEqual(validateRegisterValues(makeValues({ verificationCode: ' 123456 ' })), {});
+});
+
+test('验证码位数不足、非数字或为空时给出格式错误', () => {
+  assert.equal(
+    validateRegisterValues(makeValues({ verificationCode: '12345' })).verificationCode,
+    VERIFICATION_CODE_FORMAT_ERROR,
+  );
+  assert.equal(
+    validateRegisterValues(makeValues({ verificationCode: '12345a' })).verificationCode,
+    VERIFICATION_CODE_FORMAT_ERROR,
+  );
+  assert.equal(
+    validateRegisterValues(makeValues({ verificationCode: '' })).verificationCode,
+    VERIFICATION_CODE_FORMAT_ERROR,
+  );
+});
+
 test('两次密码不一致时给出确认密码错误', () => {
   const errors = validateRegisterValues(
     makeValues({ password: 'x'.repeat(MIN_PASSWORD_LENGTH), confirmPassword: 'y'.repeat(MIN_PASSWORD_LENGTH) }),
@@ -212,6 +234,7 @@ test('多个字段同时非法时一次返回全部错误', () => {
     password: 'short',
     confirmPassword: 'short',
     displayName: '名'.repeat(MAX_DISPLAY_NAME_LENGTH + 1),
+    verificationCode: '12ab',
     identityTag: '',
   });
   assert.equal(errors.username, USERNAME_START_ERROR);
@@ -219,6 +242,7 @@ test('多个字段同时非法时一次返回全部错误', () => {
   assert.equal(errors.password, PASSWORD_LENGTH_ERROR);
   assert.equal(errors.confirmPassword, undefined); // 两个密码一致 → 不报
   assert.equal(errors.displayName, DISPLAY_NAME_LENGTH_ERROR);
+  assert.equal(errors.verificationCode, VERIFICATION_CODE_FORMAT_ERROR);
 });
 
 test('校验不修改入参', () => {
@@ -235,7 +259,17 @@ test('校验不修改入参', () => {
 test('称呼为空白时 payload 不含 display_name 键', () => {
   const payload = buildRegisterPayload(makeValues({ displayName: '   ' }));
   assert.equal('display_name' in payload, false);
-  assert.deepEqual(Object.keys(payload).sort(), ['email', 'password', 'username']);
+  assert.deepEqual(Object.keys(payload).sort(), [
+    'email',
+    'password',
+    'username',
+    'verification_code',
+  ]);
+});
+
+test('payload 的验证码去掉首尾空白后原样提交', () => {
+  const payload = buildRegisterPayload(makeValues({ verificationCode: ' 654321 ' }));
+  assert.equal(payload.verification_code, '654321');
 });
 
 test('称呼非空时 payload 含 display_name 且保留原大小写', () => {

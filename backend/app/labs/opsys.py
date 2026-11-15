@@ -34,6 +34,11 @@ KIND_LABELS = {
     "page_replace": "页面置换",
     "disk_schedule": "磁盘调度",
     "banker": "银行家算法",
+    "os_basics": "操作系统基础",
+    "process_thread": "进程与线程",
+    "sync": "同步与互斥",
+    "deadlock": "死锁",
+    "memory_alloc": "连续内存分配",
 }
 
 SCHED_LABELS = {
@@ -42,6 +47,7 @@ SCHED_LABELS = {
     "srtf": "最短剩余时间优先 SRTF（抢占）",
     "rr": "时间片轮转 RR",
     "priority": "优先级调度（非抢占，数小优先）",
+    "hrrn": "高响应比优先 HRRN（非抢占）",
 }
 PAGE_LABELS = {"fifo": "先进先出 FIFO", "lru": "最近最久未使用 LRU", "opt": "最佳置换 OPT"}
 DISK_LABELS = {
@@ -125,14 +131,25 @@ def _frame(store: list[dict[str, Any]], action: str, label: str, detail: str, li
 
 def _detect_kind(text: str) -> str | None:
     low = text.lower()
-    if re.search(r"银行家|安全序列|安全状态|banker|allocation|available|死锁避免", low):
+    if re.search(r"银行家|安全序列|安全状态|banker|allocation|available", low):
         return "banker"
+    if re.search(r"死锁|资源分配图|必要条件|死锁预防|死锁检测|死锁解除|循环等待|占有并等待|非抢占", low):
+        return "deadlock"
+    if re.search(r"信号量|临界区|互斥锁|mutex|p\s*操作|v\s*操作|生产者|消费者|读者|写者|哲学家|同步与互斥", low, re.I):
+        return "sync"
+    if re.search(r"空闲区|空闲分区|空闲块|首次适应|最佳适应|最坏适应|邻近适应|连续分配|内存利用率|内碎片|外碎片", low):
+        return "memory_alloc"
+    if re.search(r"pcb|进程控制块|进程状态|就绪态|阻塞态|唤醒|用户级线程|内核级线程|线程模型|进程创建|进程撤销", low, re.I):
+        return "process_thread"
+    if re.search(r"内核态|用户态|管态|目态|系统调用|访管|中断|异常|陷阱|微内核|宏内核|操作系统结构|原语", low, re.I):
+        return "os_basics"
     if re.search(r"页面置换|缺页|页框|物理块|页面访问|置换算法|引用串|page fault|page replacement|最佳置换|最近最久"
                  + "|" + _word("lru") + "|" + _word("opt"), low):
         return "page_replace"
     if re.search(r"磁盘调度|磁头|寻道|磁道|柱面|sstf|电梯算法|disk scheduling|scan|" + _word("look"), low):
         return "disk_schedule"
-    if re.search(r"进程|作业|调度|周转|到达时间|时间片|fcfs|sjf|srtf|优先级|轮转|round robin|turnaround|scheduling", low):
+    if re.search(r"作业|调度|周转|到达时间|时间片|先来先服务|短作业|最短剩余|轮转|优先级|高响应比|响应比|"
+                 r"fcfs|sjf|srtf|hrrn|round robin|turnaround|scheduling", low):
         return "cpu_schedule"
     return None
 
@@ -192,6 +209,22 @@ def _numbers_after(text: str, label: str) -> list[float]:
     return _numbers(match.group(1)) if match else []
 
 
+def _inline_process_rows(text: str) -> list[dict[str, Any]]:
+    """解析“P1 0 7; P2 2 4; P3 4 1”这类行内三/四元组。"""
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for match in re.finditer(
+            rf"({_PROC_NAME})\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)"
+            r"(?:\s+([0-9]+(?:\.[0-9]+)?))?", text):
+        name = _norm_name(match.group(1))
+        if name in seen:
+            continue
+        seen.add(name)
+        result.append({"id": name, "arrival": float(match.group(2)), "burst": float(match.group(3)),
+                       "priority": float(match.group(4)) if match.group(4) is not None else None})
+    return result
+
+
 def _list_processes(text: str) -> list[dict[str, Any]]:
     arrivals = _numbers_after(text, r"到达时间|arrival\s*times?")
     bursts = _numbers_after(text, r"(?:服务|运行|执行|CPU\s*区间|burst)\s*时间|CPU\s*时间|burst\s*times?")
@@ -231,6 +264,7 @@ def _coerce_processes(value: Any) -> list[dict[str, Any]] | None:
 
 def _detect_sched_algorithm(text: str) -> str | None:
     return _earliest(text, {
+        "hrrn": r"高响应比|响应比|hrrn|highest\s+response",
         "srtf": r"srtf|srt(?![a-z])|最短剩余|剩余时间最短|抢占式短作业|抢占式短进程|抢占式sjf|可抢占的短",
         "rr": r"时间片|轮转|round[\s-]?robin|" + _word("rr"),
         "sjf": r"短作业|短进程|最短作业|最短进程|sjf|sjn|spn",
@@ -249,7 +283,10 @@ def _processes_text(processes: Sequence[Mapping[str, Any]], with_priority: bool)
 
 def _build_schedule(text: str, source: Mapping[str, Any], merged: Mapping[str, Any]) -> dict[str, Any]:
     ambiguities: list[dict[str, Any]] = []
-    processes = (_coerce_processes(merged.get("processes")) or _table_processes(text)
+    table_rows = _table_processes(text)
+    inline_rows = _inline_process_rows(text)
+    detected = inline_rows if len(inline_rows) > len(table_rows) else table_rows
+    processes = (_coerce_processes(merged.get("processes")) or detected
                  or _inline_processes(text) or _list_processes(text))
     has_priority = bool(processes) and all(p.get("priority") is not None for p in processes)
 
@@ -288,7 +325,7 @@ def _build_schedule(text: str, source: Mapping[str, Any], merged: Mapping[str, A
         if any(p["burst"] <= 0 or p["arrival"] < 0 for p in processes):
             ambiguities.append(_ambiguity("processes", "processes", "到达时间不能为负，服务时间必须大于 0。"))
 
-    options = ["fcfs", "sjf", "srtf", "rr"] + (["priority"] if has_priority else [])
+    options = ["fcfs", "sjf", "srtf", "rr", "hrrn"] + (["priority"] if has_priority else [])
     params = [
         _param("algorithm", "调度算法", "enum", options=options, note="同一组进程可切换算法，对照平均等待与周转时间。"),
         _param("quantum", "时间片 q", "number", min_value=1, max_value=10, step=1, note="仅时间片轮转使用。"),
@@ -349,12 +386,15 @@ def _simulate_schedule(processes: Sequence[Mapping[str, Any]], algorithm: str, q
         add(-1, time, nxt, "没有已到达的进程，CPU 空闲", [])
         return _clean(nxt)
 
-    if algorithm in ("fcfs", "sjf", "priority"):
+    if algorithm in ("fcfs", "sjf", "priority", "hrrn"):
         def key(i: int) -> tuple[float, ...]:
             if algorithm == "fcfs":
                 return (arrival[i], i)
             if algorithm == "sjf":
                 return (burst[i], arrival[i], i)
+            if algorithm == "hrrn":
+                waiting = max(0.0, time - arrival[i])
+                return (-(waiting + burst[i]) / burst[i], arrival[i], i)
             return (float(priority[i] if priority[i] is not None else math.inf), arrival[i], i)
 
         while done < n:
@@ -364,10 +404,12 @@ def _simulate_schedule(processes: Sequence[Mapping[str, Any]], algorithm: str, q
                 continue
             pick = min(available, key=key)
             ready = sorted((i for i in available if i != pick), key=key)
+            ratio = ((time - arrival[pick]) + burst[pick]) / burst[pick]
             reason = {
                 "fcfs": "就绪进程中最先到达",
                 "sjf": f"就绪进程中服务时间最短（{_fmt(burst[pick])}）",
                 "priority": f"就绪进程中优先级数最小（{_fmt(priority[pick])}）",
+                "hrrn": f"就绪进程中响应比最高（({_fmt(max(0.0, time - arrival[pick]))}+{_fmt(burst[pick])})/{_fmt(burst[pick])}≈{_fmt(ratio)}）",
             }[algorithm]
             start = time
             time = _clean(time + remaining[pick])
@@ -1471,14 +1513,373 @@ def check_banker_sequence(model: Mapping[str, Any], tokens: Sequence[str]) -> tu
 
 
 # ---------------------------------------------------------------------------
+# 操作系统基础 / 进程线程 / 同步 / 死锁 / 连续内存分配
+# ---------------------------------------------------------------------------
+
+def _eval_os_basics(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    text = str(model.get("raw") or "")
+    frames: list[dict[str, Any]] = []
+    bits: list[str] = []
+    if re.search(r"用户态|内核态|管态|目态|特权指令", text):
+        _frame(frames, "concept", "内核态与用户态",
+               "内核态（管态）可执行全部指令并访问全部资源；用户态只能执行非特权指令，"
+               "访问内核资源必须通过系统调用或中断/异常进入内核。", 1,
+               mode="内核态/用户态")
+        bits.append("用户态不能直接执行特权指令；进入内核态的典型入口是系统调用、中断和异常")
+    if re.search(r"系统调用|syscall|访管指令", text, re.I):
+        _frame(frames, "concept", "系统调用",
+               "系统调用是用户程序请求内核服务的受控入口：用户态执行访管/陷入指令，"
+               "CPU 切换到内核态，按系统调用号查服务例程，完成后返回用户态。", 2,
+               syscall="用户态 → 内核态 → 返回用户态")
+        bits.append("系统调用运行在内核态，是用户态请求内核服务的合法接口")
+    if re.search(r"中断|异常|陷阱|trap|故障|终止", text, re.I):
+        _frame(frames, "concept", "中断、异常与陷阱",
+               "中断通常由外部设备异步触发；异常由 CPU 执行指令时同步产生（如除零、缺页）；"
+               "陷阱/陷入是有意的同步异常，常用于系统调用。三者都会进入内核处理。", 3,
+               interrupt="外部异步", exception="指令执行同步", trap="有意陷入")
+        bits.append("中断异步、异常同步；陷阱属于有意异常，常作为系统调用入口")
+    if re.search(r"微内核|宏内核|单体内核|操作系统结构|运行机制|原语", text):
+        _frame(frames, "concept", "操作系统结构与运行机制",
+               "宏内核把核心功能放在内核态同一地址空间；微内核只保留最小内核，文件系统/驱动等以用户态服务运行，"
+               "通过消息传递通信。原语是不可中断的基本操作，用于实现同步与内核关键操作。", 4,
+               kernel="宏内核/微内核", primitive="不可中断")
+        bits.append("宏内核核心功能集中；微内核通过用户态服务和消息传递提高隔离性，原语不可中断")
+    if not bits:
+        bits.append("操作系统通过内核态/用户态隔离、系统调用、中断异常机制和原语管理硬件与并发")
+        _frame(frames, "concept", "运行机制",
+               "操作系统以内核态运行核心代码，通过系统调用向用户态提供服务，"
+               "用中断/异常处理外部事件与故障，并用原语保护关键操作。", 1, mode="内核态/用户态")
+    answer = "；".join(bits)
+    _frame(frames, "result", "结论", answer, 5, answer=answer)
+    return {"subject": "operating_system", "engine": "os_basics_v1", "os_kind": "os_basics",
+            "status": "ok", "algorithm": "", "frames": frames, "trace": frames,
+            "pseudocode": ["用户程序运行在用户态", "通过系统调用/中断/异常进入内核态", "内核处理后再返回用户态"],
+            "answer": answer, "answer_value": None, "answer_order": None, "headline": answer,
+            "metrics": [{"id": "answer", "label": "结论", "value": answer}], "checks": [], "notes": [],
+            "stats": {}, "stop_reason": "done"}
+
+
+_STATES = ("创建", "就绪", "运行", "阻塞", "终止")
+_VALID_TRANSITIONS = {
+    ("创建", "就绪"), ("就绪", "运行"), ("运行", "就绪"), ("运行", "阻塞"),
+    ("阻塞", "就绪"), ("运行", "终止"),
+}
+
+
+def _eval_process_thread(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    text = str(model.get("raw") or "")
+    sequence = [state for state in re.findall(r"创建|就绪|运行|阻塞|终止", text)]
+    if re.search(r"→|->|转换|变为|进入", text) and len(sequence) >= 2:
+        frames: list[dict[str, Any]] = []
+        valid = True
+        for index, (left, right) in enumerate(zip(sequence, sequence[1:]), 1):
+            ok = (left, right) in _VALID_TRANSITIONS
+            valid = valid and ok
+            _frame(frames, "transition", f"{left} → {right}",
+                   f"{left} → {right}：" + ("合法转换。" if ok else "非法转换（进程状态不能这样直接跳转）。"),
+                   2 if ok else 3, left=left, right=right, valid=ok)
+        answer = ("状态转换序列合法：" + " → ".join(sequence)) if valid else (
+            "状态转换序列存在非法跳转：" + " → ".join(sequence))
+        return {"subject": "operating_system", "engine": "os_process_v1", "os_kind": "process_thread",
+                "status": "ok", "algorithm": "state_transition", "frames": frames, "trace": frames,
+                "pseudocode": ["创建 → 就绪", "就绪 → 运行", "运行 → 阻塞/就绪/终止", "阻塞 → 就绪"],
+                "answer": answer, "answer_value": None, "answer_order": sequence,
+                "headline": answer, "metrics": [{"id": "state", "label": "状态序列", "value": " → ".join(sequence)}],
+                "checks": [{"id": "transition", "label": "状态转换", "status": "pass" if valid else "fail",
+                            "detail": "只允许操作系统定义的状态转换。"}],
+                "notes": ["运行 → 就绪通常由时间片用完或抢占引起；运行 → 阻塞由等待事件引起；阻塞 → 就绪由事件完成唤醒。"],
+                "stats": {}, "stop_reason": "done"}
+    frames = []
+    bits: list[str] = []
+    if re.search(r"PCB|进程控制块|进程表", text, re.I):
+        _frame(frames, "concept", "PCB",
+               "PCB 保存进程标识、处理机状态（寄存器/PC/PSW）、调度信息（状态/优先级）、"
+               "内存管理信息、资源清单和 I/O 状态；PCB 是进程存在的唯一标志。", 1, pcb=True)
+        bits.append("PCB 是进程存在的唯一标志，包含标识、处理机状态、调度、内存和资源信息")
+    if re.search(r"创建|撤销|阻塞|唤醒|挂起|激活", text):
+        _frame(frames, "concept", "进程控制",
+               "创建分配 PCB 与资源后进入就绪；阻塞是运行进程等待事件，唤醒把阻塞进程改为就绪；"
+               "撤销回收资源并删除 PCB。这些操作由内核原语完成。", 2, primitive="创建/撤销/阻塞/唤醒")
+        bits.append("创建、撤销、阻塞、唤醒由内核原语完成；阻塞是主动等待，唤醒由事件触发")
+    if re.search(r"线程|用户级线程|内核级线程|多线程", text):
+        _frame(frames, "concept", "线程模型与资源共享",
+               "进程是资源分配单位，线程是 CPU 调度单位；同一进程的线程共享地址空间、全局变量、打开文件，"
+               "但各自有独立栈、寄存器和 PC。用户级线程由库管理，内核不可见；内核级线程由内核调度。", 3,
+               model="多对一/一对一/多对多")
+        bits.append("同进程线程共享地址空间、全局变量和文件，栈/寄存器/PC 独立；用户级线程内核不可见")
+    if not bits:
+        _frame(frames, "concept", "进程与线程",
+               "进程是资源分配单位，线程是调度单位；进程状态在创建、就绪、运行、阻塞、终止之间转换。", 1)
+        bits.append("进程是资源分配单位，线程是 CPU 调度单位")
+    answer = "；".join(bits)
+    _frame(frames, "result", "结论", answer, 4, answer=answer)
+    return {"subject": "operating_system", "engine": "os_process_v1", "os_kind": "process_thread",
+            "status": "ok", "algorithm": "", "frames": frames, "trace": frames,
+            "pseudocode": ["创建 → 就绪", "就绪 → 运行", "运行 → 阻塞 → 就绪", "运行 → 终止"],
+            "answer": answer, "answer_value": None, "answer_order": None, "headline": answer,
+            "metrics": [{"id": "answer", "label": "结论", "value": answer}], "checks": [], "notes": [],
+            "stats": {}, "stop_reason": "done"}
+
+
+def _eval_sync(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    text = str(model.get("raw") or "")
+    values: dict[str, int] = {}
+    for name, value in re.findall(r"([A-Za-z][A-Za-z0-9_]*)\s*(?:信号量)?\s*(?:初值|初始值)\s*(?:为|是|=|:|：)?\s*(-?\d+)", text):
+        values[name.upper()] = int(value)
+    if not values:
+        generic = re.search(r"信号量\s*(?:初值|初始值)\s*(?:为|是|=|:|：)?\s*(-?\d+)", text)
+        if generic:
+            values["S"] = int(generic.group(1))
+    operations = [(op.upper(), name.upper()) for op, name in re.findall(
+        r"([PV])\s*[（(]\s*([A-Za-z][A-Za-z0-9_]*)\s*[)）]", text, re.I)]
+    if operations:
+        missing = [name for _, name in operations if name not in values]
+        if missing:
+            raise ValueError(f"信号量 {'、'.join(sorted(set(missing)))} 没有给出初值")
+        frames: list[dict[str, Any]] = []
+        waiting: dict[str, int] = {name: 0 for name in values}
+        for index, (op, name) in enumerate(operations, 1):
+            if op == "P":
+                values[name] -= 1
+                if values[name] < 0:
+                    waiting[name] += 1
+                    action = f"P({name})：S={values[name]} < 0，进程阻塞并进入等待队列"
+                else:
+                    action = f"P({name})：S={values[name]} ≥ 0，进程继续"
+            else:
+                values[name] += 1
+                if values[name] <= 0:
+                    waiting[name] = max(0, waiting[name] - 1)
+                    action = f"V({name})：S={values[name]} ≤ 0，唤醒一个等待进程"
+                else:
+                    action = f"V({name})：S={values[name]} > 0，没有等待进程"
+            _frame(frames, op.lower(), f"第 {index} 步 {op}({name})", action, 2,
+                   semaphore=name, value=values[name], waiting=waiting[name])
+        answer = "；".join(f"{name}={value}，等待 {waiting[name]} 个" for name, value in sorted(values.items()))
+        return {"subject": "operating_system", "engine": "os_sync_v1", "os_kind": "sync",
+                "status": "ok", "algorithm": "semaphore_trace", "frames": frames, "trace": frames,
+                "pseudocode": ["P(S)：S=S−1；若 S<0 则阻塞", "V(S)：S=S+1；若 S≤0 则唤醒一个等待进程"],
+                "answer": answer, "answer_value": None, "answer_order": None, "headline": answer,
+                "metrics": [{"id": "answer", "label": "信号量状态", "value": answer}], "checks": [], "notes": [],
+                "stats": {"values": values, "waiting": waiting}, "stop_reason": "done"}
+    frames = []
+    bits: list[str] = []
+    if re.search(r"生产者|消费者", text):
+        _frame(frames, "concept", "生产者—消费者",
+               "信号量：empty=n（空缓冲区数）、full=0（产品数）、mutex=1（互斥访问缓冲区）。"
+               "生产者 P(empty)、P(mutex)、放产品、V(mutex)、V(full)；消费者 P(full)、P(mutex)、取产品、V(mutex)、V(empty)。"
+               "两个 P 的顺序不能颠倒。", 1, semaphores="empty/full/mutex")
+        bits.append("生产者—消费者：empty=n、full=0、mutex=1；先 P(empty/full) 再 P(mutex)")
+    if re.search(r"读者|写者", text):
+        _frame(frames, "concept", "读者—写者",
+               "读者优先：第一个读者 P(mutex) 并 P(write)，后续读者只增加读计数；写者需要 P(write)。"
+               "写者优先需增加排队信号量，避免读者持续抢占。", 2, readers=True)
+        bits.append("读者—写者：读者计数+写锁；写者优先需额外排队信号量")
+    if re.search(r"哲学家", text):
+        _frame(frames, "concept", "哲学家进餐",
+               "每位哲学家先拿左叉再拿右叉会死锁；可用至多 4 人同时取叉、奇偶编号不同顺序、"
+               "或一次性原子地取得两把叉等方法破坏循环等待。", 3, philosophers=True)
+        bits.append("哲学家进餐：限制人数/改变取叉顺序/原子取两叉，破坏循环等待")
+    if re.search(r"临界区|互斥锁|mutex|同步|互斥", text, re.I):
+        _frame(frames, "concept", "临界区与互斥",
+               "临界区访问共享资源，需满足互斥、空闲让进、有限等待；互斥锁 lock/unlock 是最基本的实现，"
+               "也可用信号量初值 1 表示互斥资源。", 4, mutex=True)
+        bits.append("临界区三条件：互斥、空闲让进、有限等待；mutex 或初值为 1 的信号量可实现互斥")
+    if not bits:
+        bits.append("同步用于约束执行次序，互斥用于保护临界区；信号量 P/V 可同时表达两种约束")
+        _frame(frames, "concept", "同步与互斥", bits[0], 1)
+    answer = "；".join(bits)
+    _frame(frames, "result", "结论", answer, 5, answer=answer)
+    return {"subject": "operating_system", "engine": "os_sync_v1", "os_kind": "sync",
+            "status": "ok", "algorithm": "", "frames": frames, "trace": frames,
+            "pseudocode": ["P(S)：S=S−1；S<0 阻塞", "V(S)：S=S+1；S≤0 唤醒", "临界区前后成对 P/V"],
+            "answer": answer, "answer_value": None, "answer_order": None, "headline": answer,
+            "metrics": [{"id": "answer", "label": "结论", "value": answer}], "checks": [], "notes": [],
+            "stats": {}, "stop_reason": "done"}
+
+
+def _eval_deadlock(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    text = str(model.get("raw") or "")
+    edges = [(left.upper(), right.upper()) for left, right in re.findall(
+        r"([PR]\d+)\s*(?:→|->|—>)\s*([PR]\d+)", text, re.I)]
+    if edges:
+        graph: dict[str, list[str]] = {}
+        for left, right in edges:
+            graph.setdefault(left, []).append(right)
+        state: dict[str, int] = {}
+        stack: list[str] = []
+        cycle: list[str] | None = None
+
+        def dfs(node: str) -> bool:
+            nonlocal cycle
+            state[node] = 1
+            stack.append(node)
+            for nxt in graph.get(node, []):
+                if state.get(nxt, 0) == 0:
+                    if dfs(nxt):
+                        return True
+                elif state.get(nxt) == 1:
+                    start = stack.index(nxt)
+                    cycle = stack[start:] + [nxt]
+                    return True
+            stack.pop()
+            state[node] = 2
+            return False
+
+        has_cycle = any(dfs(node) for node in list(graph) if state.get(node, 0) == 0)
+        frames: list[dict[str, Any]] = []
+        _frame(frames, "graph", "资源分配图",
+               "边： " + "；".join(f"{left}→{right}" for left, right in edges), 1,
+               edges=[f"{left}→{right}" for left, right in edges])
+        if has_cycle:
+            path = " → ".join(cycle or [])
+            _frame(frames, "cycle", "发现环路", f"资源分配图中存在环：{path}。单实例资源图中环意味着死锁。", 2,
+                   cycle=path)
+            answer = f"资源分配图存在环路 {path}，系统可能已死锁"
+            checks = [{"id": "cycle", "label": "死锁检测", "status": "fail", "detail": "单实例资源分配图存在环路。"}]
+        else:
+            _frame(frames, "cycle", "未发现环路", "资源分配图无环，不存在死锁。", 2, cycle="")
+            answer = "资源分配图无环，系统没有死锁"
+            checks = [{"id": "cycle", "label": "死锁检测", "status": "pass", "detail": "图中不存在环。"}]
+        return {"subject": "operating_system", "engine": "os_deadlock_v1", "os_kind": "deadlock",
+                "status": "ok", "algorithm": "rag_cycle", "frames": frames, "trace": frames,
+                "pseudocode": ["把进程和资源画成结点", "沿分配/请求边搜索", "若存在环则可能死锁"],
+                "answer": answer, "answer_value": None, "answer_order": cycle, "headline": answer,
+                "metrics": [{"id": "deadlock", "label": "检测结果", "value": "可能死锁" if has_cycle else "无环"}],
+                "checks": checks, "notes": ["多实例资源的资源分配图不能只靠环判定，需要化简图/银行家算法。"],
+                "stats": {"edges": edges, "has_cycle": has_cycle, "cycle": cycle}, "stop_reason": "done"}
+    frames = []
+    bits = [
+        "死锁四个必要条件：互斥、占有并等待、非抢占、循环等待；四个条件同时成立才可能死锁。",
+        "预防：破坏任一必要条件（如资源一次性分配、可抢占、按序申请）。",
+        "避免：运行时用银行家算法检查安全状态，只批准不会导致不安全的请求。",
+        "检测与解除：资源分配图/化简法检测；解除可撤销进程、抢占资源或回滚。",
+    ]
+    for index, bit in enumerate(bits, 1):
+        _frame(frames, "concept", "死锁要点", bit, min(index, 4), text=bit)
+    answer = "；".join(bits)
+    return {"subject": "operating_system", "engine": "os_deadlock_v1", "os_kind": "deadlock",
+            "status": "ok", "algorithm": "", "frames": frames, "trace": frames,
+            "pseudocode": ["判断四个必要条件", "选择预防/避免/检测策略", "必要时解除死锁"],
+            "answer": answer, "answer_value": None, "answer_order": None, "headline": answer,
+            "metrics": [{"id": "answer", "label": "结论", "value": answer}], "checks": [], "notes": [],
+            "stats": {}, "stop_reason": "done"}
+
+
+def _eval_memory_alloc(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    text = str(model.get("raw") or "")
+    free_match = re.search(
+        r"(?:空闲区|空闲分区|空闲块|分区大小)\s*(?:为|有|：|:)?\s*([0-9]+(?:\s*[,，、]\s*[0-9]+)*)", text)
+    if not free_match:
+        frames: list[dict[str, Any]] = []
+        _frame(frames, "concept", "首次适应", "从低地址开始找第一个足够大的空闲区；实现简单，低地址碎片较多。", 1)
+        _frame(frames, "concept", "最佳适应", "选择能满足请求的最小空闲区；剩余碎片最小，但容易产生大量小碎片。", 2)
+        _frame(frames, "concept", "最坏适应", "选择最大的空闲区；剩余区仍较大，但大请求可能被提前消耗。", 3)
+        _frame(frames, "concept", "邻近适应", "从上次分配位置之后继续查找；减少低地址扫描，但可能造成分布不均。", 4)
+        answer = ("连续分配算法：首次适应（第一个足够大）、最佳适应（最小足够大）、最坏适应（最大空闲区）、"
+                  "邻近适应（从上次位置继续）；动态分区会产生外部碎片，固定分区会产生内部碎片。")
+        return {"subject": "operating_system", "engine": "os_memory_v1", "os_kind": "memory_alloc",
+                "status": "ok", "algorithm": "", "frames": frames, "trace": frames,
+                "pseudocode": ["按算法选择一个足够大的空闲区", "切分并分配", "回收时合并相邻空闲区"],
+                "answer": answer, "answer_value": None, "answer_order": None, "headline": answer,
+                "metrics": [{"id": "answer", "label": "结论", "value": answer}], "checks": [], "notes": [],
+                "stats": {}, "stop_reason": "done"}
+    free = [int(item) for item in re.findall(r"\d+", free_match.group(1))]
+    algorithm = "best" if re.search(r"最佳适应|best", text, re.I) else (
+        "worst" if re.search(r"最坏适应|worst", text, re.I) else (
+            "next" if re.search(r"邻近适应|next", text, re.I) else "first"))
+    requests = [int(item) for item in re.findall(r"(?:分配|请求)\s*(\d+)", text)]
+    releases = [int(item) for item in re.findall(r"(?:释放|回收)\s*(\d+)", text)]
+    if not requests and not releases:
+        raise ValueError("请给出分配/请求大小，例如“空闲区 100,500,200，请求 120”")
+    frames: list[dict[str, Any]] = []
+    _frame(frames, "initial", "初始空闲区",
+           "空闲区：" + "、".join(str(item) for item in free) + f"；算法：{ {'first': '首次适应', 'best': '最佳适应', 'worst': '最坏适应', 'next': '邻近适应'}[algorithm] }。",
+           1, free=list(free), algorithm=algorithm)
+    pointer = 0
+    allocated: list[int] = []
+    allocations: list[tuple[int, int, int]] = []
+    for size in requests:
+        candidates = [i for i, block in enumerate(free) if block >= size]
+        if not candidates:
+            _frame(frames, "fail", f"分配 {size}", "没有足够大的空闲区，分配失败。", 2, free=list(free), request=size)
+            break
+        if algorithm == "best":
+            index = min(candidates, key=lambda i: (free[i], i))
+        elif algorithm == "worst":
+            index = max(candidates, key=lambda i: (free[i], -i))
+        elif algorithm == "next":
+            ordered = sorted(candidates, key=lambda i: (i < pointer, i))
+            index = ordered[0]
+        else:
+            index = candidates[0]
+        chosen = free[index]
+        free[index] -= size
+        allocated.append(size)
+        remainder = free[index]
+        allocations.append((size, chosen, remainder))
+        if free[index] == 0:
+            free.pop(index)
+            if index < pointer:
+                pointer = max(0, pointer - 1)
+        _frame(frames, "allocate", f"为 {size} 分配", f"选择 {chosen} 的空闲区，切出 {size}，"
+                                                   f"剩余 {remainder}；当前空闲区 { '、'.join(map(str, free)) or '无' }。",
+               2, free=list(free), request=size, chosen=chosen, remainder=remainder, algorithm=algorithm)
+        if algorithm == "next":
+            pointer = min(index, len(free) - 1) if free else 0
+    for size in releases:
+        free.append(size)
+        free.sort()
+        _frame(frames, "release", f"释放 {size}", f"回收 {size} 后空闲区：{ '、'.join(map(str, free)) }。",
+               3, free=list(free), released=size)
+    total_match = re.search(r"(?:总内存|内存大小|总容量)\s*(?:为|是|=|:|：)?\s*(\d+)", text)
+    answer_bits = []
+    if allocations:
+        answer_bits.append("；".join(f"分配 {size}：选择 {chosen}，剩余 {remainder}" for size, chosen, remainder in allocations))
+    answer_bits.extend([f"分配合计 {_fmt(sum(allocated))}", f"空闲区 { '、'.join(map(str, free)) or '无' }"])
+    if total_match:
+        total = int(total_match.group(1))
+        utilization = (total - sum(free)) / total * 100
+        answer_bits.append(f"内存利用率 {_fmt(utilization)}%")
+    answer = "；".join(answer_bits)
+    return {"subject": "operating_system", "engine": "os_memory_v1", "os_kind": "memory_alloc",
+            "status": "ok", "algorithm": algorithm, "frames": frames, "trace": frames,
+            "pseudocode": ["选择满足请求的空闲区", "切分空闲区完成分配", "回收时合并相邻空闲区", "统计碎片与利用率"],
+            "answer": answer, "answer_value": None, "answer_order": None, "headline": answer,
+            "metrics": [{"id": "answer", "label": "结果", "value": answer}], "checks": [], "notes": ["动态分区产生外部碎片；固定分区且请求小于分区时产生内部碎片。",
+                                                                                              "本演示只维护空闲区大小列表，未跟踪物理地址；相邻空闲区合并在有地址信息时进行。"],
+            "stats": {"free": free, "allocated": allocated, "algorithm": algorithm}, "stop_reason": "done"}
+
+
+# ---------------------------------------------------------------------------
 # 入口
 # ---------------------------------------------------------------------------
+
+def _build_generic(kind: str):
+    def builder(text: str, source: Mapping[str, Any], merged: Mapping[str, Any]) -> dict[str, Any]:
+        engine = {"os_basics": "os_basics_v1", "process_thread": "os_process_v1",
+                  "sync": "os_sync_v1", "deadlock": "os_deadlock_v1",
+                  "memory_alloc": "os_memory_v1"}[kind]
+        model = {"engine": engine, "subject": "operating_system", "os_kind": kind,
+                 "raw": text, "defaults": {}, "params": [], "teaching": False}
+        conditions = [_condition("os_kind", "题型", KIND_LABELS[kind], source=source)]
+        formulas = [{"id": "os_rule", "tex": r"\text{按操作系统定义与题面条件推导}",
+                     "plain": "概念题给出确定性知识点；计算题按题面数据执行并留痕。", "role": "口径"}]
+        return {"model": model, "conditions": conditions, "ambiguities": [], "formulas": formulas,
+                "recognized": True}
+    return builder
+
 
 _BUILDERS = {
     "cpu_schedule": _build_schedule,
     "page_replace": _build_page,
     "disk_schedule": _build_disk,
     "banker": _build_banker,
+    "os_basics": _build_generic("os_basics"),
+    "process_thread": _build_generic("process_thread"),
+    "sync": _build_generic("sync"),
+    "deadlock": _build_generic("deadlock"),
+    "memory_alloc": _build_generic("memory_alloc"),
 }
 
 
@@ -1503,7 +1904,17 @@ def build_os(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any])
               **dict(overrides.get("ambiguity_answers") or {}),
               **dict(overrides or {})}
     kind, certain = _infer_kind(text, merged)
-    built = _BUILDERS[kind or "cpu_schedule"](text, source, merged)
+    if kind is None:
+        model = {"engine": "os_unknown_v1", "subject": "operating_system", "os_kind": None,
+                 "raw": text, "defaults": {}, "params": [], "teaching": False}
+        return {"model": model, "conditions": [], "formulas": [],
+                "ambiguities": [_ambiguity(
+                    "os_kind", "os_kind",
+                    "已识别为操作系统内容，但没有确定题型：请选择或补充 CPU 调度、页面置换、磁盘调度、银行家算法、"
+                    "操作系统基础、进程与线程、同步与互斥、死锁或连续内存分配的具体条件。",
+                    options=[{"value": key, "label": label} for key, label in KIND_LABELS.items()])],
+                "recognized": False}
+    built = _BUILDERS[kind](text, source, merged)
     if not certain:
         built["ambiguities"].insert(0, _ambiguity(
             "os_kind", "os_kind", "已识别为操作系统内容，但没有确定题型：CPU 调度、页面置换、磁盘调度还是银行家算法？",
@@ -1514,6 +1925,16 @@ def build_os(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any])
 
 def evaluate_os(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
     kind = str(model.get("os_kind") or "cpu_schedule")
+    if kind == "os_basics":
+        return _eval_os_basics(model, params)
+    if kind == "process_thread":
+        return _eval_process_thread(model, params)
+    if kind == "sync":
+        return _eval_sync(model, params)
+    if kind == "deadlock":
+        return _eval_deadlock(model, params)
+    if kind == "memory_alloc":
+        return _eval_memory_alloc(model, params)
     if kind == "page_replace":
         return _eval_page(model, params)
     if kind == "disk_schedule":
@@ -1533,6 +1954,10 @@ def solve_os(model: Mapping[str, Any]) -> dict[str, Any]:
     result = evaluate_os(model, model.get("defaults") or {})
     if result.get("status") != "ok":
         raise ValueError(result.get("reason") or "暂不能求解该操作系统题")
+    try:
+        model["os_result"] = result  # type: ignore[index]
+    except TypeError:
+        pass
     frames = result["trace"]
     last = len(frames) - 1
 
@@ -1540,6 +1965,23 @@ def solve_os(model: Mapping[str, Any]) -> dict[str, Any]:
         return next((f["index"] for f in frames if f["action"] in actions), last)
 
     algorithm = str(result.get("algorithm") or "")
+    if kind in ("os_basics", "process_thread", "sync", "deadlock", "memory_alloc"):
+        steps = [{"id": f"os_{frame['index']}", "title": frame["label"], "detail": frame["detail"]}
+                 for frame in frames[:8]]
+        summary = {
+            "os_basics": "辨析内核态/用户态、系统调用与中断异常机制。",
+            "process_thread": "按进程状态机、PCB、线程模型与资源共享规则推导。",
+            "sync": "按信号量 P/V 规则或经典同步问题口径推导。",
+            "deadlock": "按死锁必要条件、资源分配图或预防/避免/检测策略推导。",
+            "memory_alloc": "按首次/最佳/最坏/邻近适应模拟连续内存分配。",
+        }[kind]
+        return {
+            "summary": summary, "answer": result["answer"], "answer_value": result.get("answer_value"),
+            "answer_order": result.get("answer_order"), "answer_sequence": result.get("answer_order"),
+            "steps": steps,
+            "conditions": ["结论由题面条件与操作系统确定性规则计算；可在条件面板中查看题型。"],
+            "limitations": result.get("notes") or [],
+        }
     if kind == "cpu_schedule":
         steps = [
             {"id": "os_0", "title": "列出进程表", "detail": "按到达时间排列进程；每个进程有到达时间与服务时间。"},

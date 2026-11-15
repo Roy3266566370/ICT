@@ -2,9 +2,11 @@
 import type { HeapResult } from './heap.ts';
 import type { LinAlgResult } from './linalg.ts';
 import type { OsResult } from './opsys.ts';
+import type { CoResult } from './compOrg.ts';
 
 export type LabSubject =
-  | 'calculus' | 'optimization' | 'algorithm' | 'deep_learning' | 'linear_algebra' | 'operating_system' | 'unknown';
+  | 'calculus' | 'optimization' | 'algorithm' | 'deep_learning' | 'linear_algebra' | 'operating_system'
+  | 'computer_organization' | 'computer_network' | 'unknown';
 export type LabStatus = 'ready' | 'needs_review' | 'unsupported';
 export type LabMode = 'explore' | 'guided' | 'solution';
 export type LabProvenance = 'original' | 'inferred' | 'user_confirmed' | 'supplement' | 'teaching';
@@ -17,6 +19,8 @@ export const SUBJECT_LABELS: Record<LabSubject, string> = {
   deep_learning: '深度学习',
   linear_algebra: '线性代数',
   operating_system: '操作系统',
+  computer_organization: '计算机组成原理',
+  computer_network: '计算机网络',
   unknown: '待确认',
 };
 
@@ -27,6 +31,8 @@ export const SUBJECT_SHORT: Record<LabSubject, string> = {
   deep_learning: 'DEEP LEARNING',
   linear_algebra: 'LINEAR ALGEBRA',
   operating_system: 'OPERATING SYSTEM',
+  computer_organization: 'COMPUTER ORGANIZATION',
+  computer_network: 'NETWORK',
   unknown: 'UNKNOWN',
 };
 
@@ -237,7 +243,13 @@ export interface LabModel {
   matrix_b?: number[][] | null;
   vector_b?: number[] | null;
   // operating system
-  os_kind?: 'cpu_schedule' | 'page_replace' | 'disk_schedule' | 'banker';
+  os_kind?: 'cpu_schedule' | 'page_replace' | 'disk_schedule' | 'banker'
+    | 'os_basics' | 'process_thread' | 'sync' | 'deadlock' | 'memory_alloc';
+  os_result?: Record<string, unknown>;
+  // computer organization
+  co_kind?: 'performance' | 'data_repr' | 'fixed_point' | 'floating' | 'datapath'
+    | 'memory' | 'cache' | 'virtual_memory' | 'instruction' | 'cpu_control' | 'pipeline' | 'bus_io';
+  co_result?: Record<string, unknown>;
   processes?: { id: string; arrival: number; burst: number; priority: number | null }[];
   has_priority?: boolean;
   reference?: string[];
@@ -612,7 +624,64 @@ export interface LabAISolution {
   created_at: string;
 }
 
+export interface LabOrchestrationProvenance {
+  step: string;
+  item: string;
+  detail: string;
+  source: string;
+}
+
+export interface LabOrchestrationAdjustment {
+  step: string;
+  from?: string;
+  to?: string;
+  attempt?: number;
+  reason?: string;
+  rejected?: string[];
+  result?: string;
+  error?: string;
+  from_inputs?: Record<string, unknown>;
+  to_inputs?: Record<string, unknown>;
+}
+
+export interface LabOrchestrationPlanStep {
+  id: string;
+  goal?: string;
+  capability?: string;
+  subquestion?: string | null;
+}
+
+export interface LabOrchestration {
+  problem: { text: string; version: string };
+  status: string;
+  stale?: boolean;
+  note?: string;
+  planner?: { mode?: string; error?: string | null; understanding_source?: string };
+  plan_check?: {
+    ok?: boolean;
+    errors?: string[];
+    warnings?: string[];
+    provenance?: LabOrchestrationProvenance[];
+  };
+  understanding?: {
+    source?: string;
+    ai_error?: string;
+    ai_warnings?: string[];
+    ambiguities?: string[];
+    asked?: { id: string; goal: string }[];
+  };
+  plan?: { steps?: LabOrchestrationPlanStep[] };
+  answers: { subquestion: string; goal?: string; answer?: string; state?: string; value?: number | null }[];
+  solve: {
+    steps: { id: string; goal: string; state: string; detail?: string; capability?: string }[];
+    provenance?: LabOrchestrationProvenance[];
+    adjustments?: LabOrchestrationAdjustment[];
+  };
+  previous_summary?: { version: string; answers: { goal?: string; answer?: string }[] };
+}
+
 export interface LabDocument {
+  orchestration?: LabOrchestration;
   schema_version: string;
   lab_id: string;
   title: string;
@@ -921,6 +990,8 @@ export interface BfsResultFrame extends LabResultFrame {
   action: string;
   current: string | null;
   queue: string[];
+  /** DFS 轨迹使用栈；BFS 使用队列。渲染层按 result.algorithm 选择字段。 */
+  stack?: string[];
   visited: string[];
   order: string[];
   parent: Record<string, string | null>;
@@ -931,7 +1002,7 @@ export interface BfsResultFrame extends LabResultFrame {
 
 export interface BfsResult extends LabResultBase {
   subject: 'algorithm';
-  algorithm?: 'bfs';
+  algorithm?: 'bfs' | 'dfs';
   nodes: { id: string; label: string }[];
   edges: { from: string; to: string }[];
   directed: boolean;
@@ -947,6 +1018,31 @@ export interface BfsResult extends LabResultBase {
   start: string;
   frames: BfsResultFrame[];
   trace: BfsResultFrame[];
+}
+
+export interface DsTreeVisual {
+  type: 'tree';
+  nodes: { id: string; label: string; x: number; y: number }[];
+  edges: { from: string; to: string }[];
+  highlight?: string | null;
+}
+
+export interface DsResultFrame extends LabResultFrame {
+  pseudocodeLine?: number;
+  /** 后端按帧生成的结构化画面：树形、散列表或其它可绘制状态。 */
+  visual?: DsTreeVisual;
+}
+
+/** 数据结构题型（ds_* 引擎）：执行记录由后端确定性内核生成，前端直接回放。 */
+export interface DsResult extends LabResultBase {
+  subject: 'algorithm';
+  algorithm?: 'data_structure';
+  dsKind: string;
+  answer: string;
+  answer_value?: number;
+  answer_order?: string[];
+  pseudocode: string[];
+  frames: DsResultFrame[];
 }
 
 export interface DlFrame extends LabResultFrame {
@@ -981,7 +1077,7 @@ export interface UnknownResult extends LabResultBase {
 }
 
 export type LabResult =
-  CalculusResult | OptimizationResult | BfsResult | HeapResult | DlResult | LinAlgResult | OsResult | UnknownResult;
+  CalculusResult | OptimizationResult | BfsResult | DsResult | HeapResult | DlResult | LinAlgResult | OsResult | CoResult | UnknownResult;
 
 /* ------------------------------------------------------------------ */
 /* 边界守卫                                                            */

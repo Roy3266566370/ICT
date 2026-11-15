@@ -55,28 +55,20 @@ def classify_goal_action(question: str) -> str:
 def task_limit(text: str) -> str:
     """Known kernel limits, not missing source data. No substitute computation."""
     text = strip_negated(text)
-    if '哈夫曼' in text or '散列表' in text or '散列函数' in text:
-        return '当前内核未支持哈夫曼编码或散列表操作，不能将它改成堆删除或线性方程组。'
-    if '堆' in text and '插入' in text:
-        return '当前堆内核仅支持删除回放，不支持逐个插入建堆；原题条件并未缺失。'
-    if '堆' in text and re.search(r'比较次数|比较.*多少次', text):
-        return '当前堆内核未提供指定实现的关键字比较计数，不能用最终堆替代所求。'
-    if '时间复杂度' in text:
+    # 哈夫曼/散列已由 ds_advanced 内核支持（哈夫曼构造/编码、散列冲突处理与 ASL）。
+    # 循环/递归复杂度已由 ds_analysis 内核支持；仅拒绝无法解析结构的一般程序复杂度分析。
+    if '时间复杂度' in text and not re.search(r'循环|递归|for\s*\(|while\s*\(|T\s*\(\s*n\s*\)', text, re.I):
         return '当前内核不支持一般程序或操作的时间复杂度分析。'
     if '偏导' in text:
         return '当前声明式任务未支持隐式多元偏导数，不能替换为单变量求导。'
     if '渐近线' in text or '凹凸' in text:
         return '当前函数研究任务不能完整覆盖凹凸与渐近线目标。'
-    if '折半查找' in text and '比较次数' in text:
-        return '当前内核没有折半查找最坏比较次数任务，原题不是缺少具体数组。'
     if '最短路径' in text and re.search(r'哪些.*一定|一定能', text):
-        return '这是算法性质辨析，当前BFS内核只支持给定图的执行，不需要补造节点和边。'
+        return '这是算法性质辨析，当前遍历内核只支持给定图的执行，不需要补造节点和边。'
     if '反常积分' in text and re.search(r'正无穷|负无穷|无穷大', text):
         return '当前声明式积分任务仅接受有限端点，不能截断无穷区间。'
     if re.search(r'执行态.*阻塞态|运行态.*阻塞态|调度需要使用', text):
         return '这是操作系统概念辨析，当前执行内核不支持；不需要补充进程运行表。'
-    if re.search(r'LRU|页面|页框', text, re.I) and re.search(r'已调入内存|初始(?:状态)?(?:非空|不为空)', text):
-        return '原题给定非空初态，当前页面内核仅支持空初态；不能丢弃初始页面。'
     if '弧长' in text:
         return '当前题目内核不支持弧长目标，不能只返回微分方程解。'
     if re.search(r'y\s*\^?[23]|隐函数|由方程', text) and ("y''" in text or '二阶导数' in text) and '微分方程' not in text:

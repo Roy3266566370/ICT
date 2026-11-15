@@ -52,6 +52,14 @@
 ``DB_POOL_SIZE``  ``5``；``DB_MAX_OVERFLOW``  ``5``；``DB_POOL_TIMEOUT_SECONDS``  ``10``；
 ``DB_POOL_RECYCLE_SECONDS``  ``1800``；``MIGRATION_DATABASE_URL``  （空，仅 Alembic 使用）。
 
+注册邮箱验证码（Brevo 事务邮件）：
+
+``BREVO_API_KEY``  （空，只能由部署环境注入）；``BREVO_SENDER_EMAIL``  （空，必须是
+Brevo 已验证的发件人）；``BREVO_SENDER_NAME``  ``万象 WANXIANG``；``BREVO_API_URL``
+``https://api.brevo.com/v3/smtp/email``；``BREVO_TIMEOUT_S``  ``10``；
+``REGISTER_CODE_TTL_SECONDS``  ``300``；``REGISTER_CODE_RESEND_SECONDS``  ``60``；
+``REGISTER_CODE_MAX_ATTEMPTS``  ``5``。
+
 账号资料与头像（``C-PROFILE@1``）：``AVATAR_MAX_BYTES``  ``2097152``（2MB）；
 ``AVATAR_SIZE``  ``512``（服务端重编码后的正方形边长）。
 ``DATABASE_URL`` 默认值保持 SQLite 不变；只有显式设置 MySQL 串时才切换驱动。
@@ -291,7 +299,38 @@ class Settings(BaseSettings):
     auth_remember_idle_hours: int = Field(default=168, ge=1)
     auth_development_active_on_register: bool = Field(
         default=True,
-        description="开发期注册即 active；置 False 时注册返回明确错误（不静默降级）",
+        description="注册开关；置 False 时注册返回明确错误（不静默降级）",
+    )
+
+    # --- 注册邮箱验证码（Brevo 事务邮件；密钥只从环境注入）---
+    brevo_api_key: str = Field(
+        default="",
+        description="Brevo API Key；只能由部署环境注入，代码与仓库内禁止硬编码",
+    )
+    brevo_sender_email: str = Field(
+        default="",
+        description="Brevo 已验证的发件人邮箱；为空时发送验证码返回明确错误",
+    )
+    brevo_sender_name: str = Field(default="万象 WANXIANG")
+    brevo_api_url: str = Field(default="https://api.brevo.com/v3/smtp/email")
+    brevo_timeout_s: float = Field(default=10.0, gt=0, le=60)
+    register_code_ttl_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=1800,
+        description="注册验证码有效期（秒），默认 5 分钟",
+    )
+    register_code_resend_seconds: int = Field(
+        default=60,
+        ge=10,
+        le=600,
+        description="同一邮箱两次发送验证码的最小间隔（秒）",
+    )
+    register_code_max_attempts: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="单个验证码允许的错误尝试次数，超过后立即作废",
     )
 
     # --- 账号头像（只允许 JPG / PNG / WebP，服务端统一重编码）---

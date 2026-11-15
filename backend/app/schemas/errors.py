@@ -246,6 +246,12 @@ def forbidden(message: str | None = None, **details: Any) -> ApiError:
     return ApiError(ErrorCode.FORBIDDEN, message, details=_clean(details))
 
 
+def rate_limited(message: str | None = None, **details: Any) -> ApiError:
+    """429：验证码重发节流或错误尝试次数超限。"""
+
+    return ApiError(ErrorCode.RATE_LIMITED, message, details=_clean(details))
+
+
 def resource_unavailable(**details: Any) -> ApiError:
     """404 + ``SESSION_EXPIRED``：跨会话访问他人资源，不得暴露存在性（D2）。"""
 

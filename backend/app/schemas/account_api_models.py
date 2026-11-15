@@ -19,12 +19,27 @@ class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class RegisterCodeRequest(_StrictModel):
+    """``POST /auth/register/code`` 请求体。"""
+
+    email: str = Field(min_length=3, max_length=320)
+
+
+class RegisterCodeResult(_StrictModel):
+    """``POST /auth/register/code`` 的 ``data``：展示邮箱与时效信息。"""
+
+    email: str
+    expires_in_seconds: int
+    resend_after_seconds: int
+
+
 class RegisterRequest(_StrictModel):
-    """``POST /auth/register`` 请求体。"""
+    """``POST /auth/register`` 请求体；``verification_code`` 必填。"""
 
     username: str = Field(min_length=1, max_length=32)
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1, max_length=128)
+    verification_code: str = Field(min_length=6, max_length=6)
     display_name: Optional[str] = Field(default=None, max_length=64)
 
 
@@ -61,7 +76,8 @@ class AuthUser(_StrictModel):
     display_name: str
     status: Literal["active"]
     created_at: str
-    email_verification: Literal["disabled_development"]
+    #: ``verified``：邮箱已通过注册验证码核验；``disabled_development``：历史账号。
+    email_verification: Literal["disabled_development", "verified"]
     #: 头像 URL（相对路径，带版本参数）；未上传时为 None，前端回退昵称首字。
     avatar_url: Optional[str] = None
 
@@ -133,6 +149,8 @@ __all__ = [
     "LoginResult",
     "MeResponse",
     "ProfileUpdateResult",
+    "RegisterCodeRequest",
+    "RegisterCodeResult",
     "RegisterRequest",
     "UpdateMeRequest",
     "UserProfile",

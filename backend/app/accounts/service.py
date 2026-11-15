@@ -14,6 +14,8 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import select
@@ -37,7 +39,13 @@ from ..schemas.errors import (
     username_already_registered,
 )
 from ..settings import get_settings
-from .identities import normalize_email, normalize_username, validate_password_policy
+from .identities import (
+    NormalizedEmail,
+    NormalizedUsername,
+    normalize_email,
+    normalize_username,
+    validate_password_policy,
+)
 from .passwords import hash_password, verify_dummy_password, verify_password
 
 
@@ -91,21 +99,29 @@ def find_username_identity(db: Session, user_id: str) -> Optional[LoginIdentityR
     return db.execute(statement).scalars().first()
 
 
-def register_account(
+@dataclass(frozen=True, slots=True)
+class PendingRegistration:
+    """已通过格式与唯一性预检查、尚未落库的注册信息。"""
+
+    username: NormalizedUsername
+    email: NormalizedEmail
+    password: str
+    display_name: str
+
+
+def validate_registration(
     db: Session,
     *,
     username: str,
     email: str,
     password: str,
     display_name: Optional[str] = None,
-) -> UserRecord:
-    """注册账号并返回 ``users`` 行（``expire_on_commit=False``，可直接读属性）。
+) -> PendingRegistration:
+    """校验注册字段并预检查唯一性；所有失败都发生在任何写操作之前。
 
-    1. 先校验用户名、邮箱与密码（失败 422，无副作用）；
-    2. 开发期降级开关关闭时返回明确的 503，而不是静默降级（D-04）；
-    3. 预检查重复用户名 / 邮箱 → 409；并发下的 ``IntegrityError`` 同样转 409；
-    4. ``users`` 先 ``flush()``，再写两条 ``login_identities``（username + email），
-       最后一次性 ``commit()``；两次身份共用同一份密码摘要。
+    - 用户名、邮箱、密码不合规 → 422；
+    - 开发期降级开关关闭 → 明确的 503；
+    - 用户名或邮箱已注册 → 409。
     """
 
     normalized_username = normalize_username(username)
@@ -113,7 +129,7 @@ def register_account(
     validate_password_policy(password)
 
     if not get_settings().auth_development_active_on_register:
-        raise model_unavailable("当前版本尚未启用邮箱验证，注册暂不可用")
+        raise model_unavailable("注册暂未开放，请稍后再试")
 
     if (
         _find_identity(
@@ -125,14 +141,33 @@ def register_account(
     if _find_email_identity(db, normalized_email.identifier) is not None:
         raise email_already_registered()
 
-    moment = utc_now()
     raw_display_name = (display_name or "").strip()
-    resolved_name = (raw_display_name or normalized_username.display)[:64]
-    password_hash = hash_password(password)
+    return PendingRegistration(
+        username=normalized_username,
+        email=normalized_email,
+        password=password,
+        display_name=(raw_display_name or normalized_username.display)[:64],
+    )
+
+
+def create_account(
+    db: Session,
+    pending: PendingRegistration,
+    *,
+    verified_at: Optional[datetime] = None,
+) -> UserRecord:
+    """把已校验的注册信息落库并返回 ``users`` 行。
+
+    ``verified_at`` 非空表示邮箱已通过验证码核验；``users`` 必须先 ``flush()``
+    成 INSERT，再写两条 ``login_identities``，最后一次性 ``commit()``。
+    """
+
+    moment = utc_now()
+    password_hash = hash_password(pending.password)
 
     user = UserRecord(
         id=new_user_id(),
-        display_name=resolved_name,
+        display_name=pending.display_name,
         status="active",
         platform_role=DEFAULT_PLATFORM_ROLE,
         created_at=moment,
@@ -143,8 +178,8 @@ def register_account(
         user_id=user.id,
         provider=USERNAME_PROVIDER,
         issuer=USERNAME_ISSUER,
-        identifier=normalized_username.identifier,
-        display_identifier=normalized_username.display,
+        identifier=pending.username.identifier,
+        display_identifier=pending.username.display,
         password_hash=password_hash,
         verified_at=None,
         created_at=moment,
@@ -154,10 +189,10 @@ def register_account(
         user_id=user.id,
         provider=EMAIL_PROVIDER,
         issuer=EMAIL_ISSUER,
-        identifier=normalized_email.identifier,
-        display_identifier=normalized_email.display,
+        identifier=pending.email.identifier,
+        display_identifier=pending.email.display,
         password_hash=password_hash,
-        verified_at=None,
+        verified_at=verified_at,
         created_at=moment,
     )
 
@@ -173,7 +208,7 @@ def register_account(
         # 并发注册命中唯一约束：回滚后复查是哪一条身份冲突，返回同一业务错误。
         if (
             _find_identity(
-                db, USERNAME_PROVIDER, USERNAME_ISSUER, normalized_username.identifier
+                db, USERNAME_PROVIDER, USERNAME_ISSUER, pending.username.identifier
             )
             is not None
         ):
@@ -184,6 +219,30 @@ def register_account(
 
     logger.info("已注册账号 user_id=%s", user.id)
     return user
+
+
+def register_account(
+    db: Session,
+    *,
+    username: str,
+    email: str,
+    password: str,
+    display_name: Optional[str] = None,
+) -> UserRecord:
+    """注册账号并返回 ``users`` 行；保留给服务层调用方，不校验邮箱验证码。
+
+    HTTP 注册入口使用 :func:`validate_registration` + :func:`create_account`，
+    在两者之间插入验证码核验。
+    """
+
+    pending = validate_registration(
+        db,
+        username=username,
+        email=email,
+        password=password,
+        display_name=display_name,
+    )
+    return create_account(db, pending)
 
 
 def authenticate(db: Session, *, identifier: str, password: str) -> UserRecord:
@@ -243,9 +302,12 @@ __all__ = [
     "EMAIL_PROVIDER",
     "USERNAME_ISSUER",
     "USERNAME_PROVIDER",
+    "PendingRegistration",
     "authenticate",
+    "create_account",
     "find_email_identity",
     "find_username_identity",
     "get_active_user",
     "register_account",
+    "validate_registration",
 ]

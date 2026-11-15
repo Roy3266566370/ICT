@@ -382,18 +382,37 @@ function BankerCanvas({ result, frame }: { result: OsBankerResult; frame: OsFram
 
 const KIND_TITLES: Record<string, string> = {
   cpu_schedule: 'CPU 调度', page_replace: '页面置换', disk_schedule: '磁盘调度', banker: '银行家算法',
+  os_basics: '操作系统基础', process_thread: '进程与线程', sync: '同步与互斥',
+  deadlock: '死锁', memory_alloc: '连续内存分配',
 };
+
+function GenericOsCanvas({ frame }: { frame: OsFrame }): ReactNode {
+  const entries = Object.entries(frame.values ?? {});
+  if (!entries.length) return null;
+  return (
+    <div className={styles.block}>
+      <span className={styles.blockTitle}>当前状态</span>
+      <div className={styles.mono}>
+        {entries.map(([key, value]) => (
+          <div key={key}>{key}：{typeof value === 'string' || typeof value === 'number' ? String(value) : JSON.stringify(value)}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function OsCanvas({ result, step, selected, onSelect }: Props): ReactNode {
   const frame = result.frames[Math.max(0, Math.min(result.frames.length - 1, Math.round(step)))];
   if (!frame) return <div className={styles.empty} role="status">{result.reason || '等待核对题目数据。'}</div>;
-  const algorithmLabel = result.osKind === 'cpu_schedule' ? SCHED_LABELS[result.algorithm]
+  const generic = !['cpu_schedule', 'page_replace', 'disk_schedule', 'banker'].includes(result.osKind);
+  const algorithmLabel = generic ? ''
+    : result.osKind === 'cpu_schedule' ? SCHED_LABELS[result.algorithm]
     : result.osKind === 'page_replace' ? PAGE_LABELS[result.algorithm]
       : result.osKind === 'disk_schedule' ? DISK_LABELS[result.algorithm] : '安全性算法';
   return (
     <section className={styles.canvas} aria-label={`${KIND_TITLES[result.osKind]}实验`}>
       <header className={styles.heading}>
-        <strong>{KIND_TITLES[result.osKind]} · {algorithmLabel}</strong>
+        <strong>{KIND_TITLES[result.osKind]}{algorithmLabel ? ` · ${algorithmLabel}` : ''}</strong>
         <span>{result.headline}</span>
       </header>
       <div className={styles.layout}>
@@ -402,6 +421,7 @@ export function OsCanvas({ result, step, selected, onSelect }: Props): ReactNode
           {result.osKind === 'page_replace' ? <PageCanvas result={result} frame={frame} /> : null}
           {result.osKind === 'disk_schedule' ? <DiskCanvas result={result} frame={frame} /> : null}
           {result.osKind === 'banker' ? <BankerCanvas result={result} frame={frame} /> : null}
+          {generic ? <GenericOsCanvas frame={frame} /> : null}
           <p className={styles.caption}><strong>{frame.label}</strong>{frame.detail}</p>
         </div>
         <aside className={styles.aside}>

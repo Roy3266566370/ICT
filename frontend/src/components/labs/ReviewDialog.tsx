@@ -54,7 +54,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
         initial[condition.id] = asText(condition.id === 'expression' ? problem.model.expression : condition.value);
       }
     }
-    if (problem.subject === 'algorithm' && problem.model.engine !== 'heap_v1') {
+    if (problem.subject === 'algorithm' && problem.model.engine !== 'heap_v1' && !String(problem.model.engine ?? '').startsWith('ds_')) {
       initial.graph_edges = (problem.model.edges ?? []).map((edge) => `${edge.from}-${edge.to}`).join('\n');
     }
     if (problem.subject === 'deep_learning') {
@@ -256,7 +256,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
                 ))}
               {problem.manual_input?.task === 'multivariable' && !('point' in problem.manual_input.conditions) ? <label className={styles.formField}>求值点（可选）<input aria-label="求值点" value={values.point ?? ''} onChange={e=>setValues(current=>({...current,point:e.target.value}))} placeholder="按已确认的变量顺序，如1,2" /></label> : null}
               {problem.manual_input?.task === 'continuity' && values.value_mode === 'value' && !problem.recognition.conditions.some(c => c.id === 'point_value') ? <label className={styles.formField}>单点函数值<input aria-label="单点函数值" value={values.point_value ?? ''} onChange={e => setValues(current => ({ ...current, point_value: e.target.value }))} /></label> : null}
-              {problem.subject === 'algorithm' && problem.model.engine !== 'heap_v1' ? (
+              {problem.subject === 'algorithm' && problem.model.engine !== 'heap_v1' && !String(problem.model.engine ?? '').startsWith('ds_') ? (
                 <label className={styles.formFieldWide}>
                   <span>图的边（每行一条；有向图用 →）</span>
                   <textarea

@@ -40,6 +40,22 @@ PASSWORD = "mysql-integration-2026"
 AUTH_COOKIE = "xs_auth"
 #: 允许的写请求来源（与默认 ``ALLOWED_ORIGINS`` 一致）。
 ALLOWED_ORIGIN = "http://localhost:5173"
+#: 测试替身捕获的明文验证码：规范化邮箱 → code。
+_VERIFICATION_CODES: dict[str, str] = {}
+
+
+@pytest.fixture(autouse=True)
+def _capture_verification_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """把 Brevo 发送替换为内存捕获，避免集成测试发送真实邮件。"""
+
+    from app.accounts import verification
+
+    _VERIFICATION_CODES.clear()
+
+    def _capture(*, email: str, code: str, ttl_seconds: int) -> None:
+        _VERIFICATION_CODES[email.strip().casefold()] = code
+
+    monkeypatch.setattr(verification, "send_verification_code_email", _capture)
 
 #: 存量业务表：9 张基线 + 3 张 P2 追加表（``shares`` / ``labs`` / ``lab_shares``）。
 STORED_TABLE_NAMES: frozenset[str] = frozenset(TABLE_NAMES) | {
@@ -71,9 +87,17 @@ def _register(
     password: str = PASSWORD,
     display_name: Optional[str] = None,
 ) -> Any:
-    """调用 ``POST /api/v1/auth/register``。"""
+    """先取验证码，再调用 ``POST /api/v1/auth/register``。"""
 
-    payload: dict[str, Any] = {"email": email, "password": password}
+    email_key = email.strip().casefold()
+    client.post("/api/v1/auth/register/code", json={"email": email})
+    payload: dict[str, Any] = {
+        "email": email,
+        "password": password,
+        # 重复邮箱用例在发送阶段返回 409；注册路由先校验唯一性，
+        # 因此占位码不会影响「重复邮箱 → 409」的预期。
+        "verification_code": _VERIFICATION_CODES.get(email_key, "000000"),
+    }
     if display_name is not None:
         payload["display_name"] = display_name
     return client.post("/api/v1/auth/register", json=payload)

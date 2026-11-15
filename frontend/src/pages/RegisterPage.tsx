@@ -28,6 +28,10 @@ import {
   USERNAME_ALREADY_REGISTERED_MESSAGE,
   useRegisterSubmit,
 } from '@/components/auth/useRegisterSubmit';
+import {
+  emailComparisonKey,
+  useSendRegisterCode,
+} from '@/components/auth/useSendRegisterCode';
 import { useAccountSessionStore, useAccountStatus } from '@/state/accountSession';
 
 /** 表单初值：只在挂载时作为 `useState` 初始值使用（之后一律由 `onChange` 替换）。 */
@@ -37,6 +41,7 @@ const INITIAL_REGISTER_VALUES: RegisterFormValues = {
   password: '',
   confirmPassword: '',
   displayName: '',
+  verificationCode: '',
   identityTag: '',
 };
 
@@ -86,6 +91,22 @@ export default function RegisterPage(): JSX.Element {
     onAutoLoginFailed: handleAutoLoginFailed,
   });
 
+  const {
+    status: codeStatus,
+    message: codeMessage,
+    cooldown: codeCooldown,
+    sentEmail: codeSentEmail,
+    send: sendCode,
+    reset: resetCode,
+  } = useSendRegisterCode();
+
+  const handleSendCode = useCallback(
+    (email: string): void => {
+      void sendCode(email);
+    },
+    [sendCode],
+  );
+
   /* 已登录（含注册成功后的状态切换）→ 跳转回跳目标，且不渲染表单（R3-AC10） */
   useEffect(() => {
     if (accountStatus !== 'authenticated') return;
@@ -104,11 +125,18 @@ export default function RegisterPage(): JSX.Element {
   /** 用户重新编辑后清除上一次的错误提示（提交中不允许编辑，避免状态被打断）。 */
   const handleChange = useCallback(
     (next: RegisterFormValues): void => {
+      // 换邮箱后旧的发送结果不再适用；冷却按邮箱由 hook 内部判断
+      if (next.email !== values.email) resetCode();
       setValues(next);
       if (status === 'error') reset();
     },
-    [reset, status],
+    [reset, resetCode, status, values.email],
   );
+
+  const codeCooldownActive =
+    codeCooldown > 0 &&
+    codeSentEmail !== null &&
+    codeSentEmail === emailComparisonKey(values.email);
 
   const duplicateEmail = status === 'error' && message === EMAIL_ALREADY_REGISTERED_MESSAGE;
   const duplicateUsername =
@@ -138,6 +166,11 @@ export default function RegisterPage(): JSX.Element {
           fieldErrors={fieldErrors}
           onChange={handleChange}
           onSubmit={handleSubmit}
+          codeStatus={codeStatus}
+          codeMessage={codeMessage}
+          codeCooldown={codeCooldown}
+          codeCooldownActive={codeCooldownActive}
+          onSendCode={handleSendCode}
           mockMode={mockMode}
           duplicateEmail={duplicateEmail}
           duplicateUsername={duplicateUsername}

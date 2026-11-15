@@ -318,7 +318,7 @@ def solve_with_ai(problem: Mapping[str, Any], *, mode: str = "auto", client=None
         '等式约束极值用 constrained_extrema：variables固定["x","y"]，constraint写 g(x,y)=0；不等式约束当前不支持，不得改写成等式。'
         "微分方程用 ode：equation写 y' = ... 或 y'' + ... = ...，initial_conditions用y(0)=1、y'(0)=2等字符串；"
         '多问中若还要求面积/体积/点值，用target_kind=area|volume_x|value并给出相应target_bounds或target_point。'
-        "其他微积分、优化、矩阵、BFS、堆、神经网络、操作系统题可用existing并写清规范化题干；不要改条件或添加教学数据。"
+        "其他微积分、优化、矩阵、BFS/DFS遍历、堆、神经网络、操作系统题可用existing并写清规范化题干；不要改条件或添加教学数据。"
         "知识选择、证明和内核不能支持的题目用none，仍给出参考解答。直接解答模式=" + mode + "。只输出JSON。")
     data = response.data
     extraction_only = isinstance(data.get('model'),dict) and data['model'].get('kind')=='kernel'

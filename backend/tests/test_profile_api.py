@@ -26,6 +26,9 @@ os.environ["DATABASE_URL"] = "sqlite:///" + (_TMP_DIR / "bootstrap.db").as_posix
 os.environ["SESSION_COOKIE_SECURE"] = "false"
 os.environ["ENFORCE_CSRF"] = "true"
 os.environ["AUTH_COOKIE_NAME"] = "xs_auth"
+# 测试不读取真实 Brevo 凭据，也不允许任何用例意外发送真实邮件。
+os.environ["BREVO_API_KEY"] = ""
+os.environ["BREVO_SENDER_EMAIL"] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -38,6 +41,21 @@ reset_engine_cache()
 
 PASSWORD = "example-password-2026"
 AUTH_COOKIE = "xs_auth"
+_VERIFICATION_CODES: dict[str, str] = {}
+
+
+@pytest.fixture(autouse=True)
+def _capture_verification_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """把 Brevo 发送替换为内存捕获，注册辅助函数据此取得明文验证码。"""
+
+    from app.accounts import verification
+
+    _VERIFICATION_CODES.clear()
+
+    def _capture(*, email: str, code: str, ttl_seconds: int) -> None:
+        _VERIFICATION_CODES[email.strip().casefold()] = code
+
+    monkeypatch.setattr(verification, "send_verification_code_email", _capture)
 
 
 @pytest.fixture()
@@ -74,9 +92,16 @@ def avatar_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _register_and_login(client: TestClient, *, email: str = "a@example.com") -> str:
     username = f"user_{uuid4().hex[:8]}"
+    sent = client.post("/api/v1/auth/register/code", json={"email": email})
+    assert sent.status_code == 200
     registered = client.post(
         "/api/v1/auth/register",
-        json={"username": username, "email": email, "password": PASSWORD},
+        json={
+            "username": username,
+            "email": email,
+            "password": PASSWORD,
+            "verification_code": _VERIFICATION_CODES[email.strip().casefold()],
+        },
     )
     assert registered.status_code == 201
     assert registered.json()["data"]["avatar_url"] is None

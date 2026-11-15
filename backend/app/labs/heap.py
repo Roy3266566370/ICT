@@ -97,6 +97,8 @@ def _parse_array(raw: str) -> list[int | float] | None:
 def build_heap(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any] | None:
     if not re.search(r"(?:堆|\bheap\b)", text, re.I):
         return None
+    if re.search(r"堆排序", text):
+        return None  # 堆排序由排序题型内核处理
     # Options describe possible results, never the starting heap.
     stem = re.split(r"(?<![A-Za-z])[A-DＡ-Ｄ][.．、:：)）]\s*", text, maxsplit=1)[0]
     mentions_min = bool(re.search(r"(?:小根堆|小顶堆|最小堆|min[ -]?heap)", stem, re.I))

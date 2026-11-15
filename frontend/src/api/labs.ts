@@ -42,6 +42,7 @@ export async function listLabs(): Promise<LabSummary[]> {
 export async function createTextLab(input: {
   title: string;
   text: string;
+  orchestrate?: boolean;
   subject?: LabSubject | null;
 }): Promise<LabDocument> {
   const data = await requestJson<LabDocument>(`${P}/labs/text`, {
@@ -49,6 +50,7 @@ export async function createTextLab(input: {
     body: JSON.stringify({
       title: input.title,
       text: input.text,
+      orchestrate: input.orchestrate ?? false,
       ...(input.subject ? { subject: input.subject } : {}),
     }),
   });
@@ -199,4 +201,10 @@ export function labPreviewUrl(labId: string, key: string): string {
 
 export function labSharePreviewUrl(shareId: string, key: string): string {
   return `${apiBase()}${P}/lab-shares/${encodeURIComponent(shareId)}/preview/${encodeURIComponent(key)}`;
+}
+
+export async function reviseCompositeLab(input: { labId: string; text: string; revision: number }): Promise<LabDocument> {
+  return parseLabDocument(await requestJson<LabDocument>(`${P}/labs/${encodeURIComponent(input.labId)}/composite-solve`, {
+    method: 'POST', body: JSON.stringify({ text: input.text, expected_revision: input.revision }),
+  }));
 }

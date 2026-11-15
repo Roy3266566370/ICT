@@ -8,6 +8,7 @@ const ENGINE_LABELS: Record<string, string> = {
   tangent_v1: '导数 · 切线',
   gradient_descent_v1: '梯度下降',
   bfs_v1: '广度优先搜索',
+  dfs_v1: '深度优先搜索',
   mlp_v1: '小型全连接网络',
 };
 
