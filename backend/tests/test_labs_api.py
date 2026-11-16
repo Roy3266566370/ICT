@@ -481,3 +481,66 @@ def test_composite_solve_endpoint(owner: TestClient) -> None:
     assert {v["kind"] for v in data["presentation"]["visuals"]} >= {
         "curve", "region_shade", "revolution_solid", "step_timeline"}
     assert data["problem"]["version"]
+
+
+def test_408_workshop_evaluate_runs_local_kernels(owner: TestClient) -> None:
+    session = _session(owner)
+    headers = _headers(session)
+    cases = [
+        ('operating_system', '页面访问序列为 1,2,3,4,1,2,5,1,2,3,4,5，物理块数为3，采用 FIFO 置换算法，求缺页次数。', 'page_replace', 9.0),
+        ('computer_network', '网页有4个对象，RTT为10ms，采用非持久连接，求获取网页时间。', 'application', 80.0),
+        ('computer_organization', '某 CPU 主频为 2GHz，CPI 为 4，执行 1000000 条指令，求 CPU 执行时间。', 'performance', 0.002),
+    ]
+    for subject, text, kind, value in cases:
+        response = owner.post('/api/v1/labs/408/evaluate', headers=headers,
+                              json={'subject': subject, 'text': text})
+        assert response.status_code == 200, response.text
+        data = response.json()['data']
+        assert data['subject'] == subject
+        assert data['status'] == 'ready'
+        assert data['kind'] == kind
+        assert data['answer']
+        assert data['answer_value'] == pytest.approx(value)
+        assert data['steps']
+        assert data['blocking'] == []
+
+
+def test_408_workshop_evaluate_reports_missing_conditions(owner: TestClient) -> None:
+    session = _session(owner)
+    response = owner.post('/api/v1/labs/408/evaluate', headers=_headers(session),
+                          json={'subject': 'algorithm', 'text': '判断出栈序列是否为合法出栈序列。'})
+    assert response.status_code == 200, response.text
+    data = response.json()['data']
+    assert data['status'] == 'needs_review'
+    assert data['answer'] == ''
+    assert data['blocking']
+
+
+def test_physics_text_lab_is_created_with_manual_subject_hint(owner: TestClient) -> None:
+    session = _session(owner)
+    response = owner.post('/api/v1/labs/text', headers=_headers(session), json={
+        'title': '平抛运动',
+        'subject': 'physics',
+        'text': '小球以 v0=10 m/s 水平抛出，初始高度 h=20 m，g=9.8 m/s^2，求落地时间、水平射程和落地速度。',
+    })
+    assert response.status_code == 201, response.text
+    document = response.json()['data']
+    assert document['subject'] == 'physics'
+    problem = document['problems'][0]
+    assert problem['status'] == 'ready'
+    assert problem['model']['physics_mode'] == 'projectile_h'
+    assert '20.2' in problem['solution']['answer']
+
+
+def test_physics_third_batch_text_lab_is_created(owner: TestClient) -> None:
+    session = _session(owner)
+    response = owner.post('/api/v1/labs/text', headers=_headers(session), json={
+        'title': '双缝干涉',
+        'subject': 'physics',
+        'text': '双缝干涉实验中，双缝间距 d=0.2 mm，双缝到屏的距离 D=1.0 m，入射光波长 λ=600 nm，求相邻明条纹间距。',
+    })
+    assert response.status_code == 201, response.text
+    problem = response.json()['data']['problems'][0]
+    assert problem['status'] == 'ready'
+    assert problem['model']['physics_mode'] == 'double_slit'
+    assert '0.003' in problem['solution']['answer']

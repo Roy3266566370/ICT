@@ -6,6 +6,7 @@ const ENGINE_LABELS: Record<string, string> = {
   antiderivative_v1: '不定积分 · 原函数族',
   riemann_v1: '定积分 · 黎曼和',
   tangent_v1: '导数 · 切线',
+  physics_v1: '物理 · 力学实验',
   gradient_descent_v1: '梯度下降',
   bfs_v1: '广度优先搜索',
   dfs_v1: '深度优先搜索',
@@ -111,7 +112,7 @@ export function OutcomePanel({
             <Item
               title={problem.ai_solution ? '解题结果来源' : '可操作模型'}
               detail={problem.ai_solution ? problem.ai_solution.verification === 'kernel' ? 'AI 理解与建模，内核计算及模型回验。' : 'AI 参考解答，尚未通过内核独立核验。'
-                : `${ENGINE_LABELS[problem.model.engine] ?? problem.model.engine} · 参数 ${problem.model.params.length} 个${
+                : `${problem.model.kind === 'inverse_derivative' ? '反函数导数 · 切线' : ENGINE_LABELS[problem.model.engine] ?? problem.model.engine} · 参数 ${problem.model.params.length} 个${
                 problem.model.teaching ? ' · 含明确标注的教学示例' : ''
               }`}
             />

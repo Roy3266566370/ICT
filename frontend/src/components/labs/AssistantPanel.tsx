@@ -72,12 +72,33 @@ function attemptField(problem: LabProblem): { field: string; label: string; plac
   }
   if (problem.subject === 'operating_system') {
     const kind = problem.model.os_kind;
-    if (kind === 'page_replace') return { field: 'numeric', label: '缺页次数', placeholder: '例如 15' };
+    if (kind === 'page_replace') {
+      if (!(problem.model.reference?.length)) {
+        return { field: 'text', label: '缺页处理/工作集结论', placeholder: '例如 缺页需调页、工作集过大导致抖动' };
+      }
+      return { field: 'numeric', label: '缺页次数', placeholder: '例如 15' };
+    }
     if (kind === 'disk_schedule') return { field: 'numeric', label: '磁头总移动距离', placeholder: '例如 640' };
     if (kind === 'banker') return { field: 'order', label: '安全序列（按完成顺序，任意合法序列均可）', placeholder: '例如 P1 → P3 → P4 → P0 → P2' };
     if (kind === 'sync') return { field: 'text', label: '信号量值或同步结论', placeholder: '例如 S=0，等待 1 个' };
     if (kind === 'deadlock') return { field: 'text', label: '死锁判断或必要条件', placeholder: '例如 存在环、可能死锁' };
     if (kind === 'memory_alloc') return { field: 'text', label: '分配结果或内存利用率', placeholder: '例如 选择 500，剩余 380' };
+    if (kind === 'tlb') {
+      return problem.solution.answer_value === null || problem.solution.answer_value === undefined
+        ? { field: 'text', label: 'TLB 命中/页表访问结论', placeholder: '例如 命中直接得到页框号，缺失访问 1 次页表' }
+        : { field: 'numeric', label: '有效访问时间（ns）', placeholder: '例如 120' };
+    }
+    if (kind === 'file_dir') return { field: 'text', label: '权限、路径或 inode 结论', placeholder: '例如 文件主 rwx；目录读取 4 次' };
+    if (kind === 'file_alloc') {
+      return problem.solution.answer_value === null || problem.solution.answer_value === undefined
+        ? { field: 'text', label: '块链、空闲块或最大文件结论', placeholder: '例如 5→9→2；首个空闲块 2' }
+        : { field: 'numeric', label: '块数或访盘次数', placeholder: '例如 13 或 3' };
+    }
+    if (kind === 'device_mgmt') {
+      return problem.solution.answer_value === null || problem.solution.answer_value === undefined
+        ? { field: 'text', label: '设备管理结论', placeholder: '例如 假脱机把独占设备虚拟成共享设备' }
+        : { field: 'numeric', label: '磁盘访问时间（ms）', placeholder: '例如 10.4' };
+    }
     if (kind === 'process_thread' || kind === 'os_basics') return { field: 'text', label: '状态/结论', placeholder: '例如 合法、内核态、PCB 保存…' };
     return { field: 'numeric', label: '平均等待时间', placeholder: '例如 4.75 或 19/4' };
   }
@@ -93,6 +114,40 @@ function attemptField(problem: LabProblem): { field: string; label: string; plac
     if (kind === 'pipeline') return { field: 'numeric', label: '总周期数或加速比', placeholder: '例如 104 或 4.81' };
     if (kind === 'bus_io') return { field: 'numeric', label: '带宽或 CPU 时间开销', placeholder: '例如 400 或 100' };
     return { field: 'text', label: '控制器周期或寄存器结果', placeholder: '例如 5、1000ns 或 R3=8' };
+  }
+  if (problem.subject === 'physics') {
+    return { field: 'numeric', label: '主要结果（可填任一关键结果）', placeholder: '例如速度、时间、力、能量或周期' };
+  }
+  if (problem.subject === 'computer_network') {
+    const kind = problem.model.net_kind;
+    const hasValue = problem.solution.answer_value !== null && problem.solution.answer_value !== undefined;
+    if (kind === 'architecture') return { field: 'text', label: '分层、封装或设备层次结论', placeholder: '例如 路由器工作在网络层' };
+    if (kind === 'performance') return hasValue
+      ? { field: 'numeric', label: '时延、时延带宽积或吞吐量数值', placeholder: '例如 5.08 或 200000' }
+      : { field: 'text', label: '性能与交换结论', placeholder: '例如 分组交换通常比报文交换时延小' };
+    if (kind === 'physical') return hasValue
+      ? { field: 'numeric', label: '数据率或比特率', placeholder: '例如 32000' }
+      : { field: 'text', label: '编码、复用或公式结论', placeholder: '例如 波特率 = 2×比特率' };
+    if (kind === 'error_control') return { field: 'text', label: '校验位、码字或综合因子', placeholder: '例如 1010、10110011010 或 S=5' };
+    if (kind === 'sliding_window') return hasValue
+      ? { field: 'numeric', label: '窗口、利用率或重传帧数', placeholder: '例如 4、29.63 或 1' }
+      : { field: 'text', label: '窗口变化与重传结论', placeholder: '例如 GBN 回退重传，SR 只重传丢失帧' };
+    if (kind === 'mac') return hasValue
+      ? { field: 'numeric', label: '帧长、吞吐率或退避时隙', placeholder: '例如 512 或 18.39' }
+      : { field: 'text', label: '介质访问控制结论', placeholder: '例如 CSMA/CD 边发边听并检测冲突' };
+    if (kind === 'ethernet') return { field: 'text', label: '转发表、泛洪或冲突域结论', placeholder: '例如 目的未知，向端口 2、3 泛洪' };
+    if (kind === 'ip') return { field: 'text', label: '网络地址、分片或 IPv6 地址', placeholder: '例如 192.168.1.0/26、偏移 185 或 2001:db8::1' };
+    if (kind === 'network_layer') return { field: 'text', label: '路由更新或协议结论', placeholder: '例如 N2 距离 2，下一跳 R2' };
+    if (kind === 'transport') return hasValue
+      ? { field: 'numeric', label: '序号、确认号或端口结果', placeholder: '例如 1500 或 80' }
+      : { field: 'text', label: '端口、首部或握手结论', placeholder: '例如 SYN、SYN+ACK、ACK' };
+    if (kind === 'tcp_control') return hasValue
+      ? { field: 'numeric', label: 'cwnd、ssthresh 或发送窗口', placeholder: '例如 4 或 8' }
+      : { field: 'text', label: '拥塞控制结论', placeholder: '例如 超时后 cwnd=1，ssthresh=cwnd/2' };
+    if (kind === 'application') return hasValue
+      ? { field: 'numeric', label: '网页获取时间或查询次数', placeholder: '例如 80' }
+      : { field: 'text', label: '应用层流程结论', placeholder: '例如 DNS → TCP → HTTP' };
+    return { field: 'text', label: '计算机网络结论', placeholder: '例如 先封装后解封装' };
   }
   if (problem.subject === 'linear_algebra') {
     const kind = problem.model.la_kind;
@@ -376,18 +431,42 @@ export function AssistantPanel({
                         ? ['下一个出队的是谁？', '为什么跳过这个节点？', '当前结果说明了什么？']
                       : result.subject === 'operating_system'
                         ? result.osKind === 'page_replace'
-                          ? ['为什么这次缺页？', '被置换的是哪个页面？', '为什么 FIFO 会有 Belady 异常？']
+                          ? ('concept' in result.stats
+                            ? ['缺页处理要经过哪些步骤？', '工作集为什么会导致抖动？', 'Clock 如何给第二次机会？']
+                            : ['为什么这次缺页？', '被置换的是哪个页面？', '为什么 FIFO 会有 Belady 异常？'])
                           : result.osKind === 'disk_schedule'
                             ? ['磁头下一步去哪？', '为什么 SCAN 要走到末端？', '当前结果说明了什么？']
                             : result.osKind === 'banker'
                               ? ['为什么这个进程可以先完成？', '下一步是什么？', '什么情况下是不安全状态？']
-                              : ['为什么选这个进程？', '下一步是什么？', '当前结果说明了什么？']
+                              : result.osKind === 'tlb'
+                                ? ['为什么 TLB 命中不用查页表？', '页表访问次数怎么数？', '有效访问时间怎么算？']
+                                : result.osKind === 'file_dir'
+                                  ? ['权限位怎么读？', '为什么要逐级查目录？', 'inode 和 FCB 有什么区别？']
+                                  : result.osKind === 'file_alloc'
+                                    ? ['最大文件长度怎么算？', '为什么索引分配支持随机访问？', '位示图 0 和 1 各表示什么？']
+                                    : result.osKind === 'device_mgmt'
+                                      ? ['旋转延迟为什么取半圈？', '单缓冲和双缓冲差在哪？', '假脱机怎么共享打印机？']
+                                      : ['为什么选这个进程？', '下一步是什么？', '当前结果说明了什么？']
                       : result.subject === 'linear_algebra'
                         ? result.laKind === 'matmul'
                           ? ['为什么 A·B 和 B·A 不一样？', '下一步是什么？', '当前结果说明了什么？']
                           : ['为什么要交换这两行？', '下一步是什么？', '当前结果说明了什么？']
+                        : result.subject === 'physics'
+                          ? ['参数变化如何影响结果？', '这一步用了什么公式？', '当前结果说明了什么？']
                         : result.subject === 'computer_organization'
                           ? ['这一步用了什么公式？', '位宽/码制是怎样约定的？', '下一步是什么？']
+                        : result.subject === 'computer_network'
+                          ? result.netKind === 'ethernet'
+                            ? ['交换机为什么要泛洪？', '转发表什么时候更新？', '冲突域和广播域怎么分？']
+                            : result.netKind === 'ip'
+                              ? ['网络地址怎么算？', '为什么按 8 字节对齐？', 'IPv6 的 :: 怎么压缩？']
+                              : result.netKind === 'transport'
+                                ? ['SYN 为什么消耗序号？', 'TIME_WAIT 为什么要等待？', '端口怎么分类？']
+                                : result.netKind === 'tcp_control'
+                                  ? ['这一轮是慢启动还是拥塞避免？', '超时后 cwnd 怎么变？', '发送窗口取哪个值？']
+                                  : result.netKind === 'application'
+                                    ? ['为什么要几次 RTT？', '持久连接省在哪？', 'DNS 和 HTTP 谁先？']
+                                    : ['这一步用了什么公式？', '单位是怎么换算的？', '窗口/校验位为什么这样变？']
                         : ['损失为什么下降？', '梯度是怎么算的？', '下一步是什么？']
                   ).map((suggestion) => (
                     <button key={suggestion} type="button" onClick={() => void send(suggestion)} disabled={busy}>
@@ -460,7 +539,7 @@ export function AssistantPanel({
               </div>
             ) : null}
             <div className={styles.attemptRow}>
-              {problem.subject !== 'algorithm' && problem.subject !== 'linear_algebra' && problem.subject !== 'operating_system' && problem.subject !== 'computer_organization' ? <AttemptMathInput
+              {problem.subject !== 'algorithm' && problem.subject !== 'linear_algebra' && problem.subject !== 'operating_system' && problem.subject !== 'computer_organization' && problem.subject !== 'computer_network' ? <AttemptMathInput
                 key={`${problem.problem_id}-${field.field}`}
                 label={field.label}
                 placeholder={field.placeholder}

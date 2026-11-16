@@ -14,6 +14,7 @@ import { PALETTE_GROUPS, NODE_DEFS, defaultParams } from '@/canvas/nodes.tsx';
 import { nextId, clamp } from '@/canvas/math.ts';
 import type { CanvasDoc, CanvasTool, NodeType } from '@/canvas/types.ts';
 import { worksApi } from '@/api/works';
+import { defaultManual408Text } from '@/labs/manual408';
 import styles from './CanvasPage.module.css';
 
 const STORAGE_KEY = 'wanxiang.canvas.v1';
@@ -234,6 +235,7 @@ export function CanvasPage(): JSX.Element {
           ...(type === 'textNote' ? { text: '' } : {}),
           ...(type === 'latexNote' ? { text: 'e^{i\\pi}+1=0' } : {}),
           ...(type === 'functionSource' ? { text: 'a*x^2+b*x+c' } : {}),
+          ...(type === 'lab408Workbench' ? { text: defaultManual408Text() } : {}),
         },
       ],
     }));
@@ -420,7 +422,7 @@ export function CanvasPage(): JSX.Element {
       ) : null}
 
       <div className={styles.hint}>
-        「高数」组：函数源 → 图像 / 极限 / 导数 / 积分 / 泰勒；滑杆可接 x₀，泰勒输出可再接函数图像。<b>框选多个对象 → 封装成积木</b>。拖<span className={styles.hintOut}>红点</span>→<span className={styles.hintIn}>蓝圈</span>连线；Ctrl+滚轮缩放、空格/中键平移、Del 删除、Ctrl+Z 撤销、双击空白加便签。
+        「高数」组：函数源 → 图像 / 极限 / 导数 / 积分 / 泰勒；滑杆可接 x₀，泰勒输出可再接函数图像。「408」组含全题型工作台（覆盖 60 个题型）与二叉树遍历、Cache 地址划分、页面置换和子网划分。<b>框选多个对象 → 封装成积木</b>。拖<span className={styles.hintOut}>红点</span>→<span className={styles.hintIn}>蓝圈</span>连线；Ctrl+滚轮缩放、空格/中键平移、Del 删除、Ctrl+Z 撤销、双击空白加便签。
       </div>
 
       <CanvasBoard doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor} onAddNode={addNode} />

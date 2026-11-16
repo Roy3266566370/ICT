@@ -86,6 +86,34 @@ def _fmt(value: float | None, digits: int = 6) -> str:
     return number_text(value, digits)
 
 
+def _real_preimages(expression: sp.Expr, variable: sp.Symbol, target: sp.Expr) -> list[sp.Expr]:
+    """Solve f(x)=target on the real line; reject a multi-branch inverse as ambiguous."""
+    candidates: list[sp.Expr] = []
+    values: list[float] = []
+    try:
+        raw = sp.solve(sp.Eq(expression, target), variable)
+    except Exception:  # noqa: BLE001
+        raw = []
+    for candidate in raw:
+        try:
+            simplified = sp.simplify(candidate)
+            if simplified.is_real is False:
+                continue
+            numeric = safe_float(sp.N(simplified))
+            if numeric is None:
+                continue
+            residual = safe_float(sp.simplify(expression.subs(variable, simplified) - target))
+            if residual is None or abs(residual) > 1e-9:
+                continue
+            if any(abs(numeric - existing) <= 1e-9 for existing in values):
+                continue
+            candidates.append(simplified)
+            values.append(numeric)
+        except Exception:  # noqa: BLE001
+            continue
+    return candidates
+
+
 # ---------------------------------------------------------------------------
 # 微积分
 # ---------------------------------------------------------------------------
@@ -403,6 +431,57 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
             conditions.append("原函数仅通过数值抽查，不是全域证明；定义域、分支和绝对值处理仍需人工核对。")
         else:
             conditions.append("当前内核未能给出通过求导核验的原函数；符号积分形式不代表已求出原函数。")
+    elif kind == "inverse_derivative":
+        point = float((model.get("defaults") or {}).get("point", 0.0))
+        exact_point = parse_expression(str(model.get("exact_point", point)))
+        preimages = _real_preimages(expression, variable, exact_point)
+        if not preimages:
+            raise SolveError(f"原函数 f(x)={model.get('expression')} 在 y={point:g} 处没有实原像，"
+                             "反函数在该输入处无定义")
+        if len(preimages) > 1:
+            raise SolveError(
+                f"y={point:g} 对应多个实原像 {[str(item) for item in preimages]}；"
+                "反函数需要题目说明单调区间或分支，不能任选一个")
+        preimage = preimages[0]
+        derivative = sp.simplify(sp.diff(expression, variable))
+        slope_at_preimage = sp.simplify(derivative.subs(variable, preimage))
+        if slope_at_preimage == 0:
+            raise SolveError("原函数在该原像处导数为 0，反函数在该点不可导")
+        inverse_slope = sp.simplify(1 / slope_at_preimage)
+        slope = safe_float(slope_at_preimage)
+        value = safe_float(preimage)
+        answer_value = safe_float(inverse_slope)
+        if slope is None or value is None or answer_value is None:
+            raise SolveError("无法得到有限的反函数导数")
+        exact_text = expression_text(inverse_slope)
+        exact_latex = to_latex(inverse_slope)
+        numeric = answer_value
+        steps = [
+            {
+                "id": "preimage",
+                "title": "求反函数的原像",
+                "latex": rf"f({to_latex(variable)}_0)={to_latex(exact_point)}\Rightarrow {to_latex(variable)}_0={to_latex(preimage)}",
+                "detail": f"反函数输入 y={point:g} 对应原函数值，解得 x0={_fmt(value)}。",
+            },
+            {
+                "id": "derivative",
+                "title": "求原函数导数",
+                "latex": f"f'({to_latex(variable)})={to_latex(derivative)}",
+                "detail": f"在原像处 f'(x0)={_fmt(slope)}。",
+            },
+            {
+                "id": "inverse_formula",
+                "title": "使用反函数导数公式",
+                "latex": r"(f^{-1})'(y_0)=\frac{1}{f'(x_0)}",
+                "detail": "反函数与原函数的导数互为倒数；前提是 f'(x0)≠0 且局部单调。",
+            },
+            {
+                "id": "slope",
+                "title": "代入求值",
+                "latex": rf"(f^{{-1}})'(x)={to_latex(inverse_slope)}",
+                "detail": f"反函数在 x={point:g} 处的导数为 {_fmt(answer_value)}。",
+            },
+        ]
     else:
         point = float((model.get("defaults") or {}).get("point", 0.0))
         derivative = sp.simplify(sp.diff(expression, variable))
@@ -445,6 +524,8 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
     tangent_tex = None
     if kind == "derivative":
         tangent_tex = rf"y={_fmt(value)}+{_fmt(slope)}(x-{point:g})"
+    elif kind == "inverse_derivative":
+        tangent_tex = rf"x={_fmt(value)}+{_fmt(answer_value)}(y-{point:g})"
     if kind == "antiderivative":
         summary_text = (
             "不定积分题：先求原函数，再加任意常数 C；结果是一族函数。"
@@ -466,6 +547,10 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
             summary_text = "定积分题：未能完成符号求解，数值参考不等于原题答案。"
             answer_text = ""
             approx_text = _fmt(numeric, 10)
+    elif kind == "inverse_derivative":
+        summary_text = "反函数导数题：先求 f(x)=y0 的实原像，再用 (f^{-1})'(y0)=1/f'(x0)。"
+        answer_text = f"{_fmt(answer_value, 8)}"
+        approx_text = _fmt(numeric, 10)
     else:
         summary_text = "导数题：切线斜率与局部差商互相核对。"
         answer_text = f"{_fmt(answer_value, 8)}"
@@ -689,12 +774,95 @@ def _antiderivative_evaluate(
     }
 
 
+def _inverse_derivative_evaluate(model: Mapping[str, Any], params: Mapping[str, Any],
+                                 variable: sp.Symbol, expression: sp.Expr,
+                                 func: Callable[..., float]) -> dict[str, Any]:
+    point = float(params.get("point", 0.0))
+    target = sp.Rational(str(point))
+    preimages = _real_preimages(expression, variable, target)
+    if not preimages:
+        raise SolveError(f"原函数在 y={point:g} 处没有实原像，反函数无定义")
+    if len(preimages) > 1:
+        raise SolveError(f"y={point:g} 有多个实原像，反函数分支未确定")
+    preimage = preimages[0]
+    x0 = safe_float(sp.N(preimage))
+    derivative = sp.simplify(sp.diff(expression, variable))
+    slope_at = sp.simplify(derivative.subs(variable, preimage))
+    inverse_slope = sp.simplify(1 / slope_at)
+    inv_value = safe_float(inverse_slope)
+    if x0 is None or safe_float(sp.N(slope_at)) in (None, 0) or inv_value is None:
+        raise SolveError("反函数在该输入处不可导")
+    span = max(1.0, abs(x0) * 0.8 + 0.5)
+    x_min, x_max = x0 - span, x0 + span
+    y_a, y_b = float(func(x_min)), float(func(x_max))
+    y_min, y_max = min(y_a, y_b), max(y_a, y_b)
+    series: list[dict[str, Any]] = []
+
+    def inverse_at(y_value: float) -> float | None:
+        lo, hi = x_min, x_max
+        f_lo = float(func(lo))
+        for _ in range(70):
+            mid = (lo + hi) / 2
+            f_mid = float(func(mid))
+            if (f_mid - y_value) * (f_lo - y_value) <= 0:
+                hi = mid
+            else:
+                lo, f_lo = mid, f_mid
+        value = (lo + hi) / 2
+        return value if math.isfinite(value) else None
+
+    for index in range(MAX_PLOT_POINTS):
+        y_value = y_min + (y_max - y_min) * index / (MAX_PLOT_POINTS - 1)
+        x_value = inverse_at(y_value) if math.isfinite(y_value) else None
+        series.append({"x": round(y_value, 6), "y": None if x_value is None else round(x_value, 6)})
+    frames = [
+        {"index": 0, "label": f"求原像 f(x0)={point:g}",
+         "detail": f"解得 x0={_fmt(x0)}；反函数输入 {point:g} 对应原函数值。",
+         "values": {"反函数输入": point, "原像": round(x0, 8), "f'(x0)": round(float(safe_float(sp.N(slope_at)) or 0), 8)}},
+        {"index": 1, "label": "反函数导数",
+         "detail": f"(f^-1)'({point:g}) = 1/f'(x0) = {_fmt(inv_value)}。",
+         "values": {"反函数导数": round(inv_value, 10), "公式": "1/f'(x0)"}},
+    ]
+    return {
+        "subject": "calculus",
+        "kind": "inverse_derivative",
+        "params": {"point": point},
+        "headline": f"(f⁻¹)'({_fmt(point)})={_fmt(inv_value)}",
+        "metrics": [
+            {"id": "preimage", "label": "反函数输入", "value": _fmt(point)},
+            {"id": "x0", "label": "原像 x0", "value": _fmt(x0)},
+            {"id": "fprime", "label": "f'(x0)", "value": _fmt(safe_float(sp.N(slope_at)))},
+            {"id": "inverse_slope", "label": "反函数导数", "value": _fmt(inv_value)},
+        ],
+        "series": series,
+        "domain": {"x_min": y_min, "x_max": y_max},
+        "point": {"x": point, "y": x0, "slope": inv_value,
+                  "tangent": {"m": inv_value, "b": x0 - inv_value * point}},
+        "secant": None,
+        "trace": frames,
+        "trace_kind": "inverse_derivative",
+        "checks": [
+            _check("nonzero", "原函数导数非零", True, f"f'(x0)={_fmt(safe_float(sp.N(slope_at)))}≠0。"),
+            _check("inverse", "反函数导数公式", True, "结果来自 1/f'(x0)，不是原函数在输入点的导数。"),
+        ],
+        "notes": ["图像横轴是反函数输入 y，纵轴是原像 x；切线与反函数曲线相切。",
+                  "反函数只在原函数局部单调、f'(x0)≠0 时可导；多分支情况必须指定区间。"],
+        "exact": expression_text(inverse_slope),
+        "approx": _fmt(inv_value, 10),
+        "error": None,
+        "answer": inv_value,
+        "answerText": _fmt(inv_value, 8),
+    }
+
+
 def _calculus_evaluate(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
     variable = sp.Symbol(str(model.get("variable") or "x"), real=True)
     expression = parse_expression(str(model.get("expression") or ""), (str(variable),),
                                   preserve_structure=bool(model.get('preserve_expression_structure')))
     func = _numeric_function(expression, [variable])
     kind = str(model.get("kind") or "integral")
+    if kind == "inverse_derivative":
+        return _inverse_derivative_evaluate(model, params, variable, expression, func)
     if kind == "antiderivative":
         return _antiderivative_evaluate(model, params, variable, expression, func)
     if kind == "integral":
@@ -2743,6 +2911,18 @@ def solve_problem(model: Mapping[str, Any]) -> dict[str, Any]:
             return solve_comp_org(model)
         except ValueError as exc:
             raise SolveError(str(exc)) from exc
+    if subject == "computer_network":
+        from .computer_network import solve_network
+        try:
+            return solve_network(model)
+        except ValueError as exc:
+            raise SolveError(str(exc)) from exc
+    if subject == "physics":
+        from .physics import solve_physics
+        try:
+            return solve_physics(model)
+        except ValueError as exc:
+            raise SolveError(str(exc)) from exc
     if subject == "deep_learning":
         defaults = model.get("defaults") or {}
         # 解答用初始条件计算一次，避免把学生探索参数混入原题答案。
@@ -2758,7 +2938,7 @@ def solve_problem(model: Mapping[str, Any]) -> dict[str, Any]:
     raise SolveError("暂不支持该题目的求解器")
 
 
-def evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+def _evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
     if model.get('manual_improper_conditions'):
         from .manual_improper_integral import evaluate
         return evaluate(model)
@@ -2870,6 +3050,18 @@ def evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
         if result.get("status") != "ok":
             raise SolveError(str(result.get("reason") or "请核对计算机组成原理题目的条件"))
         return result
+    if subject == "computer_network":
+        from .computer_network import evaluate_network
+        result = evaluate_network(model, params)
+        if result.get("status") != "ok":
+            raise SolveError(str(result.get("reason") or "请核对计算机网络题目的条件"))
+        return result
+    if subject == "physics":
+        from .physics import evaluate_physics
+        result = evaluate_physics(model, params)
+        if result.get("status") != "ok":
+            raise SolveError(str(result.get("reason") or "请核对物理题目的条件"))
+        return result
     if subject == "deep_learning":
         return _deep_learning_evaluate(model, params)
     raise SolveError("暂不支持该题目的求解器")
@@ -2882,3 +3074,8 @@ __all__ = [
     "evaluate_problem",
     "solve_problem",
 ]
+
+
+def evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    from .exploration import observe
+    return observe(model, params, _evaluate_problem(model, params))

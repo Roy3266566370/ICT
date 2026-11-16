@@ -82,7 +82,33 @@ def _definition_problem(reading, task, source, issue):
 
 def compile_source_task(task, reading, source):
     conditions={};sources={};aliases={}
-    if task=='limit':
+    if task == 'space_geometry' and re.search(r'点\s*\([^()]+\).*到.*平面.*距离', source):
+        import sympy as sp
+        from .expr import parse_expression, safe_float
+        point_match = re.search(r'点\s*\(([^()]+)\)', source)
+        coordinates = point_match.group(1).split(',')
+        if len(coordinates) != 3 or any(safe_float(parse_expression(v)) is None for v in coordinates): return None
+        conditions = {'geometry_kind':'point_plane_distance','point':[v.strip() for v in coordinates]}
+        sources = {'point':point_match.group(0)}
+        plane_match = re.search(r'平面\s*([xyz0-9+*/^(). =-]+=[xyz0-9+*/^(). -]+)', source)
+        if plane_match:
+            equation = plane_match.group(1).strip()
+            left,right = equation.split('=')
+            expression = parse_expression(f'({left})-({right})', ('x','y','z'))
+            symbols = [sp.Symbol(v,real=True) for v in ('x','y','z')]
+            if sp.Poly(expression,*symbols).total_degree()>1: return None
+            coefficients = [expression.coeff(v) for v in symbols]+[expression.subs(dict.fromkeys(symbols,0))]
+            if any(safe_float(v) is None for v in coefficients): return None
+            conditions['plane'] = [str(v) for v in coefficients]
+            sources['plane'] = equation
+        elif re.search(r'平面[^，。]*(?:待补充|未给出|未提供)',source):
+            conditions['plane'] = None
+            sources['plane'] = '平面方程待补充'
+        else: return None
+        point_key = key(point_match.group(1)).strip('()')
+        aliases = {'point':lambda v: point_key in key(v),
+                   'plane':lambda v: key(v) in key(sources['plane']) or key(sources['plane']) in key(v)}
+    elif task=='limit':
         m=re.search(r'lim\(\s*([xyzt])\s*->\s*([+-]?\d+(?:\.\d+)?)\s*\)\s*(.+?)[。]?$',source)
         if not m:return None
         variable,point,expression=m.groups()

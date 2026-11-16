@@ -2,7 +2,8 @@ import type { LabCheck, LabModel, LabResultBase, LabResultFrame, LabResultMetric
 import { readNumber, readString } from './types.ts';
 
 export type OsKind = 'cpu_schedule' | 'page_replace' | 'disk_schedule' | 'banker'
-  | 'os_basics' | 'process_thread' | 'sync' | 'deadlock' | 'memory_alloc';
+  | 'os_basics' | 'process_thread' | 'sync' | 'deadlock' | 'memory_alloc'
+  | 'tlb' | 'file_dir' | 'file_alloc' | 'device_mgmt';
 
 export interface OsFrame extends LabResultFrame {
   action: string;
@@ -21,6 +22,8 @@ export interface OsSchedStats {
 }
 export interface OsPageStats {
   faults: number; hits: number; total: number; rate: number; frames_count: number;
+  initial_frames: string[]; window: number; working_set: string[]; max_working_set: number;
+  avg_working_set: number; thrash: boolean;
   compare: Record<string, number>; series: { frames: number; faults: number }[];
 }
 export interface OsDiskStats {
@@ -52,7 +55,8 @@ export interface OsPageResult extends OsResultBase { osKind: 'page_replace'; sta
 export interface OsDiskResult extends OsResultBase { osKind: 'disk_schedule'; stats: OsDiskStats }
 export interface OsBankerResult extends OsResultBase { osKind: 'banker'; stats: OsBankerStats }
 export interface OsGenericResult extends OsResultBase {
-  osKind: 'os_basics' | 'process_thread' | 'sync' | 'deadlock' | 'memory_alloc';
+  osKind: 'os_basics' | 'process_thread' | 'sync' | 'deadlock' | 'memory_alloc'
+    | 'tlb' | 'file_dir' | 'file_alloc' | 'device_mgmt';
   stats: Record<string, unknown>;
 }
 export type OsResult = OsSchedResult | OsPageResult | OsDiskResult | OsBankerResult | OsGenericResult;
@@ -75,6 +79,7 @@ export const SCHED_LABELS: Record<string, string> = {
 };
 export const PAGE_LABELS: Record<string, string> = {
   fifo: '先进先出 FIFO', lru: '最近最久未使用 LRU', opt: '最佳置换 OPT',
+  clock: '时钟置换 Clock（二次机会）',
 };
 export const DISK_LABELS: Record<string, string> = {
   fcfs: '先来先服务 FCFS', sstf: '最短寻道时间优先 SSTF', scan: 'SCAN（电梯）',
@@ -82,9 +87,10 @@ export const DISK_LABELS: Record<string, string> = {
 };
 
 export const OS_KIND_LABELS: Record<string, string> = {
-  cpu_schedule: 'CPU 调度', page_replace: '页面置换', disk_schedule: '磁盘调度', banker: '银行家算法',
-  os_basics: '操作系统基础', process_thread: '进程与线程', sync: '同步与互斥',
-  deadlock: '死锁', memory_alloc: '连续内存分配',
+  cpu_schedule: 'CPU 调度', page_replace: '虚拟内存与页面置换', disk_schedule: '磁盘调度',
+  banker: '银行家算法', os_basics: '操作系统基础', process_thread: '进程与线程', sync: '同步与互斥',
+  deadlock: '死锁', memory_alloc: '连续内存分配', tlb: 'TLB 与访问性能',
+  file_dir: '文件与目录', file_alloc: '文件存储与空间管理', device_mgmt: '磁盘与设备管理',
 };
 
 export const OS_PSEUDOCODE: Record<OsKind, string[]> = {
@@ -142,6 +148,38 @@ export const OS_PSEUDOCODE: Record<OsKind, string[]> = {
     '回收并合并相邻空闲区',
     '统计碎片与内存利用率',
   ],
+  tlb: [
+    '虚拟地址拆成 VPN + 页内偏移',
+    '用 VPN 查 TLB：命中直接得到页框号',
+    'TLB 未命中则逐级访问页表',
+    '页表项有效则装入 TLB；无效则触发缺页',
+    '物理地址 = 页框号 × 页大小 + 页内偏移',
+    '有效访问时间按命中率和缺页开销加权',
+  ],
+  file_dir: [
+    '按路径从根目录（或当前目录）逐级查找目录项',
+    '目录项给出文件名到 inode 号的映射',
+    '读取 inode 得到文件属性和数据块位置',
+    'open 建立文件描述符→系统打开文件表→inode 的关联',
+    'read/write 使用文件偏移，close 释放表项',
+    '权限按文件主、同组、其他三类检查 rwx',
+  ],
+  file_alloc: [
+    '文件大小与盘块大小决定所需块数',
+    '连续分配记录起始块与长度；链接分配沿指针串联',
+    '索引分配在索引块中存数据块号；FAT 把链接指针集中存放',
+    '多级索引逐级计算可寻址块数与最大文件长度',
+    '访问第 k 块时累加索引块与数据块的访盘次数',
+    '位示图中 0 表示空闲块，按位号映射盘块号',
+  ],
+  device_mgmt: [
+    '磁盘访问时间 = 寻道时间 + 旋转延迟 + 传输时间',
+    '平均旋转延迟 = 半圈旋转时间 = 30 / 转速（秒）',
+    '传输时间 = 数据量 / 数据传输率',
+    '单缓冲与双缓冲按设备输入和 CPU 处理的并行关系计算',
+    '假脱机用输入井/输出井和守护进程把独占设备虚拟成共享设备',
+    '设备分配检查设备独立性、独占性与安全性',
+  ],
 };
 
 function fmt(value: number | null | undefined, digits = 5): string {
@@ -184,7 +222,9 @@ function blocked(model: LabModel, reason: string): OsResult {
   const kind = (model.os_kind ?? 'cpu_schedule') as OsKind;
   const engine = ({ cpu_schedule: 'os_sched_v1', page_replace: 'os_page_v1', disk_schedule: 'os_disk_v1',
     banker: 'os_banker_v1', os_basics: 'os_basics_v1', process_thread: 'os_process_v1',
-    sync: 'os_sync_v1', deadlock: 'os_deadlock_v1', memory_alloc: 'os_memory_v1' } as const)[kind];
+    sync: 'os_sync_v1', deadlock: 'os_deadlock_v1', memory_alloc: 'os_memory_v1',
+    tlb: 'os_tlb_v1', file_dir: 'os_file_dir_v1', file_alloc: 'os_file_alloc_v1',
+    device_mgmt: 'os_device_v1' } as const)[kind];
   return {
     subject: 'operating_system', engine, osKind: kind, status: 'blocked', reason, headline: reason,
     algorithm: '', answer: '', answerValue: null, answerOrder: null, stopReason: null, pseudocode: [],
@@ -450,13 +490,26 @@ function evalSchedule(model: LabModel, params: Record<string, unknown>): OsResul
 
 interface PageStep {
   index: number; page: string; hit: boolean; frames: (string | null)[]; slot: number; evicted: string | null;
-  faults: number; aux_title: string; aux: string[];
+  faults: number; aux_title: string; aux: string[]; refs: number[]; hand: number;
 }
 
-function simulatePages(reference: string[], framesCount: number, algorithm: string): PageStep[] {
-  const slots: (string | null)[] = new Array<string | null>(framesCount).fill(null);
-  const loaded = new Array<number>(framesCount).fill(-1);
-  const used = new Array<number>(framesCount).fill(-1);
+function simulatePages(
+  reference: string[], framesCount: number, algorithm: string, initialFrames: string[] = [],
+): PageStep[] {
+  const initial = initialFrames.slice(0, framesCount);
+  const slots: (string | null)[] = [
+    ...initial, ...new Array<string | null>(framesCount - initial.length).fill(null),
+  ];
+  const loaded = [
+    ...initial.map((_, offset) => offset - initial.length),
+    ...new Array<number>(framesCount - initial.length).fill(-1),
+  ];
+  const used = [
+    ...initial.map((_, offset) => offset - initial.length),
+    ...new Array<number>(framesCount - initial.length).fill(-1),
+  ];
+  const refs = slots.map((page) => (page === null ? 0 : 1));
+  let hand = 0;
   const steps: PageStep[] = [];
   let faults = 0;
   const slotIds = Array.from({ length: framesCount }, (_, s) => s);
@@ -467,6 +520,7 @@ function simulatePages(reference: string[], framesCount: number, algorithm: stri
     if (slots.includes(page)) {
       slot = slots.indexOf(page);
       used[slot] = index;
+      refs[slot] = 1;
       hit = true;
     } else {
       hit = false;
@@ -475,7 +529,14 @@ function simulatePages(reference: string[], framesCount: number, algorithm: stri
       else {
         if (algorithm === 'fifo') slot = pickMin(slotIds, (s) => [loaded[s]!]);
         else if (algorithm === 'lru') slot = pickMin(slotIds, (s) => [used[s]!]);
-        else {
+        else if (algorithm === 'clock') {
+          while (refs[hand] === 1) {
+            refs[hand] = 0;
+            hand = (hand + 1) % framesCount;
+          }
+          slot = hand;
+          hand = (slot + 1) % framesCount;
+        } else {
           const nextUse = (s: number): number => {
             for (let later = index + 1; later < reference.length; later += 1) if (reference[later] === slots[s]) return later;
             return Infinity;
@@ -487,6 +548,7 @@ function simulatePages(reference: string[], framesCount: number, algorithm: stri
       slots[slot] = page;
       loaded[slot] = index;
       used[slot] = index;
+      refs[slot] = 1;
     }
     const resident = slotIds.filter((s) => slots[s] !== null);
     let auxTitle: string; let aux: string[];
@@ -496,6 +558,9 @@ function simulatePages(reference: string[], framesCount: number, algorithm: stri
     } else if (algorithm === 'lru') {
       auxTitle = 'LRU 栈（左为最近使用）';
       aux = sortedBy(resident, (s) => [-used[s]!]).map((s) => slots[s]!);
+    } else if (algorithm === 'clock') {
+      auxTitle = 'Clock 指针与访问位（→ 为下一检查位置）';
+      aux = slotIds.map((s) => `${s === hand ? '→' : ''}块${s + 1}:${slots[s] ?? '空'}(R=${refs[s]})`);
     } else {
       auxTitle = '下次访问位置（∞ 表示不再访问）';
       aux = resident.map((s) => {
@@ -504,99 +569,154 @@ function simulatePages(reference: string[], framesCount: number, algorithm: stri
         return `${slots[s]}:${later >= 0 ? later + 1 : '∞'}`;
       });
     }
-    steps.push({ index, page, hit, frames: [...slots], slot, evicted, faults, aux_title: auxTitle, aux });
+    steps.push({ index, page, hit, frames: [...slots], slot, evicted, faults,
+      aux_title: auxTitle, aux, refs: [...refs], hand });
   });
   return steps;
 }
 
-function lastFaults(reference: string[], framesCount: number, algorithm: string): number {
-  const steps = simulatePages(reference, framesCount, algorithm);
+function lastFaults(reference: string[], framesCount: number, algorithm: string, initialFrames: string[] = []): number {
+  const steps = simulatePages(reference, framesCount, algorithm, initialFrames);
   return steps[steps.length - 1]!.faults;
+}
+
+function workingSet(reference: string[], window: number): string[][] {
+  return reference.map((_, index) => {
+    const start = Math.max(0, index - window + 1);
+    const seen: string[] = [];
+    for (const page of reference.slice(start, index + 1)) if (!seen.includes(page)) seen.push(page);
+    return seen;
+  });
 }
 
 function evalPage(model: LabModel, params: Record<string, unknown>): OsResult {
   const reference = (model.reference ?? []).map(String);
+  const initialFrames = (model.initial_frames ?? []).map(String);
   const algorithm = readString(params.algorithm ?? model.defaults.algorithm, 'fifo') || 'fifo';
   const framesCount = Math.trunc(readNumber(params.frames ?? model.defaults.frames, 3));
+  const window = Math.trunc(readNumber(params.window ?? model.defaults.window, 4));
   if (!reference.length) return blocked(model, '没有页面访问序列，请先补全题目数据。');
   if (reference.length > MAX_REFERENCE) return blocked(model, `访问序列超过 ${MAX_REFERENCE} 次；首版逐步演示只支持较短的序列。`);
   if (framesCount < 1 || framesCount > MAX_FRAMES) return blocked(model, `物理块数需在 1–${MAX_FRAMES} 之间。`);
+  if (window < 1 || window > MAX_REFERENCE) return blocked(model, `工作集窗口需在 1–${MAX_REFERENCE} 次访问之间。`);
+  if (initialFrames.length > framesCount) {
+    return blocked(model, `初始已调入 ${initialFrames.length} 个页面，超过物理块数 ${framesCount}，请核对原题。`);
+  }
+  if (new Set(initialFrames).size !== initialFrames.length) return blocked(model, '初始已调入的页面有重复，请核对原题。');
   if (!(algorithm in PAGE_LABELS)) return blocked(model, '未知的置换算法。');
 
-  const steps = simulatePages(reference, framesCount, algorithm);
+  const steps = simulatePages(reference, framesCount, algorithm, initialFrames);
   const total = reference.length;
   const faults = steps[steps.length - 1]!.faults;
+  const wsSets = workingSet(reference, window);
+  const workingSetFinal = wsSets[wsSets.length - 1]!;
+  const maxWorkingSet = Math.max(...wsSets.map((item) => item.length));
+  const avgWorkingSet = wsSets.reduce((sum, item) => sum + item.length, 0) / wsSets.length;
+  const thrash = maxWorkingSet > framesCount;
   const frames: OsFrame[] = [];
-  pushFrame(frames, 'initial', `${PAGE_LABELS[algorithm]}：${framesCount} 个物理块，初始全空`,
-    '每次访问先查物理块；不在其中就产生一次缺页。', 1, {
-      reference: [...reference], cursor: -1, frames: new Array<string | null>(framesCount).fill(null),
-      hit: null, slot: null, evicted: null, faults: 0, hits: 0, aux_title: '', aux: [], algorithm,
-    });
+  const startFrames: (string | null)[] = [
+    ...initialFrames, ...new Array<string | null>(framesCount - initialFrames.length).fill(null),
+  ];
+  pushFrame(frames, 'initial', initialFrames.length
+    ? `${PAGE_LABELS[algorithm]}：${framesCount} 个物理块，初始已装入 ${initialFrames.join(', ')}`
+    : `${PAGE_LABELS[algorithm]}：${framesCount} 个物理块，初始全空`,
+  initialFrames.length
+    ? '初始驻留页面不产生缺页；每次访问先查物理块，不在其中才产生一次缺页。'
+    : '每次访问先查物理块；不在其中就产生一次缺页。', 1, {
+    reference: [...reference], cursor: -1, frames: startFrames,
+    hit: null, slot: null, evicted: null, faults: 0, hits: 0, aux_title: '', aux: [], algorithm,
+    initial_frames: [...initialFrames], window, working_set: [], ws_max: 0,
+  });
   const reasons: Record<string, string> = {
-    fifo: '最早装入的页面', lru: '最近最久没有被使用的页面', opt: '未来最晚才会再次访问（或不再访问）的页面',
+    fifo: '最早装入的页面', lru: '最近最久没有被使用的页面',
+    opt: '未来最晚才会再次访问（或不再访问）的页面', clock: '访问位为 0 且被指针扫到的页面',
   };
   for (const step of steps) {
     const hits = step.index + 1 - step.faults;
+    const ws = wsSets[step.index]!;
     let label: string; let detail: string; let action: string; let line: number;
     if (step.hit) {
       label = `访问 ${step.page}：命中`;
       detail = `页面 ${step.page} 已在物理块中，不产生缺页。`;
+      if (algorithm === 'clock') detail += ' Clock 将该页访问位置 1。';
       action = 'hit'; line = 2;
     } else if (step.evicted === null) {
       label = `访问 ${step.page}：缺页，装入空闲块`;
       detail = `页面 ${step.page} 不在内存，仍有空闲物理块，直接装入块 ${step.slot + 1}。`;
+      if (algorithm === 'clock') detail += ' 新装入页面的访问位置 1。';
       action = 'fault'; line = 3;
     } else {
       label = `访问 ${step.page}：缺页，置换 ${step.evicted}`;
       detail = `物理块已满，按 ${algorithm.toUpperCase()} 选择${reasons[algorithm]} ${step.evicted} 换出，页面 ${step.page} 装入块 ${step.slot + 1}。`;
+      if (algorithm === 'clock') detail += ' 指针扫描时把经过页面的访问位清零，被换出页面重新装入后访问位置 1，指针移到下一块。';
       action = 'replace'; line = 4;
     }
     pushFrame(frames, action, label, detail, line, {
       reference: [...reference], cursor: step.index, frames: step.frames, hit: step.hit, slot: step.slot,
-      evicted: step.evicted, faults: step.faults, hits, aux_title: step.aux_title, aux: step.aux, algorithm,
+      evicted: step.evicted, faults: step.faults, hits, aux_title: step.aux_title, aux: step.aux,
+      algorithm, refs: step.refs, hand: step.hand, window, working_set: ws, ws_max: maxWorkingSet,
     });
   }
   const rate = faults / total;
-  const answer = `缺页 ${faults} 次，命中 ${total - faults} 次，缺页率 ${(rate * 100).toFixed(1)}%`;
+  const workingSetNote = `工作集 Δ=${window}：最大 ${maxWorkingSet} 页，`
+    + (thrash ? `超过物理块数 ${framesCount}，可能发生抖动` : `不超过物理块数 ${framesCount}，无明显抖动`);
+  const answer = `缺页 ${faults} 次，命中 ${total - faults} 次，缺页率 ${(rate * 100).toFixed(1)}%；${workingSetNote}`;
   pushFrame(frames, 'result', '结果', answer, 5, {
     reference: [...reference], cursor: total - 1, frames: steps[steps.length - 1]!.frames, hit: null, slot: null,
     evicted: null, faults, hits: total - faults, aux_title: '', aux: [], algorithm,
+    refs: steps[steps.length - 1]!.refs, hand: steps[steps.length - 1]!.hand, window,
+    working_set: workingSetFinal, ws_max: maxWorkingSet,
   });
 
   const compare: Record<string, number> = {};
-  for (const name of Object.keys(PAGE_LABELS)) compare[name] = lastFaults(reference, framesCount, name);
+  for (const name of Object.keys(PAGE_LABELS)) {
+    compare[name] = lastFaults(reference, framesCount, name, initialFrames);
+  }
   const series = Array.from({ length: MAX_FRAMES }, (_, k) => (
-    { frames: k + 1, faults: lastFaults(reference, k + 1, algorithm) }));
+    { frames: k + 1, faults: lastFaults(reference, k + 1, algorithm, initialFrames) }))
+    .filter((item) => item.frames >= Math.max(1, initialFrames.length));
   const checks: LabCheck[] = [{ id: 'accounting', label: '命中 + 缺页 = 访问次数', status: 'pass',
     detail: `${total - faults} + ${faults} = ${total}。` }];
-  checks.push(compare.opt! <= Math.min(compare.fifo!, compare.lru!)
+  const bestOther = Math.min(compare.fifo!, compare.lru!, compare.clock!);
+  checks.push(compare.opt! <= bestOther
     ? { id: 'opt_bound', label: 'OPT 为缺页下界', status: 'pass',
-      detail: `OPT ${compare.opt} 次不超过 FIFO ${compare.fifo} 次与 LRU ${compare.lru} 次。` }
+      detail: `OPT ${compare.opt} 次不超过 FIFO ${compare.fifo}、LRU ${compare.lru}、Clock ${compare.clock} 的缺页次数。` }
     : { id: 'opt_bound', label: 'OPT 为缺页下界', status: 'fail', detail: 'OPT 的缺页次数不应高于其他算法，请核对序列。' });
-  if (algorithm === 'fifo') {
+  if (algorithm === 'fifo' || algorithm === 'clock') {
     const bigger = series.find((item) => item.frames === framesCount + 1);
+    const label = algorithm === 'fifo' ? 'FIFO' : 'Clock';
     checks.push(bigger && bigger.faults > faults
       ? { id: 'belady', label: 'Belady 异常', status: 'warn',
-        detail: `物理块从 ${framesCount} 增加到 ${framesCount + 1}，FIFO 缺页反而从 ${faults} 增加到 ${bigger.faults} 次。` }
+        detail: `物理块从 ${framesCount} 增加到 ${framesCount + 1}，${label} 缺页反而从 ${faults} 增加到 ${bigger.faults} 次。` }
       : { id: 'belady', label: 'Belady 异常', status: 'pass',
-        detail: '增加一个物理块后缺页次数没有增加；FIFO 不是栈式算法，仍可能在其他序列上出现异常。' });
+        detail: `增加一个物理块后缺页次数没有增加；${label} 不是栈式算法，仍可能在其他序列上出现异常。` });
   } else {
     checks.push({ id: 'belady', label: 'Belady 异常', status: 'pass', detail: 'LRU 与 OPT 是栈式算法，增加物理块不会让缺页变多。' });
   }
+  checks.push({
+    id: 'working_set', label: '工作集与抖动', status: thrash ? 'warn' : 'pass',
+    detail: `窗口 Δ=${window} 时最大工作集 ${maxWorkingSet} 页，物理块 ${framesCount} 块；`
+      + (thrash ? '驻留集小于工作集，可能发生抖动。' : '驻留集不小于工作集，没有明显抖动。'),
+  });
   const metrics: LabResultMetric[] = [
     { id: 'algorithm', label: '算法', value: PAGE_LABELS[algorithm]! },
     { id: 'faults', label: '缺页次数', value: String(faults) },
     { id: 'hits', label: '命中次数', value: String(total - faults) },
     { id: 'rate', label: '缺页率', value: `${(rate * 100).toFixed(1)}%` },
+    { id: 'working_set', label: `工作集 Δ=${window}`, value: `${workingSetFinal.join(',')}（最大 ${maxWorkingSet}）` },
   ];
   return {
     subject: 'operating_system', engine: 'os_page_v1', osKind: 'page_replace', status: 'ok', algorithm,
     frames, trace: frames, pseudocode: OS_PSEUDOCODE.page_replace, answer, answerValue: faults, answerOrder: null,
     headline: `${PAGE_LABELS[algorithm]}（${framesCount} 块）：缺页 ${faults} 次 / 访问 ${total} 次`,
     metrics, checks, stopReason: 'done',
-    stats: { faults, hits: total - faults, total, rate, frames_count: framesCount, compare, series },
+    stats: { faults, hits: total - faults, total, rate, frames_count: framesCount,
+      initial_frames: [...initialFrames], window, working_set: workingSetFinal,
+      max_working_set: maxWorkingSet, avg_working_set: avgWorkingSet, thrash, compare, series },
     notes: ['物理块按固定位置显示：被置换页面所在的块直接装入新页面。',
-      'OPT 并列时（多个页面都不再访问）置换最早装入的页面；LRU 命中会刷新最近使用时间，FIFO 命中不改变队列。'],
+      'OPT 并列时（多个页面都不再访问）置换最早装入的页面；LRU 命中会刷新最近使用时间，FIFO 命中不改变队列。',
+      'Clock 指针初始指向块 1；命中或装入空闲块只把访问位置 1，只有置换扫描会移动指针。',
+      '初始驻留页面按给定顺序视为从早到晚装入；对初态页面的访问按命中处理，不计缺页。'],
   };
 }
 
@@ -922,8 +1042,9 @@ function evalBanker(model: LabModel, params: Record<string, unknown>): OsResult 
 /** 前端权威计算：与后端 app.labs.opsys 逐帧镜像。 */
 export function evaluateOs(model: LabModel, params: Record<string, unknown>): OsResult {
   const kind = String(model.os_kind ?? 'cpu_schedule') as OsKind;
-  const genericKinds = new Set<OsKind>(['os_basics', 'process_thread', 'sync', 'deadlock', 'memory_alloc']);
-  if (genericKinds.has(kind)) {
+  const genericKinds = new Set<OsKind>(['os_basics', 'process_thread', 'sync', 'deadlock', 'memory_alloc',
+    'tlb', 'file_dir', 'file_alloc', 'device_mgmt']);
+  if (genericKinds.has(kind) || (kind === 'page_replace' && !(model.reference?.length))) {
     const embedded = (model as unknown as { os_result?: Record<string, unknown> }).os_result;
     if (!embedded || !Array.isArray(embedded.frames) || embedded.frames.length === 0) {
       return blocked(model, '该操作系统题型的执行记录尚未生成，请重新打开或重建题目。');

@@ -3,10 +3,11 @@ import type { HeapResult } from './heap.ts';
 import type { LinAlgResult } from './linalg.ts';
 import type { OsResult } from './opsys.ts';
 import type { CoResult } from './compOrg.ts';
+import type { NetworkResult } from './network.ts';
 
 export type LabSubject =
   | 'calculus' | 'optimization' | 'algorithm' | 'deep_learning' | 'linear_algebra' | 'operating_system'
-  | 'computer_organization' | 'computer_network' | 'unknown';
+  | 'computer_organization' | 'computer_network' | 'physics' | 'unknown';
 export type LabStatus = 'ready' | 'needs_review' | 'unsupported';
 export type LabMode = 'explore' | 'guided' | 'solution';
 export type LabProvenance = 'original' | 'inferred' | 'user_confirmed' | 'supplement' | 'teaching';
@@ -21,6 +22,7 @@ export const SUBJECT_LABELS: Record<LabSubject, string> = {
   operating_system: '操作系统',
   computer_organization: '计算机组成原理',
   computer_network: '计算机网络',
+  physics: '大学物理',
   unknown: '待确认',
 };
 
@@ -33,6 +35,7 @@ export const SUBJECT_SHORT: Record<LabSubject, string> = {
   operating_system: 'OPERATING SYSTEM',
   computer_organization: 'COMPUTER ORGANIZATION',
   computer_network: 'NETWORK',
+  physics: 'PHYSICS',
   unknown: 'UNKNOWN',
 };
 
@@ -133,10 +136,13 @@ export interface LabModelParam {
 
 export interface LabModel {
   modeling_task?: string;
+  observation_expression?: string;
+  observation_partial?: boolean;
   goal?: 'extrema' | 'gradient_descent' | 'radius' | 'sum' | 'expand';
   engine: string;
   subject: LabSubject;
-  kind?: 'integral' | 'derivative' | 'antiderivative' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space' | 'proof' | 'multivariable' | 'multivariable_extrema';
+  kind?: 'integral' | 'derivative' | 'inverse_derivative' | 'antiderivative' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space' | 'proof' | 'multivariable' | 'multivariable_extrema';
+  inverse_function?: boolean;
   task?: 'geometric_area' | 'area_volume' | 'implicit_normal' | 'double_integral' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'constrained_extrema' | 'series_convergence' | 'power_series' | 'fourier_series' | 'triple_integral' | 'line_integral' | 'surface_integral' | 'green' | 'gauss' | 'stokes' | 'space_geometry' | 'proof' | 'multivariable' | 'multivariable_extrema';
   analysis_kind?: 'limit' | 'taylor' | 'higher_derivative' | 'function_study';
   side?: 'both' | 'left' | 'right';
@@ -244,12 +250,23 @@ export interface LabModel {
   vector_b?: number[] | null;
   // operating system
   os_kind?: 'cpu_schedule' | 'page_replace' | 'disk_schedule' | 'banker'
-    | 'os_basics' | 'process_thread' | 'sync' | 'deadlock' | 'memory_alloc';
+    | 'os_basics' | 'process_thread' | 'sync' | 'deadlock' | 'memory_alloc'
+    | 'tlb' | 'file_dir' | 'file_alloc' | 'device_mgmt';
+  initial_frames?: string[];
   os_result?: Record<string, unknown>;
   // computer organization
   co_kind?: 'performance' | 'data_repr' | 'fixed_point' | 'floating' | 'datapath'
     | 'memory' | 'cache' | 'virtual_memory' | 'instruction' | 'cpu_control' | 'pipeline' | 'bus_io';
   co_result?: Record<string, unknown>;
+  // computer network
+  net_kind?: 'architecture' | 'performance' | 'physical'
+    | 'error_control' | 'sliding_window' | 'mac'
+    | 'ethernet' | 'ip' | 'network_layer' | 'transport' | 'tcp_control' | 'application';
+  net_result?: Record<string, unknown>;
+  // physics
+  physics_kind?: 'kinematics' | 'newton' | 'work_energy' | 'momentum' | 'oscillation' | 'rigid_body' | 'wave' | 'electrostatics' | 'circuit' | 'magnetism' | 'induction' | 'thermodynamics' | 'wave_optics' | 'geometric_optics' | 'modern_physics';
+  physics_mode?: string;
+  physics_result?: Record<string, unknown>;
   processes?: { id: string; arrival: number; burst: number; priority: number | null }[];
   has_priority?: boolean;
   reference?: string[];
@@ -285,9 +302,11 @@ export interface LabCheck {
 }
 
 export interface LabSolution {
+  continuity?: { classification: string; label: string; value: { text: string }; left: { text: string }; right: { text: string } };
   summary: string;
   answer: string;
   answer_value?: number | null;
+  answer_values?: number[];
   answer_point?: number[] | null;
   answer_order?: string[];
   answer_vector?: number[] | null;
@@ -855,6 +874,7 @@ export interface CalculusResult extends LabResultBase {
   };
   ode?: { order?: number; hints: string[]; solution: string; initial_conditions: string[]; target?: LabSolution['target'] };
   space?: {
+    view_yaw?: number; view_zoom?: number;
     kind?: string; curves?: { id: string; label: string; points: { x: number; y: number; z: number }[] }[];
     points?: { id?: string; x: number; y: number; z: number }[]; grid?: { x: number; y: number; z: number }[][];
     edges?: { x: number; y: number; z: number }[][]; line?: { x: number; y: number; z: number }[];
@@ -1076,8 +1096,16 @@ export interface UnknownResult extends LabResultBase {
   subject: 'unknown';
 }
 
+export interface PhysicsResult extends LabResultBase {
+  subject: 'physics';
+  kind: 'kinematics' | 'newton' | 'work_energy' | 'momentum' | 'oscillation' | 'rigid_body' | 'wave' | 'electrostatics' | 'circuit' | 'magnetism' | 'induction' | 'thermodynamics' | 'wave_optics' | 'geometric_optics' | 'modern_physics';
+  mode: string;
+  scene: Record<string, unknown>;
+}
+
 export type LabResult =
-  CalculusResult | OptimizationResult | BfsResult | DsResult | HeapResult | DlResult | LinAlgResult | OsResult | CoResult | UnknownResult;
+  CalculusResult | OptimizationResult | BfsResult | DsResult | HeapResult | DlResult | LinAlgResult
+  | OsResult | CoResult | NetworkResult | PhysicsResult | UnknownResult;
 
 /* ------------------------------------------------------------------ */
 /* 边界守卫                                                            */

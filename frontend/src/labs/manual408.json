@@ -1,0 +1,587 @@
+{
+  "subjects": [
+    {
+      "id": "algorithm",
+      "label": "数据结构与算法",
+      "summary": "线性结构、树与图、查找排序和复杂度分析。选择题型后按原文填写完整条件，内核按原文识别题型。",
+      "groups": [
+        {
+          "label": "线性结构",
+          "types": [
+            {
+              "id": "ds_list",
+              "label": "顺序表与链表",
+              "hint": "插入、删除、合并、去重与逆置",
+              "title": "顺序表插入与移动",
+              "kind": "list_ops",
+              "template": "顺序表(1,2,3,4,5)，在第2个位置插入9。"
+            },
+            {
+              "id": "ds_stack",
+              "label": "栈与出栈序列",
+              "hint": "合法出栈序列、入栈出栈模拟",
+              "title": "出栈序列合法性",
+              "kind": "stack_ops",
+              "template": "入栈序列为1,2,3,4,5，出栈序列为4,3,5,2,1，判断它是否为合法出栈序列。"
+            },
+            {
+              "id": "ds_queue",
+              "label": "队列与循环队列",
+              "hint": "入队出队、队空队满与长度",
+              "title": "循环队列操作",
+              "kind": "queue_ops",
+              "template": "循环队列容量为5，依次入队1,2,3，再出队两次，再入队4。"
+            },
+            {
+              "id": "ds_expression",
+              "label": "表达式转换与求值",
+              "hint": "中缀、后缀、前缀与调度栈",
+              "title": "中缀转后缀",
+              "kind": "expression",
+              "template": "将表达式 (1+2)*3 转换为后缀表达式。"
+            },
+            {
+              "id": "ds_recursion",
+              "label": "递归与调用栈",
+              "hint": "递归调用过程、调用次数与栈深",
+              "title": "递归调用过程",
+              "kind": "recursion",
+              "template": "递归计算fact(4)的调用过程与调用次数。"
+            },
+            {
+              "id": "ds_array_address",
+              "label": "数组地址计算",
+              "hint": "行优先、列优先与元素地址",
+              "title": "二维数组地址",
+              "kind": "array_address",
+              "template": "数组A[0..5][0..7]按行优先存储，每个元素占4字节，首地址1000，求A[2][3]的地址。"
+            },
+            {
+              "id": "ds_matrix",
+              "label": "特殊矩阵压缩",
+              "hint": "对称、三角与三对角矩阵下标",
+              "title": "对称矩阵压缩存储",
+              "kind": "matrix_storage",
+              "template": "对称矩阵n=4压缩存储，求a[3][2]的下标。"
+            },
+            {
+              "id": "ds_string",
+              "label": "串与 KMP",
+              "hint": "next 数组、nextval 与比较次数",
+              "title": "KMP 模式匹配",
+              "kind": "string_match",
+              "template": "主串S=ababcabcacbab，模式串T=abcac，求KMP的next数组与比较次数。"
+            }
+          ]
+        },
+        {
+          "label": "树与图",
+          "types": [
+            {
+              "id": "ds_btree",
+              "label": "二叉树遍历与重建",
+              "hint": "先序、中序、后序、层序与线索",
+              "title": "由遍历序列重建二叉树",
+              "kind": "btree_ops",
+              "template": "已知二叉树先序序列 ABDECF，中序序列 DBEACF，求后序遍历序列。"
+            },
+            {
+              "id": "ds_tree",
+              "label": "树、森林与哈夫曼",
+              "hint": "哈夫曼 WPL、并查集与树转换",
+              "title": "哈夫曼树与 WPL",
+              "kind": "tree_forest",
+              "template": "给定权值 1,2,4,6 构造哈夫曼树，求带权路径长度 WPL 与编码。"
+            },
+            {
+              "id": "ds_graph_repr",
+              "label": "图的存储与度",
+              "hint": "邻接矩阵、邻接表、出入度与连通分量",
+              "title": "邻接矩阵与顶点度",
+              "kind": "graph_repr",
+              "template": "无向图G顶点为A、B、C、D，边A-B、A-C、B-D。给出邻接矩阵与邻接表，并求各顶点的度。"
+            },
+            {
+              "id": "ds_mst",
+              "label": "最小生成树",
+              "hint": "Prim、Kruskal 与权值合计",
+              "title": "Prim 最小生成树",
+              "kind": "graph_apply",
+              "template": "无向图顶点A、B、C、D，边A-B(1)、A-C(3)、B-C(2)、B-D(4)、C-D(5)，从A出发用Prim算法求最小生成树。"
+            },
+            {
+              "id": "ds_dijkstra",
+              "label": "最短路径",
+              "hint": "Dijkstra、Floyd 与路径还原",
+              "title": "Dijkstra 最短路径",
+              "kind": "graph_apply",
+              "template": "有向图顶点A、B、C、D，边A→B(1)、A→C(3)、B→C(2)、B→D(4)、C→D(5)，从A出发用Dijkstra求最短路径。"
+            },
+            {
+              "id": "ds_topological",
+              "label": "拓扑排序与关键路径",
+              "hint": "AOV 拓扑序列、AOE 工期与关键活动",
+              "title": "AOE 关键路径",
+              "kind": "graph_apply",
+              "template": "AOE网：有向图顶点A、B、C、D，边A→B(3)、A→C(2)、B→D(4)、C→D(2)，求关键路径与工期。"
+            }
+          ]
+        },
+        {
+          "label": "查找、排序与复杂度",
+          "types": [
+            {
+              "id": "ds_search",
+              "label": "折半查找与 ASL",
+              "hint": "判定树、成功与失败 ASL",
+              "title": "折半查找判定树",
+              "kind": "search_ops",
+              "template": "对长度为11的有序表进行折半查找，画出判定树并求成功与失败的ASL。"
+            },
+            {
+              "id": "ds_hash",
+              "label": "散列与冲突处理",
+              "hint": "线性探测、平方探测与 ASL",
+              "title": "平方探测 ASL",
+              "kind": "search_ops",
+              "template": "散列表长度为7，散列函数H(key)=key mod 7，用平方探测处理冲突，依次存入0,1,2,3，求成功与失败的ASL。"
+            },
+            {
+              "id": "ds_sort",
+              "label": "排序过程",
+              "hint": "各趟结果、比较次数与稳定性",
+              "title": "快速排序各趟结果",
+              "kind": "sort_ops",
+              "template": "对序列49,38,65,97,76,13,27进行快速排序，给出每趟结果。"
+            },
+            {
+              "id": "ds_analysis",
+              "label": "算法复杂度分析",
+              "hint": "语句频度、循环结构与渐近复杂度",
+              "title": "语句执行次数与复杂度",
+              "kind": "analysis",
+              "template": "外层 i 从 1 到 n，内层 j 从 1 到 i，n=4，求语句执行次数与时间复杂度。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "computer_organization",
+      "label": "计算机组成原理",
+      "summary": "性能、数据表示、存储层次、指令与流水线、总线与 I/O。选择题型后按原文填写完整条件。",
+      "groups": [
+        {
+          "label": "性能与数据表示",
+          "types": [
+            {
+              "id": "co_performance",
+              "label": "CPU 性能",
+              "hint": "主频、CPI、指令数与执行时间",
+              "title": "CPU 执行时间",
+              "kind": "performance",
+              "template": "某 CPU 主频为 2GHz，CPI 为 4，执行 1000000 条指令，求 CPU 执行时间。"
+            },
+            {
+              "id": "co_data_repr",
+              "label": "数据表示",
+              "hint": "原码、反码、补码、移码与符号扩展",
+              "title": "8 位机器数编码",
+              "kind": "data_repr",
+              "template": "求 -37 的8位原码、反码、补码和移码。"
+            },
+            {
+              "id": "co_fixed_point",
+              "label": "定点运算",
+              "hint": "补码加减、溢出判断与状态标志",
+              "title": "8 位补码加法",
+              "kind": "fixed_point",
+              "template": "8位补码计算 127 + 1，判断是否溢出，并写出 CF、ZF、SF、OF。"
+            },
+            {
+              "id": "co_floating",
+              "label": "IEEE 754 浮点数",
+              "hint": "符号、阶码、尾数与十六进制编码",
+              "title": "单精度浮点数编码",
+              "kind": "floating",
+              "template": "将 -12.375 表示为 IEEE 754 单精度浮点数，并写出十六进制编码。"
+            },
+            {
+              "id": "co_datapath",
+              "label": "运算器与数据通路",
+              "hint": "寄存器传送、ALU 与写使能",
+              "title": "寄存器传送与 ALU",
+              "kind": "datapath",
+              "template": "寄存器 R1=5、R2=3、R3=0，执行 R3 ← R1 + R2，结果是什么？"
+            }
+          ]
+        },
+        {
+          "label": "存储层次",
+          "types": [
+            {
+              "id": "co_memory",
+              "label": "主存储器",
+              "hint": "字扩展、位扩展与芯片连接",
+              "title": "存储器芯片扩展",
+              "kind": "memory",
+              "template": "用1K×4位芯片组成4K×8位存储器，需要多少芯片，地址线如何分配？"
+            },
+            {
+              "id": "co_cache",
+              "label": "Cache",
+              "hint": "地址划分、组相联与平均访问时间",
+              "title": "Cache 地址划分",
+              "kind": "cache",
+              "template": "主存地址32位，Cache容量64KB，块大小64B，4路组相联，求tag、index、offset位数。"
+            },
+            {
+              "id": "co_virtual_memory",
+              "label": "虚拟存储基础",
+              "hint": "虚实地址转换、页表与 TLB",
+              "title": "虚实地址转换",
+              "kind": "virtual_memory",
+              "template": "页大小4KB，虚拟地址32位，页表：虚页 0x2 -> 页框 0x5，访问虚拟地址0x00002010，求物理地址。"
+            }
+          ]
+        },
+        {
+          "label": "指令、控制器与流水线",
+          "types": [
+            {
+              "id": "co_instruction",
+              "label": "指令系统",
+              "hint": "操作码扩展、地址码与指令格式",
+              "title": "扩展操作码",
+              "kind": "instruction",
+              "template": "指令字长16位，操作码4位，地址码4位，三地址指令有12条，二地址指令最多有多少条？"
+            },
+            {
+              "id": "co_cpu_control",
+              "label": "CPU 与控制器",
+              "hint": "取指、执行周期与 CPU 时间",
+              "title": "指令周期",
+              "kind": "cpu_control",
+              "template": "某指令取指2周期、执行3周期，CPU时钟周期2ns，执行100条指令，求执行时间。"
+            },
+            {
+              "id": "co_pipeline",
+              "label": "指令流水线",
+              "hint": "总周期、加速比与吞吐率",
+              "title": "五段流水线",
+              "kind": "pipeline",
+              "template": "5段流水线执行100条指令，时钟周期2ns，求总周期、加速比和吞吐率。"
+            }
+          ]
+        },
+        {
+          "label": "总线与 I/O",
+          "types": [
+            {
+              "id": "co_bus_io",
+              "label": "总线与输入输出",
+              "hint": "总线带宽、DMA 与 CPU 开销",
+              "title": "总线带宽与 DMA",
+              "kind": "bus_io",
+              "template": "DMA方式传送1MB数据，块大小1KB，DMA初始化需要10个周期，时钟周期10ns，求CPU时间开销。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "operating_system",
+      "label": "操作系统",
+      "summary": "进程与同步、调度、内存、文件、磁盘与设备管理。选择题型后按原文填写完整条件。",
+      "groups": [
+        {
+          "label": "基础、进程与同步",
+          "types": [
+            {
+              "id": "os_basics",
+              "label": "操作系统基础",
+              "hint": "内核态、用户态与系统调用",
+              "title": "用户态与内核态",
+              "kind": "os_basics",
+              "template": "说明用户态和内核态的区别，系统调用如何进入内核态。"
+            },
+            {
+              "id": "os_process_thread",
+              "label": "进程与线程",
+              "hint": "状态转换、PCB 与资源共享",
+              "title": "进程状态转换",
+              "kind": "process_thread",
+              "template": "进程状态转换为 创建→就绪→运行→阻塞→就绪→运行→终止，判断是否合法。"
+            },
+            {
+              "id": "os_sync",
+              "label": "同步与互斥",
+              "hint": "信号量、P/V 与经典同步问题",
+              "title": "信号量 P/V 过程",
+              "kind": "sync",
+              "template": "信号量S初值为2，依次执行 P(S),P(S),P(S),V(S)，求S的值和等待进程数。"
+            },
+            {
+              "id": "os_deadlock",
+              "label": "死锁",
+              "hint": "必要条件、资源分配图与解除",
+              "title": "资源分配图检测",
+              "kind": "deadlock",
+              "template": "资源分配图：P1→R1，R1→P2，P2→R2，R2→P1，判断是否死锁。"
+            }
+          ]
+        },
+        {
+          "label": "调度与内存",
+          "types": [
+            {
+              "id": "os_cpu_schedule",
+              "label": "CPU 调度",
+              "hint": "FCFS、SJF、SRTN、HRRN 与时间片",
+              "title": "CPU 调度对比",
+              "kind": "cpu_schedule",
+              "template": "采用最短剩余时间优先（抢占）调度下列进程，求平均周转时间和平均等待时间。\n进程 到达时间 服务时间\nP1 0 7\nP2 2 4\nP3 4 1\nP4 5 4"
+            },
+            {
+              "id": "os_memory_alloc",
+              "label": "连续内存分配",
+              "hint": "首次、最佳、最坏与邻近适应",
+              "title": "首次适应分配",
+              "kind": "memory_alloc",
+              "template": "空闲区为 100,500,200,300，采用首次适应，请求分配 120，求分配结果。"
+            },
+            {
+              "id": "os_page_replace",
+              "label": "虚拟内存与页面置换",
+              "hint": "FIFO、LRU、OPT、Clock 与 Belady",
+              "title": "FIFO 页面置换",
+              "kind": "page_replace",
+              "template": "页面访问序列为 1,2,3,4,1,2,5,1,2,3,4,5，物理块数为3，采用 FIFO 置换算法，求缺页次数。"
+            },
+            {
+              "id": "os_tlb",
+              "label": "TLB 与访问性能",
+              "hint": "命中率、页表访问与有效访问时间",
+              "title": "TLB 与有效访问时间",
+              "kind": "tlb",
+              "template": "某系统 TLB 命中率为 90%，TLB 访问时间为 10ns，内存访问时间为 100ns，采用一级页表，求有效访问时间。"
+            }
+          ]
+        },
+        {
+          "label": "文件与设备",
+          "types": [
+            {
+              "id": "os_file_dir",
+              "label": "文件与目录",
+              "hint": "rwx 权限、文件主与同组用户",
+              "title": "文件权限位",
+              "kind": "file_dir",
+              "template": "文件权限为 -rwxr-xr--，问文件主、同组用户和其他用户分别有什么权限？"
+            },
+            {
+              "id": "os_file_alloc",
+              "label": "文件存储与空间管理",
+              "hint": "连续、链接、索引与最大文件长度",
+              "title": "索引分配最大文件",
+              "kind": "file_alloc",
+              "template": "某文件系统 inode 有 10 个直接地址项、1 个一级间接、1 个二级间接，盘块大小为 4KB，每个指针占 4B，求最大文件长度。"
+            },
+            {
+              "id": "os_disk_schedule",
+              "label": "磁盘调度",
+              "hint": "FCFS、SSTF、SCAN 与总移动距离",
+              "title": "SCAN 磁盘调度",
+              "kind": "disk_schedule",
+              "template": "磁盘请求队列为 98, 183, 37, 122, 14, 124, 65, 67，磁头当前位于 53 号磁道，磁道范围 0~199，向磁道号增加方向移动，采用 SCAN 算法，求磁头总移动距离。"
+            },
+            {
+              "id": "os_device_mgmt",
+              "label": "磁盘与设备管理",
+              "hint": "寻道、旋转延迟与传输时间",
+              "title": "磁盘访问时间分解",
+              "kind": "device_mgmt",
+              "template": "某磁盘平均寻道时间为 5ms，转速为 6000rpm，每磁道 100 个扇区，每个扇区 512B，读取 10 个扇区，求平均访问时间。"
+            }
+          ]
+        },
+        {
+          "label": "资源分配",
+          "types": [
+            {
+              "id": "os_banker",
+              "label": "银行家算法",
+              "hint": "Need、Work、安全性检查与安全序列",
+              "title": "银行家算法安全性检查",
+              "kind": "banker",
+              "template": "系统有 5 个进程 P0~P4，3 类资源 A、B、C。Allocation=[[0,1,0],[2,0,0],[3,0,2],[2,1,1],[0,0,2]]，Max=[[7,5,3],[3,2,2],[9,0,2],[2,2,2],[4,3,3]]，Available=[3,3,2]。此时 P1 请求资源(1,0,2)，判断能否立即分配，并给出安全序列。"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "computer_network",
+      "label": "计算机网络",
+      "summary": "体系结构、物理层、差错控制、链路与 IP、路由、传输层与应用层。选择题型后按原文填写完整条件。",
+      "groups": [
+        {
+          "label": "体系结构与性能",
+          "types": [
+            {
+              "id": "net_architecture",
+              "label": "网络体系结构",
+              "hint": "OSI/TCP-IP、封装与设备层次",
+              "title": "分层与逐层封装",
+              "kind": "architecture",
+              "template": "说明 OSI 七层模型和 TCP/IP 四层模型的对应关系，数据封装经过各层有什么变化，路由器工作在哪一层？"
+            },
+            {
+              "id": "net_delay",
+              "label": "时延计算",
+              "hint": "发送时延、传播时延与总时延",
+              "title": "链路时延分解",
+              "kind": "performance",
+              "template": "链路带宽为 100Mbps，发送 1000B 的数据，链路长 1000km，信号传播速率为 2×10^8 m/s，求发送时延、传播时延和总时延。"
+            },
+            {
+              "id": "net_switching",
+              "label": "交换方式",
+              "hint": "电路、报文与分组交换的时延",
+              "title": "三种交换方式对比",
+              "kind": "performance",
+              "template": "报文长 1000B，链路带宽 10Mbps，经过 3 段链路，每段传播时延 1ms，分组长 100B，求电路交换、报文交换和分组交换的总时延。"
+            },
+            {
+              "id": "net_capacity",
+              "label": "信道容量",
+              "hint": "奈奎斯特与香农公式",
+              "title": "奈奎斯特最大数据率",
+              "kind": "physical",
+              "template": "某信道带宽为 4kHz，采用 16 种码元，求奈奎斯特最大数据率。"
+            }
+          ]
+        },
+        {
+          "label": "差错控制与介质访问",
+          "types": [
+            {
+              "id": "net_crc",
+              "label": "CRC 校验",
+              "hint": "模 2 除法、余数与发送码字",
+              "title": "CRC 生成",
+              "kind": "error_control",
+              "template": "数据为 1011001，生成多项式为 x^4+x+1，求 CRC 余数和发送码字。"
+            },
+            {
+              "id": "net_hamming",
+              "label": "海明码",
+              "hint": "校验位、综合因子与纠错",
+              "title": "海明码构造",
+              "kind": "error_control",
+              "template": "数据为 1011，采用偶校验，求海明码。"
+            },
+            {
+              "id": "net_sliding_window",
+              "label": "可靠传输与滑动窗口",
+              "hint": "GBN、SR、发送窗口与重传",
+              "title": "GBN 丢帧与恢复",
+              "kind": "sliding_window",
+              "template": "采用 GBN，发送窗口为 4，共 8 帧，第 2 帧丢失，说明发送窗口和接收窗口如何变化，重传几帧？"
+            },
+            {
+              "id": "net_mac",
+              "label": "介质访问控制",
+              "hint": "CSMA/CD、争用期与最小帧长",
+              "title": "以太网最小帧长",
+              "kind": "mac",
+              "template": "采用 CSMA/CD，链路速率 10Mbps，单程传播时延 25.6μs，求最小帧长。"
+            }
+          ]
+        },
+        {
+          "label": "以太网与 IP",
+          "types": [
+            {
+              "id": "net_ethernet",
+              "label": "以太网、交换机与 VLAN",
+              "hint": "自学习、转发表、泛洪与广播帧",
+              "title": "交换机转发与学习",
+              "kind": "ethernet",
+              "template": "交换机端口1连接A，端口2连接B，端口3连接C。A发送帧给B，B回复A，A发送广播帧，求转发表变化。"
+            },
+            {
+              "id": "net_subnet",
+              "label": "IPv4 子网划分",
+              "hint": "掩码、网络地址与广播地址",
+              "title": "IPv4 子网划分",
+              "kind": "ip",
+              "template": "将 192.168.1.0/24 划分为 4 个子网，求每个子网的网络地址和广播地址。"
+            },
+            {
+              "id": "net_fragment",
+              "label": "IP 分片",
+              "hint": "MTU、偏移与 MF 标志",
+              "title": "IP 数据报分片",
+              "kind": "ip",
+              "template": "IP 数据报总长度为 4000B，MTU 为 1500B，首部 20B，求分片结果。"
+            },
+            {
+              "id": "net_ipv6",
+              "label": "IPv6 地址",
+              "hint": "完整形式与 :: 压缩",
+              "title": "IPv6 地址压缩",
+              "kind": "ip",
+              "template": "IPv6 地址 2001:0db8:0000:0000:0000:0000:0000:0001 如何压缩？"
+            }
+          ]
+        },
+        {
+          "label": "路由、传输与应用",
+          "types": [
+            {
+              "id": "net_routing",
+              "label": "网络层协议与路由",
+              "hint": "距离向量、Bellman-Ford 与最长前缀",
+              "title": "距离向量路由表更新",
+              "kind": "network_layer",
+              "template": "R1的路由表为：N1 1 直连；N2 3 R2；N3 5 R3。邻居R2发来的距离向量为：N1 2；N2 1；N4 2。R1到R2的链路开销为1，求更新后的路由表。"
+            },
+            {
+              "id": "net_handshake",
+              "label": "UDP 与 TCP 基础",
+              "hint": "三次握手、序号、确认号与状态",
+              "title": "TCP 三次握手",
+              "kind": "transport",
+              "template": "客户端初始序号为1000，服务器初始序号为2000，描述三次握手。"
+            },
+            {
+              "id": "net_tcp_control",
+              "label": "TCP 流量与拥塞控制",
+              "hint": "cwnd、ssthresh、超时与快恢复",
+              "title": "TCP 拥塞窗口变化",
+              "kind": "tcp_control",
+              "template": "TCP 初始拥塞窗口为1 MSS，ssthresh为8 MSS，经过6个RTT，第4个RTT发生超时，求最终cwnd和ssthresh。"
+            },
+            {
+              "id": "net_http",
+              "label": "网页获取时间",
+              "hint": "持久连接、非持久连接与对象数",
+              "title": "HTTP 获取时间",
+              "kind": "application",
+              "template": "网页有4个对象，RTT为10ms，采用非持久连接，求获取网页时间。"
+            },
+            {
+              "id": "net_url",
+              "label": "应用层与网络综合",
+              "hint": "DNS、TCP、HTTP 与页面显示过程",
+              "title": "从 URL 到页面显示",
+              "kind": "application",
+              "template": "输入网址后到页面显示经过哪些协议？"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

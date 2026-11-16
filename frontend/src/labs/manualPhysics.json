@@ -1,0 +1,530 @@
+{
+  "id": "physics",
+  "label": "大学物理",
+  "summary": "大学物理三批：质点运动学、牛顿定律、功与能、动量与碰撞、振动；刚体转动、机械波、静电场、电容与电路、磁场、电磁感应、热学与热力学；波动光学、几何光学、近代物理基础。选择题型后按完整原文核对条件。",
+  "groups": [
+    {
+      "label": "质点运动学",
+      "types": [
+        {
+          "id": "phys_uniform_accel",
+          "label": "匀变速直线",
+          "hint": "初速度、加速度、时间与位移",
+          "title": "匀变速直线运动",
+          "mode": "uniform_accel",
+          "template": "一物体做匀变速直线运动，初速度 v0=2 m/s，加速度 a=3 m/s^2，经过 t=4 s，求末速度和位移。"
+        },
+        {
+          "id": "phys_free_fall",
+          "label": "自由落体",
+          "hint": "下落高度、时间与落地速度",
+          "title": "自由落体",
+          "mode": "free_fall",
+          "template": "物体从 h=20 m 高处自由落体，g=9.8 m/s^2，求落地时间和落地速度。"
+        },
+        {
+          "id": "phys_projectile_h",
+          "label": "平抛运动",
+          "hint": "水平初速度、抛出高度与射程",
+          "title": "平抛运动",
+          "mode": "projectile_h",
+          "template": "小球以 v0=10 m/s 水平抛出，初始高度 h=20 m，g=9.8 m/s^2，求落地时间、水平射程和落地速度。"
+        },
+        {
+          "id": "phys_projectile_o",
+          "label": "斜抛运动",
+          "hint": "初速度、仰角、射程与最大高度",
+          "title": "斜抛运动",
+          "mode": "projectile_o",
+          "template": "小球以 v0=20 m/s、仰角 θ=30° 从地面抛出，g=9.8 m/s^2，求飞行时间、射程和最大高度。"
+        },
+        {
+          "id": "phys_relative",
+          "label": "相对运动",
+          "hint": "一维相对速度与方向",
+          "title": "相对运动",
+          "mode": "relative",
+          "template": "甲相对地面速度 vA=5 m/s，乙相对地面速度 vB=2 m/s，求甲相对乙的速度。"
+        }
+      ]
+    },
+    {
+      "label": "牛顿运动定律",
+      "types": [
+        {
+          "id": "phys_incline",
+          "label": "斜面与摩擦",
+          "hint": "重力分解、支持力、摩擦力与加速度",
+          "title": "斜面受力与摩擦",
+          "mode": "incline",
+          "template": "质量 m=2 kg 的物体沿倾角 θ=30° 的斜面下滑，动摩擦因数 μ=0.2，g=9.8 m/s^2，求加速度、摩擦力和支持力。"
+        },
+        {
+          "id": "phys_atwood",
+          "label": "连接体",
+          "hint": "定滑轮、两物体加速度与绳张力",
+          "title": "连接体与滑轮",
+          "mode": "atwood",
+          "template": "连接体：质量 m1=1 kg 和 m2=3 kg 的两物体通过轻绳跨过定滑轮，g=9.8 m/s^2，求加速度和绳张力。"
+        },
+        {
+          "id": "phys_circular",
+          "label": "圆周运动",
+          "hint": "向心加速度、向心力与周期",
+          "title": "匀速圆周运动",
+          "mode": "circular",
+          "template": "质量 m=0.5 kg 的小球以速度 v=4 m/s 做半径 r=2 m 的匀速圆周运动，求向心加速度、向心力和周期。"
+        }
+      ]
+    },
+    {
+      "label": "功与能",
+      "types": [
+        {
+          "id": "phys_spring_work",
+          "label": "变力做功与弹簧势能",
+          "hint": "弹力、功与弹性势能",
+          "title": "弹簧变力做功",
+          "mode": "spring_work",
+          "template": "弹簧劲度系数 k=200 N/m，从自然长度拉伸 x=0.1 m，求拉力做的功和弹性势能。"
+        },
+        {
+          "id": "phys_work_energy",
+          "label": "动能定理",
+          "hint": "合力做功、末速度与动能变化",
+          "title": "动能定理",
+          "mode": "work_energy",
+          "template": "质量 m=2 kg 的物体在合力 F=10 N 作用下从静止沿直线移动 s=5 m，求合力做的功和末速度。"
+        },
+        {
+          "id": "phys_energy_conservation",
+          "label": "机械能守恒",
+          "hint": "高度、重力势能与动能转换",
+          "title": "机械能守恒",
+          "mode": "energy_conservation",
+          "template": "质量 m=1 kg 的小球从高度 h=5 m 处由静止滑下光滑轨道，g=9.8 m/s^2，求到达底端的速度。"
+        }
+      ]
+    },
+    {
+      "label": "动量与碰撞",
+      "types": [
+        {
+          "id": "phys_impulse",
+          "label": "冲量与动量定理",
+          "hint": "动量变化、冲量与平均力",
+          "title": "冲量与动量定理",
+          "mode": "impulse",
+          "template": "质量 m=0.5 kg 的物体速度从 v1=2 m/s 增大到 v2=6 m/s，作用时间 t=0.2 s，求动量变化、冲量和平均力。"
+        },
+        {
+          "id": "phys_elastic",
+          "label": "一维弹性碰撞",
+          "hint": "碰后速度、动量与动能守恒",
+          "title": "一维弹性碰撞",
+          "mode": "elastic",
+          "template": "质量 m1=2 kg、速度 v1=3 m/s 的小球与质量 m2=1 kg 的静止小球发生一维弹性碰撞，求碰后两球速度。"
+        },
+        {
+          "id": "phys_inelastic",
+          "label": "完全非弹性碰撞",
+          "hint": "共同速度与损失动能",
+          "title": "完全非弹性碰撞",
+          "mode": "inelastic",
+          "template": "质量 m1=2 kg、速度 v1=3 m/s 的小球与质量 m2=1 kg 的静止小球发生完全非弹性碰撞，求共同速度和损失的动能。"
+        }
+      ]
+    },
+    {
+      "label": "振动",
+      "types": [
+        {
+          "id": "phys_spring_osc",
+          "label": "弹簧振子",
+          "hint": "周期、频率、最大速度与总能量",
+          "title": "弹簧振子",
+          "mode": "spring_osc",
+          "template": "弹簧振子质量 m=0.5 kg，劲度系数 k=50 N/m，振幅 A=0.1 m，求周期、频率、最大速度和总能量。"
+        },
+        {
+          "id": "phys_pendulum",
+          "label": "单摆",
+          "hint": "小角度周期、频率与最大速度",
+          "title": "小角度单摆",
+          "mode": "pendulum",
+          "template": "单摆摆长 L=1 m，初始摆角 θ0=5°，g=9.8 m/s^2，求周期和最大速度。"
+        },
+        {
+          "id": "phys_shm",
+          "label": "简谐运动的相位与能量",
+          "hint": "位移、速度、加速度与总能量",
+          "title": "简谐运动相位",
+          "mode": "shm",
+          "template": "简谐运动振幅 A=0.2 m，周期 T=2 s，初相 φ=0°，t=0.5 s，求位移、速度和加速度。"
+        }
+      ]
+    },
+    {
+      "label": "刚体转动",
+      "types": [
+        {
+          "id": "phys2_rigid_disk",
+          "label": "转动惯量与定轴转动",
+          "hint": "转动惯量、力矩、角加速度与角动量",
+          "title": "圆盘定轴转动",
+          "mode": "rigid_rotation",
+          "template": "质量 m=2 kg、半径 r=0.5 m 的匀质圆盘绕中心轴转动，转动惯量系数 c=0.5；力矩 τ=4 N·m，初始角速度 ω0=0，经过 t=3 s，求转动惯量、角加速度、角速度和角动量。"
+        },
+        {
+          "id": "phys2_rigid_hoop",
+          "label": "圆环与角动量",
+          "hint": "圆环 I=mr²，初角速度与角动量",
+          "title": "圆环绕轴转动",
+          "mode": "rigid_rotation",
+          "template": "质量 m=3 kg、半径 r=0.4 m 的圆环绕中心轴转动，转动惯量系数 c=1；力矩 τ=3 N·m，初始角速度 ω0=2 rad/s，经过 t=2 s，求角速度和角动量。"
+        },
+        {
+          "id": "phys2_rolling",
+          "label": "纯滚动",
+          "hint": "斜面纯滚动、平动与转动动能",
+          "title": "圆柱纯滚动",
+          "mode": "rolling",
+          "template": "质量 m=2 kg、半径 r=0.2 m 的匀质圆柱（c=0.5）从倾角 θ=30° 的斜面纯滚动下滑距离 s=3 m，g=9.8 m/s^2，求加速度、底端速度和动能分配。"
+        }
+      ]
+    },
+    {
+      "label": "机械波",
+      "types": [
+        {
+          "id": "phys2_wave_travel",
+          "label": "行波方程与波速",
+          "hint": "振幅、波长、频率、波速与相位差",
+          "title": "简谐行波",
+          "mode": "wave_travel",
+          "template": "一列简谐横波沿 x 轴正向传播，振幅 A=0.05 m，波长 λ=2 m，频率 f=5 Hz，初相 φ=0；求波速、周期，以及 x1=0.2 m 与 x2=0.7 m 两点的相位差。"
+        },
+        {
+          "id": "phys2_wave_phase",
+          "label": "相位差与质点位移",
+          "hint": "两点相位差、位移与传播方向",
+          "title": "波的空间相位差",
+          "mode": "wave_travel",
+          "template": "一列简谐横波振幅 A=0.1 m，波长 λ=4 m，频率 f=2 Hz，x1=0 m，x2=1 m，t=0.25 s，求相位差和两点位移。"
+        },
+        {
+          "id": "phys2_standing",
+          "label": "叠加与驻波",
+          "hint": "波节、波腹、半波长与基频",
+          "title": "弦上驻波",
+          "mode": "standing_wave",
+          "template": "两端固定弦长 L=1.5 m，波速 v=10 m/s，波长 λ=1 m，振幅 A=0.02 m，求波节间距、波节数和基频。"
+        }
+      ]
+    },
+    {
+      "label": "静电场",
+      "types": [
+        {
+          "id": "phys2_coulomb",
+          "label": "库仑力、电场叠加与电势",
+          "hint": "点电荷、电场矢量叠加与电势",
+          "title": "两电荷与 P 点",
+          "mode": "coulomb",
+          "template": "点电荷 q1=2e-6 C 位于 x=0，q2=-1e-6 C 位于 x=0.3 m，求它们之间的库仑力；并求 P 点 x=0.1 m 处的电场强度和电势。"
+        },
+        {
+          "id": "phys2_gauss_sphere",
+          "label": "高斯定律：均匀球体",
+          "hint": "球体内外电场与电势",
+          "title": "均匀带电球体",
+          "mode": "gauss",
+          "template": "半径 R=0.1 m 的均匀带电球体总电荷 Q=1e-6 C，求距球心 r=0.05 m 处的电场强度和电势。"
+        },
+        {
+          "id": "phys2_gauss_shell",
+          "label": "高斯定律：均匀球壳",
+          "hint": "球壳内部无电场、外部等效点电荷",
+          "title": "均匀带电球壳",
+          "mode": "gauss",
+          "template": "半径 R=0.1 m 的均匀带电球壳总电荷 Q=1e-6 C，求距球心 r=0.05 m 处的电场强度和电势。"
+        }
+      ]
+    },
+    {
+      "label": "电容与电路",
+      "types": [
+        {
+          "id": "phys2_cap_series",
+          "label": "电容器串联",
+          "hint": "等效电容、电荷相同与分压",
+          "title": "电容串联",
+          "mode": "capacitor",
+          "template": "电容 C1=2 μF、C2=3 μF 串联接在 U=12 V 电源上，求等效电容、每个电容器的电荷和电压。"
+        },
+        {
+          "id": "phys2_cap_parallel",
+          "label": "电容器并联",
+          "hint": "等效电容、电压相同与分流电荷",
+          "title": "电容并联",
+          "mode": "capacitor",
+          "template": "电容 C1=2 μF、C2=3 μF 并联接在 U=12 V 电源上，求等效电容、每个电容器的电荷和电压。"
+        },
+        {
+          "id": "phys2_kirchhoff",
+          "label": "基尔霍夫定律",
+          "hint": "双回路、节点电流与回路电压",
+          "title": "双回路电路",
+          "mode": "kirchhoff",
+          "template": "双回路电路：E1=12 V，E2=6 V，R1=2 Ω，R2=4 Ω，R3=3 Ω，求各支路电流。"
+        },
+        {
+          "id": "phys2_rc_charge",
+          "label": "RC 充电",
+          "hint": "时间常数、电荷与电流随时间变化",
+          "title": "RC 充电过程",
+          "mode": "rc",
+          "template": "RC 充电电路：R=1000 Ω，C=100 μF，电源 E=12 V，求时间常数和 t=0.2 s 时的电荷与电流。"
+        },
+        {
+          "id": "phys2_rc_discharge",
+          "label": "RC 放电",
+          "hint": "放电曲线、电流方向与时间常数",
+          "title": "RC 放电过程",
+          "mode": "rc",
+          "template": "RC 放电电路：R=1000 Ω，C=100 μF，电源 E=12 V，求时间常数和 t=0.2 s 时的电荷与电流。"
+        }
+      ]
+    },
+    {
+      "label": "磁场与带电粒子",
+      "types": [
+        {
+          "id": "phys2_lorentz",
+          "label": "洛伦兹力与圆周运动",
+          "hint": "轨道半径、周期与旋转方向",
+          "title": "匀强磁场中的粒子",
+          "mode": "lorentz",
+          "template": "质量 m=9.1e-31 kg、电荷 q=1.6e-19 C 的粒子以 v=1e6 m/s 垂直进入 B=0.1 T 的匀强磁场，求轨道半径、周期和洛伦兹力。"
+        },
+        {
+          "id": "phys2_ampere",
+          "label": "安培力",
+          "hint": "BIL sinθ 与电流方向",
+          "title": "直导线安培力",
+          "mode": "ampere",
+          "template": "长 L=0.5 m 的直导线通有 I=2 A 电流，放在 B=0.4 T 的匀强磁场中，电流方向与磁场夹角 θ=30°，求安培力。"
+        }
+      ]
+    },
+    {
+      "label": "电磁感应",
+      "types": [
+        {
+          "id": "phys2_faraday",
+          "label": "法拉第定律与楞次定律",
+          "hint": "磁通量变化、感应电动势与方向",
+          "title": "线圈中的感应电动势",
+          "mode": "faraday",
+          "template": "面积 A=0.2 m² 的线圈处在磁场中，磁感应强度在 Δt=0.5 s 内从 B1=0.1 T 均匀增加到 B2=0.5 T，线圈 N=100 匝，求感应电动势；若电阻 R=10 Ω，求感应电流和功率。"
+        },
+        {
+          "id": "phys2_rail",
+          "label": "导体棒切割磁感线",
+          "hint": "ε=BLv、电流、安培力与功率",
+          "title": "导轨上的导体棒",
+          "mode": "rail",
+          "template": "导体棒长 L=0.5 m 在 B=0.4 T 的匀强磁场中以 v=2 m/s 垂直切割磁感线，回路电阻 R=0.5 Ω，求感应电动势、电流、安培力和机械功率。"
+        }
+      ]
+    },
+    {
+      "label": "热学与热力学",
+      "types": [
+        {
+          "id": "phys2_thermo_iso",
+          "label": "等温过程",
+          "hint": "p-V 图、等温功与内能",
+          "title": "理想气体等温膨胀",
+          "mode": "thermo_process",
+          "template": "1 mol 理想气体在 T1=300 K 下等温膨胀，初体积 V1=0.02 m^3，末体积 V2=0.04 m^3，求初压、末压、做功和内能变化。"
+        },
+        {
+          "id": "phys2_thermo_isobaric",
+          "label": "等压过程",
+          "hint": "等压膨胀、功与吸热",
+          "title": "理想气体等压膨胀",
+          "mode": "thermo_process",
+          "template": "1 mol 理想气体 T1=300 K，初体积 V1=0.02 m^3，等压膨胀到末体积 V2=0.04 m^3，取 γ=1.4，求做功、内能变化和吸热。"
+        },
+        {
+          "id": "phys2_thermo_isochoric",
+          "label": "等容过程",
+          "hint": "等容升温、压力与内能",
+          "title": "理想气体等容升温",
+          "mode": "thermo_process",
+          "template": "1 mol 理想气体初体积 V1=0.02 m^3，T1=300 K，等容升温到末温 T2=400 K，取 γ=1.4，求压力、做功和内能变化。"
+        },
+        {
+          "id": "phys2_thermo_adiabatic",
+          "label": "绝热过程",
+          "hint": "绝热压缩、温度与内能",
+          "title": "理想气体绝热压缩",
+          "mode": "thermo_process",
+          "template": "1 mol 理想气体 T1=300 K，初体积 V1=0.02 m^3，绝热压缩到末体积 V2=0.01 m^3，取 γ=1.4，求末压、做功和内能变化。"
+        },
+        {
+          "id": "phys2_carnot",
+          "label": "卡诺热机",
+          "hint": "热机效率、做功与放热",
+          "title": "卡诺循环",
+          "mode": "carnot",
+          "template": "卡诺热机高温热源 Th=600 K，低温热源 Tc=300 K，每循环吸热 Qh=1000 J，求效率、做功和放热。"
+        }
+      ]
+    },
+    {
+      "label": "波动光学",
+      "types": [
+        {
+          "id": "phys3_double_slit",
+          "label": "双缝干涉",
+          "hint": "条纹间距、级次位置与介质影响",
+          "title": "杨氏双缝干涉",
+          "mode": "double_slit",
+          "template": "双缝干涉实验中，双缝间距 d=0.2 mm，双缝到屏的距离 D=1.0 m，入射光波长 λ=600 nm，求相邻明条纹间距。"
+        },
+        {
+          "id": "phys3_thin_film",
+          "label": "薄膜干涉",
+          "hint": "光程差、半波损失与明暗判断",
+          "title": "肥皂薄膜干涉",
+          "mode": "thin_film",
+          "template": "肥皂薄膜的折射率 n=1.33，厚度 d=225 nm，用波长 λ=600 nm 的光垂直照射，判断反射光是加强还是减弱。"
+        },
+        {
+          "id": "phys3_anti_reflection",
+          "label": "增透膜",
+          "hint": "最小膜厚与反射最小条件",
+          "title": "增透膜设计",
+          "mode": "thin_film",
+          "template": "在折射率 n_g=1.5 的玻璃表面镀一层折射率 n=1.38 的增透膜，要使波长 λ=550 nm 的光反射最小，求增透膜的最小厚度。"
+        },
+        {
+          "id": "phys3_single_slit",
+          "label": "单缝衍射",
+          "hint": "中央明纹宽度与暗纹位置",
+          "title": "夫琅禾费单缝衍射",
+          "mode": "single_slit",
+          "template": "单缝衍射实验中，单缝宽度 a=0.10 mm，入射光波长 λ=600 nm，透镜焦距 f=1.0 m，求中央明纹宽度和第一级暗纹位置。"
+        },
+        {
+          "id": "phys3_grating",
+          "label": "光栅衍射",
+          "hint": "光栅方程、衍射角与最高级次",
+          "title": "光栅衍射",
+          "mode": "grating",
+          "template": "光栅每毫米有 500 条刻痕，用波长 λ=600 nm 的光垂直照射，求第一级明纹的衍射角和该光栅能观察到的最高级次。"
+        },
+        {
+          "id": "phys3_polarization",
+          "label": "偏振与马吕斯定律",
+          "hint": "起偏、检偏与布儒斯特角",
+          "title": "偏振光强",
+          "mode": "polarization",
+          "template": "强度为 I0=10 W/m^2 的自然光通过两个偏振化方向夹角 θ=60° 的偏振片，求通过每个偏振片后的光强。"
+        }
+      ]
+    },
+    {
+      "label": "几何光学",
+      "types": [
+        {
+          "id": "phys3_refraction",
+          "label": "折射定律",
+          "hint": "入射角、折射角与临界角",
+          "title": "光的折射",
+          "mode": "refraction",
+          "template": "光从空气射入折射率 n=1.5 的玻璃中，入射角 θ1=45°，求折射角；并求光从玻璃射向空气时的临界角。"
+        },
+        {
+          "id": "phys3_total_reflection",
+          "label": "全反射与临界角",
+          "hint": "全反射判断与临界角计算",
+          "title": "全反射",
+          "mode": "refraction",
+          "template": "光从折射率 n1=1.5 的玻璃射向空气，入射角 θ1=50°，判断是否发生全反射，并求临界角。"
+        },
+        {
+          "id": "phys3_convex_lens",
+          "label": "凸透镜成像",
+          "hint": "像距、放大率与实像虚像",
+          "title": "凸透镜成像",
+          "mode": "lens",
+          "template": "凸透镜焦距 f=10 cm，物体放在距透镜 u=30 cm 处，求像距和放大率，并说明像的虚实。"
+        },
+        {
+          "id": "phys3_concave_lens",
+          "label": "凹透镜成像",
+          "hint": "虚像、缩小与正立判断",
+          "title": "凹透镜成像",
+          "mode": "lens",
+          "template": "凹透镜焦距 f=15 cm，物体放在距透镜 u=20 cm 处，求像距和放大率，并说明像的虚实。"
+        }
+      ]
+    },
+    {
+      "label": "近代物理基础",
+      "types": [
+        {
+          "id": "phys3_photoelectric",
+          "label": "光电效应",
+          "hint": "最大初动能、遏止电压与截止波长",
+          "title": "光电效应",
+          "mode": "photoelectric",
+          "template": "用波长 λ=400 nm 的光照射逸出功 W=2.2 eV 的金属，求光电子的最大初动能、遏止电压和截止波长。"
+        },
+        {
+          "id": "phys3_de_broglie_electron",
+          "label": "电子德布罗意波",
+          "hint": "加速电压与电子波长",
+          "title": "电子的物质波",
+          "mode": "de_broglie",
+          "template": "电子经电压 U=100 V 加速后，求电子的德布罗意波长。"
+        },
+        {
+          "id": "phys3_de_broglie_macro",
+          "label": "宏观物质波",
+          "hint": "质量、速度与德布罗意波长",
+          "title": "小球的物质波",
+          "mode": "de_broglie",
+          "template": "质量 m=0.01 kg 的小球以速度 v=10 m/s 运动，求小球的德布罗意波长。"
+        },
+        {
+          "id": "phys3_energy_transition",
+          "label": "能级跃迁",
+          "hint": "能级差、光子能量与波长",
+          "title": "氢原子能级跃迁",
+          "mode": "energy_level",
+          "template": "氢原子中的电子从 n=3 能级跃迁到 n=2 能级，求释放光子的能量和波长。"
+        },
+        {
+          "id": "phys3_hydrogen_spectrum",
+          "label": "氢原子谱线",
+          "hint": "一群原子的谱线数与最短波长",
+          "title": "氢原子光谱线",
+          "mode": "energy_level",
+          "template": "一群处于 n=4 激发态的氢原子向低能级跃迁，最多能发出多少种谱线？其中最短波长是多少？"
+        },
+        {
+          "id": "phys3_decay",
+          "label": "放射性衰变",
+          "hint": "半衰期、剩余核数与衰变曲线",
+          "title": "放射性衰变",
+          "mode": "decay",
+          "template": "某放射性同位素的半衰期 T=5 天，原有 N0=1.0×10^20 个原子核，经过 t=15 天，求剩余原子核数和剩余比例。"
+        }
+      ]
+    }
+  ]
+}

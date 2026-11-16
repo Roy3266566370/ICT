@@ -134,7 +134,7 @@ def build_ode_problem(conditions: Mapping[str, Any]) -> dict:
         'target_point': str(target_point) if target_point is not None else None,
         'target_lower': str(target_lower) if target_lower is not None else None,
         'target_upper': str(target_upper) if target_upper is not None else None,
-        'defaults': {'x_min': plot_lower, 'x_max': plot_upper}, 'params': [], 'teaching': False,
+        'defaults': {'x_min': plot_lower, 'x_max': plot_upper}, 'params': [dict(id=k, label=label, kind='number', min=-100, max=100, step=0.5, options=[]) for k, label in [('x_min', '显示区间左端'), ('x_max', '显示区间右端')]], 'teaching': False,
         'formula_tex': to_latex(equation),
     }
     condition_list = [
@@ -477,6 +477,10 @@ def evaluate_ode(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict:
     plot_upper = float(model.get('defaults', {}).get('x_max', 3.0))
     if solution.get('plot_window'):
         plot_lower=solution['plot_window']['x_min'];plot_upper=solution['plot_window']['x_max']
+    plot_lower = float(params.get('x_min', plot_lower))
+    plot_upper = float(params.get('x_max', plot_upper))
+    if plot_lower >= plot_upper:
+        raise ValueError('显示区间左端必须小于右端')
     variable = str(model.get('independent_variable') or 'x')
     series = []
     if plot_expression:

@@ -64,12 +64,12 @@ function pageModel(reference: string): LabModel {
   } as LabModel;
 }
 
-test('page replacement reproduces the classic FIFO / LRU / OPT counts', () => {
+test('page replacement reproduces the classic FIFO / LRU / OPT / Clock counts', () => {
   const model = pageModel('7,0,1,2,0,3,0,4,2,3,0,3,2,1,2,0,1,7,0,1');
-  for (const [algorithm, faults] of Object.entries({ fifo: 15, lru: 12, opt: 9 })) {
+  for (const [algorithm, faults] of Object.entries({ fifo: 15, lru: 12, opt: 9, clock: 14 })) {
     const result = evaluateOs(model, { algorithm }) as OsPageResult;
     assert.equal(result.stats.faults, faults);
-    assert.deepEqual(result.stats.compare, { fifo: 15, lru: 12, opt: 9 });
+    assert.deepEqual(result.stats.compare, { fifo: 15, lru: 12, opt: 9, clock: 14 });
   }
   const replaced = evaluateOs(model, {}).frames.find((frame) => frame.action === 'replace');
   assert.equal(replaced?.values.evicted, '7');

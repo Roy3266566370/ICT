@@ -670,7 +670,7 @@ def build_fourier_problem(conditions: Mapping[str, Any]) -> dict:
         'kind': 'fourier_series', 'expression': expression_text(expression),
         'lower': str(lower), 'upper': str(upper), 'order': order,
         'defaults': {'lower': float(lower), 'upper': float(upper), 'order': order},
-        'params': [], 'teaching': False,
+        'params': [dict(id='order', label='部分和截断阶数', kind='integer', min=1, max=order, step=1, options=[])], 'teaching': False,
         'formula_tex': rf'{to_latex(expression)}\quad x\in[{to_latex(lower)},{to_latex(upper)}]',
     }
     conditions_list = [
@@ -778,6 +778,7 @@ def solve_fourier(model: Mapping[str, Any]) -> dict:
 
 
 def evaluate_fourier(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict:
+    model = {**model, 'order': max(1, min(int(model.get('order') or 5), int(params.get('order', model.get('order') or 5))))}
     solution = solve_fourier(model)
     lower = float(model.get('defaults', {}).get('lower', -math.pi))
     upper = float(model.get('defaults', {}).get('upper', math.pi))

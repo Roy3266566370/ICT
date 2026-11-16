@@ -37,6 +37,8 @@ import { computeLab, currentFrame, defaultParams } from '@/labs/compute';
 import { OS_KIND_LABELS } from '@/labs/opsys';
 import { parseLabCommand, COMMAND_EXAMPLES } from '@/labs/commands';
 import { CO_KIND_LABELS } from '@/labs/compOrg';
+import { NET_KIND_LABELS } from '@/labs/network';
+import { PHYSICS_MODE_LABELS } from '@/labs/physics';
 import {
   commitHistory,
   createHistory,
@@ -67,6 +69,7 @@ const ENGINE_LABELS: Record<string, string> = {
   antiderivative_v1: '不定积分 · 原函数族',
   riemann_v1: '定积分 · 黎曼和',
   tangent_v1: '导数 · 切线',
+  physics_v1: '大学物理 · 交互实验',
   series_v1: '数项级数 · 部分和',
   power_series_v1: '幂级数 · 收敛域',
   fourier_v1: '傅里叶级数 · 系数',
@@ -205,7 +208,8 @@ function scenarioName(problem: LabProblem, params: Record<string, unknown>): str
       return `RR q=${formatNumber(Number(params.quantum ?? problem.model.defaults.quantum ?? 2), 2)}`;
     }
     if (problem.model.os_kind === 'page_replace') {
-      return `${algorithm} · ${formatNumber(Number(params.frames ?? problem.model.defaults.frames ?? 3), 0)} 块`;
+      if (!(problem.model.reference?.length)) return OS_KIND_LABELS.page_replace ?? '虚拟内存';
+      return `${algorithm} · ${formatNumber(Number(params.frames ?? problem.model.defaults.frames ?? 3), 0)} 块 · Δ=${formatNumber(Number(params.window ?? problem.model.defaults.window ?? 4), 0)}`;
     }
     if (problem.model.os_kind === 'disk_schedule' && ['SCAN', 'CSCAN', 'LOOK', 'CLOOK'].includes(algorithm)) {
       return `${algorithm} · ${String(params.direction ?? 'up') === 'down' ? '向小' : '向大'}`;
@@ -217,6 +221,12 @@ function scenarioName(problem: LabProblem, params: Record<string, unknown>): str
   }
   if (subject === 'computer_organization') {
     return CO_KIND_LABELS[String(problem.model.co_kind ?? '')] ?? '原题条件';
+  }
+  if (subject === 'computer_network') {
+    return NET_KIND_LABELS[String(problem.model.net_kind ?? '')] ?? '原题条件';
+  }
+  if (subject === 'physics') {
+    return PHYSICS_MODE_LABELS[String(problem.model.physics_mode ?? '')] ?? '物理实验';
   }
   return `η ${formatNumber(Number(params.learning_rate), 3)} · ${formatNumber(Number(params.epochs), 0)} 轮`;
 }
@@ -233,7 +243,8 @@ function solutionStepIndex(result: ReturnType<typeof computeLab>, stepId: string
       if (stepId === 'evaluate' || stepId === 'approx') return last;
     }
     if (stepId === 'approx') return last;
-    if (stepId === 'value' || stepId === 'derivative' || stepId === 'slope') return 0;
+    if (stepId === 'value' || stepId === 'derivative' || stepId === 'slope'
+      || stepId === 'preimage' || stepId === 'inverse_formula') return 0;
     return null;
   }
   if (result.subject === 'optimization') {
@@ -268,6 +279,16 @@ function solutionStepIndex(result: ReturnType<typeof computeLab>, stepId: string
   }
   if (result.subject === 'computer_organization') {
     const match = /^co_(\d+)$/.exec(stepId);
+    if (match) return clamp(Number(match[1]), 0, last);
+    return null;
+  }
+  if (result.subject === 'computer_network') {
+    const match = /^net_(\d+)$/.exec(stepId);
+    if (match) return clamp(Number(match[1]), 0, last);
+    return null;
+  }
+  if (result.subject === 'physics') {
+    const match = /^phy_(\d+)$/.exec(stepId);
     if (match) return clamp(Number(match[1]), 0, last);
     return null;
   }
@@ -1114,10 +1135,12 @@ export function LabWorkbenchPage(): JSX.Element {
           </div>
         </header>
 
-        {lab.orchestration ? <CompositeSolvePanel key={lab.orchestration.problem.version + String(lab.orchestration.stale)}
+        {lab.orchestration ? <details open={problem.ai_solution?.verification !== 'kernel'}>
+          <summary>{problem.ai_solution?.verification === 'kernel' ? '先前的编排记录' : '完整题目与分问解答'}</summary>
+          <CompositeSolvePanel key={lab.orchestration.problem.version + String(lab.orchestration.stale)}
           result={lab.orchestration} onSolve={(text) => aiOperation(() => reviseCompositeLab({
             labId, text, revision: revisionRef.current,
-          }))} /> : null}
+          }))} /></details> : null}
         <div className={styles.layout}>
           <LabSourcePanel
             lab={lab}
@@ -1145,6 +1168,13 @@ export function LabWorkbenchPage(): JSX.Element {
                     : problem.model.task === 'area_volume' ? '区域面积与旋转体积'
                     : problem.model.task === 'geometric_area' ? '几何面积 · 分段积分'
                     : problem.model.task === 'implicit_normal' ? '隐函数 · 法线'
+                    : problem.model.kind === 'inverse_derivative' ? '反函数导数 · 切线'
+                    : problem.subject === 'operating_system'
+                      ? `${OS_KIND_LABELS[String(problem.model.os_kind)] ?? '操作系统'} · 实验`
+                    : problem.subject === 'computer_network'
+                      ? `${NET_KIND_LABELS[String(problem.model.net_kind)] ?? '计算机网络'} · 实验`
+                    : problem.subject === 'physics'
+                      ? `${PHYSICS_MODE_LABELS[String(problem.model.physics_mode)] ?? '大学物理'} · 交互实验`
                     : ENGINE_LABELS[problem.model.engine] ?? problem.model.engine}</h2>
                   <p>
                     {problem.model.teaching
@@ -1153,7 +1183,13 @@ export function LabWorkbenchPage(): JSX.Element {
                         ? '空间对象由符号计算给出；图形为有限范围采样，用于辅助观察。'
                         : problem.model.engine === 'proof_v1'
                           ? '证明义务与证书由本地内核核验；图形与抽样仅辅助观察，不替代证明。'
-                          : '拖动参数或播放切片，观察区域与积分过程。'}
+                          : problem.subject === 'operating_system' || problem.subject === 'computer_network'
+                            ? '由本地内核按题面条件执行；单步观察状态、指标与关键动作。'
+                            : problem.subject === 'physics'
+                              ? '按题面条件建立物理方程；拖动参数观察运动、光强、光路、能级或衰变曲线变化。'
+                              : problem.model.kind === 'inverse_derivative'
+                              ? '输入反函数在该点的取值；内核先求原像 x0，再按 1/f′(x0) 计算。'
+                              : '拖动参数或播放切片，观察区域与积分过程。'}
                   </p>
                 </div>
                 <div className={styles.modelMeta}>
@@ -1304,7 +1340,7 @@ export function LabWorkbenchPage(): JSX.Element {
                 </>
               )}
             </div>
-            {!problem.manual_input && !lab.orchestration ? <LabAISolvePanel key={problem.problem_id} problem={problem} configured={lab.capabilities?.ai_solver_configured}
+            {!problem.manual_input && (!lab.orchestration || lab.orchestration.status !== '完成' || lab.orchestration.stale) ? <LabAISolvePanel key={problem.problem_id} problem={problem} configured={lab.capabilities?.ai_solver_configured}
               autoReady={aiPreparedState === stateSnapshot && !aiBusy && saveStatus !== 'saving' && !reviewBusy && !reviewOpen}
               onSolve={solveAI} onCheck={checkAI} /> : null}
           </section>

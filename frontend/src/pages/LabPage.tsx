@@ -72,174 +72,6 @@ const SAMPLES: {
     title: '短作业优先与最短剩余时间',
     text: '采用最短剩余时间优先（抢占）调度下列进程，求平均周转时间和平均等待时间。\n进程 到达时间 服务时间\nP1 0 7\nP2 2 4\nP3 4 1\nP4 5 4',
   },
-  {
-    id: 'page-replace',
-    subject: 'operating_system',
-    label: '页面置换',
-    kicker: '物理块变化、缺页与 Belady 异常',
-    title: 'FIFO 页面置换',
-    text: '页面访问序列为 1,2,3,4,1,2,5,1,2,3,4,5，物理块数为3，采用 FIFO 置换算法，求缺页次数。',
-  },
-  {
-    id: 'disk-schedule',
-    subject: 'operating_system',
-    label: '磁盘调度',
-    kicker: '磁头轨迹、总移动距离与方向',
-    title: 'SCAN 磁盘调度',
-    text: '磁盘请求队列为 98, 183, 37, 122, 14, 124, 65, 67，磁头当前位于 53 号磁道，磁道范围 0~199，向磁道号增加方向移动，采用 SCAN 算法，求磁头总移动距离。',
-  },
-  {
-    id: 'banker',
-    subject: 'operating_system',
-    label: '银行家算法',
-    kicker: 'Need、Work 与安全序列',
-    title: '银行家算法安全性检查',
-    text: '系统有 5 个进程 P0~P4，3 类资源 A、B、C。Allocation=[[0,1,0],[2,0,0],[3,0,2],[2,1,1],[0,0,2]]，Max=[[7,5,3],[3,2,2],[9,0,2],[2,2,2],[4,3,3]]，Available=[3,3,2]。此时 P1 请求资源(1,0,2)，判断能否立即分配，并给出安全序列。',
-  },
-  {
-    id: 'os-basics',
-    subject: 'operating_system',
-    label: '操作系统基础',
-    kicker: '内核态、用户态与系统调用',
-    title: '用户态与内核态',
-    text: '说明用户态和内核态的区别，系统调用如何进入内核态。',
-  },
-  {
-    id: 'process-thread',
-    subject: 'operating_system',
-    label: '进程与线程',
-    kicker: '状态转换、PCB 与资源共享',
-    title: '进程状态转换',
-    text: '进程状态转换为 创建→就绪→运行→阻塞→就绪→运行→终止，判断是否合法。',
-  },
-  {
-    id: 'sync',
-    subject: 'operating_system',
-    label: '同步与互斥',
-    kicker: '信号量、P/V 与经典同步问题',
-    title: '信号量 P/V 过程',
-    text: '信号量S初值为2，依次执行 P(S),P(S),P(S),V(S)，求S的值和等待进程数。',
-  },
-  {
-    id: 'deadlock',
-    subject: 'operating_system',
-    label: '死锁',
-    kicker: '必要条件、资源分配图与解除',
-    title: '资源分配图检测',
-    text: '资源分配图：P1→R1，R1→P2，P2→R2，R2→P1，判断是否死锁。',
-  },
-  {
-    id: 'memory-alloc',
-    subject: 'operating_system',
-    label: '连续内存分配',
-    kicker: '首次/最佳/最坏/邻近适应',
-    title: '首次适应分配',
-    text: '空闲区为 100,500,200,300，采用首次适应，请求分配 120，求分配结果。',
-  },
-  {
-    id: 'hrrn',
-    subject: 'operating_system',
-    label: '高响应比调度',
-    kicker: '响应比、等待与周转时间',
-    title: '高响应比优先 HRRN',
-    text: '进程表：P1 0 7; P2 2 4; P3 4 1，采用高响应比优先，求平均等待时间。',
-  },
-  {
-    id: 'co-performance',
-    subject: 'computer_organization',
-    label: 'CPU 性能',
-    kicker: '主频、CPI、指令数与执行时间',
-    title: 'CPU 执行时间',
-    text: '某 CPU 主频为 2GHz，CPI 为 4，执行 1000000 条指令，求 CPU 执行时间。',
-  },
-  {
-    id: 'co-data',
-    subject: 'computer_organization',
-    label: '数据表示',
-    kicker: '原码、反码、补码、移码与符号扩展',
-    title: '8 位机器数编码',
-    text: '求 -37 的8位原码、反码、补码和移码。',
-  },
-  {
-    id: 'co-fixed',
-    subject: 'computer_organization',
-    label: '定点运算',
-    kicker: '补码加法、溢出判断与状态标志',
-    title: '8 位补码加法',
-    text: '8位补码计算 127 + 1，判断是否溢出，并写出 CF、ZF、SF、OF。',
-  },
-  {
-    id: 'co-ieee',
-    subject: 'computer_organization',
-    label: 'IEEE 754',
-    kicker: '符号、阶码、尾数与十六进制编码',
-    title: '单精度浮点数编码',
-    text: '将 -12.375 表示为 IEEE 754 单精度浮点数，并写出十六进制编码。',
-  },
-  {
-    id: 'co-datapath',
-    subject: 'computer_organization',
-    label: '数据通路',
-    kicker: '寄存器传送、ALU 与写使能',
-    title: '寄存器传送与 ALU',
-    text: '寄存器 R1=5、R2=3、R3=0，执行 R3 ← R1 + R2，结果是什么？',
-  },
-  {
-    id: 'co-memory',
-    subject: 'computer_organization',
-    label: '主存储器',
-    kicker: '字扩展、位扩展与芯片连接',
-    title: '存储器芯片扩展',
-    text: '用1K×4位芯片组成4K×8位存储器，需要多少芯片，地址线如何分配？',
-  },
-  {
-    id: 'co-cache',
-    subject: 'computer_organization',
-    label: 'Cache',
-    kicker: '地址划分、组相联与平均访问时间',
-    title: 'Cache 地址划分',
-    text: '主存地址32位，Cache容量64KB，块大小64B，4路组相联，求tag、index、offset位数。',
-  },
-  {
-    id: 'co-virtual',
-    subject: 'computer_organization',
-    label: '虚拟存储',
-    kicker: '虚实地址、页表与 TLB',
-    title: '虚实地址转换',
-    text: '页大小4KB，虚拟地址32位，页表：虚页 0x2 -> 页框 0x5，访问虚拟地址0x00002010，求物理地址。',
-  },
-  {
-    id: 'co-pipeline',
-    subject: 'computer_organization',
-    label: '指令流水线',
-    kicker: '总周期、加速比与吞吐率',
-    title: '五段流水线',
-    text: '5段流水线执行100条指令，时钟周期2ns，求总周期、加速比和吞吐率。',
-  },
-  {
-    id: 'co-bus',
-    subject: 'computer_organization',
-    label: '总线与 I/O',
-    kicker: '总线带宽、DMA 与 CPU 开销',
-    title: '总线带宽与 DMA',
-    text: 'DMA方式传送1MB数据，块大小1KB，DMA初始化需要10个周期，时钟周期10ns，求CPU时间开销。',
-  },
-  {
-    id: 'co-instruction',
-    subject: 'computer_organization',
-    label: '指令系统',
-    kicker: '操作码扩展与地址码',
-    title: '扩展操作码',
-    text: '指令字长16位，操作码4位，地址码4位，三地址指令有12条，二地址指令最多有多少条？',
-  },
-  {
-    id: 'co-control',
-    subject: 'computer_organization',
-    label: 'CPU 控制器',
-    kicker: '取指、执行周期与 CPU 时间',
-    title: '指令周期',
-    text: '某指令取指2周期、执行3周期，CPU时钟周期2ns，执行100条指令，求执行时间。',
-  },
 ];
 
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.pptx,.txt,.md,.csv';
@@ -395,12 +227,18 @@ export function LabPage(): JSX.Element {
               <span>可以亲手推演的实验。</span>
             </h1>
             <p className={styles.lead}>
-              选择题型，输入公式与条件，确认题目后由内核计算，再亲手观察每一步。
-              手动输入开放高数定积分、不定积分、导函数、高阶导数、指定点求导、极限、连续性、函数区间研究、泰勒展开、数项级数敛散性、幂级数收敛域与求和、傅里叶级数、定积分应用、常微分方程、多元微分及多元局部极值与等式约束极值、二重积分（直角坐标分片、极坐标、换序、反常积分、变量代换与密度应用）及三重积分（长方体、z型区域、柱坐标、球坐标）；也可继续上传文件识别，或修改示例进行学习。
+              先选择科目与题型，填写公式或题目原文，确认题目后由内核计算，再亲手观察每一步。
+              手动输入开放高数定积分、不定积分、导函数、高阶导数、指定点求导、极限、连续性、函数区间研究、泰勒展开、数项级数敛散性、幂级数收敛域与求和、傅里叶级数、定积分应用、常微分方程、多元微分及多元局部极值与等式约束极值、二重积分（直角坐标分片、极坐标、换序、反常积分、变量代换与密度应用）及三重积分（长方体、z型区域、柱坐标、球坐标）；408 四科可在上方按科目选择题型后填写题目原文；大学物理三批已开放质点运动学、牛顿定律、功与能、动量与碰撞、振动，刚体转动、机械波、静电场、电容与电路、磁场、电磁感应、热学与热力学，以及波动光学、几何光学、近代物理基础；也可继续上传文件识别，或修改通用示例进行学习。
             </p>
             <div className={styles.heroStats}>
               <span>
-                <strong>19</strong> 类手动高数题
+                <strong>22</strong> 类手动高数题
+              </span>
+              <span>
+                <strong>4</strong> 科 408 题型
+              </span>
+              <span>
+                <strong>15</strong> 类物理实验
               </span>
               <span>
                 <strong>3</strong> 种学习方式
@@ -618,9 +456,9 @@ export function LabPage(): JSX.Element {
           <div className={styles.sectionHead}>
             <div>
               <span className={styles.eyebrow}>START FROM A KNOWN MODEL</span>
-              <h2 id="lab-samples-title">没有题目文件？先用六类示例走一遍</h2>
+              <h2 id="lab-samples-title">没有题目文件？先用六个通用示例走一遍</h2>
             </div>
-            <p>示例会明确标注为教学模型；它们不是任何一份真实课件的自动识别结果。</p>
+            <p>通用示例会明确标注为教学模型；408 科目请在上方“输入我的题目”中先选科目，再选题型。</p>
           </div>
           <div className={styles.sampleGrid}>
             {SAMPLES.map((sample) => (

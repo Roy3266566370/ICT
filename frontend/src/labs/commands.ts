@@ -263,6 +263,7 @@ export const COMMAND_EXAMPLES: Record<LabSubject, string[]> = {
   linear_algebra: ['下一步', '换若尔当消元', '不选主元', '完整讲解'],
   operating_system: ['下一步', '改用最短剩余时间优先', '物理块设为 4', '完整讲解'],
   computer_organization: ['下一步', '完整讲解'],
-  computer_network: ['完整讲解'],
+  computer_network: ['下一步', '完整讲解'],
+  physics: ['下一步', '完整讲解'],
   unknown: ['下一步', '完整讲解'],
 };

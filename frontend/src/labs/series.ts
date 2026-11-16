@@ -11,7 +11,7 @@ function curve(compiled: ReturnType<typeof compileExpression>, variable: string,
   return points;
 }
 
-export function evaluateSeriesConvergence(problem: LabProblem): CalculusResult {
+export function evaluateSeriesConvergence(problem: LabProblem, params: Record<string, unknown> = {}): CalculusResult {
   const solution = problem.solution;
   const model = problem.model;
   const start = Number(model.index_start ?? 1);
@@ -23,7 +23,8 @@ export function evaluateSeriesConvergence(problem: LabProblem): CalculusResult {
   } catch {
     compiled = null;
   }
-  for (let n = start; n <= start + 40 && compiled; n += 1) {
+  const terms = Math.max(1, Math.min(200, Math.round(Number(params.terms ?? 40))));
+  for (let n = start; n < start + terms && compiled; n += 1) {
     const value = compiled.evalOrNull({ n });
     if (value === null || !Number.isFinite(value)) break;
     total += value;
@@ -48,7 +49,7 @@ export function evaluateSeriesConvergence(problem: LabProblem): CalculusResult {
       { id: 'method', label: '判别法', status: solution.series_method ? 'pass' : 'warn', detail: solution.series_method ?? '未找到确定的符号判别法。' },
     ],
     notes: solution.limitations ?? [],
-    series: points, seriesPartial: points, domain: { x_min: start, x_max: start + 40 }, rects: [],
+    series: points, seriesPartial: points, domain: { x_min: start, x_max: start + Math.max(1, terms - 1) }, rects: [],
     exact: typeof solution.answer_value === 'number' ? solution.answer_value : null,
     approx: points.length ? points[points.length - 1]!.y : null, error: null,
     answerText: solution.answer || '',
@@ -103,10 +104,12 @@ export function evaluatePowerSeries(problem: LabProblem): CalculusResult {
   };
 }
 
-export function evaluateFourierSeries(problem: LabProblem): CalculusResult {
+export function evaluateFourierSeries(problem: LabProblem, params: Record<string, unknown> = {}): CalculusResult {
   const solution = problem.solution;
   const model = problem.model;
-  const fourier = solution.fourier;
+  const original = solution.fourier;
+  const order = Math.max(1, Math.min(original?.order ?? 5, Number(params.order ?? original?.order ?? 5)));
+  const fourier = original ? { ...original, order, coefficients: original.coefficients.filter(item => item.n <= order) } : original;
   const lower = Number(model.defaults.lower ?? -Math.PI);
   const upper = Number(model.defaults.upper ?? Math.PI);
   let series: CalculusPoint[] = [];
@@ -115,7 +118,10 @@ export function evaluateFourierSeries(problem: LabProblem): CalculusResult {
     try {
       const f = compileExpression(model.expression ?? '0', ['x']);
       series = curve(f, 'x', lower, upper);
-      const partial = compileExpression(fourier.partial, ['x']);
+      const centered = Math.abs(lower + upper) < 1e-9;
+      const phase = centered ? `x*${Math.PI / upper}` : `(x-(${lower}))*${2 * Math.PI / (upper - lower)}`;
+      const source = `(${fourier.a0})/2` + fourier.coefficients.map(item => `+(${item.an})*cos(${item.n}*(${phase}))+(${item.bn})*sin(${item.n}*(${phase}))`).join('');
+      const partial = compileExpression(source, ['x']);
       overlay = curve(partial, 'x', lower, upper);
     } catch {
       series = [];

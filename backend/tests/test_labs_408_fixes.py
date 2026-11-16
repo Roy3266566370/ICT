@@ -64,7 +64,8 @@ def test_tcp_slow_start_classified_as_computer_network():
 def test_tcp_slow_start_never_becomes_calculus_teaching_example():
     problem = build_problem(TCP_TEXT)
     assert problem["subject"] == "computer_network"
-    assert problem["status"] == "unsupported"
+    assert problem["status"] in ("ready", "needs_review")
+    assert problem["model"].get("net_kind") == "tcp_control"
     assert problem["subject_label"] == "计算机网络"
     for ambiguity in problem["recognition"]["ambiguities"]:
         assert "∫" not in str(ambiguity.get("question") or "")

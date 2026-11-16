@@ -90,12 +90,12 @@ def test_page_replacement_classic_counts_and_default_algorithm():
     model = built["model"]
     assert model["os_kind"] == "page_replace"
     assert model["reference"] == REFERENCE.split(",")
-    assert model["defaults"] == {"algorithm": "fifo", "frames": 3}
-    for algorithm, faults in {"fifo": 15, "lru": 12, "opt": 9}.items():
+    assert model["defaults"] == {"algorithm": "fifo", "frames": 3, "window": 4}
+    for algorithm, faults in {"fifo": 15, "lru": 12, "opt": 9, "clock": 14}.items():
         result = run(model, algorithm=algorithm)
         assert result["stats"]["faults"] == faults
         assert result["answer_value"] == faults
-        assert result["stats"]["compare"] == {"fifo": 15, "lru": 12, "opt": 9}
+        assert result["stats"]["compare"] == {"fifo": 15, "lru": 12, "opt": 9, "clock": 14}
         assert result["trace"][-1]["values"]["faults"] == faults
     replaced = [f for f in run(model)["trace"] if f["action"] == "replace"]
     assert replaced[0]["values"]["evicted"] == "7"

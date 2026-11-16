@@ -29,6 +29,7 @@ _RETURNS: dict[str, str] = {
     "integral": "exact 精确值、数值与黎曼和展示数据",
     "antiderivative": "原函数（含常数项说明）",
     "derivative": "切线斜率、切线方程",
+    "inverse_derivative": "反函数在指定输入处的导数",
     "geometric_area": "面积（exact 与数值）、有效分段区间",
     "rotation_volume": "体积（exact 与数值）",
     "implicit_normal": "法线斜率与法线方程",
@@ -59,6 +60,7 @@ _RETURNS: dict[str, str] = {
 _DISPLAYS: dict[str, list[str]] = {
     "integral": ["函数曲线", "黎曼和切片"],
     "derivative": ["函数曲线", "切线"],
+    "inverse_derivative": ["反函数曲线", "切线"],
     "geometric_area": ["函数曲线", "区域阴影"],
     "rotation_volume": ["函数曲线", "旋转体"],
     "limit": ["函数曲线"],

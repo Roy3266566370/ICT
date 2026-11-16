@@ -89,6 +89,12 @@ def _concept_hint(evaluation: Mapping[str, Any]) -> tuple[str, str, str]:
             "BFS 用先进先出队列按层扩展；节点在入队时就标记为已访问，避免同一层重复入队。",
             "处理的邻居按节点编号升序排列；逐个判断是否已访问，再决定入队或跳过。",
         )
+    if subject == "physics":
+        return (
+            "先画示意图并标出已知量与单位；力学题定正方向，光学题画法线与光路，近代题先把 nm 与 eV 换算清楚。",
+            "按题型选规律：牛顿题做受力分解，功与能题比较能量收支，动量题先定正方向；波动光学用光程差与相位，几何光学用折射或薄透镜公式，近代用光子能量或衰变律。",
+            "最后核对单位、方向与物理范围（角度、折射率、半衰期、波长与能量），并检查全反射、不能发生光电效应等边界结论。",
+        )
     if subject == "linear_algebra":
         return (
             "先看当前主元所在的行与列、增广列的分隔线，以及这一步行变换的对象。",
@@ -100,6 +106,85 @@ def _concept_hint(evaluation: Mapping[str, Any]) -> tuple[str, str, str]:
             "先看题面约定的位宽、码制（原码/反码/补码/移码）和当前步骤的输入；同一组位串在不同解释下真值不同。",
             "性能题统一用 T = 指令数 × CPI / 主频；数据表示按位权与码制规则；浮点数按 IEEE 754 字段拆分。",
             "最后核对单位、符号位、溢出来源与标志位；位串题可用画布中的位格逐位检查。",
+        )
+    if subject == "computer_network":
+        kind = evaluation.get("net_kind")
+        if kind == "architecture":
+            return (
+                "先按 OSI 或 TCP/IP 分层定位当前对象：应用、传输、网络、数据链路还是物理层。",
+                "发送时逐层封装、接收时逐层解封装；设备按它处理的信息层次归类。",
+                "协议是同等层之间的规则，服务是下层向上层提供的功能；不要把两者混为一谈。",
+            )
+        if kind == "performance":
+            return (
+                "先分清发送时延、传播时延和处理/排队时延：发送时延看数据量与速率，传播时延看距离与信号速度。",
+                "时延带宽积 = 传播时延 × 带宽，单位是 bit；吞吐量取端到端瓶颈速率。",
+                "比较交换方式时，电路交换先建立连接，报文交换整报文存储转发，分组交换按分组存储转发并可流水线。",
+            )
+        if kind == "physical":
+            return (
+                "先分清码元速率（Baud）和比特率（bps）：比特率 = 码元速率 × 每码元比特数。",
+                "奈奎斯特用于理想无噪声低通信道，香农用于有噪声信道；同时给出时取较小上限。",
+                "复用方式按频率、时间、波长或正交码划分信道，注意题目是否要求扣除保护间隔。",
+            )
+        if kind == "error_control":
+            return (
+                "先判断是奇偶校验、CRC 还是海明码：三种方法的校验位位置和检错能力不同。",
+                "CRC 用模 2 除法，数据左移 r 位后除以生成多项式，余数就是校验位。",
+                "海明码的校验位放在 2 的幂位置；接收端用综合因子定位单比特错误。",
+            )
+        if kind == "sliding_window":
+            return (
+                "先确认协议：停止等待、GBN 还是 SR；再检查发送/接收窗口与序号空间约束。",
+                "GBN 接收窗口为 1，超时回退重传；SR 可缓存失序帧，只重传丢失帧。",
+                "信道利用率用帧发送时间与 RTT 比较；窗口足够大时利用率饱和到 1。",
+            )
+        if kind == "mac":
+            return (
+                "先判断是 ALOHA、CSMA、CSMA/CD 还是 CSMA/CA：是否监听、是否边发边听、是否用 ACK。",
+                "CSMA/CD 最小帧长 Lmin=2τR，争用期是往返传播时延 2τ。",
+                "二进制指数退避：第 k 次冲突后从 0…2^min(k,10)−1 个时隙中随机选择。",
+            )
+        if kind == "ethernet":
+            return (
+                "交换机先学习源 MAC 与入端口，再查目的 MAC：已知定向转发，未知/广播除入端口外泛洪。",
+                "每个交换机端口是一个冲突域；默认一个交换机是一个广播域，路由器和 VLAN 隔离广播域。",
+                "VLAN 用逻辑划分隔离广播域；Trunk 端口通过 802.1Q 标签承载多个 VLAN。",
+            )
+        if kind == "ip":
+            return (
+                "IPv4 先写掩码：网络地址 = IP & 掩码，广播地址 = 主机位全 1，可用主机数 = 2^h−2。",
+                "CIDR/VLSM 按需求从大到小分配；最长前缀匹配选择前缀最长且能匹配目的地址的路由。",
+                "分片按 8 字节对齐，片偏移 = 数据起点 / 8；IPv6 用 :: 压缩最长连续零组。",
+            )
+        if kind == "network_layer":
+            return (
+                "先判断协议：ARP 解析 MAC、DHCP 分配地址、ICMP 报告差错、NAT 转换地址/端口。",
+                "距离向量用 Bellman-Ford 迭代，链路状态用 Dijkstra，BGP 使用 AS-PATH 路径向量。",
+                "更新路由表时先算候选距离 = 邻居距离 + 链路开销，再与当前路由比较。",
+            )
+        if kind == "transport":
+            return (
+                "先确认端口和协议：TCP/UDP 通过目的端口分用，套接字 = IP + 端口。",
+                "TCP 序号按字节编号，SYN/FIN 各消耗一个序号；三次握手同步双方 ISN。",
+                "四次挥手分别关闭两个方向，主动关闭方最后进入 TIME_WAIT 等待 2MSL。",
+            )
+        if kind == "tcp_control":
+            return (
+                "发送窗口 = min(接收窗口, 拥塞窗口)；窗口限制来自接收端和网络两侧。",
+                "慢启动 cwnd 每 RTT 翻倍，到达 ssthresh 后进入拥塞避免，每 RTT 约加 1 MSS。",
+                "超时令 ssthresh=cwnd/2、cwnd=1；3 个重复 ACK 触发快重传/快恢复。",
+            )
+        if kind == "application":
+            return (
+                "DNS 把域名解析为 IP；HTTP 非持久连接每个对象重新建 TCP，持久连接复用 TCP。",
+                "网页获取时间按 TCP 握手、HTTP 请求/响应 RTT 和传输时间逐项累加。",
+                "FTP 控制/数据连接分离；SMTP 发送邮件，POP3/IMAP 读取；URL 获取页面要综合 DHCP/ARP/DNS/TCP/HTTP。",
+            )
+        return (
+            "先确认题目属于体系结构、性能、物理层、差错控制、滑动窗口、介质访问、以太网、IP、路由、传输层、拥塞控制还是应用层。",
+            "每类题都有固定的确定性公式；先写公式，再代入题面给出的单位和数据。",
+            "最后核对单位、传播速率、窗口约束和是否忽略处理/排队时延。",
         )
     if subject == "operating_system":
         kind = evaluation.get("os_kind")
@@ -150,6 +235,30 @@ def _concept_hint(evaluation: Mapping[str, Any]) -> tuple[str, str, str]:
                 "先按算法扫描空闲区：首次取第一个足够大，最佳取最小足够大，最坏取最大，邻近从上一次位置继续。",
                 "分配后切分空闲区，回收时合并相邻空闲区；动态分区会产生外部碎片。",
                 "内存利用率 = 已分配/总内存；核对空闲区总和与请求是否守恒。",
+            )
+        if kind == "tlb":
+            return (
+                "先把虚拟地址拆成 VPN 与页内偏移，再用 VPN 查 TLB：命中直接得到页框号。",
+                "TLB 缺失才逐级访问页表；单级页表 1 次、两级页表 2 次，命中时页表访问次数为 0。",
+                "EAT = 命中率×(TLB+内存) + 缺失率×(TLB+页表级数×页表访问+内存)，再按缺页率叠加缺页处理时间。",
+            )
+        if kind == "file_dir":
+            return (
+                "权限位按文件主、同组、其他三组 rwx 解释；先看题目问哪一类用户、哪种操作。",
+                "绝对路径从根目录开始、相对路径从当前目录开始，逐级读取目录项；目录项给出 inode 号，再读 inode。",
+                "open 建立文件描述符→打开文件表→inode 关联；read/write 不再查目录；硬链接共享 inode，软链接保存目标路径。",
+            )
+        if kind == "file_alloc":
+            return (
+                "先看分配方式：连续分配记录起始块与长度；链接分配沿指针；索引分配查索引块；FAT 集中存放链接指针。",
+                "多级索引先算每块可存指针数 P = 盘块大小 / 指针大小，再算直接块 + P + P² + P³。",
+                "访盘次数：直接地址 1 次；一级间接 1 个索引块 + 1 个数据块；位示图 0 表示空闲。",
+            )
+        if kind == "device_mgmt":
+            return (
+                "磁盘访问时间 = 寻道时间 + 平均旋转延迟 + 传输时间；平均旋转延迟是半圈，30/转速 秒。",
+                "单缓冲每块时间按 max(C,T)+M，双缓冲按 max(C+M,T)；注意 T、M、C 各代表哪一段。",
+                "假脱机用输入井/输出井把独占设备虚拟成共享设备；设备分配用 SDT/DCT/COCT/CHCT 并检查安全性。",
             )
         return (
             "先看甘特图当前这一段：是哪个进程在运行，就绪队列里还有谁。",
@@ -252,6 +361,15 @@ def _why_move(evaluation: Mapping[str, Any], step: int) -> str:
         values = frame.get("values") or {}
         extra = ""
         for key in ("结果", "结果位串", "当前位串", "输出", "编码", "真值", "执行时间(s)"):
+            if key in values:
+                extra += f"{key}：{values[key]}；"
+        return f"当前是“{frame.get('label')}”。{frame.get('detail')}{extra}"
+    if evaluation.get("subject") == "computer_network":
+        values = frame.get("values") or {}
+        extra = ""
+        for key in ("总时延", "吞吐量", "时延带宽积", "最大数据率", "码字", "余数", "发送窗口",
+                    "接收窗口", "发送码字", "最小帧长", "可选时隙", "利用率", "网络地址",
+                    "广播地址", "片偏移", "下一跳", "cwnd", "ssthresh", "总时间", "转发表"):
             if key in values:
                 extra += f"{key}：{values[key]}；"
         return f"当前是“{frame.get('label')}”。{frame.get('detail')}{extra}"
@@ -394,9 +512,44 @@ def _guided_prompt(evaluation: Mapping[str, Any], step: int) -> str:
             return "先预测：当前 Work 能满足哪个进程的 Need？它完成后 Work 会变成多少？再单步核对。"
         if kind in ("os_basics", "process_thread", "sync", "deadlock", "memory_alloc"):
             return "先预测：当前状态/信号量/空闲区按题面规则下一步会如何变化？再单步核对。"
+        if kind == "tlb":
+            return "先预测：这次访问是 TLB 命中还是缺失？会访问几次页表？再单步核对。"
+        if kind == "file_dir":
+            return "先预测：当前权限位/路径查找会得到什么结论？再单步核对。"
+        if kind == "file_alloc":
+            return "先预测：下一个块落在直接区、几级间接或 FAT 的哪个位置？再单步核对。"
+        if kind == "device_mgmt":
+            return "先预测：这一步是寻道、旋转还是传输？时间如何累加？再单步核对。"
         return "先预测：这一段结束时哪个进程会被选中运行？甘特图上它会占多长？再单步核对。"
     if subject == "computer_organization":
         return "先预测：当前位串/字段按题面约定会得到什么结果？再单步核对公式、码制与标志位。"
+    if subject == "computer_network":
+        kind = evaluation.get("net_kind")
+        if kind == "architecture":
+            return "先预测：当前对象属于哪一层？封装后应增加哪类首部？再单步核对。"
+        if kind == "performance":
+            return "先预测：这个时间/积量应由哪两个量相乘或相除得到？再单步核对单位。"
+        if kind == "physical":
+            return "先预测：码元速率、比特率、信道容量之间该用哪个公式？再单步核对。"
+        if kind == "error_control":
+            return "先预测：校验位应该是 0 还是 1？接收端余数/综合因子会是多少？再单步核对。"
+        if kind == "sliding_window":
+            return "先预测：当前窗口的起点和终点在哪里？丢失帧会触发哪种重传？再单步核对。"
+        if kind == "mac":
+            return "先预测：这次退避可选哪些时隙？最小帧长由哪个争用期决定？再单步核对。"
+        if kind == "ethernet":
+            return "先预测：这个源 MAC 会学到哪个端口？目的未知时哪些端口会收到帧？"
+        if kind == "ip":
+            return "先预测：网络地址、广播地址或分片偏移应如何计算？再核对掩码和 8 字节对齐。"
+        if kind == "network_layer":
+            return "先预测：候选路由的距离是多少？是否会替换当前下一跳？再单步核对。"
+        if kind == "transport":
+            return "先预测：这个序号/确认号会推进到哪里？当前处于握手还是挥手状态？"
+        if kind == "tcp_control":
+            return "先预测：这一轮是慢启动还是拥塞避免？丢失后 cwnd 与 ssthresh 会变成多少？"
+        if kind == "application":
+            return "先预测：这一步需要几次 RTT 或哪种协议？再按 DNS/HTTP/邮件流程核对。"
+        return "先预测：这一步按照哪条网络公式或协议规则得到什么结果？再单步核对。"
     return "先观察：损失在下降、停滞还是振荡？再改变学习率建立对照。"
 
 
@@ -1003,11 +1156,22 @@ def check_attempt(
             tokens = re.findall(r"[Pp]\d+", actual)
             correct, detail = check_banker_sequence(model, tokens) if tokens else (False, "请按完成顺序写出进程，例如 P1 → P3 → P4 → P0 → P2。")
             expected = " → ".join(solution.get("answer_sequence") or []) or expected
+        elif (solution.get("answer_value") is None
+              and (model.get("os_kind") in ("tlb", "file_dir", "file_alloc", "device_mgmt")
+                   or (model.get("os_kind") == "page_replace" and not model.get("reference")))):
+            return {
+                "correct": False, "expected": expected_text, "actual": actual[:600],
+                "field": field or "draft", "kind": kind,
+                "feedback": ("判断：该题型为文字结论或存在多种教材口径，系统不自动判分；"
+                             "请对照完整讲解中的条件、公式与结论逐条自评。"),
+                "detail": "文字结论不自动判分，按完整讲解逐条核对。",
+            }
         else:
             value = solution.get("answer_value")
             student = _parse_number(actual)
-            unit = {"cpu_schedule": "平均等待时间", "page_replace": "缺页次数", "disk_schedule": "磁头总移动距离"}.get(
-                model.get("os_kind"), "结果")
+            unit = {"cpu_schedule": "平均等待时间", "page_replace": "缺页次数", "disk_schedule": "磁头总移动距离",
+                    "tlb": "有效访问时间(ns)", "file_alloc": "块数或访盘次数",
+                    "device_mgmt": "磁盘访问时间(ms)"}.get(model.get("os_kind"), "结果")
             if student is None or value is None:
                 detail = f"请填写{unit}的数值（支持 8/3、2.6667 这样的写法）。"
             else:
@@ -1017,6 +1181,21 @@ def check_attempt(
                     f"{unit}与执行记录一致（容差 1%）。" if correct else
                     f"执行记录得到{unit} {_fmt(value, 8)}；你填写的是 {_fmt(student)}。可回到轨迹逐步核对。"
                 )
+    elif subject == "physics":
+        expected = str(solution.get("answer") or "")
+        values = [float(item) for item in (solution.get("answer_values") or []) if isinstance(item, (int, float))]
+        if not values and solution.get("answer_value") is not None:
+            values = [float(solution["answer_value"])]
+        student = _parse_number(actual)
+        if student is None or not values:
+            detail = "请填写一个数值结果（可填条纹间距、折射角、波长、遏止电压、半衰期等关键结果之一）。"
+        else:
+            correct_value = next((value for value in values if abs(student - value) <= max(1e-5, abs(value) * 0.01)), None)
+            correct = correct_value is not None
+            detail = (
+                f"与内核关键结果之一一致（{_fmt(correct_value)}）。" if correct_value is not None else
+                f"内核关键结果包括：{', '.join(_fmt(value) for value in values[:6])}；你填写的是 {_fmt(student)}。"
+            )
     elif subject == "computer_organization":
         expected = str(solution.get("answer") or "")
         value = solution.get("answer_value")
@@ -1034,6 +1213,31 @@ def check_attempt(
         else:
             detail = (f"执行记录结论：{expected[:220]}。你填写的是：{actual[:160]}。"
                       "数值题可填结果数值；位串题请填写对应编码，例如 11011010。")
+    elif subject == "computer_network":
+        expected = str(solution.get("answer") or "")
+        value = solution.get("answer_value")
+        order = [str(item) for item in solution.get("answer_order") or []]
+        compact_actual = re.sub(r"[\s_，,]+", "", actual).lower()
+        compact_expected = re.sub(r"[\s_，,]+", "", expected).lower()
+        matched_order = any(compact_actual == re.sub(r"[\s_，,]+", "", item).lower() for item in order)
+        student = _parse_number(actual)
+        numeric_ok = (student is not None and value is not None
+                      and abs(student - float(value)) <= max(1e-8, abs(float(value)) * 0.01))
+        text_ok = bool(compact_actual) and (compact_actual in compact_expected or matched_order)
+        if value is None and not order:
+            return {
+                "correct": False, "expected": expected_text, "actual": actual[:600],
+                "field": field or "draft", "kind": kind,
+                "feedback": ("判断：该网络题为文字结论或含多种口径，系统不自动判分；"
+                             "请对照完整讲解中的公式、单位与结论逐条自评。"),
+                "detail": "文字结论不自动判分，按完整讲解逐条核对。",
+            }
+        correct = bool(numeric_ok or text_ok)
+        if correct:
+            detail = "答案与确定性执行记录一致（数值或位串均可）。"
+        else:
+            detail = (f"执行记录结论：{expected[:240]}。你填写的是：{actual[:160]}。"
+                      "数值题可填结果数值；编码/码字题请填写对应位串。")
     elif subject == "linear_algebra":
         expected = solution.get("answer") or ""
         wanted_vector = [float(item) for item in solution.get("answer_vector") or []]

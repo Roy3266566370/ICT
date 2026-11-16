@@ -29,6 +29,8 @@ import { HeapCanvas } from './HeapCanvas';
 import { DsCanvas } from './DsCanvas';
 import { OsCanvas } from './OsCanvas';
 import { CoCanvas } from './CoCanvas';
+import { NetworkCanvas } from './NetworkCanvas';
+import { PhysicsCanvas } from './PhysicsCanvas';
 import { DoubleIntegralCanvas } from './DoubleIntegralCanvas';
 
 export interface LabSelection {
@@ -184,6 +186,16 @@ function CalculusCanvas({
       <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>法线 x = {formatNumber(px)}，斜率不存在</text>
     </svg>;
   }
+  if (result.kind === 'multivariable' || result.kind === 'multivariable_extrema') {
+    return <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label="多元函数观察切片">
+      <PlotAxes xScale={xScale} yScale={yScale} xTicks={xTicks} yTicks={yTicks} xLabel="切片坐标" yLabel="f" />
+      <path d={path} className={styles.curve} />
+      {comparePath ? <path d={comparePath} className={styles.compareCurve} /> : null}
+      <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>目标函数切片 · 观察点函数值 {result.metrics.find(m => m.id === 'probe')?.value ?? '—'}</text>
+      <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>固定坐标由观察滑杆控制；切片不替代偏导或极值的符号结论。</text>
+    </svg>;
+  }
+
   if (result.kind === 'derivative' && pointCandidate && typeof pointCandidate.y === 'number') {
     const point = pointCandidate;
     const pointY = point.y as number;
@@ -275,6 +287,7 @@ function CalculusCanvas({
     })();
     return (
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label="函数曲线与左右极限">
+        {result.overlays?.filter(o => o.id === 'point_value').flatMap(o => o.series).map((p, i) => p.y === null ? null : <circle key={i} cx={xScale(p.x)} cy={yScale(p.y)} r="6" className={styles.currentPoint} aria-label="实验点值" />)}
         <PlotAxes xScale={xScale} yScale={yScale} xTicks={xTicks} yTicks={yTicks} xLabel="x" yLabel="f(x)" />
         <path d={path} className={styles.curve} />
         {limitPoint !== null ? (
@@ -1207,8 +1220,8 @@ function ConstrainedExtremaCanvas({ result }: { result: OptimizationResult }): R
   const candidates = result.candidates ?? [];
   const xs = candidates.map(item => item.point_values?.[0] ?? Number(item.point[0])).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
   const ys = candidates.map(item => item.point_values?.[1] ?? Number(item.point[1])).filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
-  const xMin = Math.min(-1, ...xs), xMax = Math.max(1, ...xs);
-  const yMin = Math.min(-1, ...ys), yMax = Math.max(1, ...ys);
+  const xMin = result.domain.x_min ?? Math.min(-1, ...xs), xMax = result.domain.x_max ?? Math.max(1, ...xs);
+  const yMin = result.domain.y_min ?? Math.min(-1, ...ys), yMax = result.domain.y_max ?? Math.max(1, ...ys);
   const sx = linearScale([xMin - (xMax-xMin || 1) * 0.2, xMax + (xMax-xMin || 1) * 0.2], [MARGIN.left, MARGIN.left + PLOT_W]);
   const sy = linearScale([yMin - (yMax-yMin || 1) * 0.2, yMax + (yMax-yMin || 1) * 0.2], [MARGIN.top + PLOT_H, MARGIN.top]);
   return (
@@ -1263,11 +1276,14 @@ function SpaceCanvas({ result }: { result: CalculusResult }): ReactNode {
   const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
   const centerZ = (Math.min(...zs) + Math.max(...zs)) / 2;
   const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), Math.max(...zs) - Math.min(...zs), 1);
-  const scale = 145 / span;
-  const project = (p: { x: number; y: number; z: number }) => ({
+  const scale = 145 / span * (space?.view_zoom ?? 1);
+  const angle = (space?.view_yaw ?? 0) * Math.PI / 180;
+  const rotate = (p: {x:number;y:number;z:number}) => ({x:centerX+(p.x-centerX)*Math.cos(angle)-(p.y-centerY)*Math.sin(angle),y:centerY+(p.x-centerX)*Math.sin(angle)+(p.y-centerY)*Math.cos(angle),z:p.z});
+  const projectRotated = (p: { x: number; y: number; z: number }) => ({
     x: 380 + ((p.x - centerX) - (p.y - centerY)) * 0.866 * scale,
     y: 205 + (((p.x - centerX) + (p.y - centerY)) * 0.5 - (p.z - centerZ)) * scale,
   });
+  const project = (p: {x:number;y:number;z:number}) => projectRotated(rotate(p));
   const path = (items: { x: number; y: number; z: number }[]) => items.map((p, index) => {
     const q = project(p);
     return `${index === 0 ? 'M' : 'L'}${q.x},${q.y}`;
@@ -1337,11 +1353,11 @@ export function LabCanvas(props: Props): ReactNode {
     }
     if (result.kind === 'multivariable_extrema') {
       const data=props.problem.solution.extrema_details;
-      return <section className={styles.canvasRoot} aria-label="多元极值结果"><h3>多元局部极值计算</h3><p>{data?.constraint ? `完整约束：${data.constraint}` : '无约束，整个实平面'}</p>{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p>}<p>候选点与判定依据见原题结果；未运行梯度下降示例，局部分类不代替全局最值证明。</p></section>;
+      return <section className={styles.canvasRoot} aria-label="多元极值结果"><h3>多元局部极值计算</h3><p>{data?.constraint ? `完整约束：${data.constraint}` : '无约束，整个实平面'}</p>{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p>}<CalculusCanvas result={result} compare={compare} selected={selected} onSelect={onSelect} /><p>候选点与判定依据见原题结果；未运行梯度下降示例，局部分类不代替全局最值证明。</p></section>;
     }
     if (result.kind === 'multivariable') {
       const data=props.problem.solution.multi_details;
-      return <section className={styles.canvasRoot} aria-label="多元微分结果"><h3>多元微分计算</h3><p>变量顺序：{data?.variables.join('、')}</p>{data?.point ? <p>求值点：({data.point.join(', ')})</p> : <p>未指定求值点，展示条件适用的符号公式。</p>}{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p>}<p>本任务展示符号结果与核验依据；求值点或方向修改后需要重新确认计算。</p></section>;
+      return <section className={styles.canvasRoot} aria-label="多元微分结果"><h3>多元微分计算</h3><p>变量顺序：{data?.variables.join('、')}</p>{data?.point ? <p>求值点：({data.point.join(', ')})</p> : <p>未指定求值点，展示条件适用的符号公式。</p>}{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p>}<CalculusCanvas result={result} compare={compare} selected={selected} onSelect={onSelect} /><p>本任务展示符号结果与核验依据；求值点或方向修改后需要重新确认计算。</p></section>;
     }
     if (result.kind === 'proof' || result.proof) return <div className={styles.canvasRoot} data-subject="calculus"><ProofCanvas result={result} /></div>;
     if (result.kind === 'space' || result.space) return <div className={styles.canvasRoot} data-subject="calculus"><SpaceCanvas result={result} /></div>;
@@ -1406,6 +1422,22 @@ export function LabCanvas(props: Props): ReactNode {
     return (
       <div className={styles.canvasRoot} data-subject="computer_organization">
         <CoCanvas result={result} step={step} />
+        {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
+      </div>
+    );
+  }
+  if (result.subject === 'computer_network') {
+    return (
+      <div className={styles.canvasRoot} data-subject="computer_network">
+        <NetworkCanvas result={result} step={step} />
+        {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
+      </div>
+    );
+  }
+  if (result.subject === 'physics') {
+    return (
+      <div className={styles.canvasRoot} data-subject="physics">
+        <PhysicsCanvas result={result} step={step} />
         {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
       </div>
     );

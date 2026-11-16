@@ -25,6 +25,26 @@ export async function createManualLab(input: { task: IntegralTask; conditions: R
   return parseLabDocument(await requestJson<LabDocument>(`${P}/labs/manual`, { method: 'POST', body: JSON.stringify(input) }));
 }
 
+export interface Lab408Evaluation {
+  subject: LabSubject;
+  subject_label: string;
+  status: string;
+  kind: string | null;
+  title: string;
+  answer: string;
+  answer_value?: number | null;
+  steps: { id: string; title: string; detail: string }[];
+  limitations: string[];
+  blocking: { id: string; question: string }[];
+}
+
+export async function evaluateLab408(input: { text: string; subject: LabSubject }): Promise<Lab408Evaluation> {
+  return requestJson<Lab408Evaluation>(`${P}/labs/408/evaluate`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export interface LabUploadFile {
   file: File;
   role: 'problem' | 'data' | 'attempt' | 'reference' | 'courseware';

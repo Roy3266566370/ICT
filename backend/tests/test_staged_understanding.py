@@ -212,7 +212,7 @@ def test_analysis_image_preserves_original(tmp_path):
 def test_task_schema_is_specific():
     from app.labs.staged_understanding import task_schema
     schema = task_schema('page_replace')
-    assert set(schema['properties']) == {'reference', 'frames', 'algorithm'}
+    assert set(schema['properties']) == {'reference', 'frames', 'algorithm', 'initial_frames'}
     assert 'frames' in schema['required']
     assert schema['properties']['frames']['type'] == 'integer'
     assert schema['properties']['reference']['items']['type'] == 'integer'
@@ -276,7 +276,7 @@ def test_routing_prefers_specific_higher_derivative_and_constraint_extrema():
     assert candidate_tasks({'question':'求f在x=1处的二阶导数','conditions':[]}) == ['higher_derivative']
     assert candidate_tasks({'question':'求曲线y=x^2在x=1处的切线方程','conditions':[]}) == ['derivative']
     assert candidate_tasks({'question':'求函数f(x,y)=x^2+y^2在约束x+y=1下的极值','conditions':[]}) == ['constrained_extrema']
-    assert candidate_tasks({'question':'求函数f(x,y)=x^2+y^2的极值','conditions':[]}) == ['optimization']
+    assert candidate_tasks({'question':'求函数f(x,y)=x^2+y^2的极值','conditions':[]}) == ['multivariable_extrema']
     assert candidate_tasks({'question':'完全看不懂的题','conditions':[]}) == list(TASKS)
 
 
@@ -375,3 +375,20 @@ def test_uncertainty_grading_keeps_minor_notes_without_blocking(monkeypatch):
     assert result2['computation'] is None
 
 
+
+
+def test_missing_bound_still_maps_known_conditions(monkeypatch):
+    from app.labs import staged_understanding as s
+    reading=dict(question='计算面积，积分变量为 x，上限尚未给出',target='面积',subquestions=[],relations=[],
+        conditions=[dict(id='c1',value='x^2',excerpt='x^2'),dict(id='c2',value='x',excerpt='x'),dict(id='c3',value='0',excerpt='0')],
+        uncertainties=['缺上限'])
+    model=dict(task='geometric_area',conditions=dict(expression='x^2',lower='0',upper=None,region_kind='between_axis'),bindings=dict(expression=['c1'],lower=['c3']))
+    calls=[]
+    def request(*args):
+        calls.append(1)
+        return copy.deepcopy(reading if len(calls)==1 else model)
+    monkeypatch.setattr(s,'request_json',request)
+    result=s.understand_staged({'text':reading['question']})
+    assert result['verification']=='needs_review'
+    assert result['agent_understanding']['model']['conditions']['expression']=='x^2'
+    assert result['computation'] is None

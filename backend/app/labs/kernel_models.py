@@ -21,6 +21,8 @@ FIELD_LABELS = dict(expression='函数表达式',variable='积分或求导变量
     id='进程名称',arrival='到达时间',burst='执行时间',priority='优先级',side='考察方向',order='阶数',pieces='分片区域',polar='极坐标区域',swap_order='换序要求',constraint='等式约束',equation='微分方程',initial_conditions='初值条件',independent_variable='自变量',dependent_variable='未知函数',target_kind='组合量类型',target_point='组合量求值点',target_lower='组合量下限',target_upper='组合量上限',term='级数通项',coefficient='幂级数系数',index_start='起始指标',center='展开中心',curve='参数曲线',t_bounds='参数区间',surface='参数曲面',uv_bounds='曲面参数区间',field='向量场/被积函数',region='空间区域',surface_z='曲面 z(x,y)',geometry_kind='空间几何类型',plane='平面',line_point='直线点',line_direction='直线方向',plane2='第二个平面',proof_kind='证明类型',left='左式',right='右式',relation='关系符号',steps='证明步骤',statement='命题陈述')
 
 
+FIELD_LABELS.update(value_mode='单点定义方式',point_value='单点函数值',operation='计算任务',partial_variable='偏导变量',direction_limit='方向导数约定',vector_a='向量A',vector_c='向量C',point_a='点A',point_b='点B',point_c='点C',normal='法向量',direction_a='方向A',direction_b='方向B')
+
 class ModelConditionsError(ValueError):
     def __init__(self, missing_conditions):
         self.missing_conditions = [FIELD_LABELS.get(v,v) for v in missing_conditions]
@@ -35,6 +37,7 @@ TASKS = {
     'integral':_spec('定积分','calculus','expression variable lower upper'),
     'antiderivative':_spec('不定积分','calculus','expression variable'),
     'derivative':_spec('导数与切线','calculus','expression variable point'),
+    'inverse_derivative':_spec('反函数导数','calculus','expression variable point'),
     'geometric_area':_spec('曲线与坐标轴围成面积','calculus','expression lower upper region_kind'),
     'rotation_volume':_spec('绕坐标轴的旋转体积','calculus','expression lower upper region_kind rotation_axis'),
     'implicit_normal':_spec('隐函数法线','calculus','implicit_expression point_x','point_y'),
@@ -211,8 +214,21 @@ def _validate_double_integral(c):
             raise ValueError(f'{key} 必须是由两个字符串组成的数组')
 
 
+def conditional_fields(task, c):
+    if task == 'continuity' and c.get('value_mode') == 'value': return ['point_value']
+    if task == 'multivariable':
+        if c.get('operation') == 'directional': return ['point', 'direction', 'direction_limit']
+        if c.get('operation') == 'partial': return ['partial_variable']
+    if task == 'multivariable_extrema' and c.get('operation') == 'constrained': return ['constraint']
+    if task == 'space_geometry':
+        return {'point_plane_distance':['point','plane'], 'point_line_distance':['point','line_point','line_direction'],
+                'line_plane_intersection':['line_point','line_direction','plane'], 'plane_plane_angle':['plane','plane2']}.get(c.get('geometry_kind'), [])
+    return []
+
+
 def _validate(task, c):
     spec=TASKS[task]
+    _require(c, conditional_fields(task, c))
     if task == 'double_integral':
         _validate_double_integral(c)
         return
@@ -424,7 +440,7 @@ def _validate(task, c):
     if 'learning_rate' in c and c['learning_rate']<=0: raise ValueError('学习率必须大于零')
 
 
-def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
+def _compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
     from .recognize import build_problem, _attach_solution
     from .expr import expression_text, parse_expression, safe_float
     from .exam_math import _condition
@@ -539,13 +555,16 @@ def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
     if task in ('limit','taylor','higher_derivative','function_study'):
         overrides['calculus_kind']=task
         overrides.setdefault('side','both')
-    if task in ('integral','antiderivative','derivative'):
+    if task in ('integral','antiderivative','derivative','inverse_derivative'):
         v=c['variable']; f=c['expression']
         if task=='integral':
             a,b=scalar(c['lower']),scalar(c['upper'])
             text=f'计算定积分 ∫_{{{a}}}^{{{b}}} {f} d{v}'
             overrides.update(lower=float(parse_expression(a)),upper=float(parse_expression(b)))
         elif task=='antiderivative': text=f'计算不定积分 ∫ {f} d{v}'
+        elif task=='inverse_derivative':
+            text=f'求函数 f({v})={f} 的反函数在 {v}={c["point"]} 处的导数'
+            overrides['inverse_function']=True
         else: text=f'求函数 f({v})={f} 在 {v}={c["point"]} 处的导数'
         overrides.update(condition_values={k:c[k] for k in ('point',) if k in c})
     elif task in ('geometric_area','rotation_volume'):
@@ -643,3 +662,10 @@ def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
         raise ModelConditionsError([p['solution'].get('summary') or '当前条件无法求解'])
     p['model']['modeling_task']=task
     return p
+
+
+def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
+    problem = _compile_kernel_problem(plan, allow_unfinished=allow_unfinished)
+    from .exploration import attach_controls
+    attach_controls(problem)
+    return problem

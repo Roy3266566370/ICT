@@ -12,6 +12,14 @@ import { worksApi, type ShareSummary, type WorkSummary } from '@/api/works';
 import { nextId } from '@/canvas/math.ts';
 import type { CanvasDoc } from '@/canvas/types.ts';
 import { CALCULUS_TEMPLATES, calculusTemplateDoc, type CalculusTemplateKind } from '@/canvas/calculusTemplates';
+import {
+  LAB408_TEMPLATES,
+  LAB408_WORKBENCH_TEMPLATES,
+  isLab408Kind,
+  isLab408WorkbenchKind,
+  lab408TemplateDoc,
+  type Lab408TemplateKind,
+} from '@/canvas/lab408Templates';
 import styles from './WorkshopPage.module.css';
 
 /* ---------- 模板：客户端组装 CanvasDoc ---------- */
@@ -21,6 +29,7 @@ function makeNode(type: string, x: number, y: number, params: Record<string, num
 }
 
 function templateDoc(kind: TemplateKind): CanvasDoc {
+  if (isLab408Kind(kind) || isLab408WorkbenchKind(kind)) return lab408TemplateDoc(kind);
   if (kind !== 'projectile' && kind !== 'spring' && kind !== 'pendulum') return calculusTemplateDoc(kind);
   if (kind === 'projectile') {
     const P = nextId('n');
@@ -70,13 +79,16 @@ function templateDoc(kind: TemplateKind): CanvasDoc {
 }
 
 type MechanicsKind = 'projectile' | 'spring' | 'pendulum';
-type TemplateKind = MechanicsKind | CalculusTemplateKind;
+type TemplateKind = MechanicsKind | CalculusTemplateKind | Lab408TemplateKind;
+type TemplateCategory = 'calculus' | 'mechanics' | 'lab408' | 'all';
 
 const TEMPLATES: readonly { kind: MechanicsKind; name: string; desc: string; tag: string }[] = [
   { kind: 'projectile', name: '抛体实验', desc: 'v0 / 角度 / g → 轨迹、能量、速率曲线', tag: '力学 · 抛体' },
   { kind: 'spring', name: '弹簧·能量守恒', desc: 'k / m / 振幅 → 动能⇌势能实时交换', tag: '力学 · 振动' },
   { kind: 'pendulum', name: '单摆·周期', desc: '摆长 / 摆角 / g → T=2π√(L/g) 验证', tag: '力学 · 单摆' },
 ];
+
+const LAB408_TEMPLATE_COUNT = LAB408_TEMPLATES.length + LAB408_WORKBENCH_TEMPLATES.length;
 
 /* ---------- 模板缩略图：用与画布一致的纸张与节点语言 ---------- */
 
@@ -193,6 +205,70 @@ function CalculusPreview({ kind }: { kind: CalculusTemplateKind }): JSX.Element 
   </svg>;
 }
 
+function Lab408Preview({ kind }: { kind: Lab408TemplateKind }): JSX.Element {
+  if (kind === 'dsWorkbench' || kind === 'coWorkbench' || kind === 'osWorkbench' || kind === 'netWorkbench') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <rect x="28" y="22" width="204" height="92" rx="8" fill="var(--paper-0)" stroke="var(--hairline-strong)" />
+      <rect x="42" y="36" width="88" height="14" rx="4" fill="var(--paper-2)" stroke="var(--hairline)" />
+      <rect x="136" y="36" width="82" height="14" rx="4" fill="var(--paper-2)" stroke="var(--hairline)" />
+      {[0, 1, 2].map(index => <rect key={index} x={42 + index * 64} y={62} width="54" height="24" rx="4"
+        fill={index === 1 ? 'var(--color-coral)' : 'var(--paper-2)'} fillOpacity={index === 1 ? .14 : 1}
+        stroke={index === 1 ? 'var(--color-coral)' : 'var(--hairline)'} />)}
+      <text x="130" y="128" textAnchor="middle" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">
+        {kind === 'dsWorkbench' ? '数据结构 · 18 题型' : kind === 'coWorkbench' ? '组成原理 · 12 题型' : kind === 'osWorkbench' ? '操作系统 · 13 题型' : '计算机网络 · 17 题型'}
+      </text>
+    </svg>;
+  }
+  if (kind === 'dsTraversal') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <line x1="130" y1="36" x2="92" y2="76" stroke="var(--hairline-strong)" strokeWidth="1.4" />
+      <line x1="130" y1="36" x2="168" y2="76" stroke="var(--hairline-strong)" strokeWidth="1.4" />
+      <line x1="92" y1="76" x2="66" y2="112" stroke="var(--hairline-strong)" strokeWidth="1.4" />
+      <line x1="92" y1="76" x2="118" y2="112" stroke="var(--hairline-strong)" strokeWidth="1.4" />
+      {[['130', 36, 'A'], ['92', 76, 'B'], ['168', 76, 'C'], ['66', 112, 'D'], ['118', 112, 'E']].map(([x, y, label]) => <g key={label}>
+        <circle cx={Number(x)} cy={Number(y)} r="13" fill="var(--paper-0)" stroke={label === 'A' ? 'var(--color-coral)' : 'var(--hairline-strong)'} strokeWidth="1.4" />
+        <text x={Number(x)} y={Number(y) + 3} textAnchor="middle" fontSize="9" fill="var(--ink-700)">{label}</text>
+      </g>)}
+      <text x="148" y="126" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">先序 / 中序 / 后序 / 层序</text>
+    </svg>;
+  }
+  if (kind === 'cacheSplit') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <text x="28" y="48" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">32 位主存地址</text>
+      <rect x="28" y="60" width="118" height="24" fill="var(--color-indigo)" opacity=".82" />
+      <rect x="146" y="60" width="58" height="24" fill="var(--color-coral)" opacity=".82" />
+      <rect x="204" y="60" width="30" height="24" fill="var(--ink-300)" opacity=".8" />
+      <text x="87" y="76" textAnchor="middle" fontSize="8" fill="#fff">tag 18</text>
+      <text x="175" y="76" textAnchor="middle" fontSize="8" fill="#fff">index 8</text>
+      <text x="219" y="76" textAnchor="middle" fontSize="8" fill="#fff">off 6</text>
+      <line x1="28" y1="102" x2="234" y2="102" stroke="var(--hairline-strong)" />
+      <text x="28" y="120" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">64 KB · 64 B · 4 路</text>
+    </svg>;
+  }
+  if (kind === 'pageReplace') {
+    const rows = [0, 1, 2];
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {rows.map(row => <g key={row}>
+        {[0, 1, 2, 3].map(col => <rect key={col} x={38 + col * 46} y={30 + row * 30} width="38" height="22" rx="3"
+          fill={row === 1 && col === 2 ? 'var(--color-coral)' : 'var(--paper-0)'}
+          fillOpacity={row === 1 && col === 2 ? .16 : 1}
+          stroke={row === 1 && col === 2 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />)}
+      </g>)}
+      <text x="38" y="128" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">缺页 9 / 12 · FIFO</text>
+      <text x="188" y="128" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">LRU · OPT</text>
+    </svg>;
+  }
+  return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+    <text x="30" y="34" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">192.168.1.0/24</text>
+    {[0, 1, 2, 3].map(index => <g key={index}>
+      <rect x={30 + index * 50} y={50} width="42" height="34" rx="4" fill={index === 2 ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={index === 2 ? .14 : 1} stroke={index === 2 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />
+      <text x={51 + index * 50} y={70} textAnchor="middle" fontSize="7.5" fill="var(--ink-500)" fontFamily="var(--font-family-mono)">/26</text>
+      <text x={51 + index * 50} y={80} textAnchor="middle" fontSize="6.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">.{(index * 64).toString().padStart(3, '0')}</text>
+    </g>)}
+    <text x="30" y="114" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">网络地址 · 广播地址 · 可用范围</text>
+  </svg>;
+}
+
 function EmptyBoard({ title, lead }: { title: string; lead: string }): JSX.Element {
   return (
     <div className={styles.empty}>
@@ -219,7 +295,7 @@ export function WorkshopPage(): JSX.Element {
   const [works, setWorks] = useState<WorkSummary[] | null>(null);
   const [gallery, setGallery] = useState<ShareSummary[] | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
-  const [category, setCategory] = useState<'calculus' | 'mechanics' | 'all'>('calculus');
+  const [category, setCategory] = useState<TemplateCategory>('calculus');
 
   const [loadError, setLoadError] = useState('');
   const loadWorks = (): void => {
@@ -270,18 +346,20 @@ export function WorkshopPage(): JSX.Element {
             <h1 className={styles.title}>把实验摆上画布</h1>
             <p className={styles.lead}>
               理科实验台 × 数学 Scratch：摆下活对象、连线出行为、发布成作品。
-              从一条函数出发，搭出极限、导数、积分与泰勒近似；也可以继续探索抛体、弹簧和单摆。
+              从一条函数出发，搭出极限、导数、积分与泰勒近似；也可以继续探索抛体、弹簧、单摆，以及覆盖 60 个题型的 408 工作台与遍历、Cache、页面置换、子网划分实验。
             </p>
             <p className={styles.headMeta}>
               <span><b>{CALCULUS_TEMPLATES.length}</b> 个高数实验</span>
-              <span><b>{TEMPLATES.length + CALCULUS_TEMPLATES.length}</b> 个模板</span>
+              <span><b>{TEMPLATES.length}</b> 个力学实验</span>
+              <span><b>{LAB408_TEMPLATE_COUNT}</b> 个 408 实验</span>
+              <span><b>{TEMPLATES.length + CALCULUS_TEMPLATES.length + LAB408_TEMPLATE_COUNT}</b> 个模板</span>
               <span><b>{works === null ? '—' : works.length}</b> 件我的作品</span>
               <span><b>{gallery === null ? '—' : gallery.length}</b> 件公开作品</span>
             </p>
           </div>
           <aside className={styles.headNote}>
             <span>打开即玩，随时能改</span>
-            <p>每个高数模板都附带探究问题、搭建步骤和观察记录。修改函数、调节参数、连起积木，保存成自己的可推演作品。</p>
+            <p>每个模板都附带探究问题、搭建步骤和观察记录。408 工作台覆盖 60 个已支持题型，高数、力学与 408 专题都能改参数、连积木，保存成自己的可推演作品。</p>
           </aside>
         </header>
 
@@ -294,11 +372,16 @@ export function WorkshopPage(): JSX.Element {
             <p className={styles.sectionNote}>已连好线 · 打开即运行</p>
           </div>
           <div className={styles.templateFilters} role="group" aria-label="模板分类">
-            {([['calculus', '高等数学 · 7'], ['mechanics', '力学实验 · 3'], ['all', '全部模板 · 10']] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={category === key} onClick={() => setCategory(key)}>{label}</button>)}
+            {([
+              ['calculus', `高等数学 · ${CALCULUS_TEMPLATES.length}`],
+              ['mechanics', `力学实验 · ${TEMPLATES.length}`],
+              ['lab408', `408 专题 · ${LAB408_TEMPLATE_COUNT}`],
+              ['all', `全部模板 · ${CALCULUS_TEMPLATES.length + TEMPLATES.length + LAB408_TEMPLATE_COUNT}`],
+            ] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={category === key} onClick={() => setCategory(key)}>{label}</button>)}
             <a href="#workshop-guide">第一次搭建？看三步指南 ↓</a>
           </div>
           <div className={styles.tplGrid}>
-            {category !== 'mechanics' && CALCULUS_TEMPLATES.map((t, index) => <button key={t.kind} type="button" className={styles.tplCard} disabled={creating !== null} onClick={() => void fromTemplate(t.kind, t.name)}>
+            {category !== 'mechanics' && category !== 'lab408' && CALCULUS_TEMPLATES.map((t, index) => <button key={t.kind} type="button" className={styles.tplCard} disabled={creating !== null} onClick={() => void fromTemplate(t.kind, t.name)}>
               <span className={styles.tplPreview}><CalculusPreview kind={t.kind} /></span>
               <span className={styles.tplBody}>
                 <span className={styles.tplMeta}>{String(index + 1).padStart(2, '0')} · {t.tag} · {t.level} / {t.minutes} 分钟</span>
@@ -309,7 +392,7 @@ export function WorkshopPage(): JSX.Element {
                 <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '搭建这个实验 →'}</span>
               </span>
             </button>)}
-            {category !== 'calculus' && TEMPLATES.map((t, index) => {
+            {category !== 'calculus' && category !== 'lab408' && TEMPLATES.map((t, index) => {
               const Preview = PREVIEWS[t.kind];
               return (
                 <button
@@ -329,6 +412,23 @@ export function WorkshopPage(): JSX.Element {
                 </button>
               );
             })}
+            {category !== 'calculus' && category !== 'mechanics' && [...LAB408_TEMPLATES, ...LAB408_WORKBENCH_TEMPLATES].map((t, index) => (
+              <button
+                key={t.kind}
+                type="button"
+                className={styles.tplCard}
+                disabled={creating !== null}
+                onClick={() => void fromTemplate(t.kind, t.name)}
+              >
+                <span className={styles.tplPreview} aria-hidden="true"><Lab408Preview kind={t.kind} /></span>
+                <span className={styles.tplBody}>
+                  <span className={styles.tplMeta}>{String(index + 1).padStart(2, '0')} · {t.tag}</span>
+                  <span className={styles.tplName}>{t.name}</span>
+                  <span className={styles.tplDesc}>{t.desc}</span>
+                  <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '打开实验 →'}</span>
+                </span>
+              </button>
+            ))}
             <button
               type="button"
               className={`${styles.tplCard} ${styles.tplBlank}`}

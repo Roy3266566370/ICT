@@ -38,6 +38,7 @@ const OS_OPTION_LABELS: Record<string, string> = {
   fifo: '先进先出 FIFO',
   lru: '最近最久未使用 LRU',
   opt: '最佳置换 OPT',
+  clock: '时钟置换 Clock（二次机会）',
   sstf: '最短寻道时间优先 SSTF',
   scan: 'SCAN（电梯）',
   cscan: 'C-SCAN（循环扫描）',

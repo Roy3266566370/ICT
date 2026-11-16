@@ -185,6 +185,9 @@ function PageCanvas({ result, frame }: { result: OsPageResult; frame: OsFrame })
         <span className={styles.blockTitle}>
           访问序列与物理块 · 缺页 {String(read(frame, 'faults', 0))} 次 / 命中 {String(read(frame, 'hits', 0))} 次
         </span>
+        {result.stats.initial_frames.length ? (
+          <p className={styles.mono}>初始已装入：{result.stats.initial_frames.join('、')}（对它们的首次访问按命中计）</p>
+        ) : null}
         <div className={styles.pageScroll}>
           <table className={styles.pageTable} aria-label="页面置换过程表">
             <thead>
@@ -237,6 +240,17 @@ function PageCanvas({ result, frame }: { result: OsPageResult; frame: OsFrame })
         </div>
         <CompareBars title={`${result.stats.frames_count} 个物理块 · 缺页次数对照`} values={result.stats.compare}
           labels={PAGE_LABELS} current={result.algorithm} unit=" 次" />
+      </div>
+      <div className={styles.block}>
+        <span className={styles.blockTitle}>
+          工作集 W(t,Δ={result.stats.window}) · 最大 {result.stats.max_working_set} 页
+          {result.stats.thrash ? ' · 可能抖动' : ''}
+        </span>
+        <div className={styles.queue}>
+          {(read<string[]>(frame, 'working_set', []) as string[]).length
+            ? read<string[]>(frame, 'working_set', []).map((page) => <span key={page} className={styles.queueCell}>{page}</span>)
+            : <small>访问开始后显示最近 Δ 次访问涉及的页面</small>}
+        </div>
       </div>
       <div className={styles.block}>
         <span className={styles.blockTitle}>{PAGE_LABELS[result.algorithm]?.split(' ')[1] ?? ''} · 缺页次数随物理块数的变化</span>
@@ -381,30 +395,44 @@ function BankerCanvas({ result, frame }: { result: OsBankerResult; frame: OsFram
 /* ------------------------------------------------------------------ */
 
 const KIND_TITLES: Record<string, string> = {
-  cpu_schedule: 'CPU 调度', page_replace: '页面置换', disk_schedule: '磁盘调度', banker: '银行家算法',
-  os_basics: '操作系统基础', process_thread: '进程与线程', sync: '同步与互斥',
-  deadlock: '死锁', memory_alloc: '连续内存分配',
+  cpu_schedule: 'CPU 调度', page_replace: '虚拟内存与页面置换', disk_schedule: '磁盘调度',
+  banker: '银行家算法', os_basics: '操作系统基础', process_thread: '进程与线程', sync: '同步与互斥',
+  deadlock: '死锁', memory_alloc: '连续内存分配', tlb: 'TLB 与访问性能',
+  file_dir: '文件与目录', file_alloc: '文件存储与空间管理', device_mgmt: '磁盘与设备管理',
 };
 
+function genericText(value: unknown): string {
+  if (Array.isArray(value)) return value.map((item) => String(item)).join(' · ');
+  if (value !== null && typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
 function GenericOsCanvas({ frame }: { frame: OsFrame }): ReactNode {
-  const entries = Object.entries(frame.values ?? {});
+  const entries = Object.entries(frame.values ?? {}).filter(([key]) => key !== 'reference');
   if (!entries.length) return null;
   return (
     <div className={styles.block}>
       <span className={styles.blockTitle}>当前状态</span>
       <div className={styles.mono}>
         {entries.map(([key, value]) => (
-          <div key={key}>{key}：{typeof value === 'string' || typeof value === 'number' ? String(value) : JSON.stringify(value)}</div>
+          <div key={key}><b>{key}</b>：{genericText(value)}</div>
         ))}
       </div>
     </div>
   );
 }
 
+function isPageResult(result: OsResult): result is OsPageResult {
+  return result.osKind === 'page_replace' && 'frames_count' in result.stats;
+}
+
 export function OsCanvas({ result, step, selected, onSelect }: Props): ReactNode {
   const frame = result.frames[Math.max(0, Math.min(result.frames.length - 1, Math.round(step)))];
   if (!frame) return <div className={styles.empty} role="status">{result.reason || '等待核对题目数据。'}</div>;
-  const generic = !['cpu_schedule', 'page_replace', 'disk_schedule', 'banker'].includes(result.osKind);
+  const page = isPageResult(result);
+  const pageConcept = result.osKind === 'page_replace' && !page;
+  const generic = pageConcept
+    || !['cpu_schedule', 'page_replace', 'disk_schedule', 'banker'].includes(result.osKind);
   const algorithmLabel = generic ? ''
     : result.osKind === 'cpu_schedule' ? SCHED_LABELS[result.algorithm]
     : result.osKind === 'page_replace' ? PAGE_LABELS[result.algorithm]
@@ -418,7 +446,7 @@ export function OsCanvas({ result, step, selected, onSelect }: Props): ReactNode
       <div className={styles.layout}>
         <div className={styles.stage}>
           {result.osKind === 'cpu_schedule' ? <SchedCanvas result={result} frame={frame} selected={selected} onSelect={onSelect} /> : null}
-          {result.osKind === 'page_replace' ? <PageCanvas result={result} frame={frame} /> : null}
+          {page ? <PageCanvas result={result} frame={frame} /> : null}
           {result.osKind === 'disk_schedule' ? <DiskCanvas result={result} frame={frame} /> : null}
           {result.osKind === 'banker' ? <BankerCanvas result={result} frame={frame} /> : null}
           {generic ? <GenericOsCanvas frame={frame} /> : null}

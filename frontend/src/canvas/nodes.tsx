@@ -16,6 +16,7 @@ import type { CanvasNode, NodeType, PortSpec, PortValue } from './types.ts';
 import { det, tr, eigen, rankOf, fmt, clamp, paramsM, type M2 } from './math.ts';
 import { physCycle, samplePath } from './physics.ts';
 import { FunctionSourceBody, FunctionPlotBody, DerivativeBody, LimitBody, IntegralBody, TaylorBody } from './CalculusNodes';
+import { CacheSplitBody, DsTraversalBody, IpSubnetBody, Lab408WorkbenchBody, PageReplaceBody } from './Lab408Nodes';
 import styles from './canvas.module.css';
 
 export interface NodeBodyProps {
@@ -815,6 +816,11 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   },
   trailView: { title: '轨迹仪', badge: '实验', width: 210, inputs: [{ id: 'in', label: 'body', kind: 'body' }], Body: TrailBody },
   energyMeter: { title: '能量表', badge: '实验', width: 210, inputs: [{ id: 'in', label: 'body', kind: 'body' }], Body: EnergyBody },
+  dsTraversal: { title: '二叉树遍历', badge: '实验', width: 280, Body: DsTraversalBody },
+  cacheSplit: { title: 'Cache 地址划分', badge: '实验', width: 310, Body: CacheSplitBody },
+  pageReplace: { title: '页面置换', badge: '实验', width: 370, Body: PageReplaceBody },
+  ipSubnet: { title: 'IPv4 子网划分', badge: '实验', width: 310, Body: IpSubnetBody },
+  lab408Workbench: { title: '408 全题型工作台', badge: '实验', width: 460, Body: Lab408WorkbenchBody },
   composite: { title: '自制积木', badge: '实验', width: 230, Body: CompositeBody },
   // 边界节点只存在于 sub 子图内部（不渲染、不进调色板），注册仅为类型完备
   portIn: { title: '入口', badge: '源', width: 0, Body: HiddenPortBody },
@@ -824,6 +830,7 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
 /** 调色板（按类别分组） */
 export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[] }[] = [
   { label: '高数', types: ['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor'] },
+  { label: '408', types: ['lab408Workbench', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet'] },
   { label: '源', types: ['matrixSource', 'slider', 'ticker'] },
   { label: '变换', types: ['rotor', 'matmul'] },
   { label: '视图', types: ['transformView', 'fieldView', 'detGauge', 'eigRead', 'squareView', 'cobweb'] },
@@ -849,6 +856,11 @@ export function defaultParams(type: NodeType): Record<string, number> {
     case 'projectile': return { v0: 8, angle: 55, g: 9.8, m: 1, running: 1 };
     case 'springOsc': return { k: 6, m: 1, x0: 1, running: 1 };
     case 'pendulum': return { L: 1.5, theta0: 25, g: 9.8, m: 1, running: 1 };
+    case 'dsTraversal': return { order: 0 };
+    case 'cacheSplit': return { addrBits: 32, blockBytes: 64, cacheKB: 64, ways: 4 };
+    case 'pageReplace': return { algorithm: 0, capacity: 3 };
+    case 'ipSubnet': return { prefix: 26, index: 0 };
+    case 'lab408Workbench': return { subjectIndex: 0, typeIndex: 0 };
     default: return {};
   }
 }

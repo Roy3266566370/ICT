@@ -50,7 +50,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix=API_PREFIX, tags=["labs"])
 
 PREVIEW_KEY = re.compile(r"^f\d+_p\d+$")
-SUBJECTS = {"calculus", "optimization", "algorithm", "deep_learning", "linear_algebra", "operating_system", "computer_organization"}
+SUBJECTS = {"calculus", "optimization", "algorithm", "deep_learning", "linear_algebra", "operating_system",
+            "computer_organization", "computer_network", "physics"}
 _AI_SOLVE_LOCK = threading.Lock()
 _AI_SOLVING: set[str] = set()
 
@@ -72,6 +73,11 @@ class ManualLabRequest(BaseModel):
     conditions: dict[str, Any]
     title: str = Field(default='', max_length=120)
     confirmed: bool = False
+
+
+class Lab408EvaluateRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=20000)
+    subject: Literal['algorithm', 'computer_organization', 'operating_system', 'computer_network']
 
 
 class LabStatePatch(BaseModel):
@@ -290,6 +296,7 @@ def lab_capabilities(request: Request, ctx: SessionDep) -> JSONResponse:
                 {"id": "operating_system", "label": "操作系统"},
                 {"id": "computer_organization", "label": "计算机组成原理"},
                 {"id": "computer_network", "label": "计算机网络"},
+                {"id": "physics", "label": "大学物理"},
             ],
             'modeling_tasks':task_catalog(),
             "max_files": settings.lab_max_files,
@@ -323,14 +330,12 @@ def _apply_composite(document: dict[str, Any], result: dict[str, Any]) -> None:
         document["problem_count"] = len(problems)
         document["subject"] = problems[0]["subject"]
     else:
-        # Preserve the original material while preventing the old recognizer from
-        # presenting an answer for a question the orchestrator could not validate.
-        for problem in document["problems"]:
-            problem["status"] = "needs_review"
-            problem["model"] = {"subject": "unknown", "engine": "unsupported_v1", "defaults": {}, "params": [], "teaching": False}
-            problem["states"] = _default_state(problem)
-            problem["solution"] = {"answer": "", "steps": [], "summary": "请补充或修正完整题目后重新求解。"}
-    document["status"] = "ready" if result.get("status") == "完成" else "needs_review"
+        for problem in document['problems']:
+            if problem.get('status') != 'ready':
+                problem['solution'] = {**problem.get('solution', {}), 'answer': '', 'steps': [],
+                                       'summary': '请先核对缺失或有歧义的条件。'}
+    if problems:
+        document["status"] = "ready" if result.get("status") == "完成" else "needs_review"
     document["orchestration"] = result
 
 
@@ -415,6 +420,44 @@ def create_manual_lab(request: Request, ctx: WriteDep, db: DBDep, body: ManualLa
         raise missing_field('当前输入未能完成计算：' + str(exc)) from exc
     record = _new_lab_record(db=db, ctx=ctx, document=document, title=document['title'])
     return ok(request, record.document, status_code=201)
+
+
+@router.post('/labs/408/evaluate', summary='408 工坊：按原文调用本地内核（不保存实验室）')
+def evaluate_408_lab(request: Request, ctx: SessionDep, body: Lab408EvaluateRequest) -> JSONResponse:
+    _ = ctx
+    from ..labs.recognize import _attach_solution, build_problem
+    try:
+        problem = build_problem(body.text.strip(), subject_hint=body.subject)
+        _attach_solution(problem)
+    except (ValueError, TypeError, ArithmeticError) as exc:
+        raise missing_field('当前题目未能完成计算：' + str(exc)) from exc
+    model = problem.get('model') or {}
+    solution = problem.get('solution') or {}
+    kind = (model.get('ds_kind') or model.get('co_kind') or model.get('os_kind')
+            or model.get('net_kind') or model.get('kind') or model.get('engine'))
+    ambiguities = (problem.get('recognition') or {}).get('ambiguities') or []
+    blocking = [
+        {'id': str(item.get('id') or ''), 'question': str(item.get('question') or '')}
+        for item in ambiguities
+        if item.get('severity') == 'blocking' and not item.get('resolved')
+    ][:4]
+    steps = [
+        {'id': str(item.get('id') or ''), 'title': str(item.get('title') or ''),
+         'detail': str(item.get('detail') or '')}
+        for item in (solution.get('steps') or [])[:8]
+    ]
+    return ok(request, {
+        'subject': problem.get('subject'),
+        'subject_label': problem.get('subject_label'),
+        'status': problem.get('status'),
+        'kind': kind,
+        'title': problem.get('title'),
+        'answer': solution.get('answer') or '',
+        'answer_value': solution.get('answer_value'),
+        'steps': steps,
+        'limitations': [str(item) for item in (solution.get('limitations') or [])[:6]],
+        'blocking': blocking,
+    })
 
 
 @router.post("/labs/text", status_code=201, summary="粘贴题目文字并建立实验室")
@@ -571,6 +614,11 @@ def review_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: Re
                 raise ValueError('手动积分题请通过公式和条件字段修正，不重新识别题干')
             from ..labs.manual import revise_manual_document
             rebuilt = revise_manual_document(document, target, body.condition_values)
+        elif ((target.get('ai_solution') or {}).get('agent_understanding')
+              and (not body.subject or body.subject == target['subject'])
+              and (body.text is None or body.text.strip() == target['text'].strip())):
+            from ..labs.ai_solve import review_ai_conditions
+            rebuilt = review_ai_conditions(target, body.condition_values, body.ambiguity_answers)
         else:
             rebuilt = rebuild_problem(
                 target,
@@ -582,16 +630,6 @@ def review_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: Re
             )
     except Exception as exc:  # noqa: BLE001 - 修正内容仍保留在原文里
         raise missing_field(f"修正后的条件无法建立模型：{exc}") from exc
-    if (target.get('ai_solution') or {}).get('agent_understanding') and not body.condition_values and (not body.subject or body.subject == target['subject']) and (body.text is None or body.text.strip() == target['text'].strip()):
-        # A confirmation must preserve the visual model instead of rebuilding from OCR.
-        rebuilt = copy.deepcopy(target)
-        for ambiguity in rebuilt['recognition']['ambiguities']:
-            if ambiguity.get('id') == 'source_formula_confirmation' and body.ambiguity_answers.get(ambiguity['id']) == 'confirmed':
-                ambiguity.update(resolved=True, answer='confirmed')
-        from ..labs.local_agent import finish_understanding
-        from ..labs.ai_solve import attach_interactive_model
-        rebuilt['ai_solution'] = finish_understanding(rebuilt['ai_solution']['agent_understanding'], rebuilt)
-        attach_interactive_model(rebuilt, rebuilt['ai_solution'])
     replace_index = next(
         index for index, item in enumerate(document["problems"]) if item.get("problem_id") == body.problem_id
     )

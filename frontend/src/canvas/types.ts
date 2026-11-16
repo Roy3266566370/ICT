@@ -45,6 +45,12 @@ export type NodeType =
   | 'pendulum'       // 单摆（L/θ0/g → 小角摆动 body）
   | 'trailView'      // 轨迹仪（累积 body 位置历史 → 轨迹线）
   | 'energyMeter'    // 能量表（body 的 ke/pe 实时条形）
+  // 408 专题：自带结论的确定性小实验
+  | 'dsTraversal'    // 二叉树四种遍历
+  | 'cacheSplit'     // Cache 地址 tag/index/offset 划分
+  | 'pageReplace'    // FIFO / LRU / OPT 页面置换
+  | 'ipSubnet'       // IPv4 子网划分
+  | 'lab408Workbench' // 408 全题型工作台：科目 → 题型 → 原文 → 本地内核
   // 自制积木（Scratch 自定义积木）：封装子图，边界端口对外接线
   | 'composite'      // 复合节点（内含 sub 子图）
   | 'portIn'         // 积木内部：入口边界节点（仅出现在 sub.nodes）

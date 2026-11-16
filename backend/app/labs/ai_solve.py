@@ -392,22 +392,76 @@ def solve_with_ai(problem: Mapping[str, Any], *, mode: str = "auto", client=None
     return result
 
 
+def review_ai_conditions(problem, values, answers):
+    import copy
+    from .local_agent import finish_understanding
+    rebuilt = copy.deepcopy(problem)
+    data = rebuilt['ai_solution']['agent_understanding']
+    conditions = data['model'].setdefault('conditions', {})
+    for key, value in values.items():
+        if key == 'initial_conditions' and isinstance(value, str) and not value.strip().startswith('['):
+            value = [part.strip() for part in re.split(r'[\r\n;；]+', value) if part.strip()]
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except (ValueError, TypeError):
+                pass
+        conditions[key] = value
+    # User confirmation replaces extraction uncertainty; the kernel still validates.
+    data['uncertainties'] = []
+    for ambiguity in rebuilt['recognition'].get('ambiguities', []):
+        if answers.get(ambiguity['id']) == 'confirmed':
+            ambiguity.update(resolved=True, answer='confirmed')
+    rebuilt['ai_solution'] = finish_understanding(data, rebuilt)
+    attach_interactive_model(rebuilt, rebuilt['ai_solution'])
+    return rebuilt
+
+
+def _sync_ai_conditions(problem, result):
+    from .kernel_models import TASKS, FIELD_LABELS
+    from .exam_math import _condition, _ambiguity
+    data = result.get('agent_understanding') or {}
+    plan = data.get('model') or {}
+    task = plan.get('task')
+    if task not in TASKS:
+        if data and result.get('verification') != 'kernel':
+            problem['status'] = 'needs_review'
+            problem['solution'] = {'answer':'','steps':[],'summary':'AI 尚未建立可核验模型，请核对条件。'}
+        return
+    c = plan.get('conditions') or {}
+    recognition = problem.setdefault('recognition', {})
+    recognition['conditions'] = [dict(_condition(key, FIELD_LABELS.get(key, key), value, {}),
+        provenance='inferred', note='AI 从原题提取；请对照原题核对') for key, value in c.items()]
+    missing = [key for key in TASKS[task]['required'] if key not in c or c[key] is None or c[key] == '']
+    if task == 'cpu_schedule' and str(c.get('algorithm', '')).lower() == 'rr' and not c.get('quantum'):
+        missing.append('quantum')
+    recognition['ambiguities'] = [a for a in recognition.get('ambiguities', []) if not a.get('id', '').startswith('ai_missing_')]
+    for key in TASKS[task]['optional']:
+        if FIELD_LABELS.get(key, key) in (result.get('missing_conditions') or []) and (key not in c or c[key] is None or c[key] == ''):
+            missing.append(key)
+    for key in missing:
+        if key not in c:
+            recognition['conditions'].append(dict(_condition(key, FIELD_LABELS.get(key, key), '', {}), provenance='inferred'))
+        recognition['ambiguities'].append(dict(_ambiguity(key, '请补充' + FIELD_LABELS.get(key, key)), id='ai_missing_' + key))
+    problem.setdefault('model', {})['modeling_task'] = task
+    if result.get('verification') != 'kernel':
+        problem['status'] = 'needs_review'
+        problem['solution'] = {'answer': '', 'steps': [], 'summary': '请核对并补齐建模条件。'}
+
+
 def attach_interactive_model(problem: dict, result: Mapping) -> bool:
     """Adopt only a kernel-built model; keep original text, sources and student records."""
+    _sync_ai_conditions(problem, result)
     computed = result.get('computation') or {}
     if result.get('verification') != 'kernel' or not computed.get('interactive_model'):
         return False
     import copy
     from .recognize import SUBJECT_LABELS
-    from .exam_math import _condition
     from .store import normalize_state, recompute_state
     model = copy.deepcopy(computed['interactive_model'])
     recognition = problem['recognition']
     candidate = computed.get('interactive_recognition') or {}
-    conditions = copy.deepcopy(candidate.get('conditions') or [
-        _condition(key, label, model[key], {}) for key, label in (
-            ('integrand','被积函数'), ('outer_variable','外层积分变量'),
-            ('outer_bounds','外层积分区间'), ('inner_bounds','内层区域上下边界')) if key in model])
+    conditions = copy.deepcopy((recognition.get('conditions') if result.get('agent_understanding') else candidate.get('conditions')) or candidate.get('conditions') or [])
     for item in conditions:
         item.update(provenance=item.get('provenance') if item.get('provenance') in ('supplement','teaching') else 'inferred',
                     note=item.get('note') if item.get('provenance') in ('supplement','teaching') else 'AI 从原题提取；请对照原题核对',

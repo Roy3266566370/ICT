@@ -105,7 +105,7 @@ export function MathExpressionInput({ label, value, onChange, variables, disable
 
   return <div className={styles.editor}>
     <label className={styles.label} htmlFor={id}>{label}<small>{provenance}</small></label>
-    <input ref={input} id={id} className={styles.input} value={value} disabled={disabled}
+    <input ref={input} id={id} aria-label={label} className={styles.input} value={value} disabled={disabled}
       placeholder={placeholder} autoFocus={autoFocus}
       aria-describedby={`${id}-status${describedBy ? ` ${describedBy}` : ''}`}
       aria-invalid={answerMode ? undefined : !!inspection.error} inputMode="none" autoComplete="off" autoCapitalize="off" spellCheck={false}

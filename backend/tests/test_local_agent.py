@@ -57,6 +57,8 @@ def test_raw_region_uses_existing_kernel_derivation():
 
 def test_local_transport_schema_and_single_repair(monkeypatch):
     from app.labs import local_agent as agent
+    settings = agent.get_settings().model_copy(update={'lab_understanding_pipeline': 'legacy'})
+    monkeypatch.setattr(agent, 'get_settings', lambda: settings)
     calls=[]
     class Response:
         def raise_for_status(self): pass

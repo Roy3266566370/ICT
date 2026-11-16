@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 import { calculusCatalog } from '@/labs/calculusCatalog';
+import { MANUAL_408_SUBJECTS, manual408Subject, type Manual408SubjectId } from '@/labs/manual408';
+import { MANUAL_PHYSICS_SUBJECT } from '@/labs/manualPhysics';
 import { doubleIntegralExamples, doubleIntegralExample } from '@/labs/doubleIntegralExamples';
 import { tripleIntegralExamples, tripleIntegralExample } from '@/labs/tripleIntegralExamples';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +16,7 @@ import { manualConditions, manualInputError, manualInputKey,
   type CurveSurfaceIntegralKind, type ProofKind } from '@/labs/manualInput';
 import { MathExpressionInput, MathKeyboard, type MathKeyboardHandle } from './MathExpressionInput';
 import { Formula } from '@/components/showcase/Formula';
+import { ManualTextComposer } from './ManualTextComposer';
 import styles from './ManualLabComposer.module.css';
 
 const EMPTY: ManualIntegralDraft = { task: 'integral', expression: '', variable: 'x', lower: '', upper: '', point: '', order: '1', side: 'both', valueMode: 'expression', pointValue: '', intervalType: 'closed', indexStart: '', powerGoal: 'radius', powerCenter: '', spaceKind: 'vector_operations', spaceA: '', spaceB: '', spaceC: '', spaceD: '', integralKind: 'line_scalar', curveX: '', curveY: '', curveZ: '', surfaceZ: '', surfaceX: '', surfaceY: '', surfaceZuv: '', fieldP: '', fieldQ: '', fieldR: '', integralOrientation: 'forward', proofKind: 'ivt_root', proofLeft: '', proofRight: '', proofRelation: '>=', proofSteps: '', proofStatement: '' };
@@ -71,12 +74,103 @@ const PROOF_EXAMPLES: Record<ProofKind, Partial<ManualIntegralDraft>> = {
   counterexample: { proofLeft: 'x^2', proofRight: 'x', proofRelation: '>=', point: '1/2', proofStatement: '判断全称命题 x^2≥x 是否成立。' },
   steps: { proofSteps: 'x^2-1=(x-1)*(x+1)\n(x-1)*(x+1)=x^2-1', proofStatement: '综合题局部步骤核对。' },
 };
+interface CalculusTaskCard {
+  id: string;
+  label: string;
+  description: string;
+  patch: Partial<ManualIntegralDraft>;
+}
+interface CalculusModule {
+  id: string;
+  label: string;
+  hint: string;
+  cards: CalculusTaskCard[];
+}
+const CALCULUS_MODULES: CalculusModule[] = [
+  {
+    id: 'integral',
+    label: '积分与面积体积',
+    hint: '定积分、不定积分、曲线与坐标轴围成的面积，以及旋转体体积。',
+    cards: [
+      { id: 'integral', label: '定积分', description: '给出函数与上下限，求积分值并观察黎曼和。', patch: { task: 'integral', integralMode: 'proper' } },
+      { id: 'antiderivative', label: '不定积分', description: '求原函数族 F(x) + C，并通过求导核对。', patch: { task: 'antiderivative' } },
+      { id: 'geometric_area', label: '平面区域面积', description: '确认曲线与x轴的区域，按几何面积计算。', patch: { task: 'geometric_area', variable: 'x', regionKind: '' } },
+      { id: 'rotation_volume', label: '旋转体积', description: '确认区域与旋转轴，用圆盘法计算体积。', patch: { task: 'rotation_volume', variable: 'x', regionKind: '', rotationAxis: '' } },
+    ],
+  },
+  {
+    id: 'derivative',
+    label: '导数、极限与函数',
+    hint: '求导与切线、极限、连续性与间断点，以及单调性、极值和凹凸性。',
+    cards: [
+      { id: 'derivative', label: '导数与切线', description: '输入函数和求导点，求导数并观察切线。', patch: { task: 'derivative' } },
+      { id: 'limit', label: '极限', description: '输入函数、趋近点和方向，检查左右极限。', patch: { task: 'limit' } },
+      { id: 'higher_derivative', label: '导函数与高阶导数', description: '选择1至10阶，可选填求值点。', patch: { task: 'higher_derivative', order: '1', point: '' } },
+      { id: 'continuity', label: '连续性与间断点', description: '核对函数值、左右极限并分类。', patch: { task: 'continuity', point: '', valueMode: 'expression', pointValue: '', intervalType: 'closed' } },
+      { id: 'implicit_normal', label: '切线与法线', description: '输入曲线方程与研究点，核对隐函数分支。', patch: { task: 'implicit_normal', expression: '', point: '', pointY: '' } },
+      { id: 'function_study', label: '函数区间研究', description: '分析单调性、极值最值、凹凸性与拐点。', patch: { task: 'function_study' } },
+    ],
+  },
+  {
+    id: 'series',
+    label: '级数与展开',
+    hint: '泰勒展开、数项级数、幂级数收敛域与和函数、傅里叶级数。',
+    cards: [
+      { id: 'taylor', label: '泰勒展开', description: '选择精确展开点与阶数，核对系数、余项和观察范围。', patch: { task: 'taylor', point: '', order: '3' } },
+      { id: 'series_convergence', label: '数项级数敛散性', description: '输入通项与起始项，判定绝对收敛、条件收敛或发散。', patch: { task: 'series_convergence', expression: '', indexStart: '' } },
+      { id: 'power_series', label: '幂级数收敛域与求和', description: '核对收敛半径、端点、收敛域与和函数。', patch: { task: 'power_series', expression: '', powerGoal: 'radius', powerCenter: '', indexStart: '' } },
+      { id: 'fourier_series', label: '傅里叶级数', description: '按完整区间计算系数与前n阶部分和，说明间断点。', patch: { task: 'fourier_series', expression: '', lower: '', upper: '', order: '3' } },
+    ],
+  },
+  {
+    id: 'ode_multivar',
+    label: '微分方程与多元微分',
+    hint: '常微分方程、偏导与全微分、方向导数、梯度及多元极值。',
+    cards: [
+      { id: 'ode', label: '常微分方程', description: '输入方程与可选条件，代回核验解或解族。', patch: { task: 'ode', variable: 'x', expression: '', initialConditions: '' } },
+      { id: 'multivariable', label: '多元函数微分', description: '偏导数、全微分、方向导数与梯度。', patch: { task: 'multivariable', expression: '', multiVariables: 'x,y', multiOperation: 'partial', partialVariable: 'x', multiPoint: '', multiDirection: '', directionLimit: 'forward' } },
+      { id: 'multivariable_extrema', label: '多元函数极值与条件极值', description: '核对全部驻点、Hessian判别与完整等式约束。', patch: { task: 'multivariable_extrema', expression: '', extremaOperation: 'unconstrained', extremaConstraint: '' } },
+    ],
+  },
+  {
+    id: 'multiple',
+    label: '重积分',
+    hint: '二重积分的区域、换序、变量代换与密度应用，以及三重积分。',
+    cards: [
+      { id: 'double_integral', label: '二重积分', description: '区域与换序、反常积分、变量代换和密度应用。', patch: { task: 'double_integral', expression: '', doubleOuter: 'x', lower: '', upper: '', innerLower: '', innerUpper: '' } },
+      { id: 'triple_integral', label: '三重积分', description: '长方体、z型区域、柱坐标与球坐标，逐层核验。', patch: { task: 'triple_integral', expression: '', tripleMode: 'box', lower: '', upper: '', innerLower: '', innerUpper: '', tripleInnerLower: '', tripleInnerUpper: '' } },
+    ],
+  },
+  {
+    id: 'geometry',
+    label: '空间与曲线曲面积分',
+    hint: '空间解析几何、两类曲线积分、两类曲面积分与三大公式。',
+    cards: [
+      { id: 'space_geometry', label: '空间解析几何', description: '向量、直线、平面、曲面及其夹角、距离、交点与投影。', patch: { task: 'space_geometry', spaceKind: 'vector_operations', spaceA: '', spaceB: '', spaceC: '', spaceD: '', expression: '' } },
+      { id: 'curve_surface_integral', label: '曲线与曲面积分', description: '两类曲线积分、两类曲面积分，以及 Green/Gauss/Stokes 公式。', patch: { task: 'curve_surface_integral', integralKind: 'line_scalar', curveX: '', curveY: '', curveZ: '', surfaceZ: '', surfaceX: '', surfaceY: '', surfaceZuv: '', fieldP: '', fieldQ: '', fieldR: '', lower: '', upper: '', innerLower: '', innerUpper: '', tripleInnerLower: '', tripleInnerUpper: '', expression: '', integralOrientation: 'forward' } },
+    ],
+  },
+  {
+    id: 'proof',
+    label: '证明与综合',
+    hint: '中值定理、零点存在与唯一性、函数不等式、反例与步骤核对。',
+    cards: [
+      { id: 'proof', label: '证明与综合题', description: '中值定理、零点唯一性、不等式、反例与局部步骤核对。', patch: { task: 'proof', proofKind: 'ivt_root', expression: '', lower: '', upper: '', point: '', proofLeft: '', proofRight: '', proofRelation: '>=', proofSteps: '', proofStatement: '' } },
+    ],
+  },
+];
+type ManualSubjectChoice = 'calculus' | 'physics' | Manual408SubjectId;
 type FieldKey = 'xMap' | 'yMap' | 'eventOuterLower' | 'eventOuterUpper' | 'eventInnerLower' | 'eventInnerUpper' | 'tripleInnerLower' | 'tripleInnerUpper' | 'expression' | 'constraint' | 'innerLower' | 'innerUpper' | 'lower' | 'upper' | 'point' | 'pointValue' | 'pointY' | 'powerCenter';
 const FIELD_LABELS: Record<FieldKey, string> = { xMap:'映射x(u,v)',yMap:'映射y(u,v)',eventOuterLower:'事件外层下限',eventOuterUpper:'事件外层上限',eventInnerLower:'事件内层下界',eventInnerUpper:'事件内层上界',tripleInnerLower:'最内层下界',tripleInnerUpper:'最内层上界',expression: '函数表达式', constraint:'完整等式约束', innerLower:'内层下界',innerUpper:'内层上界',lower: '积分下限', upper: '积分上限', point: '研究点', pointValue: '单点函数值', pointY: '研究点纵坐标', powerCenter:'幂级数中心' };
 
 export function ManualLabComposer(): JSX.Element {
   const navigate = useNavigate();
+  const [subject, setSubject] = useState<ManualSubjectChoice>('calculus');
+  const subjectDefinition = subject === 'calculus' ? null : subject === 'physics' ? MANUAL_PHYSICS_SUBJECT : manual408Subject(subject);
   const [draft, setDraft] = useState<ManualIntegralDraft>(EMPTY);
+  const [calculusModule, setCalculusModule] = useState('integral');
+  const activeCalculusModule = CALCULUS_MODULES.find(module => module.id === calculusModule) ?? CALCULUS_MODULES[0]!;
+  const currentCalculusTask = CALCULUS_MODULES.flatMap(module => module.cards).find(card => card.id === draft.task) ?? null;
   const [preview, setPreview] = useState<{ inputKey: string; data: ManualIntegralPreview } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState<'preview' | 'compute' | null>(null);
@@ -165,88 +259,41 @@ export function ManualLabComposer(): JSX.Element {
     <header className={styles.header}>
       <span className={styles.kicker}>SOLVE YOUR PROBLEM</span>
       <h2 id="manual-lab-title">输入我的题目</h2>
-      <p>选择题型，填写公式与条件。核对完整题目后，由本地内核计算并展示过程。</p>
+      <p>先选择科目与题型，再填写完整条件。核对题目后，由本地内核计算并展示过程。</p>
     </header>
     <ol className={styles.steps} aria-label="解题流程">
-      {['选择题型', '填写条件', '确认题目', '计算与展示'].map((step, i) => <li key={step} data-active={preview ? i === 2 : i < 2}>{i + 1} · {step}</li>)}
+      {['选择科目与题型', '填写条件', '确认题目', '计算与展示'].map((step, i) => <li key={step} data-active={preview ? i === 2 : i < 2}>{i + 1} · {step}</li>)}
     </ol>
+    <div className={styles.classification}>
+      <label>科目<select aria-label="科目" value={subject} onChange={event => setSubject(event.target.value as ManualSubjectChoice)}>
+        <optgroup label="高等数学"><option value="calculus">高等数学</option></optgroup>
+        <optgroup label="大学物理"><option value="physics">大学物理</option></optgroup>
+        <optgroup label="408 统考">
+          {MANUAL_408_SUBJECTS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </optgroup>
+      </select></label>
+      <p>{subject === 'calculus' ? '高数按题型填写公式、区间与限制条件；408 科目在下方按题型填写题目原文。' : subjectDefinition?.summary}</p>
+    </div>
+    {subject === 'calculus' ? <>
     <details><summary>高数题型目录与支持范围</summary>
       <p>以下“已有内核”表示已实现部分计算能力，尚不等于该模块所有题目均可求解。</p>
       <ul>{calculusCatalog.map(item => <li key={item.module}><strong>{item.module}</strong>：{item.manual ? `可手动求解：${item.manual}。` : ''}{item.pending}</li>)}</ul>
     </details>
     <fieldset className={styles.fields} disabled={busy !== null}>
       <div className={styles.classification}>
-        <label>科目<select aria-label="科目" defaultValue="calculus"><option value="calculus">高等数学</option></select></label>
-        <span>知识模块<strong>{draft.task === 'proof' ? '证明与综合题' : draft.task === 'curve_surface_integral' ? '曲线与曲面积分' : draft.task === 'space_geometry' ? '空间解析几何' : ['double_integral','triple_integral'].includes(draft.task) ? '重积分' : draft.task === 'multivariable_extrema' ? '多元极值' : draft.task === 'multivariable' ? '多元微分' : draft.task === 'ode' ? '微分方程' : ['geometric_area','rotation_volume'].includes(draft.task) ? '定积分应用' : ['taylor','series_convergence','power_series','fourier_series'].includes(draft.task) ? '级数与展开' : draft.task === 'function_study' ? '函数研究' : draft.task === 'implicit_normal' ? '切线与法线' : draft.task === 'continuity' ? '连续性' : draft.task === 'limit' ? '极限' : ['derivative', 'higher_derivative'].includes(draft.task) ? '导数' : '积分'}</strong></span>
-        <p>手动求解：定积分、不定积分、导函数与高阶导数、指定点导数与切线、极限、连续性与间断点、切线与法线、函数区间研究、泰勒展开、数项级数敛散性、幂级数收敛域与求和、傅里叶级数、定积分应用、常微分方程、多元微分、多元局部极值与等式约束极值、分片与极坐标二重积分、自动换序、矩形/极坐标/曲边区域反常积分、仿射与可核验非线性变量代换及质量/质心/惯量/联合概率应用、长方体/z型/柱坐标/球坐标三重积分、向量运算与混合积、直线与平面方程及位置关系、点到直线与平面的距离、直线在平面上的投影、曲面切平面与法线、无交叉项二次曲面识别、两类曲线积分、两类曲面积分及 Green/Gauss/Stokes 公式、中值定理与零点存在/唯一性证明、函数不等式、反例与综合题局部步骤核对。408等其他题型可使用下方文件识别或示例入口。</p>
+        <span>当前题型<strong>{currentCalculusTask?.label ?? draft.task}</strong></span>
+        <p>先选择知识模块，再选择题型；未填条件不会自动补全。</p>
       </div>
-      <div className={styles.tasks} role="group" aria-label="选择高数题型">
-        <button type="button" aria-pressed={draft.task === 'integral' && draft.integralMode !== 'improper'} onClick={() => update({ task: 'integral', integralMode:'proper' })}>
-          <strong>定积分</strong><span>给出函数与上下限，求积分值并观察黎曼和。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'antiderivative'} onClick={() => update({ task: 'antiderivative' })}>
-          <strong>不定积分</strong><span>求原函数族 F(x) + C，并通过求导核对。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'derivative'} onClick={() => update({ task: 'derivative' })}>
-          <strong>导数与切线</strong><span>输入函数和求导点，求导数并观察切线。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'limit'} onClick={() => update({ task: 'limit' })}>
-          <strong>极限</strong><span>输入函数、趋近点和方向，检查左右极限。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'higher_derivative'} onClick={() => update({ task: 'higher_derivative', order: '1', point: '' })}>
-          <strong>导函数与高阶导数</strong><span>选择1至10阶，可选填求值点。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'continuity'} onClick={() => update({ task: 'continuity', point: '', valueMode: 'expression', pointValue: '', intervalType: 'closed' })}>
-          <strong>连续性与间断点</strong><span>核对函数值、左右极限并分类。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'implicit_normal'} onClick={() => update({ task: 'implicit_normal', expression: '', point: '', pointY: '' })}>
-          <strong>切线与法线</strong><span>输入曲线方程与研究点，核对隐函数分支。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'function_study'} onClick={() => update({ task: 'function_study' })}>
-          <strong>函数区间研究</strong><span>分析单调性、极值最值、凹凸性与拐点。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'taylor'} onClick={() => update({ task: 'taylor', point: '', order: '3' })}>
-          <strong>泰勒展开</strong><span>选择精确展开点与阶数，核对系数、余项和观察范围。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'series_convergence'} onClick={() => update({ task: 'series_convergence', expression: '', indexStart: '' })}>
-          <strong>数项级数敛散性</strong><span>输入通项与起始项，判定绝对收敛、条件收敛或发散。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'power_series'} onClick={() => update({ task: 'power_series', expression: '', powerGoal: 'radius', powerCenter: '', indexStart: '' })}>
-          <strong>幂级数收敛域与求和</strong><span>核对收敛半径、端点、收敛域与和函数。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'fourier_series'} onClick={() => update({ task: 'fourier_series', expression: '', lower: '', upper: '', order: '3' })}>
-          <strong>傅里叶级数</strong><span>按完整区间计算系数与前n阶部分和，说明间断点。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'geometric_area'} onClick={() => update({ task:'geometric_area',variable:'x',regionKind:'' })}>
-          <strong>平面区域面积</strong><span>确认曲线与x轴的区域，按几何面积计算。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'rotation_volume'} onClick={() => update({ task:'rotation_volume',variable:'x',regionKind:'',rotationAxis:'' })}>
-          <strong>旋转体积</strong><span>确认区域与旋转轴，用圆盘法计算体积。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'ode'} onClick={() => update({task:'ode',variable:'x',expression:'',initialConditions:''})}>
-          <strong>常微分方程</strong><span>输入方程与可选条件，代回核验解或解族。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'multivariable'} onClick={() => update({task:'multivariable',expression:'',multiVariables:'x,y',multiOperation:'partial',partialVariable:'x',multiPoint:'',multiDirection:'',directionLimit:'forward'})}>
-          <strong>多元函数微分</strong><span>偏导数、全微分、方向导数与梯度。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'multivariable_extrema'} onClick={() => update({task:'multivariable_extrema',expression:'',extremaOperation:'unconstrained',extremaConstraint:''})}>
-          <strong>多元函数极值与条件极值</strong><span>核对全部驻点、Hessian判别与完整等式约束。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'double_integral'} onClick={()=>update({task:'double_integral',expression:'',doubleOuter:'x',lower:'',upper:'',innerLower:'',innerUpper:''})}>
-          <strong>二重积分</strong><span>区域与换序、反常积分、变量代换和密度应用。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'triple_integral'} onClick={()=>update({task:'triple_integral',expression:'',tripleMode:'box',lower:'',upper:'',innerLower:'',innerUpper:'',tripleInnerLower:'',tripleInnerUpper:''})}>
-          <strong>三重积分</strong><span>长方体、z型区域、柱坐标与球坐标，逐层核验。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'space_geometry'} onClick={()=>update({task:'space_geometry',spaceKind:'vector_operations',spaceA:'',spaceB:'',spaceC:'',spaceD:'',expression:''})}>
-          <strong>空间解析几何</strong><span>向量、直线、平面、曲面及其夹角、距离、交点与投影。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'curve_surface_integral'} onClick={()=>update({task:'curve_surface_integral',integralKind:'line_scalar',curveX:'',curveY:'',curveZ:'',surfaceZ:'',surfaceX:'',surfaceY:'',surfaceZuv:'',fieldP:'',fieldQ:'',fieldR:'',lower:'',upper:'',innerLower:'',innerUpper:'',tripleInnerLower:'',tripleInnerUpper:'',expression:'',integralOrientation:'forward'})}>
-          <strong>曲线与曲面积分</strong><span>两类曲线积分、两类曲面积分，以及 Green/Gauss/Stokes 公式。</span>
-        </button>
-        <button type="button" aria-pressed={draft.task === 'proof'} onClick={()=>update({task:'proof',proofKind:'ivt_root',expression:'',lower:'',upper:'',point:'',proofLeft:'',proofRight:'',proofRelation:'>=',proofSteps:'',proofStatement:''})}>
-          <strong>证明与综合题</strong><span>中值定理、零点唯一性、不等式、反例与局部步骤核对。</span>
-        </button>
+      <div className={styles.moduleBar} role="group" aria-label="高数知识模块">
+        {CALCULUS_MODULES.map(module => <button key={module.id} type="button" aria-pressed={activeCalculusModule.id === module.id} onClick={() => setCalculusModule(module.id)}>
+          <strong>{module.label}</strong><span>{module.cards.length} 个题型</span>
+        </button>)}
+      </div>
+      <p className={styles.moduleHint}>{activeCalculusModule.hint}</p>
+      <div className={styles.tasks} role="group" aria-label={`${activeCalculusModule.label}题型`}>
+        {activeCalculusModule.cards.map(card => <button key={card.id} type="button" aria-pressed={draft.task === card.id && (card.id !== 'integral' || draft.integralMode !== 'improper')} onClick={() => update(card.patch)}>
+          <strong>{card.label}</strong><span>{card.description}</span>
+        </button>)}
       </div>
       {draft.task === 'integral' ? <label className={styles.modeField}>积分类型<select aria-label="积分类型" value={draft.integralMode ?? 'proper'} onChange={e=>update({integralMode:e.target.value as 'proper'|'improper'})}><option value="proper">有限定积分</option><option value="improper">反常积分（无穷限或瑕点）</option></select>{draft.integralMode === 'improper' ? <small>上下限可输入 oo、-oo 或 ±∞。逐个瑕点分别检查两侧收敛；不使用柯西主值，不计算有限截断黎曼和。</small> : null}</label> : null}
       <div className={styles.inputHeading}>
@@ -450,5 +497,6 @@ export function ManualLabComposer(): JSX.Element {
         allowInfinity={((draft.task==='integral' && draft.integralMode==='improper' || draft.task==='double_integral' && draft.doubleMode==='improper') && ['lower','upper','innerLower','innerUpper'].includes(activeField)) || (draft.task==='double_integral' && draft.doubleMode==='polar_improper' && activeField==='innerUpper')} disabled={busy !== null} onPress={key => activeHandle.current?.press(key)} /> : null}
       {activeField === 'constraint' && draft.task === 'multivariable_extrema' && draft.extremaOperation === 'constrained' ? <button type="button" disabled={busy !== null} aria-label="输入约束等号" onClick={()=>constraintHandle.current?.press('=')}>=</button> : null}
     </section>}
+    </> : subjectDefinition ? <ManualTextComposer key={subject} definition={subjectDefinition} /> : null}
   </section>;
 }

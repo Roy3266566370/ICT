@@ -15,7 +15,7 @@ _CONCEPT = (
     r'哪些(?:事件|组件|部件|因素|概念|定义)',
     r'(?:进程|程序)调度(?:程序)?(?:执行|需要)',
     r'调度需要使用',
-    r'概念|定义(?!域|区间)|区别|联系|作用|功能|特点|含义|术语',
+    r'概念|定义(?!域|区间)|区别|联系|作用|功能|特点|含义|术语|基本思想|基本思路',
 )
 
 _PROPERTY = (
@@ -38,7 +38,7 @@ def strip_negated(text: str) -> str:
 
 
 def classify_goal_action(question: str) -> str:
-    text = strip_negated(question or '')
+    text = re.sub(r'补定义|单点定义|函数值的定义', '', strip_negated(question or ''))
     if any(re.search(pattern, text) for pattern in _PROOF):
         return 'proof'
     if any(re.search(pattern, text) for pattern in _PROPERTY):
@@ -59,7 +59,7 @@ def task_limit(text: str) -> str:
     # 循环/递归复杂度已由 ds_analysis 内核支持；仅拒绝无法解析结构的一般程序复杂度分析。
     if '时间复杂度' in text and not re.search(r'循环|递归|for\s*\(|while\s*\(|T\s*\(\s*n\s*\)', text, re.I):
         return '当前内核不支持一般程序或操作的时间复杂度分析。'
-    if '偏导' in text:
+    if '偏导' in text and re.search(r'隐式|隐函数|由方程', text):
         return '当前声明式任务未支持隐式多元偏导数，不能替换为单变量求导。'
     if '渐近线' in text or '凹凸' in text:
         return '当前函数研究任务不能完整覆盖凹凸与渐近线目标。'
@@ -76,9 +76,36 @@ def task_limit(text: str) -> str:
     return ''
 
 
-def unsupported_reason(question: str) -> str:
+_CONCEPT_SUBJECT_KINDS = {
+    "operating_system": "os_kind",
+    "computer_organization": "co_kind",
+    "computer_network": "net_kind",
+}
+
+
+def _concept_kernel_kind(subject: str | None, model: object) -> str | None:
+    """概念题只有在已识别出对应 408 内核题型时才算可执行。"""
+    field = _CONCEPT_SUBJECT_KINDS.get(str(subject or ''))
+    if not field or not isinstance(model, dict):
+        return None
+    kind = model.get(field)
+    if not kind:
+        return None
+    engine = str(model.get('engine') or '')
+    if 'unknown' in engine or engine == 'unsupported_v1':
+        return None
+    return str(kind)
+
+
+def unsupported_reason(question: str, *, subject: str | None = None,
+                       model: object | None = None) -> str:
+    if str(subject or '') in _CONCEPT_SUBJECT_KINDS and _concept_kernel_kind(subject, model) is None:
+        return ('已识别为 408 科目，但当前题面没有确定可执行内核题型；'
+                '原题条件并未缺失，请不要补造条件或改用其他题型。')
     action = classify_goal_action(question)
     if action == 'concept':
+        if _concept_kernel_kind(subject, model) is not None:
+            return ''
         return '这是概念辨析题，当前执行内核只做数值计算与模拟，不能替代概念判断；原题条件并未缺失。'
     if action == 'property':
         return '这是算法或数据结构的性质判断题，当前内核只支持给定实例的执行，不能证明一般性质；原题条件并未缺失。'

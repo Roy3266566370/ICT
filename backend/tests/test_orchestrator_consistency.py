@@ -50,6 +50,66 @@ def test_multiple_rotation_axes_are_not_collapsed_to_the_first_axis():
     assert result["answers"] == []
 
 
+def test_inverse_derivative_is_not_original_derivative():
+    text = "求函数f(x)=x^3的反函数在x=2处的导数。"
+    result = o.solve_composite(text, use_ai=False)
+    assert result["status"] == "完成", result["plan_check"]["errors"]
+    assert result["plan"]["steps"][0]["capability"] == "inverse_derivative"
+    answer = result["answers"][0]
+    assert float(answer["answer"]) == pytest.approx(1 / (3 * 2 ** (2 / 3)), rel=1e-6)
+    assert float(answer["answer"]) != pytest.approx(12.0)
+
+
+def test_ai_cannot_use_original_derivative_capability_for_inverse_goal():
+    text = "求函数f(x)=x^3的反函数在x=2处的导数。"
+    understanding = o.build_understanding(text, use_ai=False)
+    plan = {"steps": [
+        {"id": "S1", "goal": "计算反函数导数", "capability": "derivative", "subquestion": "Q1",
+         "inputs": {"expression": {"source": "problem", "ref": "G1", "value": "x^3"},
+                    "variable": {"source": "problem", "ref": "G2", "value": "x"},
+                    "point": {"source": "problem", "ref": "G3", "value": 2}},
+         "feeds": ["S2"]},
+        {"id": "S2", "goal": "汇总", "capability": "assemble_report",
+         "inputs": {"steps": {"source": "plan", "value": ["S1"]}}},
+    ]}
+    check = o.validate_plan(plan, understanding)
+    assert not check["ok"]
+    assert any("inverse_derivative" in note or "反函数导数" in note for note in check["errors"])
+
+
+def test_ai_added_question_gets_condition_mapping(monkeypatch):
+    text = "已知 f(x)=sin(x)，求 f 在 x=0 处的导数。"
+    from app.labs import staged_understanding
+
+    monkeypatch.setattr(staged_understanding, "request_json", lambda *args, **kwargs: {
+        "given": [
+            {"id": "A0", "item": "f(x)=sin(x)", "ref": "expression", "value": "sin(x)"},
+            {"id": "A1", "item": "在 x=0 处", "ref": "point", "value": 0},
+        ],
+        "asked": [{"id": "AQ1", "goal": "求 f 在 x=0 处的导数"}],
+        "ambiguities": [],
+    })
+    understanding = o.build_understanding(text, use_ai=True)
+    qid = understanding["id_aliases"]["AQ1"]
+    mapping = understanding["mapping"][qid]
+    assert mapping["task"] == "derivative"
+    assert mapping["fields"] == {"expression": "A0", "point": "A1"}
+    plan = {"steps": [
+        {"id": "S1", "goal": "求导", "capability": "derivative", "subquestion": "AQ1",
+         "inputs": {"expression": {"source": "problem", "ref": "A0", "value": "sin(x)"},
+                    "variable": {"source": "plan", "value": "x"},
+                    "point": {"source": "problem", "ref": "A1", "value": 0}},
+         "feeds": ["S2"]},
+        {"id": "S2", "goal": "汇总", "capability": "assemble_report",
+         "inputs": {"steps": {"source": "plan", "value": ["S1"]}}},
+    ]}
+    check = o.validate_plan(plan, understanding)
+    assert check["ok"], check["errors"]
+    execution = o.execute_plan(text, plan, understanding)
+    assert execution["results"]["S1"]["state"] == o.STATE_DONE
+    assert execution["results"]["S1"]["outputs"]["answer"] == "1"
+
+
 def test_ai_understanding_cannot_delete_same_kind_rule_question(monkeypatch):
     text = "在0≤x≤1内，求曲线y=x^2与x轴之间的面积，再求曲线y=x与x轴之间的面积。"
     monkeypatch.setattr(o, "_ai_available", lambda: True)

@@ -63,3 +63,22 @@ def test_nonmath_paste_keeps_original_route(owner, monkeypatch):
         "text": "从A开始执行广度优先搜索，边：A-B, A-C。", "orchestrate": True})
     assert response.status_code == 201, response.text
     assert "orchestration" not in response.json()["data"]
+
+
+@pytest.mark.parametrize('text,expected', [
+    ('计算定积分 ∫_0^1 x^2 dx。', 1 / 3),
+    ('求函数f(x)=x^3在x=2处的导数。', 12),
+])
+def test_single_calculus_paste_solves_and_persists(owner, monkeypatch, text, expected):
+    monkeypatch.setattr('app.labs.orchestrator._ai_available', lambda: False)
+    headers = _headers(_session(owner))
+    response = owner.post('/api/v1/labs/text', headers=headers,
+                          json={'text': text, 'orchestrate': True})
+    assert response.status_code == 201, response.text
+    document = response.json()['data']
+    assert document['status'] == 'ready'
+    assert document['orchestration']['status'] == '完成'
+    assert document['problems'][0]['solution']['answer_value'] == pytest.approx(expected)
+    saved = owner.get(f"/api/v1/labs/{document['lab_id']}").json()['data']
+    assert saved['orchestration'] == document['orchestration']
+    assert saved['problems'] == document['problems']

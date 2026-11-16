@@ -1,15 +1,20 @@
 """操作系统题目的识别与确定性求解。
 
-覆盖四类题型，全部产出可逐步回放的执行轨迹：
+全部题型都产出可逐步回放的执行轨迹：
 
-- ``cpu_schedule``：FCFS / SJF（非抢占）/ SRTF（抢占）/ 时间片轮转 RR / 优先级（非抢占，数小优先）；
-- ``page_replace``：FIFO / LRU / OPT 页面置换，统计缺页次数并检查 Belady 异常；
-- ``disk_schedule``：FCFS / SSTF / SCAN / C-SCAN / LOOK / C-LOOK 磁盘调度；
-- ``banker``：银行家算法安全性检查，可附带一次资源请求。
+- ``cpu_schedule``：FCFS / SJF / SRTF / RR / 优先级 / HRRN；
+- ``page_replace``：请求分页、FIFO / LRU / OPT / Clock、工作集与抖动、Belady 异常；
+- ``disk_schedule``：FCFS / SSTF / SCAN / C-SCAN / LOOK / C-LOOK；
+- ``banker``：银行家算法安全性检查，可附带一次资源请求；
+- ``tlb``：TLB 命中/缺失、页表访问次数、有效访问时间与缺页开销；
+- ``file_dir``：权限、路径查找、FCB/inode、打开读写关闭、共享与链接；
+- ``file_alloc``：连续/链接/索引分配、FAT、多级索引、位示图与访盘次数；
+- ``device_mgmt``：磁盘访问时间、缓冲、假脱机与设备分配；
+- 以及操作系统基础、进程线程、同步互斥、死锁和连续内存分配的概念题。
 
 同一份题目数据可以切换算法对照；每个确定性约定（同刻到达的入队先后、LRU 的并列、
-SCAN 是否走到磁盘末端、回扫是否计入）都写进条件或说明，数据缺失时生成明确的阻塞问题，
-不编造数据。
+SCAN 是否走到磁盘末端、回扫是否计入、TLB/目录缓存假设）都写进条件或说明，
+数据缺失时生成明确的阻塞问题，不编造数据。
 """
 
 from __future__ import annotations
@@ -31,7 +36,7 @@ MAX_BANKER_M = 6
 
 KIND_LABELS = {
     "cpu_schedule": "CPU 调度",
-    "page_replace": "页面置换",
+    "page_replace": "虚拟内存与页面置换",
     "disk_schedule": "磁盘调度",
     "banker": "银行家算法",
     "os_basics": "操作系统基础",
@@ -39,6 +44,10 @@ KIND_LABELS = {
     "sync": "同步与互斥",
     "deadlock": "死锁",
     "memory_alloc": "连续内存分配",
+    "tlb": "TLB 与访问性能",
+    "file_dir": "文件与目录",
+    "file_alloc": "文件存储与空间管理",
+    "device_mgmt": "磁盘与设备管理",
 }
 
 SCHED_LABELS = {
@@ -49,7 +58,8 @@ SCHED_LABELS = {
     "priority": "优先级调度（非抢占，数小优先）",
     "hrrn": "高响应比优先 HRRN（非抢占）",
 }
-PAGE_LABELS = {"fifo": "先进先出 FIFO", "lru": "最近最久未使用 LRU", "opt": "最佳置换 OPT"}
+PAGE_LABELS = {"fifo": "先进先出 FIFO", "lru": "最近最久未使用 LRU", "opt": "最佳置换 OPT",
+               "clock": "时钟置换 Clock（二次机会）"}
 DISK_LABELS = {
     "fcfs": "先来先服务 FCFS", "sstf": "最短寻道时间优先 SSTF", "scan": "SCAN（电梯）",
     "cscan": "C-SCAN（循环扫描）", "look": "LOOK", "clook": "C-LOOK",
@@ -69,6 +79,14 @@ PAGE_PSEUDOCODE = [
     "没有空闲块：按算法选出被置换页面",
     "统计缺页次数与缺页率",
 ]
+REQUEST_PAGE_PSEUDOCODE = [
+    "虚拟地址拆成 VPN + 页内偏移",
+    "查页表：有效位为 1 且已在内存则命中",
+    "有效位为 0 触发缺页：保存现场并进入内核",
+    "找空闲页框；没有则按置换算法换出页面",
+    "脏页先写回，再从外存读入所需页面",
+    "更新页表/TLB 并重新执行被中断的指令",
+]
 DISK_PSEUDOCODE = [
     "从当前磁头位置出发",
     "按算法选出下一个服务的磁道（或端点）",
@@ -82,6 +100,38 @@ BANKER_PSEUDOCODE = [
     "假定它运行完毕：Work = Work + Allocation",
     "重复直到全部完成（安全）或再无可选进程（不安全）",
     "安全序列即各轮选出进程的顺序",
+]
+TLB_PSEUDOCODE = [
+    "虚拟地址拆成 VPN + 页内偏移",
+    "用 VPN 查 TLB：命中直接得到页框号",
+    "TLB 未命中则逐级访问页表",
+    "页表项有效则装入 TLB；无效则触发缺页",
+    "物理地址 = 页框号 × 页大小 + 页内偏移",
+    "有效访问时间按命中率和缺页开销加权",
+]
+FILE_DIR_PSEUDOCODE = [
+    "按路径从根目录（或当前目录）逐级查找目录项",
+    "目录项给出文件名到 inode 号的映射",
+    "读取 inode 得到文件属性和数据块位置",
+    "open 建立文件描述符→系统打开文件表→inode 的关联",
+    "read/write 使用文件偏移，close 释放表项",
+    "权限按文件主、同组、其他三类检查 rwx",
+]
+FILE_ALLOC_PSEUDOCODE = [
+    "文件大小与盘块大小决定所需块数",
+    "连续分配记录起始块与长度；链接分配沿指针串联",
+    "索引分配在索引块中存数据块号；FAT 把链接指针集中存放",
+    "多级索引逐级计算可寻址块数与最大文件长度",
+    "访问第 k 块时累加索引块与数据块的访盘次数",
+    "位示图中 0 表示空闲块，按位号映射盘块号",
+]
+DEVICE_PSEUDOCODE = [
+    "磁盘访问时间 = 寻道时间 + 旋转延迟 + 传输时间",
+    "平均旋转延迟 = 半圈旋转时间 = 30 / 转速（秒）",
+    "传输时间 = 数据量 / 数据传输率",
+    "单缓冲与双缓冲按设备输入和 CPU 处理的并行关系计算",
+    "假脱机用输入井/输出井和守护进程把独占设备虚拟成共享设备",
+    "设备分配检查设备独立性、独占性与安全性",
 ]
 
 
@@ -129,6 +179,114 @@ def _frame(store: list[dict[str, Any]], action: str, label: str, detail: str, li
                    "values": values, "pseudocodeLine": line})
 
 
+def _ok(kind: str, engine: str, answer: str, frames: list[dict[str, Any]], pseudocode: list[str], *,
+        metrics: list[dict[str, Any]] | None = None, checks: list[dict[str, Any]] | None = None,
+        notes: list[str] | None = None, answer_value: float | None = None,
+        answer_order: list[str] | None = None, stats: Mapping[str, Any] | None = None,
+        algorithm: str = "", headline: str | None = None, stop_reason: str = "done") -> dict[str, Any]:
+    items = [{"id": "answer", "label": "结论", "value": answer}]
+    items.extend(metrics or [])
+    if answer_value is not None:
+        items.append({"id": "value", "label": "数值", "value": _fmt(answer_value)})
+    payload: dict[str, Any] = {
+        "subject": "operating_system", "engine": engine, "os_kind": kind, "status": "ok",
+        "algorithm": algorithm, "frames": frames, "trace": frames, "pseudocode": pseudocode,
+        "answer": answer, "answer_value": answer_value, "answer_order": answer_order,
+        "headline": headline or answer, "metrics": items, "checks": checks or [],
+        "notes": notes or [], "stats": dict(stats or {}), "stop_reason": stop_reason,
+    }
+    return payload
+
+
+_TIME_TO_MS = {
+    "ps": 1e-9, "ns": 1e-6, "us": 1e-3, "μs": 1e-3, "ms": 1.0, "s": 1e3,
+    "纳秒": 1e-6, "微秒": 1e-3, "毫秒": 1.0, "秒": 1e3,
+}
+
+
+def _time_ms(text: str, labels: str) -> float | None:
+    match = re.search(
+        rf"(?:{labels})\s*(?:为|是|约|大约|需要|约需|需|=|:|：)?\s*"
+        r"([0-9]+(?:\.[0-9]+)?)\s*(ps|ns|us|μs|ms|s|纳秒|微秒|毫秒|秒)",
+        text, re.I)
+    if not match:
+        return None
+    return float(match.group(1)) * _TIME_TO_MS[match.group(2).lower()]
+
+
+_SIZE_TO_BYTES = {"b": 1.0, "字节": 1.0, "k": 1024.0, "kb": 1024.0,
+                  "m": 1024.0 ** 2, "mb": 1024.0 ** 2, "g": 1024.0 ** 3,
+                  "gb": 1024.0 ** 3, "t": 1024.0 ** 4, "tb": 1024.0 ** 4}
+
+
+def _size_bytes(text: str, labels: str) -> float | None:
+    match = re.search(
+        rf"(?:{labels})\s*(?:为|是|约|大约|=|:|：)?\s*"
+        r"([0-9]+(?:\.[0-9]+)?)\s*(TB|GB|MB|KB|K|M|G|B|字节)",
+        text, re.I)
+    if not match:
+        return None
+    return float(match.group(1)) * _SIZE_TO_BYTES[match.group(2).lower()]
+
+
+def _rate_bytes_s(text: str, labels: str) -> float | None:
+    match = re.search(
+        rf"(?:{labels})\s*(?:为|是|约|大约|=|:|：)?\s*"
+        r"([0-9]+(?:\.[0-9]+)?)\s*(TB|GB|MB|KB|B)\s*(?:/\s*s|ps|每秒|每秒钟|s)",
+        text, re.I)
+    if not match:
+        return None
+    return float(match.group(1)) * _SIZE_TO_BYTES[match.group(2).lower()]
+
+
+def _percent(text: str, labels: str) -> float | None:
+    match = re.search(
+        rf"(?:{labels})\s*(?:为|是|约|大约|=|:|：)?\s*([0-9]+(?:\.[0-9]+)?)\s*(%)?",
+        text, re.I)
+    if not match:
+        return None
+    value = float(match.group(1))
+    return value / 100 if match.group(2) == "%" or value > 1 else value
+
+
+_CN_NUMBERS = {"零": 0, "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+               "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+
+
+def _cn_int(token: str) -> int | None:
+    token = token.strip()
+    if token.isdigit():
+        return int(token)
+    return _CN_NUMBERS.get(token)
+
+
+def _section(text: str, start: str, stop: str) -> str:
+    match = re.search(start, text, re.I)
+    if not match:
+        return ""
+    chunk = text[match.end():]
+    end = re.search(stop, chunk, re.I)
+    return chunk[:end.start()] if end else chunk
+
+
+def _fmt_bytes(value: float) -> str:
+    for unit, factor in (("TB", 1024.0 ** 4), ("GB", 1024.0 ** 3),
+                         ("MB", 1024.0 ** 2), ("KB", 1024.0)):
+        if abs(value) >= factor:
+            return f"{_fmt(value / factor, 6)} {unit}"
+    return f"{_fmt(value, 6)} B"
+
+
+def _fmt_time_ms(value: float) -> str:
+    if abs(value) >= 1e3:
+        return f"{_fmt(value / 1e3, 8)} s"
+    if abs(value) < 1e-3:
+        return f"{_fmt(value * 1e6, 8)} ns"
+    if abs(value) < 1:
+        return f"{_fmt(value * 1e3, 8)} μs"
+    return f"{_fmt(value, 8)} ms"
+
+
 def _detect_kind(text: str) -> str | None:
     low = text.lower()
     if re.search(r"银行家|安全序列|安全状态|banker|allocation|available", low):
@@ -137,15 +295,34 @@ def _detect_kind(text: str) -> str | None:
         return "deadlock"
     if re.search(r"信号量|临界区|互斥锁|mutex|p\s*操作|v\s*操作|生产者|消费者|读者|写者|哲学家|同步与互斥", low, re.I):
         return "sync"
+    if re.search(r"(?<![a-z])fat(?![a-z])|文件分配表|文件存储|位示图|空闲空间管理|索引分配|链接分配|多级索引|"
+                 r"一级间接|二级间接|三级间接|直接地址项|间接地址项|最大文件(?:长度|大小)|盘块|磁盘块|"
+                 r"文件[^\n]{0,16}连续分配|连续分配[^\n]{0,16}文件", low, re.I):
+        return "file_alloc"
+    if re.search(r"(?:文件|目录)[^\n]{0,16}(?:权限|共享|链接)|rwx|inode|索引结点|fcb|文件控制块|"
+                 r"文件描述符|打开文件表|目录项|路径名|绝对路径|相对路径|逻辑结构|目录结构|"
+                 r"文件打开|文件读写|文件关闭|目录[^\n]{0,8}路径|路径查找|"
+                 r"硬链接|软链接|符号链接|文件链接", low, re.I):
+        return "file_dir"
+    if re.search(r"tlb|快表|有效访问时间|页表访问次数|缺页开销|缺页处理开销", low, re.I):
+        return "tlb"
     if re.search(r"空闲区|空闲分区|空闲块|首次适应|最佳适应|最坏适应|邻近适应|连续分配|内存利用率|内碎片|外碎片", low):
         return "memory_alloc"
-    if re.search(r"pcb|进程控制块|进程状态|就绪态|阻塞态|唤醒|用户级线程|内核级线程|线程模型|进程创建|进程撤销", low, re.I):
+    if re.search(r"pcb|进程控制块|进程状态|就绪态|阻塞态|唤醒|用户级线程|内核级线程|线程模型|进程创建|进程撤销|"
+                 r"进程和线程|进程与线程|进程.*线程|线程.*进程", low, re.I):
         return "process_thread"
     if re.search(r"内核态|用户态|管态|目态|系统调用|访管|中断|异常|陷阱|微内核|宏内核|操作系统结构|原语", low, re.I):
         return "os_basics"
-    if re.search(r"页面置换|缺页|页框|物理块|页面访问|置换算法|引用串|page fault|page replacement|最佳置换|最近最久"
-                 + "|" + _word("lru") + "|" + _word("opt"), low):
+    if re.search(r"页面置换|请求分页|缺页处理|工作集|抖动|缺页|页框|物理块|页面访问|置换算法|引用串|"
+                 r"page fault|page replacement|最佳置换|最近最久|时钟置换|"
+                 + _word("clock") + "|" + _word("lru") + "|" + _word("opt"), low, re.I):
         return "page_replace"
+    if (re.search(r"磁盘调度|最短寻道|电梯算法|sstf|" + _word("scan") + "|" + _word("cscan") + "|"
+                  + _word("look") + "|" + _word("clook"), low, re.I)
+            and re.search(r"请求|磁头|磁道", low)):
+        return "disk_schedule"
+    if re.search(r"缓冲|假脱机|spool|设备分配|设备管理|磁盘访问时间|旋转延迟|转速|传输时间|存取时间|平均旋转", low, re.I):
+        return "device_mgmt"
     if re.search(r"磁盘调度|磁头|寻道|磁道|柱面|sstf|电梯算法|disk scheduling|scan|" + _word("look"), low):
         return "disk_schedule"
     if re.search(r"作业|调度|周转|到达时间|时间片|先来先服务|短作业|最短剩余|轮转|优先级|高响应比|响应比|"
@@ -687,8 +864,32 @@ def _detect_page_algorithm(text: str) -> str | None:
     return _earliest(text, {
         "opt": r"最佳置换|最优置换|optimal|" + _word("opt"),
         "lru": r"最近最久|最久未使用|" + _word("lru"),
+        "clock": r"时钟置换|时钟算法|二次机会|" + _word("clock"),
         "fifo": r"先进先出|" + _word("fifo"),
     })
+
+
+def _page_concept_only(text: str) -> bool:
+    """没有访问序列时，只有概念题允许继续；问缺页次数仍必须阻塞。"""
+    if re.search(r"缺页次数|缺页率\s*(?:为|是|多少|约)|访问序列|引用串|(?<!请)求[^\n。；]{0,16}缺页|"
+                 r"计算[^\n。；]{0,16}缺页|多少次", text):
+        return False
+    return bool(re.search(r"请求分页|缺页|工作集|抖动|belady|置换算法|页面置换|时钟置换|clock",
+                          text, re.I))
+
+
+def _page_window(text: str, merged: Mapping[str, Any]) -> tuple[int, bool]:
+    raw = merged.get("window")
+    try:
+        value = int(float(raw)) if raw is not None and str(raw).strip() != "" else None
+    except (TypeError, ValueError):
+        value = None
+    if value is not None:
+        return value, True
+    match = re.search(r"工作集(?:窗口|大小)?\s*(?:为|是|=|:|：)?\s*(\d+)|窗口(?:大小|长度)\s*(?:为|是|=|:|：)?\s*(\d+)", text)
+    if match:
+        return int(next(group for group in match.groups() if group)), True
+    return 4, False
 
 
 def _build_page(text: str, source: Mapping[str, Any], merged: Mapping[str, Any]) -> dict[str, Any]:
@@ -707,12 +908,13 @@ def _build_page(text: str, source: Mapping[str, Any], merged: Mapping[str, Any])
     algorithm = str(merged.get("algorithm") or "").strip() or _detect_page_algorithm(text)
     if algorithm not in PAGE_LABELS:
         algorithm = "fifo"
+    window, window_found = _page_window(text, merged)
 
-    if not reference:
+    if not reference and not _page_concept_only(text):
         ambiguities.append(_ambiguity(
             "reference", "reference",
             "没有识别到页面访问序列。请写成 “7,0,1,2,0,3,0,4” 这样用逗号或空格分隔的页号。"))
-    elif len(reference) > MAX_REFERENCE:
+    elif reference and len(reference) > MAX_REFERENCE:
         ambiguities.append(_ambiguity("reference_size", "reference",
                                       f"访问序列超过 {MAX_REFERENCE} 次；为保证逐步轨迹可读，首版仅支持 {MAX_REFERENCE} 次以内。"))
     if frames_count is None:
@@ -727,16 +929,22 @@ def _build_page(text: str, source: Mapping[str, Any], merged: Mapping[str, Any])
     if len(set(initial_frames)) != len(initial_frames):
         ambiguities.append(_ambiguity(
             "initial_frames", "initial_frames", "初始已调入的页面有重复，请核对原题。"))
+    if not 1 <= window <= MAX_REFERENCE:
+        ambiguities.append(_ambiguity("window", "window", f"工作集窗口需在 1–{MAX_REFERENCE} 次访问之间。"))
+        window = min(max(window, 1), MAX_REFERENCE)
 
     params = [
-        _param("algorithm", "置换算法", "enum", options=["fifo", "lru", "opt"], note="同一访问序列可对照三种算法的缺页次数。"),
+        _param("algorithm", "置换算法", "enum", options=["fifo", "lru", "opt", "clock"],
+               note="同一访问序列可对照 FIFO / LRU / OPT / Clock 的缺页次数。"),
         _param("frames", "物理块数", "integer", min_value=1, max_value=MAX_FRAMES, step=1,
-               note="FIFO 增加物理块数时可能缺页更多（Belady 异常）。"),
+               note="FIFO 和 Clock 不是栈式算法，增加物理块数时可能缺页更多（Belady 异常）。"),
+        _param("window", "工作集窗口 Δ", "integer", min_value=1, max_value=MAX_REFERENCE, step=1,
+               note="工作集 W(t,Δ) 取最近 Δ 次访问涉及的页面集合。"),
     ]
     model = {
         "engine": "os_page_v1", "subject": "operating_system", "os_kind": "page_replace",
-        "reference": reference or [], "initial_frames": initial_frames,
-        "defaults": {"algorithm": algorithm, "frames": frames_count},
+        "raw": text, "reference": reference or [], "initial_frames": initial_frames,
+        "defaults": {"algorithm": algorithm, "frames": frames_count, "window": window},
         "params": params, "teaching": False,
     }
     conditions = []
@@ -750,8 +958,19 @@ def _build_page(text: str, source: Mapping[str, Any], merged: Mapping[str, Any])
     conditions.append(_condition("frames", "物理块数", frames_count, kind="number", source=source,
                                  provenance="original" if frames_found else "supplement",
                                  note=None if frames_found else "题目未给出物理块数，默认 3，可在条件中修正。"))
-    formulas = [{"id": "fault_rate", "tex": r"\text{缺页率}=\dfrac{\text{缺页次数}}{\text{访问次数}}",
-                 "plain": "缺页率 = 缺页次数 / 页面访问次数；命中次数 = 访问次数 − 缺页次数。", "role": "评价指标"}]
+    if reference:
+        conditions.append(_condition(
+            "window", "工作集窗口 Δ", window, kind="number", source=source,
+            provenance="original" if window_found else "supplement",
+            note=None if window_found else "题目未给出工作集窗口，默认取最近 4 次访问，可在条件中修正。"))
+    formulas = [
+        {"id": "fault_rate", "tex": r"\text{缺页率}=\dfrac{\text{缺页次数}}{\text{访问次数}}",
+         "plain": "缺页率 = 缺页次数 / 页面访问次数；命中次数 = 访问次数 − 缺页次数。", "role": "评价指标"},
+        {"id": "working_set", "tex": r"W(t,\Delta)=\{\text{最近 }\Delta\text{ 次访问的页面}\}",
+         "plain": "工作集取最近 Δ 次访问涉及的页面集合；物理块数小于工作集大小时容易抖动。", "role": "工作集"},
+        {"id": "clock", "tex": r"\text{Clock：访问位为 1 则清零并跳过，遇到 0 置换}",
+         "plain": "Clock 为每页维护访问位，指针循环扫描：访问位 1 给第二次机会并清零，遇到 0 就换出。", "role": "置换规则"},
+    ]
     return {"model": model, "conditions": conditions, "ambiguities": ambiguities, "formulas": formulas,
             "recognized": not ambiguities}
 
@@ -763,6 +982,8 @@ def _simulate_pages(reference: Sequence[str], frames_count: int, algorithm: str,
     # 初始驻留页面视为在任何访问之前装入：越靠前装入越早。
     loaded: list[int] = [offset - len(initial) for offset in range(len(initial))] + [-1] * (frames_count - len(initial))
     used: list[int] = [offset - len(initial) for offset in range(len(initial))] + [-1] * (frames_count - len(initial))
+    refs: list[int] = [1 if page is not None else 0 for page in slots]
+    hand = 0
     steps: list[dict[str, Any]] = []
     faults = 0
     for index, page in enumerate(reference):
@@ -770,6 +991,7 @@ def _simulate_pages(reference: Sequence[str], frames_count: int, algorithm: str,
         if page in slots:
             slot = slots.index(page)
             used[slot] = index
+            refs[slot] = 1
             hit = True
         else:
             hit = False
@@ -781,6 +1003,12 @@ def _simulate_pages(reference: Sequence[str], frames_count: int, algorithm: str,
                     slot = min(range(frames_count), key=lambda s: loaded[s])
                 elif algorithm == "lru":
                     slot = min(range(frames_count), key=lambda s: used[s])
+                elif algorithm == "clock":
+                    while refs[hand] == 1:
+                        refs[hand] = 0
+                        hand = (hand + 1) % frames_count
+                    slot = hand
+                    hand = (slot + 1) % frames_count
                 else:
                     def next_use(s: int) -> float:
                         for later in range(index + 1, len(reference)):
@@ -792,6 +1020,7 @@ def _simulate_pages(reference: Sequence[str], frames_count: int, algorithm: str,
             slots[slot] = page
             loaded[slot] = index
             used[slot] = index
+            refs[slot] = 1
         resident = [(s, slots[s]) for s in range(frames_count) if slots[s] is not None]
         if algorithm == "fifo":
             aux_title = "FIFO 队列（队首最早装入）"
@@ -799,6 +1028,10 @@ def _simulate_pages(reference: Sequence[str], frames_count: int, algorithm: str,
         elif algorithm == "lru":
             aux_title = "LRU 栈（左为最近使用）"
             aux = [p for _, p in sorted(resident, key=lambda item: -used[item[0]])]
+        elif algorithm == "clock":
+            aux_title = "Clock 指针与访问位（→ 为下一检查位置）"
+            aux = [f"{'→' if s == hand else ''}块{s + 1}:{slots[s] if slots[s] is not None else '空'}(R={refs[s]})"
+                   for s in range(frames_count)]
         else:
             aux_title = "下次访问位置（∞ 表示不再访问）"
             aux = []
@@ -806,8 +1039,53 @@ def _simulate_pages(reference: Sequence[str], frames_count: int, algorithm: str,
                 later = next((k for k in range(index + 1, len(reference)) if reference[k] == p), None)
                 aux.append(f"{p}:{later + 1 if later is not None else '∞'}")
         steps.append({"index": index, "page": page, "hit": hit, "frames": list(slots), "slot": slot,
-                      "evicted": evicted, "faults": faults, "aux_title": aux_title, "aux": aux})
+                      "evicted": evicted, "faults": faults, "aux_title": aux_title, "aux": aux,
+                      "refs": list(refs), "hand": hand})
     return steps
+
+
+def _working_set(reference: Sequence[str], window: int) -> list[list[str]]:
+    sets: list[list[str]] = []
+    for index in range(len(reference)):
+        start = max(0, index - window + 1)
+        seen: list[str] = []
+        for page in reference[start:index + 1]:
+            if page not in seen:
+                seen.append(page)
+        sets.append(seen)
+    return sets
+
+
+def _page_concept_result(engine: str) -> dict[str, Any]:
+    frames: list[dict[str, Any]] = []
+    _frame(frames, "concept", "请求分页",
+           "虚拟地址拆成虚页号 VPN 与页内偏移；页表项记录页框号、有效位、访问位和修改位。"
+           "有效位为 1 表示页面已在内存，为 0 时访问会触发缺页。", 1,
+           mode="请求分页", address="VPN + offset")
+    _frame(frames, "concept", "缺页处理",
+           "缺页时 CPU 产生缺页异常并保存现场；内核检查地址合法性，寻找空闲页框。"
+           "没有空闲页框时按置换算法换出页面；脏页先写回磁盘，再读入所需页面，"
+           "更新页表和 TLB 后重新执行被中断的指令。", 2,
+           fault="异常 → 调页 → 更新页表 → 重新执行")
+    _frame(frames, "concept", "四种置换算法",
+           "FIFO 换出最早装入的页面，可能出现 Belady 异常；LRU 换出最近最久未使用的页面，是栈式算法；"
+           "OPT 换出未来最晚再用的页面，缺页次数最少但不可实现；"
+           "Clock 给每页一个访问位，指针循环扫描：访问位为 1 则清零并跳过，遇到 0 就换出，也叫二次机会算法。", 3,
+           algorithms="FIFO / LRU / OPT / Clock")
+    _frame(frames, "concept", "工作集与抖动",
+           "工作集 W(t,Δ) 是最近 Δ 次访问涉及的页面集合。若分配给进程的物理块数小于工作集大小，"
+           "进程会频繁缺页，CPU 利用率下降，这就是抖动。可通过调整驻留集大小或降低多道程序度缓解。", 4,
+           working_set="W(t,Δ)", thrashing="驻留集 < 工作集")
+    answer = ("请求分页按 VPN 查页表，有效位为 0 触发缺页；缺页处理需要找页框、必要时写回脏页并读入新页，"
+              "再更新页表和 TLB 后重新执行指令。FIFO 可能 Belady，LRU/OPT 是栈式算法，Clock 用访问位给二次机会。"
+              "工作集是最近 Δ 次访问的页面集合；驻留集小于工作集时会发生抖动。")
+    return _ok("page_replace", engine, answer, frames, REQUEST_PAGE_PSEUDOCODE,
+               metrics=[{"id": "algorithms", "label": "置换算法", "value": "FIFO / LRU / OPT / Clock"}],
+               checks=[{"id": "working_set", "label": "抖动判据", "status": "pass",
+                        "detail": "物理块数（驻留集）小于工作集大小时，进程会频繁缺页。"}],
+               notes=["本题没有页面访问序列，因此给出请求分页、缺页处理、置换算法与工作集的概念推导。",
+                      "若需要逐次缺页统计，请补充“页面访问序列”和“物理块数”。"],
+               stats={"concept": True, "window": 4})
 
 
 def _eval_page(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
@@ -820,12 +1098,20 @@ def _eval_page(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str,
         frames_count = int(float(params.get("frames", defaults.get("frames", 3))))
     except (TypeError, ValueError):
         frames_count = 3
+    try:
+        window = int(float(params.get("window", defaults.get("window", 4))))
+    except (TypeError, ValueError):
+        window = 4
     if not reference:
+        if _page_concept_only(str(model.get("raw") or "")):
+            return _page_concept_result(engine)
         return _blocked(kind, engine, "没有页面访问序列，请先补全题目数据。")
     if len(reference) > MAX_REFERENCE:
         return _blocked(kind, engine, f"访问序列超过 {MAX_REFERENCE} 次；首版逐步演示只支持较短的序列。")
     if not 1 <= frames_count <= MAX_FRAMES:
         return _blocked(kind, engine, f"物理块数需在 1–{MAX_FRAMES} 之间。")
+    if not 1 <= window <= MAX_REFERENCE:
+        return _blocked(kind, engine, f"工作集窗口需在 1–{MAX_REFERENCE} 次访问之间。")
     if len(initial_frames) > frames_count:
         return _blocked(kind, engine, f"初始已调入 {len(initial_frames)} 个页面，超过物理块数 {frames_count}，请核对原题。")
     if len(set(initial_frames)) != len(initial_frames):
@@ -836,6 +1122,11 @@ def _eval_page(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str,
     steps = _simulate_pages(reference, frames_count, algorithm, initial_frames)
     total = len(reference)
     faults = steps[-1]["faults"]
+    ws_sets = _working_set(reference, window)
+    ws_final = ws_sets[-1]
+    ws_max = max(len(item) for item in ws_sets)
+    ws_avg = sum(len(item) for item in ws_sets) / len(ws_sets)
+    thrash = ws_max > frames_count
     frames: list[dict[str, Any]] = []
     start_frames = list(initial_frames) + [None] * (frames_count - len(initial_frames))
     start_label = (f"{PAGE_LABELS[algorithm]}：{frames_count} 个物理块，初始已装入 {', '.join(initial_frames)}"
@@ -844,74 +1135,103 @@ def _eval_page(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str,
            "初始驻留页面不产生缺页；每次访问先查物理块，不在其中才产生一次缺页。" if initial_frames
            else "每次访问先查物理块；不在其中就产生一次缺页。", 1,
            reference=list(reference), cursor=-1, frames=start_frames, hit=None, slot=None, evicted=None,
-           faults=0, hits=0, aux_title="", aux=[], algorithm=algorithm, initial_frames=list(initial_frames))
+           faults=0, hits=0, aux_title="", aux=[], algorithm=algorithm, initial_frames=list(initial_frames),
+           window=window, working_set=[], ws_max=0)
     for step in steps:
-        hits = step["index"] + 1 - step["faults"]
+        index = step["index"]
+        hits = index + 1 - step["faults"]
+        ws = ws_sets[index]
         if step["hit"]:
             label = f"访问 {step['page']}：命中"
             detail = f"页面 {step['page']} 已在物理块中，不产生缺页。"
+            if algorithm == "clock":
+                detail += " Clock 将该页访问位置 1。"
             action, line = "hit", 2
         elif step["evicted"] is None:
             label = f"访问 {step['page']}：缺页，装入空闲块"
             detail = f"页面 {step['page']} 不在内存，仍有空闲物理块，直接装入块 {step['slot'] + 1}。"
+            if algorithm == "clock":
+                detail += " 新装入页面的访问位置 1。"
             action, line = "fault", 3
         else:
             reason = {"fifo": "最早装入的页面",
                       "lru": "最近最久没有被使用的页面",
-                      "opt": "未来最晚才会再次访问（或不再访问）的页面"}[algorithm]
+                      "opt": "未来最晚才会再次访问（或不再访问）的页面",
+                      "clock": "访问位为 0 且被指针扫到的页面"}[algorithm]
             label = f"访问 {step['page']}：缺页，置换 {step['evicted']}"
             detail = f"物理块已满，按 {algorithm.upper()} 选择{reason} {step['evicted']} 换出，页面 {step['page']} 装入块 {step['slot'] + 1}。"
+            if algorithm == "clock":
+                detail += " 指针扫描时把经过页面的访问位清零，被换出页面重新装入后访问位置 1，指针移到下一块。"
             action, line = "replace", 4
-        _frame(frames, action, label, detail, line, reference=list(reference), cursor=step["index"],
+        _frame(frames, action, label, detail, line, reference=list(reference), cursor=index,
                frames=step["frames"], hit=step["hit"], slot=step["slot"], evicted=step["evicted"],
-               faults=step["faults"], hits=hits, aux_title=step["aux_title"], aux=step["aux"], algorithm=algorithm)
+               faults=step["faults"], hits=hits, aux_title=step["aux_title"], aux=step["aux"],
+               algorithm=algorithm, refs=step["refs"], hand=step["hand"], window=window,
+               working_set=ws, ws_max=ws_max)
     rate = faults / total
     answer = f"缺页 {faults} 次，命中 {total - faults} 次，缺页率 {rate * 100:.1f}%"
+    ws_note = (f"工作集 Δ={window}：最大 {ws_max} 页，{'超过' if thrash else '不超过'}物理块数 {frames_count}"
+               + ("，可能发生抖动" if thrash else "，无明显抖动"))
+    answer += f"；{ws_note}"
     _frame(frames, "result", "结果", answer, 5, reference=list(reference), cursor=total - 1, frames=steps[-1]["frames"],
-           hit=None, slot=None, evicted=None, faults=faults, hits=total - faults, aux_title="", aux=[], algorithm=algorithm)
+           hit=None, slot=None, evicted=None, faults=faults, hits=total - faults, aux_title="", aux=[],
+           algorithm=algorithm, refs=steps[-1]["refs"], hand=steps[-1]["hand"], window=window,
+           working_set=ws_final, ws_max=ws_max)
 
     compare = {name: _simulate_pages(reference, frames_count, name, initial_frames)[-1]["faults"] for name in PAGE_LABELS}
     series = [{"frames": count, "faults": _simulate_pages(reference, count, algorithm, initial_frames)[-1]["faults"]}
               for count in range(max(1, len(initial_frames)), MAX_FRAMES + 1)]
     checks = [{"id": "accounting", "label": "命中 + 缺页 = 访问次数", "status": "pass",
                "detail": f"{total - faults} + {faults} = {total}。"}]
-    if compare["opt"] <= min(compare["fifo"], compare["lru"]):
+    best_other = min(compare[name] for name in ("fifo", "lru", "clock"))
+    if compare["opt"] <= best_other:
         checks.append({"id": "opt_bound", "label": "OPT 为缺页下界", "status": "pass",
-                       "detail": f"OPT {compare['opt']} 次不超过 FIFO {compare['fifo']} 次与 LRU {compare['lru']} 次。"})
+                       "detail": f"OPT {compare['opt']} 次不超过 FIFO {compare['fifo']}、LRU {compare['lru']}、"
+                                 f"Clock {compare['clock']} 的缺页次数。"})
     else:
         checks.append({"id": "opt_bound", "label": "OPT 为缺页下界", "status": "fail",
                        "detail": "OPT 的缺页次数不应高于其他算法，请核对序列。"})
-    if algorithm == "fifo":
+    if algorithm in ("fifo", "clock"):
         bigger = next((item for item in series if item["frames"] == frames_count + 1), None)
+        label = "FIFO" if algorithm == "fifo" else "Clock"
         if bigger and bigger["faults"] > faults:
             checks.append({"id": "belady", "label": "Belady 异常", "status": "warn",
-                           "detail": f"物理块从 {frames_count} 增加到 {frames_count + 1}，FIFO 缺页反而从 {faults} 增加到 {bigger['faults']} 次。"})
+                           "detail": f"物理块从 {frames_count} 增加到 {frames_count + 1}，{label} 缺页反而从 "
+                                     f"{faults} 增加到 {bigger['faults']} 次。"})
         else:
             checks.append({"id": "belady", "label": "Belady 异常", "status": "pass",
-                           "detail": "增加一个物理块后缺页次数没有增加；FIFO 不是栈式算法，仍可能在其他序列上出现异常。"})
+                           "detail": f"增加一个物理块后缺页次数没有增加；{label} 不是栈式算法，仍可能在其他序列上出现异常。"})
     else:
         checks.append({"id": "belady", "label": "Belady 异常", "status": "pass",
                        "detail": "LRU 与 OPT 是栈式算法，增加物理块不会让缺页变多。"})
+    checks.append({
+        "id": "working_set", "label": "工作集与抖动",
+        "status": "warn" if thrash else "pass",
+        "detail": f"窗口 Δ={window} 时最大工作集 {ws_max} 页，物理块 {frames_count} 块；"
+                  + ("驻留集小于工作集，可能发生抖动。" if thrash else "驻留集不小于工作集，没有明显抖动。"),
+    })
     metrics = [
         {"id": "algorithm", "label": "算法", "value": PAGE_LABELS[algorithm]},
         {"id": "faults", "label": "缺页次数", "value": str(faults)},
         {"id": "hits", "label": "命中次数", "value": str(total - faults)},
         {"id": "rate", "label": "缺页率", "value": f"{rate * 100:.1f}%"},
+        {"id": "working_set", "label": f"工作集 Δ={window}", "value": ",".join(ws_final) + f"（最大 {ws_max}）"},
     ]
-    return {
-        "subject": "operating_system", "engine": engine, "os_kind": kind, "status": "ok", "algorithm": algorithm,
-        "frames": frames, "trace": frames, "pseudocode": PAGE_PSEUDOCODE, "answer": answer,
-        "answer_value": float(faults), "answer_order": None,
-        "headline": f"{PAGE_LABELS[algorithm]}（{frames_count} 块）：缺页 {faults} 次 / 访问 {total} 次",
-        "metrics": metrics, "checks": checks,
-        "stats": {"faults": faults, "hits": total - faults, "total": total, "rate": rate, "frames_count": frames_count,
-                  "initial_frames": list(initial_frames), "compare": compare, "series": series},
-        "stop_reason": "done",
-        "notes": ["物理块按固定位置显示：被置换页面所在的块直接装入新页面。",
-                  "OPT 并列时（多个页面都不再访问）置换最早装入的页面；LRU 命中会刷新最近使用时间，FIFO 命中不改变队列。",
-                  "初始驻留页面按给定顺序视为从早到晚装入；对初态页面的访问按命中处理，不计缺页。" if initial_frames
-                  else "访问序列开始前物理块全空，第一次访问每个页面都会缺页。"],
-    }
+    return _ok(kind, engine, answer, frames, PAGE_PSEUDOCODE,
+               metrics=metrics, checks=checks,
+               answer_value=float(faults), algorithm=algorithm,
+               headline=f"{PAGE_LABELS[algorithm]}（{frames_count} 块）：缺页 {faults} 次 / 访问 {total} 次",
+               stats={"faults": faults, "hits": total - faults, "total": total, "rate": rate,
+                      "frames_count": frames_count, "initial_frames": list(initial_frames),
+                      "compare": compare, "series": series, "window": window,
+                      "working_set": ws_final, "max_working_set": ws_max,
+                      "avg_working_set": ws_avg, "thrash": thrash},
+               notes=["物理块按固定位置显示：被置换页面所在的块直接装入新页面。",
+                      "OPT 并列时（多个页面都不再访问）置换最早装入的页面；LRU 命中会刷新最近使用时间，FIFO 命中不改变队列。",
+                      "Clock 指针初始指向块 1；命中或装入空闲块只把访问位置 1，只有置换扫描会移动指针。",
+                      f"工作集按最近 Δ={window} 次访问计算；物理块数小于最大工作集时提示可能抖动。",
+                      "初始驻留页面按给定顺序视为从早到晚装入；对初态页面的访问按命中处理，不计缺页。" if initial_frames
+                      else "访问序列开始前物理块全空，第一次访问每个页面都会缺页。"])
 
 
 # ---------------------------------------------------------------------------
@@ -1852,19 +2172,941 @@ def _eval_memory_alloc(model: Mapping[str, Any], params: Mapping[str, Any]) -> d
 
 
 # ---------------------------------------------------------------------------
+# TLB 与访问性能
+# ---------------------------------------------------------------------------
+
+def _page_levels(text: str) -> int:
+    match = re.search(r"([0-9一二三四五])\s*级\s*页表|页表\s*(?:为|是|有|采用)?\s*([0-9一二三四五])\s*级|"
+                      r"页表级数\s*(?:为|是|=|:|：)?\s*([0-9一二三四五])", text)
+    if match:
+        value = _cn_int(next(group for group in match.groups() if group))
+        if value:
+            return max(1, value)
+    return 1
+
+
+def _number_token(token: str) -> int:
+    token = token.strip()
+    if token.lower().startswith("0x"):
+        return int(token[2:], 16)
+    if token[-1:] in ("H", "h"):
+        return int(token[:-1], 16)
+    if re.search(r"[A-Fa-f]", token):
+        return int(token, 16)
+    return int(token)
+
+
+def _virtual_addresses(text: str) -> list[int]:
+    match = re.search(
+        rf"(?:虚拟地址|虚地址|逻辑地址|访问地址)(?:序列|依次为|分别为)?\s*(?:为|是|=|:|：)?\s*([^\n。；]+)",
+        text, re.I)
+    if not match:
+        return []
+    chunk = match.group(1)
+    stop = re.search(r"页大小|页面大小|页表|TLB|快表|物理地址|主存|页框", chunk, re.I)
+    chunk = chunk[:stop.start()] if stop else chunk
+    chunk = re.sub(r"\d+\s*位", " ", chunk)
+    result: list[int] = []
+    for token in re.findall(r"0[xX][0-9A-Fa-f]+|[0-9A-Fa-f]+[Hh]|(?<![A-Za-z0-9])\d+(?![A-Za-z0-9])", chunk):
+        try:
+            value = _number_token(token)
+        except ValueError:
+            continue
+        if value not in result:
+            result.append(value)
+    return result
+
+
+def _mapping_pairs(section: str) -> dict[int, int]:
+    pairs: dict[int, int] = {}
+    if not section:
+        return pairs
+    for left, right in re.findall(
+            r"([0-9A-Fa-f]+)\s*(?:→|->|映射到|对应|:)\s*"
+            r"(?:页框号?|物理页框|pfn|块号)?\s*([0-9A-Fa-f]+)", section, re.I):
+        try:
+            pairs[_number_token(left)] = _number_token(right)
+        except ValueError:
+            continue
+    return pairs
+
+
+def _tlb_concept(engine: str) -> dict[str, Any]:
+    frames: list[dict[str, Any]] = []
+    _frame(frames, "concept", "TLB 命中路径",
+           "CPU 把虚拟地址拆成 VPN 与页内偏移；用 VPN 在 TLB 中按标记并行比较。"
+           "命中时直接得到页框号 PFN，不需要访问页表。", 1,
+           命中路径="VPN → TLB → PFN", TLB访问次数="1")
+    _frame(frames, "concept", "TLB 缺失路径",
+           "TLB 未命中时，按页表级数逐级访问页表。单级页表访问 1 次；两级页表访问 2 次。"
+           "得到页框号后把该页表项装入 TLB；若页表项有效位为 0，则触发缺页。", 2,
+           缺失路径="VPN → 页表 → PFN", 页表访问次数="页表级数")
+    _frame(frames, "concept", "有效访问时间",
+           "若 TLB 命中率为 h、TLB 访问时间为 t、内存访问时间为 m、页表级数为 L，则"
+           "EAT = h×(t+m) + (1−h)×[t+L×m+m]。若再给出缺页率 p，还需把缺页处理时间按 p 加权。", 3,
+           公式="EAT = h×(t+m) + (1−h)×(t+L×m+m)")
+    answer = ("TLB 命中时直接得到页框号，不需要访问页表；TLB 缺失时才逐级访问页表并把页表项装入 TLB。"
+              "有效访问时间按命中率加权：命中走 TLB+内存，缺失走 TLB+多级页表+内存；再按缺页率叠加缺页处理开销。")
+    return _ok("tlb", engine, answer, frames, TLB_PSEUDOCODE,
+               metrics=[{"id": "formula", "label": "EAT 公式", "value": "h×(t+m)+(1−h)×(t+L×m+m)"}],
+               checks=[], notes=["本题没有给出命中率或访问时间，因此只给出 TLB 命中/缺失路径与公式；补充数据后可计算。"],
+               stats={"concept": True})
+
+
+def _eval_tlb(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    text = str(model.get("raw") or "")
+    engine = "os_tlb_v1"
+    frames: list[dict[str, Any]] = []
+    answer_bits: list[str] = []
+    concept_question = bool(re.search(r"说明|简述|解释|什么是|为什么|过程|区别|比较", text))
+    asks_compute = (bool(re.search(r"求|计算|是多少|有效访问时间|EAT|访问次数|物理地址|转换", text, re.I))
+                    and not concept_question)
+    hit_rate = _percent(text, r"TLB\s*命中率|快表命中率|TLB\s*命中概率")
+    tlb_time = _time_ms(text, r"(?:访问|查找|查询|命中)?\s*TLB\s*(?:的)?(?:访问|查找|查询|命中)?时间|"
+                              r"快表(?:访问|查找|查询|命中)?时间|查\s*TLB\s*时间")
+    memory_time = _time_ms(text, r"(?:主存|内存)(?:访问|存取|读写)?时间|访问(?:主存|内存)时间|"
+                                 r"一次内存访问(?:时间|延迟)")
+    page_time = _time_ms(text, r"页表(?:访问|查找|查询)时间|查页表时间")
+    levels = _page_levels(text)
+    fault_rate = _percent(text, r"缺页率|缺页概率|缺页比率")
+    fault_time = _time_ms(text, r"缺页(?:处理|服务|中断处理)?时间|缺页(?:处理)?开销|缺页处理延迟")
+    access_count_match = re.search(r"(?:页面访问|地址访问|程序访问|共)\s*(?:了|约)?\s*(\d+)\s*次", text)
+    access_count = None
+    if access_count_match:
+        access_count = int(access_count_match.group(1))
+
+    page_size = _size_bytes(text, r"页大小|页面大小|页长|每页大小")
+    tlb_section = _section(text, r"TLB\s*(?:表|内容|初始内容)?\s*[：:]|快表\s*(?:表|内容)?\s*[：:]",
+                           r"页表|虚拟地址|地址序列|主存|$")
+    page_section = _section(text, r"页表\s*(?:内容|映射|表项)?\s*[：:]|页表项\s*[：:]",
+                            r"TLB|快表|虚拟地址|地址序列|$")
+    tlb_map = _mapping_pairs(tlb_section)
+    page_map = _mapping_pairs(page_section)
+    addresses = _virtual_addresses(text)
+
+    sample_hits = 0
+    sample_misses = 0
+    page_table_accesses = 0
+    if addresses and page_size:
+        for index, address in enumerate(addresses, 1):
+            vpn = int(address // page_size)
+            offset = int(address % page_size)
+            if vpn in tlb_map:
+                sample_hits += 1
+                pfn = tlb_map[vpn]
+                physical = pfn * int(page_size) + offset
+                _frame(frames, "hit", f"地址 0x{address:X}：TLB 命中",
+                       f"VPN={vpn}，页内偏移={offset}；TLB 命中直接得到页框号 {pfn}，"
+                       f"物理地址 = {pfn}×{_fmt(page_size)}+{offset} = 0x{physical:X}。", 1,
+                       虚拟地址=f"0x{address:X}", VPN=str(vpn), 页内偏移=str(offset), TLB="命中",
+                       页框号=str(pfn), 物理地址=f"0x{physical:X}", 页表访问="0 次")
+                answer_bits.append(f"0x{address:X} → 物理地址 0x{physical:X}（TLB 命中）")
+            else:
+                sample_misses += 1
+                page_table_accesses += levels
+                detail = f"VPN={vpn}，页内偏移={offset}；TLB 未命中，需要访问 {levels} 级页表。"
+                if vpn in page_map:
+                    pfn = page_map[vpn]
+                    physical = pfn * int(page_size) + offset
+                    detail += f"页表查到页框号 {pfn}，物理地址 = 0x{physical:X}；该页表项可装入 TLB。"
+                    answer_bits.append(f"0x{address:X} → 物理地址 0x{physical:X}（TLB 缺失，查页表）")
+                    values = {"页框号": str(pfn), "物理地址": f"0x{physical:X}"}
+                else:
+                    detail += "题面没有给出该页的页表映射，不能编造物理地址。"
+                    answer_bits.append(f"0x{address:X}：TLB 缺失，且题面未给出该页页表项")
+                    values = {"物理地址": "题面未给出"}
+                _frame(frames, "miss", f"地址 0x{address:X}：TLB 缺失", detail, 2,
+                       虚拟地址=f"0x{address:X}", VPN=str(vpn), 页内偏移=str(offset), TLB="缺失",
+                       页表访问=f"{levels} 次", **values)
+    elif addresses and not page_size and asks_compute:
+        raise ValueError("地址转换需要页大小，请补充“页大小为 4KB”这样的条件")
+    elif addresses and not page_size:
+        answer_bits.append(f"识别到 {len(addresses)} 个虚拟地址，但缺少页大小，未拆分 VPN 与页内偏移")
+
+    if hit_rate is None and sample_hits + sample_misses:
+        hit_rate = sample_hits / (sample_hits + sample_misses)
+        hit_rate_source = "按本题地址样本统计"
+    else:
+        hit_rate_source = "题面给出"
+
+    eat_ns = None
+    if hit_rate is not None and memory_time is not None:
+        tlb_time = tlb_time or 0.0
+        page_access = page_time if page_time is not None else memory_time
+        hit_cost = tlb_time + memory_time
+        miss_cost = tlb_time + levels * page_access + memory_time
+        normal_ms = hit_rate * hit_cost + (1 - hit_rate) * miss_cost
+        detail = (f"TLB 命中率 h={_fmt(hit_rate * 100, 4)}%，L={levels} 级页表；"
+                  f"命中路径 = {_fmt_time_ms(tlb_time)} + {_fmt_time_ms(memory_time)} = {_fmt_time_ms(hit_cost)}；"
+                  f"缺失路径 = {_fmt_time_ms(tlb_time)} + {levels}×{_fmt_time_ms(page_access)} + "
+                  f"{_fmt_time_ms(memory_time)} = {_fmt_time_ms(miss_cost)}；"
+                  f"加权正常访问时间 = {_fmt_time_ms(normal_ms)}。")
+        eat_ms = normal_ms
+        fault_detail = ""
+        if fault_rate is not None:
+            if fault_time is None:
+                if asks_compute:
+                    raise ValueError("题目给出缺页率，但缺少缺页处理时间/开销，无法计算含缺页的有效访问时间")
+                fault_detail = "题面给出缺页率但未给出缺页处理时间，未计入缺页开销。"
+            else:
+                additive = bool(re.search(r"缺页(?:处理)?(?:的)?(?:额外)?开销|额外开销", text))
+                if additive:
+                    eat_ms = normal_ms + fault_rate * fault_time
+                    formula = "正常访问时间 + 缺页率×缺页处理开销"
+                else:
+                    eat_ms = (1 - fault_rate) * normal_ms + fault_rate * fault_time
+                    formula = "(1−缺页率)×正常访问时间 + 缺页率×缺页处理时间"
+                fault_detail = (f"缺页率 p={_fmt(fault_rate * 100, 4)}%，缺页处理时间 {_fmt_time_ms(fault_time)}；"
+                                f"按“{formula}”加权")
+                detail += fault_detail
+        eat_ns = eat_ms * 1e6
+        _frame(frames, "eat", "有效访问时间", detail, 3,
+               命中率=f"{_fmt(hit_rate * 100, 4)}%", 页表级数=str(levels),
+               正常访问时间=_fmt_time_ms(normal_ms), 有效访问时间=_fmt_time_ms(eat_ms))
+        answer_bits.append(f"EAT = {_fmt_time_ms(eat_ms)}" + (f"（{fault_detail}）" if fault_detail else ""))
+        if access_count is not None:
+            hits = access_count * hit_rate
+            misses = access_count * (1 - hit_rate)
+            accesses = misses * levels
+            _frame(frames, "count", "页表访问次数",
+                   f"{access_count} 次访问中，TLB 命中约 {_fmt(hits)} 次、缺失约 {_fmt(misses)} 次；"
+                   f"每次缺失访问 {levels} 级页表，共约 {_fmt(accesses)} 次页表访问。", 4,
+                   访问次数=str(access_count), TLB命中=f"{_fmt(hits)} 次", TLB缺失=f"{_fmt(misses)} 次",
+                   页表访问次数=_fmt(accesses))
+            answer_bits.append(f"页表访问约 {_fmt(accesses)} 次")
+        checks = [
+            {"id": "hit_miss", "label": "命中率与缺失率互补", "status": "pass",
+             "detail": f"{_fmt(hit_rate * 100, 4)}% + {_fmt((1 - hit_rate) * 100, 4)}% = 100%。"},
+            {"id": "eat", "label": "有效访问时间公式", "status": "pass",
+             "detail": "命中路径、缺失路径与缺页开销均按概率加权。"},
+        ]
+        metrics = [
+            {"id": "hit_rate", "label": "TLB 命中率", "value": f"{_fmt(hit_rate * 100, 4)}%"},
+            {"id": "levels", "label": "页表级数", "value": str(levels)},
+            {"id": "eat", "label": "有效访问时间", "value": _fmt_time_ms(eat_ms)},
+        ]
+        answer = "；".join(answer_bits) if answer_bits else f"EAT = {_fmt_time_ms(eat_ms)}"
+        return _ok("tlb", engine, answer, frames, TLB_PSEUDOCODE,
+                   metrics=metrics, checks=checks, answer_value=eat_ns,
+                   notes=["TLB 访问时间未给出时按 0 计入，等价于忽略 TLB 查找时间或与内存访问并行。",
+                          "页表访问时间未给出时，每级页表按一次内存访问计时。",
+                          "缺页处理时间若写成“开销”，按额外开销叠加；若写成“处理时间/服务时间”，按总服务时间替换正常访问时间。",
+                          f"命中率来源：{hit_rate_source}。"],
+                   stats={"hit_rate": hit_rate, "levels": levels, "eat_ns": eat_ns,
+                          "normal_ms": normal_ms, "fault_rate": fault_rate, "fault_time_ms": fault_time,
+                          "sample_hits": sample_hits, "sample_misses": sample_misses,
+                          "page_table_accesses": page_table_accesses},
+                   algorithm="tlb")
+
+    if sample_hits + sample_misses:
+        answer = ("；".join(answer_bits) if answer_bits else "地址转换完成")
+        answer += f"；样本 TLB 命中率 {_fmt(hit_rate * 100, 4)}%，页表访问 {page_table_accesses} 次"
+        return _ok("tlb", engine, answer, frames, TLB_PSEUDOCODE,
+                   metrics=[{"id": "hit_rate", "label": "样本 TLB 命中率",
+                             "value": f"{_fmt((hit_rate or 0) * 100, 4)}%"},
+                            {"id": "page_table_accesses", "label": "页表访问次数",
+                             "value": str(page_table_accesses)}],
+                   checks=[{"id": "accounting", "label": "样本访问次数守恒", "status": "pass",
+                            "detail": f"命中 {sample_hits} + 缺失 {sample_misses} = {sample_hits + sample_misses}。"}],
+                   answer_value=(float(page_table_accesses)
+                                 if page_table_accesses and re.search(r"页表访问次数|访问几次页表|页表访问[^\n。；]{0,6}次", text)
+                                 else None),
+                   notes=[f"TLB 表项与页表映射按题面给出；页大小为 {_fmt(page_size)} B。" if page_size
+                          else "题面未给出页大小，未做地址拆分。",
+                          "缺失但页表没有映射时只报告缺失次数，不编造物理地址。"],
+                   stats={"sample_hits": sample_hits, "sample_misses": sample_misses,
+                          "hit_rate": hit_rate, "page_table_accesses": page_table_accesses,
+                          "levels": levels},
+                   algorithm="tlb")
+
+    if asks_compute:
+        raise ValueError("TLB 计算题需要 TLB 命中率、内存访问时间（以及可选的缺页率与缺页处理时间）")
+    if re.search(r"TLB|快表", text, re.I):
+        return _tlb_concept(engine)
+    raise ValueError("没有识别到 TLB/快表相关的可执行条件")
+
+
+# ---------------------------------------------------------------------------
+# 文件与目录
+# ---------------------------------------------------------------------------
+
+def _mode_to_bits(mode: str) -> str:
+    digits = mode[-3:]
+    bits = []
+    for digit in digits:
+        value = int(digit)
+        bits.append("r" if value & 4 else "-")
+        bits.append("w" if value & 2 else "-")
+        bits.append("x" if value & 1 else "-")
+    return "".join(bits)
+
+
+def _permission_bits(text: str) -> str | None:
+    symbolic = re.search(
+        r"(?:权限位?|模式)\s*(?:为|是|=|:|：)?\s*([dl-]?[rwx-]{9})|(?<![A-Za-z0-9])([dl-][rwx-]{9})(?![A-Za-z0-9])",
+        text)
+    if symbolic:
+        return (symbolic.group(1) or symbolic.group(2))[-9:]
+    mode = re.search(r"(?:权限位?|模式|chmod)\s*(?:为|是|=|:|：)?\s*([0-7]{3,4})\b", text, re.I)
+    if mode:
+        return _mode_to_bits(mode.group(1))
+    return None
+
+
+def _perm_text(bits: str) -> str:
+    return bits
+
+
+def _perm_words(bits: str) -> str:
+    names = (("读", "r"), ("写", "w"), ("执行", "x"))
+    words = [name for name, letter in names if bits[0] == letter or bits[1] == letter or bits[2] == letter]
+    return "/".join(words) if words else "无"
+
+
+def _file_path_info(text: str) -> dict[str, Any] | None:
+    current_match = re.search(r"当前目录\s*(?:为|是|=|:|：)?\s*(/[A-Za-z0-9_.\-/]+)", text)
+    current = current_match.group(1).rstrip("/") if current_match else ""
+    candidates = re.findall(
+        r"(?<![\w/])(/[A-Za-z0-9_.\-/]{1,}|(?:[A-Za-z0-9_.\-]+/)+[A-Za-z0-9_.\-]+)", text)
+    filtered: list[str] = []
+    for candidate in candidates:
+        parts = [part for part in candidate.split("/") if part]
+        if not parts:
+            continue
+        if all(re.fullmatch(r"\d+", part) for part in parts):
+            continue
+        filtered.append(candidate)
+    if not filtered:
+        return None
+    path = max(filtered, key=len)
+    absolute = path.startswith("/")
+    is_dir = path.endswith("/") or bool(
+        re.search(r"(?:目录|文件夹)\s*(?:为|是)?\s*" + re.escape(path.rstrip("/")), text))
+    path_parts = [part for part in path.split("/") if part]
+    current_parts = [part for part in current.split("/") if part] if current and not absolute else []
+    if absolute:
+        full_parts = path_parts
+        start = "根目录 /"
+    elif current:
+        full_parts = current_parts + path_parts
+        start = f"当前目录 {current}"
+    else:
+        full_parts = path_parts
+        start = "当前目录（题面未给出绝对路径）"
+    traversed = len(full_parts) - len(current_parts) if current and not absolute else len(full_parts)
+    return {"path": path, "current": current, "start": start, "absolute": absolute,
+            "is_dir": is_dir, "parts": full_parts, "directory_reads": traversed,
+            "inode_reads": 1}
+
+
+def _eval_file_dir(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    text = str(model.get("raw") or "")
+    engine = "os_file_dir_v1"
+    frames: list[dict[str, Any]] = []
+    answer_bits: list[str] = []
+    stats: dict[str, Any] = {}
+
+    bits = _permission_bits(text)
+    if bits is not None:
+        groups = (("文件主", 0), ("同组", 3), ("其他", 6))
+        targets = []
+        if re.search(r"文件主|属主|所有者|owner", text, re.I):
+            targets.append(("文件主", 0))
+        if re.search(r"同组|组用户|组内|group", text, re.I):
+            targets.append(("同组", 3))
+        if re.search(r"其他用户|其他人|other", text, re.I):
+            targets.append(("其他", 6))
+        if not targets:
+            targets = list(groups)
+        operations = []
+        if re.search(r"读|read", text, re.I):
+            operations.append(("读", 0))
+        if re.search(r"写|write|修改", text, re.I):
+            operations.append(("写", 1))
+        if re.search(r"执行|运行|execute", text, re.I):
+            operations.append(("执行", 2))
+        summary = "；".join(
+            f"{name} {bits[offset:offset + 3]}（{_perm_words(bits[offset:offset + 3])}）"
+            for name, offset in groups)
+        answer_bits.append(f"权限 {_perm_text(bits)}：{summary}")
+        if operations and len(targets) == 1 and len(operations) == 1:
+            name, offset = targets[0]
+            op, index = operations[0]
+            allowed = bits[offset + index] not in ("-", "S", "T")
+            answer_bits.insert(0, f"{name}对文件{'有' if allowed else '没有'}{op}权限")
+        _frame(frames, "permission", f"权限位 {bits}",
+               f"每个权限位组依次表示读 r、写 w、执行 x；{summary}。", 6,
+               权限=_perm_text(bits), 文件主=bits[0:3], 同组=bits[3:6], 其他=bits[6:9],
+               文件主权限=_perm_words(bits[0:3]), 同组权限=_perm_words(bits[3:6]),
+               其他权限=_perm_words(bits[6:9]))
+        stats["permission"] = bits
+    elif re.search(r"权限|rwx|访问控制|读.{0,4}写.{0,4}执行", text):
+        detail = ("文件权限用 9 个位表示：文件主、同组、其他三类用户各占 3 位，依次为读 r、写 w、执行 x。"
+                  "八进制权限 754 对应 rwxr-xr--；对目录而言，r 允许列目录，w 允许创建/删除目录项，x 允许进入目录。"
+                  "权限检查由文件主/同组/其他三类身份匹配。")
+        _frame(frames, "concept", "文件权限位", detail, 6,
+               权限位="文件主|同组|其他 各 rwx", 例子="754 → rwxr-xr--", 目录执行="进入目录")
+        answer_bits.append("权限按文件主/同组/其他的 rwx 三类解释；目录的 x 表示可进入，r 表示可列目录")
+
+    path_info = _file_path_info(text)
+    if path_info:
+        reads = path_info["directory_reads"]
+        inode_reads = path_info["inode_reads"]
+        detail = (f"从{path_info['start']}开始，按路径分量逐级读取目录项："
+                  f"{' → '.join(path_info['parts'])}。无目录项缓存时需要 {reads} 次目录读取；"
+                  f"定位到文件后再读取 inode {inode_reads} 次。")
+        answer_bits.append(f"路径 {path_info['path']}：目录读取 {reads} 次，inode 读取 {inode_reads} 次（无缓存口径）")
+        _frame(frames, "path", f"路径查找 {path_info['path']}",
+               detail + "若根目录或部分目录项已在内存，实际访盘次数会减少。", 1,
+               路径=path_info["path"], 起始=path_info["start"],
+               目录读取=f"{reads} 次", inode读取=f"{inode_reads} 次")
+        stats["path"] = path_info
+
+    if re.search(r"逻辑结构|无结构|流式文件|顺序文件|索引顺序文件", text):
+        detail = ("文件逻辑结构：无结构（流式）文件按字节流组织；顺序文件按记录顺序存放，适合顺序访问；"
+                  "索引文件为记录建立索引表以支持随机访问；索引顺序文件分组后建索引，兼顾顺序与随机访问。")
+        _frame(frames, "concept", "文件逻辑结构", detail, 1,
+               无结构="字节流", 顺序文件="按记录顺序", 索引文件="索引表", 索引顺序="分组+索引")
+        answer_bits.append("逻辑结构分无结构（流式）、顺序、索引和索引顺序文件")
+    concept_query = bool(re.search(r"说明|区别|作用|是什么|组成|结构|为什么|比较", text))
+    if re.search(r"FCB|文件控制块", text, re.I) and (not path_info or concept_query):
+        detail = ("FCB（文件控制块）保存文件名、文件类型、物理位置、大小、权限、时间戳和链接计数等元数据；"
+                  "目录项通常就是 FCB 或其一部分。打开文件时把 FCB 调入内存。")
+        _frame(frames, "concept", "FCB 的组成", detail, 1,
+               FCB="文件名/类型/位置/大小/权限/时间/链接计数")
+        answer_bits.append("FCB 保存文件名、位置、大小、权限和链接计数等元数据")
+    if re.search(r"inode|索引结点", text, re.I) and (not path_info or concept_query):
+        detail = ("inode（索引结点）把文件元数据与文件名分离：目录项只保存文件名和 inode 号，"
+                  "inode 保存类型、权限、大小、时间、链接计数和数据块地址。"
+                  "硬链接让多个目录项指向同一 inode，删除一个名字只减少链接计数。")
+        _frame(frames, "concept", "inode 与目录项", detail, 1,
+               inode="元数据", 目录项="文件名 → inode 号", 硬链接="共享 inode")
+        answer_bits.append("目录项保存文件名到 inode 号的映射，inode 保存文件元数据与数据块地址")
+    if re.search(r"打开文件|文件打开|文件读写|文件关闭|打开[、与]?读写|读写[、与]?关闭|open\s*\(|"
+                 r"文件描述符|打开文件表|read\s*\(|write\s*\(|close\s*\(", text, re.I):
+        detail = ("open 先按路径查找目录并读取 inode，再在系统打开文件表中建立表项，"
+                  "进程文件描述符表指向该表项；read/write 通过文件描述符和文件偏移直接访问，不再查目录；"
+                  "close 释放描述符并减少打开文件表/inode 的引用计数。")
+        _frame(frames, "concept", "打开、读写与关闭",
+               detail, 4,
+               打开="路径查找 + 建立 FD 表项", 读写="使用文件偏移，不查目录", 关闭="释放表项与引用计数")
+        answer_bits.append("open 查目录并建立文件描述符→打开文件表→inode 关联；read/write 不再查目录；close 释放引用")
+    if re.search(r"硬链接|软链接|符号链接|文件链接|链接", text):
+        detail = ("硬链接：多个目录项指向同一 inode，共享文件数据，链接计数增加；删除一个名字只减少计数，"
+                  "最后一个名字删除后数据才回收。符号链接（软链接）：新建一个 inode，内容是目标路径字符串；"
+                  "访问时需额外解析路径，目标删除后成为悬空链接。")
+        _frame(frames, "concept", "硬链接与软链接", detail, 1,
+               硬链接="共享 inode，链接计数", 软链接="保存目标路径，额外查找")
+        answer_bits.append("硬链接共享 inode；符号链接保存目标路径并需额外解析")
+    if re.search(r"共享", text) and (not re.search(r"硬链接|软链接|符号链接", text) or concept_query):
+        detail = ("文件共享可通过硬链接/符号链接实现，也可通过打开文件表共享同一打开实例："
+                  "多个进程可共享同一系统打开文件表项与文件偏移，或各自打开同一 inode。")
+        _frame(frames, "concept", "文件共享", detail, 1,
+               链接共享="硬链接/软链接", 打开共享="共享打开文件表项")
+        answer_bits.append("文件共享可用硬链接、符号链接或共享打开文件表项实现")
+    if not path_info and re.search(r"目录项|目录结构|树形目录|路径", text):
+        detail = ("树形目录从根目录开始逐级查找；每个目录项给出文件名和 inode 号（或 FCB 地址）。"
+                  "绝对路径从根目录开始，相对路径从当前目录开始；未命中目录缓存时每一级目录都可能产生一次磁盘访问。")
+        _frame(frames, "concept", "目录与路径查找", detail, 1,
+               目录结构="树形目录", 查找="逐级目录项", 缓存="可减少访盘")
+        answer_bits.append("树形目录按绝对/相对路径逐级查找目录项")
+
+    if not frames:
+        raise ValueError("文件与目录题需要权限位、可解析的路径，或 FCB/inode/打开文件/共享链接等条件")
+    answer = "；".join(dict.fromkeys(answer_bits))
+    metrics = [{"id": "conclusion", "label": "结论", "value": answer}]
+    if bits is not None:
+        metrics.append({"id": "permission", "label": "权限", "value": bits})
+    if path_info:
+        metrics.append({"id": "path", "label": "目录读取",
+                        "value": f"{path_info['directory_reads']} 次"})
+    return _ok("file_dir", engine, answer, frames, FILE_DIR_PSEUDOCODE,
+               metrics=metrics, stats=stats,
+               notes=["路径查找按无目录项缓存统计；实际系统会缓存目录项和 inode，访盘次数可能更少。",
+                      "权限位按文件主、同组、其他三类解释，依次为 r、w、x。"])
+
+
+# ---------------------------------------------------------------------------
+# 文件存储与空间管理
+# ---------------------------------------------------------------------------
+
+def _index_spec(text: str) -> dict[str, Any] | None:
+    block_size = _size_bytes(text, r"(?:磁盘块|盘块|数据块|块)(?:的)?(?:大小|长度)|每块")
+    pointer_size = _size_bytes(text, r"(?:每个)?指针(?:占|的)?(?:大小|长度)?|地址项大小|盘块号大小")
+    direct_match = re.search(r"(\d+)\s*个\s*直接(?:块|地址项|指针|索引项)?", text)
+    counts = {1: 0, 2: 0, 3: 0}
+    levels = {"一级": 1, "单级": 1, "二级": 2, "双重": 2, "三级": 3, "三重": 3}
+    for match in re.finditer(
+            r"(\d+)\s*个\s*(一级|单级|二级|双重|三级|三重)\s*(?:间接|索引)(?:块|地址项|指针|索引项)?", text):
+        counts[levels[match.group(2)]] += int(match.group(1))
+    if direct_match is None and not any(counts.values()):
+        return None
+    direct = int(direct_match.group(1)) if direct_match else 0
+    pps_match = re.search(r"每个(?:盘块|块|索引块)[^\d]{0,10}(\d+)\s*个?(?:指针|地址|盘块号)", text)
+    pointers_per_block = None
+    if block_size and pointer_size:
+        pointers_per_block = int(block_size // pointer_size)
+    elif pps_match:
+        pointers_per_block = int(pps_match.group(1))
+    if pointers_per_block is not None and pointers_per_block <= 0:
+        pointers_per_block = None
+    return {"block_size": block_size, "pointer_size": pointer_size, "direct": direct,
+            "counts": counts, "pointers_per_block": pointers_per_block}
+
+
+def _index_path(block_index: int, direct: int, counts: Mapping[int, int], pps: int) -> tuple[str, int] | None:
+    if block_index < direct:
+        return "直接地址项", 1
+    remaining = block_index - direct
+    for level in (1, 2, 3):
+        capacity = counts.get(level, 0) * (pps ** level)
+        if remaining < capacity:
+            return f"{level} 级间接索引", level + 1
+        remaining -= capacity
+    return None
+
+
+def _fat_pairs(text: str) -> dict[int, str]:
+    section = _section(text, r"FAT\s*(?:表)?[^\n。；]{0,8}[：:]|文件分配表[^\n。；]{0,8}[：:]",
+                       r"位示图|目录|索引分配|$")
+    pairs: dict[int, str] = {}
+    for left, right in re.findall(
+            r"FAT\s*\[\s*(\d+)\s*\]\s*=\s*(\d+|EOF|EOC|结束|空闲|FREE|free|nil|null|-1)", section, re.I):
+        pairs[int(left)] = right.upper() if not right.isdigit() else right
+    for left, right in re.findall(
+            r"(\d+)\s*(?:→|->|指向|对应|:)\s*(\d+|EOF|EOC|结束|空闲|FREE|free|nil|null|-1)", section, re.I):
+        pairs[int(left)] = right.upper() if not right.isdigit() else right
+    return pairs
+
+
+def _bitmap_bits(text: str) -> list[str]:
+    match = re.search(r"(?:位示图|位图)\s*(?:为|是|=|:|：)?\s*[\[\(（]?\s*((?:[01][\s,，、]*){4,})", text)
+    if not match:
+        match = re.search(r"(?:位示图|位图)[^\n。；]{0,20}?((?:[01][\s,，、]*){4,})", text)
+    if not match:
+        return []
+    return re.findall(r"[01]", match.group(1))
+
+
+def _eval_file_alloc(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    text = str(model.get("raw") or "")
+    engine = "os_file_alloc_v1"
+    frames: list[dict[str, Any]] = []
+    answer_bits: list[str] = []
+    stats: dict[str, Any] = {}
+    answer_value: float | None = None
+    asks_compute = bool(re.search(r"最大|多少|几次|块数|长度|大小|访盘|读取|分配|空闲", text))
+    asks_blocks = bool(re.search(r"需要多少块|需要几块|多少个?(?:盘块|块)|块数|占用多少", text))
+    asks_access = bool(re.search(r"访盘|几次|读取", text))
+
+    spec = _index_spec(text)
+    if spec:
+        block_size = spec["block_size"]
+        pps = spec["pointers_per_block"]
+        counts = spec["counts"]
+        direct = spec["direct"]
+        if pps is not None:
+            max_blocks = direct + sum(counts[level] * (pps ** level) for level in (1, 2, 3))
+            direct_bytes = direct * (block_size or 0)
+            indirect_bytes = {level: counts[level] * (pps ** level) * (block_size or 0) for level in (1, 2, 3)}
+            total_bytes = max_blocks * (block_size or 0)
+            level_text = " + ".join(
+                [f"{direct} 个直接块"] + [f"{counts[level]} 个{level}级间接" for level in (1, 2, 3) if counts[level]])
+            _frame(frames, "index", "多级索引结构",
+                   f"每块有 {_fmt(block_size)} B、每个指针 {_fmt(spec['pointer_size'])} B，"
+                   f"每块可存 {pps} 个指针。地址项：{level_text}。"
+                   f"可寻址块数 = {direct} + {counts[1]}×{pps} + {counts[2]}×{pps}² + {counts[3]}×{pps}³ = {max_blocks} 块；"
+                   f"最大文件长度 = {max_blocks} × {_fmt(block_size)} B = {_fmt_bytes(total_bytes)}。", 1,
+                   每块指针数=str(pps), 可寻址块数=str(max_blocks), 最大文件长度=_fmt_bytes(total_bytes),
+                   直接区=_fmt_bytes(direct_bytes),
+                   一级间接=_fmt_bytes(indirect_bytes[1]), 二级间接=_fmt_bytes(indirect_bytes[2]),
+                   三级间接=_fmt_bytes(indirect_bytes[3]))
+            answer_bits.append(
+                f"每块 {pps} 个指针；可寻址 {max_blocks} 块，最大文件 {_fmt_bytes(total_bytes)}"
+                f"（直接区 {_fmt_bytes(direct_bytes)} + 间接区）")
+            stats["index"] = {"max_blocks": max_blocks, "max_bytes": total_bytes, "pps": pps,
+                              "direct": direct, "counts": counts}
+            block_request = None
+            match = re.search(r"(?:第|访问第|逻辑块号(?:为)?)\s*(\d+)\s*(?:个)?(?:块|盘块)", text)
+            if match:
+                block_request = int(match.group(1))
+            file_size = _size_bytes(text, r"文件(?:大小|长度)|文件为")
+            file_blocks = (int(math.ceil(file_size / block_size))
+                           if file_size and block_size else None)
+            if file_blocks is not None:
+                answer_bits.append(f"文件 {_fmt_bytes(file_size)} 按 {_fmt(block_size)} B/块需要 {file_blocks} 块")
+                if asks_blocks and not asks_access:
+                    answer_value = float(file_blocks)
+            if block_request is None and file_blocks is not None:
+                block_request = file_blocks - 1
+            if block_request is not None:
+                path = _index_path(block_request, direct, counts, pps)
+                if path:
+                    label, accesses = path
+                    _frame(frames, "access", f"访问逻辑块 {block_request}",
+                           f"逻辑块号从 0 开始计数：第 {block_request} 块位于{label}，"
+                           f"需读取 {accesses - 1} 个索引块和 1 个数据块，共 {accesses} 次访盘"
+                           "（假设 inode 已在内存）。", 5,
+                           逻辑块号=str(block_request), 索引方式=label, 访盘次数=f"{accesses} 次")
+                    answer_bits.append(f"访问第 {block_request} 块经 {label}，约 {accesses} 次访盘")
+                    if asks_access and not asks_blocks:
+                        answer_value = float(accesses)
+                    elif asks_access and asks_blocks:
+                        answer_value = None
+                else:
+                    answer_bits.append(f"逻辑块 {block_request} 超出该索引结构的可寻址范围")
+            if asks_compute and answer_value is None and re.search(r"可寻址|最多[^\n。；]{0,6}块|最大[^\n。；]{0,6}块", text):
+                answer_value = float(max_blocks)
+        elif asks_compute:
+            raise ValueError("索引分配计算需要盘块大小和指针大小（或直接给出每块可存指针数）")
+
+    fat = _fat_pairs(text)
+    if fat:
+        start_match = re.search(r"(?:起始块|首块|开始块|从块|文件首块)\s*(?:为|是|=|:|：)?\s*(\d+)", text)
+        start = int(start_match.group(1)) if start_match else next(iter(fat))
+        chain: list[int] = []
+        seen: set[int] = set()
+        current: int | None = start
+        complete = True
+        while current is not None:
+            if current in seen:
+                raise ValueError(f"FAT 链在块 {current} 形成环，无法形成完整文件链")
+            seen.add(current)
+            chain.append(current)
+            if current not in fat:
+                complete = False
+                break
+            nxt = fat[current]
+            if re.fullmatch(r"\d+", nxt):
+                current = int(nxt)
+            elif nxt in ("EOF", "EOC", "结束", "空闲", "FREE", "NIL", "NULL", "-1"):
+                current = None
+            else:
+                complete = False
+                break
+        if not complete:
+            raise ValueError(f"FAT 链在块 {current} 中断，请给出后续表项或结束标记")
+        data_blocks = chain
+        _frame(frames, "fat", f"FAT 链：{' → '.join(map(str, data_blocks))}",
+               f"从块 {start} 沿 FAT 表项依次前进，共 {len(data_blocks)} 个数据块。"
+               f"若 FAT 常驻内存，读取整个文件需 {len(data_blocks)} 次数据块访问；"
+               f"若 FAT 也在磁盘上，每次还要读 FAT 表项，共约 {2 * len(data_blocks)} 次访盘。", 3,
+               块链=" → ".join(map(str, data_blocks)), 数据块数=str(len(data_blocks)),
+               访盘次数=f"{len(data_blocks)} 次（FAT 在内存）")
+        answer_bits.append(f"FAT 链 {' → '.join(map(str, data_blocks))}，共 {len(data_blocks)} 个数据块"
+                           f"；FAT 在内存时读取 {len(data_blocks)} 次数据块，FAT 在磁盘时约 "
+                           f"{2 * len(data_blocks)} 次访盘")
+        stats["fat"] = {"chain": data_blocks, "blocks": len(data_blocks)}
+        if re.search(r"几个块|块数|多少块", text):
+            answer_value = float(len(data_blocks))
+
+    bitmap = _bitmap_bits(text)
+    if bitmap:
+        free = [index for index, bit in enumerate(bitmap) if bit == "0"]
+        one_based = bool(re.search(r"块号从\s*1\s*开始|位号从\s*1\s*开始", text))
+        offset = 1 if one_based else 0
+        allocate_match = re.search(r"(?:分配|申请)\s*(\d+)\s*个?(?:空闲)?块", text)
+        allocate_count = int(allocate_match.group(1)) if allocate_match else 0
+        allocated: list[int] = []
+        if allocate_count:
+            if allocate_count > len(free):
+                raise ValueError(f"位示图只有 {len(free)} 个空闲块，无法分配 {allocate_count} 个块")
+            allocated = free[:allocate_count]
+        _frame(frames, "bitmap", f"位示图（0 空闲，共 {len(free)} 个空闲块）",
+               f"位串 {''.join(bitmap)}；0 表示空闲。按位号{'从 1' if one_based else '从 0'}开始映射盘块号，"
+               f"空闲块号：{', '.join(str(index + offset) for index in free) or '无'}。"
+               + (f" 分配 {allocate_count} 个块，选择 {', '.join(str(index + offset) for index in allocated)}。"
+                  if allocated else ""), 6,
+               位示图="".join(bitmap), 空闲块数=str(len(free)),
+               首个空闲块=str(free[0] + offset) if free else "无",
+               分配结果=", ".join(str(index + offset) for index in allocated) if allocated else "未分配")
+        answer_bits.append(f"位示图空闲块 {len(free)} 个，首个空闲块号 {free[0] + offset if free else '无'}"
+                           + (f"，分配后得到 {', '.join(str(index + offset) for index in allocated)}" if allocated else ""))
+        stats["bitmap"] = {"bits": bitmap, "free": free, "one_based": one_based, "allocated": allocated}
+        if re.search(r"首个|第一个|第一块|起始空闲", text) and free:
+            answer_value = float(free[0] + offset)
+        elif re.search(r"空闲块数|多少个空闲|空闲块有多少", text):
+            answer_value = float(len(free))
+
+    start_match = re.search(
+        r"(?:起始块号|起始块|首块号|开始块号)\s*(?:为|是|=|:|：)?\s*(\d+)"
+        r"|从\s*(?:第\s*)?(\d+)\s*块|从\s*块\s*(\d+)", text)
+    if start_match and re.search(r"连续分配", text):
+        block_size = _size_bytes(text, r"(?:磁盘块|盘块|块)(?:的)?(?:大小|长度)|每块")
+        file_size = _size_bytes(text, r"文件(?:大小|长度)|文件为")
+        count_match = re.search(r"(?:占用|需要|共)\s*(\d+)\s*个?(?:盘块|块)", text)
+        count = int(count_match.group(1)) if count_match else (
+            int(math.ceil(file_size / block_size)) if file_size and block_size else None)
+        if count is None:
+            raise ValueError("连续分配需要文件大小与盘块大小，或直接给出占用块数")
+        start = int(next(group for group in start_match.groups() if group))
+        last = start + count - 1
+        _frame(frames, "contiguous", "连续分配区间",
+               f"文件从块 {start} 开始连续占用 {count} 个块，范围 {start}–{last}。"
+               + (f"最后一块内部碎片 = {count}×{_fmt(block_size)} − {_fmt(file_size)} = "
+                  f"{_fmt(count * block_size - file_size)} B。" if file_size and block_size else ""), 2,
+               起始块=str(start), 占用块数=str(count), 块范围=f"{start}–{last}",
+               内部碎片=f"{_fmt(count * block_size - file_size)} B" if file_size and block_size else "未给出")
+        answer_bits.append(f"连续分配：起始块 {start}，占 {count} 块，范围 {start}–{last}")
+        if file_size and block_size:
+            fragment = count * block_size - file_size
+            answer_bits.append(f"最后一块内部碎片 {_fmt_bytes(fragment)}")
+        stats["contiguous"] = {"start": start, "count": count}
+        if asks_blocks and not asks_access and not re.search(r"碎片|范围", text):
+            answer_value = float(count)
+
+    if re.search(r"链接分配", text) and not spec:
+        block_size = _size_bytes(text, r"(?:磁盘块|盘块|块)(?:的)?(?:大小|长度)|每块")
+        pointer_size = _size_bytes(text, r"(?:每个)?指针(?:占|的)?(?:大小|长度)?")
+        file_size = _size_bytes(text, r"文件(?:大小|长度)|文件为")
+        if block_size and pointer_size and file_size:
+            usable = block_size - pointer_size
+            if usable <= 0:
+                raise ValueError("每个盘块的指针大小不应超过盘块大小")
+            blocks = int(math.ceil(file_size / usable))
+            _frame(frames, "linked", "链接分配",
+                   f"每个盘块需留 {_fmt(pointer_size)} B 存放指针，可存数据 {_fmt(usable)} B；"
+                   f"文件 {_fmt_bytes(file_size)} 需要 {blocks} 个盘块。"
+                   f"读取第 k 块必须沿指针走 k 次，随机访问性能差。", 2,
+                   每块可用数据=f"{_fmt(usable)} B", 需要块数=str(blocks), 随机访问="沿链遍历")
+            answer_bits.append(f"链接分配每块可用 {_fmt(usable)} B，文件需要 {blocks} 块")
+            stats["linked"] = {"usable": usable, "blocks": blocks}
+            if re.search(r"几个块|块数", text):
+                answer_value = float(blocks)
+
+    if not frames:
+        if re.search(r"连续分配|链接分配|索引分配|FAT|多级索引|空闲空间|位示图", text, re.I):
+            _frame(frames, "concept", "连续分配",
+                   "连续分配把文件放在一段连续盘块：支持随机访问，寻道少；但会产生外部碎片，文件增长困难。", 1,
+                   方式="连续", 优点="随机访问", 缺点="外部碎片")
+            _frame(frames, "concept", "链接分配",
+                   "链接分配在每个盘块中存下一块指针：没有外部碎片，文件可离散增长；但只能顺序访问，指针占空间且可靠性差。", 2,
+                   方式="链接", 优点="无外部碎片", 缺点="只能顺序访问")
+            _frame(frames, "concept", "索引分配与 FAT",
+                   "索引分配用索引块集中保存数据块号，支持随机访问；多级索引扩大可寻址范围。"
+                   "FAT 把链接指针集中到文件分配表，表项数与盘块数相同；FAT 常驻内存时可快速随机访问。", 3,
+                   方式="索引/FAT", 优点="随机访问", 缺点="索引块或 FAT 空间开销")
+            answer = ("连续分配支持随机访问但有外部碎片；链接分配无外部碎片但只能顺序访问；"
+                      "索引分配用索引块支持随机访问；FAT 集中存放链接指针并常驻内存。")
+            return _ok("file_alloc", engine, answer, frames, FILE_ALLOC_PSEUDOCODE,
+                       metrics=[{"id": "methods", "label": "分配方式", "value": "连续 / 链接 / 索引 / FAT"}],
+                       notes=["比较题没有给出盘块大小、指针大小等数值，因此不计算最大文件长度与访盘次数。"],
+                       stats={"concept": True})
+        raise ValueError("文件存储题需要盘块/指针大小、FAT 链、位示图或分配方式等条件")
+
+    answer = "；".join(dict.fromkeys(answer_bits))
+    metrics = [{"id": "conclusion", "label": "结论", "value": answer}]
+    if spec and spec.get("pointers_per_block"):
+        metrics.append({"id": "pps", "label": "每块指针数", "value": str(spec["pointers_per_block"])})
+    return _ok("file_alloc", engine, answer, frames, FILE_ALLOC_PSEUDOCODE,
+               metrics=metrics, answer_value=answer_value, stats=stats,
+               notes=["多级索引按每个盘块可存“盘块大小/指针大小”个指针计算；逻辑块号从 0 开始。",
+                      "访盘次数假设 inode 已在内存；直接地址读 1 次数据块，一级间接读 1 个索引块 + 1 个数据块，以此类推。",
+                      "FAT 常驻内存时只计数据块访问；若 FAT 在磁盘上，则每个块还需一次 FAT 表项访问。"])
+
+
+# ---------------------------------------------------------------------------
+# 磁盘与设备管理
+# ---------------------------------------------------------------------------
+
+def _var_time_ms(text: str, name: str) -> float | None:
+    match = re.search(
+        rf"(?<![A-Za-z]){name}\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*(ps|ns|us|μs|ms|s|纳秒|微秒|毫秒|秒)",
+        text, re.I)
+    return float(match.group(1)) * _TIME_TO_MS[match.group(2).lower()] if match else None
+
+
+def _eval_device_mgmt(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    text = str(model.get("raw") or "")
+    engine = "os_device_v1"
+    frames: list[dict[str, Any]] = []
+    answer_bits: list[str] = []
+    stats: dict[str, Any] = {}
+    answer_value: float | None = None
+
+    seek = _time_ms(text, r"平均寻道时间|寻道时间|平均寻道")
+    rpm_match = re.search(r"转速\s*(?:为|是|=|:|：)?\s*(\d+(?:\.\d+)?)\s*(?:rpm|r/min|转/分|转每分钟)", text, re.I)
+    if not rpm_match:
+        rpm_match = re.search(r"每分钟\s*(\d+(?:\.\d+)?)\s*转", text)
+    rpm = float(rpm_match.group(1)) if rpm_match else None
+    rotation_ms = 30000.0 / rpm if rpm else None
+    sectors_per_track_match = re.search(r"每磁道\s*(\d+)\s*个?(?:扇区|记录|块)|(\d+)\s*个扇区\s*/\s*磁道", text)
+    sectors_per_track = None
+    if sectors_per_track_match:
+        sectors_per_track = int(next(group for group in sectors_per_track_match.groups() if group))
+    sector_size = _size_bytes(text, r"(?:每个)?扇区(?:的)?(?:大小)?|扇区大小")
+    rate = _rate_bytes_s(text, r"数据传输率|数据传输速率|传输率|传输速率|数据率")
+    data_size = _size_bytes(text, r"读取(?:的)?数据(?:量|大小)?|传输(?:的)?数据(?:量|大小)?|数据量|"
+                                  r"文件大小|要读取(?:的)?(?:数据)?|读取|传输")
+    read_sectors_match = re.search(r"(?:读取|传输)\s*(\d+)\s*个?扇区", text)
+    read_sectors = int(read_sectors_match.group(1)) if read_sectors_match else None
+    if data_size is None and read_sectors and sector_size:
+        data_size = read_sectors * sector_size
+    if data_size is None and sector_size and re.search(r"读取一个扇区|一个扇区|读取该扇区", text):
+        data_size = sector_size
+    if rate is None and rpm and sectors_per_track and sector_size:
+        rate = (rpm / 60.0) * sectors_per_track * sector_size
+    transfer_ms = None
+    if rate and data_size:
+        transfer_ms = data_size / rate * 1000.0
+    elif rpm and sectors_per_track and read_sectors:
+        transfer_ms = read_sectors / sectors_per_track * (60000.0 / rpm)
+    elif rpm and sectors_per_track and sector_size and data_size:
+        transfer_ms = (data_size / sector_size) / sectors_per_track * (60000.0 / rpm)
+
+    components = [(label, value) for label, value in
+                  (("寻道时间", seek), ("平均旋转延迟", rotation_ms), ("传输时间", transfer_ms))
+                  if value is not None]
+    if components:
+        total_ms = sum(value for _, value in components)
+        detail = "；".join(f"{label} = {_fmt_time_ms(value)}" for label, value in components)
+        _frame(frames, "timing", "磁盘访问时间",
+               detail + f"。总时间 = {' + '.join(_fmt_time_ms(value) for _, value in components)} = "
+               f"{_fmt_time_ms(total_ms)}。"
+               + ("（平均旋转延迟 = 半圈旋转时间 = 30/转速 秒）" if rotation_ms is not None else ""), 2,
+               寻道时间=_fmt_time_ms(seek) if seek is not None else "未给出",
+               旋转延迟=_fmt_time_ms(rotation_ms) if rotation_ms is not None else "未给出",
+               传输时间=_fmt_time_ms(transfer_ms) if transfer_ms is not None else "未给出",
+               访问时间=_fmt_time_ms(total_ms))
+        answer_bits.append(f"磁盘访问时间 = {' + '.join(f'{label} {_fmt_time_ms(value)}' for label, value in components)}"
+                           f" = {_fmt_time_ms(total_ms)}")
+        if len(components) < 3 and re.search(r"访问时间|存取时间|总时间", text):
+            missing = [label for label, value in
+                       (("寻道时间", seek), ("旋转延迟", rotation_ms), ("传输时间", transfer_ms))
+                       if value is None]
+            answer_bits.append(f"题面未给出 {'、'.join(missing)}，上述时间只含已给出的分量")
+        stats["timing"] = {"seek_ms": seek, "rotation_ms": rotation_ms, "transfer_ms": transfer_ms,
+                           "total_ms": total_ms}
+        if re.search(r"传输时间", text) and not re.search(r"访问时间|存取时间|总时间", text) and transfer_ms is not None:
+            answer_value = transfer_ms
+        elif re.search(r"旋转延迟", text) and not re.search(r"访问时间|存取时间|总时间", text) and rotation_ms is not None:
+            answer_value = rotation_ms
+        elif len(components) >= 2 or re.search(r"访问时间|存取时间|总时间", text):
+            answer_value = total_ms
+    elif re.search(r"磁盘访问时间|寻道时间|旋转延迟|传输时间|存取时间", text):
+        detail = ("磁盘访问时间 = 寻道时间 + 平均旋转延迟 + 传输时间。"
+                  "平均旋转延迟为半圈旋转时间：30/转速（秒）；"
+                  "传输时间 = 数据量 / 数据传输率，也可由每磁道扇区数与转速换算。")
+        _frame(frames, "timing_concept", "磁盘访问时间的组成", detail, 2,
+               公式="T访问 = T寻道 + T旋转 + T传输", 平均旋转="30/rpm 秒", 传输="数据量/传输率")
+        answer_bits.append("磁盘访问时间 = 寻道时间 + 平均旋转延迟（30/转速 秒）+ 传输时间（数据量/传输率）")
+
+    transfer_t = (_time_ms(text, r"(?:从)?(?:磁盘|设备|外设|输入设备)(?:读入|输入)(?:一块|一块数据|数据)?(?:到)?"
+                                 r"缓冲区(?:的)?时间|设备输入(?:一块数据)?(?:的)?时间|"
+                                 r"输入时间|读入缓冲区时间|设备输入时间")
+                  or _var_time_ms(text, "T"))
+    transfer_m = (_time_ms(text, r"缓冲区(?:到|传送到|复制到)?(?:用户区|用户缓冲区|用户进程)(?:的)?时间|"
+                                 r"用户区传送时间|复制时间")
+                  or _var_time_ms(text, "M"))
+    compute_c = (_time_ms(text, r"CPU(?:处理|计算)(?:该块|这块|数据|一个块)?(?:的)?时间|处理时间|计算时间")
+                 or _var_time_ms(text, "C"))
+    if transfer_t is not None and compute_c is not None:
+        transfer_m = transfer_m or 0.0
+        single = max(transfer_t, compute_c) + transfer_m
+        double = max(transfer_t, compute_c + transfer_m)
+        blocks_match = re.search(r"(?:处理|读取|输入)\s*(\d+)\s*块(?:数据)?|(\d+)\s*块数据", text)
+        blocks = int(next(group for group in blocks_match.groups() if group)) if blocks_match else None
+        detail = (f"T={_fmt_time_ms(transfer_t)}（设备→缓冲区），M={_fmt_time_ms(transfer_m)}（缓冲区→用户区），"
+                  f"C={_fmt_time_ms(compute_c)}（CPU 处理）。单缓冲每块时间 = max(C,T)+M = {_fmt_time_ms(single)}；"
+                  f"双缓冲每块时间 = max(C+M,T) = {_fmt_time_ms(double)}。")
+        if blocks:
+            detail += f" 稳态处理 {blocks} 块约为 {blocks}×单块时间，首次装填另计。"
+        _frame(frames, "buffer", "单缓冲与双缓冲", detail, 4,
+               单缓冲每块=_fmt_time_ms(single), 双缓冲每块=_fmt_time_ms(double),
+               处理块数=str(blocks) if blocks else "未给出")
+        answer_bits.append(f"单缓冲每块 {_fmt_time_ms(single)}，双缓冲每块 {_fmt_time_ms(double)}")
+        if blocks:
+            answer_bits.append(f"稳态处理 {blocks} 块约 {_fmt_time_ms(single * blocks)}（单缓冲）或 "
+                               f"{_fmt_time_ms(double * blocks)}（双缓冲），首次装填另计")
+        stats["buffer"] = {"t_ms": transfer_t, "m_ms": transfer_m, "c_ms": compute_c,
+                           "single_ms": single, "double_ms": double, "blocks": blocks}
+        wants_double = bool(re.search(r"双缓冲", text)) and not re.search(r"单缓冲", text)
+        wants_single = bool(re.search(r"单缓冲", text)) and not re.search(r"双缓冲", text)
+        if wants_double:
+            answer_value = double * blocks if blocks else double
+        elif wants_single:
+            answer_value = single * blocks if blocks else single
+        else:
+            answer_value = None
+
+    if re.search(r"假脱机|SPOOL|spooling", text, re.I):
+        detail = ("假脱机（SPOOLing）用输入井/输出井把独占设备改造成共享设备："
+                  "输入进程把设备数据预先写入输入井，用户进程从输入井读取；"
+                  "输出进程把用户输出写入输出井，再由守护进程按顺序送到打印机等设备。"
+                  "典型例子是共享打印机；它提高了设备利用率和进程并发度。")
+        _frame(frames, "spool", "假脱机", detail, 5,
+               输入井="预输入", 输出井="缓输出", 设备="独占→虚拟共享")
+        answer_bits.append("假脱机用输入井/输出井和守护进程把独占设备虚拟成共享设备，典型是共享打印机")
+    if re.search(r"设备分配|独占设备|共享设备|虚拟设备|SDT|DCT|COCT|CHCT|静态分配|动态分配|设备独立性", text, re.I):
+        detail = ("设备分配使用系统设备表 SDT、设备控制表 DCT、控制器控制表 COCT 和通道控制表 CHCT。"
+                  "独占设备采用静态或动态分配，分配前要检查设备忙闲和安全性，必要时按固定顺序分配以避免死锁；"
+                  "共享设备可并发使用；虚拟设备通过假脱机把独占设备虚拟成逻辑设备。"
+                  "设备独立性让用户使用逻辑设备名，由系统映射到物理设备。")
+        _frame(frames, "allocate", "设备分配", detail, 5,
+               数据结构="SDT/DCT/COCT/CHCT", 分配方式="静态/动态", 安全性="避免死锁")
+        answer_bits.append("设备分配用 SDT/DCT/COCT/CHCT；独占设备静态/动态分配并检查安全性，共享设备可并发使用")
+    if re.search(r"缓冲", text) and transfer_t is None:
+        detail = ("缓冲的作用是缓和 CPU 与 I/O 设备的速度差异、减少中断频率并提高并行性。"
+                  "单缓冲区：设备输入 T 与 CPU 处理 C 部分重叠，每块处理时间按 max(C,T)+M 估计（M 为缓冲区到用户区传送）；"
+                  "双缓冲区：两个缓冲区轮流使用，每块时间按 max(C+M,T) 估计，可进一步重叠输入与处理。"
+                  "缓冲池用多个缓冲区供多个进程共享，按申请/释放队列管理。")
+        _frame(frames, "buffer_concept", "缓冲技术", detail, 4,
+               作用="缓和速度差异/减少中断/提高并行", 单缓冲="max(C,T)+M",
+               双缓冲="max(C+M,T)", 缓冲池="多缓冲区共享")
+        answer_bits.append("缓冲缓和 CPU 与 I/O 速度差异、减少中断并提高并行；单缓冲 max(C,T)+M，"
+                           "双缓冲 max(C+M,T)；缓冲池供多进程共享缓冲区")
+
+    if not frames:
+        raise ValueError("磁盘与设备管理题需要磁盘访问时间、缓冲参数、假脱机或设备分配等条件")
+    answer = "；".join(dict.fromkeys(answer_bits))
+    metrics = [{"id": "conclusion", "label": "结论", "value": answer}]
+    if "timing" in stats:
+        metrics.append({"id": "access_time", "label": "磁盘访问时间",
+                        "value": _fmt_time_ms(stats["timing"]["total_ms"])})
+    if "buffer" in stats:
+        metrics.append({"id": "single_buffer", "label": "单缓冲每块",
+                        "value": _fmt_time_ms(stats["buffer"]["single_ms"])})
+    return _ok("device_mgmt", engine, answer, frames, DEVICE_PSEUDOCODE,
+               metrics=metrics, answer_value=answer_value, stats=stats,
+               notes=["平均旋转延迟按半圈计算：30/转速（秒）；若题目给的是最大旋转延迟，需按整圈计算。",
+                      "数据传输时间 = 数据量 / 传输率；也可以由每磁道扇区数和转速换算。",
+                      "容量与传输率按 1KB=1024B、1MB=1024²B 换算；若题目采用十进制单位，数值会有细微差别。",
+                      "缓冲公式未给出 M（缓冲区→用户区传送时间）时按 0 计。",
+                      "缓冲公式中的 T 为设备到缓冲区时间、M 为缓冲区到用户区时间、C 为 CPU 处理时间；"
+                      "不同教材若把 M 合并进 C，公式会相应简化。"])
+
+
+# ---------------------------------------------------------------------------
 # 入口
 # ---------------------------------------------------------------------------
 
+_GENERIC_ENGINES = {
+    "os_basics": "os_basics_v1", "process_thread": "os_process_v1",
+    "sync": "os_sync_v1", "deadlock": "os_deadlock_v1", "memory_alloc": "os_memory_v1",
+    "tlb": "os_tlb_v1", "file_dir": "os_file_dir_v1",
+    "file_alloc": "os_file_alloc_v1", "device_mgmt": "os_device_v1",
+}
+_GENERIC_FORMULAS = {
+    "tlb": [{"id": "eat", "tex": r"\text{EAT}=h(t+m)+(1-h)(t+Lm+m)",
+             "plain": "TLB 命中走 t+m；缺失走 t+L 级页表+内存；再按缺页率叠加缺页处理时间。", "role": "有效访问时间"}],
+    "file_dir": [{"id": "path", "tex": r"\text{目录读取}=\text{路径中需要逐级查找的目录数}",
+                  "plain": "权限按文件主/同组/其他的 rwx 位解释；路径按目录项逐级查找。", "role": "口径"}],
+    "file_alloc": [{"id": "index", "tex": r"\text{最大块数}=D+P+P^2+P^3",
+                    "plain": "P 为每块可存指针数；最大文件长度 = 可寻址块数 × 盘块大小。", "role": "多级索引"}],
+    "device_mgmt": [{"id": "disk_time", "tex": r"T_{\text{访问}}=T_{\text{寻道}}+\frac{30}{rpm}+T_{\text{传输}}",
+                     "plain": "平均旋转延迟为半圈时间；传输时间 = 数据量 / 传输率。", "role": "磁盘访问时间"}],
+}
+
+
 def _build_generic(kind: str):
     def builder(text: str, source: Mapping[str, Any], merged: Mapping[str, Any]) -> dict[str, Any]:
-        engine = {"os_basics": "os_basics_v1", "process_thread": "os_process_v1",
-                  "sync": "os_sync_v1", "deadlock": "os_deadlock_v1",
-                  "memory_alloc": "os_memory_v1"}[kind]
+        engine = _GENERIC_ENGINES[kind]
         model = {"engine": engine, "subject": "operating_system", "os_kind": kind,
                  "raw": text, "defaults": {}, "params": [], "teaching": False}
         conditions = [_condition("os_kind", "题型", KIND_LABELS[kind], source=source)]
-        formulas = [{"id": "os_rule", "tex": r"\text{按操作系统定义与题面条件推导}",
-                     "plain": "概念题给出确定性知识点；计算题按题面数据执行并留痕。", "role": "口径"}]
+        formulas = _GENERIC_FORMULAS.get(kind) or [
+            {"id": "os_rule", "tex": r"\text{按操作系统定义与题面条件推导}",
+             "plain": "概念题给出确定性知识点；计算题按题面数据执行并留痕。", "role": "口径"}]
         return {"model": model, "conditions": conditions, "ambiguities": [], "formulas": formulas,
                 "recognized": True}
     return builder
@@ -1880,6 +3122,10 @@ _BUILDERS = {
     "sync": _build_generic("sync"),
     "deadlock": _build_generic("deadlock"),
     "memory_alloc": _build_generic("memory_alloc"),
+    "tlb": _build_generic("tlb"),
+    "file_dir": _build_generic("file_dir"),
+    "file_alloc": _build_generic("file_alloc"),
+    "device_mgmt": _build_generic("device_mgmt"),
 }
 
 
@@ -1910,14 +3156,15 @@ def build_os(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any])
         return {"model": model, "conditions": [], "formulas": [],
                 "ambiguities": [_ambiguity(
                     "os_kind", "os_kind",
-                    "已识别为操作系统内容，但没有确定题型：请选择或补充 CPU 调度、页面置换、磁盘调度、银行家算法、"
-                    "操作系统基础、进程与线程、同步与互斥、死锁或连续内存分配的具体条件。",
+                    "已识别为操作系统内容，但没有确定题型：请选择或补充 CPU 调度、虚拟内存/页面置换、磁盘调度、"
+                    "银行家算法、操作系统基础、进程与线程、同步与互斥、死锁、连续内存分配、TLB 与访问性能、"
+                    "文件与目录、文件存储与空间管理或磁盘/设备管理的具体条件。",
                     options=[{"value": key, "label": label} for key, label in KIND_LABELS.items()])],
                 "recognized": False}
     built = _BUILDERS[kind](text, source, merged)
     if not certain:
         built["ambiguities"].insert(0, _ambiguity(
-            "os_kind", "os_kind", "已识别为操作系统内容，但没有确定题型：CPU 调度、页面置换、磁盘调度还是银行家算法？",
+            "os_kind", "os_kind", "已识别为操作系统内容，但没有确定题型：CPU 调度、虚拟内存、TLB、文件系统、磁盘调度还是设备管理？",
             options=[{"value": key, "label": label} for key, label in KIND_LABELS.items()]))
         built["recognized"] = False
     return built
@@ -1935,6 +3182,14 @@ def evaluate_os(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str
         return _eval_deadlock(model, params)
     if kind == "memory_alloc":
         return _eval_memory_alloc(model, params)
+    if kind == "tlb":
+        return _eval_tlb(model, params)
+    if kind == "file_dir":
+        return _eval_file_dir(model, params)
+    if kind == "file_alloc":
+        return _eval_file_alloc(model, params)
+    if kind == "device_mgmt":
+        return _eval_device_mgmt(model, params)
     if kind == "page_replace":
         return _eval_page(model, params)
     if kind == "disk_schedule":
@@ -1993,17 +3248,31 @@ def solve_os(model: Mapping[str, Any]) -> dict[str, Any]:
         ]
         summary = f"{SCHED_LABELS[algorithm]}：模拟 CPU 时间轴，得到各进程完成时刻，再求平均周转与平均等待时间。"
     elif kind == "page_replace":
-        initial_frames = _coerce_reference(model.get("initial_frames")) or []
-        steps = [
-            {"id": "os_0", "title": "初始：物理块已有驻留页面" if initial_frames else "初始：物理块全空",
-             "detail": (f"初始已调入页面 {', '.join(initial_frames)}，访问这些页面时直接命中。" if initial_frames
-                        else "每次访问页面，先看它是否已在物理块中。")},
-            {"id": f"os_{first('fault')}", "title": "缺页并装入空闲块", "detail": "不在内存就缺页；还有空闲块时直接装入。"},
-            {"id": f"os_{first('replace')}", "title": "物理块已满：置换",
-             "detail": f"{PAGE_LABELS[algorithm]}选出被换出的页面，新页面装入同一个块。"},
-            {"id": f"os_{last}", "title": "统计缺页", "detail": result["answer"]},
-        ]
-        summary = f"{PAGE_LABELS[algorithm]}：逐次访问页面，命中则不动，缺页则装入或置换，最后统计缺页次数。"
+        if not (model.get("reference") or []):
+            steps = [{"id": f"os_{frame['index']}", "title": frame["label"], "detail": frame["detail"]}
+                     for frame in frames]
+            summary = "请求分页按页表有效位判断命中/缺页；缺页处理完成后更新页表与 TLB 并重启指令；工作集大于驻留集时会抖动。"
+        else:
+            initial_frames = _coerce_reference(model.get("initial_frames")) or []
+            steps = [
+                {"id": "os_0", "title": "初始：物理块已有驻留页面" if initial_frames else "初始：物理块全空",
+                 "detail": (f"初始已调入页面 {', '.join(initial_frames)}，访问这些页面时直接命中。" if initial_frames
+                            else "每次访问页面，先看它是否已在物理块中。")},
+                {"id": f"os_{first('fault')}", "title": "缺页并装入空闲块", "detail": "不在内存就缺页；还有空闲块时直接装入。"},
+                {"id": f"os_{first('replace')}", "title": "物理块已满：置换",
+                 "detail": f"{PAGE_LABELS[algorithm]}选出被换出的页面，新页面装入同一个块。"},
+                {"id": f"os_{last}", "title": "统计缺页", "detail": result["answer"]},
+            ]
+            summary = f"{PAGE_LABELS[algorithm]}：逐次访问页面，命中则不动，缺页则装入或置换，最后统计缺页次数。"
+    elif kind in ("tlb", "file_dir", "file_alloc", "device_mgmt"):
+        steps = [{"id": f"os_{frame['index']}", "title": frame["label"], "detail": frame["detail"]}
+                 for frame in frames[:10]]
+        summary = {
+            "tlb": "按 TLB 命中/缺失路径计算页表访问次数与有效访问时间。",
+            "file_dir": "按目录路径、inode/FCB、文件打开表和权限位推导。",
+            "file_alloc": "按连续/链接/索引/FAT 结构计算文件块数、最大长度与访盘次数。",
+            "device_mgmt": "按磁盘访问时间公式、缓冲策略、假脱机与设备分配规则推导。",
+        }[kind]
     elif kind == "disk_schedule":
         steps = [
             {"id": "os_0", "title": "磁头起点与请求", "detail": "请求按到达顺序给出；总移动距离是相邻两次磁头位置之差的绝对值之和。"},

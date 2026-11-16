@@ -491,13 +491,13 @@ export function HomePage(): JSX.Element {
                 <p className="eyebrow"><span className="sec-no">§ 03</span> WORKSHOP / 万象工坊</p>
                 <div className="workshop__headline">
                   <h2>没有题目的时候，<br />就自己搭一个。</h2>
-                  <p>工坊是实验室的另一半。把函数、图像、极限、导数与积分拖上画布，接线、调参、封装成自己的积木——没有标准答案，只有你的问题。</p>
+                  <p>工坊是实验室的另一半。把函数、图像、极限、导数与积分拖上画布，或摆下 408 的全题型工作台与二叉树遍历、Cache 地址、页面置换、子网划分——接线、调参、封装成自己的积木。</p>
                 </div>
               </header>
 
               <div className={`workshop__body ${reveal}`}>
                 <div className="workshop__list-wrap">
-                  <div className="workshop__list-head"><span>高数积木 · 7 组已接通</span><span>列表与蓝图对应</span></div>
+                  <div className="workshop__list-head"><span>高数 7 组 · 408 全题型已接通</span><span>列表与蓝图对应</span></div>
                   <ol className="workshop__list">
                     {WORKSHOP_ITEMS.map((item) => (
                       <li key={item.no}>

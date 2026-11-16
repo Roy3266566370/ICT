@@ -389,6 +389,8 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
                          'certificate_facts': certificate_facts(certificate),
                          'statement': c.get('statement') or '',
                          'reason': solution.get('incomplete_reason')}
+    from .exploration import attach_controls
+    attach_controls(problem)
     problem['manual_input'] = {'task': task, 'conditions': {k: str(v) for k, v in c.items()}, 'confirmed': True,
                                'latex': preview['latex'], 'result_latex': result_latex,
                                'result_status': result_status,
@@ -433,8 +435,6 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
         problem['model']['expression'] = c.get('expression') or c.get('left') or ''
     elif task not in ('implicit_normal','ode'):
         problem['model']['expression'] = c['expression']
-    else:
-        problem['model']['params'] = []
     problem['model']['preserve_expression_structure'] = True
     for formula in problem['recognition']['formulas']:
         if r'\int' in formula.get('tex', '') or task in ('series_convergence', 'power_series', 'fourier_series'):

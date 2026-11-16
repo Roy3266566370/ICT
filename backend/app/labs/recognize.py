@@ -31,10 +31,33 @@ SUBJECT_LABELS = {
     "operating_system": "操作系统",
     "computer_organization": "计算机组成原理",
     "computer_network": "计算机网络",
+    "physics": "大学物理",
     "unknown": "待选择",
 }
 
 SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
+    "physics": (
+        ("质点", 8), ("运动学", 10), ("匀变速", 10), ("自由落体", 10), ("平抛", 10), ("斜抛", 10),
+        ("抛体", 9), ("相对运动", 9), ("牛顿", 9), ("受力", 8), ("斜面", 8), ("摩擦", 7),
+        ("连接体", 9), ("滑轮", 8), ("圆周运动", 9), ("向心", 9), ("动能", 8), ("势能", 8),
+        ("机械能", 9), ("弹簧", 7), ("劲度系数", 9), ("动量", 9), ("冲量", 9), ("碰撞", 9),
+        ("弹性碰撞", 10), ("非弹性碰撞", 10), ("振动", 8), ("单摆", 9), ("弹簧振子", 10),
+        ("简谐", 9), ("振幅", 8), ("重力加速度", 9), ("加速度", 6), ("速度", 5),
+        ("位移", 5), ("质量", 4), ("功", 4), ("仰角", 8), ("抛射角", 8), ("相对地面", 8),
+        ("合力", 5), ("光滑", 4), ("高度", 5), ("重力势能", 8), ("弹性势能", 8),
+        ("刚体", 10), ("转动惯量", 10), ("力矩", 8), ("角动量", 9), ("纯滚动", 10), ("定轴转动", 10),
+        ("机械波", 10), ("行波", 9), ("波长", 8), ("驻波", 10), ("波节", 9), ("波腹", 9), ("波速", 8), ("相位差", 8),
+        ("库仑", 10), ("点电荷", 9), ("电场", 7), ("电势", 8), ("高斯", 10), ("球壳", 9), ("带电球", 9),
+        ("电容", 8), ("电容器", 10), ("串联", 6), ("并联", 6), ("基尔霍夫", 10), ("双回路", 9), ("支路电流", 9), ("回路", 5), ("时间常数", 8), ("充电", 7), ("放电", 7),
+        ("洛伦兹", 10), ("安培力", 10), ("带电粒子", 9), ("轨道半径", 8), ("磁感应强度", 9), ("磁场", 6),
+        ("磁通量", 10), ("法拉第", 10), ("楞次", 9), ("感应电动势", 10), ("切割磁感线", 10), ("导体棒", 9),
+        ("理想气体", 10), ("等温", 9), ("等压", 9), ("等容", 9), ("绝热", 10), ("卡诺", 10), ("热机", 9), ("热力学", 9),
+        ("双缝", 10), ("干涉", 9), ("薄膜", 8), ("增透膜", 10), ("增反膜", 10), ("衍射", 10), ("单缝", 9),
+        ("光栅", 10), ("偏振", 10), ("马吕斯", 10), ("布儒斯特", 10),
+        ("折射", 9), ("全反射", 10), ("临界角", 9), ("透镜", 9), ("成像", 8), ("焦距", 8), ("物距", 8), ("像距", 8),
+        ("光电效应", 10), ("逸出功", 10), ("遏止电压", 10), ("德布罗意", 10), ("物质波", 9),
+        ("能级", 9), ("跃迁", 9), ("光谱线", 9), ("放射性", 9), ("半衰期", 10), ("衰变", 9),
+    ),
     "deep_learning": (
         ("神经网络", 8), ("反向传播", 8), ("损失函数", 7), ("softmax", 7),
         ("卷积", 6), ("激活函数", 6), ("多层感知", 7), ("mlp", 5),
@@ -118,6 +141,20 @@ SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
         ("死锁解除", 9), ("循环等待", 7), ("占有并等待", 8), ("非抢占", 7),
         ("首次适应", 10), ("最佳适应", 10), ("最坏适应", 10), ("邻近适应", 9),
         ("空闲分区", 9), ("空闲区", 8), ("连续分配", 9), ("内碎片", 8), ("外碎片", 8), ("内存利用率", 8),
+        ("虚拟内存", 10), ("请求分页", 10), ("工作集", 10), ("抖动", 9), ("时钟置换", 9),
+        ("缺页率", 8), ("页表项", 8), ("Belady", 9),
+        ("有效访问时间", 10), ("页表访问次数", 10), ("页表访问", 8), ("地址转换", 10), ("缺页开销", 9),
+        ("TLB命中率", 12), ("TLB", 8), ("快表", 8),
+        ("文件系统", 8), ("文件目录", 8), ("目录项", 9), ("路径名", 8), ("FCB", 9),
+        ("文件控制块", 9), ("inode", 9), ("索引结点", 9), ("文件权限", 9), ("权限位", 9),
+        ("硬链接", 9), ("软链接", 9), ("符号链接", 9), ("文件描述符", 8), ("打开文件表", 8),
+        ("文件打开", 9), ("文件读写", 9), ("文件关闭", 8), ("文件共享", 9), ("文件", 5), ("目录", 5),
+        ("文件存储", 9), ("文件逻辑结构", 9), ("目录结构", 8), ("路径查找", 9),
+        ("文件分配表", 10), ("FAT表", 10), ("位示图", 9), ("索引分配", 9), ("链接分配", 9),
+        ("多级索引", 8), ("一级间接", 8), ("二级间接", 8), ("三级间接", 8), ("最大文件", 8),
+        ("盘块", 7), ("磁盘块", 7),
+        ("磁盘访问时间", 10), ("旋转延迟", 9), ("传输时间", 8), ("单缓冲", 9), ("双缓冲", 9),
+        ("假脱机", 10), ("设备分配", 9), ("设备管理", 9), ("SPOOLing", 10), ("缓冲池", 8), ("缓冲", 8),
     ),
     "computer_organization": (
         ("计算机组成原理", 12), ("组成原理", 10), ("CPU执行时间", 10), ("CPU 执行时间", 10),
@@ -152,8 +189,37 @@ SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
         ("三次握手", 10), ("四次挥手", 10), ("滑动窗口", 8), ("流量控制", 7), ("子网掩码", 10),
         ("ip地址", 9), ("路由", 7), ("以太网", 8), ("csma", 8), ("交换机", 7), ("集线器", 7),
         ("报文", 6), ("rtt", 7), ("网络层", 8), ("传输层", 8), ("数据链路", 8), ("物理层", 7),
-        ("域名", 6), ("dns", 7), ("http", 6), ("mac地址", 8), ("arp", 7),
+        ("域名", 6), ("dns", 9), ("http", 9), ("https", 9), ("web", 6), ("页面", 5),
+        ("mac地址", 8), ("arp", 9),
         ("传输轮次", 8), ("cwnd", 10), ("ssthresh", 10),
+        ("osi", 10), ("tcp/ip", 10), ("体系结构", 8), ("分层", 6), ("封装", 9), ("解封装", 9),
+        ("协议与服务", 10), ("应用层", 8), ("表示层", 8), ("会话层", 8), ("传输层", 8),
+        ("网络层", 8), ("数据链路层", 9), ("物理层", 8), ("路由器", 8), ("交换机", 8),
+        ("集线器", 8), ("网关", 8), ("网桥", 8), ("中继器", 8), ("网络设备", 8), ("哪一层", 6),
+        ("发送时延", 9), ("传播时延", 9), ("传输时延", 8), ("时延带宽积", 10),
+        ("带宽", 7), ("吞吐量", 9), ("电路交换", 10), ("报文交换", 10), ("分组交换", 10),
+        ("奈奎斯特", 10), ("香农", 10), ("码元", 9), ("波特率", 9), ("比特率", 8),
+        ("编码", 5), ("调制", 8), ("复用", 8), ("频分", 8), ("时分", 7), ("波分", 8), ("码分", 8),
+        ("crc", 10), ("循环冗余", 10), ("生成多项式", 10), ("海明", 10), ("汉明", 10),
+        ("奇偶校验", 10), ("奇校验", 9), ("偶校验", 9), ("校验位", 8),
+        ("差错检测", 10), ("差错控制", 10), ("检错", 9), ("纠错", 8),
+        ("滑动窗口", 10), ("停止等待", 10), ("gbn", 10), ("回退n", 9), ("选择重传", 10),
+        ("发送窗口", 9), ("接收窗口", 9), ("序号空间", 9), ("信道利用率", 9),
+        ("aloha", 10), ("csma", 9), ("csma/cd", 10), ("csma/ca", 10), ("冲突检测", 9),
+        ("冲突避免", 9), ("最小帧长", 10), ("退避", 9), ("二进制指数", 10),
+        ("mac帧", 10), ("vlan", 10), ("自学习", 9), ("转发表", 9), ("冲突域", 9), ("广播域", 9),
+        ("ipv4", 9), ("ipv6", 10), ("子网", 9), ("子网掩码", 10), ("cidr", 10), ("vlsm", 10),
+        ("网络地址", 8), ("广播地址", 8), ("地址聚合", 9), ("聚合", 8), ("汇总", 7),
+        ("最长前缀", 9), ("ip数据报", 9), ("分片", 7), ("mtu", 8), ("地址压缩", 9),
+        ("arp", 9), ("dhcp", 9), ("icmp", 9), ("nat", 8), ("路由表", 9), ("距离向量", 10),
+        ("链路状态", 10), ("rip", 9), ("ospf", 9), ("bgp", 9), ("自治系统", 9),
+        ("端口", 8), ("熟知端口", 9), ("动态端口", 9), ("time_wait", 9), ("确认号", 8),
+        ("tcp首部", 9), ("udp首部", 9),
+        ("拥塞避免", 9), ("快重传", 9), ("快恢复", 9), ("传输控制", 7),
+        ("网页", 8), ("url", 9), ("网址", 9), ("页面显示", 8), ("浏览器", 6),
+        ("dns", 9), ("递归查询", 10), ("迭代查询", 10),
+        ("持久连接", 9), ("非持久连接", 9), ("ftp", 8),
+        ("smtp", 8), ("pop3", 8), ("imap", 8), ("电子邮件", 8), ("邮件", 7),
     ),
 }
 
@@ -308,6 +374,23 @@ def split_problems(
 # 小工具
 # ---------------------------------------------------------------------------
 
+_PHYSICS_STRONG = (
+    "质点运动", "匀变速", "自由落体", "平抛", "斜抛", "抛体", "相对运动", "牛顿",
+    "受力分析", "斜面", "连接体", "滑轮", "圆周运动", "向心", "动能定理",
+    "机械能守恒", "弹簧振子", "弹簧势能", "劲度系数", "动量", "冲量", "碰撞",
+    "单摆", "简谐", "振动", "重力加速度", "初速度", "加速度", "位移",
+    "仰角", "抛射角", "相对地面", "合力", "光滑", "抛出", "重力势能", "弹性势能",
+    "刚体", "转动惯量", "纯滚动", "机械波", "行波", "波长", "波速", "驻波", "波节", "波腹",
+    "库仑", "高斯", "点电荷", "电势", "球壳", "电容器", "基尔霍夫", "双回路", "支路电流", "时间常数", "充电", "放电",
+    "洛伦兹", "安培力", "带电粒子", "磁通量", "法拉第", "感应电动势", "切割磁感线", "导体棒",
+    "理想气体", "等温", "等压", "等容", "绝热", "卡诺", "热机", "热力学", "串联", "并联",
+    "力矩", "角动量",
+    "双缝", "干涉", "薄膜", "增透膜", "增反膜", "衍射", "单缝", "光栅", "偏振", "马吕斯", "布儒斯特",
+    "折射", "全反射", "临界角", "透镜", "成像", "焦距", "物距", "像距",
+    "光电效应", "逸出功", "遏止电压", "德布罗意", "物质波", "能级", "跃迁", "光谱线",
+    "放射性", "半衰期", "衰变",
+)
+
 
 def classify_subject(text: str) -> tuple[str, float]:
     lowered = text.lower()
@@ -322,7 +405,9 @@ def classify_subject(text: str) -> tuple[str, float]:
     # “梯度下降 + f(x)”更像最优化；“神经网络 + 学习率”才归深度学习。
     if "梯度下降" in text and "神经网络" not in text and "损失" not in text:
         scores["optimization"] += 4
-    if scores["operating_system"] >= max(scores.values() or [0]) and scores["operating_system"] >= 8:
+    if any(term in text for term in _PHYSICS_STRONG) and scores.get("physics", 0) >= 8:
+        chosen = "physics"
+    elif scores["operating_system"] >= max(scores.values() or [0]) and scores["operating_system"] >= 8:
         chosen = "operating_system"
     elif scores["computer_network"] >= max(scores.values() or [0]) and scores["computer_network"] >= 8:
         chosen = "computer_network"
@@ -373,7 +458,7 @@ def _extract_function_expression(text: str) -> tuple[str | None, str | None]:
             variables, raw = "x", match.group(1)
         # 截断到中文条件词，但保留括号内的逗号。
         stop = re.search(
-            r"(?:的|，|,|。|；|;|\n|求|其中|初始|起点|学习率|迭代|约束|满足|在点|目标|已知|$)",
+            r"(?:的|，|,|。|；|;|\n|求|其中|初始|起点|学习率|迭代|约束|满足|在点|在\s*[xyzt]\s*=|目标|已知|$)",
             raw,
         )
         if stop:
@@ -723,6 +808,10 @@ def _calculus_model(
     function_expr, variables = _extract_function_expression(text)
     indefinite = bool(integral and integral.get("indefinite"))
     kind = "antiderivative" if indefinite else ("integral" if integral else "derivative")
+    inverse_requested = bool(overrides.get("inverse_function")) or bool(
+        re.search(r"反函数[^\n。；]{0,30}(?:导数|求导|切线|斜率)|(?:导数|求导)[^\n。；]{0,20}反函数", text))
+    if kind == "derivative" and inverse_requested:
+        kind = "inverse_derivative"
     raw_expr = expression_override or (str(integral.get("expression")) if integral else None) or function_expr
     teaching = False
     improper_upper = False
@@ -971,6 +1060,20 @@ def _calculus_model(
             ]
         )
 
+    if kind == "inverse_derivative":
+        for parameter in params:
+            if parameter.get("id") == "point":
+                parameter["label"] = "反函数输入 x"
+                parameter["note"] = "这里 x 是反函数的输入；内核先求 f(x0)=x 的原像，再计算 1/f'(x0)。"
+            elif parameter.get("id") == "h":
+                parameter["note"] = "仅用于原函数在对应点的差商核对。"
+        for condition in conditions:
+            if condition.get("id") == "point":
+                condition["label"] = "反函数输入值 x"
+                condition["note"] = "反函数在 x 处的导数 = 1 / f'(x0)，其中 f(x0)=x。"
+            elif condition.get("id") == "expression":
+                condition["label"] = "原函数 f(x)"
+
     if not any(item["id"] == "expression" for item in ambiguities) and teaching:
         ambiguities.append(
             _ambiguity(
@@ -995,6 +1098,7 @@ def _calculus_model(
         "formula_tex": (
             rf"\int {to_latex(parsed)}\,\mathrm{{d}}{variable}=F({variable})+C"
             if kind == "antiderivative"
+            else rf"(f^{{-1}})'({variable})" if kind == "inverse_derivative"
             else f"f({variable})={to_latex(parsed)}"
         ),
         "defaults": defaults,
@@ -1006,6 +1110,8 @@ def _calculus_model(
         model["indefinite"] = True
         model["antiderivative_expression"] = antiderivative_expr
         model["plot_domain"] = _antiderivative_plot_domain(antiderivative_symbolic, variable)
+    if kind == "inverse_derivative":
+        model["inverse_function"] = True
     if improper_upper:
         model["improper_upper"] = True
         model["original_upper"] = "+∞"
@@ -1752,6 +1858,24 @@ def _computer_organization_model(
     return build_comp_org(text, source, overrides)
 
 
+def _computer_network_model(
+    text: str,
+    source: Mapping[str, Any],
+    overrides: Mapping[str, Any],
+) -> dict[str, Any]:
+    from .computer_network import build_network
+    return build_network(text, source, overrides)
+
+
+def _physics_model(
+    text: str,
+    source: Mapping[str, Any],
+    overrides: Mapping[str, Any],
+) -> dict[str, Any]:
+    from .physics import build_physics
+    return build_physics(text, source, overrides)
+
+
 BUILDERS = {
     "calculus": _calculus_model,
     "optimization": _optimization_model,
@@ -1760,6 +1884,8 @@ BUILDERS = {
     "linear_algebra": _linear_algebra_model,
     "operating_system": _operating_system_model,
     "computer_organization": _computer_organization_model,
+    "computer_network": _computer_network_model,
+    "physics": _physics_model,
 }
 
 
@@ -1808,8 +1934,8 @@ def build_problem(
     classified, confidence = classify_subject(text)
     subject = str(override_values.get("subject") or subject_hint or classified)
     if subject not in BUILDERS:
-        # 计算机网络等 408 科目暂无执行内核：保留科目名以便展示，状态按 unsupported 处理。
-        subject = classified if (classified in BUILDERS or classified == "computer_network") else "unknown"
+        # 暂未建立执行内核的科目保留科目名，状态按 unsupported 处理。
+        subject = classified if classified in BUILDERS else "unknown"
 
     builder = BUILDERS.get(subject, _unknown_model)
     built = builder(text, source, override_values)
@@ -1836,7 +1962,9 @@ def build_problem(
             item["answer"] = str(answers[item["id"]])
     blocking = [item for item in built["ambiguities"] if item["severity"] == "blocking" and not item["resolved"]]
     status = "ready" if not blocking else "needs_review"
-    if subject not in BUILDERS:
+    if (subject not in BUILDERS
+            or (subject == "computer_network" and model.get("engine") == "net_unknown_v1")
+            or (subject == "physics" and model.get("engine") == "physics_unknown_v1")):
         status = "unsupported"
 
     answer_override = str(override_values.get("student_answer") or "").strip()

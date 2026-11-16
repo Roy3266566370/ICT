@@ -25,6 +25,22 @@ VERSION = 'staged-understanding.4'
 def candidate_tasks(reading: dict) -> list[str]:
     # An invented target must not override an explicit operation in the question.
     text = (reading.get('question','') or reading.get('target','')).lower()
+    if '连续' in text or '间断' in text:
+        return ['continuity']
+    if re.search(r'方向导数|偏导|全微分|梯度(?!下降)', text):
+        return ['multivariable']
+    if '极值' in text and re.search(r'(?<!无)约束[^。；]*=|条件极值|拉格朗日', text):
+        return ['constrained_extrema']
+    if '极值' in text and re.search(r'二元|多元|f\s*\(\s*x\s*,\s*y|x\s*,\s*y', text):
+        return ['multivariable_extrema']
+    if '傅里叶' in text:
+        return ['fourier_series']
+    if '幂级数' in text:
+        return ['power_series']
+    if '级数' in text:
+        return ['series_convergence']
+    if re.search(r'空间几何|平面|直线|向量.*(?:夹角|投影|叉积|点积)', text):
+        return ['space_geometry']
     if '二重积分' in text or '∬' in text:
         return ['double_integral']
     if '不定积分' in text or '原函数' in text:
@@ -66,7 +82,7 @@ def modelling_catalog(selected: list[str]) -> dict:
 FEW_SHOTS = {
     'ode': (
         {'conditions':[{'id':'a','value':"y'=2*x"}, {'id':'b','value':'y(0)=1'}]},
-        {'task':'ode','conditions':{'equation':"y'=2*x",'initial_conditions':['y(0)=1']},
+        {'task':'ode','conditions':{'equation':"y'=2*x",'initial_conditions':['y(0)=1'],'independent_variable':'x','dependent_variable':'y','target_kind':None,'target_point':None,'target_lower':None,'target_upper':None},
          'bindings':{'equation':['a'],'initial_conditions':['b']},'unsupported_reason':''}),
     'higher_derivative': (
         {'conditions':[{'id':'a','value':'sin(x)'}, {'id':'b','value':'4'}]},
@@ -77,6 +93,20 @@ FEW_SHOTS = {
         {'task':'optimization','conditions':{'expression':'x^2+2*y^2','variables':['x','y'],
             'goal':'extrema','bounds':{}},'bindings':{'expression':['a']},'unsupported_reason':''}),
 }
+
+
+FEW_SHOTS.update({
+    'continuity': ({'conditions':[{'id':'a','value':'(x^2-1)/(x-1)'},{'id':'b','value':'x=1'},{'id':'c','value':'f(1)=2'}]},
+        {'task':'continuity','conditions':{'expression':'(x^2-1)/(x-1)','variable':'x','point':1,'value_mode':'value','point_value':'2'},'bindings':{'expression':['a'],'point':['b'],'point_value':['c']}}),
+    'multivariable': ({'conditions':[{'id':'a','value':'x^2+3*y^2'},{'id':'b','value':'(2,1)'},{'id':'c','value':'(4,3)'}]},
+        {'task':'multivariable','conditions':{'expression':'x^2+3*y^2','variables':'x,y','operation':'directional','point':'2,1','direction':'4,3','direction_limit':'forward','partial_variable':None},'bindings':{'expression':['a'],'point':['b'],'direction':['c']}}),
+    'multivariable_extrema': ({'conditions':[{'id':'a','value':'x^2+3*y^2'},{'id':'b','value':'x,y'}]},
+        {'task':'multivariable_extrema','conditions':{'expression':'x^2+3*y^2','variables':'x,y','operation':'unconstrained','constraint':None},'bindings':{'expression':['a'],'variables':['b']}}),
+    'series_convergence': ({'conditions':[{'id':'a','value':'1/n^3'},{'id':'b','value':'n=2'}]},
+        {'task':'series_convergence','conditions':{'term':'1/n^3','index_start':2},'bindings':{'term':['a'],'index_start':['b']}}),
+    'space_geometry': ({'conditions':[{'id':'a','value':'(1,2,3)'},{'id':'b','value':'x+y-5=0'}]},
+        {'task':'space_geometry','conditions':{'geometry_kind':'point_plane_distance','point':['1','2','3'],'plane':['1','1','0','-5']},'bindings':{'point':['a'],'plane':['b']}}),
+})
 
 
 def few_shot_examples(task: str) -> tuple[dict, dict] | None:
@@ -109,6 +139,10 @@ def account_facts(reading: dict, task: str) -> dict[str, str]:
     """Only exact, server-known preconditions/goals; never trust model exemptions."""
     accounted = {}
     for fact in reading['conditions']:
+        if (task in ('geometric_area', 'rotation_volume') and fact.get('value', '').strip() == 'x'
+                and re.search(r'积分变量(?:为|是)?\s*x', reading.get('question', ''))):
+            accounted[fact['id']] = 'kernel_precondition:fixed_variable_x'
+            continue
         value = re.sub(r'[\s。.]', '', fact.get('value',''))
         excerpt = fact.get('excerpt','').strip(' 。.')
         for rule in ACCOUNT_RULES.get(task, ()):
@@ -130,15 +164,33 @@ def task_schema(task: str) -> dict:
     spec = TASKS[task]
     fields = understanding_schema()['properties']['model']['properties']['conditions']['properties']
     names = spec['required'] + spec['optional']
-    properties = {name: copy.deepcopy(fields[name]) for name in names if name in fields}
+    properties = {name: copy.deepcopy(fields.get(name, {'type':'string'})) for name in names}
     # Existing scalar calculus point and vector geometry point share a label.
-    if task in ('derivative', 'limit', 'taylor', 'higher_derivative'):
+    if task in ('derivative', 'limit', 'taylor', 'higher_derivative', 'continuity'):
         properties['point'] = {'type': ['string', 'number']}
     if task=='limit':
         properties['point']={'anyOf':[{'type':'number'},{'type':'string','enum':['oo','-oo']}]}
     if task=='implicit_normal':
         properties['point_x']={'type':'number'}
         properties['point_y']={'type':'number'}
+    if task == 'continuity':
+        properties['value_mode'] = {'type':'string','enum':['expression','value','undefined']}
+        properties['point_value'] = {'type':'string'}
+    if task in ('multivariable', 'multivariable_extrema'):
+        properties['variables'] = {'type':'string','enum':['x,y','x,y,z'] if task == 'multivariable' else ['x,y']}
+        properties['operation'] = {'type':'string','enum':['partial','differential','directional','gradient'] if task == 'multivariable' else ['unconstrained','constrained']}
+        for field in ('point','direction'):
+            if field in properties: properties[field] = {'type':'string','description':'按变量顺序，以逗号分隔完整坐标，例如1,2'}
+        if task == 'multivariable':
+            properties['direction_limit'] = {'type':'string','enum':['forward','two_sided']}
+            properties['partial_variable'] = {'type':'string','enum':['x','y','z']}
+    if task == 'ode':
+        properties['target_kind'] = {'type':'string','enum':['none','value','area','integral','volume_x']}
+    if task == 'space_geometry':
+        for field in ('plane','plane2'):
+            properties[field] = {'type':'array','items':{'type':['string','number']},'minItems':4,'maxItems':4,'description':'平面 A*x+B*y+C*z+D=0 的四个系数[A,B,C,D]，不是方程文本'}
+        for field in ('point','line_point','line_direction','vector_a','vector_b','vector_c','point_a','point_b','point_c','normal','direction_a','direction_b'):
+            properties[field] = {'type':'array','items':{'type':['string','number']},'minItems':3,'maxItems':3}
     enums = {
         'page_replace': ['fifo', 'lru', 'opt'],
         'cpu_schedule': ['fcfs', 'sjf', 'srtf', 'rr', 'priority'],
@@ -146,7 +198,7 @@ def task_schema(task: str) -> dict:
     }
     if task in enums:
         properties['algorithm'] = {'type':'string', 'enum':enums[task]}
-    for name in ('frames','deletion_count','iterations','epochs','order','quantum'):
+    for name in ('frames','deletion_count','iterations','epochs','order','quantum','index_start'):
         if name in properties:
             properties[name] = {'type':'integer'}
     if task == 'page_replace':
@@ -279,7 +331,8 @@ def validate_goal_coverage(reading: dict, model: dict) -> None:
     if model.get('task') == 'ode':
         wants_particular = re.search(r'特解|初值|初始条件|满足\s*[a-zA-Z]\s*\(', question)
         if wants_particular and not conditions.get('initial_conditions'):
-            raise ValueError('原题要求特解或给出了初值，模型未保留初值条件')
+            from .kernel_models import ModelConditionsError
+            raise ModelConditionsError(['initial_conditions'])
 
 
 def validate_page_model(reading: dict, model: dict, source_text: str) -> None:
@@ -487,6 +540,17 @@ def grade_uncertainties(uncertainties: list[str]) -> tuple[list[str], list[str]]
     return blocking, minor
 
 
+def explicit_missing_fields(text, task):
+    labels = {'expression':r'函数表达式|函数式', 'term':r'通项', 'direction':r'方向向量|向量方向',
+              'point_value':r'函数值|单点值', 'initial_conditions':r'初值|初始条件',
+              'plane':r'平面(?:方程)?', 'point':r'研究点|求值点'}
+    legal = set(TASKS[task]['required'] + TASKS[task]['optional'])
+    clauses = re.split(r'[，。；;]', text)
+    return [field for field, label in labels.items() if field in legal and any(
+        re.search(label, clause) and re.search(r'待补充|未给出|未提供|未确定|缺少|尚未给出', clause)
+        for clause in clauses)]
+
+
 def request_json(messages: list, schema: dict, deadline: float) -> dict:
     settings = get_settings()
     remaining = deadline - time.monotonic()
@@ -505,7 +569,7 @@ def request_json(messages: list, schema: dict, deadline: float) -> dict:
     with httpx.Client(timeout=remaining, trust_env=False) as client:
         response = client.post(settings.lab_ollama_url.rstrip('/') + '/api/chat', json={
             'model': settings.lab_ollama_model, 'messages': messages, 'format': schema,
-            'stream': False, 'options': {'num_ctx':32768, 'num_predict':3000, 'temperature':0,
+            'stream': False, 'options': {'num_ctx':8192 if not any(m.get('images') for m in messages) and budget < 24000 else 32768, 'num_predict':3000, 'temperature':0,
                                         'repeat_penalty':1.1}})
         response.raise_for_status()
         body = response.json()
@@ -570,8 +634,7 @@ def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
         blocking_uncertainties.append('多个小问尚需逐问建模，请拆分后处理')
     data['uncertainties'] = blocking_uncertainties
     data['minor_uncertainties'] = minor_uncertainties
-    if blocking_uncertainties:
-        return finish_understanding(data, problem)
+    # Keep mapping known facts even when a field still needs user review.
     # Only the selected task branch's fields are legal.
     branches = []
     selected = candidate_tasks({**data,'question':source_question})
@@ -649,6 +712,11 @@ def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
             output_schema = copy.deepcopy(branches[0])
             output_schema['properties'].pop('unsupported_reason')
             output_schema['required'].remove('unsupported_reason')
+            if selected == ['space_geometry'] and re.search(r'到.*平面.*距离', source_question):
+                keep = {'geometry_kind','point','plane'}
+                output_schema['properties']['conditions']['properties'] = {k:v for k,v in output_schema['properties']['conditions']['properties'].items() if k in keep}
+                output_schema['properties']['bindings']['properties'] = {k:v for k,v in output_schema['properties']['bindings']['properties'].items() if k in keep}
+            output_schema['properties']['conditions']['required'] = list(output_schema['properties']['conditions']['properties'])
             for name, definition in output_schema['properties']['conditions']['properties'].items():
                 output_schema['properties']['conditions']['properties'][name] = {'anyOf':[definition,{'type':'null'}]}
         else:
@@ -659,17 +727,29 @@ def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
             data['unsupported_reason'] = model.get('unsupported_reason') or '无法可靠建模'
             break
         try:
+            if model.get('task') not in TASKS or not isinstance(model.get('conditions'), dict):
+                raise ValueError('任务模型必须包含合法task与conditions对象')
             if model.get('unsupported_reason', '').strip():
                 raise ValueError('模型报告未解决问题：'+model['unsupported_reason'])
+            missing_fields = explicit_missing_fields(text, model['task'])
+            for field in missing_fields:
+                model['conditions'][field] = None
+            if model['task'] == 'continuity' and 'point_value' in missing_fields:
+                model['conditions']['value_mode'] = 'value'
             model = reconcile_bindings(data['conditions'], model)
             model['conditions'] = {k:v for k,v in model['conditions'].items()
-                                   if v is not None or k in TASKS[model['task']]['required']}
+                                   if v is not None or k in TASKS[model['task']]['required'] or k in missing_fields}
+            if model['task'] == 'multivariable' and model['conditions'].get('operation') == 'directional':
+                model['conditions'].setdefault('direction_limit', 'forward')
             accounted = account_facts(data, model['task'])
             validate_bindings([f for f in data['conditions'] if f['id'] not in accounted],
                               {**model, 'bindings':{field:[ref for ref in refs if ref not in accounted]
                                   for field,refs in model.get('bindings',{}).items()
                                   if any(ref not in accounted for ref in refs)}})
             validate_expression_fields(model)
+            if missing_fields:
+                from .kernel_models import ModelConditionsError
+                raise ModelConditionsError(missing_fields)
             _validate(model['task'], model['conditions'])
             validate_goal_coverage(data, model)
             validate_page_model(data, model, text)
@@ -681,6 +761,12 @@ def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
             data['unsupported_reason'] = ''
             break
         except (ValueError, KeyError, TypeError) as exc:
+            from .kernel_models import ModelConditionsError
+            if isinstance(exc, ModelConditionsError) and model.get('task') in TASKS:
+                data['model'] = dict(kind='kernel', task=model['task'], conditions=model.get('conditions') or {})
+                data['uncertainties'].extend(exc.missing_conditions)
+                data['unsupported_reason'] = ''
+                break
             if attempt:
                 data.setdefault('model_validation_errors',[]).append('模型检查未通过：'+str(exc)[:300])
                 data['unsupported_reason']='模型映射未通过检查；这不表示原题缺少条件。'

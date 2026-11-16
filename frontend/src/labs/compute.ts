@@ -1,3 +1,4 @@
+import { observe } from './exploration.ts';
 /**
  * 四类题目的前端确定性计算。
  *
@@ -12,6 +13,7 @@ import { evaluateOde } from './ode.ts';
 import { evaluateFourierSeries, evaluatePowerSeries, evaluateSeriesConvergence } from './series.ts';
 import { evaluateSpace } from './space.ts';
 import { evaluateProof } from './proof.ts';
+import { computePhysics } from './physics.ts';
 import { evaluateConstrainedExtrema } from './constrainedExtrema.ts';
 import { replayDs } from './dataStructures.ts';
 import type {
@@ -36,6 +38,7 @@ import { evaluateHeap } from './heap.ts';
 import { evaluateLinAlg } from './linalg.ts';
 import { evaluateOs } from './opsys.ts';
 import { replayCompOrg } from './compOrg.ts';
+import { replayNetwork } from './network.ts';
 import { evaluateExamMath } from './examMath.ts';
 
 type Params = Record<string, unknown>;
@@ -342,6 +345,121 @@ function computeCalculus(problem: LabProblem, params: Params): CalculusResult {
         : reference !== null
           ? `≈ ${formatNumber(sum)}`
           : '参照无效',
+    };
+  }
+
+  if (model.kind === 'inverse_derivative' || model.inverse_function === true) {
+    const inversePoint = num(params, 'point', defaultNumber(model, 'point', 0));
+    const preimageAt = (target: number): number | null => {
+      let span = 1;
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        const lo = -span;
+        const hi = span;
+        const fLo = evaluate(lo);
+        const fHi = evaluate(hi);
+        if (fLo !== null && fHi !== null && (fLo - target) * (fHi - target) <= 0) {
+          let left = lo;
+          let right = hi;
+          let leftValue = fLo;
+          for (let step = 0; step < 80; step += 1) {
+            const mid = (left + right) / 2;
+            const midValue = evaluate(mid);
+            if (midValue === null) return null;
+            if ((midValue - target) * (leftValue - target) <= 0) right = mid;
+            else { left = mid; leftValue = midValue; }
+          }
+          return (left + right) / 2;
+        }
+        span *= 2;
+        if (span > 1e9) break;
+      }
+      return null;
+    };
+    const preimage = preimageAt(inversePoint);
+    if (preimage === null || !Number.isFinite(preimage)) {
+      throw new Error('反函数在该输入处没有实原像或不可导');
+    }
+    const numericStep = Math.max(1e-7, Math.abs(preimage) * 1e-6);
+    const fLeft = evaluate(preimage - numericStep);
+    const fRight = evaluate(preimage + numericStep);
+    if (fLeft === null || fRight === null) throw new Error('反函数在该输入处不可导');
+    const originalSlope = (fRight - fLeft) / (2 * numericStep);
+    if (!Number.isFinite(originalSlope) || Math.abs(originalSlope) < 1e-12) {
+      throw new Error('原函数在该原像处导数为 0，反函数不可导');
+    }
+    const inverseSlope = 1 / originalSlope;
+    const originalAnswer = Math.abs(inversePoint - defaultNumber(model, 'point', 0)) < 1e-9
+      && finite(problem.solution.answer_value) ? Number(problem.solution.answer_value) : inverseSlope;
+    const span = Math.max(1, Math.abs(preimage) * 0.8 + 0.5);
+    const xMin = preimage - span;
+    const xMax = preimage + span;
+    const yA = evaluate(xMin);
+    const yB = evaluate(xMax);
+    const yMin = yA !== null && yB !== null ? Math.min(yA, yB) : inversePoint - span;
+    const yMax = yA !== null && yB !== null ? Math.max(yA, yB) : inversePoint + span;
+    const inverseAt = (target: number): number | null => {
+      let left = xMin;
+      let right = xMax;
+      let leftValue = evaluate(left);
+      const rightValue = evaluate(right);
+      if (leftValue === null || rightValue === null) return null;
+      if ((leftValue - target) * (rightValue - target) > 0) return null;
+      for (let step = 0; step < 70; step += 1) {
+        const mid = (left + right) / 2;
+        const midValue = evaluate(mid);
+        if (midValue === null) return null;
+        if ((midValue - target) * (leftValue - target) <= 0) right = mid;
+        else { left = mid; leftValue = midValue; }
+      }
+      return (left + right) / 2;
+    };
+    const series: CalculusPoint[] = [];
+    for (let index = 0; index < 260; index += 1) {
+      const y = yMin + ((yMax - yMin) * index) / 259;
+      series.push({ x: y, y: inverseAt(y) });
+    }
+    const frames: LabResultFrame[] = [
+      frame(0, `反函数输入 ${formatNumber(inversePoint)}`,
+        `原像 f(x0)=${formatNumber(inversePoint)} 解得 x0=${formatNumber(preimage)}。`, {
+          inverse_input: inversePoint, preimage, fprime: originalSlope,
+        }),
+      frame(1, '反函数导数',
+        `(f⁻¹)'(${formatNumber(inversePoint)}) = 1/f'(x0) = ${formatNumber(originalAnswer)}。`, {
+          inverse_derivative: originalAnswer, formula: "1/f'(x0)",
+        }),
+    ];
+    return {
+      subject: 'calculus',
+      kind: 'derivative',
+      headline: `(f⁻¹)'(${formatNumber(inversePoint)}) = ${formatNumber(originalAnswer)}`,
+      metrics: [
+        metric('input', '反函数输入', formatNumber(inversePoint)),
+        metric('preimage', '原像 x0', formatNumber(preimage)),
+        metric('fprime', "f'(x0)", formatNumber(originalSlope)),
+        metric('slope', '反函数导数', formatNumber(originalAnswer), 'accent'),
+      ],
+      checks: [
+        check('preimage', '原像存在', 'pass', `f(${formatNumber(preimage)})≈${formatNumber(inversePoint)}`),
+        check('formula', '反函数导数公式', 'pass', "结果为 1/f'(x0)，不是原函数在输入点的导数。"),
+      ],
+      notes: [
+        '图像横轴是反函数输入，纵轴是原像；切线与反函数曲线相切。',
+        "反函数只在原函数局部单调且 f'(x0)≠0 时可导。",
+      ],
+      trace: frames,
+      domain: { x_min: yMin, x_max: yMax },
+      series,
+      rects: [],
+      exact: originalAnswer,
+      approx: inverseSlope,
+      error: Math.abs(originalAnswer - inverseSlope),
+      point: {
+        x: inversePoint,
+        y: preimage,
+        slope: originalAnswer,
+        tangent: { m: originalAnswer, b: preimage - originalAnswer * inversePoint },
+      },
+      answerText: formatNumber(originalAnswer),
     };
   }
 
@@ -1320,7 +1438,7 @@ function computeDeepLearning(problem: LabProblem, params: Params): DlResult {
 /* 入口与当前帧辅助                                                            */
 /* -------------------------------------------------------------------------- */
 
-export function computeLab(problem: LabProblem, params: Record<string, unknown>): LabResult {
+function computeModel(problem: LabProblem, params: Record<string, unknown>): LabResult {
   switch (problem.subject) {
     case 'calculus': {
       if (problem.manual_input?.double_extension || problem.manual_input?.conditions?.integral_mode === 'improper' || problem.manual_input?.conditions?.region_mode === 'improper') {
@@ -1339,10 +1457,10 @@ export function computeLab(problem: LabProblem, params: Record<string, unknown>)
         const s=problem.solution;
         return {subject:'calculus',kind:'multivariable',task:'multivariable',headline:s.answer || s.summary,metrics:[],checks:[{id:'result',label:'本任务核验',status:s.solution_complete === true ? 'pass' : 'warn',detail:s.incomplete_reason || s.summary}],notes:s.limitations ?? [],series:[],domain:{x_min:-1,x_max:1},rects:[],exact:s.answer_value ?? null,approx:null,error:null,answerText:s.answer || '',trace:s.steps.map((step,index)=>({index,label:step.title,detail:step.detail,values:{}}))};
       }
-      if (problem.model.task === 'ode') return evaluateOde(problem);
-      if (problem.model.task === 'series_convergence') return evaluateSeriesConvergence(problem);
+      if (problem.model.task === 'ode') return evaluateOde(problem, params);
+      if (problem.model.task === 'series_convergence') return evaluateSeriesConvergence(problem, params);
       if (problem.model.task === 'power_series') return evaluatePowerSeries(problem);
-      if (problem.model.task === 'fourier_series') return evaluateFourierSeries(problem);
+      if (problem.model.task === 'fourier_series') return evaluateFourierSeries(problem, params);
       if (problem.model.task === 'proof') return evaluateProof(problem);
       if (problem.manual_input?.task === 'triple_integral') {
         const s=problem.solution, complete=s.solution_complete === true;
@@ -1402,6 +1520,10 @@ export function computeLab(problem: LabProblem, params: Record<string, unknown>)
     }
     case 'computer_organization':
       return replayCompOrg(problem);
+    case 'computer_network':
+      return replayNetwork(problem);
+    case 'physics':
+      return computePhysics(problem, params);
     default:
       return { subject: 'unknown', headline: '请先核对题目类型与条件', metrics: [], checks: [],
         notes: ['尚未建立可执行模型。请核对原题并选择支持的类型。'],
@@ -1484,21 +1606,34 @@ export function currentMetrics(result: LabResult, step: number): LabResultMetric
     items.push(metric('frames', '轨迹总步数', String(Math.max(0, result.frames.length - 1))));
     return items;
   }
+  if (result.subject === 'computer_network') {
+    const frame = result.frames[index] ?? result.frames[0];
+    const values = frame?.values ?? {};
+    const items = [metric('action', '当前动作', frame?.label ?? '待核对', 'accent')];
+    for (const [key, value] of Object.entries(values).slice(0, 4)) {
+      items.push(metric(`net_${key}`, key, typeof value === 'string' || typeof value === 'number' ? String(value) : '—'));
+    }
+    items.push(metric('frames', '轨迹总步数', String(Math.max(0, result.frames.length - 1))));
+    return items;
+  }
   if (result.subject === 'operating_system') {
     const frame = result.frames[index] ?? result.frames[0];
     const values = frame?.values ?? {};
     const items = [metric('action', '当前动作', frame?.label ?? '待核对', 'accent')];
+    const pageTrace = result.osKind === 'page_replace'
+      && (values.faults !== undefined || values.hits !== undefined || values.frames !== undefined);
     if (result.osKind === 'cpu_schedule') {
       const ready = Array.isArray(values.ready) ? (values.ready as string[]) : [];
       items.push(metric('time', '当前时刻', formatNumber(Number(values.time ?? 0))));
       items.push(metric('ready', '就绪队列', `[${ready.join(', ')}]`));
-    } else if (result.osKind === 'page_replace') {
+    } else if (pageTrace) {
       items.push(metric('faults', '累计缺页', String(values.faults ?? 0)));
       items.push(metric('hits', '累计命中', String(values.hits ?? 0)));
     } else if (result.osKind === 'disk_schedule') {
       items.push(metric('head', '磁头位置', formatNumber(Number(values.head ?? 0))));
       items.push(metric('total', '累计移动', formatNumber(Number(values.total ?? 0))));
-    } else if (['os_basics', 'process_thread', 'sync', 'deadlock', 'memory_alloc'].includes(result.osKind)) {
+    } else if (['os_basics', 'process_thread', 'sync', 'deadlock', 'memory_alloc',
+      'tlb', 'file_dir', 'file_alloc', 'device_mgmt', 'page_replace'].includes(result.osKind)) {
       for (const [key, value] of Object.entries(values).slice(0, 4)) {
         items.push(metric(`os_${key}`, key, typeof value === 'string' || typeof value === 'number' ? String(value) : '—'));
       }
@@ -1555,4 +1690,8 @@ export function currentMetrics(result: LabResult, step: number): LabResultMetric
 export function traceLabel(result: LabResult, step: number): string {
   const frame = currentFrame(result, step);
   return frame.label;
+}
+
+export function computeLab(problem: LabProblem, params: Record<string, unknown>): LabResult {
+  return observe(problem, params, computeModel(problem, params));
 }

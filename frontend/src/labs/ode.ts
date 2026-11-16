@@ -1,12 +1,12 @@
 import { compileExpression, formatNumber } from './expr.ts';
 import type { CalculusPoint, CalculusResult, LabProblem } from './types.ts';
 
-export function evaluateOde(problem: LabProblem): CalculusResult {
+export function evaluateOde(problem: LabProblem, params: Record<string, unknown> = {}): CalculusResult {
   const model = problem.model;
   const solution = problem.solution;
   const variable = model.independent_variable ?? 'x';
-  const lower = Number(solution.plot_window?.x_min ?? model.defaults.x_min ?? -3);
-  const upper = Number(solution.plot_window?.x_max ?? model.defaults.x_max ?? 3);
+  const lower = Number(params.x_min ?? solution.plot_window?.x_min ?? model.defaults.x_min ?? -3);
+  const upper = Number(params.x_max ?? solution.plot_window?.x_max ?? model.defaults.x_max ?? 3);
   const series: CalculusPoint[] = [];
   const source = solution.plot_expression;
   if (source) {
