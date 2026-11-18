@@ -105,7 +105,29 @@ class MaasProvider:
                 detail = ""
             raise LLMUnavailable(f"MaaS 返回 HTTP {error.code}：{detail}") from error
         except (urllib.error.URLError, TimeoutError, OSError) as error:
-            raise LLMUnavailable(f"MaaS 调用失败：{type(error).__name__}") from error
+            try:
+                from ...ppt_ai.client import HttpxTransport, _host_resolves_to_fake_ip
+                from urllib.parse import urlsplit
+
+                host = urlsplit(self._endpoint).hostname or ""
+                if not _host_resolves_to_fake_ip(host):
+                    raise error
+                status, fallback_payload = HttpxTransport().post(
+                    self._endpoint,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {self._api_key}",
+                    },
+                    json_body=payload,
+                    timeout=float(self._timeout),
+                )
+                if status >= 400:
+                    raise LLMUnavailable(f"MaaS 返回 HTTP {status}")
+                raw = json.dumps(fallback_payload, ensure_ascii=False)
+            except LLMUnavailable:
+                raise
+            except Exception:  # noqa: BLE001
+                raise LLMUnavailable(f"MaaS 调用失败：{type(error).__name__}") from error
 
         try:
             parsed = json.loads(raw)

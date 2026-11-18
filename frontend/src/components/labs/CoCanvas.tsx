@@ -1,3 +1,4 @@
+import { MathText } from './ProblemText';
 import type { ReactNode } from 'react';
 import type { CoResult, CoResultFrame } from '@/labs/compOrg';
 import styles from './LabCanvas.module.css';
@@ -38,8 +39,8 @@ export function CoCanvas({ result, step }: { result: CoResult; step: number }): 
         {rows.map((row) => <BitRegister key={row.label} label={row.label} bits={row.bits} />)}
       </div> : null}
       <div className={styles.stateBlock}>
-        <span className={styles.stateTitle}>{frame.label}</span>
-        <p className={styles.orderText}>{frame.detail}</p>
+        <span className={styles.stateTitle}><MathText text={String(frame.label ?? '')} /></span>
+        <p className={styles.orderText}><MathText text={String(frame.detail ?? '')} /></p>
         <div className={styles.chipRow}>
           {stateEntries.map(([key, value]) => (
             <span key={key} className={styles.visitedChip}>

@@ -173,16 +173,17 @@ class Settings(BaseSettings):
 
     # --- 识图模型（可选；默认关闭，不影响无 Key 环境）---
     llm_provider: str = Field(
-        default="none",
+        default="maas",
         description="识别层模型供应方：none | maas；只有 maas 且配置了 Key 才会联网",
     )
     llm_base_url: str = Field(
-        default="https://api.modelarts-maas.com/openai/v1",
+        default="https://api.modelarts-maas.com/v2",
         description="OpenAI 兼容端点前缀（MaaS 默认西南-贵阳一）",
     )
-    llm_model: str = Field(default="glm-5.3", description="模型名；需在控制台确认支持图片输入")
+    llm_model: str = Field(default="deepseek-v4.1-flash-1017", description="模型 ID；需在控制台确认支持图片输入")
     llm_api_key: str = Field(default="", description="API Key；只从环境变量 LLM_API_KEY 读取")
     llm_timeout_s: int = Field(default=60, ge=5, le=300)
+    llm_json_schema: bool = Field(default=True, description='声明式建模使用JSON Schema；不支持的兼容端点可关闭')
     llm_max_calls: int = Field(
         default=3,
         ge=0,
@@ -193,7 +194,7 @@ class Settings(BaseSettings):
 
     # --- 题目实验室（与课件转换分离；默认不产生任何模型调用）---
     lab_max_files: int = Field(default=6, ge=1, le=12)
-    lab_understanding_provider: str = 'ollama'
+    lab_understanding_provider: str = 'maas'
     lab_ollama_url: str = 'http://127.0.0.1:11434'
     lab_understanding_pipeline: str = 'staged'
     lab_ollama_model: str = 'qwen3-vl:2b-instruct-q4_K_M'
@@ -355,6 +356,13 @@ class Settings(BaseSettings):
         default="",
         description="Alembic 专用连接串；空串表示未配置（回退到 database_url）",
     )
+
+    @field_validator('llm_model', mode='before')
+    @classmethod
+    def _normalize_deepseek_model(cls, value: Any) -> Any:
+        if isinstance(value, str) and value.strip().lower() == 'deepseek-v4.1-flash-1017':
+            return 'deepseek-v4.1-flash-1017'
+        return value
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

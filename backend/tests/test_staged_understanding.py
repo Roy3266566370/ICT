@@ -392,3 +392,47 @@ def test_missing_bound_still_maps_known_conditions(monkeypatch):
     assert result['verification']=='needs_review'
     assert result['agent_understanding']['model']['conditions']['expression']=='x^2'
     assert result['computation'] is None
+
+
+def test_given_continuous_function_does_not_misroute_to_continuity():
+    from app.labs.staged_understanding import candidate_tasks
+    tasks = candidate_tasks({
+        'question': '已知连续函数f(x)满足∫_0^x f(t)dt + ∫_0^x t*f(x-t)dt = a*x^2，求f(x)。',
+        'conditions': [],
+    })
+    assert tasks != ['continuity']
+    assert candidate_tasks({'question': '判断函数f(x)在x=0处是否连续', 'conditions': []}) == ['continuity']
+
+
+def test_rotation_volume_extrema_routes_to_composite_candidates():
+    from app.labs.staged_understanding import candidate_tasks
+    tasks = candidate_tasks({
+        'question': '求曲线y=sqrt(x)e^(-x)与x=t,x=2t及x轴围成图形绕x轴旋转一周所得旋转体的体积V(t)的最大值。',
+        'conditions': [],
+    })
+    assert 'rotation_volume' in tasks and 'optimization' in tasks
+
+
+def test_double_integral_accounts_differential_condition():
+    from app.labs.staged_understanding import account_facts, validate_bindings
+    reading = {
+        'question': '求二重积分 ∬_D (x-y)^2/(x^2+y^2) dxdy',
+        'conditions': [
+            {'id': 'c1', 'value': '(x-y)^2/(x^2+y^2)'},
+            {'id': 'c2', 'value': 'dxdy'},
+            {'id': 'c3', 'value': 'D = {(x, y) | y-2 <= x <= sqrt(4-y^2), 0 <= y <= 2}'},
+        ],
+    }
+    accounted = account_facts(reading, 'double_integral')
+    assert accounted.get('c2') == 'goal:double_integral_differential'
+    validate_bindings(
+        [f for f in reading['conditions'] if f['id'] not in accounted],
+        {
+            'task': 'double_integral',
+            'conditions': {
+                'integrand': '(x-y)^2/(x^2+y^2)',
+                'region_text': 'D = {(x, y) | y-2 <= x <= sqrt(4-y^2), 0 <= y <= 2}',
+            },
+            'bindings': {'integrand': ['c1'], 'region_text': ['c3']},
+        },
+    )

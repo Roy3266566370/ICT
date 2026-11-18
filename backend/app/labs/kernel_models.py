@@ -17,11 +17,12 @@ FIELD_LABELS = dict(expression='函数表达式',variable='积分或求导变量
     reference='页面访问序列',frames='物理块数',requests='磁道请求序列',head='磁头起点',max_track='最大磁道号',
     direction='移动方向',return_cost='回扫计费规则',names='进程名称',allocation='已分配资源',max='最大资源需求',
     available='可用资源',request='资源请求',layers='网络层数与维度',activations='激活函数',weights='权重',biases='偏置',
-    input='输入向量',target='目标向量',epochs='训练轮数',region_kind='区域类型',rotation_axis='旋转轴',
+    input='输入向量',target='目标向量',epochs='训练轮数',region_kind='区域类型',rotation_axis='旋转轴',lower_expression='区域下边界函数',x_expression='x(t)',y_expression='y(t)',
     id='进程名称',arrival='到达时间',burst='执行时间',priority='优先级',side='考察方向',order='阶数',pieces='分片区域',polar='极坐标区域',swap_order='换序要求',constraint='等式约束',equation='微分方程',initial_conditions='初值条件',independent_variable='自变量',dependent_variable='未知函数',target_kind='组合量类型',target_point='组合量求值点',target_lower='组合量下限',target_upper='组合量上限',term='级数通项',coefficient='幂级数系数',index_start='起始指标',center='展开中心',curve='参数曲线',t_bounds='参数区间',surface='参数曲面',uv_bounds='曲面参数区间',field='向量场/被积函数',region='空间区域',surface_z='曲面 z(x,y)',geometry_kind='空间几何类型',plane='平面',line_point='直线点',line_direction='直线方向',plane2='第二个平面',proof_kind='证明类型',left='左式',right='右式',relation='关系符号',steps='证明步骤',statement='命题陈述')
 
 
 FIELD_LABELS.update(value_mode='单点定义方式',point_value='单点函数值',operation='计算任务',partial_variable='偏导变量',direction_limit='方向导数约定',vector_a='向量A',vector_c='向量C',point_a='点A',point_b='点B',point_c='点C',normal='法向量',direction_a='方向A',direction_b='方向B')
+FIELD_LABELS.update(parameter='所求参数',target_value='已知极限值')
 
 class ModelConditionsError(ValueError):
     def __init__(self, missing_conditions):
@@ -38,14 +39,26 @@ TASKS = {
     'antiderivative':_spec('不定积分','calculus','expression variable'),
     'derivative':_spec('导数与切线','calculus','expression variable point'),
     'inverse_derivative':_spec('反函数导数','calculus','expression variable point'),
-    'geometric_area':_spec('曲线与坐标轴围成面积','calculus','expression lower upper region_kind'),
-    'rotation_volume':_spec('绕坐标轴的旋转体积','calculus','expression lower upper region_kind rotation_axis'),
+    'geometric_area':_spec('曲线与坐标轴围成面积','calculus','expression lower upper region_kind','lower_expression'),
+    'rotation_volume':_spec('绕坐标轴的旋转体积','calculus','expression lower upper region_kind rotation_axis','lower_expression'),
     'implicit_normal':_spec('隐函数法线','calculus','implicit_expression point_x','point_y'),
     'double_integral':_spec('二重积分区域','calculus','integrand','outer_variable outer_bounds inner_bounds pieces polar swap_order region_text'),
     'continuity':_spec('连续性与间断点','calculus','expression variable point value_mode','point_value'),
     'limit':_spec('函数极限','calculus','expression variable point','side'),
+    'parameter_limit':_spec('已知极限求参数','calculus','expression variable point parameter target_value'),
     'taylor':_spec('泰勒展开','calculus','expression variable point order'),
     'higher_derivative':_spec('高阶导数','calculus','expression variable order','point'),
+    'integral_function':_spec('变限积分求导','calculus','expression lower_expression upper_expression','point'),
+    'parametric_derivative':_spec('参数方程求导','calculus','x_expression y_expression point','order'),
+    'implicit_derivative':_spec('隐函数求导','calculus','implicit_expression point_x','point_y order'),
+    'curvature':_spec('曲率与曲率半径','calculus','expression point'),
+    'arc_length':_spec('平面曲线弧长','calculus','expression lower upper'),
+    'parametric_arc_length':_spec('参数曲线弧长','calculus','x_expression y_expression lower upper'),
+    'surface_of_revolution':_spec('旋转曲面面积','calculus','expression lower upper rotation_axis'),
+    'polar_area':_spec('极坐标面积','calculus','expression lower upper'),
+    'polar_arc_length':_spec('极坐标弧长','calculus','expression lower upper'),
+    'asymptote':_spec('渐近线','calculus','expression'),
+    'sequence_limit':_spec('数列极限','calculus','expression'),
     'function_study':_spec('函数区间研究','calculus','expression variable','lower upper interval_type'),
     'constrained_extrema':_spec('等式约束极值','optimization','expression variables constraint'),
     'multivariable':_spec('多元函数微分','calculus','expression operation variables','point partial_variable direction direction_limit'),
@@ -93,14 +106,26 @@ def task_catalog():
         'heap_compare':'operation=delete|insert；按固定口径统计关键字比较次数：删除时孩子比较加父子比较，插入时每次父节点比较计一次。',
         'binary_search_count':'n为有序表元素个数（1至10^9）；固定 mid=⌊(low+high)/2⌋ 向下取整，最坏比较次数=⌊log2 n⌋+1，不适用于其他取整约定。',
         'page_replace':'reference为页面访问序列；initial_frames为已调入内存的页面（按从早到晚排列），省略时初始为空；数量不能超过frames且不能重复。',
-        'geometric_area':'region_kind=between_axis|vertical_inequality；仅支持曲线与x轴。',
-        'rotation_volume':'region_kind=between_axis|vertical_inequality；rotation_axis仅x。',
+        'geometric_area':'region_kind=between_axis|vertical_inequality|between_curves；between_curves时用lower_expression给出下边界g(x)。',
+        'rotation_volume':'region_kind=between_axis|vertical_inequality|between_curves；rotation_axis=x|y，绕y轴用壳层法且区域须位于y轴一侧；between_curves绕x轴要求0≤g(x)≤f(x)。',
         'double_integral':'单片用outer_variable/outer_bounds/inner_bounds；分片用pieces（外层区间不重叠）；极坐标用polar{theta_bounds,r_bounds}。被积函数可为常见非多项式，swap_order=true时要求可验证换序。',
         'limit':'side=both|left|right；point可为有限数或oo/-oo表示无穷远；发散到±∞与左右不一致会分别返回。',
         'taylor':'point为有限展开点，order为1至10的整数；输出系数、多项式与余项阶，展开点无有限极限时拒绝。',
         'higher_derivative':'order为1至10的整数；point可选，用于在该点取值。当前只支持显式函数的普通高阶导数。',
+        'integral_function':'被积函数只用积分变量t，上下限只用x；F′(x)=f(b(x))b′(x)-f(a(x))a′(x)。point为可选求值点，需有限实常数。',
+        'parametric_derivative':'x_expression与y_expression都是t的函数；point为参数t0；order=1|2。要求x′(t0)≠0，不把t当作x。',
+        'implicit_derivative':'implicit_expression为F(x,y)=0；point_x必填，point_y在多分支时必须给出；order=1|2。要求F_y≠0。',
+        'curvature':'expression为y=f(x)，point为曲率点x0；输出κ=|y″|/(1+y′²)^(3/2)与曲率半径R=1/κ。',
+        'arc_length':'expression为y=f(x)；L=∫√(1+f′²)dx，要求被积函数在闭区间连续；无初等原函数时明确未完成。',
+        'parametric_arc_length':'x_expression/y_expression为t的函数；L=∫√(x′²+y′²)dt，lower/upper为参数t的有限区间。',
+        'surface_of_revolution':'expression为y=f(x)；绕x轴S=2π∫|f|√(1+f′²)dx，绕y轴S=2π∫|x|√(1+f′²)dx且区间须位于y轴一侧。',
+        'polar_area':'expression为极径r(θ)；S=½∫r²dθ，lower/upper为极角θ的有限区间。',
+        'polar_arc_length':'expression为极径r(θ)；L=∫√(r²+r′²)dθ，lower/upper为极角θ的有限区间。',
+        'asymptote':'expression为有理函数f(x)；输出全部垂直、水平、斜渐近线。非有理函数明确拒绝，不承诺集合完整。',
+        'sequence_limit':'expression为数列通项aₙ，只含指标n；计算n→∞的符号极限，发散/不存在分别标注。',
         'function_study':'lower与upper可选且必须成对；省略时按实定义域研究。周期临界点族会明确标为未完成。',
         'constrained_extrema':'二元单个等式约束 g(x,y)=0；variables固定为["x","y"]；输出拉格朗日乘数、实驻点与加边Hessian分类。',
+        'multivariable_extrema':'variables固定为"x,y"或["x","y"]；operation=unconstrained|constrained；条件极值必须在constraint写唯一等式g(x,y)=0。',
         "ode":"1至3阶常微分方程；initial_conditions为y(0)=1、y'(0)=2等字符串数组；target_kind=value|area|integral|volume_x可选。",
         'series_convergence':'term为n的通项；index_start默认1；输出绝对收敛、条件收敛或发散。',
         'power_series':'goal=radius|sum|expand；radius/sum需要coefficient，expand需要expression与order；端点单独判断。',
@@ -256,14 +281,14 @@ def _validate(task, c):
         if key in c: _vector(c[key])
     for key in ('point','point_x','point_y','head','max_track','learning_rate','scalar','quantum'):
         if key in c:
-            if key in ('point_x', 'point_y') and task == 'implicit_normal' and isinstance(c[key], str):
+            if key in ('point_x', 'point_y') and task in ('implicit_normal', 'implicit_derivative') and isinstance(c[key], str):
                 from .expr import parse_expression, safe_float
                 constant = parse_expression(c[key])
                 if constant.free_symbols or constant.is_real is not True or safe_float(constant) is None:
                     raise ValueError('研究点坐标必须是有限实常数')
                 _number(float(constant))
                 continue
-            if key == 'point' and task in ('higher_derivative', 'continuity', 'taylor') and isinstance(c[key], str):
+            if key == 'point' and task in ('higher_derivative', 'continuity', 'taylor', 'integral_function', 'parametric_derivative', 'curvature') and isinstance(c[key], str):
                 from .expr import parse_expression, safe_float
                 constant = parse_expression(c[key])
                 if constant.free_symbols or constant.is_real is not True or safe_float(constant) is None:
@@ -277,12 +302,20 @@ def _validate(task, c):
         if key in c: _number(c[key],integer=True,minimum=0 if key=='deletion_count' else 1,maximum=limit)
     if 'order' in c:
         _number(c['order'],integer=True,minimum=1,maximum=10)
-    for key in ('expression','implicit_expression','integrand'):
+    if task in ('parametric_derivative','implicit_derivative') and 'order' in c:
+        if int(c['order']) not in (1,2):
+            raise ValueError('参数方程与隐函数求导目前只支持一阶或二阶')
+    for key in ('expression','implicit_expression','integrand','lower_expression','upper_expression','x_expression','y_expression'):
         if key in c and (not isinstance(c[key],str) or not 1<=len(c[key])<=600):
             raise ValueError('表达式必须是600字以内的数学字符串')
     if 'variable' in c: _choice(c['variable'],('x','y','t','z'))
-    if 'region_kind' in c: _choice(c['region_kind'],('between_axis','vertical_inequality'))
-    if 'rotation_axis' in c: _choice(c['rotation_axis'],('x',))
+    if 'region_kind' in c: _choice(c['region_kind'],('between_axis','vertical_inequality','between_curves'))
+    if task in ('geometric_area','rotation_volume'):
+        if 'region_kind' in c and c['region_kind'] == 'between_curves':
+            _require(c,['lower_expression'])
+        elif 'lower_expression' in c:
+            raise ValueError('只有两条曲线之间的区域才接受下边界函数')
+    if 'rotation_axis' in c: _choice(c['rotation_axis'],('x','y'))
     if 'heap_type' in c: _choice(c['heap_type'],('min','max'))
     if task == 'limit':
         _choice(c.get('side','both'),('both','left','right'))
@@ -290,7 +323,14 @@ def _validate(task, c):
         if isinstance(point,str):
             normalized = point.strip().replace('＋','+').replace('−','-').replace(' ', '')
             if normalized not in ('oo','+oo','inf','+inf','∞','+∞','-oo','-inf','-∞'):
-                raise ValueError('极限点必须是有限数或 ±∞')
+                from .expr import parse_expression, safe_float
+                try:
+                    constant = parse_expression(normalized)
+                except Exception as exc:  # noqa: BLE001
+                    raise ValueError('极限点必须是有限数或 ±∞') from exc
+                if constant.free_symbols or constant.is_real is not True or safe_float(constant) is None:
+                    raise ValueError('极限点必须是有限数或 ±∞')
+                _number(float(constant))
         else:
             _number(point)
     if task == 'function_study':
@@ -451,12 +491,15 @@ def _compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
     if not isinstance(c,dict) or len(json.dumps(c,allow_nan=False))>15000:
         raise ValueError('建模条件必须是大小受限的JSON对象')
     c=copy.deepcopy(c)
-    if task=='implicit_normal' and isinstance(c.get('implicit_expression'), str) and '=' in c['implicit_expression']:
+    if task in ('implicit_normal','implicit_derivative') and isinstance(c.get('implicit_expression'), str) and '=' in c['implicit_expression']:
         parts=c['implicit_expression'].split('=')
         if len(parts)!=2 or not all(p.strip() for p in parts):
             raise ValueError('隐式曲线方程必须只有一个等号')
         c['implicit_expression']=f'({parts[0]})-({parts[1]})'
     _validate(task,c)
+    if task == 'parameter_limit':
+        from .parameter_limit import compile_parameter_limit
+        return compile_parameter_limit(c)
     if task == 'continuity':
         from .manual import preview_integral
         preview = preview_integral(task, c)
@@ -515,6 +558,45 @@ def _compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
         if p['status']!='ready' or not p['solution'].get('answer'):
             raise ModelConditionsError([p['solution'].get('summary') or '当前证明尝试未认证或条件不成立'])
         return p
+    if task == 'integral_function':
+        from .integral_function import build_problem as build_integral_function_problem
+        from .recognize import _attach_solution
+        p=build_integral_function_problem(c)
+        p['model']['modeling_task']=task
+        _attach_solution(p)
+        if p['status']!='ready' or not p['solution'].get('answer'):
+            raise ModelConditionsError([p['solution'].get('summary') or '当前变限积分无法完成求导核验'])
+        return p
+    if task in ('parametric_derivative','implicit_derivative','curvature'):
+        from .derivative_extra import build_problem as build_derivative_extra_problem
+        from .recognize import _attach_solution
+        p=build_derivative_extra_problem(task,c)
+        p['model']['modeling_task']=task
+        _attach_solution(p)
+        if p['status']!='ready' or not p['solution'].get('answer'):
+            reason=(p['solution'].get('limitations') or [p['solution'].get('summary') or ''])[0] or '当前导数任务无法完成核验'
+            raise ModelConditionsError([reason])
+        return p
+    if task in ('arc_length','parametric_arc_length','surface_of_revolution','polar_area','polar_arc_length'):
+        from .integral_applications import build_problem as build_application_problem
+        from .recognize import _attach_solution
+        p=build_application_problem(task,c)
+        p['model']['modeling_task']=task
+        _attach_solution(p)
+        if p['status']!='ready' or not p['solution'].get('answer'):
+            reason=(p['solution'].get('limitations') or [p['solution'].get('summary') or ''])[0] or '当前积分应用无法完成核验'
+            raise ModelConditionsError([reason])
+        return p
+    if task in ('asymptote','sequence_limit'):
+        from .limit_extra import build_problem as build_limit_extra_problem
+        from .recognize import _attach_solution
+        p=build_limit_extra_problem(task,c)
+        p['model']['modeling_task']=task
+        _attach_solution(p)
+        if p['status']!='ready' or not p['solution'].get('answer'):
+            reason=(p['solution'].get('limitations') or [p['solution'].get('summary') or ''])[0] or '当前极限任务无法完成核验'
+            raise ModelConditionsError([reason])
+        return p
     if task == 'binary_search_count':
         from .binary_search import build_binary_search_problem
         p=build_binary_search_problem(c)
@@ -569,13 +651,22 @@ def _compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
         overrides.update(condition_values={k:c[k] for k in ('point',) if k in c})
     elif task in ('geometric_area','rotation_volume'):
         a,b=scalar(c['lower']),scalar(c['upper'])
-        region=f'0<=y<={c["expression"]}' if c['region_kind']=='vertical_inequality' else f'y={c["expression"]}'
-        text=f'D={{{region},{a}<=x<={b}}}，'+('求与x轴之间的面积。' if task=='geometric_area' else '求绕x轴旋转的体积。')
+        if c['region_kind']=='vertical_inequality':
+            region=f'0<=y<={c["expression"]}'
+        elif c['region_kind']=='between_curves':
+            region=f'{c["lower_expression"]}<=y<={c["expression"]}'
+        else:
+            region=f'y={c["expression"]}'
+        axis=c.get('rotation_axis','x')
+        text=f'D={{{region},{a}<=x<={b}}}，'+('求与x轴之间的面积。' if task=='geometric_area' else f'求绕{axis}轴旋转的体积。')
     elif task=='implicit_normal':
         text=f'曲线 {c["implicit_expression"]}=0 在 x={c["point_x"]} 处的法线斜率'
         overrides.update(point=c['point_x'])
     elif task=='double_integral':
-        text='二重积分 ' + c.get('region_text', '')
+        region = str(c.get('region_text', '') or '').strip()
+        if region and not re.search(r'\bD\s*=|\{', region):
+            region = f'D={{{region}}}'
+        text='二重积分 ' + region
         overrides.pop('region_text', None)
     elif task=='optimization':
         text=f'求函数 f({",".join(c["variables"])})={c["expression"]} 的极值。'

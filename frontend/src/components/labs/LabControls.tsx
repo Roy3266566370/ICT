@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import type { LabModel } from '@/labs/types';
 import { formatNumber } from '@/labs/expr';
 import styles from './labs.module.css';
+import { MathText } from './ProblemText';
 
 interface Props {
   model: LabModel;
@@ -78,7 +79,7 @@ function Control({
   return (
     <label className={styles.control} htmlFor={id}>
       <span className={styles.controlHead}>
-        <span>{label}</span>
+        <span><MathText text={label} /></span>
         <output htmlFor={id}>
           {formatNumber(value, decimals)}
           {unit ? <small>{unit}</small> : null}
@@ -111,7 +112,7 @@ function Control({
           }}
         />
       </span>
-      {note ? <span className={styles.controlNote}>{note}</span> : null}
+      {note ? <span className={styles.controlNote}><MathText text={note} /></span> : null}
     </label>
   );
 }
@@ -183,7 +184,7 @@ export function LabControls({
                   disabled={readOnly}
                   onChange={(event) => onChange(parameter.id, event.target.value)}
                 >
-                  {parameter.options.map((option) => (
+                  {(parameter.options ?? []).map((option) => (
                     <option key={option} value={option}>
                       {optionLabel(option)}
                     </option>

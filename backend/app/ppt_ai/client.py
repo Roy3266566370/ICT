@@ -14,9 +14,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+import socket
+import struct
+import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable, Mapping, Protocol
+from urllib.parse import urlsplit, urlunsplit
 
 from ..settings import Settings, get_settings
 from .types import CallBudget
@@ -58,16 +63,214 @@ class Transport(Protocol):
         ...
 
 
+_DIRECT_ROUTE_CACHE: dict[str, tuple[str, str, float]] = {}
+_DIRECT_ROUTE_TTL_S = 300.0
+_PUBLIC_DNS_SERVERS = ("223.5.5.5", "114.114.114.114")
+
+
+def _is_fake_or_loopback_ip(ip: str) -> bool:
+    return (
+        not ip
+        or ip.startswith("198.18.")
+        or ip.startswith("198.19.")
+        or ip.startswith("127.")
+        or ip.startswith("169.254.")
+        or ip.startswith("0.")
+    )
+
+
+def _host_resolves_to_fake_ip(host: str) -> bool:
+    if not host:
+        return False
+    try:
+        resolved = socket.gethostbyname(host)
+    except OSError:
+        return False
+    return resolved.startswith("198.18.") or resolved.startswith("198.19.")
+
+
+def _discover_physical_ipv4s() -> list[str]:
+    """枚举本机非 Fake-IP 的网卡 IPv4 地址，优先返回配置了非虚拟默认网关的物理网卡。"""
+    with_gateway: list[str] = []
+    without_gateway: list[str] = []
+    try:
+        out = subprocess.check_output(
+            ["ipconfig"], text=True, encoding="gbk", errors="ignore", timeout=2.0
+        )
+        current_ip: str | None = None
+        for line in out.splitlines():
+            ip_match = re.search(r"IPv4[^:\r\n]*:\s*(\d+\.\d+\.\d+\.\d+)", line)
+            if ip_match:
+                candidate = ip_match.group(1)
+                if current_ip and not _is_fake_or_loopback_ip(current_ip) and current_ip not in without_gateway:
+                    without_gateway.append(current_ip)
+                current_ip = None if _is_fake_or_loopback_ip(candidate) else candidate
+                continue
+            if current_ip and ("默认网关" in line or "Default Gateway" in line):
+                gw_match = re.search(r":\s*(\d+\.\d+\.\d+\.\d+)", line)
+                if gw_match and not _is_fake_or_loopback_ip(gw_match.group(1)):
+                    if current_ip not in with_gateway:
+                        with_gateway.append(current_ip)
+                    current_ip = None
+        if current_ip and not _is_fake_or_loopback_ip(current_ip) and current_ip not in without_gateway:
+            without_gateway.append(current_ip)
+    except Exception:  # noqa: BLE001
+        pass
+
+    try:
+        for item in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = item[4][0]
+            if not _is_fake_or_loopback_ip(ip) and ip not in with_gateway and ip not in without_gateway:
+                without_gateway.append(ip)
+    except OSError:
+        pass
+
+    return with_gateway + [ip for ip in without_gateway if ip not in with_gateway]
+
+
+def _resolve_real_ip_via_nic(
+    local_ip: str, host: str, dns_servers: tuple[str, ...] = _PUBLIC_DNS_SERVERS
+) -> str | None:
+    """将 UDP Socket 绑定到指定网卡 IP，向公共 DNS 查询目标域名的真实公网 A 记录。"""
+    query = b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+    for label in host.strip(".").split("."):
+        encoded = label.encode("ascii", "ignore")
+        if not encoded or len(encoded) > 63:
+            return None
+        query += bytes([len(encoded)]) + encoded
+    query += b"\x00\x00\x01\x00\x01"
+
+    for server in dns_servers:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.bind((local_ip, 0))
+            sock.settimeout(1.5)
+            sock.sendto(query, (server, 53))
+            data, _ = sock.recvfrom(512)
+        except OSError:
+            continue
+        finally:
+            sock.close()
+
+        if len(data) < len(query) or len(data) < 12:
+            continue
+        ancount = struct.unpack("!H", data[6:8])[0]
+        idx = len(query)
+        for _ in range(ancount):
+            if idx >= len(data):
+                break
+            if data[idx] & 0xC0 == 0xC0:
+                idx += 2
+            else:
+                while idx < len(data) and data[idx] != 0:
+                    idx += data[idx] + 1
+                idx += 1
+            if idx + 10 > len(data):
+                break
+            rtype, _rclass, _ttl, rdlen = struct.unpack("!HHIH", data[idx : idx + 10])
+            idx += 10
+            if idx + rdlen > len(data):
+                break
+            if rtype == 1 and rdlen == 4:
+                ip = socket.inet_ntoa(data[idx : idx + 4])
+                if not _is_fake_or_loopback_ip(ip):
+                    return ip
+            idx += rdlen
+    return None
+
+
+def _probe_direct_route(host: str) -> tuple[str, str] | None:
+    """探测可用于绕过 Fake-IP 虚拟网卡的 (物理网卡 IP, 目标真实公网 IP)。"""
+    for local_ip in _discover_physical_ipv4s():
+        real_ip = _resolve_real_ip_via_nic(local_ip, host)
+        if real_ip:
+            return local_ip, real_ip
+    return None
+
+
+def _post_direct_with_sni(
+    url: str,
+    host: str,
+    local_ip: str,
+    real_ip: str,
+    *,
+    headers: Mapping[str, str],
+    json_body: Mapping[str, Any],
+    timeout: float,
+):
+    """通过绑定物理网卡源 IP 并携带原始域名 SNI 与 Host 头直连真实公网 IP（保留完整证书校验）。"""
+    import httpx
+
+    parsed = urlsplit(url)
+    netloc = f"{real_ip}:{parsed.port}" if parsed.port else real_ip
+    direct_url = urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
+    host_header = f"{host}:{parsed.port}" if parsed.port else host
+    merged_headers = {**dict(headers), "Host": host_header}
+    transport = httpx.HTTPTransport(local_address=local_ip)
+    with httpx.Client(transport=transport, trust_env=False, timeout=timeout, follow_redirects=False) as client:
+        return client.post(
+            direct_url,
+            headers=merged_headers,
+            json=dict(json_body),
+            extensions={"sni_hostname": host},
+        )
+
+
 class HttpxTransport:
-    """默认 HTTP 传输；只在客户端真正调用时才导入 httpx。"""
+    """默认 HTTP 传输；当本地开启 TUN Fake-IP 代理导致默认连接握手失败时，自动安全回退至物理网卡直连。"""
 
     def post(
         self, url: str, *, headers: Mapping[str, str], json_body: Mapping[str, Any], timeout: float
     ) -> tuple[int, Mapping[str, Any]]:
         import httpx
 
-        with httpx.Client(timeout=timeout, follow_redirects=False) as client:
-            response = client.post(url, headers=dict(headers), json=dict(json_body))
+        parsed = urlsplit(url)
+        host = parsed.hostname or ""
+        is_https = parsed.scheme.lower() == "https" and bool(host)
+        response = None
+
+        if is_https:
+            cached = _DIRECT_ROUTE_CACHE.get(host)
+            if cached and cached[2] > time.monotonic() and _host_resolves_to_fake_ip(host):
+                try:
+                    response = _post_direct_with_sni(
+                        url,
+                        host,
+                        cached[0],
+                        cached[1],
+                        headers=headers,
+                        json_body=json_body,
+                        timeout=timeout,
+                    )
+                except httpx.TransportError:
+                    _DIRECT_ROUTE_CACHE.pop(host, None)
+
+        if response is None:
+            try:
+                with httpx.Client(timeout=timeout, follow_redirects=False) as client:
+                    response = client.post(url, headers=dict(headers), json=dict(json_body))
+            except httpx.TransportError as primary_exc:
+                if not is_https or not _host_resolves_to_fake_ip(host):
+                    raise
+                route = _probe_direct_route(host)
+                if not route:
+                    raise
+                local_ip, real_ip = route
+                try:
+                    response = _post_direct_with_sni(
+                        url,
+                        host,
+                        local_ip,
+                        real_ip,
+                        headers=headers,
+                        json_body=json_body,
+                        timeout=timeout,
+                    )
+                except httpx.TransportError:
+                    raise primary_exc from None
+                _DIRECT_ROUTE_CACHE[host] = (local_ip, real_ip, time.monotonic() + _DIRECT_ROUTE_TTL_S)
+                logger.info("检测到 Fake-IP 代理拦截 %s，已回退通过物理网卡 %s 直连 %s", host, local_ip, real_ip)
+
         try:
             payload = response.json()
         except ValueError as exc:
@@ -149,6 +352,8 @@ class PPTAIClient:
         on_attempt: Callable[[int], None] | None = None,
         max_output_tokens: int | None = None,
         timeout_s: float | None = None,
+        image_urls: list[str] | None = None,
+        thinking: bool | None = None,
     ) -> PPTAIResponse:
         if not self.available():
             raise PPTAIError("disabled", "未配置模型服务；已保留本地确定性结果")
@@ -180,6 +385,27 @@ class PPTAIClient:
             ),
             "response_format": {"type": "json_object"},
         }
+        response_schema = input_payload.get('response_schema')
+        if self.settings.llm_json_schema and isinstance(response_schema, dict):
+            request_body['response_format'] = {'type': 'json_schema', 'json_schema': {
+                'name': 'declarative_model', 'strict': False, 'schema': response_schema}}
+
+        def compatibility_retry(error, previous_output=''):
+            recovery = {'error': error, 'previous_output': previous_output[:8000]}
+            retried = self.generate_json(task_type, {
+                **dict(input_payload), 'response_schema': None, 'format_feedback': recovery,
+            }, schema_version, budget, validator=validator, instructions=instructions,
+                on_attempt=on_attempt, max_output_tokens=max_output_tokens, timeout_s=timeout_s,
+                image_urls=image_urls, thinking=thinking)
+            return replace(retried, data={**retried.data, '_format_recovery': recovery})
+
+        can_retry_schema = request_body['response_format']['type'] == 'json_schema'
+        if image_urls:
+            request_body['messages'][-1]['content'] = [
+                {'type': 'image_url', 'image_url': {'url': url}} for url in image_urls
+            ] + [{'type': 'text', 'text': request_body['messages'][-1]['content']}]
+        if thinking is not None:
+            request_body['thinking'] = {'type': 'enabled' if thinking else 'disabled'}
         encoded = json.dumps(request_body, ensure_ascii=False, allow_nan=False).encode("utf-8")
         if len(encoded) > budget.request_bytes_limit:
             raise PPTAIError("request_too_large", "模型请求超过大小上限，请缩小选区或分批")
@@ -222,6 +448,8 @@ class PPTAIClient:
             logger.warning("PPT AI 模型服务不可用（task=%s status=%s）", task_type, status)
             raise PPTAIError("transport", "模型服务暂时不可用", retryable=True, status=status)
         if status >= 400:
+            if status == 400 and can_retry_schema and budget.used_calls < budget.max_calls:
+                return compatibility_retry('模型端点拒绝JSON Schema请求（HTTP 400）')
             raise PPTAIError("transport", f"模型服务拒绝了请求（HTTP {status}）", status=status)
 
         try:
@@ -230,6 +458,8 @@ class PPTAIClient:
                 raise ValueError("choices 缺失")
             choice = choices[0]
             finish_reason = str(choice.get("finish_reason") or "")
+            if finish_reason == 'length':
+                raise PPTAIError('truncated', '模型输出被截断；请缩小任务或提高 token 上限', status=status)
             message = choice.get("message")
             content = message.get("content") if isinstance(message, Mapping) else None
             if not isinstance(content, str) or not content.strip():
@@ -237,16 +467,15 @@ class PPTAIClient:
         except (ValueError, TypeError) as exc:
             raise PPTAIError("invalid_json", "模型响应结构不完整", status=status) from exc
 
-        if finish_reason == "length":
-            raise PPTAIError("truncated", "模型输出被截断；请缩小任务或提高 token 上限", status=status)
-
         raw_text = _strip_fence(content)
         try:
             data = json.loads(raw_text)
+            if not isinstance(data, dict):
+                raise ValueError('模型 JSON 顶层必须是对象')
         except ValueError as exc:
+            if can_retry_schema and budget.used_calls < budget.max_calls:
+                return compatibility_retry('上次输出不是有效JSON对象，请修正JSON语法并遵循输出契约。', raw_text)
             raise PPTAIError("invalid_json", "模型没有返回有效 JSON", status=status) from exc
-        if not isinstance(data, dict):
-            raise PPTAIError("invalid_json", "模型 JSON 顶层必须是对象", status=status)
 
         if validator is not None:
             try:

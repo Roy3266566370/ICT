@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import math
 import re
 from typing import Any, Iterable, Mapping, Sequence
@@ -32,6 +33,7 @@ SUBJECT_LABELS = {
     "computer_organization": "计算机组成原理",
     "computer_network": "计算机网络",
     "physics": "大学物理",
+    "general": "通用",
     "unknown": "待选择",
 }
 
@@ -276,13 +278,14 @@ def _page_labels(pages: Sequence[Mapping[str, Any]], files: Sequence[Mapping[str
 
 def _problem_pages(pages: Sequence[Mapping[str, Any]], files: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     roles = {item.get("file_id"): str(item.get("role")) for item in files}
-    primary = [page for page in pages if roles.get(page.get("file_id")) == "problem" and str(page.get("text") or "").strip()]
+    usable = lambda page: bool(str(page.get('text') or '').strip() or page.get('image_key'))
+    primary = [page for page in pages if roles.get(page.get("file_id")) == "problem" and usable(page)]
     if primary:
         return primary
-    courseware = [page for page in pages if roles.get(page.get("file_id")) == "courseware" and str(page.get("text") or "").strip()]
+    courseware = [page for page in pages if roles.get(page.get("file_id")) == "courseware" and usable(page)]
     if courseware:
         return courseware
-    return [page for page in pages if roles.get(page.get("file_id")) in ("problem", "courseware", "data") and str(page.get("text") or "").strip()]
+    return [page for page in pages if roles.get(page.get("file_id")) in ("problem", "courseware", "data") and usable(page)]
 
 
 def _split_page(text: str) -> list[tuple[str | None, str]]:
@@ -330,8 +333,11 @@ def split_problems(
     problems: list[dict[str, Any]] = []
     by_number: dict[str, dict[str, Any]] = {}
     for page in relevant:
-        for number, segment in _split_page(str(page.get("text") or "")):
-            if not segment.strip():
+        segments = _split_page(str(page.get("text") or ""))
+        if not segments and page.get('image_key'):
+            segments = [(None, '')]
+        for number, segment in segments:
+            if not segment.strip() and not page.get('image_key'):
                 continue
             if number is not None and number in by_number:
                 # 同一题号出现在后续页：视为跨页续写，而不是新题。
@@ -392,6 +398,69 @@ _PHYSICS_STRONG = (
 )
 
 
+def normalize_latex_prose(text: str) -> str:
+    """Turn common LaTeX into plain text before the regex recognizer runs."""
+    if not isinstance(text, str):
+        return ''
+    if ('\\' not in text and '$' not in text
+            and not re.search(r'[∫∬∭][₀₁₂₃₄₅₆₇₈₉⁰¹²³⁴⁵⁶⁷⁸⁹]', text)):
+        return text
+    value = text.replace('\\left', '').replace('\\right', '').replace('$', '')
+    subscript = str.maketrans('₀₁₂₃₄₅₆₇₈₉', '0123456789')
+    superscript = str.maketrans('⁰¹²³⁴⁵⁶⁷⁸⁹', '0123456789')
+    value = re.sub(
+        r'[∫∬∭]([₀₁₂₃₄₅₆₇₈₉]+)([⁰¹²³⁴⁵⁶⁷⁸⁹]+)',
+        lambda match: match.group(0)[0] + '_' + match.group(1).translate(subscript)
+        + '^' + match.group(2).translate(superscript),
+        value,
+    )
+    value = re.sub(
+        r'([A-Za-z0-9)\]])([⁰¹²³⁴⁵⁶⁷⁸⁹]+)',
+        lambda match: match.group(1) + '^' + match.group(2).translate(superscript),
+        value,
+    )
+    value = re.sub(r'\\operatorname\*?\s*\{\s*lim\s*\}', 'lim', value)
+    value = re.sub(r'\\operatorname\*?\s*lim', 'lim', value)
+    for command, plain in (('\\le', '<='), ('\\leq', '<='), ('\\ge', '>='), ('\\geq', '>='),
+                           ('\\ne', '!='), ('\\neq', '!='), ('\\cdot', '*'), ('\\times', '*'),
+                           ('\\div', '/'), ('\\pi', 'pi'), ('\\to', '→'), ('\\infty', 'oo')):
+        value = value.replace(command, plain)
+    value = re.sub(r'\\(?:longrightarrow|rightarrow)', '→', value)
+    value = re.sub(r'\\(sin|cos|tan|cot|sec|csc|log|ln|exp|sqrt|abs|max|min)\b', r'\1', value)
+    value = re.sub(r'\\mathrm\s*\{\s*d\s*\}', 'd', value)
+    for _ in range(6):
+        updated = re.sub(r'\\(?:dfrac|tfrac|frac)\s*\{([^{}]*)\}\s*\{([^{}]*)\}', r'((\1)/(\2))', value)
+        updated = re.sub(r'\\sqrt\s*\[\s*([^\]]+)\s*\]\s*\{([^{}]*)\}', r'(\2)^(1/(\1))', updated)
+        updated = re.sub(r'\\sqrt\s*\{([^{}]*)\}', r'sqrt(\1)', updated)
+        updated = re.sub(r'\\?lim\s*_\s*\{([^{}]*)\}', lambda m: 'lim_(' + _latex_group_plain(m.group(1)) + ')', updated)
+        updated = re.sub(
+            r'\^\s*\{([^{}]*)\}',
+            lambda m: '^' + (m.group(1).strip() if re.fullmatch(r'[A-Za-z0-9]+', m.group(1).strip()) else f'({m.group(1)})'),
+            updated,
+        )
+        updated = re.sub(
+            r'_\s*\{([^{}]*)\}',
+            lambda m: '_' + (m.group(1).strip() if re.fullmatch(r'[A-Za-z0-9+-]+', m.group(1).strip()) else f'({m.group(1)})'),
+            updated,
+        )
+        if updated == value:
+            break
+        value = updated
+    value = re.sub(r'\\(?:int|iint|iiint)(?![A-Za-z])', lambda m: {'int': '∫', 'iint': '∬', 'iiint': '∭'}[m.group(0)[1:]], value)
+    value = value.replace('\\sum', 'Σ').replace('\\prod', '∏')
+    value = re.sub(r'\\[,!;:]', ' ', value)
+    value = re.sub(r'\\[A-Za-z]+\s*', ' ', value)
+    # OCR often renders an answer blank as "=()/(→)()/(→)·p"; it is not part of the question.
+    value = re.sub(r'=\s*(?:\(\s*[^0-9A-Za-z]*\s*\)\s*/\s*\(\s*[^0-9A-Za-z]*\s*\)\s*)+[·.]?\s*[A-Za-z]?\s*$', '=', value)
+    value = re.sub(r'=\s*(?:\(\s*\)\s*)+[·.]?\s*[A-Za-z]?\s*$', '=', value)
+    value = re.sub(r'=\s*_{2,}\s*$', '=', value)
+    return re.sub(r'[{}]', '', value)
+
+
+def _latex_group_plain(value: str) -> str:
+    return value.replace('\\to', '→').replace('\\rightarrow', '→').replace('{', '').replace('}', '').strip()
+
+
 def classify_subject(text: str) -> tuple[str, float]:
     lowered = text.lower()
     compact = re.sub(r'\s+', '', lowered)
@@ -405,6 +474,12 @@ def classify_subject(text: str) -> tuple[str, float]:
     # “梯度下降 + f(x)”更像最优化；“神经网络 + 学习率”才归深度学习。
     if "梯度下降" in text and "神经网络" not in text and "损失" not in text:
         scores["optimization"] += 4
+    if re.search(
+        r"(?:\\?lim|极限)\s*[_^]?\s*[({]?\s*[A-Za-z]\s*(?:\\to|->|→|to|趋于|趋近于)",
+        text,
+        flags=re.I,
+    ):
+        scores["calculus"] += 6
     if any(term in text for term in _PHYSICS_STRONG) and scores.get("physics", 0) >= 8:
         chosen = "physics"
     elif scores["operating_system"] >= max(scores.values() or [0]) and scores["operating_system"] >= 8:
@@ -432,7 +507,37 @@ def classify_subject(text: str) -> tuple[str, float]:
         chosen = "unknown"
     top = scores.get(chosen, 0)
     confidence = min(0.95, 0.55 + top / 40) if chosen != "unknown" else 0.3
+    runner_up = max((score for subject, score in scores.items() if subject != chosen), default=0)
+    if chosen != "unknown" and (top < 2 or (top == runner_up and top < 4)):
+        return "unknown", 0.35
     return chosen, round(confidence, 2)
+
+
+def model_coverage_issues(text: str, model: Mapping[str, Any]) -> list[str]:
+    """Cheap source-to-model coverage check; only flags clear under-modelling."""
+    issues: list[str] = []
+    numbers = list(dict.fromkeys(re.findall(r'(?<![\w.])-?\d+(?:\.\d+)?', text)))
+    if len(numbers) >= 3:
+        rendered = json.dumps(model, ensure_ascii=False)
+        present = 0
+        for number in numbers:
+            value = float(number)
+            candidates = {number, str(int(value)) if value.is_integer() else '', f'{value:g}'}
+            if any(candidate and candidate in rendered for candidate in candidates):
+                present += 1
+        if present == 0:
+            issues.append('题干中的数值全部没有进入模型条件')
+    formula_segments = re.findall(r'[A-Za-z0-9_)\]}^/\\∫Σ∑+\-*=<>{}\s]{18,}', text)
+    if formula_segments:
+        longest = max(len(segment.strip()) for segment in formula_segments)
+        expressions = [value for key, value in model.items() if isinstance(value, str)]
+        longest_model = max((len(value) for value in expressions), default=0)
+        if longest >= 24 and longest_model < max(6, longest // 4):
+            issues.append('本地模型只使用了题干公式的一小部分')
+    subquestions = len(re.findall(r'(?:^|[\n。；;])\s*[（(]\s*[1-9]\s*[）)]|^[①②③④⑤]', text, flags=re.M))
+    if subquestions >= 2 and not model.get('requested_quantities') and not model.get('target_kind') and not model.get('tasks'):
+        issues.append('题目包含多个小问，但只建立了一个模型')
+    return issues
 
 
 def _clean_expr(text: str) -> str:
@@ -718,6 +823,8 @@ def _parse_integral(text: str) -> dict[str, Any] | None:
             "expression": _clean_expr(body),
             "lower": lower,
             "upper": upper,
+            "lower_text": lower_text,
+            "upper_text": upper_text,
             "variable": variable,
             "indefinite": False,
             "matched": match.group(0),
@@ -789,6 +896,14 @@ def _calculus_model(
     series = build_series_from_text(text, source, overrides)
     if series is not None:
         return series
+    from .parameter_limit import build_parameter_limit_from_text
+    parameter_limit = build_parameter_limit_from_text(text, source, overrides)
+    if parameter_limit is not None:
+        return parameter_limit
+    from .line_integral_text import build_line_integral_from_text
+    line_integral = build_line_integral_from_text(text, source, overrides)
+    if line_integral is not None:
+        return line_integral
     from .calculus_analysis import build_analysis_problem
     analysis = build_analysis_problem(text, source, overrides)
     if analysis is not None:
@@ -1106,6 +1221,15 @@ def _calculus_model(
         "teaching": teaching,
         "provenance_note": "教学示例：题目未提供可计算表达式" if teaching else None,
     }
+    if kind == "integral" and integral and not teaching:
+        lower_raw, upper_raw = integral.get("lower_text"), integral.get("upper_text")
+        if lower_raw and upper_raw and "∞" not in f"{lower_raw}{upper_raw}":
+            try:
+                parse_expression(str(lower_raw), (variable,))
+                parse_expression(str(upper_raw), (variable,))
+                model["exact_bounds"] = {"lower": str(lower_raw), "upper": str(upper_raw)}
+            except Exception:  # noqa: BLE001 - 符号限留给核对面板
+                pass
     if kind == "antiderivative":
         model["indefinite"] = True
         model["antiderivative_expression"] = antiderivative_expr
@@ -1780,6 +1904,9 @@ def _answer_overrides(text: str, overrides: dict[str, Any]) -> None:
                     overrides[key] = float(condition_values[key])
                 except (TypeError, ValueError):
                     pass
+        for key in ("point", "side", "order", "variable"):
+            if key in condition_values and str(condition_values[key]).strip():
+                overrides[key] = condition_values[key]
         if isinstance(condition_values.get("start"), str) and condition_values["start"].strip():
             overrides["start"] = condition_values["start"].strip()
         graph_source = condition_values.get("graph_edges")
@@ -1929,22 +2056,46 @@ def build_problem(
     override_values: dict[str, Any] = dict(overrides or {})
     _answer_overrides(text, override_values)
     source_pages = list(pages or [])
+    ocr_empty = len(text.strip()) < 3 and any(page.get('image_key') for page in source_pages)
     source = _basic_source(source_pages[0]) if source_pages else {"file_id": None, "page": 1, "excerpt": text[:220]}
     method = _page_labels(source_pages, list(files or []))
-    classified, confidence = classify_subject(text)
-    subject = str(override_values.get("subject") or subject_hint or classified)
-    if subject not in BUILDERS:
-        # 暂未建立执行内核的科目保留科目名，状态按 unsupported 处理。
-        subject = classified if classified in BUILDERS else "unknown"
-
-    builder = BUILDERS.get(subject, _unknown_model)
-    built = builder(text, source, override_values)
+    model_text = normalize_latex_prose(text)
+    from .source_recovery import assess_text_quality
+    quality = assess_text_quality(model_text, source_pages)
+    has_images = any(page.get('image_key') for page in source_pages)
+    if quality['untrusted'] and has_images:
+        classified, confidence = 'unknown', 0.2
+        subject = 'unknown'
+        built = _unknown_model(model_text, source, override_values)
+        built['ambiguities'].append(_ambiguity(
+            'ocr_quality', 'ocr_quality',
+            '识别文字质量不可信，已跳过本地建模；请以原图为准由 AI 重新转写后确认。',
+            severity='info',
+        ))
+        built['recognition_skipped'] = True
+    else:
+        classified, confidence = classify_subject(text)
+        subject = str(override_values.get("subject") or subject_hint or classified)
+        if subject not in BUILDERS:
+            # 暂未建立执行内核的科目保留科目名，状态按 pending_ai 处理。
+            subject = subject if subject == "general" else (classified if classified in BUILDERS else "unknown")
+        builder = BUILDERS.get(subject, _unknown_model)
+        builder_text = model_text if model_text != text else text
+        built = builder(builder_text, source, override_values)
+        if (subject == "unknown" or built["model"].get("engine") == "unsupported_v1") and model_text != text:
+            normalized_classified, normalized_confidence = classify_subject(model_text)
+            normalized_subject = str(override_values.get("subject") or subject_hint or normalized_classified)
+            if normalized_subject in BUILDERS:
+                normalized = BUILDERS[normalized_subject](model_text, source, override_values)
+                if normalized["model"].get("engine") != "unsupported_v1":
+                    classified, confidence = normalized_classified, normalized_confidence
+                    subject, built = normalized_subject, normalized
     model = built["model"]
 
-    if any(page.get("requires_formula_confirmation") for page in source_pages):
+    if ocr_empty or any(page.get("requires_formula_confirmation") for page in source_pages):
         built["ambiguities"].append(_ambiguity(
             "source_formula_confirmation", "source_formula",
-            "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号和区间，必要时修正题目文字后确认。",
+            "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
             options=[{"value": "confirmed", "label": "已对照原图核对并修正全部公式"}],
         ))
 
@@ -1962,16 +2113,49 @@ def build_problem(
             item["answer"] = str(answers[item["id"]])
     blocking = [item for item in built["ambiguities"] if item["severity"] == "blocking" and not item["resolved"]]
     status = "ready" if not blocking else "needs_review"
-    if (subject not in BUILDERS
-            or (subject == "computer_network" and model.get("engine") == "net_unknown_v1")
-            or (subject == "physics" and model.get("engine") == "physics_unknown_v1")):
+    if subject not in BUILDERS:
+        status = "pending_ai"
+    elif (subject == "computer_network" and model.get("engine") == "net_unknown_v1") or (
+            subject == "physics" and model.get("engine") == "physics_unknown_v1"):
         status = "unsupported"
+    if quality['untrusted'] and has_images:
+        status = "pending_ai"
+    if status == "ready" and not override_values.get("subject") and not subject_hint and not model.get("teaching"):
+        from .goal_actions import classify_goal_action, unsupported_reason
+        action = classify_goal_action(text)
+        boundary = unsupported_reason(text, subject=subject, model=model)
+        proof_allowed = action == "proof" and model.get("engine") == "proof_v1"
+        explains_only = not re.search(
+            r'求|计算|解|多少|次数|执行|遍历|调度|置换|出栈|入队|画|模拟|判断|运行', text)
+        if boundary and (action in ("concept", "property") and explains_only
+                         or action == "proof" and not proof_allowed and explains_only):
+            status = "pending_ai"
+            built["ambiguities"].append(_ambiguity(
+                "intent", "intent", boundary, severity="info",
+            ))
+        coverage = model_coverage_issues(text, model)
+        if coverage:
+            status = "pending_ai"
+            built["ambiguities"].append(_ambiguity(
+                "local_coverage", "local_coverage",
+                '本地模型覆盖度不足：' + '；'.join(coverage) + '。已交给 AI 重新理解。',
+                severity="info",
+            ))
 
     answer_override = str(override_values.get("student_answer") or "").strip()
+    if ocr_empty:
+        status = 'needs_review'
+    built_title = str(built.get("title") or "").strip()
+    if title_override:
+        title = title_override
+    elif built_title:
+        title = f"第 {number} 题 · {built_title}" if number else built_title
+    else:
+        title = _title_from(text, number)
     problem: dict[str, Any] = {
         "problem_id": f"prb_{problem_index}",
         "number": number,
-        "title": title_override or _title_from(text, number),
+        "title": title,
         "text": text.strip(),
         "subject": subject,
         "subject_label": SUBJECT_LABELS.get(subject, SUBJECT_LABELS["unknown"]),
@@ -1997,11 +2181,15 @@ def build_problem(
         "recognition": {
             "method": method,
             "raw_text": text.strip(),
+            "ocr_empty": ocr_empty,
             "conditions": built["conditions"],
             "ambiguities": built["ambiguities"],
             "formulas": built["formulas"],
             "recognized_subject": classified,
             "ai_used": False,
+            "quality": quality,
+            "local_build_skipped": bool(built.get('recognition_skipped')),
+            "model_text": model_text if model_text != text else "",
         },
         "model": model,
     }
@@ -2169,6 +2357,9 @@ def rebuild_problem(
 def _attach_solution(problem: dict[str, Any]) -> None:
     """An unreadable formula or unsupported branch must remain reviewable."""
     from .solvers import solve_problem, SolveError
+    if problem.get('status') == 'pending_ai' or problem.get('model', {}).get('engine') == 'unsupported_v1':
+        problem['solution'] = {'answer': '', 'summary': '等待 AI 理解题目并建立可执行模型。', 'steps': [], 'limitations': []}
+        return
     if (problem['model'].get('task') or problem['model'].get('engine') == 'heap_v1') and any(
         item['severity'] == 'blocking' and not item['resolved'] for item in problem['recognition']['ambiguities']
     ):

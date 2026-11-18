@@ -166,7 +166,14 @@ def _limit_report(model: Mapping[str, Any]) -> dict[str, Any]:
             both = {"kind": "does_not_exist", "value": None, "text": "不存在（左右极限不同）"}
         sides = {"left": left, "right": right, "both": both}
     status = "complete" if both["kind"] in ("finite", "infinite", "does_not_exist", "undefined") else "incomplete"
-    if both["kind"] == "finite":
+    parameter = str(model.get("parameter") or "")
+    parameter_value = model.get("parameter_value")
+    parameter_limit = bool(
+        model.get("modeling_task") == "parameter_limit" and parameter and parameter_value is not None
+    )
+    if parameter_limit:
+        answer = f"{parameter}={parameter_value}"
+    elif both["kind"] == "finite":
         answer = f"极限为 {both['text']}"
     elif both["kind"] == "infinite":
         direction = ""
@@ -179,39 +186,84 @@ def _limit_report(model: Mapping[str, Any]) -> dict[str, Any]:
         answer = f"该方向极限不存在：{both['text']}"
     else:
         answer = "极限无法判定"
-    steps = [
-        {
-            "id": "substitute",
-            "title": "先判断能否直接代入",
-            "latex": rf"\lim_{{{to_latex(variable)}\to {to_latex(point)}}} {to_latex(expression)}",
-            "detail": "代入后若出现 0/0、∞/∞、∞−∞ 等未定式，需要用等价变形或洛必达/泰勒等方法，而不能把代入失败当作无极限。",
-        },
-        {
-            "id": "sides",
-            "title": "分别检查左右极限",
-            "latex": r"\lim_{x\to x_0^-}f(x),\quad \lim_{x\to x_0^+}f(x)",
-            "detail": (
-                f"左极限 {sides['left']['text'] if sides['left'] else '不适用'}；"
-                f"右极限 {sides['right']['text'] if sides['right'] else '不适用'}；"
-                f"当前所选方向结论：{both['text']}。"
-            ),
-        },
-        {
-            "id": "conclusion",
-            "title": "判定极限是否存在",
-            "latex": rf"\lim f={both['text']}",
-            "detail": "有限值才称为极限存在；发到 ±∞ 时写“发散到 ±∞”，左右不同或振荡时写“不存在”。",
-        },
-    ]
+    if parameter_limit:
+        left_text = str(model.get("parameter_limit_left") or parameter)
+        try:
+            original = parse_expression(
+                str(model.get("parameter_limit_expression") or model.get("expression")),
+                (str(variable), parameter),
+            )
+            original_latex = to_latex(original)
+        except Exception:  # noqa: BLE001 - 展示层降级，不影响数值结论
+            original_latex = to_latex(expression)
+        try:
+            left_latex = to_latex(parse_expression(left_text, (str(variable), parameter)))
+        except Exception:  # noqa: BLE001
+            left_latex = left_text
+        steps = [
+            {
+                "id": "symbolic-limit",
+                "title": "计算含参双侧极限",
+                "latex": rf"\lim_{{{to_latex(variable)}\to {to_latex(point)}}} {original_latex}={left_latex}",
+                "detail": "左右极限一致，含参极限仍是参数的表达式。",
+            },
+            {
+                "id": "solve-parameter",
+                "title": "解参数方程",
+                "latex": rf"{left_latex}={model.get('target_value')}\quad\Longrightarrow\quad {parameter}={parameter_value}",
+                "detail": f"由给定极限值求出 {parameter}={parameter_value}。",
+            },
+            {
+                "id": "verify-parameter",
+                "title": "代回原式复核",
+                "latex": rf"{parameter}={parameter_value}\ \Rightarrow\ \lim_{{{to_latex(variable)}\to {to_latex(point)}}} f={model.get('target_value')}",
+                "detail": "将参数解代回完整原式，左右极限均等于给定值。",
+            },
+        ]
+    else:
+        steps = [
+            {
+                "id": "substitute",
+                "title": "先判断能否直接代入",
+                "latex": rf"\lim_{{{to_latex(variable)}\to {to_latex(point)}}} {to_latex(expression)}",
+                "detail": "代入后若出现 0/0、∞/∞、∞−∞ 等未定式，需要用等价变形或洛必达/泰勒等方法，而不能把代入失败当作无极限。",
+            },
+            {
+                "id": "sides",
+                "title": "分别检查左右极限",
+                "latex": r"\lim_{x\to x_0^-}f(x),\quad \lim_{x\to x_0^+}f(x)",
+                "detail": (
+                    f"左极限 {sides['left']['text'] if sides['left'] else '不适用'}；"
+                    f"右极限 {sides['right']['text'] if sides['right'] else '不适用'}；"
+                    f"当前所选方向结论：{both['text']}。"
+                ),
+            },
+            {
+                "id": "conclusion",
+                "title": "判定极限是否存在",
+                "latex": rf"\lim f={both['text']}",
+                "detail": "有限值才称为极限存在；发到 ±∞ 时写“发散到 ±∞”，左右不同或振荡时写“不存在”。",
+            },
+        ]
     return {
-        "summary": "极限题：先检查直接代入，再比较左右极限，最后区分有限极限、发散与不存在。",
+        "summary": "已知含参极限：先计算含参双侧极限，再解参数方程，并代回原式核验。"
+        if parameter_limit
+        else "极限题：先检查直接代入，再比较左右极限，最后区分有限极限、发散与不存在。",
         "answer": answer if status == "complete" else "",
-        "answer_value": both["value"] if both["kind"] == "finite" else None,
-        "exact": both["text"],
+        "answer_value": safe_float(parameter_value) if parameter_limit else (both["value"] if both["kind"] == "finite" else None),
+        "exact": str(parameter_value) if parameter_limit else both["text"],
         "approx": None,
         "steps": steps,
-        "conditions": [f"研究点 {point_raw}；方向 {side}。"],
+        "conditions": [
+            f"研究点 {point_raw}；方向 {side}。",
+            *(
+                [f"所求参数 {parameter}；已知极限值 {model.get('target_value')}。"]
+                if parameter_limit else []
+            ),
+        ],
         "limitations": ["发散到 ±∞ 不等于极限存在；振荡或左右不一致会明确标为不存在或无法判定。"],
+        "parameter": parameter or None,
+        "parameter_value": parameter_value if parameter_limit else None,
         "limit_point": str(model.get("limit_point")),
         "limit_point_value": safe_float(model.get("limit_point_value")),
         "side": side,
@@ -1131,7 +1183,12 @@ def detect_analysis_kind(text: str) -> str | None:
         return "limit"
     if re.search(r"泰勒|麦克劳林|Taylor|Maclaurin", text, flags=re.I):
         return "taylor"
-    if re.search(r"(?:高阶导数|[一二两三四五六七八九十\d]+\s*阶导数|f\s*\^?\s*\(\s*\d+\s*\))", text):
+    has_higher_phrase = bool(re.search(r"(?:高阶导数|[一二两三四五六七八九十\d]+\s*阶导数|f\s*\^?\s*\(\s*\d+\s*\))", text))
+    is_precondition_only = bool(
+        re.search(r"(?:具有|有|存在)[^，。；\n]*[一二两三四五六七八九十\d]+\s*阶导数", text)
+        and not re.search(r"(?:求|计算|写出)[^，。；\n]*(?:高阶导数|[一二两三四五六七八九十\d]+\s*阶导数)", text)
+    ) or bool(re.search(r"偏导|∂|\\partial", text))
+    if has_higher_phrase and not is_precondition_only:
         return "higher_derivative"
     if re.search(r"单调|凹凸|拐点|渐近线", text):
         return "function_study"
@@ -1140,17 +1197,32 @@ def detect_analysis_kind(text: str) -> str | None:
 
 def _parse_limit_text(text: str) -> tuple[str | None, str, str]:
     match = re.search(
-        r"(?:\\?lim|极限)\s*[_]?\s*\{?\s*([A-Za-z])\s*(?:->|→|to|趋于|趋近于)\s*([^\s,，}]+)\s*\}?\s*(.+)",
+        r"(?:\\?lim|极限)\s*[_]?\s*[({]?\s*([A-Za-z])\s*(?:->|→|to|趋于|趋近于)\s*([^\s,，})]+)\s*[)}]?\s*(.+)",
         text,
         flags=re.I,
     )
     if not match:
         return None, "x", "0"
     variable, point, body = match.group(1), match.group(2), match.group(3)
-    body = re.split(r"(?:的极限|极限为|等于|求)", body, maxsplit=1)[0].strip(" ：:，,。；;")
+    body = re.split(r"(?:的极限|极限为|等于|求|=)", body, maxsplit=1)[0].strip(" ：:，,。；;")
     body = body.strip(" ：:，,。；;")
+    # OCR often drops the parentheses around a one-token function argument.
+    body = re.sub(r"\b(ln|log|sin|cos|tan|exp|sqrt|abs)\s+([A-Za-z0-9]+)", r"\1(\2)", body)
+    body = body.replace("·", "*").replace("×", "*")
     point = point.replace("＋", "+").replace("−", "-")
     return body or None, variable, point
+
+
+def _split_limit_side(raw: Any) -> tuple[Any, str | None]:
+    """OCR writes one-sided limits as 0^+ / 0^-; split the point from the side."""
+    text = str(raw).strip().replace("＋", "+").replace("−", "-")
+    match = re.fullmatch(r"(.+?)\s*\^\s*([+-])", text)
+    if match:
+        return match.group(1).strip(), ("right" if match.group(2) == "+" else "left")
+    match = re.fullmatch(r"([-+]?(?:\d+(?:\.\d+)?|pi|π|e))\s*([+-])", text)
+    if match:
+        return match.group(1), ("right" if match.group(2) == "+" else "left")
+    return raw, None
 
 
 _CHINESE_ORDERS = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
@@ -1167,7 +1239,7 @@ def _parse_order(text: str, default: int = 3) -> int:
 
 
 def _parse_limit_point_text(text: str) -> str | None:
-    match = re.search(r"[xX]\s*(?:->|→|趋于|趋近于|to)\s*([^\s,，}]+)", text)
+    match = re.search(r"[xX]\s*(?:->|→|趋于|趋近于|to)\s*([^\s,，})）\]]+)", text)
     if not match:
         return None
     return match.group(1).replace("＋", "+").replace("−", "-")
@@ -1223,11 +1295,21 @@ def build_analysis_problem(text: str, source: Mapping[str, Any], overrides: Mapp
     order = int(overrides.get("order") or 0)
     lower = overrides.get("lower")
     upper = overrides.get("upper")
-    if kind == "limit" and raw_expr is None:
-        raw_expr, parsed_variable, parsed_point = _parse_limit_text(text)
-        variable = parsed_variable or variable
+    if kind == "limit":
+        if raw_expr is None:
+            raw_expr, parsed_variable, parsed_point = _parse_limit_text(text)
+            variable = parsed_variable or variable
+            if point_raw is None:
+                point_raw = parsed_point
+        text_point = _parse_limit_point_text(text)
         if point_raw is None:
-            point_raw = _parse_limit_point_text(text) or parsed_point
+            # A condition-panel edit may supply only the expression; the limit
+            # point and one-sided direction still come from the original text.
+            point_raw = text_point
+        if not str(overrides.get("side") or "").strip() and text_point:
+            _, text_side = _split_limit_side(text_point)
+            if text_side:
+                side = text_side
     if kind == "taylor":
         order_found = bool(overrides.get("order")) or bool(re.search(r"[一二两三四五六七八九十\d]+\s*阶", text))
         order = order or _parse_order(text, 3)
@@ -1265,6 +1347,9 @@ def build_analysis_problem(text: str, source: Mapping[str, Any], overrides: Mapp
         "formula_tex": to_latex(parsed),
     }
     if kind == "limit":
+        point_raw, parsed_side = _split_limit_side(point_raw)
+        if parsed_side:
+            side = parsed_side
         point_text = str(point_raw).replace("＋", "+").replace("−", "-")
         model["side"] = side
         if point_text in _LIMIT_INFINITIES:

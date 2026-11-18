@@ -1,14 +1,17 @@
+import { MathText } from './ProblemText';
 import { useMemo, type ReactNode } from 'react';
-import {Formula} from '@/components/showcase/Formula';
+import {LabFormula as Formula} from './ProblemText';
 import {
   clampBox,
   contourLevels,
   contourSegments,
   formatTick,
+  invertLinearScale,
   linearScale,
   niceTicks,
   normalize,
   seriesPath,
+  snapToStep,
 } from './charts';
 import type {
   BfsResult,
@@ -50,6 +53,10 @@ interface Props {
   onSelect: (selection: LabSelection | null) => void;
   onStepChange?: (step: number) => void;
   readOnly?: boolean;
+  /** 二重积分沙盒换序预览需要实验室 id（共享/嵌入视图可不传）。 */
+  labId?: string;
+  /** 拖动画布上的几何参数时回写滑杆值；不传则画布只读。 */
+  onParamDrag?: (patch: Record<string, number>) => void;
 }
 
 const WIDTH = 760;
@@ -126,6 +133,8 @@ function CalculusCanvas({
   compare,
   selected,
   onSelect,
+  onParamDrag,
+  readOnly,
 }: {
   result: CalculusResult;
   isNormal?: boolean;
@@ -133,6 +142,8 @@ function CalculusCanvas({
   compare?: LabResult | null;
   selected: LabSelection | null;
   onSelect: (selection: LabSelection | null) => void;
+  onParamDrag?: (patch: Record<string, number>) => void;
+  readOnly?: boolean;
 }): ReactNode {
   const bounds = useMemo(
     () => boundsOfWork(
@@ -149,6 +160,30 @@ function CalculusCanvas({
   const yScale = linearScale([bounds.yMin, bounds.yMax], [MARGIN.top + PLOT_H, MARGIN.top]);
   const xTicks = niceTicks(bounds.xMin, bounds.xMax, 7);
   const yTicks = niceTicks(bounds.yMin, bounds.yMax, 5);
+  const canDrag = Boolean(onParamDrag) && !readOnly && !isNormal;
+  const beginPointDrag = (event: React.PointerEvent<SVGCircleElement>): void => {
+    if (!onParamDrag || readOnly || isNormal) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const svg = event.currentTarget.ownerSVGElement;
+    if (!svg) return;
+    const inverse = invertLinearScale([bounds.xMin, bounds.xMax], [MARGIN.left, MARGIN.left + PLOT_W]);
+    const move = (moveEvent: PointerEvent): void => {
+      const rect = svg.getBoundingClientRect();
+      const viewX = ((moveEvent.clientX - rect.left) / Math.max(1, rect.width)) * WIDTH;
+      const value = clampBox(snapToStep(inverse(viewX), 0.05), bounds.xMin, bounds.xMax);
+      if (Number.isFinite(value)) onParamDrag({ point: value });
+    };
+    const cancel = (): void => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', cancel);
+    };
+    const up = (): void => cancel();
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', cancel);
+  };
   const path = seriesPath(result.series, xScale, yScale);
   const comparePath =
     compare && compare.subject === 'calculus' ? seriesPath(compare.series, xScale, yScale) : '';
@@ -232,6 +267,18 @@ function CalculusCanvas({
           <circle cx={xScale(point.x)} cy={yScale(pointY)} r="7" className={styles.currentPoint} />
           <circle cx={xScale(point.x)} cy={yScale(pointY)} r="15" className={styles.pointHalo} />
         </g>
+        {canDrag ? (
+          <circle
+            cx={xScale(point.x)}
+            cy={yScale(pointY)}
+            r="14"
+            className={styles.dragHandle}
+            data-testid="calculus-point-handle"
+            onPointerDown={beginPointDrag}
+          >
+            <title>拖动研究点，沿曲线实时重算切线</title>
+          </circle>
+        ) : null}
         <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>
           {isNormal ? '法线斜率 ' : '切线斜率 '}{formatNumber(point.slope)}
         </text>
@@ -261,7 +308,7 @@ function CalculusCanvas({
           F(x)+C · 拖动积分常数观察整体平移
         </text>
         <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
-          {result.headline}
+          原题结论与公式见图下说明
         </text>
         {compare && compare.subject === 'calculus' ? (
           <text x={MARGIN.left + 16} y={MARGIN.top + 56} className={styles.compareNote}>
@@ -324,11 +371,23 @@ function CalculusCanvas({
         <path d={path} className={styles.curve} />
         {taylor ? <path d={seriesPath(taylor.overlay, xScale, yScale)} className={styles.compareCurve} /> : null}
         {centerY ? <circle cx={xScale(centerY.x)} cy={yScale(centerY.y)} r="6" className={styles.currentPoint} /> : null}
+        {canDrag && centerY ? (
+          <circle
+            cx={xScale(centerY.x)}
+            cy={yScale(centerY.y)}
+            r="14"
+            className={styles.dragHandle}
+            data-testid="taylor-center-handle"
+            onPointerDown={beginPointDrag}
+          >
+            <title>拖动展开中心，实时重算泰勒多项式</title>
+          </circle>
+        ) : null}
         <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>
           虚线：P{taylor?.order ?? 'n'}(x) 在 x={formatNumber(taylor?.point ?? 0)} 处展开
         </text>
         <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
-          附近最大偏差 {formatNumber(taylor?.max_error ?? null)}
+          附近最大偏差 {formatNumber(taylor?.max_error ?? null)}{canDrag ? ' · 拖动橙色圆环改变展开中心' : ''}
         </text>
       </svg>
     );
@@ -395,7 +454,7 @@ function CalculusCanvas({
           绿：递增 · 红：递减 · 细线：渐近线
         </text>
         <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
-          {result.headline}
+          原题结论与公式见图下说明
         </text>
       </svg>
     );
@@ -409,7 +468,7 @@ function CalculusCanvas({
         {points.length > 1 ? <path d={seriesPath(points, xScale, yScale)} className={styles.curve} /> : null}
         {points.map((point, index) => <circle key={index} cx={xScale(point.x)} cy={yScale(point.y!)} r="3" className={styles.currentPoint} />)}
         <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>
-          部分和 S_n：{result.answerText}
+          部分和 Sₙ（完整表达式见图下说明）
         </text>
         <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
           {result.series_status ?? ''} · 部分和观察不替代符号判别
@@ -466,7 +525,7 @@ function CalculusCanvas({
           {ode?.order ? `${ode.order} 阶微分方程` : '微分方程'} · {ode?.hints.join('、') || '待核对'}
         </text>
         <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
-          {result.answerText || '解曲线'}
+          解曲线（完整表达式见图下说明）
         </text>
         {shade ? <text x={MARGIN.left + 16} y={MARGIN.top + 56} className={styles.canvasNote}>
           组合量区间 [{formatNumber(lower)}, {formatNumber(upper)}]
@@ -478,15 +537,30 @@ function CalculusCanvas({
   const inside = result.series.filter(
     (point) => point.x >= result.domain.x_min + 0.000001 && point.x <= result.domain.x_max - 0.000001,
   );
+  const lowerInside = (result.lowerSeries ?? []).filter(
+    (point) => point.x >= result.domain.x_min + 0.000001 && point.x <= result.domain.x_max - 0.000001,
+  );
   let areaPath = '';
   if (inside.length > 1) {
     const points = inside.filter((point) => point.y !== null);
+    const lowerPoints = lowerInside.filter((point) => point.y !== null);
     if (points.length > 1) {
-      areaPath = `M${xScale(points[0]!.x)},${zeroY}`;
-      for (const point of points) areaPath += `L${xScale(point.x)},${yScale(point.y!)}`;
-      areaPath += `L${xScale(points[points.length - 1]!.x)},${zeroY}Z`;
+      if (lowerPoints.length > 1) {
+        areaPath = `M${xScale(points[0]!.x)},${yScale(points[0]!.y!)}`;
+        for (const point of points) areaPath += `L${xScale(point.x)},${yScale(point.y!)}`;
+        for (const point of [...lowerPoints].reverse()) areaPath += `L${xScale(point.x)},${yScale(point.y!)}`;
+        areaPath += 'Z';
+      } else {
+        areaPath = `M${xScale(points[0]!.x)},${zeroY}`;
+        for (const point of points) areaPath += `L${xScale(point.x)},${yScale(point.y!)}`;
+        areaPath += `L${xScale(points[points.length - 1]!.x)},${zeroY}Z`;
+      }
     }
   }
+  const lowerPoints = lowerInside.filter((point) => point.y !== null);
+  const lowerPath = lowerPoints.length > 1
+    ? lowerPoints.map((point, index) => `${index === 0 ? 'M' : 'L'}${xScale(point.x)},${yScale(point.y!)}`).join('')
+    : '';
   const highlight = emphasis === 'integral_area' || emphasis === 'limits' || emphasis === 'evaluate' || emphasis === 'approx';
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label="函数曲线、积分区域与黎曼矩形">
@@ -500,8 +574,9 @@ function CalculusCanvas({
       >
         {areaPath ? <path d={areaPath} className={highlight ? styles.areaStrong : styles.area} /> : null}
         {result.rects.map((rect, index) => {
-          const top = Math.min(yScale(rect.height), zeroY);
-          const height = Math.abs(zeroY - yScale(rect.height));
+          const bottom = rect.base !== undefined ? yScale(rect.base) : zeroY;
+          const top = Math.min(yScale(rect.height), bottom);
+          const height = Math.abs(bottom - yScale(rect.height));
           return (
             <rect
               key={index}
@@ -515,6 +590,7 @@ function CalculusCanvas({
         })}
       </g>
       {comparePath ? <path d={comparePath} className={styles.compareCurve} /> : null}
+      {lowerPath ? <path d={lowerPath} className={styles.compareCurve} /> : null}
       <path d={path} className={emphasis === 'antiderivative' ? `${styles.curve} ${styles.curveStrong}` : styles.curve} />
       <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>
         黎曼和 {formatNumber(result.approx)}
@@ -523,8 +599,13 @@ function CalculusCanvas({
         {result.exact !== null ? `解析/参照 ${formatNumber(result.exact)}` : '等待可计算表达式'} · 误差{' '}
         {formatNumber(result.error)}
       </text>
-      {compare && compare.subject === 'calculus' ? (
+      {lowerPath ? (
         <text x={MARGIN.left + 16} y={MARGIN.top + 56} className={styles.compareNote}>
+          虚线：区域下边界
+        </text>
+      ) : null}
+      {compare && compare.subject === 'calculus' ? (
+        <text x={MARGIN.left + 16} y={MARGIN.top + (lowerPath ? 74 : 56)} className={styles.compareNote}>
           虚线：对照情景
         </text>
       ) : null}
@@ -543,6 +624,8 @@ function OptimizationCanvas({
   selected,
   onSelect,
   onStepChange,
+  onParamDrag,
+  readOnly,
 }: {
   result: OptimizationResult;
   compare?: LabResult | null;
@@ -550,10 +633,41 @@ function OptimizationCanvas({
   selected: LabSelection | null;
   onSelect: (selection: LabSelection | null) => void;
   onStepChange?: (step: number) => void;
+  onParamDrag?: (patch: Record<string, number>) => void;
+  readOnly?: boolean;
 }): ReactNode {
   const currentIndex = Math.max(0, Math.min(step, result.trajectory.length - 1));
   const current = result.trajectory[currentIndex] ?? result.current;
   const emphasis = selected?.kind === 'solution-step' ? selected.id : null;
+  const canDrag = Boolean(onParamDrag) && !readOnly && result.trajectory.length > 0;
+  const beginParamDrag = (
+    event: React.PointerEvent<SVGCircleElement>,
+    maps: (clientX: number, clientY: number) => Record<string, number>,
+  ): void => {
+    if (!canDrag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const svg = event.currentTarget.ownerSVGElement;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const move = (moveEvent: PointerEvent): void => {
+      const px = ((moveEvent.clientX - rect.left) / Math.max(1, rect.width)) * WIDTH;
+      const py = ((moveEvent.clientY - rect.top) / Math.max(1, rect.height)) * HEIGHT;
+      const patch = maps(px, py);
+      if (Object.values(patch).every((value) => Number.isFinite(value))) onParamDrag?.(patch);
+    };
+    const cancel = (): void => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', cancel);
+    };
+    const up = (): void => {
+      cancel();
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', cancel);
+  };
   if (result.grid && result.variables.length === 2) {
     const { grid } = result;
     const xMin = grid.x[0]!;
@@ -636,6 +750,27 @@ function OptimizationCanvas({
             aria-label={`迭代 ${index}`}
           />
         ))}
+        {canDrag && result.trajectory[0] ? (
+          <circle
+            cx={xScale(result.trajectory[0].point[0]!)}
+            cy={yScale(result.trajectory[0].point[1]!)}
+            r="11"
+            className={styles.dragHandle}
+            data-testid="optimization-start-handle"
+            onPointerDown={(event) => beginParamDrag(event, (px, py) => {
+              const invertX = invertLinearScale([xMin, xMax], [MARGIN.left, MARGIN.left + PLOT_W]);
+              const invertY = invertLinearScale([yMin, yMax], [MARGIN.top + PLOT_H, MARGIN.top]);
+              const stepX = Math.max(0.05, (grid.x[1] ?? xMin + 1) - grid.x[0]!);
+              const stepY = Math.max(0.05, (grid.y[1] ?? yMin + 1) - grid.y[0]!);
+              return {
+                [`${result.variables[0]}0`]: clampBox(snapToStep(invertX(px), stepX), xMin, xMax),
+                [`${result.variables[1]}0`]: clampBox(snapToStep(invertY(py), stepY), yMin, yMax),
+              };
+            })}
+          >
+            <title>拖动起点，实时重算梯度下降轨迹</title>
+          </circle>
+        ) : null}
         {current ? (
           <g
             className={styles.hotspot}
@@ -651,7 +786,7 @@ function OptimizationCanvas({
           f = {formatNumber(current?.f ?? null)} · ‖∇f‖ = {formatNumber(current?.gradNorm ?? null)}
         </text>
         <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNoteOnDark}>
-          等高线来自当前目标函数；轨迹前段较淡，当前点高亮。
+          等高线来自当前目标函数；轨迹前段较淡，当前点高亮。{canDrag ? '拖动橙色圆环改变起点。' : ''}
         </text>
       </svg>
     );
@@ -698,6 +833,21 @@ function OptimizationCanvas({
           aria-label={`迭代 ${index}`}
         />
       ))}
+      {canDrag && result.trajectory[0] ? (
+        <circle
+          cx={xScale(result.trajectory[0].point[0]!)}
+          cy={yScale(result.trajectory[0].f)}
+          r="11"
+          className={styles.dragHandle}
+          data-testid="optimization-start-handle"
+          onPointerDown={(event) => beginParamDrag(event, (px) => {
+            const invertX = invertLinearScale([bounds.xMin, bounds.xMax], [MARGIN.left, MARGIN.left + PLOT_W]);
+            return { [`${result.variables[0]}0`]: clampBox(snapToStep(invertX(px), 0.25), bounds.xMin, bounds.xMax) };
+          })}
+        >
+          <title>拖动起点，实时重算梯度下降轨迹</title>
+        </circle>
+      ) : null}
       {current ? (
         <line
           x1={xScale(current.point[0]!)}
@@ -731,7 +881,7 @@ function OptimizationCanvas({
         第 {currentIndex} 步 · f={formatNumber(current?.f ?? null)}
       </text>
       <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
-        ‖∇f‖={formatNumber(current?.gradNorm ?? null)} · {currentIndex >= result.trajectory.length - 1 ? result.stopReason : '轨迹进行中'}
+        ‖∇f‖={formatNumber(current?.gradNorm ?? null)} · {currentIndex >= result.trajectory.length - 1 ? result.stopReason : '轨迹进行中'}{canDrag ? ' · 拖动橙色圆环改变起点' : ''}
       </text>
       {current?.gradient.length ? (
         <g
@@ -962,14 +1112,14 @@ function LinAlgCanvas({ result, step }: { result: LinAlgResult; step: number }):
             <MatrixTable matrix={c} cell={cell} ariaLabel="结果矩阵" />
           </div>
           <p className={styles.laCaption}>
-            <strong>{frame.label}</strong>
+            <strong><MathText text={String(frame.label ?? '')} /></strong>
             {typeof values.op_label === 'string' && values.op_label ? <code>{values.op_label}</code> : null}
           </p>
         </div>
         <aside className={styles.laState}>
           <div className={styles.stateBlock}>
             <span className={styles.stateTitle}>说明</span>
-            <p className={styles.stateNote}>{frame.detail}</p>
+            <p className={styles.stateNote}><MathText text={String(frame.detail ?? '')} /></p>
           </div>
           <div className={styles.stateBlock}>
             <span className={styles.stateTitle}>运算</span>
@@ -992,8 +1142,8 @@ function LinAlgCanvas({ result, step }: { result: LinAlgResult; step: number }):
       <div className={styles.laStage}>
         <MatrixTable matrix={w} augCols={augCols} pivot={pivot} rows={targetRows} ariaLabel="工作矩阵" />
         <p className={styles.laCaption}>
-          <strong>{frame.label}</strong>
-          {frame.detail}
+          <strong><MathText text={String(frame.label ?? '')} /></strong>
+          <MathText text={String(frame.detail ?? '')} />
         </p>
       </div>
       <aside className={styles.laState}>
@@ -1205,7 +1355,7 @@ function DlCanvas({
           ) : (
             <p className={styles.emptyText}>选择一层查看中间数值。</p>
           )}
-          <p className={styles.stateNote}>权重来源：{result.notes[0]}</p>
+          <p className={styles.stateNote}>权重来源：<MathText text={String(result.notes[0] ?? '')} /></p>
         </div>
       </div>
     </div>
@@ -1291,7 +1441,7 @@ function SpaceCanvas({ result }: { result: CalculusResult }): ReactNode {
   return (
     <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label={triple ? '三重积分区域、曲面网格与边界曲线' : '空间曲线、曲面与空间对象'}>
       <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>
-        {triple ? '三重积分区域' : '空间对象'} · {result.answerText}
+        {triple ? '三重积分区域' : '空间对象'}
       </text>
       <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
         {triple ? '等轴投影；曲面网格与边界曲线来自已核验的积分区域。' : '等轴投影；曲线、曲面网格、立方体边或几何点来自同一空间模型。'}
@@ -1325,7 +1475,7 @@ function ProofCanvas({ result }: { result: CalculusResult }): ReactNode {
       {obligations.map((item, index) => (
         <text key={item.id} x={MARGIN.left + 16} y={MARGIN.top + 64 + index * 24}
           className={item.status === 'pass' ? styles.canvasNote : styles.canvasLabel}>
-          {item.status === 'pass' ? '✓' : '•'} {item.label}：{item.detail}
+          {item.status === 'pass' ? '✓' : '•'} 第 {index + 1} 项核对（依据见图下说明）
         </text>
       ))}
       <text x="388" y="400" textAnchor="middle">
@@ -1343,29 +1493,31 @@ export function LabCanvas(props: Props): ReactNode {
   if (result.subject === 'calculus') {
     if(props.problem.manual_input?.double_extension){
       const input=props.problem.manual_input;
-      return <section className={styles.canvasRoot} aria-label="二重积分计算依据"><h3>{input.double_extension!.title}</h3><Formula tex={input.latex} block /><p>{props.problem.solution.summary}</p><p>计算使用已确认的原区域；参数代换、收敛依据与应用题的逐项结果见“原题计算结果与过程”。</p></section>;
+      return <section className={styles.canvasRoot} aria-label="二重积分计算依据"><h3>{input.double_extension!.title}</h3><Formula tex={input.latex} block /><p><MathText text={props.problem.solution.summary} /></p><p>计算使用已确认的原区域；参数代换、收敛依据与应用题的逐项结果见“原题计算结果与过程”。</p></section>;
     }
     if (props.problem.manual_input?.task === 'double_integral' && props.problem.solution.solution_complete !== true) {
-      return <section className={styles.canvasRoot} aria-label="二重积分未完成"><h3>已记录完整积分区域</h3><Formula tex={props.problem.manual_input.latex} block /><p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p><p>当前不生成未核验的积分结果或替代示例；可在核对窗口修改原题字段后重算。</p></section>;
+      return <section className={styles.canvasRoot} aria-label="二重积分未完成"><h3>已记录完整积分区域</h3><Formula tex={props.problem.manual_input.latex} block /><p><MathText text={props.problem.solution.incomplete_reason || props.problem.solution.summary} /></p><p>当前不生成未核验的积分结果或替代示例；可在核对窗口修改原题字段后重算。</p></section>;
     }
     if (props.problem.manual_input?.task === 'triple_integral' && props.problem.solution.solution_complete !== true) {
-      return <section className={styles.canvasRoot} aria-label="三重积分未完成"><h3>已记录完整三重积分区域</h3><Formula tex={props.problem.manual_input.latex} block />{result.space ? <SpaceCanvas result={result} /> : null}<p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p><p>当前不生成未核验的积分结果或替代示例；可在核对窗口修改原题字段后重算。</p></section>;
+      return <section className={styles.canvasRoot} aria-label="三重积分未完成"><h3>已记录完整三重积分区域</h3><Formula tex={props.problem.manual_input.latex} block />{result.space ? <SpaceCanvas result={result} /> : null}<p><MathText text={props.problem.solution.incomplete_reason || props.problem.solution.summary} /></p><p>当前不生成未核验的积分结果或替代示例；可在核对窗口修改原题字段后重算。</p></section>;
     }
     if (result.kind === 'multivariable_extrema') {
       const data=props.problem.solution.extrema_details;
-      return <section className={styles.canvasRoot} aria-label="多元极值结果"><h3>多元局部极值计算</h3><p>{data?.constraint ? `完整约束：${data.constraint}` : '无约束，整个实平面'}</p>{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p>}<CalculusCanvas result={result} compare={compare} selected={selected} onSelect={onSelect} /><p>候选点与判定依据见原题结果；未运行梯度下降示例，局部分类不代替全局最值证明。</p></section>;
+      return <section className={styles.canvasRoot} aria-label="多元极值结果"><h3>多元局部极值计算</h3><p>{data?.constraint ? `完整约束：${data.constraint}` : '无约束，整个实平面'}</p>{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p><MathText text={props.problem.solution.incomplete_reason || props.problem.solution.summary} /></p>}<CalculusCanvas result={result} compare={compare} selected={selected} onSelect={onSelect} /><p>候选点与判定依据见原题结果；未运行梯度下降示例，局部分类不代替全局最值证明。</p></section>;
     }
     if (result.kind === 'multivariable') {
       const data=props.problem.solution.multi_details;
-      return <section className={styles.canvasRoot} aria-label="多元微分结果"><h3>多元微分计算</h3><p>变量顺序：{data?.variables.join('、')}</p>{data?.point ? <p>求值点：({data.point.join(', ')})</p> : <p>未指定求值点，展示条件适用的符号公式。</p>}{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p>{props.problem.solution.incomplete_reason || props.problem.solution.summary}</p>}<CalculusCanvas result={result} compare={compare} selected={selected} onSelect={onSelect} /><p>本任务展示符号结果与核验依据；求值点或方向修改后需要重新确认计算。</p></section>;
+      return <section className={styles.canvasRoot} aria-label="多元微分结果"><h3>多元微分计算</h3><p>变量顺序：{data?.variables.join('、')}</p>{data?.point ? <p>求值点：({data.point.join(', ')})</p> : <p>未指定求值点，展示条件适用的符号公式。</p>}{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p><MathText text={props.problem.solution.incomplete_reason || props.problem.solution.summary} /></p>}<CalculusCanvas result={result} compare={compare} selected={selected} onSelect={onSelect} /><p>本任务展示符号结果与核验依据；求值点或方向修改后需要重新确认计算。</p></section>;
     }
-    if (result.kind === 'proof' || result.proof) return <div className={styles.canvasRoot} data-subject="calculus"><ProofCanvas result={result} /></div>;
-    if (result.kind === 'space' || result.space) return <div className={styles.canvasRoot} data-subject="calculus"><SpaceCanvas result={result} /></div>;
-    if (result.task === 'double_integral') return <DoubleIntegralCanvas model={props.problem.model} result={result as DoubleIntegralResult} />;
+    if (result.kind === 'proof' || result.proof) return <div className={styles.canvasRoot} data-subject="calculus"><ProofCanvas result={result} /><ol>{result.proof?.obligations.map(item => <li key={item.id}><MathText text={`${item.label}：${item.detail}`} /></li>)}</ol></div>;
+    if (result.kind === 'space' || result.space) return <div className={styles.canvasRoot} data-subject="calculus"><SpaceCanvas result={result} /><p><MathText text={result.answerText || result.headline} /></p></div>;
+    if (result.task === 'double_integral') return <DoubleIntegralCanvas model={props.problem.model} result={result as DoubleIntegralResult} labId={props.labId} problemId={props.problem.problem_id} />;
     return (
       <div className={styles.canvasRoot} data-subject="calculus">
         <CalculusCanvas result={result} compare={compare} selected={selected} onSelect={onSelect}
+          onParamDrag={props.onParamDrag} readOnly={props.readOnly}
           isNormal={props.problem.model.task === 'implicit_normal'} verticalNormal={props.problem.model.vertical_normal} />
+        <p><MathText text={result.answerText || result.headline} /></p>
       </div>
     );
   }
@@ -1380,7 +1532,7 @@ export function LabCanvas(props: Props): ReactNode {
     }
     return (
       <div className={styles.canvasRoot} data-subject="optimization">
-        <OptimizationCanvas result={result} compare={compare} step={step} selected={selected} onSelect={onSelect} onStepChange={onStepChange} />
+        <OptimizationCanvas result={result} compare={compare} step={step} selected={selected} onSelect={onSelect} onStepChange={onStepChange} onParamDrag={props.onParamDrag} readOnly={props.readOnly} />
         {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
       </div>
     );

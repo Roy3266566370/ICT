@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateOs } from './opsys.ts';
+import { auditManualSchedule, evaluateOs, firstScheduleDivergence, referenceScheduleGantt } from './opsys.ts';
 import type { OsBankerResult, OsDiskResult, OsPageResult, OsSchedResult } from './opsys.ts';
 import type { LabModel } from './types.ts';
 
@@ -55,6 +55,81 @@ test('priority scheduling is blocked without priorities and idle gaps are explic
   } as LabModel;
   const result = evaluateOs(model, {}) as OsSchedResult;
   assert.deepEqual(result.stats.gantt.map((g) => [g.id, g.start, g.end]), [['P1', 0, 2], [null, 2, 5], ['P2', 5, 7]]);
+});
+
+test('手动调度审计：合法 FCFS 时间片与内核指标一致', () => {
+  const processes = schedModel().processes!;
+  const timeline = [
+    ...Array<string>(7).fill('P1'),
+    ...Array<string>(4).fill('P2'),
+    'P3',
+    ...Array<string>(4).fill('P4'),
+  ];
+  const audit = auditManualSchedule(processes, timeline);
+  assert.equal(audit.complete, true);
+  assert.equal(audit.errors.length, 0);
+  assert.equal(audit.avgWaiting, 4.75);
+  assert.equal(audit.avgTurnaround, 8.75);
+  assert.deepEqual(audit.segments.map((segment) => [segment.id, segment.start, segment.end]),
+    [['P1', 0, 7], ['P2', 7, 11], ['P3', 11, 12], ['P4', 12, 16]]);
+});
+
+test('手动调度审计：进程未到达时分配 CPU 会报非法而不是静默修正', () => {
+  const processes = [
+    { id: 'P1', arrival: 0, burst: 2, priority: null },
+    { id: 'P2', arrival: 5, burst: 2, priority: null },
+  ];
+  const audit = auditManualSchedule(processes, ['P2', 'P2']);
+  assert.equal(audit.complete, false);
+  assert.equal(audit.errors.length, 2);
+  assert.ok(audit.errors.every((error) => error.reason.includes('尚未到达')));
+  assert.equal(audit.avgWaiting, null);
+  assert.equal(audit.rows.find((row) => row.id === 'P2')?.remaining, 2);
+});
+
+test('手动调度审计：未完成、重复运行已完成进程与就绪队列空闲', () => {
+  const processes = [
+    { id: 'P1', arrival: 0, burst: 2, priority: null },
+    { id: 'P2', arrival: 1, burst: 1, priority: null },
+  ];
+  const incomplete = auditManualSchedule(processes, ['P1']);
+  assert.equal(incomplete.complete, false);
+  assert.ok(incomplete.warnings.some((warning) => warning.includes('足够的时间片')));
+  const repeated = auditManualSchedule(processes, ['P1', 'P1', 'P1']);
+  assert.ok(repeated.errors.some((error) => error.reason.includes('不能再运行')));
+  const idle = auditManualSchedule(processes, [null, 'P1', 'P1', 'P2']);
+  assert.equal(idle.idleSlots, 1);
+  assert.ok(idle.warnings.some((warning) => warning.includes('就绪队列非空')));
+  assert.equal(idle.complete, true);
+  assert.equal(idle.avgWaiting, 1.5);
+});
+
+test('手动调度支持 0.5 时间粒度与小数到达/服务时间', () => {
+  const processes = [{ id: 'P1', arrival: 0.5, burst: 1.5, priority: null }];
+  const audit = auditManualSchedule(processes, [null, 'P1', 'P1', 'P1'], 0.5);
+  assert.equal(audit.complete, true);
+  assert.deepEqual(audit.segments.map((segment) => [segment.id, segment.start, segment.end]),
+    [[null, 0, 0.5], ['P1', 0.5, 2]]);
+  const row = audit.rows[0]!;
+  assert.equal(row.finish, 2);
+  assert.equal(row.turnaround, 1.5);
+  assert.equal(row.waiting, 0);
+  assert.equal(audit.makespan, 2);
+});
+
+test('手动调度提示：定位第一次与 SRTF 不同的时间片', () => {
+  const processes = schedModel().processes!;
+  const fcfs = [
+    ...Array<string>(7).fill('P1'),
+    ...Array<string>(4).fill('P2'),
+    'P3',
+    ...Array<string>(4).fill('P4'),
+  ];
+  const reference = referenceScheduleGantt(processes, 'srtf', 1);
+  const divergence = firstScheduleDivergence(fcfs, reference);
+  assert.deepEqual(divergence, { time: 2, manual: 'P1', reference: 'P2' });
+  const srtf = reference.flatMap((segment) => Array.from({ length: segment.end - segment.start }, () => segment.id));
+  assert.equal(firstScheduleDivergence(srtf, reference), null);
 });
 
 function pageModel(reference: string): LabModel {

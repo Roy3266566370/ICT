@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Formula } from '@/components/showcase/Formula';
+import { LabFormula as Formula } from './ProblemText';
 import { currentMetrics } from '@/labs/compute';
 import {
   MODE_LABELS,
@@ -13,6 +13,7 @@ import {
 import type { LabSelection } from './LabCanvas';
 import styles from './labs.module.css';
 import { AttemptMathInput } from './AttemptMathInput';
+import { MathText } from './ProblemText';
 
 interface Props {
   problem: LabProblem;
@@ -52,6 +53,9 @@ function nextMessageId(): string {
 }
 
 function attemptField(problem: LabProblem): { field: string; label: string; placeholder: string } {
+  if (problem.model.engine === 'generic_v1') {
+    return { field: 'ai_solution', label: '原题条件下的完整答案', placeholder: '请按原题条件填写全部结果；可先点击恢复原题' };
+  }
   if (problem.model.engine === 'heap_v1') {
     return { field: 'heap', label: '删除后的堆数组或选项', placeholder: '例如 20,19,15,5,8,12 或 B' };
   }
@@ -168,11 +172,24 @@ function attemptField(problem: LabProblem): { field: string; label: string; plac
     }
     return { field: 'point', label: '目标函数最优点的坐标', placeholder: '例如 3 或 1, 2' };
   }
+  if (problem.model.modeling_task === 'parameter_limit') {
+    const parameter = problem.model.parameter ?? 'a';
+    return { field: 'parameter', label: `参数 ${parameter} 的值`, placeholder: '例如 6' };
+  }
+  if (problem.model.kind === 'limit') {
+    return { field: 'limit', label: '该点的极限值（不存在写“不存在”）', placeholder: '例如 1 或 不存在' };
+  }
   if (problem.model.kind === 'antiderivative') {
     return { field: 'antiderivative', label: '原函数（答案可带 +C）', placeholder: '例如 x^3/3+C' };
   }
   if (problem.model.kind === 'derivative') {
     return { field: 'slope', label: '该点的切线斜率', placeholder: '例如 1' };
+  }
+  if (problem.model.kind === 'ode') {
+    return { field: 'ode_solution', label: '微分方程的解（可写 y=... 或隐式方程）', placeholder: '例如 y=x^2 或 y-atan(x+y)=-pi/4' };
+  }
+  if (problem.model.kind === 'multivariable_extrema') {
+    return { field: 'extrema_value', label: '极值点或极值（数值核对）', placeholder: '例如 -e, 0 或 -e^2/2' };
   }
   return { field: 'integral', label: '定积分的值', placeholder: '例如 8/3 或 2.6667' };
 }
@@ -189,8 +206,8 @@ function ContextCard({ result, step }: { result: LabResult; step: number }): Rea
       <dl className={styles.contextGrid}>
         {metrics.map((item) => (
           <div key={item.id}>
-            <dt>{item.label}</dt>
-            <dd>{item.value}</dd>
+            <dt><MathText text={item.label} /></dt>
+            <dd><MathText text={String(item.value)} /></dd>
           </div>
         ))}
       </dl>
@@ -350,7 +367,7 @@ export function AssistantPanel({
 
       {selected ? (
         <div className={styles.selectedChip}>
-          <span>正在追问：{selected.label}</span>
+          <span>正在追问：<MathText text={selected.label} /></span>
           <button type="button" onClick={() => onSelect(null)} aria-label="取消选择">
             ×
           </button>
@@ -359,11 +376,11 @@ export function AssistantPanel({
 
       {mode === 'solution' ? (
         <div className={styles.solutionList}>
-          <p className={styles.solutionSummary}>{problem.solution.summary}</p>
+          <p className={styles.solutionSummary}><MathText text={problem.solution.summary} /></p>
           {problem.solution.answer ? (
             <div className={styles.answerBox}>
               <span>原题结论</span>
-              <strong>{problem.solution.answer}</strong>
+              <strong><MathText text={problem.solution.answer} /></strong>
             </div>
           ) : null}
           {solutions.map((item, index) => (
@@ -376,13 +393,13 @@ export function AssistantPanel({
             >
               <i>{String(index + 1).padStart(2, '0')}</i>
               <span>
-                <strong>{item.title}</strong>
+                <strong><MathText text={item.title} /></strong>
                 {item.latex ? <Formula tex={item.latex} block /> : null}
-                <small>{item.detail}</small>
+                <small><MathText text={item.detail} /></small>
               </span>
             </button>
           ))}
-          {problem.solution.global_note ? <p className={styles.smallNote}>{problem.solution.global_note}</p> : null}
+          {problem.solution.global_note ? <p className={styles.smallNote}><MathText text={problem.solution.global_note} /></p> : null}
           <div className={styles.askRow}>
             <input
               value={question}
@@ -399,7 +416,7 @@ export function AssistantPanel({
           {messages.slice(-4).map((message) => (
             <div key={message.id} className={styles.message} data-role={message.role}>
               <span>{message.role === 'user' ? '你' : '导师'}</span>
-              <p>{message.text}</p>
+              <p><MathText text={message.text} /></p>
               {message.notice ? <small>{message.notice}</small> : null}
             </div>
           ))}
@@ -415,15 +432,25 @@ export function AssistantPanel({
                     : '自己操作模型；需要时再问我图形、公式或当前数值的含义。'}
                 </p>
                 <div className={styles.suggestions}>
-                  {(result.subject === 'optimization'
+                  {(problem.model.engine === 'generic_v1'
+                    ? ['原题结果是什么？', '每一步用到了哪些条件？', '结果如何核验？']
+                    : result.subject === 'optimization'
                     ? ['为什么往这个方向移动？', '下一步是什么？', '当前结果说明了什么？']
                     : problem.model.task === 'implicit_normal'
                       ? ['法线斜率如何求得？', '原题结果是什么？', '研究点为何需要核对？']
                     : result.subject === 'calculus'
                       ? problem.model.kind === 'derivative'
                         ? ['切线为什么在这个位置？', '差商怎样趋近导数？', '下一步是什么？']
+                        : problem.model.modeling_task === 'parameter_limit'
+                          ? [`参数 ${problem.model.parameter ?? 'a'}=${problem.model.parameter_value ?? ''} 是怎么解出的？`, '左右极限为什么都要看？', '下一步是什么？']
+                        : problem.model.kind === 'limit'
+                          ? ['左右极限为什么都要看？', '数值逼近和符号极限差在哪？', '下一步是什么？']
                         : problem.model.kind === 'antiderivative'
                           ? ['为什么答案要加 C？', '原函数求导怎么核对？', '下一步是什么？']
+                          : problem.model.kind === 'ode'
+                            ? ['解曲线为什么这样变化？', '如何代回原方程核验？', '下一步是什么？']
+                            : problem.model.kind === 'multivariable_extrema'
+                              ? ['为什么这个点是极小值？', '鞍点与极小值怎么区分？', '下一步是什么？']
                           : ['为什么误差随 n 变化？', '黎曼和与解析值差在哪？', '下一步是什么？']
                       : result.subject === 'algorithm' && result.algorithm === 'heap'
                         ? ['为什么需要向下筛选？', '下一步是什么？', '当前结果说明了什么？']
@@ -479,7 +506,7 @@ export function AssistantPanel({
             {messages.slice(-8).map((message) => (
               <div key={message.id} className={styles.message} data-role={message.role}>
                 <span>{message.role === 'user' ? '你' : '导师'}</span>
-                <p>{message.text}</p>
+                <p><MathText text={message.text} /></p>
                 <small>{message.local ? '本地导师 · 由计算记录生成' : message.notice ? '模型增强回答 · 数值以执行记录为准' : ''}</small>
               </div>
             ))}
@@ -563,7 +590,7 @@ export function AssistantPanel({
               </button>
             </div>
             {feedback ? (
-              <p className={feedback.correct ? styles.feedbackGood : styles.feedbackWarn}>{feedback.text}</p>
+              <p className={feedback.correct ? styles.feedbackGood : styles.feedbackWarn}><MathText text={feedback.text} /></p>
             ) : (
               <p className={styles.smallNote}>{field.label}。检查只对照确定性结果，不读取模型生成答案。</p>
             )}
@@ -573,7 +600,7 @@ export function AssistantPanel({
                 {attempts.slice(-4).reverse().map((item) => (
                   <div key={item.id} data-correct={item.correct}>
                     <strong>{item.correct ? '正确' : '待核对'}</strong>
-                    <span>{item.answer}</span>
+                    <span><MathText text={item.answer} /></span>
                   </div>
                 ))}
               </details>
@@ -612,7 +639,7 @@ export function AssistantPanel({
           <details className={styles.observationList}>
             <summary>已记录观察（{observations.length}）</summary>
             {observations.slice(-5).reverse().map((item) => (
-              <p key={item.id}>{item.text}</p>
+              <p key={item.id}><MathText text={item.text} /></p>
             ))}
           </details>
         ) : null}

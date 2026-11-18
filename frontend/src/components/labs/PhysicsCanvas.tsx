@@ -1,3 +1,4 @@
+import { MathText } from './ProblemText';
 import type { PhysicsResult } from '@/labs/types';
 import { PHYSICS_MODE_LABELS } from '@/labs/physics';
 import styles from './PhysicsCanvas.module.css';
@@ -973,13 +974,13 @@ export function PhysicsCanvas({ result, step }: Props): JSX.Element {
     </svg>
     <div className={styles.readout} aria-label="物理结果">
       {result.metrics.map(item => <div key={item.id} className={`${styles.metric} ${item.tone === 'accent' ? styles.metricAccent : ''}`}>
-        <span>{item.label}</span><b>{item.value}</b>
+        <span><MathText text={String(item.label ?? '')} /></span><b><MathText text={String(item.value ?? '')} /></b>
       </div>)}
     </div>
     <div className={styles.checks} aria-label="结果核对">
       {result.checks.map(item => <div key={item.id} className={`${styles.check} ${item.status === 'pass' ? '' : styles.checkWarn}`}>
         <span className={styles.checkIcon}>{item.status === 'pass' ? '✓' : '!'}</span>
-        <span><b>{item.label}</b>{item.detail}</span>
+        <span><b><MathText text={String(item.label ?? '')} /></b><MathText text={String(item.detail ?? '')} /></span>
       </div>)}
     </div>
     <p className={styles.hint}>{result.notes[0] ?? '参数由模型控制；每次调整都会重新计算并核对公式。'}</p>

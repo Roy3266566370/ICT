@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import type { LabDocument, LabEvaluated, LabProblem, LabState } from '@/labs/types';
 import styles from './labs.module.css';
+import { MathText, ProblemTitle } from './ProblemText';
+import { conditionValueText } from '@/labs/mathText';
 
 const ENGINE_LABELS: Record<string, string> = {
   antiderivative_v1: '不定积分 · 原函数族',
@@ -32,8 +34,8 @@ function Item({ title, detail, count }: { title: string; detail: string; count?:
         ✓
       </span>
       <div>
-        <strong>{title}</strong>
-        <p>{detail}</p>
+        <strong><MathText text={title} /></strong>
+        <p><MathText text={detail} /></p>
       </div>
       {count ? <span className={styles.outcomeCount}>{count}</span> : null}
     </div>
@@ -91,7 +93,7 @@ export function OutcomePanel({
         <div className={styles.outcomeBody}>
           <div className={styles.outcomeHero}>
             <span className={styles.outcomeIndex}>LAB / {lab.lab_id.slice(-8).toUpperCase()}</span>
-            <strong>{problem.title}</strong>
+            <strong><ProblemTitle problem={problem} /></strong>
             <p>
               {problem.subject_label} · 修订 {lab.revision} · {saved ? '已同步到服务端' : '有修改，正在保存或仅在本机'}
             </p>
@@ -99,13 +101,13 @@ export function OutcomePanel({
           <div className={styles.outcomeList}>
             <Item
               title="原题及来源"
-              detail={`${problem.text.slice(0, 80)}${problem.text.length > 80 ? '…' : ''} 来源：${lab.source.citation}`}
+              detail={`${problem.text} 来源：${lab.source.citation}`}
             />
             <Item
               title="识别条件"
               detail={problem.ai_solution ? problem.ai_solution.conditions.join('；') : problem.recognition.conditions
                 .slice(0, 5)
-                .map((condition) => `${condition.label}=${String(condition.value)}`)
+                .map((condition) => `${condition.label}=${conditionValueText(condition.value)}`)
                 .join('；')}
               count={`${problem.ai_solution?.conditions.length ?? problem.recognition.conditions.length} 项`}
             />

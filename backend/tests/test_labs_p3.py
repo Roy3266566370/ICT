@@ -115,6 +115,22 @@ def test_ode_without_initial_conditions_keeps_general_solution_constants():
     assert solution['particular_solution'] is None
 
 
+def test_implicit_solution_with_function_in_domain_is_verified():
+    result = ode_plan(equation="y' = 1/(x+y)^2", initial_conditions=['y(1)=0'])
+    solution = result['interactive_solution']
+    assert solution['solution_status'] == 'complete'
+    assert solution['residual_verified'] is True
+    assert solution['initial_conditions_verified'] is True
+    assert 'atan' in result['answer'] and 'pi/4' in result['answer']
+    assert solution['particular_solution']
+
+
+def test_implicit_solution_cannot_claim_a_geometric_target():
+    with pytest.raises(ValueError):
+        ode_plan(equation="y' = 1/(x+y)^2", initial_conditions=['y(1)=0'],
+                 target_kind='area', target_lower='1', target_upper='2')
+
+
 def test_unsupported_ode_is_not_marked_complete():
     with pytest.raises(ValueError):
         ode_plan(equation="y' = y^2 + x")

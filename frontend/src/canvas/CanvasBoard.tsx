@@ -35,6 +35,14 @@ interface BoardProps {
   inkColor: string;
   /** 双击空白时请求加节点（由页面决定默认参数） */
   onAddNode?: (type: NodeType, x: number, y: number) => void;
+  /** 嵌入活页等固定高度容器时，视口撑满父级而不是占满整屏。 */
+  embedded?: boolean;
+  /** 首次渲染时自动缩放到节点包围盒，避免嵌入视口停在空白区域。 */
+  focusContent?: boolean;
+  /** 公开分享等只读场景：保留参数交互，但隐藏删除/结构编辑入口。 */
+  readOnly?: boolean;
+  /** 把手写圈选交给页面做本地 OCR；返回 true 表示已消费，可清除选择。 */
+  onInkExtract?: (strokes: InkStroke[]) => Promise<boolean>;
 }
 
 interface Pt { x: number; y: number }
@@ -66,12 +74,13 @@ function portKindOf(ctx: ReturnType<typeof makeCtx>, nodeId: string, isOut: bool
   return spec?.kind;
 }
 
-export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardProps): JSX.Element {
+export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, focusContent, readOnly, onInkExtract }: BoardProps): JSX.Element {
   const innerRef = useRef<HTMLDivElement>(null);
   const vpRef = useRef<HTMLDivElement>(null);
   const portRefs = useRef(new Map<string, HTMLElement>());
   const live = useRef(new Map<string, PortValue>());
   const spaceHeld = useRef(false);
+  const focusedOnce = useRef(false);
   const zoomRef = useRef(doc.zoom);
   zoomRef.current = doc.zoom;
 
@@ -79,6 +88,8 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
   const [tempWire, setTempWire] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [pulses, setPulses] = useState<Record<string, number>>({});
   const [selSet, setSelSet] = useState<ReadonlySet<string>>(new Set());
+  const [selStrokes, setSelStrokes] = useState<ReadonlySet<string>>(new Set());
+  const [inkBusy, setInkBusy] = useState(false);
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [frame, setFrame] = useState(0);
   const zoom = doc.zoom;
@@ -163,6 +174,30 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
     return () => vp.removeEventListener('wheel', onWheel);
   }, [setDoc]);
 
+  /* ---------- 嵌入视口首次聚焦到节点包围盒 ---------- */
+  useLayoutEffect(() => {
+    if (!focusContent || focusedOnce.current) return;
+    const vp = vpRef.current;
+    if (!vp || vp.clientWidth === 0 || doc.nodes.length === 0) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    walkNodes(doc.nodes, (node) => {
+      const width = NODE_DEFS[node.type]?.width ?? 240;
+      minX = Math.min(minX, node.x);
+      minY = Math.min(minY, node.y);
+      maxX = Math.max(maxX, node.x + width);
+      maxY = Math.max(maxY, node.y + 190);
+    });
+    if (!Number.isFinite(minX)) return;
+    const fit = Math.min(1, (vp.clientWidth - 56) / Math.max(1, maxX - minX), (vp.clientHeight - 56) / Math.max(1, maxY - minY));
+    const zoom = clamp(Math.round(fit * 100) / 100, ZOOM_MIN, ZOOM_MAX);
+    if (Math.abs(zoom - doc.zoom) > 0.01) setDoc((current) => ({ ...current, zoom }));
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      vp.scrollLeft = Math.max(0, minX * zoom - 24);
+      vp.scrollTop = Math.max(0, minY * zoom - 24);
+    }));
+    focusedOnce.current = true;
+  }, [doc.nodes, doc.zoom, focusContent, setDoc]);
+
   /* ---------- 空格键状态（+拖拽平移） ---------- */
   useEffect(() => {
     const dn = (e: KeyboardEvent): void => {
@@ -186,8 +221,11 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
   /* ---------- 选中 + Del 删除（多选） ---------- */
   useEffect(() => {
     const h = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setSelSet(new Set());
-      if (selSet.size === 0) return;
+      if (e.key === 'Escape') {
+        setSelSet(new Set());
+        setSelStrokes(new Set());
+      }
+      if (readOnly || selSet.size === 0) return;
       const t = e.target as HTMLElement;
       if (t.closest('input,textarea,[contenteditable]')) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -201,7 +239,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [selSet, setDoc]);
+  }, [readOnly, selSet, setDoc]);
 
   /* ---------- 布局后重算连线几何；内容相同则跳过重渲，防 layout-effect 循环 ---------- */
   useLayoutEffect(() => {
@@ -484,7 +522,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
       return;
     }
     if (e.button !== 0) return;
-    if (tool === 'erase') {
+    if (!readOnly && tool === 'erase') {
       e.preventDefault();
       eraseAt(e);
       const mv = (ev: PointerEvent): void => eraseAt(ev);
@@ -496,38 +534,44 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
       document.addEventListener('pointerup', up);
       return;
     }
-    const pen = tool === 'pen' || e.pointerType === 'pen';
+    const pen = !readOnly && (tool === 'pen' || e.pointerType === 'pen');
     if (!pen) {
       // 选择工具在空白处按下 → 框选（marquee）；点在节点上交给节点的 click 选中
       if (tool === 'select' && !(e.target as HTMLElement).closest('[data-node],[data-port]')) {
         e.preventDefault();
         const start = toInner(e.clientX, e.clientY);
         let moved = false;
+        let last: { x1: number; y1: number; x2: number; y2: number } | null = null;
         const mv = (ev: PointerEvent): void => {
           moved = true;
           const p = toInner(ev.clientX, ev.clientY);
-          setMarquee({ x1: start.x, y1: start.y, x2: p.x, y2: p.y });
+          last = { x1: start.x, y1: start.y, x2: p.x, y2: p.y };
+          setMarquee(last);
         };
         const up = (): void => {
           document.removeEventListener('pointermove', mv);
           document.removeEventListener('pointerup', up);
-          setMarquee((m) => {
-            if (!m || !moved) {
-              setSelSet(new Set());
-              return null;
-            }
-            const x0 = Math.min(m.x1, m.x2), x1 = Math.max(m.x1, m.x2);
-            const y0 = Math.min(m.y1, m.y2), y1 = Math.max(m.y1, m.y2);
-            const hit = new Set<string>();
-            innerRef.current?.querySelectorAll<HTMLElement>('[data-node]').forEach((el) => {
-              const id = el.dataset.node ?? '';
-              const nx = parseFloat(el.style.left), ny = parseFloat(el.style.top);
-              const nw = el.offsetWidth, nh = el.offsetHeight;
-              if (nx < x1 && nx + nw > x0 && ny < y1 && ny + nh > y0) hit.add(id);
-            });
-            setSelSet(hit);
-            return null;
+          setMarquee(null);
+          if (!last || !moved) {
+            setSelSet(new Set());
+            setSelStrokes(new Set());
+            return;
+          }
+          const x0 = Math.min(last.x1, last.x2), x1 = Math.max(last.x1, last.x2);
+          const y0 = Math.min(last.y1, last.y2), y1 = Math.max(last.y1, last.y2);
+          const hit = new Set<string>();
+          innerRef.current?.querySelectorAll<HTMLElement>('[data-node]').forEach((el) => {
+            const id = el.dataset.node ?? '';
+            const nx = parseFloat(el.style.left), ny = parseFloat(el.style.top);
+            const nw = el.offsetWidth, nh = el.offsetHeight;
+            if (nx < x1 && nx + nw > x0 && ny < y1 && ny + nh > y0) hit.add(id);
           });
+          setSelSet(hit);
+          const strokeHit = new Set<string>();
+          for (const stroke of doc.strokes) {
+            if (stroke.points.some(([x, y]) => x >= x0 && x <= x1 && y >= y0 && y <= y1)) strokeHit.add(stroke.id);
+          }
+          setSelStrokes(strokeHit);
         };
         document.addEventListener('pointermove', mv);
         document.addEventListener('pointerup', up);
@@ -536,17 +580,35 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
     }
     if ((e.target as HTMLElement).closest('[data-port]')) return; // 端口优先连线
     startStroke(e);
-  }, [eraseAt, startPan, startStroke, tool]);
+  }, [doc.strokes, eraseAt, readOnly, startPan, startStroke, toInner, tool]);
 
   const onInnerDoubleClick = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('[data-node],[data-port]')) return;
+    if (readOnly || (e.target as HTMLElement).closest('[data-node],[data-port]')) return;
     const p = toInner(e.clientX, e.clientY);
     onAddNode?.('textNote', p.x, p.y);
-  }, [onAddNode, toInner]);
+  }, [onAddNode, readOnly, toInner]);
+
+  const recognizeInk = useCallback(async (): Promise<void> => {
+    if (!onInkExtract || inkBusy) return;
+    const strokes = doc.strokes.filter((stroke) => selStrokes.has(stroke.id));
+    if (!strokes.length) return;
+    setInkBusy(true);
+    try {
+      const consumed = await onInkExtract(strokes);
+      if (consumed) setSelStrokes(new Set());
+    } finally {
+      setInkBusy(false);
+    }
+  }, [doc.strokes, inkBusy, onInkExtract, selStrokes]);
+
+  const clearSelection = (): void => {
+    setSelSet(new Set());
+    setSelStrokes(new Set());
+  };
 
   /* ---------- 渲染 ---------- */
   return (
-    <div className={styles.viewport} ref={vpRef}>
+    <div className={`${styles.viewport} ${embedded ? styles.viewportEmbedded : ''}`} ref={vpRef}>
       <div
         ref={innerRef}
         className={`${styles.inner} ${tool !== 'select' ? styles.inkmode : ''}`}
@@ -565,9 +627,9 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
                 <path
                   className={styles.wireHit}
                   d={d}
-                  onClick={() => removeWire(w.id)}
+                  onClick={readOnly ? undefined : () => removeWire(w.id)}
                 >
-                  <title>点击删除连线</title>
+                  <title>{readOnly ? '只读画布' : '点击删除连线'}</title>
                 </path>
                 <circle r={4} fill="#FF7A59">
                   <animateMotion key={`${w.id}:${pulses[w.id] ?? 0}`} dur="0.55s" begin="0s" path={d} fill="freeze" />
@@ -613,23 +675,25 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
             >
               <div
                 className={styles.nhead}
-                onPointerDown={(e) => startNodeDrag(e, n)}
-                role="button"
-                aria-label={`拖动 ${def.title}`}
-                tabIndex={0}
+                onPointerDown={readOnly ? undefined : (e) => startNodeDrag(e, n)}
+                role={readOnly ? undefined : 'button'}
+                aria-label={readOnly ? undefined : `拖动 ${def.title}`}
+                tabIndex={readOnly ? undefined : 0}
               >
                 <span className={`${styles.ndot} ${def.badge === '源' ? styles.ndotSrc : ''}`} aria-hidden="true" />
                 {n.type === 'composite' ? (n.text || def.title) : def.title}
                 <span className={`${styles.nbadge} ${def.badge === '源' ? '' : styles.nbadgeSink}`}>{def.badge}</span>
-                <button
-                  type="button"
-                  className={styles.nx}
-                  data-node-x
-                  aria-label={`移除 ${def.title}`}
-                  onClick={() => removeNode(n.id)}
-                >
-                  ×
-                </button>
+                {readOnly ? null : (
+                  <button
+                    type="button"
+                    className={styles.nx}
+                    data-node-x
+                    aria-label={`移除 ${def.title}`}
+                    onClick={() => removeNode(n.id)}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
               <div className={styles.nbody}>
                 <Body
@@ -660,8 +724,8 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
                   className={`${styles.port} ${styles.portOut}`}
                   style={{ top: `${((i + 1) / (nOut + 1)) * 100}%` }}
                   data-port
-                  title={`输出 ${p.label}：拖到兼容的蓝圈`}
-                  onPointerDown={(e) => startWireDrag(e, n, p.id)}
+                  title={readOnly ? `输出 ${p.label}` : `输出 ${p.label}：拖到兼容的蓝圈`}
+                  onPointerDown={readOnly ? undefined : (e) => startWireDrag(e, n, p.id)}
                 >
                   {(nOut > 1 || n.type === 'composite') ? <span className={`${styles.portLabel} ${styles.portLabelR}`}>{p.label}</span> : null}
                 </div>
@@ -691,14 +755,22 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode }: BoardPro
         ) : null}
       </div>
 
-      {/* 多选操作条：封装成自制积木 */}
-      {selSet.size >= 2 ? (
+      {/* 多选操作条：封装积木 / 手写圈选识别 */}
+      {!readOnly && (selSet.size >= 2 || selStrokes.size > 0) ? (
         <div className={styles.selBar} role="toolbar" aria-label="多选操作">
-          已选 {selSet.size} 个对象
-          <button type="button" className={styles.selBarBtn} onClick={encapsulate}>
-            📦 封装成积木
-          </button>
-          <button type="button" className={styles.selBarBtn} onClick={() => setSelSet(new Set())}>
+          {selSet.size >= 2 ? <>已选 {selSet.size} 个对象</> : null}
+          {selSet.size >= 2 ? (
+            <button type="button" className={styles.selBarBtn} onClick={encapsulate}>
+              📦 封装成积木
+            </button>
+          ) : null}
+          {selStrokes.size > 0 ? <>已选 {selStrokes.size} 段笔迹</> : null}
+          {selStrokes.size > 0 ? (
+            <button type="button" className={styles.selBarBtn} disabled={!onInkExtract || inkBusy} onClick={() => void recognizeInk()}>
+              {inkBusy ? '识别中…' : '✒️ 识别为公式积木'}
+            </button>
+          ) : null}
+          <button type="button" className={styles.selBarBtn} onClick={clearSelection}>
             取消
           </button>
         </div>

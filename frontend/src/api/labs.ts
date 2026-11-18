@@ -25,6 +25,73 @@ export async function createManualLab(input: { task: IntegralTask; conditions: R
   return parseLabDocument(await requestJson<LabDocument>(`${P}/labs/manual`, { method: 'POST', body: JSON.stringify(input) }));
 }
 
+export interface SwapPreviewRecord {
+  outer_variable: string;
+  inner_variable: string;
+  outer_bounds: [string, string];
+  inner_bounds: [string, string];
+  inner_bounds_tex?: [string, string];
+  formula_tex: string;
+  exact: string;
+  answer_value?: number | null;
+  region_verified?: boolean;
+  numeric_verified?: boolean;
+}
+
+export interface SwapPreviewResult {
+  supported: boolean;
+  reason?: string;
+  swaps?: SwapPreviewRecord[];
+  piece_count?: number;
+  baseline?: {
+    exact?: string | null;
+    outer_bounds?: string[];
+    inner_bounds?: string[];
+  };
+  sandbox_only?: boolean;
+}
+
+export async function previewLabSwap(input: {
+  labId: string;
+  problemId?: string;
+  outerVariable: 'x' | 'y';
+  outerBounds: [string, string];
+  innerBounds: [string, string];
+  integrand: string;
+}): Promise<SwapPreviewResult> {
+  return requestJson<SwapPreviewResult>(`${P}/labs/${encodeURIComponent(input.labId)}/preview-swap`, {
+    method: 'POST',
+    body: JSON.stringify({
+      ...(input.problemId ? { problem_id: input.problemId } : {}),
+      outer_variable: input.outerVariable,
+      outer_bounds: input.outerBounds,
+      inner_bounds: input.innerBounds,
+      integrand: input.integrand,
+    }),
+  });
+}
+
+export type InkNodeType = 'functionSource' | 'matrixSource' | 'latexNote';
+
+export interface InkExtractResult {
+  supported: boolean;
+  reason?: string;
+  latex?: string;
+  expression?: string | null;
+  matrix?: { a: number; b: number; c: number; d: number } | null;
+  node_type?: InkNodeType;
+  note?: string;
+}
+
+export async function extractInkFormula(input: {
+  strokes: { points: [number, number][]; width?: number }[];
+}): Promise<InkExtractResult> {
+  return requestJson<InkExtractResult>(`${P}/workshop/ink-to-node`, {
+    method: 'POST',
+    body: JSON.stringify({ strokes: input.strokes }),
+  });
+}
+
 export interface Lab408Evaluation {
   subject: LabSubject;
   subject_label: string;

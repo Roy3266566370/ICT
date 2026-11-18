@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
 import { LabAISolvePanel } from '@/components/labs/LabAISolvePanel';
+import { MathText, ProblemText, ProblemTitle } from '@/components/labs/ProblemText';
+import { conditionValueText } from '@/labs/mathText';
 import { getSharedLab, labSharePreviewUrl } from '@/api/labs';
 import { errorMessage } from '@/api/client';
-import { Formula } from '@/components/showcase/Formula';
+import { LabFormula as Formula } from '@/components/labs/ProblemText';
 import { LabCanvas, type LabSelection } from '@/components/labs/LabCanvas';
 import { LabTimeline } from '@/components/labs/LabTimeline';
 import { computeLab, currentMetrics, defaultParams } from '@/labs/compute';
@@ -183,7 +185,7 @@ export function LabSharePage(): JSX.Element {
         <header className={styles.hero}>
           <div>
             <span className={styles.eyebrow}>SHARED LEARNING RECORD</span>
-            <h1>{problem.title}</h1>
+            <h1><ProblemTitle problem={problem} /></h1>
             <p>
               {SUBJECT_LABELS[problem.subject]} · {problem.source.label} · 发布于{' '}
               {lab.published_at ? new Date(lab.published_at).toLocaleString('zh-CN', { hour12: false }) : '—'} ·
@@ -212,7 +214,7 @@ export function LabSharePage(): JSX.Element {
                 {page.image_key ? (
                   <img src={labSharePreviewUrl(shareId, page.image_key)} alt={`第 ${page.page} 页原稿`} />
                 ) : (
-                  <pre>{page.text || '无文字层'}</pre>
+                  <ProblemText text={page.text || '无文字层'} className={styles.problemText} />
                 )}
               </article>
             ))}
@@ -275,8 +277,8 @@ export function LabSharePage(): JSX.Element {
               <div>
                 {problem.recognition.conditions.map((condition) => (
                   <span key={condition.id} className={styles.conditionChip} data-provenance={condition.provenance}>
-                    <b>{condition.label}</b>
-                    <code>{String(condition.value)}</code>
+                    <b><MathText text={condition.label} /></b>
+                    <code><MathText text={conditionValueText(condition.value)} /></code>
                     <small>{PROVENANCE_LABELS[condition.provenance]}</small>
                   </span>
                 ))}
@@ -293,7 +295,7 @@ export function LabSharePage(): JSX.Element {
                 {state.scenarios.map((scenario: LabScenario) => (
                   <div key={scenario.id} data-baseline={scenario.kind === 'baseline' || undefined}>
                     <strong>{scenario.name}</strong>
-                    <small>{scenario.summary}</small>
+                    <small><MathText text={scenario.summary} /></small>
                   </div>
                 ))}
               </div>
@@ -304,24 +306,24 @@ export function LabSharePage(): JSX.Element {
             <section className={styles.solutionCard}>
               <span className={styles.eyebrow}>SOLUTION</span>
               <h2>{problem.ai_solution ? problem.ai_solution.verification === 'kernel' ? '内核计算结果' : 'AI 参考解答' : '原题解答'}</h2>
-              <p className={styles.solutionSummary}>{problem.solution.summary}</p>
+              <p className={styles.solutionSummary}><MathText text={problem.solution.summary} /></p>
               <div className={styles.answer}>
                 <span>结论</span>
-                <strong>{problem.ai_solution?.answer || problem.solution.answer || '—'}</strong>
+                <strong><MathText text={problem.ai_solution?.answer || problem.solution.answer || '—'} /></strong>
               </div>
               <div className={styles.solutionSteps}>
                 {(problem.ai_solution?.steps ?? problem.solution.steps).map((item, index) => (
                   <div key={item.id} className={styles.solutionStep}>
                     <i>{String(index + 1).padStart(2, '0')}</i>
                     <div>
-                      <strong>{item.title}</strong>
+                      <strong><MathText text={item.title} /></strong>
                       {item.latex ? <Formula tex={item.latex} block /> : null}
-                      <p>{item.detail}</p>
+                      <p><MathText text={item.detail} /></p>
                     </div>
                   </div>
                 ))}
               </div>
-              {problem.solution.global_note ? <p className={styles.smallNote}>{problem.solution.global_note}</p> : null}
+              {problem.solution.global_note ? <p className={styles.smallNote}><MathText text={problem.solution.global_note} /></p> : null}
             </section>
 
             <section className={styles.recordCard}>
@@ -330,14 +332,14 @@ export function LabSharePage(): JSX.Element {
               {state.notes ? (
                 <div className={styles.noteBlock}>
                   <span>笔记</span>
-                  <p>{state.notes}</p>
+                  <p><MathText text={state.notes} /></p>
                 </div>
               ) : null}
               {state.observations.length ? (
                 <div className={styles.observationBlock}>
                   <span>观察</span>
                   {state.observations.slice(-6).map((item) => (
-                    <p key={item.id}>{item.text}</p>
+                    <p key={item.id}><MathText text={item.text} /></p>
                   ))}
                 </div>
               ) : null}
@@ -346,8 +348,8 @@ export function LabSharePage(): JSX.Element {
                   <span>尝试与反馈</span>
                   {state.attempts.slice(-5).map((attempt) => (
                     <div key={attempt.id} data-correct={attempt.correct}>
-                      <strong>{attempt.correct ? '正确' : '待核对'} · {attempt.answer}</strong>
-                      <p>{attempt.feedback}</p>
+                      <strong>{attempt.correct ? '正确' : '待核对'} · <MathText text={attempt.answer} /></strong>
+                      <p><MathText text={attempt.feedback} /></p>
                     </div>
                   ))}
                 </div>
@@ -360,7 +362,7 @@ export function LabSharePage(): JSX.Element {
             <section className={styles.sourceCard}>
               <span className={styles.eyebrow}>SOURCE</span>
               <h2>原题与来源</h2>
-              <p className={styles.problemText}>{problem.text}</p>
+              <ProblemText text={problem.text} className={styles.problemText} />
               <div className={styles.formulaList}>
                 {(!(problem.ai_solution && (problem.model.teaching || problem.status !== 'ready')) ? problem.recognition.formulas : []).map((formula) => (
                   <div key={formula.id}>

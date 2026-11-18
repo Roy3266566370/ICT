@@ -31,6 +31,8 @@ const LAB_STATUS_LABELS: Record<LabSummary['status'], string> = {
   ready: '可推演',
   needs_review: '待核对',
   unsupported: '暂不支持',
+  pending_ai: '等待 AI 理解',
+  reference: '参考解答',
 };
 
 type StudioIconName = 'upload' | 'lab' | 'document' | 'clock' | 'arrow' | 'edit' | 'browser';

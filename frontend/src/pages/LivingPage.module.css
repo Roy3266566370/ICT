@@ -883,6 +883,36 @@
   box-sizing: border-box;
   resize: vertical;
 }
+.canvasPicksLoading { margin: 0.4rem 0; color: var(--ink-400); font-size: 0.82rem; }
+.canvasPicks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 220px;
+  margin: 0.6rem 0;
+  padding: 0.6rem;
+  overflow: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--paper-1);
+}
+.canvasPicks > strong { color: var(--ink-700); font-size: 0.82rem; }
+.canvasPicks > p { margin: 0; color: var(--ink-400); font-size: 0.8rem; }
+.canvasPicks button {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.canvasPicks button:hover { border-color: var(--color-indigo); }
+.canvasPicks button:disabled { opacity: 0.5; cursor: default; }
+.canvasPicks button strong { color: var(--ink-900); font-size: 0.86rem; }
+.canvasPicks button span { color: var(--ink-400); font-size: 0.75rem; }
 
 /* 播放器 ------------------------------------------------------------- */
 

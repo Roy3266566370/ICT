@@ -51,7 +51,7 @@ router = APIRouter(prefix=API_PREFIX, tags=["labs"])
 
 PREVIEW_KEY = re.compile(r"^f\d+_p\d+$")
 SUBJECTS = {"calculus", "optimization", "algorithm", "deep_learning", "linear_algebra", "operating_system",
-            "computer_organization", "computer_network", "physics"}
+            "computer_organization", "computer_network", "physics", "general"}
 _AI_SOLVE_LOCK = threading.Lock()
 _AI_SOLVING: set[str] = set()
 
@@ -94,6 +94,23 @@ class ReviewRequest(BaseModel):
     ambiguity_answers: dict[str, str] = Field(default_factory=dict)
 
 
+class SwapPreviewRequest(BaseModel):
+    problem_id: str | None = None
+    outer_variable: Literal['x', 'y']
+    outer_bounds: list[str] = Field(min_length=2, max_length=2)
+    inner_bounds: list[str] = Field(min_length=2, max_length=2)
+    integrand: str = Field(min_length=1, max_length=600)
+
+
+class InkStrokeRequest(BaseModel):
+    points: list[list[float]] = Field(min_length=1, max_length=600)
+    width: float = Field(default=2.4, ge=0.5, le=12)
+
+
+class InkExtractRequest(BaseModel):
+    strokes: list[InkStrokeRequest] = Field(min_length=1, max_length=60)
+
+
 class AssistantRequest(BaseModel):
     question: str = Field(default="", max_length=2000)
     mode: str = Field(default="explore", pattern="^(explore|guided|solution)$")
@@ -126,7 +143,16 @@ class AISolveRequest(BaseModel):
 
 def _lab_payload(record: LabRecord) -> dict[str, Any]:
     from ..ppt_ai.client import PPTAIClient
+    from ..labs.ai_solve import restore_ai_understanding, attach_interactive_model
     document = copy.deepcopy(record.document)
+    for problem in document.get('problems') or []:
+        restored = restore_ai_understanding(problem)
+        solution = problem.get('ai_solution') or {}
+        if restored and solution.get('verification') == 'kernel' and problem.get('status') != 'ready':
+            attach_interactive_model(problem, solution)
+        elif restored and solution.get('verification') == 'ai_reference' and solution.get('answer') and (
+                solution.get('proposed_model') or {}).get('kind') in (None, 'none') and problem.get('status') != 'reference':
+            attach_interactive_model(problem, solution)
     document.setdefault("capabilities", {})["ai_solver_configured"] = (get_settings().lab_understanding_provider == 'ollama' or PPTAIClient().available())
     return document
 
@@ -608,13 +634,21 @@ def review_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: Re
     from ..labs.recognize import rebuild_problem
     from ..labs.store import save_state
 
+    local_model = target.get('model') or {}
+    ai_solution = target.get('ai_solution') or {}
+    local_executable = (local_model.get('engine') not in (None, 'unsupported_v1')
+                        and not local_model.get('teaching'))
+    ai_has_kernel = ai_solution.get('verification') == 'kernel'
+    ai_has_reference = (bool(str(ai_solution.get('reference_answer') or '').strip())
+                        or ai_solution.get('verification') == 'ai_reference')
     try:
         if target.get('manual_input'):
             if (body.text is not None and body.text.strip() != target['text'].strip()) or body.subject not in (None, 'calculus'):
                 raise ValueError('手动积分题请通过公式和条件字段修正，不重新识别题干')
             from ..labs.manual import revise_manual_document
             rebuilt = revise_manual_document(document, target, body.condition_values)
-        elif ((target.get('ai_solution') or {}).get('agent_understanding')
+        elif (target.get('ai_solution')
+              and not (local_executable and not ai_has_kernel and not ai_has_reference)
               and (not body.subject or body.subject == target['subject'])
               and (body.text is None or body.text.strip() == target['text'].strip())):
             from ..labs.ai_solve import review_ai_conditions
@@ -641,6 +675,58 @@ def review_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: Re
     _touch(record, document)
     db.commit()
     return ok(request, record.document)
+
+
+@router.post("/labs/{lab_id}/preview-swap", summary="二重积分边界拖拽的只读换序预览")
+def preview_lab_swap(
+    lab_id: str, request: Request, ctx: SessionDep, db: DBDep, body: SwapPreviewRequest
+) -> JSONResponse:
+    record = _owned_lab(db, ctx, lab_id)
+    problem = _problem(record.document, body.problem_id)
+    model = problem.get("model") or {}
+    if problem.get("subject") != "calculus" or model.get("task") != "double_integral":
+        raise missing_field("仅二重积分实验支持换序预览")
+    if model.get("region_kind") not in (None, "strip"):
+        raise missing_field("当前二重积分区域不是条带型，暂不支持拖拽换序")
+    if body.outer_variable != model.get("outer_variable"):
+        raise missing_field("外层变量与原题不一致")
+    stored_bounds = model.get("outer_bounds") or []
+    stored_integrand = str(model.get("integrand") or "")
+    if len(stored_bounds) != 2 or not stored_integrand:
+        raise missing_field("原题缺少可核验的二重积分表达式")
+    if [str(item) for item in body.outer_bounds] != [str(item) for item in stored_bounds]:
+        raise missing_field("外层积分限必须沿用原题，不能通过预览修改")
+    if body.integrand.strip() != stored_integrand.strip():
+        raise missing_field("被积函数必须沿用原题，不能通过预览修改")
+    from ..labs.order_swap_general import preview_swap
+
+    result = preview_swap(
+        stored_integrand,
+        body.outer_variable,
+        str(stored_bounds[0]),
+        str(stored_bounds[1]),
+        body.inner_bounds[0],
+        body.inner_bounds[1],
+    )
+    return ok(request, {
+        **result,
+        "baseline": {
+            "exact": model.get("exact"),
+            "outer_bounds": stored_bounds,
+            "inner_bounds": model.get("inner_bounds"),
+        },
+        "sandbox_only": True,
+    })
+
+
+@router.post("/workshop/ink-to-node", summary="手写公式圈选：本地 OCR → 矩阵/函数/公式积木")
+@router.post("/labs/ink/extract", summary="手写公式圈选：本地 OCR → 公式卡/函数积木")
+def extract_ink(request: Request, ctx: SessionDep, body: InkExtractRequest) -> JSONResponse:
+    from ..labs.ink import ink_to_formula
+
+    payload = [{"points": item.points, "width": item.width} for item in body.strokes]
+    logger.info("手写墨迹识别：session=%s strokes=%d", ctx.session_id, len(payload))
+    return ok(request, ink_to_formula(payload))
 
 
 @router.post("/labs/{lab_id}/assistant", summary="按当前步骤讲解；默认本地导师")
@@ -730,9 +816,8 @@ def lab_attempt(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: A
 
 @router.post("/labs/{lab_id}/ai-solve", summary="AI 理解题意、内核计算或直接参考解答")
 def solve_lab_with_ai(lab_id: str, body: AISolveRequest, request: Request, ctx: WriteDep, db: DBDep) -> JSONResponse:
-    from ..labs.ai_solve import solve_with_ai, attach_interactive_model, VERSION
+    from ..labs.ai_solve import solve_with_ai, attach_interactive_model
     from ..ppt_ai.client import PPTAIError
-    from ..ppt_ai.util import hash_json
     from ..schemas.errors import ApiError, ErrorCode
     record = _owned_lab(db, ctx, lab_id)
     if record.revision != body.expected_revision:
@@ -742,10 +827,7 @@ def solve_lab_with_ai(lab_id: str, body: AISolveRequest, request: Request, ctx: 
     if target is None:
         raise missing_field("题目不存在")
     from ..labs.local_agent import input_hash as local_input_hash
-    local = get_settings().lab_understanding_provider == 'ollama'
-    input_hash = local_input_hash(target, lab_id, body.mode) if local else hash_json({
-        "version": VERSION, "text": target["text"], "mode": body.mode,
-        "ambiguities": target["recognition"].get("ambiguities") or []})
+    input_hash = local_input_hash(target, lab_id, body.mode)
     if not body.force and (target.get("ai_solution") or {}).get("input_hash") == input_hash:
         return ok(request, {"document": _lab_payload(record), "cached": True})
     with _AI_SOLVE_LOCK:
@@ -757,19 +839,33 @@ def solve_lab_with_ai(lab_id: str, body: AISolveRequest, request: Request, ctx: 
         try:
             result = solve_with_ai(target, mode=body.mode, lab_id=lab_id)
         except (PPTAIError, ValueError) as exc:
-            raise model_unavailable(str(exc)) from exc
+            from ..labs.local_agent import ollama_available, understand as understand_local
+            from ..settings import get_settings
+
+            if (isinstance(exc, PPTAIError) and exc.kind in ('transport', 'timeout')
+                    and get_settings().lab_understanding_provider != 'ollama'
+                    and ollama_available()):
+                try:
+                    result = understand_local(target, lab_id=lab_id)
+                    result.setdefault('limitations', []).insert(
+                        0, '云端模型暂不可达，已使用本机视觉模型完成题意理解；请对照原图核对公式与条件。')
+                    result['fallback'] = {'from': 'cloud', 'to': 'ollama', 'reason': str(exc)}
+                except Exception as fallback_exc:  # noqa: BLE001 - keep the original failure visible
+                    raise model_unavailable(str(exc)) from fallback_exc
+            else:
+                raise model_unavailable(str(exc)) from exc
         result["input_hash"] = input_hash
         target["ai_solution"] = result
         target["recognition"]["ai_used"] = True
-        if attach_interactive_model(target, result):
-            result['input_hash'] = local_input_hash(target, lab_id, body.mode) if local else hash_json({'version':VERSION, 'text':target['text'], 'mode':body.mode,
-                                             'ambiguities':target['recognition'].get('ambiguities') or []})
-            if document.get('selected_problem_id') == target['problem_id']:
-                document.update(subject=target['subject'], status=target['status'])
+        attach_interactive_model(target, result)
+        if document.get('selected_problem_id') == target['problem_id']:
+            document.update(subject=target['subject'], status=target['status'])
+        result['input_hash'] = local_input_hash(target, lab_id, body.mode)
         document["revision"] += 1
         document["updated_at"] = to_iso(utc_now())
         written = db.execute(update(LabRecord).where(LabRecord.id == lab_id, LabRecord.session_id == ctx.session_id,
-            LabRecord.revision == body.expected_revision).values(document=document, revision=document["revision"], updated_at=document["updated_at"]))
+            LabRecord.revision == body.expected_revision).values(document=document, revision=document["revision"], updated_at=document["updated_at"],
+                status=document['status'], subject=document['subject']))
         if written.rowcount != 1:
             db.rollback()
             raise version_conflict("AI 求解期间题目或学习记录已修改，已保留原有内容，请重新载入")

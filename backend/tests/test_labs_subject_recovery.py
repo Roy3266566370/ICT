@@ -15,10 +15,10 @@ def test_exam_task_classification():
         assert classify_subject(text)[0] == expected
 
 
-def test_unknown_stays_unsupported_without_teaching_answer():
+def test_unknown_waits_for_ai_without_teaching_answer():
     problem = build_problem('请分析这首诗的意境。')
     assert problem['subject'] == 'unknown'
-    assert problem['status'] == 'unsupported'
+    assert problem['status'] == 'pending_ai'
     assert not problem['model'].get('teaching')
     assert not problem['model'].get('expression')
     assert any(a['severity'] == 'blocking' for a in problem['recognition']['ambiguities'])
@@ -26,7 +26,7 @@ def test_unknown_stays_unsupported_without_teaching_answer():
     doc = build_lab_document(lab_id='unknown', title='未知题型', source=source,
                              files=source['files'], now_iso='2026-11-09T00:00:00Z')
     assert doc['problems'][0]['solution']['answer'] == ''
-    assert doc['status'] == 'unsupported'
+    assert doc['status'] == 'pending_ai'
 
 
 def test_uncertain_formula_requires_explicit_confirmation_after_review():

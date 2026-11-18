@@ -66,8 +66,14 @@ def test_invalid_geometry_and_implicit_branches_remain_reviewable():
         assert not p['solution']['answer']
 
 
-def test_unsupported_conditions_cannot_be_dismissed_as_confirmation():
+def test_rotation_about_y_axis_is_supported():
     p = make('D={(x,y)|0<=y<=x,x>=1,x<=2}，求绕 y 轴旋转的体积。')
+    assert p['status'] == 'ready'
+    assert p['solution']['exact'] == '14*pi/3'
+
+
+def test_unsupported_conditions_cannot_be_dismissed_as_confirmation():
+    p = make('D={(x,y)|0<=y<=x,x>=1,x<=2}，求绕 x=1 旋转的体积。')
     assert p['status'] == 'needs_review'
     rebuilt = rebuild_problem(p, files=[], ambiguity_answers={'exam_rotation_axis': 'y'})
     assert rebuilt['status'] == 'needs_review'

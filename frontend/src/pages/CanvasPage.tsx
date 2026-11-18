@@ -12,10 +12,50 @@ import { SiteNav } from '@/components/home/SiteNav';
 import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
 import { PALETTE_GROUPS, NODE_DEFS, defaultParams } from '@/canvas/nodes.tsx';
 import { nextId, clamp } from '@/canvas/math.ts';
-import type { CanvasDoc, CanvasTool, NodeType } from '@/canvas/types.ts';
+import type { CanvasDoc, CanvasTool, InkStroke, NodeType } from '@/canvas/types.ts';
 import { worksApi } from '@/api/works';
+import { extractInkFormula, type InkNodeType } from '@/api/labs';
+import { getLivingPage, listLivingPages, patchLivingPage } from '@/api/living';
+import { errorMessage } from '@/api/client';
+import type { LivingPageSummary, PageBlock } from '@/living/types';
 import { defaultManual408Text } from '@/labs/manual408';
+import { compileExpression } from '@/labs/expr';
 import styles from './CanvasPage.module.css';
+
+interface InkReviewState {
+  strokes: InkStroke[];
+  latex: string;
+  nodeType: InkNodeType;
+  expression: string;
+  matrix?: { a: number; b: number; c: number; d: number };
+  note?: string;
+}
+
+function InkThumbnail({ strokes }: { strokes: InkStroke[] }): JSX.Element | null {
+  const points = strokes.flatMap((stroke) => stroke.points);
+  if (!points.length) return null;
+  const minX = Math.min(...points.map((point) => point[0]));
+  const maxX = Math.max(...points.map((point) => point[0]));
+  const minY = Math.min(...points.map((point) => point[1]));
+  const maxY = Math.max(...points.map((point) => point[1]));
+  const pad = Math.max(10, Math.max(maxX - minX, maxY - minY) * 0.08);
+  return <svg
+    className={styles.inkThumb}
+    viewBox={`${minX - pad} ${minY - pad} ${Math.max(1, maxX - minX + pad * 2)} ${Math.max(1, maxY - minY + pad * 2)}`}
+    role="img"
+    aria-label="手写笔迹缩略图"
+  >
+    {strokes.map((stroke) => <path
+      key={stroke.id}
+      d={stroke.points.map((point, index) => `${index === 0 ? 'M' : 'L'}${point[0]},${point[1]}`).join(' ')}
+      fill="none"
+      stroke="#2F3A49"
+      strokeWidth={Math.max(1.4, stroke.width)}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />)}
+  </svg>;
+}
 
 const STORAGE_KEY = 'wanxiang.canvas.v1';
 const ZOOM_MIN = 0.4;
@@ -109,6 +149,14 @@ export function CanvasPage(): JSX.Element {
   const [workId, setWorkId] = useState<string | null>(null);
   const [cloudState, setCloudState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [livingOpen, setLivingOpen] = useState(false);
+  const [livingPages, setLivingPages] = useState<LivingPageSummary[] | null>(null);
+  const [livingBusy, setLivingBusy] = useState(false);
+  const [livingMessage, setLivingMessage] = useState<string | null>(null);
+  const [inkReview, setInkReview] = useState<InkReviewState | null>(null);
+  const [inkExpression, setInkExpression] = useState('');
+  const [inkError, setInkError] = useState<string | null>(null);
+  const inkResolve = useRef<((ok: boolean) => void) | null>(null);
   const [histInfo, setHistInfo] = useState({ undo: 0, redo: 0 });
   const spawn = useRef(0);
   const saveTimer = useRef<number | null>(null);
@@ -172,6 +220,11 @@ export function CanvasPage(): JSX.Element {
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
   }, [undo, redo]);
+
+  useEffect(() => () => {
+    inkResolve.current?.(false);
+    inkResolve.current = null;
+  }, []);
 
   /* 指定作品（?work=wk_id / fork 后跳转）：从后端装载 */
   useEffect(() => {
@@ -308,6 +361,130 @@ export function CanvasPage(): JSX.Element {
     }
   }, [doc, workId]);
 
+  const recognizeInk = useCallback(async (strokes: InkStroke[]): Promise<boolean> => {
+    try {
+      const result = await extractInkFormula({
+        strokes: strokes.map((stroke) => ({ points: stroke.points, width: stroke.width })),
+      });
+      if (!result.supported || !result.latex) {
+        window.alert(result.reason || '没有从选中的笔迹中识别出公式。');
+        return false;
+      }
+      inkResolve.current?.(false);
+      const nodeType: InkNodeType = result.node_type ?? (result.expression ? 'functionSource' : 'latexNote');
+      setInkReview({
+        strokes,
+        latex: result.latex,
+        nodeType,
+        expression: result.expression ?? '',
+        matrix: result.matrix ?? undefined,
+        note: result.note,
+      });
+      setInkExpression(result.expression ?? '');
+      setInkError(null);
+      return await new Promise<boolean>((resolve) => { inkResolve.current = resolve; });
+    } catch (cause) {
+      window.alert(`识别失败：${errorMessage(cause)}`);
+      return false;
+    }
+  }, []);
+
+  const cancelInkReview = useCallback(() => {
+    setInkReview(null);
+    setInkError(null);
+    inkResolve.current?.(false);
+    inkResolve.current = null;
+  }, []);
+
+  const materializeInk = useCallback(() => {
+    if (!inkReview) return;
+    const expression = inkExpression.trim();
+    if (inkReview.nodeType === 'functionSource') {
+      if (!expression) {
+        setInkError('函数表达式不能为空。');
+        return;
+      }
+      try {
+        compileExpression(expression, ['x', 'a', 'b', 'c']);
+      } catch (cause) {
+        setInkError(`表达式无法解析：${cause instanceof Error ? cause.message : String(cause)}`);
+        return;
+      }
+    }
+    const points = inkReview.strokes.flatMap((stroke) => stroke.points);
+    const x = clamp(Math.min(...points.map((point) => point[0])), 20, 1300);
+    const y = clamp(Math.max(...points.map((point) => point[1])) + 30, 20, 960);
+    const ids = new Set(inkReview.strokes.map((stroke) => stroke.id));
+    const matrix = inkReview.matrix;
+    const nodeType = inkReview.nodeType === 'matrixSource' && !matrix ? 'latexNote' : inkReview.nodeType;
+    setDoc((previous) => {
+      const nodes = [...previous.nodes];
+      const wires = [...previous.wires];
+      nodes.push({ id: nextId('n'), type: 'latexNote', x, y, params: {}, text: inkReview.latex });
+      if (nodeType === 'functionSource') {
+        const sourceId = nextId('n');
+        nodes.push({ id: sourceId, type: 'functionSource', x, y: y + 170, params: { a: 1, b: 0, c: 0 }, text: expression });
+        const plotId = nextId('n');
+        nodes.push({ id: plotId, type: 'functionPlot', x: x + 320, y: y + 170, params: { min: -5, max: 5, x: 0 } });
+        wires.push({ id: nextId('w'), from: sourceId, to: plotId });
+      } else if (nodeType === 'matrixSource' && matrix) {
+        const sourceId = nextId('n');
+        nodes.push({ id: sourceId, type: 'matrixSource', x, y: y + 170, params: { ...matrix } });
+        const views: { type: NodeType; x: number; y: number }[] = [
+          { type: 'transformView', x: x + 280, y: y + 170 },
+          { type: 'detGauge', x: x + 720, y: y + 170 },
+          { type: 'eigRead', x: x + 720, y: y + 420 },
+          { type: 'squareView', x: x + 280, y: y + 420 },
+        ];
+        for (const view of views) {
+          const id = nextId('n');
+          nodes.push({ id, type: view.type, x: view.x, y: view.y, params: {} });
+          wires.push({ id: nextId('w'), from: sourceId, to: id });
+        }
+      }
+      return { ...previous, nodes, wires, strokes: previous.strokes.filter((stroke) => !ids.has(stroke.id)) };
+    });
+    setInkReview(null);
+    setInkError(null);
+    inkResolve.current?.(true);
+    inkResolve.current = null;
+  }, [inkExpression, inkReview, setDoc]);
+
+  const openLivingPanel = useCallback(async () => {
+    setLivingOpen(true);
+    setLivingMessage(null);
+    setLivingPages(null);
+    try {
+      setLivingPages(await listLivingPages());
+    } catch (cause) {
+      setLivingMessage(errorMessage(cause));
+    }
+  }, []);
+
+  const insertIntoLiving = useCallback(async (pageId: string) => {
+    setLivingBusy(true);
+    setLivingMessage(null);
+    try {
+      const page = await getLivingPage(pageId);
+      const block: PageBlock = {
+        id: `blk_${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16)}`,
+        type: 'canvas',
+        data: { doc: doc as unknown as Record<string, unknown> },
+      };
+      const updated = await patchLivingPage({
+        pageId,
+        expectedRevision: page.revision,
+        blocks: [...page.blocks, block],
+      });
+      setLivingMessage(`已把当前画布快照追加到《${updated.title}》末尾；后续画布编辑不会自动同步。`);
+      setLivingPages(null);
+    } catch (cause) {
+      setLivingMessage(errorMessage(cause));
+    } finally {
+      setLivingBusy(false);
+    }
+  }, [doc]);
+
   return (
     <div className={styles.page}>
       <SiteNav current="canvas" appearance="studio" />
@@ -404,6 +581,9 @@ export function CanvasPage(): JSX.Element {
             存到工坊
           </button>
         ) : null}
+        <button type="button" className={styles.tbtn} onClick={() => void openLivingPanel()} disabled={livingBusy}>
+          插入到活页
+        </button>
         <button
           type="button"
           className={`${styles.tbtn} ${styles.primary}`}
@@ -421,11 +601,71 @@ export function CanvasPage(): JSX.Element {
         </div>
       ) : null}
 
+      {livingOpen ? (
+        <div className={styles.livingPanel} role="dialog" aria-label="插入到活页讲义">
+          <div className={styles.livingPanelHead}>
+            <strong>插入到活页讲义</strong>
+            <span>写入的是当前画布快照；之后的画布编辑不会自动同步。</span>
+          </div>
+          {livingMessage ? <p className={styles.livingMessage} role="status">{livingMessage}</p> : null}
+          <div className={styles.livingList}>
+            {livingPages === null ? <p>正在读取活页…</p> : livingPages.length ? livingPages.map((page) => (
+              <button key={page.page_id} type="button" disabled={livingBusy} onClick={() => void insertIntoLiving(page.page_id)}>
+                <strong>{page.title || '未命名活页'}</strong>
+                <span>{page.block_count} 个块 · 更新于 {page.updated_at.slice(0, 10)}</span>
+              </button>
+            )) : <p>还没有活页；先到 /living 创建一份讲义。</p>}
+          </div>
+          <button
+            type="button"
+            className={styles.tbtn}
+            onClick={() => { setLivingOpen(false); setLivingPages(null); setLivingMessage(null); }}
+          >
+            关闭
+          </button>
+        </div>
+      ) : null}
+
       <div className={styles.hint}>
-        「高数」组：函数源 → 图像 / 极限 / 导数 / 积分 / 泰勒；滑杆可接 x₀，泰勒输出可再接函数图像。「408」组含全题型工作台（覆盖 60 个题型）与二叉树遍历、Cache 地址划分、页面置换和子网划分。<b>框选多个对象 → 封装成积木</b>。拖<span className={styles.hintOut}>红点</span>→<span className={styles.hintIn}>蓝圈</span>连线；Ctrl+滚轮缩放、空格/中键平移、Del 删除、Ctrl+Z 撤销、双击空白加便签。
+        「高数」组：函数源 → 图像 / 极限 / 导数 / 积分 / 泰勒；滑杆可接 x₀，泰勒输出可再接函数图像。「408」组含全题型工作台（覆盖 60 个题型）与二叉树遍历、Cache 地址划分、页面置换和子网划分。<b>框选多个对象 → 封装成积木；用选择工具框选手写算式 → 识别为公式积木</b>。拖<span className={styles.hintOut}>红点</span>→<span className={styles.hintIn}>蓝圈</span>连线；Ctrl+滚轮缩放、空格/中键平移、Del 删除、Ctrl+Z 撤销、双击空白加便签。
       </div>
 
-      <CanvasBoard doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor} onAddNode={addNode} />
+      {inkReview ? (
+        <div className={styles.inkReview} role="dialog" aria-modal="true" aria-label="核对手写识别结果">
+          <div className={styles.inkReviewCard}>
+            <h3>核对手写识别结果</h3>
+            <div className={styles.inkReviewBody}>
+              <InkThumbnail strokes={inkReview.strokes} />
+              <div className={styles.inkReviewMeta}>
+                <span>识别 LaTeX</span>
+                <code>{inkReview.latex}</code>
+                {inkReview.nodeType === 'functionSource' ? (
+                  <label>函数表达式 f(x)
+                    <input
+                      value={inkExpression}
+                      spellCheck={false}
+                      onChange={(event) => { setInkExpression(event.target.value); setInkError(null); }}
+                      aria-label="识别出的函数表达式"
+                    />
+                  </label>
+                ) : inkReview.nodeType === 'matrixSource' && inkReview.matrix ? (
+                  <span>矩阵源：[[{inkReview.matrix.a}, {inkReview.matrix.b}], [{inkReview.matrix.c}, {inkReview.matrix.d}]]</span>
+                ) : (
+                  <span>复杂公式将创建为公式卡（latexNote），不会自动转成函数源。</span>
+                )}
+                {inkReview.note ? <small>{inkReview.note}</small> : null}
+                {inkError ? <p className={styles.inkReviewError} role="alert">{inkError}</p> : null}
+              </div>
+            </div>
+            <div className={styles.inkReviewActions}>
+              <button type="button" className={styles.tbtn} onClick={cancelInkReview}>取消（保留笔迹）</button>
+              <button type="button" className={`${styles.tbtn} ${styles.primary}`} onClick={materializeInk}>生成积木</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <CanvasBoard doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor} onAddNode={addNode} onInkExtract={recognizeInk} />
     </div>
   );
 }

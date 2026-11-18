@@ -147,6 +147,65 @@ function evaluatePieces(model: LabModel, params: Record<string, unknown>): Doubl
   };
 }
 
+export interface SandboxRegionResult {
+  region: { outer: number; lower: number; upper: number }[];
+  slice: { position: number; lower: number; upper: number };
+  approx: number;
+}
+
+/**
+ * 沙盒区域：只用于拖拽探索的本地采样，绝不回写原题条件，也不伪装成内核解析值。
+ * 返回的近似值明确标记为“拖拽区域的中点和”。
+ */
+export function evaluateSandboxRegion(
+  model: LabModel,
+  bounds: [string, string],
+  params: Record<string, unknown> = {},
+): SandboxRegionResult {
+  const outer = model.outer_variable as 'x' | 'y' | undefined;
+  if (!outer || !model.outer_bounds || !model.integrand) throw new Error('当前题目缺少可拖拽的二重积分区域');
+  const scalar = (source: string) => {
+    const value = compileExpression(source, []).evalOrNull({});
+    if (value === null || !Number.isFinite(value)) throw new Error('外层积分限必须是有限常数');
+    return value;
+  };
+  const [a, b] = model.outer_bounds.map(scalar) as [number, number];
+  if (!(a < b)) throw new Error('外层积分区间的顺序不正确');
+  const low = compileExpression(bounds[0], [outer]);
+  const high = compileExpression(bounds[1], [outer]);
+  const integrand = compileExpression(model.integrand, ['x', 'y']);
+  const sample = (q: number) => {
+    const lower = low.evalOrNull({ [outer]: q });
+    const upper = high.evalOrNull({ [outer]: q });
+    if (lower === null || upper === null || !Number.isFinite(lower) || !Number.isFinite(upper)) {
+      throw new Error('拖拽后的边界在当前区间内无法计算');
+    }
+    if (upper < lower - 1e-10) throw new Error('拖拽后上下边界交叉，请调整控制点');
+    return { outer: q, lower, upper };
+  };
+  const nRaw = Number(params.n ?? 20);
+  const n = clamp(Number.isFinite(nRaw) ? Math.round(nRaw) : 20, 4, 80);
+  let approx = 0;
+  for (let i = 0; i < n; i += 1) {
+    const q = a + (i + 0.5) * (b - a) / n;
+    const { lower, upper } = sample(q);
+    for (let j = 0; j < n; j += 1) {
+      const value = integrand.evalOrNull(outer === 'x'
+        ? { x: q, y: lower + (j + 0.5) * (upper - lower) / n }
+        : { x: lower + (j + 0.5) * (upper - lower) / n, y: q });
+      if (value === null || !Number.isFinite(value)) throw new Error('被积函数在拖拽区域内无法计算');
+      approx += value * (upper - lower) * (b - a) / n ** 2;
+    }
+  }
+  const position = clamp(Number(params.slice ?? (a + b) / 2), a, b);
+  const active = sample(position);
+  return {
+    region: Array.from({ length: 121 }, (_, index) => sample(a + index * (b - a) / 120)),
+    slice: { position, lower: active.lower, upper: active.upper },
+    approx,
+  };
+}
+
 function evaluatePolar(model: LabModel, params: Record<string, unknown>): DoubleIntegralResult {
   const polar = model.polar!;
   const scalar = (source: string) => {

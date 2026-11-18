@@ -1113,6 +1113,10 @@
   color: var(--color-fail);
 }
 
+.statusPill[data-status='pending_ai'] { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+.statusPill[data-status='reference'] { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
+
+
 .sourceTabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2449,4 +2453,38 @@ button.formulaBlock {
   font-size: 8.5px;
   line-height: 1.55;
   white-space: pre-wrap;
+}
+
+.aiTranscription {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 12px;
+  background: rgba(239, 246, 255, 0.65);
+}
+
+.aiTranscription > span {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #1d4ed8;
+}
+
+.aiTranscription button {
+  align-self: flex-start;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.aiTranscription small {
+  color: #64748b;
+  font-size: 10px;
 }

@@ -12,6 +12,15 @@ CASES = [
     ('derivative', {'expression':'x^3','variable':'x','point':2}, 'tangent_v1'),
     ('geometric_area', {'expression':'x^2','lower':0,'upper':1,'region_kind':'between_axis'}, 'sympy'),
     ('rotation_volume', {'expression':'x^2','lower':0,'upper':1,'region_kind':'vertical_inequality','rotation_axis':'x'}, 'sympy'),
+    ('rotation_volume', {'expression':'x','lower':0,'upper':1,'region_kind':'between_axis','rotation_axis':'y'}, 'sympy'),
+    ('geometric_area', {'expression':'x','lower_expression':'x^2','lower':0,'upper':1,'region_kind':'between_curves'}, 'sympy'),
+    ('integral_function', {'expression':'sin(t)','lower_expression':'0','upper_expression':'x^2'}, 'integral_function_v1'),
+    ('parametric_derivative', {'x_expression':'t^2','y_expression':'t^3','point':'1','order':1}, 'derivative_extra_v1'),
+    ('implicit_derivative', {'implicit_expression':'x^2+y^2=1','point_x':'0','point_y':'1','order':2}, 'derivative_extra_v1'),
+    ('curvature', {'expression':'x^2','point':'1'}, 'derivative_extra_v1'),
+    ('arc_length', {'expression':'(2/3)*x^(3/2)','lower':'0','upper':'3'}, 'integral_applications_v1'),
+    ('polar_area', {'expression':'1+cos(theta)','lower':'0','upper':'2*pi'}, 'integral_applications_v1'),
+    ('surface_of_revolution', {'expression':'sqrt(x)','lower':'0','upper':'1','rotation_axis':'x'}, 'integral_applications_v1'),
     ('implicit_normal', {'implicit_expression':'x^2+y^2-1','point_x':0,'point_y':1}, 'sympy'),
     ('double_integral', {'integrand':'x+y','outer_variable':'x','outer_bounds':['0','1'],'inner_bounds':['0','x']}, 'double_integral_v1'),
     ('optimization', {'expression':'(x-1)^2+(y+2)^2','variables':['x','y'],'goal':'extrema','bounds':{}}, 'gradient_descent_v1'),
@@ -166,6 +175,8 @@ def test_missing_conditions_raise_explicit_questions_instead_of_teaching_default
     ('optimization',{'expression':'x^2','variables':['x'],'goal':'extrema','bounds':{'x':[2,1]}}),
     ('neural_training',{'layers':[1,1],'activations':['linear'],'weights':[[[2]]],'biases':[[1,2]],
                         'input':[3],'target':[5],'learning_rate':0.01,'epochs':1}),
+    ('rotation_volume',{'expression':'x','lower':-1,'upper':1,'region_kind':'between_axis','rotation_axis':'y'}),
+    ('geometric_area',{'expression':'x','lower':0,'upper':1,'region_kind':'between_curves'}),
 ])
 def test_invalid_or_unconsumed_conditions_never_silently_change_the_model(task,conditions):
     with pytest.raises(ValueError):

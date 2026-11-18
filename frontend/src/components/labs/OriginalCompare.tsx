@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Formula } from '@/components/showcase/Formula';
-import { ProblemText } from './ProblemText';
+import { LabFormula as Formula } from './ProblemText';
+import { MathText, ProblemText, ProblemTitle } from './ProblemText';
+import { conditionValueText } from '@/labs/mathText';
 import type { LabDocument, LabProblem, LabResult } from '@/labs/types';
 import { currentMetrics } from '@/labs/compute';
 import styles from './labs.module.css';
@@ -92,7 +93,7 @@ export function OriginalCompare({
               {page?.image_key ? (
                 <img src={previewUrl(page.image_key)} alt={`第 ${page.page} 页原稿`} />
               ) : page?.text ? (
-                <pre className={styles.originalText}>{page.text}</pre>
+                <ProblemText text={page.text} className={styles.originalText} />
               ) : (
                 <p className={styles.emptyText}>这份来源没有可显示的原页预览；请查看右侧识别条件与题目原文。</p>
               )}
@@ -105,7 +106,7 @@ export function OriginalCompare({
           <section className={styles.modelColumn} aria-label="当前模型">
             <div className={styles.compareColumnHead}>
               <span>当前模型</span>
-              <strong>{problem.title}</strong>
+              <strong><ProblemTitle problem={problem} /></strong>
             </div>
             <div className={styles.modelSummary}>
               <ProblemText text={problem.text} />
@@ -120,21 +121,21 @@ export function OriginalCompare({
               <dl className={styles.compareMetrics}>
                 {metrics.map((item) => (
                   <div key={item.id}>
-                    <dt>{item.label}</dt>
-                    <dd>{item.value}</dd>
+                    <dt><MathText text={item.label} /></dt>
+                    <dd><MathText text={String(item.value)} /></dd>
                   </div>
                 ))}
               </dl>
               <div className={styles.compareAnswer}>
                 <span>当前解答</span>
-                <strong>{problem.solution.answer || result.headline}</strong>
+                <strong><MathText text={problem.solution.answer || result.headline} /></strong>
               </div>
               <div className={styles.compareConditions}>
                 <span>识别条件</span>
                 {problem.recognition.conditions.map((condition) => (
                   <p key={condition.id}>
-                    <b>{condition.label}</b>
-                    <code>{String(condition.value)}</code>
+                    <b><MathText text={condition.label} /></b>
+                    <code><MathText text={conditionValueText(condition.value)} /></code>
                     <em>{condition.provenance === 'original' ? '原题' : condition.provenance === 'supplement' ? '补充' : '推断'}</em>
                   </p>
                 ))}

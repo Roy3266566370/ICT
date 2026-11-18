@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
+import { MathText } from '@/components/labs/ProblemText';
 import { createTextLab, listLabs, uploadLab, type LabUploadFile } from '@/api/labs';
 import { errorMessage } from '@/api/client';
 import type { LabSubject, LabSummary } from '@/labs/types';
@@ -82,10 +83,12 @@ function formatBytes(bytes: number): string {
 }
 
 function statusLabel(status: string, aiVerification?: string | null): string {
+  if (status === 'reference') return '参考解答';
   if (aiVerification === 'kernel') return '内核已计算';
   if (aiVerification === 'ai_reference') return 'AI 参考解答';
   if (aiVerification === 'needs_review') return 'AI 解答待核对';
   if (status === 'ready') return '可求解';
+  if (status === 'pending_ai') return '等待 AI 理解';
   if (status === 'needs_review') return '待核对';
   return '需修正';
 }
@@ -228,11 +231,11 @@ export function LabPage(): JSX.Element {
             </h1>
             <p className={styles.lead}>
               先选择科目与题型，填写公式或题目原文，确认题目后由内核计算，再亲手观察每一步。
-              手动输入开放高数定积分、不定积分、导函数、高阶导数、指定点求导、极限、连续性、函数区间研究、泰勒展开、数项级数敛散性、幂级数收敛域与求和、傅里叶级数、定积分应用、常微分方程、多元微分及多元局部极值与等式约束极值、二重积分（直角坐标分片、极坐标、换序、反常积分、变量代换与密度应用）及三重积分（长方体、z型区域、柱坐标、球坐标）；408 四科可在上方按科目选择题型后填写题目原文；大学物理三批已开放质点运动学、牛顿定律、功与能、动量与碰撞、振动，刚体转动、机械波、静电场、电容与电路、磁场、电磁感应、热学与热力学，以及波动光学、几何光学、近代物理基础；也可继续上传文件识别，或修改通用示例进行学习。
+              手动输入开放高数定积分、不定积分、导函数、高阶导数、指定点求导、反函数导数、参数方程求导、隐函数求导、曲率与曲率半径、极限、已知极限求参数、连续性、变限积分求导、函数区间研究、泰勒展开、数项级数敛散性、幂级数收敛域与求和、傅里叶级数、积分应用（曲线与x轴/两条曲线之间面积、绕x轴或y轴旋转体积、弧长、旋转曲面面积、极坐标面积与弧长）、常微分方程、多元微分及多元局部极值与等式约束极值、二重积分（直角坐标分片、极坐标、换序、反常积分、变量代换与密度应用）及三重积分（长方体、z型区域、柱坐标、球坐标）；408 四科可在上方按科目选择题型后填写题目原文；大学物理三批已开放质点运动学、牛顿定律、功与能、动量与碰撞、振动，刚体转动、机械波、静电场、电容与电路、磁场、电磁感应、热学与热力学，以及波动光学、几何光学、近代物理基础；也可继续上传文件识别，或修改通用示例进行学习。
             </p>
             <div className={styles.heroStats}>
               <span>
-                <strong>22</strong> 类手动高数题
+                <strong>33</strong> 类手动高数题
               </span>
               <span>
                 <strong>4</strong> 科 408 题型
@@ -495,7 +498,7 @@ export function LabPage(): JSX.Element {
                 <Link key={item.lab_id} to={`/labs/${item.lab_id}`} className={styles.recentRow}>
                   <span className={styles.recentSubject}>{SUBJECT_LABELS[item.subject] ?? item.subject}</span>
                   <span>
-                    <strong>{item.title}</strong>
+                    <strong><MathText text={item.title} /></strong>
                     <small>
                       {item.problem_count} 道题 · 更新于 {new Date(item.updated_at).toLocaleString('zh-CN', { hour12: false })}
                     </small>

@@ -76,12 +76,45 @@ def _real_roots(expression: sp.Expr, symbol: sp.Symbol, domain=sp.S.Reals) -> li
 
 def _base(task: str, expression: str, kind='integral') -> dict:
     return dict(engine='sympy', subject='calculus', task=task, kind=kind, variable='x',
-                expression=expression, defaults={}, params=[], teaching=False)
+                expression=expression, defaults={}, params=[], teaching=False,
+                rotation_axis='x')
+
+
+def _strict_roots(expression: sp.Expr, a: sp.Expr, b: sp.Expr) -> list[sp.Expr] | None:
+    roots = _real_roots(expression, X, sp.Interval(a, b))
+    if roots is None:
+        return None
+    return [root for root in roots if bool(root > a) and (b == sp.oo or bool(root < b))]
+
+
+def _interval_sign(expression: sp.Expr, left: sp.Expr, right: sp.Expr) -> int:
+    sample = left + 1 if right == sp.oo else (left + right) / 2
+    value = sp.simplify(expression.subs(X, sample))
+    if value.is_nonnegative is True:
+        return 1
+    if value.is_negative is True:
+        return -1
+    numeric = safe_float(value)
+    if numeric is not None:
+        return 1 if numeric >= 0 else -1
+    raise ValueError('无法确认区间内的符号，不能把积分拆成可核验的分段')
+
+
+def _require_nonnegative(expression: sp.Expr, a: sp.Expr, b: sp.Expr, message: str) -> None:
+    if expression == 0:
+        return
+    roots = _strict_roots(expression, a, b)
+    if roots is None:
+        raise ValueError(message)
+    cuts = [a, *roots, b]
+    for left, right in zip(cuts, cuts[1:]):
+        if _interval_sign(expression, left, right) < 0:
+            raise ValueError(message)
 
 
 def build_exam_math(text: str, source: Mapping[str, Any] | None = None,
                     overrides: Mapping[str, Any] | None = None) -> dict | None:
-    """Compile explicit x-axis regions or an implicit normal into an exam model."""
+    """Compile explicit planar regions or an implicit normal into an exam model."""
     source, overrides = source or {}, dict(overrides or {})
     overrides = {**dict(overrides.get('condition_values') or {}), **overrides}
     for key, value in (overrides.get('ambiguity_answers') or {}).items():
@@ -99,6 +132,8 @@ def build_exam_math(text: str, source: Mapping[str, Any] | None = None,
         return _build_normal(normalized, source, overrides)
     if not ('面积' in normalized or '体积' in normalized or re.search(r'\b(area|volume)\b', normalized, re.I)):
         return None
+    if re.search(r'\by\s*\(\s*x\s*\)|y\s*[\'\u2032]|微分方程|面积最[大小]|最小面积|最大面积|三角形面积', normalized):
+        return None
     if not re.search(r'\by\s*(?:<=|=)', normalized):
         return None
     conditions, ambiguities = [], []
@@ -111,36 +146,68 @@ def build_exam_math(text: str, source: Mapping[str, Any] | None = None,
         expression = _prefix(normalized[match.end():])
     model = _base(task, expression)
     model['requested_quantities'] = (['area'] if area else []) + (['volume'] if volume else [])
+    region_override = str(overrides.get('region_kind') or '')
+    if region_override not in ('between_axis', 'vertical_inequality', 'between_curves'):
+        region_override = ''
+    lower_expression = str(overrides.get('lower_expression') or '')
     try:
         function = _expr(expression)
         model['expression'] = str(function)
         model['formula_tex'] = 'y='+to_latex(function)
-        conditions.append(_condition('expression', '区域边界函数', str(function), source))
+        conditions.append(_condition('expression', '区域上边界函数' if region_override == 'between_curves' else '区域边界函数', str(function), source))
     except (ExprError, ValueError):
         ambiguities.append(_ambiguity('expression', '请确认区域上边界 y=f(x) 的完整表达式。'))
         return _built(model, conditions, ambiguities)
-    if volume and not re.search(r'(?:绕|about)\s*(?:the\s*)?x\s*(?:轴|axis)', normalized, re.I):
-        ambiguities.append(_ambiguity('rotation_axis', '请确认旋转轴；当前确定性内核支持绕 x 轴的圆盘法。'))
-    y_lower_bounds = []
-    for lower_match in re.finditer(r'('+_MATH+r')<=\s*y\b', normalized):
-        y_lower_bounds.append(lower_match.group(1).strip().lstrip('{').strip())
-    for lower_match in re.finditer(r'\by\s*>=\s*', normalized):
-        y_lower_bounds.append(_prefix(normalized[lower_match.end():]))
-    for lower_boundary in y_lower_bounds:
+    if volume:
+        x_axis = re.search(r'(?:绕|about)\s*(?:the\s*)?x\s*(?:轴|axis)', normalized, re.I)
+        y_axis = re.search(r'(?:绕|about)\s*(?:the\s*)?y\s*(?:轴|axis)', normalized, re.I)
+        general_axis = re.search(r'(?:绕|about)\s*(?:the\s*)?(?:直线\s*)?[xy]\s*=', normalized)
+        axis = str(overrides.get('rotation_axis') or '')
+        if general_axis:
+            ambiguities.append(_ambiguity('rotation_axis', '当前确定性内核只支持绕坐标轴旋转；绕 x=a 或 y=b 等一般直线暂不支持，不能替换成坐标轴。'))
+            model['rotation_axis'] = ''
+        elif axis not in ('x', 'y'):
+            axis = 'x' if x_axis and not y_axis else 'y' if y_axis and not x_axis else ''
+            if axis:
+                model['rotation_axis'] = axis
+            else:
+                ambiguities.append(_ambiguity('rotation_axis', '请确认旋转轴；当前确定性内核支持绕 x 轴（圆盘/圆环法）与绕 y 轴（壳层法）。'))
+        else:
+            model['rotation_axis'] = axis
+    if region_override == 'between_curves':
+        model['region_kind'] = 'between_curves'
+        model['lower_expression'] = lower_expression
         try:
-            if sp.simplify(_expr(lower_boundary)) != 0:
-                raise ExprError('暂不支持非零区域下边界')
+            lower_function = _expr(lower_expression)
+            model['lower_expression'] = str(lower_function)
+            conditions.append(_condition('lower_expression', '区域下边界函数', str(lower_function), source))
+            if sp.simplify(lower_function-function) == 0:
+                ambiguities.append(_ambiguity('region', '上下边界函数完全相同，区域为零面积；请核对完整边界。'))
         except (ExprError, ValueError):
-            ambiguities.append(_ambiguity('region', '区域下边界不是已确认的 y=0，请核对完整边界。'))
-            break
-    explicit_inequality = bool(y_lower_bounds) and bool(re.search(r'\by\s*<=',normalized))
-    model['region_kind'] = 'vertical_inequality' if explicit_inequality else 'between_axis'
-    if re.search(r'\by\s*<=',normalized) and not y_lower_bounds:
-        ambiguities.append(_ambiguity('region','不等式区域缺少 y 的下边界，请核对完整区域。'))
-    if not y_lower_bounds and not re.search(r'x\s*(?:轴|axis)',normalized,re.I):
-        ambiguities.append(_ambiguity('region','请确认完整区域边界；当前支持函数与 x 轴之间的区域。'))
-    if len(re.findall(r'\by\s*=',normalized))>1:
-        ambiguities.append(_ambiguity('region','存在多条函数边界，请核对区域；不能自动按 x 轴替代其他边界。'))
+            ambiguities.append(_ambiguity('region', '请确认区域下边界 y=g(x) 的完整表达式。'))
+    elif region_override:
+        model['region_kind'] = region_override
+    else:
+        y_lower_bounds = []
+        for lower_match in re.finditer(r'('+_MATH+r')<=\s*y\b', normalized):
+            y_lower_bounds.append(lower_match.group(1).strip().lstrip('{').strip())
+        for lower_match in re.finditer(r'\by\s*>=\s*', normalized):
+            y_lower_bounds.append(_prefix(normalized[lower_match.end():]))
+        for lower_boundary in y_lower_bounds:
+            try:
+                if sp.simplify(_expr(lower_boundary)) != 0:
+                    raise ExprError('暂不支持非零区域下边界')
+            except (ExprError, ValueError):
+                ambiguities.append(_ambiguity('region', '区域下边界不是已确认的 y=0，请核对完整边界。'))
+                break
+        explicit_inequality = bool(y_lower_bounds) and bool(re.search(r'\by\s*<=', normalized))
+        model['region_kind'] = 'vertical_inequality' if explicit_inequality else 'between_axis'
+        if re.search(r'\by\s*<=', normalized) and not y_lower_bounds:
+            ambiguities.append(_ambiguity('region', '不等式区域缺少 y 的下边界，请核对完整区域。'))
+        if not y_lower_bounds and not re.search(r'x\s*(?:轴|axis)', normalized, re.I):
+            ambiguities.append(_ambiguity('region', '请确认完整区域边界；当前支持函数与 x 轴之间的区域。'))
+        if len(re.findall(r'\by\s*=', normalized)) > 1:
+            ambiguities.append(_ambiguity('region', '存在多条函数边界，请核对区域；不能自动按 x 轴替代其他边界。'))
     lower, upper = overrides.get('lower'), overrides.get('upper')
     chained = re.search(r'([^,，{}|;；\n]+?)<=\s*x\s*<=\s*([^,，};；\n]+)', normalized)
     lower_match = re.search(r'\bx\s*>=\s*', normalized)
@@ -178,7 +245,12 @@ def build_exam_math(text: str, source: Mapping[str, Any] | None = None,
             conditions.extend([_condition('lower', '积分下界', str(a), source),
                                _condition('upper', '积分上界', '+∞' if b == sp.oo else str(b), source)])
             model['params'] = [dict(id='n', label='分割数', kind='number', min=2, max=80, step=1, options=[])]
-            if 'boundary_roots' not in model:
+            if model['region_kind'] == 'between_curves' and model.get('lower_expression'):
+                difference = sp.simplify(function - _expr(model['lower_expression']))
+                roots = _strict_roots(difference, a, b)
+                model['boundary_roots'] = [str(v) for v in (roots or [])]
+                model['boundary_roots_complete'] = roots is not None
+            elif 'boundary_roots' not in model:
                 roots = [] if function == 0 else _real_roots(function, X, sp.Interval(a,b))
                 model['boundary_roots'] = [str(v) for v in (roots or []) if bool(v > a) and (b == sp.oo or bool(v < b))]
                 model['boundary_roots_complete'] = roots is not None
@@ -188,10 +260,14 @@ def build_exam_math(text: str, source: Mapping[str, Any] | None = None,
             ambiguities.append(_ambiguity('bounds', '积分区间无法确认，请提供实数上下界。'))
     if not ambiguities:
         try:
-            if explicit_inequality:
+            if model['region_kind'] == 'vertical_inequality':
                 model['effective_intervals'] = _positive_intervals(model)
             model['reference_quantities'] = _quantities(model)
-        except (ValueError, TypeError, NotImplementedError):
+        except ValueError as exc:
+            message = str(exc)
+            specific = message.startswith(('绕 y 轴', '两曲线之间', '无法证明', '符号积分'))
+            ambiguities.append(_ambiguity('integral', message if specific else '积分未收敛到有限值或符号求解未完成，请核对函数与区间。'))
+        except (TypeError, NotImplementedError):
             ambiguities.append(_ambiguity('integral','积分未收敛到有限值或符号求解未完成，请核对函数与区间。'))
     return _built(model, conditions, ambiguities)
 
@@ -297,20 +373,64 @@ def _quantities(model: Mapping) -> list[dict]:
     if model.get('reference_quantities'):
         return list(model['reference_quantities'])
     function = _expr(str(model['expression']))
+    lower_function = _expr(str(model['lower_expression'])) if model.get('lower_expression') else None
     a, b = _bound(str(model['lower_bound'])), _bound(str(model['upper_bound']))
-    roots = [_bound(v) for v in model.get('boundary_roots', [])]
-    cuts = [a]+[r for r in roots if bool(r>a) and (b == sp.oo or bool(r<b))]+[b]
-    cuts = sorted(set(cuts), key=lambda v: float(v))
-    intervals = [(_bound(left),_bound(right)) for left,right in model['effective_intervals']] if 'effective_intervals' in model else list(zip(cuts,cuts[1:]))
+    region = str(model.get('region_kind') or 'between_axis')
+    axis = str(model.get('rotation_axis') or 'x')
+    wants_volume = 'volume' in (model.get('requested_quantities') or [])
+    if region == 'vertical_inequality':
+        raw_intervals = model.get('effective_intervals')
+        if raw_intervals is None:
+            raw_intervals = _positive_intervals(model)
+        intervals = [(_bound(left), _bound(right)) for left, right in raw_intervals]
+    else:
+        difference = function if region == 'between_axis' else sp.simplify(function - lower_function)
+        roots = _strict_roots(difference, a, b)
+        if roots is None:
+            raise ValueError('无法证明全部零点，不能确定完整积分分段')
+        cuts = sorted([a, *roots, b], key=lambda value: float(value))
+        intervals = list(zip(cuts, cuts[1:]))
+    if wants_volume and axis == 'y' and bool(a < 0) and bool(b > 0):
+        raise ValueError('绕 y 轴旋转要求区域完全位于 y 轴一侧；跨 y 轴的区域折叠后不能直接按壳层法累加，请拆分区域或更换旋转轴')
+    if wants_volume and axis == 'x' and region == 'between_curves':
+        _require_nonnegative(function, a, b, '两曲线之间的区域绕 x 轴旋转要求上边界 f(x)≥0')
+        _require_nonnegative(lower_function, a, b, '两曲线之间的区域绕 x 轴旋转要求下边界 g(x)≥0；区域跨越 x 轴时圆环法不适用')
     result = []
     for quantity in model['requested_quantities']:
-        integrand = function**2*sp.pi if quantity == 'volume' else function
-        if quantity == 'area' and model.get('boundary_roots_complete') is False:
-            raise ValueError('无法证明分段零点的完整性')
-        pieces = [sp.integrate(integrand, (X, left, right)) for left,right in intervals]
-        exact = sp.simplify(sum(pieces) if quantity == 'volume' else sum(sp.Abs(v) for v in pieces))
-        if exact.has(sp.Integral):
-            raise ValueError('符号积分未完成，不能把未验证的数值积分作为原题答案')
+        pieces = []
+        for left, right in intervals:
+            if quantity == 'area':
+                if region == 'between_axis':
+                    sign = _interval_sign(function, left, right)
+                    value = sign * sp.integrate(function, (X, left, right))
+                elif region == 'vertical_inequality':
+                    value = sp.integrate(function, (X, left, right))
+                else:
+                    difference = sp.simplify(function - lower_function)
+                    sign = _interval_sign(difference, left, right)
+                    value = sign * sp.integrate(difference, (X, left, right))
+            elif axis == 'y':
+                radius = X if not bool(a < 0) else -X
+                if region == 'between_axis':
+                    sign = _interval_sign(function, left, right)
+                    height = sign * function
+                elif region == 'vertical_inequality':
+                    height = function
+                else:
+                    difference = sp.simplify(function - lower_function)
+                    sign = _interval_sign(difference, left, right)
+                    height = sign * difference
+                value = 2 * sp.pi * sp.integrate(radius * height, (X, left, right))
+            elif region == 'between_curves':
+                difference = sp.simplify(function - lower_function)
+                sign = _interval_sign(difference, left, right)
+                value = sp.pi * sign * sp.integrate(function**2 - lower_function**2, (X, left, right))
+            else:
+                value = sp.pi * sp.integrate(function**2, (X, left, right))
+            if value.has(sp.Integral):
+                raise ValueError('符号积分未完成，不能把未验证的数值积分作为原题答案')
+            pieces.append(value)
+        exact = sp.simplify(sum(pieces))
         value = safe_float(exact)
         if value is None:
             raise ValueError('该广义积分未收敛到有限值或未能完成解析计算')
@@ -346,14 +466,48 @@ def solve_exam_math(model: Mapping[str, Any]) -> dict | None:
     quantities = _quantities(model)
     a,b = _bound(str(model['lower_bound'])),_bound(str(model['upper_bound']))
     function = _expr(str(model['expression']))
+    lower_function = _expr(str(model['lower_expression'])) if model.get('lower_expression') else None
+    region = str(model.get('region_kind') or 'between_axis')
+    axis = str(model.get('rotation_axis') or 'x')
+    if region == 'between_curves':
+        region_step = dict(id='region', title='确定两曲线与分段点',
+                           latex=f'y={to_latex(function)},\\quad y={to_latex(lower_function)},\\quad x\\in[{to_latex(a)},{to_latex(b)}]',
+                           detail='两曲线交点用于分段；每段取上、下边界之差，避免正负抵消。')
+    else:
+        region_step = dict(id='region', title='确定区域与分段点',
+                           latex=f'y={to_latex(function)},\\quad x\\in[{to_latex(a)},{to_latex(b)}]',
+                           detail='不等式区域仅保留 f(x)≥0 的非空纤维。' if region == 'vertical_inequality' else '与 x 轴的全部实交点用于分段，几何面积逐段取绝对值。')
+    steps = [region_step]
+    for q in quantities:
+        is_area = q['id'] == 'area'
+        if is_area:
+            if region == 'between_curves':
+                formula = r'S=\int |f(x)-g(x)|\,dx='
+            elif region == 'vertical_inequality':
+                formula = r'S=\int \max(f(x),0)\,dx='
+            else:
+                formula = r'S=\int |f(x)|\,dx='
+        elif axis == 'y':
+            height = '|f(x)|' if region == 'between_axis' else 'f(x)' if region == 'vertical_inequality' else '|f(x)-g(x)|'
+            formula = rf'V=2\pi\int |x|\cdot {height}\,dx='
+        elif region == 'between_curves':
+            formula = r'V=\pi\int |f(x)^2-g(x)^2|\,dx='
+        elif region == 'vertical_inequality':
+            formula = r'V=\pi\int \max(f(x),0)^2\,dx='
+        else:
+            formula = r'V=\pi\int f(x)^2\,dx='
+        steps.append(dict(id=q['id'], title=q['label'], latex=formula+q['latex'],
+                          detail=q['label']+'解析值为 '+q['exact']))
+    conditions = []
+    if axis == 'y' and 'volume' in (model.get('requested_quantities') or []):
+        conditions.append('旋转轴为 y 轴，采用壳层法：体积元为 2π|x|·高度·dx；区域必须位于 y 轴一侧。')
+    if model.get('improper_upper'):
+        conditions.append('图形截断展示与原题广义积分分别标注。')
     return dict(summary='按完整区域边界计算几何面积与题目要求的旋转体积。',
                 answer='；'.join(q['label']+' = '+q['exact'] for q in quantities),
                 answer_value=quantities[0]['value'], exact=quantities[0]['exact'],
                 approx=number_text(quantities[0]['value'],10), quantities=quantities, exact_latex=quantities[0]['latex'],
-                steps=[dict(id='region',title='确定区域与分段点',latex=f'y={to_latex(function)},\\quad x\\in[{to_latex(a)},{to_latex(b)}]',detail='不等式区域仅保留 f(x)≥0 的非空纤维。' if model.get('region_kind')=='vertical_inequality' else '与 x 轴的全部实交点用于分段，几何面积逐段取绝对值。')]+
-                      [dict(id=q['id'],title=q['label'],latex=((r'S=\int \max(f(x),0)\,dx=' if q['id']=='area' else r'V=\pi\int \max(f(x),0)^2\,dx=') if model.get('region_kind')=='vertical_inequality' else (r'S=\int |f(x)|\,dx=' if q['id']=='area' else r'V=\pi\int f(x)^2\,dx='))+q['latex'],detail=q['label']+'解析值为 '+q['exact']) for q in quantities],
-                conditions=['旋转轴为 x 轴；图形截断展示与原题广义积分分别标注。'] if model.get('improper_upper') else [],
-                limitations=[])
+                steps=steps, conditions=conditions, limitations=[])
 
 
 def evaluate_exam_math(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict | None:
@@ -363,37 +517,80 @@ def evaluate_exam_math(model: Mapping[str, Any], params: Mapping[str, Any]) -> d
     if model['task'] == 'implicit_normal':
         return _normal_evaluate(model, params, solution)
     function = _expr(str(model['expression']))
+    lower_function = _expr(str(model['lower_expression'])) if model.get('lower_expression') else None
     a = float(model['defaults']['lower'])
     b = float(model['defaults']['upper'])
     n = max(2,min(80,int(params.get('n',16))))
+    region = str(model.get('region_kind') or 'between_axis')
+    axis = str(model.get('rotation_axis') or 'x')
     func = sp.lambdify(X,function,'math')
+    lower_func = sp.lambdify(X,lower_function,'math') if lower_function is not None else None
     def evaluate(x):
         try:
             value=float(func(x))
-            if model.get('region_kind') == 'vertical_inequality' and value < 0:
+            if region == 'vertical_inequality' and value < 0:
                 return None
             return value if math.isfinite(value) else None
         except (ValueError,ZeroDivisionError,OverflowError):
             return None
+    def evaluate_lower(x):
+        if lower_func is None:
+            return None
+        try:
+            value=float(lower_func(x))
+            return value if math.isfinite(value) else None
+        except (ValueError,ZeroDivisionError,OverflowError):
+            return None
     series=[dict(x=a+(b-a)*i/259,y=evaluate(a+(b-a)*i/259)) for i in range(260)]
+    lower_series = ([dict(x=a+(b-a)*i/259,y=evaluate_lower(a+(b-a)*i/259)) for i in range(260)]
+                    if lower_func is not None else None)
     rects=[]
     for i in range(n):
         x0,x1=a+(b-a)*i/n,a+(b-a)*(i+1)/n
         mid=(x0+x1)/2
-        height=evaluate(mid)
-        rects.append(dict(x0=x0,x1=x1,mid=mid,height=height if height is not None else 0))
+        upper_value=evaluate(mid)
+        lower_value=evaluate_lower(mid)
+        if lower_func is not None:
+            candidates=[v for v in (upper_value,lower_value) if v is not None]
+            top=max(candidates) if candidates else 0.0
+            base=min(candidates) if candidates else 0.0
+        else:
+            top=upper_value if upper_value is not None else 0.0
+            base=0.0
+        rects.append(dict(x0=x0,x1=x1,mid=mid,height=top,base=base))
     quantities=solution['quantities']
     volume_preview = quantities[0]['id'] == 'volume'
-    approximation=sum((math.pi*r['height']**2 if volume_preview else abs(r['height']))*(r['x1']-r['x0']) for r in rects)
-    notes=['曲线与矩形展示几何区域；面积逐段取绝对值，旋转体积使用 πf(x)²。']
+    def piece(rect):
+        width=rect['x1']-rect['x0']
+        if not volume_preview:
+            return abs(rect['height']-rect['base'])*width
+        if axis == 'y':
+            return 2*math.pi*abs(rect['mid'])*(rect['height']-rect['base'])*width
+        if lower_func is not None:
+            return math.pi*abs(rect['height']**2-rect['base']**2)*width
+        return math.pi*rect['height']**2*width
+    approximation=sum(piece(rect) for rect in rects)
+    notes=['曲线与矩形展示几何区域；面积逐段取绝对值。']
+    if volume_preview and axis == 'y':
+        notes.append('旋转体积使用壳层法 2π|x|·高度：矩形高度是到边界的距离，半径是到 y 轴的距离。')
+    elif volume_preview and lower_func is not None:
+        notes.append('旋转体积使用圆环法 π(f²-g²)；两曲线之间区域按交点分段。')
+    elif volume_preview:
+        notes.append('旋转体积使用圆盘法 πf(x)²。')
+    if region == 'between_curves':
+        notes.append('区域为两曲线之间，按交点分段后取上、下边界之差；不把其中一条边界替换成 x 轴。')
     if model.get('improper_upper'):
         notes.append(f'原题上界为 +∞，图形及矩形在 x={b:g} 截断；指标仍为原题广义积分的完整解析值。')
-    return dict(subject='calculus',kind='integral',headline=solution['answer'],
+    result = dict(subject='calculus',kind='integral',headline=solution['answer'],
                 metrics=[dict(id=q['id'],label=q['label']+'解析值',value=number_text(q['value'],10)) for q in quantities],
                 checks=[],notes=notes,trace=[dict(index=i,label=q['label'],detail=q['exact'],values={q['id']:q['value']}) for i,q in enumerate(quantities)],
                 series=series,domain=dict(x_min=a,x_max=b),rects=rects,
                 exact=quantities[0]['value'],approx=approximation,error=abs(approximation-quantities[0]['value']),
-                answerText=solution['answer'],quantities=quantities)
+                answerText=solution['answer'],quantities=quantities,rotation_axis=axis,region_kind=region)
+    if lower_series is not None:
+        result['lowerSeries']=lower_series
+        result['lowerExpression']=str(lower_function)
+    return result
 
 
 def _normal_evaluate(model: Mapping, params: Mapping, solution: Mapping) -> dict:

@@ -265,5 +265,6 @@ export const COMMAND_EXAMPLES: Record<LabSubject, string[]> = {
   computer_organization: ['下一步', '完整讲解'],
   computer_network: ['下一步', '完整讲解'],
   physics: ['下一步', '完整讲解'],
+  general: ['下一步', '完整讲解'],
   unknown: ['下一步', '完整讲解'],
 };

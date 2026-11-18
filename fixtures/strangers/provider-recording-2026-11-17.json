@@ -1,0 +1,1484 @@
+{
+  "fixtures": "..\\fixtures\\strangers\\provider-cases.json",
+  "total": 10,
+  "status_ok": 10,
+  "status_ratio": 1.0,
+  "ready_ratio": 0.9,
+  "answer_ok": 0,
+  "answer_total": 0,
+  "answer_ratio": null,
+  "reason_codes": {
+    "NO_TASK_MATCH": 8,
+    "OCR_GARBLED": 5,
+    "KERNEL_ERROR": 1,
+    "AI_CHOSE_NONE": 2
+  },
+  "rows": [
+    {
+      "id": "probability",
+      "tags": [],
+      "status": "ready",
+      "subject": "unknown",
+      "engine": "generic_v1",
+      "answer": "3/10（R*(R - 1)/((R + W)*(R + W - 1))）",
+      "ai_verification": "kernel",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "ok",
+          "detail": "文字质量可用于本地识别"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 unknown，置信度 0.30"
+        },
+        {
+          "stage": "ai_read",
+          "status": "ok",
+          "detail": "两步流程已完成读题；按读题结果建模。"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 17000
+        },
+        {
+          "stage": "kernel",
+          "status": "ok",
+          "detail": "内核完成计算并通过独立核验。",
+          "ms": 1031
+        },
+        {
+          "stage": "attach",
+          "status": "ok",
+          "detail": "内核模型已附到题目并进入就绪状态。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "generic",
+          "subject": "general",
+          "symbols": [],
+          "constants": [
+            {
+              "name": "R",
+              "label": "红球数",
+              "value": 3
+            },
+            {
+              "name": "W",
+              "label": "白球数",
+              "value": 2
+            }
+          ],
+          "steps": [
+            {
+              "id": "s1",
+              "op": "evaluate",
+              "label": "两个球都是红球的概率",
+              "expr": "(R/(R+W))*((R-1)/(R+W-1))"
+            }
+          ],
+          "target": {
+            "step": "s1",
+            "label": "两个球都是红球的概率"
+          }
+        },
+        "question": "一个袋中有3个红球和2个白球。不放回地随机取出2个球，求两个球都是红球的概率。",
+        "conditions": [
+          {
+            "value": "袋中有3个红球和2个白球",
+            "excerpt": "一个袋中有3个红球和2个白球。"
+          },
+          {
+            "value": "不放回地随机取出2个球",
+            "excerpt": "不放回地随机取出2个球"
+          }
+        ],
+        "interpretation": "两个球都是红球的概率",
+        "missing_conditions": [],
+        "_staged_read": true
+      },
+      "model_attempts": [
+        {
+          "model": {
+            "kind": "generic",
+            "subject": "general",
+            "symbols": [],
+            "constants": [
+              {
+                "name": "R",
+                "label": "红球数",
+                "value": 3
+              },
+              {
+                "name": "W",
+                "label": "白球数",
+                "value": 2
+              }
+            ],
+            "steps": [
+              {
+                "id": "s1",
+                "op": "evaluate",
+                "label": "两个球都是红球的概率",
+                "expr": "(R/(R+W))*((R-1)/(R+W-1))"
+              }
+            ],
+            "target": {
+              "step": "s1",
+              "label": "两个球都是红球的概率"
+            }
+          },
+          "status": "ok"
+        }
+      ],
+      "elapsed_s": 19.45
+    },
+    {
+      "id": "arithmetic",
+      "tags": [],
+      "status": "ready",
+      "subject": "unknown",
+      "engine": "generic_v1",
+      "answer": "820（n*(2*a1 + d*(n - 1))/2）",
+      "ai_verification": "kernel",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "ok",
+          "detail": "文字质量可用于本地识别"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 unknown，置信度 0.30"
+        },
+        {
+          "stage": "ai_read",
+          "status": "ok",
+          "detail": "两步流程已完成读题；按读题结果建模。"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 13921
+        },
+        {
+          "stage": "kernel",
+          "status": "ok",
+          "detail": "内核完成计算并通过独立核验。",
+          "ms": 735
+        },
+        {
+          "stage": "attach",
+          "status": "ok",
+          "detail": "内核模型已附到题目并进入就绪状态。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "generic",
+          "subject": "general",
+          "symbols": [],
+          "constants": [
+            {
+              "name": "a1",
+              "label": "等差数列首项",
+              "value": 3,
+              "source": "首项为3"
+            },
+            {
+              "name": "d",
+              "label": "等差数列公差",
+              "value": 4,
+              "source": "公差为4"
+            },
+            {
+              "name": "n",
+              "label": "项数",
+              "value": 20,
+              "source": "前20项"
+            }
+          ],
+          "steps": [
+            {
+              "id": "s1",
+              "op": "evaluate",
+              "label": "等差数列前n项和",
+              "title": "代入前n项和公式",
+              "expr": "n/2*(2*a1+(n-1)*d)"
+            }
+          ],
+          "target": {
+            "step": "s1",
+            "label": "前20项的和"
+          }
+        },
+        "answer": "",
+        "steps": [
+          {
+            "title": "识别数列类型与条件",
+            "detail": "题目给出等差数列，首项 a1=3，公差 d=4，要求前 n=20 项的和。"
+          },
+          {
+            "title": "选用前n项和公式",
+            "detail": "等差数列前 n 项和公式为 Sn = n/2·[2a1+(n-1)d]，把 a1、d、n 代入即可。"
+          },
+          {
+            "title": "由内核计算",
+            "detail": "计算 20/2·[2×3+(20-1)×4]，内核求值得到最终结果。"
+          }
+        ],
+        "question": "等差数列首项为3，公差为4，求前20项的和。",
+        "conditions": [
+          {
+            "value": "首项为3",
+            "excerpt": "首项为3"
+          },
+          {
+            "value": "公差为4",
+            "excerpt": "公差为4"
+          },
+          {
+            "value": "前20项",
+            "excerpt": "前20项"
+          }
+        ],
+        "interpretation": "前20项的和",
+        "missing_conditions": [],
+        "_staged_read": true
+      },
+      "model_attempts": [
+        {
+          "model": {
+            "kind": "generic",
+            "subject": "general",
+            "symbols": [],
+            "constants": [
+              {
+                "name": "a1",
+                "label": "等差数列首项",
+                "value": 3,
+                "source": "首项为3"
+              },
+              {
+                "name": "d",
+                "label": "等差数列公差",
+                "value": 4,
+                "source": "公差为4"
+              },
+              {
+                "name": "n",
+                "label": "项数",
+                "value": 20,
+                "source": "前20项"
+              }
+            ],
+            "steps": [
+              {
+                "id": "s1",
+                "op": "evaluate",
+                "label": "等差数列前n项和",
+                "title": "代入前n项和公式",
+                "expr": "n/2*(2*a1+(n-1)*d)"
+              }
+            ],
+            "target": {
+              "step": "s1",
+              "label": "前20项的和"
+            }
+          },
+          "status": "ok"
+        }
+      ],
+      "elapsed_s": 14.81
+    },
+    {
+      "id": "inequality",
+      "tags": [],
+      "status": "ready",
+      "subject": "unknown",
+      "engine": "generic_v1",
+      "answer": "x ∈ Interval.open(4, oo)",
+      "ai_verification": "kernel",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "ok",
+          "detail": "文字质量可用于本地识别"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 unknown，置信度 0.30"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 14125
+        },
+        {
+          "stage": "kernel",
+          "status": "ok",
+          "detail": "内核完成计算并通过独立核验。",
+          "ms": 811
+        },
+        {
+          "stage": "attach",
+          "status": "ok",
+          "detail": "内核模型已附到题目并进入就绪状态。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "generic",
+          "subject": "calculus",
+          "symbols": [
+            {
+              "name": "x",
+              "role": "unknown",
+              "domain": "real"
+            }
+          ],
+          "constants": [],
+          "steps": [
+            {
+              "id": "s1",
+              "op": "inequality",
+              "var": "x",
+              "left": "2*x-3",
+              "right": "5",
+              "relation": ">"
+            }
+          ],
+          "target": {
+            "step": "s1",
+            "label": "不等式的解集"
+          }
+        },
+        "answer": "x>4，即解集为 (4, +∞)。",
+        "steps": [
+          {
+            "title": "移项",
+            "detail": "由 2x-3>5 两边加 3，得 2x>8。"
+          },
+          {
+            "title": "系数化为 1",
+            "detail": "两边除以正数 2，不等号方向不变，得 x>4。"
+          },
+          {
+            "title": "写出解集",
+            "detail": "解集为 {x | x>4}，即区间 (4, +∞)。"
+          }
+        ],
+        "limitations": []
+      },
+      "model_attempts": [
+        {
+          "model": {
+            "kind": "generic",
+            "subject": "calculus",
+            "symbols": [
+              {
+                "name": "x",
+                "role": "unknown",
+                "domain": "real"
+              }
+            ],
+            "constants": [],
+            "steps": [
+              {
+                "id": "s1",
+                "op": "inequality",
+                "var": "x",
+                "left": "2*x-3",
+                "right": "5",
+                "relation": ">"
+              }
+            ],
+            "target": {
+              "step": "s1",
+              "label": "不等式的解集"
+            }
+          },
+          "status": "ok"
+        }
+      ],
+      "elapsed_s": 15.0
+    },
+    {
+      "id": "physics",
+      "tags": [],
+      "status": "ready",
+      "subject": "physics",
+      "engine": "generic_v1",
+      "answer": "11（a*t + v0）",
+      "ai_verification": "kernel",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "ok",
+          "detail": "文字质量可用于本地识别"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 physics，置信度 0.83"
+        },
+        {
+          "stage": "local_build",
+          "status": "ok",
+          "detail": "本地模型引擎：physics_v1"
+        },
+        {
+          "stage": "ai_read",
+          "status": "ok",
+          "detail": "两步流程已完成读题；按读题结果建模。"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 16203
+        },
+        {
+          "stage": "kernel",
+          "status": "ok",
+          "detail": "内核完成计算并通过独立核验。",
+          "ms": 750
+        },
+        {
+          "stage": "attach",
+          "status": "ok",
+          "detail": "内核模型已附到题目并进入就绪状态。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "generic",
+          "subject": "physics",
+          "symbols": [],
+          "constants": [
+            {
+              "name": "v0",
+              "label": "初速度 v0（米每秒）",
+              "value": 5,
+              "source": "物体初速度v0=5米每秒"
+            },
+            {
+              "name": "a",
+              "label": "加速度 a（米每二次方秒）",
+              "value": 2,
+              "source": "加速度a=2米每二次方秒"
+            },
+            {
+              "name": "t",
+              "label": "时间 t（秒）",
+              "value": 3,
+              "source": "t=3秒"
+            }
+          ],
+          "steps": [
+            {
+              "id": "s1",
+              "op": "evaluate",
+              "label": "代入匀加速直线运动速度公式求v",
+              "expr": "v0+a*t"
+            }
+          ],
+          "target": {
+            "step": "s1",
+            "label": "t=3秒后的速度v"
+          }
+        },
+        "answer": "11 m/s",
+        "steps": [
+          {
+            "title": "确定已知量",
+            "detail": "初速度 v0=5 m/s，加速度 a=2 m/s²，时间 t=3 s。"
+          },
+          {
+            "title": "代入公式计算",
+            "detail": "v=v0+a*t=5+2×3=11 m/s。"
+          }
+        ],
+        "question": "物体初速度v0=5米每秒，加速度a=2米每二次方秒，做匀加速直线运动。求t=3秒后的速度v，使用v=v0+a*t。",
+        "conditions": [
+          {
+            "value": "初速度v0=5米每秒",
+            "excerpt": "物体初速度v0=5米每秒"
+          },
+          {
+            "value": "加速度a=2米每二次方秒",
+            "excerpt": "加速度a=2米每二次方秒"
+          },
+          {
+            "value": "做匀加速直线运动",
+            "excerpt": "做匀加速直线运动"
+          },
+          {
+            "value": "t=3秒",
+            "excerpt": "t=3秒"
+          },
+          {
+            "value": "使用v=v0+a*t",
+            "excerpt": "使用v=v0+a*t"
+          }
+        ],
+        "interpretation": "t=3秒后的速度v",
+        "missing_conditions": [],
+        "_staged_read": true
+      },
+      "model_attempts": [
+        {
+          "model": {
+            "kind": "generic",
+            "subject": "physics",
+            "symbols": [],
+            "constants": [
+              {
+                "name": "v0",
+                "label": "初速度 v0（米每秒）",
+                "value": 5,
+                "source": "物体初速度v0=5米每秒"
+              },
+              {
+                "name": "a",
+                "label": "加速度 a（米每二次方秒）",
+                "value": 2,
+                "source": "加速度a=2米每二次方秒"
+              },
+              {
+                "name": "t",
+                "label": "时间 t（秒）",
+                "value": 3,
+                "source": "t=3秒"
+              }
+            ],
+            "steps": [
+              {
+                "id": "s1",
+                "op": "evaluate",
+                "label": "代入匀加速直线运动速度公式求v",
+                "expr": "v0+a*t"
+              }
+            ],
+            "target": {
+              "step": "s1",
+              "label": "t=3秒后的速度v"
+            }
+          },
+          "status": "ok"
+        }
+      ],
+      "elapsed_s": 17.02
+    },
+    {
+      "id": "logarithm",
+      "tags": [],
+      "status": "ready",
+      "subject": "unknown",
+      "engine": "generic_v1",
+      "answer": "x=4",
+      "ai_verification": "kernel",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "ok",
+          "detail": "文字质量可用于本地识别"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 unknown，置信度 0.30"
+        },
+        {
+          "stage": "ai_read",
+          "status": "ok",
+          "detail": "两步流程已完成读题；按读题结果建模。"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 33358
+        },
+        {
+          "stage": "kernel",
+          "status": "ok",
+          "detail": "内核完成计算并通过独立核验。",
+          "ms": 828
+        },
+        {
+          "stage": "attach",
+          "status": "ok",
+          "detail": "内核模型已附到题目并进入就绪状态。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "generic",
+          "subject": "求自然对数方程 log(x)+log(x-3)=log(4) 的实数解",
+          "symbols": [
+            {
+              "name": "x",
+              "label": "方程中的未知数",
+              "role": "unknown",
+              "domain": "positive"
+            }
+          ],
+          "constants": [],
+          "steps": [
+            {
+              "id": "s1",
+              "op": "inequality",
+              "var": "x",
+              "left": "x",
+              "right": "3",
+              "relation": ">",
+              "label": "对数定义域要求 x>0 且 x-3>0，即 x>3"
+            },
+            {
+              "id": "s2",
+              "op": "solve",
+              "equations": [
+                "log(x)+log(x-3)=log(4)"
+              ],
+              "for": [
+                "x"
+              ],
+              "label": "在自然对数意义下解方程"
+            }
+          ],
+          "target": {
+            "step": "s2",
+            "label": "方程的实数解"
+          }
+        },
+        "answer": "",
+        "steps": [
+          {
+            "title": "定义域",
+            "detail": "log(x) 要求 x>0，log(x-3) 要求 x>3，因此只需在 x>3 上求解。"
+          },
+          {
+            "title": "求解",
+            "detail": "在自然对数下解 log(x)+log(x-3)=log(4)，并结合定义域筛选实数解。"
+          }
+        ],
+        "question": "求方程log(x)+log(x-3)=log(4)的实数解，其中log为自然对数。",
+        "conditions": [
+          {
+            "value": "log为自然对数",
+            "excerpt": "其中log为自然对数"
+          }
+        ],
+        "interpretation": "方程的实数解",
+        "missing_conditions": [],
+        "_staged_read": true
+      },
+      "model_attempts": [
+        {
+          "model": {
+            "kind": "generic",
+            "subject": "求自然对数方程 log(x)+log(x-3)=log(4) 的实数解",
+            "symbols": [
+              {
+                "name": "x",
+                "label": "方程中的未知数",
+                "role": "unknown",
+                "domain": "positive"
+              }
+            ],
+            "constants": [],
+            "steps": [
+              {
+                "id": "s1",
+                "op": "inequality",
+                "var": "x",
+                "left": "x",
+                "right": "3",
+                "relation": ">",
+                "label": "对数定义域要求 x>0 且 x-3>0，即 x>3"
+              },
+              {
+                "id": "s2",
+                "op": "solve",
+                "equations": [
+                  "log(x)+log(x-3)=log(4)"
+                ],
+                "for": [
+                  "x"
+                ],
+                "label": "在自然对数意义下解方程"
+              }
+            ],
+            "target": {
+              "step": "s2",
+              "label": "方程的实数解"
+            }
+          },
+          "status": "ok"
+        }
+      ],
+      "elapsed_s": 34.34
+    },
+    {
+      "id": "compound",
+      "tags": [],
+      "status": "ready",
+      "subject": "unknown",
+      "engine": "generic_v1",
+      "answer": "46305/4（P*(r + 1)**n）",
+      "ai_verification": "kernel",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "ok",
+          "detail": "文字质量可用于本地识别"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 unknown，置信度 0.30"
+        },
+        {
+          "stage": "ai_read",
+          "status": "ok",
+          "detail": "两步流程已完成读题；按读题结果建模。"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 13515
+        },
+        {
+          "stage": "kernel",
+          "status": "ok",
+          "detail": "内核完成计算并通过独立核验。",
+          "ms": 906
+        },
+        {
+          "stage": "attach",
+          "status": "ok",
+          "detail": "内核模型已附到题目并进入就绪状态。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "generic",
+          "subject": "general",
+          "symbols": [],
+          "constants": [
+            {
+              "name": "P",
+              "label": "本金（元）",
+              "value": 10000,
+              "source": "本金10000元"
+            },
+            {
+              "name": "r",
+              "label": "年利率（小数）",
+              "value": "1/20",
+              "source": "年利率5%"
+            },
+            {
+              "name": "n",
+              "label": "存款年数（每年复利一次，共3次）",
+              "value": 3,
+              "source": "存满3年，每年复利一次"
+            }
+          ],
+          "steps": [
+            {
+              "id": "s1",
+              "op": "evaluate",
+              "label": "按年复利计算3年后的本利和",
+              "expr": "P*(1+r)^n"
+            }
+          ],
+          "target": {
+            "step": "s1",
+            "label": "存满3年后的本利和（元）"
+          }
+        },
+        "answer": "",
+        "steps": [
+          {
+            "title": "确定复利模型",
+            "detail": "本金 P=10000 元，年利率 r=5%=1/20，每年复利一次，存期 n=3 年，故 3 年后本利和为 P·(1+r)^n。"
+          },
+          {
+            "title": "代入求值",
+            "detail": "由内核计算 10000·(1+1/20)^3 得到本利和数值。"
+          }
+        ],
+        "question": "本金10000元，年利率5%，每年复利一次，存满3年后的本利和是多少？",
+        "conditions": [
+          {
+            "value": "本金10000元",
+            "excerpt": "本金10000元"
+          },
+          {
+            "value": "年利率5%",
+            "excerpt": "年利率5%"
+          },
+          {
+            "value": "每年复利一次",
+            "excerpt": "每年复利一次"
+          },
+          {
+            "value": "存满3年",
+            "excerpt": "存满3年"
+          }
+        ],
+        "interpretation": "存满3年后的本利和",
+        "missing_conditions": [],
+        "_staged_read": true
+      },
+      "model_attempts": [
+        {
+          "model": {
+            "kind": "generic",
+            "subject": "general",
+            "symbols": [],
+            "constants": [
+              {
+                "name": "P",
+                "label": "本金（元）",
+                "value": 10000,
+                "source": "本金10000元"
+              },
+              {
+                "name": "r",
+                "label": "年利率（小数）",
+                "value": "1/20",
+                "source": "年利率5%"
+              },
+              {
+                "name": "n",
+                "label": "存款年数（每年复利一次，共3次）",
+                "value": 3,
+                "source": "存满3年，每年复利一次"
+              }
+            ],
+            "steps": [
+              {
+                "id": "s1",
+                "op": "evaluate",
+                "label": "按年复利计算3年后的本利和",
+                "expr": "P*(1+r)^n"
+              }
+            ],
+            "target": {
+              "step": "s1",
+              "label": "存满3年后的本利和（元）"
+            }
+          },
+          "status": "ok"
+        }
+      ],
+      "elapsed_s": 14.44
+    },
+    {
+      "id": "parameter",
+      "tags": [],
+      "status": "ready",
+      "subject": "unknown",
+      "engine": "analysis_v1",
+      "answer": "a=6",
+      "ai_verification": "kernel",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "warn",
+          "code": "OCR_GARBLED",
+          "reason": "文字质量不可信",
+          "detail": "出现极限符号但缺少可解析的表达式"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 unknown，置信度 0.30"
+        },
+        {
+          "stage": "local_build",
+          "status": "skipped",
+          "code": "OCR_GARBLED",
+          "reason": "文字质量不可信",
+          "detail": "文字质量不可信，跳过本地建模"
+        },
+        {
+          "stage": "ai_read",
+          "status": "ok",
+          "detail": "两步流程已完成读题；按读题结果建模。"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 8187
+        },
+        {
+          "stage": "kernel",
+          "status": "ok",
+          "detail": "内核完成计算并通过独立核验。",
+          "ms": 1296
+        },
+        {
+          "stage": "attach",
+          "status": "ok",
+          "detail": "内核模型已附到题目并进入就绪状态。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "kernel",
+          "task": "parameter_limit",
+          "subject": "calculus",
+          "conditions": {
+            "expression": "a*sin(x)/x",
+            "variable": "x",
+            "point": 0,
+            "parameter": "a",
+            "target_value": 6
+          }
+        },
+        "question": "已知lim_(x→0) a*sin(x)/x=6，求实数参数a。",
+        "conditions": [
+          {
+            "value": "lim_(x→0) a*sin(x)/x=6",
+            "excerpt": "已知lim_(x→0) a*sin(x)/x=6"
+          }
+        ],
+        "interpretation": "实数参数a",
+        "missing_conditions": [],
+        "_staged_read": true
+      },
+      "model_attempts": [
+        {
+          "model": {
+            "kind": "kernel",
+            "task": "parameter_limit",
+            "subject": "calculus",
+            "conditions": {
+              "expression": "a*sin(x)/x",
+              "variable": "x",
+              "point": 0,
+              "parameter": "a",
+              "target_value": 6
+            }
+          },
+          "status": "ok"
+        }
+      ],
+      "elapsed_s": 9.53
+    },
+    {
+      "id": "fruit",
+      "tags": [],
+      "status": "ready",
+      "subject": "unknown",
+      "engine": "generic_v1",
+      "answer": "x=2，y=3",
+      "ai_verification": "kernel",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "ok",
+          "detail": "文字质量可用于本地识别"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 unknown，置信度 0.30"
+        },
+        {
+          "stage": "ai_read",
+          "status": "ok",
+          "detail": "两步流程已完成读题；按读题结果建模。"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 18656
+        },
+        {
+          "stage": "validate",
+          "status": "error",
+          "code": "KERNEL_ERROR",
+          "reason": "内核报错",
+          "detail": "步骤 s1 的方程无法解析：包含暂不支持的符号：total"
+        },
+        {
+          "stage": "kernel",
+          "status": "ok",
+          "detail": "内核完成计算并通过独立核验。",
+          "ms": 7593
+        },
+        {
+          "stage": "attach",
+          "status": "ok",
+          "detail": "内核模型已附到题目并进入就绪状态。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "generic",
+          "subject": "general",
+          "symbols": [
+            {
+              "name": "x",
+              "label": "购买苹果的质量（千克）",
+              "role": "unknown",
+              "domain": "nonnegative"
+            },
+            {
+              "name": "y",
+              "label": "购买梨的质量（千克）",
+              "role": "unknown",
+              "domain": "nonnegative"
+            }
+          ],
+          "constants": [
+            {
+              "name": "applePrice",
+              "label": "苹果单价（元/千克）",
+              "value": 8,
+              "source": "苹果每千克8元"
+            },
+            {
+              "name": "pearPrice",
+              "label": "梨单价（元/千克）",
+              "value": 12,
+              "source": "梨每千克12元"
+            },
+            {
+              "name": "totalMass",
+              "label": "苹果和梨总质量（千克）",
+              "value": 5,
+              "source": "购买苹果和梨共5千克"
+            },
+            {
+              "name": "totalCost",
+              "label": "总花费（元）",
+              "value": 52,
+              "source": "共花52元"
+            }
+          ],
+          "steps": [
+            {
+              "id": "s1",
+              "op": "solve",
+              "label": "解出苹果和梨的质量",
+              "equations": [
+                "x+y=totalMass",
+                "applePrice*x+pearPrice*y=totalCost"
+              ],
+              "for": [
+                "x",
+                "y"
+              ]
+            }
+          ],
+          "target": {
+            "step": "s1",
+            "label": "苹果和梨分别购买的千克数"
+          }
+        },
+        "answer": "",
+        "steps": [
+          {
+            "title": "建立方程",
+            "detail": "设苹果购买 x 千克、梨购买 y 千克，则质量关系为 x+y=5，费用关系为 8x+12y=52。"
+          },
+          {
+            "title": "求解",
+            "detail": "由方程组解得苹果和梨各自购买的千克数。"
+          }
+        ],
+        "question": "苹果每千克8元，梨每千克12元，购买苹果和梨共5千克，共花52元。求苹果和梨分别购买多少千克。",
+        "conditions": [
+          {
+            "value": "苹果每千克8元",
+            "excerpt": "苹果每千克8元"
+          },
+          {
+            "value": "梨每千克12元",
+            "excerpt": "梨每千克12元"
+          },
+          {
+            "value": "购买苹果和梨共5千克",
+            "excerpt": "购买苹果和梨共5千克"
+          },
+          {
+            "value": "共花52元",
+            "excerpt": "共花52元"
+          }
+        ],
+        "interpretation": "苹果和梨分别购买的千克数",
+        "missing_conditions": [],
+        "_staged_read": true
+      },
+      "model_attempts": [
+        {
+          "model": {
+            "kind": "generic",
+            "subject": "general",
+            "symbols": [
+              {
+                "name": "x",
+                "label": "购买苹果的质量（千克）",
+                "role": "unknown",
+                "domain": "nonnegative"
+              },
+              {
+                "name": "y",
+                "label": "购买梨的质量（千克）",
+                "role": "unknown",
+                "domain": "nonnegative"
+              }
+            ],
+            "constants": [
+              {
+                "name": "applePrice",
+                "label": "苹果单价（元/千克）",
+                "value": 8,
+                "source": "苹果每千克8元"
+              },
+              {
+                "name": "pearPrice",
+                "label": "梨单价（元/千克）",
+                "value": 12,
+                "source": "梨每千克12元"
+              },
+              {
+                "name": "totalMass",
+                "label": "苹果和梨总质量（千克）",
+                "value": 5,
+                "source": "购买苹果和梨共5千克"
+              },
+              {
+                "name": "totalCost",
+                "label": "总花费（元）",
+                "value": 52,
+                "source": "共花52元"
+              }
+            ],
+            "steps": [
+              {
+                "id": "s1",
+                "op": "solve",
+                "label": "解出苹果和梨的质量",
+                "equations": [
+                  "x+y=totalMass",
+                  "applePrice*x+pearPrice*y=totalCost"
+                ],
+                "for": [
+                  "x",
+                  "y"
+                ]
+              }
+            ],
+            "target": {
+              "step": "s1",
+              "label": "苹果和梨分别购买的千克数"
+            }
+          },
+          "status": "error",
+          "error": "步骤 s1 的方程无法解析：包含暂不支持的符号：total"
+        },
+        {
+          "model": {
+            "kind": "generic",
+            "subject": "苹果和梨的购买质量",
+            "symbols": [
+              {
+                "name": "x",
+                "label": "购买苹果的质量（千克）",
+                "role": "unknown",
+                "domain": "nonnegative"
+              },
+              {
+                "name": "y",
+                "label": "购买梨的质量（千克）",
+                "role": "unknown",
+                "domain": "nonnegative"
+              }
+            ],
+            "constants": [
+              {
+                "name": "applePrice",
+                "label": "苹果单价（元/千克）",
+                "value": 8,
+                "source": "苹果每千克8元"
+              },
+              {
+                "name": "pearPrice",
+                "label": "梨单价（元/千克）",
+                "value": 12,
+                "source": "梨每千克12元"
+              },
+              {
+                "name": "totalMass",
+                "label": "苹果和梨总质量（千克）",
+                "value": 5,
+                "source": "购买苹果和梨共5千克"
+              },
+              {
+                "name": "totalCost",
+                "label": "总花费（元）",
+                "value": 52,
+                "source": "共花52元"
+              }
+            ],
+            "steps": [
+              {
+                "id": "s1",
+                "op": "solve",
+                "label": "解出苹果和梨的质量",
+                "equations": [
+                  "x+y=5",
+                  "8*x+12*y=52"
+                ],
+                "for": [
+                  "x",
+                  "y"
+                ]
+              }
+            ],
+            "target": {
+              "step": "s1",
+              "label": "苹果和梨分别购买的千克数"
+            }
+          },
+          "status": "ok"
+        }
+      ],
+      "elapsed_s": 26.36
+    },
+    {
+      "id": "extrema",
+      "tags": [],
+      "status": "ready",
+      "subject": "optimization",
+      "engine": "generic_v1",
+      "answer": "最小值 -1；最大值 3",
+      "ai_verification": "kernel",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "ok",
+          "detail": "文字质量可用于本地识别"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 optimization，置信度 0.83"
+        },
+        {
+          "stage": "local_build",
+          "status": "ok",
+          "detail": "本地模型引擎：gradient_descent_v1"
+        },
+        {
+          "stage": "ai_read",
+          "status": "ok",
+          "detail": "两步流程已完成读题；按读题结果建模。"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 15436
+        },
+        {
+          "stage": "kernel",
+          "status": "ok",
+          "detail": "内核完成计算并通过独立核验。",
+          "ms": 703
+        },
+        {
+          "stage": "attach",
+          "status": "ok",
+          "detail": "内核模型已附到题目并进入就绪状态。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "generic",
+          "subject": "calculus",
+          "symbols": [
+            {
+              "name": "x",
+              "label": "自变量",
+              "role": "independent",
+              "domain": "real"
+            }
+          ],
+          "constants": [],
+          "steps": [
+            {
+              "id": "s1",
+              "op": "extremum",
+              "label": "求 f(x)=x^3-3*x+1 在闭区间[-2,2]上的最大值和最小值",
+              "expr": "x^3-3*x+1",
+              "var": "x",
+              "lower": "-2",
+              "upper": "2"
+            }
+          ],
+          "target": {
+            "step": "s1",
+            "label": "f(x)=x^3-3*x+1在闭区间[-2,2]上的最大值和最小值"
+          }
+        },
+        "steps": [
+          {
+            "title": "建模",
+            "detail": "函数为 f(x)=x^3-3*x+1，考察区间为闭区间[-2,2]。"
+          },
+          {
+            "title": "求解",
+            "detail": "用区间最值运算求该函数在[-2,2]上的最大值与最小值。"
+          }
+        ],
+        "question": "求f(x)=x^3-3*x+1在闭区间[-2,2]上的最大值和最小值。",
+        "conditions": [
+          {
+            "value": "闭区间[-2,2]",
+            "excerpt": "在闭区间[-2,2]上"
+          }
+        ],
+        "interpretation": "f(x)=x^3-3*x+1在闭区间[-2,2]上的最大值和最小值",
+        "missing_conditions": [],
+        "_staged_read": true
+      },
+      "model_attempts": [
+        {
+          "model": {
+            "kind": "generic",
+            "subject": "calculus",
+            "symbols": [
+              {
+                "name": "x",
+                "label": "自变量",
+                "role": "independent",
+                "domain": "real"
+              }
+            ],
+            "constants": [],
+            "steps": [
+              {
+                "id": "s1",
+                "op": "extremum",
+                "label": "求 f(x)=x^3-3*x+1 在闭区间[-2,2]上的最大值和最小值",
+                "expr": "x^3-3*x+1",
+                "var": "x",
+                "lower": "-2",
+                "upper": "2"
+              }
+            ],
+            "target": {
+              "step": "s1",
+              "label": "f(x)=x^3-3*x+1在闭区间[-2,2]上的最大值和最小值"
+            }
+          },
+          "status": "ok"
+        }
+      ],
+      "elapsed_s": 16.19
+    },
+    {
+      "id": "tcp_concept",
+      "tags": [],
+      "status": "reference",
+      "subject": "computer_network",
+      "engine": "net_transport_v1",
+      "answer": "两次握手只能完成“客户端→服务器”和“服务器→客户端”两个方向的单向确认；三次握手才能让双方都确认自己和对方的发送、接收能力正常，并可靠同步初始序列号（ISN）。更关键的是，网络中可能滞留旧的SYN报文：若服务器收到一个早已失效的SYN就只做两次握手并直接建立连接，服务器会分配资源并一直等待客户端发送数据，而此时客户端并未发起连接，从而造成资源浪费；三次握手下服务器收到该旧SYN后只回SYN-ACK，不分配已建立连接资源，客户端不会回ACK，连接便不会建立。",
+      "ai_verification": "ai_reference",
+      "ai_trace": [
+        {
+          "stage": "quality",
+          "status": "warn",
+          "code": "OCR_GARBLED",
+          "reason": "文字质量不可信",
+          "detail": "存在较多无意义的大小写混杂片段"
+        },
+        {
+          "stage": "classify",
+          "status": "ok",
+          "detail": "本地判定为 computer_network，置信度 0.95"
+        },
+        {
+          "stage": "local_build",
+          "status": "ok",
+          "detail": "本地模型引擎：net_transport_v1"
+        },
+        {
+          "stage": "ai_read",
+          "status": "ok",
+          "detail": "两步流程已完成读题；按读题结果建模。"
+        },
+        {
+          "stage": "ai_model",
+          "status": "ok",
+          "detail": "模型返回题干与声明式建模结果。",
+          "ms": 17468
+        },
+        {
+          "stage": "validate",
+          "status": "reference",
+          "code": "AI_CHOSE_NONE",
+          "reason": "模型认为无法建模",
+          "detail": "模型没有建立可计算模型。"
+        },
+        {
+          "stage": "attach",
+          "status": "reference",
+          "code": "AI_CHOSE_NONE",
+          "reason": "模型认为无法建模",
+          "detail": "已保留 AI 参考解答，不建立执行模型。"
+        }
+      ],
+      "ai_output": {
+        "model": {
+          "kind": "none"
+        },
+        "answer": "两次握手只能完成“客户端→服务器”和“服务器→客户端”两个方向的单向确认；三次握手才能让双方都确认自己和对方的发送、接收能力正常，并可靠同步初始序列号（ISN）。更关键的是，网络中可能滞留旧的SYN报文：若服务器收到一个早已失效的SYN就只做两次握手并直接建立连接，服务器会分配资源并一直等待客户端发送数据，而此时客户端并未发起连接，从而造成资源浪费；三次握手下服务器收到该旧SYN后只回SYN-ACK，不分配已建立连接资源，客户端不会回ACK，连接便不会建立。",
+        "steps": [
+          {
+            "title": "确认双方收发能力",
+            "detail": "第一次握手让服务器确认客户端发送正常、自己接收正常；第二次握手让客户端确认服务器收发正常；第三次握手让服务器确认客户端接收正常。两次握手缺少对客户端接收确认的最后一步。"
+          },
+          {
+            "title": "同步初始序列号",
+            "detail": "TCP需要交换各自ISN。客户端发送自己的ISN，服务器回复自己的ISN并确认客户端ISN，客户端再确认服务器ISN；两次握手无法让服务器确认客户端已知晓服务器的ISN。"
+          },
+          {
+            "title": "防止失效连接请求造成资源浪费",
+            "detail": "滞留的旧SYN到达服务器时，若只用两次握手，服务器会认为连接已建立并分配资源，但客户端不会使用该连接。三次握手下服务器在收到客户端ACK前不认为连接已建立，可避免这种无效连接资源占用。"
+          },
+          {
+            "title": "避免重复旧连接干扰",
+            "detail": "三次握手使双方对连接的建立时刻和序列号有一致认识，降低旧连接报文干扰新连接或产生半开连接的风险。"
+          }
+        ],
+        "question": "为什么TCP建立连接需要三次握手，而不是两次？",
+        "conditions": [],
+        "interpretation": "解释TCP建立连接采用三次握手而非两次握手的原因",
+        "missing_conditions": [],
+        "_staged_read": true
+      },
+      "model_attempts": [],
+      "elapsed_s": 17.47
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 import sympy as sp
@@ -12,7 +13,7 @@ from .kernel_models import FIELD_LABELS, TASKS, _validate
 
 
 def preview_integral(task: str, conditions: dict[str, Any]) -> dict[str, Any]:
-    if task not in ('integral', 'antiderivative', 'derivative', 'limit', 'higher_derivative', 'continuity', 'implicit_normal', 'function_study', 'taylor', 'geometric_area', 'rotation_volume', 'ode', 'multivariable', 'multivariable_extrema', 'double_integral', 'triple_integral', 'series_convergence', 'power_series', 'fourier_series', 'space_geometry', 'curve_surface_integral', 'proof'):
+    if task not in ('integral', 'antiderivative', 'derivative', 'inverse_derivative', 'limit', 'parameter_limit', 'higher_derivative', 'continuity', 'implicit_normal', 'implicit_derivative', 'parametric_derivative', 'curvature', 'asymptote', 'sequence_limit', 'arc_length', 'parametric_arc_length', 'surface_of_revolution', 'polar_area', 'polar_arc_length', 'function_study', 'taylor', 'geometric_area', 'rotation_volume', 'integral_function', 'ode', 'multivariable', 'multivariable_extrema', 'double_integral', 'triple_integral', 'series_convergence', 'power_series', 'fourier_series', 'space_geometry', 'curve_surface_integral', 'proof'):
         raise ValueError('手动输入目前支持积分、导数与极限、级数与展开等题型')
     c = copy.deepcopy(conditions)
     if task in ('series_convergence', 'power_series', 'fourier_series'):
@@ -113,6 +114,170 @@ def preview_integral(task: str, conditions: dict[str, Any]) -> dict[str, Any]:
             c[key] = expression_text(value.xreplace({n:sp.Rational(str(n)) for n in value.atoms(sp.Float)}))
         if task == 'function_study' and 'interval_type' not in c: raise ValueError('请选择区间端点开闭方式')
     exact_point = None
+    if task == 'parameter_limit':
+        raw_point = c.get('point')
+        if isinstance(raw_point, bool) or raw_point is None or len(str(raw_point)) > 100:
+            raise ValueError('请填写有限极限点，可使用分数或 pi')
+        point = parse_expression(str(raw_point))
+        if point.free_symbols or point.is_real is not True or safe_float(point) is None:
+            raise ValueError('极限点必须是有限实常数，可使用分数或 pi')
+        point_text = expression_text(point.xreplace({n: sp.Rational(str(n)) for n in point.atoms(sp.Float)}))
+        point_value = float(point.xreplace({n: sp.Rational(str(n)) for n in point.atoms(sp.Float)}))
+        c['point'] = point_text
+        raw_target = c.get('target_value')
+        if isinstance(raw_target, bool) or raw_target is None or len(str(raw_target)) > 100:
+            raise ValueError('请填写题目给定的极限值')
+        target = parse_expression(str(raw_target))
+        if target.free_symbols or target.is_real is not True or safe_float(target) is None:
+            raise ValueError('给定极限值必须是有限实常数')
+        c['target_value'] = expression_text(target)
+        parameter = c.get('parameter')
+        if not isinstance(parameter, str) or not re.fullmatch(r'[a-df-hj-z]', parameter) or parameter == c.get('variable'):
+            raise ValueError('参数必须是不同于自变量的单个实数字母（不含 e、i）')
+        expression = parse_expression(c['expression'], (c['variable'], parameter), preserve_structure=True)
+        if parameter not in {str(symbol) for symbol in expression.free_symbols}:
+            raise ValueError('原式未包含所求参数；不能用其他字母替代或补入参数')
+        _validate(task, {**c, 'point': point_value})
+        latex = (rf'\lim_{{{c["variable"]}\to {to_latex(parse_expression(point_text))}}}'
+                 rf'{to_latex(expression)}={to_latex(target)}')
+        question = (f'已知 lim_{{{c["variable"]}→{point_text}}} ({c["expression"]}) = {c["target_value"]}，'
+                    f'求参数 {parameter}；先计算双侧极限，再代回原式核验')
+        return dict(task=task, label=TASKS[task]['label'], conditions=c, latex=latex, question=question)
+    if task == 'inverse_derivative':
+        raw = c.get('point')
+        if isinstance(raw, bool) or raw is None or len(str(raw)) > 100:
+            raise ValueError('请填写反函数的输入值，可使用分数或 pi')
+        point = parse_expression(str(raw))
+        if point.free_symbols or point.is_real is not True or safe_float(point) is None:
+            raise ValueError('反函数输入值必须是有限实常数')
+        point_text = expression_text(point.xreplace({n: sp.Rational(str(n)) for n in point.atoms(sp.Float)}))
+        point_value = float(point.xreplace({n: sp.Rational(str(n)) for n in point.atoms(sp.Float)}))
+        c['point'] = point_text
+        _validate(task, {**c, 'point': point_value})
+        expression = parse_expression(c['expression'], (c['variable'],), preserve_structure=True)
+        latex = rf"(f^{{-1}})'\left({to_latex(parse_expression(point_text))}\right)"
+        question = (f"已知 f({c['variable']})={c['expression']}，求反函数在 x={point_text} 处的导数；"
+                    '内核先求 f(x0)=x 的原像，再计算 1/f′(x0)')
+        return dict(task=task, label=TASKS[task]['label'], conditions=c, latex=latex, question=question)
+    if task == 'integral_function':
+        _validate(task, c)
+        from .integral_function import _parse_inputs
+        function, lower_bound, upper_bound = _parse_inputs(c)
+        latex = (rf'F(x)=\int_{{{to_latex(lower_bound)}}}^{{{to_latex(upper_bound)}}}'
+                 rf'{to_latex(function)}\,\mathrm{{d}}t')
+        question = (f"已知 F(x)=∫_{{{c['lower_expression']}}}^{{{c['upper_expression']}}} ({c['expression']}) dt，"
+                    '求 F′(x)' + (f"，并在 x={c['point']} 处求值" if c.get('point') else ''))
+        return dict(task=task, label=TASKS[task]['label'], conditions=c, latex=latex, question=question)
+    if task == 'parametric_derivative':
+        from .derivative_extra import _constant, _order
+        xt = parse_expression(c['x_expression'], ('t',), preserve_structure=True)
+        yt = parse_expression(c['y_expression'], ('t',), preserve_structure=True)
+        t0 = _constant(c['point'], '参数点 t0')
+        order = _order(c.get('order'))
+        symbol_t = sp.Symbol('t', real=True)
+        dx_value = sp.simplify(sp.diff(xt, symbol_t).subs(symbol_t, t0))
+        if dx_value == 0:
+            raise ValueError('在给定参数点 x′(t0)=0，不能得到有限的 dy/dx；请换点或改用参数形式求切线')
+        if order == 2:
+            first_derivative = sp.simplify((sp.diff(yt, symbol_t) / sp.diff(xt, symbol_t)))
+            second_value = sp.simplify((sp.diff(first_derivative, symbol_t) / sp.diff(xt, symbol_t)).subs(symbol_t, t0))
+            if safe_float(second_value) is None:
+                raise ValueError('该点二阶导数不是有限实数')
+        c['point'] = expression_text(t0)
+        c['order'] = order
+        _validate(task, {**c, 'point': float(t0)})
+        latex = rf'x={to_latex(xt)},\quad y={to_latex(yt)},\quad t={to_latex(t0)}'
+        question = (f"已知参数方程 x={c['x_expression']}, y={c['y_expression']}，求在 t={c['point']} 处的"
+                    + ('一阶导数 dy/dx' if order == 1 else '一阶、二阶导数 dy/dx 与 d²y/dx²'))
+        return dict(task=task, label=TASKS[task]['label'], conditions=c, latex=latex, question=question)
+    if task == 'implicit_derivative':
+        from .derivative_extra import _constant, _order, _parse_equation
+        raw = c.get('implicit_expression')
+        equation = _parse_equation(raw)
+        px = _constant(c['point_x'], '研究点横坐标')
+        py = _constant(c['point_y'], '研究点纵坐标') if c.get('point_y') not in (None, '') else None
+        symbol_x, symbol_y = sp.Symbol('x', real=True), sp.Symbol('y', real=True)
+        if py is None:
+            roots = sp.solveset(equation.subs(symbol_x, px), symbol_y, domain=sp.S.Reals)
+            if not isinstance(roots, sp.FiniteSet) or len(roots) != 1:
+                raise ValueError('该横坐标对应多个曲线分支，请填写研究点纵坐标')
+            py = next(iter(roots))
+        if sp.simplify(equation.subs({symbol_x: px, symbol_y: py})) != 0:
+            raise ValueError('研究点不在曲线上')
+        fy = sp.simplify(sp.diff(equation, symbol_y).subs({symbol_x: px, symbol_y: py}))
+        if fy == 0:
+            raise ValueError('研究点处 F_y=0，不能由隐函数定理得到有限的 dy/dx')
+        c['point_x'] = expression_text(px)
+        c['point_y'] = expression_text(py)
+        c['order'] = _order(c.get('order'))
+        _validate(task, {**c, 'point_x': float(px), **({'point_y': float(py)} if py is not None else {})})
+        latex = rf'{to_latex(equation)}=0,\quad P=({to_latex(px)},{to_latex(py) if py is not None else "?"})'
+        question = (f"已知隐函数方程 {raw}，求在 P=({c['point_x']},{c.get('point_y', '待确认')}) 处的"
+                    + ('dy/dx' if _order(c.get('order')) == 1 else 'dy/dx 与 d²y/dx²'))
+        return dict(task=task, label=TASKS[task]['label'], conditions=c, latex=latex, question=question)
+    if task == 'curvature':
+        from .derivative_extra import _constant
+        function = parse_expression(c['expression'], ('x',), preserve_structure=True)
+        x0 = _constant(c['point'], '曲率点 x0')
+        symbol_x = sp.Symbol('x', real=True)
+        for value in (function, sp.diff(function, symbol_x), sp.diff(function, symbol_x, 2)):
+            if safe_float(sp.simplify(value.subs(symbol_x, x0))) is None:
+                raise ValueError('该点函数值或一、二阶导数不是有限实数，不能计算曲率')
+        c['point'] = expression_text(x0)
+        _validate(task, {**c, 'point': float(x0)})
+        latex = rf'y={to_latex(function)},\quad x_0={to_latex(x0)}'
+        question = f"求曲线 y={c['expression']} 在 x={c['point']} 处的曲率与曲率半径"
+        return dict(task=task, label=TASKS[task]['label'], conditions=c, latex=latex, question=question)
+    if task in ('asymptote', 'sequence_limit'):
+        variable = 'n' if task == 'sequence_limit' else 'x'
+        function = parse_expression(c['expression'], (variable,), preserve_structure=True)
+        _validate(task, c)
+        if task == 'asymptote':
+            from .limit_extra import _rational_parts
+            _rational_parts(sp.sympify(function))
+            latex = rf'f(x)={to_latex(function)}'
+            question = f"求函数 f(x)={c['expression']} 的全部渐近线（垂直、水平、斜）"
+        else:
+            latex = rf'\lim_{{n\to\infty}} {to_latex(function)}'
+            question = f"求数列 aₙ={c['expression']} 当 n→∞ 的极限"
+        return dict(task=task, label=TASKS[task]['label'], conditions=c, latex=latex, question=question)
+    if task in ('arc_length', 'parametric_arc_length', 'surface_of_revolution', 'polar_area', 'polar_arc_length'):
+        from .integral_applications import _bound
+        variable = 'theta' if task in ('polar_area', 'polar_arc_length') else ('t' if task == 'parametric_arc_length' else 'x')
+        if task == 'parametric_arc_length':
+            xt = parse_expression(c['x_expression'], ('t',), preserve_structure=True)
+            yt = parse_expression(c['y_expression'], ('t',), preserve_structure=True)
+        else:
+            function = parse_expression(c['expression'], (variable,), preserve_structure=True)
+        a = _bound(c['lower'], '积分下限')
+        b = _bound(c['upper'], '积分上限')
+        if not bool(a < b):
+            raise ValueError('积分区间要求下限小于上限，不能通过反转区间改变符号')
+        c['lower'] = expression_text(a)
+        c['upper'] = expression_text(b)
+        if task == 'surface_of_revolution':
+            axis = c.get('rotation_axis')
+            if axis not in ('x', 'y'):
+                raise ValueError('请选择旋转轴：x 轴或 y 轴')
+            if axis == 'y' and bool(a < 0) and bool(b > 0):
+                raise ValueError('绕 y 轴的旋转曲面要求曲线位于 y 轴一侧；跨轴时半径 |x| 需分段，请拆分区间')
+        _validate(task, c)
+        if task == 'parametric_arc_length':
+            latex = rf'x={to_latex(xt)},\quad y={to_latex(yt)},\quad t\in[{to_latex(a)},{to_latex(b)}]'
+            question = (f"求参数曲线 x={c['x_expression']}, y={c['y_expression']}，"
+                        f"t∈[{c['lower']},{c['upper']}] 的弧长")
+        elif task in ('polar_area', 'polar_arc_length'):
+            latex = rf'r={to_latex(function)},\quad \theta\in[{to_latex(a)},{to_latex(b)}]'
+            goal = '围成的面积' if task == 'polar_area' else '的弧长'
+            question = (f"求极坐标曲线 r={c['expression']}，θ∈[{c['lower']},{c['upper']}] {goal}")
+        elif task == 'surface_of_revolution':
+            latex = rf'y={to_latex(function)},\quad x\in[{to_latex(a)},{to_latex(b)}]，绕{axis}轴'
+            question = (f"求曲线 y={c['expression']}，x∈[{c['lower']},{c['upper']}] "
+                        f"绕{axis}轴旋转所得旋转曲面的面积")
+        else:
+            latex = rf'y={to_latex(function)},\quad x\in[{to_latex(a)},{to_latex(b)}]'
+            question = f"求曲线 y={c['expression']}，x∈[{c['lower']},{c['upper']}] 的弧长"
+        return dict(task=task, label=TASKS[task]['label'], conditions=c, latex=latex, question=question)
     if task in ('higher_derivative', 'taylor'):
         raw_order = c.get('order')
         if isinstance(raw_order, bool) or str(raw_order) not in [str(n) for n in range(1, 11)]:
@@ -157,10 +322,35 @@ def preview_integral(task: str, conditions: dict[str, Any]) -> dict[str, Any]:
         if not bool(a<b): raise ValueError('几何区域要求下限小于上限，不能通过反转区间改变面积符号')
         if sp.Interval(a,b).is_subset(continuous_domain(expression,sp.Symbol('x',real=True),sp.S.Reals)) is not True:
             raise ValueError('首批面积与体积手动输入要求边界函数在整个有限闭区间有实定义且连续；不自动填补空点或跨越瑕点')
-        region = (rf'\min(0,{to_latex(expression)})\le y\le\max(0,{to_latex(expression)})' if c['region_kind']=='between_axis' else rf'0\le y\le {to_latex(expression)}')
+        lower_expression = None
+        if c.get('region_kind') == 'between_curves':
+            raw_lower = c.get('lower_expression')
+            if not isinstance(raw_lower, str) or not raw_lower.strip():
+                raise ValueError('请填写两条曲线之间区域的下边界函数 g(x)')
+            lower_expression = parse_expression(raw_lower, ('x',), preserve_structure=True)
+            if sp.Interval(a,b).is_subset(continuous_domain(lower_expression,sp.Symbol('x',real=True),sp.S.Reals)) is not True:
+                raise ValueError('下边界函数在整个有限闭区间必须有实定义且连续；不自动填补空点或跨越瑕点')
+            c['lower_expression'] = raw_lower.strip()
+        axis = c.get('rotation_axis') or 'x'
+        if task == 'rotation_volume' and axis == 'y' and bool(a < 0) and bool(b > 0):
+            raise ValueError('绕 y 轴旋转要求区域完全位于 y 轴一侧；跨 y 轴的区域折叠后不能直接按壳层法累加，请拆分区域或更换旋转轴')
+        if task == 'rotation_volume' and c['region_kind'] == 'between_curves' and axis == 'x':
+            from .exam_math import _require_nonnegative
+            _require_nonnegative(expression, a, b, '两曲线之间的区域绕 x 轴旋转要求上边界 f(x)≥0')
+            _require_nonnegative(lower_expression, a, b, '两曲线之间的区域绕 x 轴旋转要求下边界 g(x)≥0；区域跨越 x 轴时圆环法不适用')
+        if c['region_kind'] == 'between_curves':
+            region = rf'{to_latex(lower_expression)}\le y\le {to_latex(expression)}'
+            description = f'曲线 y={c["expression"]} 与 y={c["lower_expression"]} 之间的全部区域'
+        else:
+            region = (rf'\min(0,{to_latex(expression)})\le y\le\max(0,{to_latex(expression)})' if c['region_kind']=='between_axis' else rf'0\le y\le {to_latex(expression)}')
+            description = '曲线与x轴之间的全部区域（包含负函数区域）' if c['region_kind']=='between_axis' else '不等式0≤y≤f(x)的区域（f(x)<0处为空）'
         latex=rf'D=\{{(x,y)\mid {to_latex(a)}\le x\le {to_latex(b)},\ {region}\}}'
-        description='曲线与x轴之间的全部区域（包含负函数区域）' if c['region_kind']=='between_axis' else '不等式0≤y≤f(x)的区域（f(x)<0处为空）'
-        question=f"求 {description}，f(x)={c['expression']}，x∈[{c['lower']},{c['upper']}] 的"+('平面面积' if task=='geometric_area' else '绕x轴旋转体积；旋转轴=x轴')
+        if task == 'geometric_area':
+            question=f"求 {description}，f(x)={c['expression']}，x∈[{c['lower']},{c['upper']}] 的平面面积"
+        else:
+            method = '壳层法，体积元 2π|x|·高度·dx' if axis == 'y' else '圆盘/圆环法'
+            question=(f"求 {description}，f(x)={c['expression']}，x∈[{c['lower']},{c['upper']}] 的"
+                      f"绕{axis}轴旋转体积；旋转轴={axis}轴；{method}")
         return dict(task=task,label=TASKS[task]['label'],conditions=c,latex=latex,question=question)
     if task == 'integral':
         for key in ('lower', 'upper'):
@@ -253,7 +443,7 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
     c = preview['conditions']
     kernel_conditions = copy.deepcopy(c)
     if task == 'ode': kernel_conditions['initial_conditions'] = c['initial_conditions'].splitlines()
-    if task in ('derivative', 'limit') and 'point' in c and c['point'] not in ('oo', '-oo'):
+    if task in ('derivative', 'inverse_derivative', 'limit', 'parameter_limit') and 'point' in c and c['point'] not in ('oo', '-oo'):
         kernel_conditions['point'] = float(parse_expression(c['point']))
     if task == 'integral' and c.get('integral_mode') == 'improper':
         from .manual_improper_integral import build_problem
@@ -406,11 +596,16 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
                                'space_integral_details': solution.get('space_integral_details'),
                                'proof_details': proof_details,
                                'series_details': solution.get('series_details'),
+                               'integral_function_details': solution.get('integral_function_details'),
+                               'parametric_details': solution.get('parametric_details'),
+                               'implicit_derivative_details': solution.get('implicit_derivative_details'),
+                               'curvature_details': solution.get('curvature_details'),
+                               'application_details': solution.get('application_details'),
                                'power_details': solution.get('power_details'),
                                'fourier_details': solution.get('fourier_details'),
                                'double_extension': solution.get('double_extension'),
                                'ode_details': {key: solution.get(key) for key in ('ode_order','ode_hints','solution_latex','initial_conditions','residual_verified','initial_conditions_verified','free_constants','solution_domain','scope_note')} if task == 'ode' else None,
-                               'geometry_details': {'region_kind': c['region_kind'], 'rotation_axis': c.get('rotation_axis'), 'quantities': solution.get('quantities', []), 'zero_points': problem['model'].get('boundary_roots', []), 'effective_intervals': problem['model'].get('effective_intervals')} if task in ('geometric_area','rotation_volume') else None,
+                               'geometry_details': {'region_kind': c['region_kind'], 'rotation_axis': c.get('rotation_axis'), 'lower_expression': c.get('lower_expression'), 'quantities': solution.get('quantities', []), 'zero_points': problem['model'].get('boundary_roots', []), 'effective_intervals': problem['model'].get('effective_intervals')} if task in ('geometric_area','rotation_volume') else None,
                                'result_answer': solution.get('answer') or '',
                                'result_approx': solution.get('approx') or '',
                                'result_note': result_note,
@@ -433,7 +628,7 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
         problem['model']['expression'] = c.get('integrand') or ''
     elif task == 'proof':
         problem['model']['expression'] = c.get('expression') or c.get('left') or ''
-    elif task not in ('implicit_normal','ode'):
+    elif task not in ('implicit_normal','implicit_derivative','parametric_derivative','parametric_arc_length','ode'):
         problem['model']['expression'] = c['expression']
     problem['model']['preserve_expression_structure'] = True
     for formula in problem['recognition']['formulas']:
@@ -464,6 +659,21 @@ def build_manual_document(*, lab_id: str, title: str, task: str,
         if task == 'proof':
             from .manual_proof import labels
             item['label']=labels(c).get(item['id'],item['label'])
+        if task == 'integral_function':
+            item['label']={'expression':'被积函数 f(t)','lower_expression':'下限 a(x)','upper_expression':'上限 b(x)','point':'求值点 x0'}.get(item['id'],item['label'])
+        if task == 'parametric_derivative':
+            item['label']={'x_expression':'曲线 x(t)','y_expression':'曲线 y(t)','point':'参数点 t0','order':'导数阶数'}.get(item['id'],item['label'])
+        if task == 'curvature':
+            item['label']={'expression':'函数 f(x)','point':'曲率点 x0'}.get(item['id'],item['label'])
+        if task in ('asymptote','sequence_limit'):
+            item['label']={'expression':'数列通项 aₙ' if task=='sequence_limit' else '有理函数 f(x)'}.get(item['id'],item['label'])
+        if task in ('arc_length','parametric_arc_length','surface_of_revolution','polar_area','polar_arc_length'):
+            polar = task in ('polar_area','polar_arc_length')
+            item['label']={'expression':'极径 r(θ)' if polar else '曲线 y=f(x)',
+                           'x_expression':'曲线 x(t)','y_expression':'曲线 y(t)',
+                           'lower':'极角下限' if polar else ('参数下限' if task=='parametric_arc_length' else '积分下限'),
+                           'upper':'极角上限' if polar else ('参数上限' if task=='parametric_arc_length' else '积分上限'),
+                           'rotation_axis':'旋转轴'}.get(item['id'],item['label'])
     # 发散或内核未完成不是“缺条件”，结果区会单独说明；不要在这里要求用户补条件。
     problem['recognition']['ambiguities'] = [
         item for item in problem['recognition']['ambiguities'] if item.get('id') != 'solution_incomplete']

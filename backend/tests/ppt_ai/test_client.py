@@ -63,6 +63,56 @@ def test_auth_and_rate_limit_are_classified() -> None:
     assert exc.value.kind == "rate_limit" and exc.value.retryable
 
 
+def test_model_schema_is_sent_only_when_endpoint_support_is_enabled():
+    from app.labs.model_contract import contract_payload
+    for enabled in (False, True):
+        transport = FakeTransport(200, response('{"model":{"kind":"none"},"answer":"概念解释"}'))
+        client = PPTAIClient(settings(llm_json_schema=enabled), transport=transport)
+        client.generate_json('lab_model_question', contract_payload(), 'v1', CallBudget(max_calls=1))
+        fmt = transport.requests[0]['body']['response_format']
+        assert fmt['type'] == ('json_schema' if enabled else 'json_object')
+        if enabled:
+            assert fmt['json_schema']['schema']['properties']['model']['anyOf'][0] == contract_payload()['generic_schema']
+
+
+def test_invalid_schema_json_gets_one_budgeted_compatibility_retry():
+    class Transport(FakeTransport):
+        def post(self, url, **kwargs):
+            super().post(url, **kwargs)
+            return 200, response('{bad json' if len(self.requests) == 1 else '{"model":{"kind":"none"},"answer":"参考"}')
+
+    transport = Transport()
+    budget = CallBudget(max_calls=2)
+    client = PPTAIClient(settings(llm_json_schema=True), transport=transport)
+    result = client.generate_json('model', {'response_schema': {'type': 'object'}}, 'v1', budget)
+    assert budget.used_calls == 2
+    assert transport.requests[1]['body']['response_format']['type'] == 'json_object'
+    assert result.data['_format_recovery']['previous_output'] == '{bad json'
+
+
+def test_invalid_schema_json_never_exceeds_budget():
+    transport = FakeTransport(200, response('{bad json'))
+    client = PPTAIClient(settings(llm_json_schema=True), transport=transport)
+    with pytest.raises(PPTAIError, match='JSON'):
+        client.generate_json('model', {'response_schema': {'type': 'object'}}, 'v1', CallBudget(max_calls=1))
+    assert len(transport.requests) == 1
+
+
+def test_schema_http_400_retries_in_json_object_mode():
+    class Transport(FakeTransport):
+        def post(self, url, **kwargs):
+            super().post(url, **kwargs)
+            return (400, {}) if len(self.requests) == 1 else (200, response('{"ok":true}'))
+
+    transport = Transport()
+    budget = CallBudget(max_calls=2)
+    result = PPTAIClient(settings(llm_json_schema=True), transport=transport).generate_json(
+        'model', {'response_schema': {'type': 'object'}}, 'v1', budget)
+    assert result.data['ok'] is True
+    assert budget.used_calls == 2
+    assert transport.requests[1]['body']['response_format']['type'] == 'json_object'
+
+
 def test_failed_calls_consume_persisted_budget_before_http() -> None:
     transport = FakeTransport(500, {})
     budget = CallBudget(max_calls=1)
@@ -143,3 +193,55 @@ def test_request_limit_and_unavailable() -> None:
     with pytest.raises(PPTAIError) as exc:
         unavailable.generate_json("plan", {}, "v1", CallBudget(max_calls=1))
     assert exc.value.kind == "disabled"
+
+
+def test_httpx_transport_falls_back_to_physical_nic_only_on_fake_ip(monkeypatch: pytest.MonkeyPatch) -> None:
+    import httpx
+    import app.ppt_ai.client as client_mod
+
+    client_mod._DIRECT_ROUTE_CACHE.clear()
+    calls: list[dict] = []
+
+    class DummyResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"ok": True}
+
+    class DummyClient:
+        def __init__(self, *, transport=None, trust_env=True, **kwargs):
+            self.transport = transport
+            self.trust_env = trust_env
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, *, headers=None, json=None, extensions=None):
+            calls.append({"url": url, "headers": headers, "trust_env": self.trust_env, "extensions": extensions})
+            if len(calls) == 1:
+                raise httpx.ConnectError("[SSL: UNEXPECTED_EOF_WHILE_READING]")
+            return DummyResponse()
+
+    monkeypatch.setattr(httpx, "Client", DummyClient)
+    monkeypatch.setattr(client_mod, "_host_resolves_to_fake_ip", lambda host: host == "api.modelarts-maas.com")
+    monkeypatch.setattr(client_mod, "_probe_direct_route", lambda host: ("172.25.108.233", "1.95.59.212"))
+
+    status, payload = client_mod.HttpxTransport().post(
+        "https://api.modelarts-maas.com/v2/chat/completions",
+        headers={"Authorization": "Bearer test"},
+        json_body={"model": "x"},
+        timeout=5.0,
+    )
+    assert status == 200
+    assert payload == {"ok": True}
+    assert len(calls) == 2
+    assert calls[0]["url"] == "https://api.modelarts-maas.com/v2/chat/completions"
+    assert calls[1]["url"] == "https://1.95.59.212/v2/chat/completions"
+    assert calls[1]["headers"]["Host"] == "api.modelarts-maas.com"
+    assert calls[1]["extensions"] == {"sni_hostname": "api.modelarts-maas.com"}
+    assert calls[1]["trust_env"] is False
+    client_mod._DIRECT_ROUTE_CACHE.clear()

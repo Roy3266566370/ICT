@@ -5,12 +5,17 @@
  * - `onProgress` 只由播放器传入：上报学生端进度（访问/竞猜/判分）。
  */
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { LabCanvas } from '@/components/labs/LabCanvas';
 import { Formula } from '@/components/showcase/Formula';
 import { computeLab } from '@/labs/compute';
 import type { LabProblem, LabResult, LabState } from '@/labs/types';
 import type { ActivationSuggestion, PageBlock } from '@/living/types';
+import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
+import type { CanvasDoc } from '@/canvas/types.ts';
+import { worksApi } from '@/api/works';
+import { errorMessage } from '@/api/client';
 import styles from './LivingBlocks.module.css';
 import { AttentionDemo } from './AttentionDemo';
 import { LivingAIModel } from './LivingAIModel';
@@ -310,6 +315,58 @@ function EmbedBlockView({ block }: BlockViewProps): ReactNode {
   );
 }
 
+function parseCanvasDoc(value: Record<string, unknown>): CanvasDoc | null {
+  const candidate = value as Partial<CanvasDoc>;
+  if (candidate.version !== 1 || !Array.isArray(candidate.nodes) || !Array.isArray(candidate.wires) || !Array.isArray(candidate.strokes)) {
+    return null;
+  }
+  return candidate as CanvasDoc;
+}
+
+/** 活页内嵌工坊画布：读者可在讲义里直接操作，改动只存在本地沙盒中。 */
+function EmbeddedCanvasBlock({ doc, readOnly }: { doc: Record<string, unknown>; readOnly?: boolean }): ReactNode {
+  const navigate = useNavigate();
+  const initial = useMemo(() => parseCanvasDoc(doc), [doc]);
+  const [sandbox, setSandboxState] = useState<CanvasDoc | null>(() => initial ? JSON.parse(JSON.stringify(initial)) as CanvasDoc : null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const setSandbox = useCallback<React.Dispatch<React.SetStateAction<CanvasDoc>>>((update) => {
+    setSandboxState((previous) => {
+      if (!previous) return previous;
+      return typeof update === 'function' ? (update as (doc: CanvasDoc) => CanvasDoc)(previous) : update;
+    });
+  }, []);
+
+  if (!sandbox) return <p className={styles.unsupported}>暂不支持此画布内容。</p>;
+  const clone = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await worksApi.create(sandbox, `${sandbox.title || '工坊画布'} · 克隆`);
+      navigate(`/canvas?work=${encodeURIComponent(created.work_id)}`);
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className={styles.canvasEmbed} aria-label="内嵌工坊画布">
+      <header className={styles.canvasEmbedHead}>
+        <span><b>工坊积木</b> · {sandbox.title || '未命名画布'}</span>
+        <button type="button" className={styles.canvasEmbedBtn} disabled={busy} onClick={() => void clone()}>
+          {busy ? '克隆中…' : '克隆到我的工坊编辑 ↗'}
+        </button>
+      </header>
+      <div className={styles.canvasEmbedViewport}>
+        <CanvasBoard doc={sandbox} setDoc={setSandbox} tool="select" inkColor="#2F3A49" embedded focusContent readOnly={readOnly} />
+      </div>
+      <p className={styles.canvasEmbedHint}>讲义内操作的是本地沙盒，不会改动原作者文档；需要保存请克隆到自己的工坊。</p>
+      {error ? <p className={styles.canvasEmbedError} role="alert">{error}</p> : null}
+    </section>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* 分发                                                                */
 /* ------------------------------------------------------------------ */
@@ -346,8 +403,9 @@ export function BlockView(props: BlockViewProps): ReactNode {
       body = <EmbedBlockView {...props} />;
       break;
     case 'canvas':
-      body = block.data.doc.template === 'ai_model' ? <LivingAIModel key={String(block.data.doc.model && (block.data.doc.model as { content_hash?: string }).content_hash)} doc={block.data.doc} />
-        : block.data.doc.template === 'attention' ? <AttentionDemo /> : <p className={styles.unsupported}>暂不支持此画布内容。</p>;
+      body = block.data.doc.version === 1 ? <EmbeddedCanvasBlock doc={block.data.doc} readOnly={props.readOnly} />
+        : block.data.doc.template === 'ai_model' ? <LivingAIModel key={String(block.data.doc.model && (block.data.doc.model as { content_hash?: string }).content_hash)} doc={block.data.doc} />
+          : block.data.doc.template === 'attention' ? <AttentionDemo /> : <p className={styles.unsupported}>暂不支持此画布内容。</p>;
       break;
     default:
       body = null;

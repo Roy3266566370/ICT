@@ -1,6 +1,53 @@
 """Verified monotone decompositions for elementary-function strip boundaries."""
 import sympy as sp
-from .expr import expression_text, to_latex, safe_float
+from .expr import expression_text, parse_expression, safe_float, to_latex
+
+MAX_PREVIEW_CHARS = 600
+
+
+def preview_swap(
+    integrand_text: str,
+    outer: str,
+    outer_a: str,
+    outer_b: str,
+    lower_text: str,
+    upper_text: str,
+) -> dict:
+    """只读的沙盒换序预览：不写实验室、不改原题条件。
+
+    仅接受 x/y 变量和受限表达式；无法保证等价时返回 ``supported=False``。
+    """
+
+    if outer not in ('x', 'y'):
+        return {'supported': False, 'reason': '外层变量只能是 x 或 y。'}
+    texts = (integrand_text, outer_a, outer_b, lower_text, upper_text)
+    if any(not isinstance(text, str) or not text.strip() or len(text) > MAX_PREVIEW_CHARS for text in texts):
+        return {'supported': False, 'reason': '表达式为空或超出长度上限。'}
+    try:
+        # parse_expression 要求至少声明一个变量；用不会出现在文本里的占位名，
+        # 再显式拒绝任何自由符号，保证外层积分限是常数。
+        a = parse_expression(outer_a, variables=('outer0',))
+        b = parse_expression(outer_b, variables=('outer0',))
+        if a.free_symbols or b.free_symbols:
+            return {'supported': False, 'reason': '外层积分限必须是常数。'}
+        a_value, b_value = complex(sp.N(a)), complex(sp.N(b))
+        if abs(a_value.imag) > 1e-12 or abs(b_value.imag) > 1e-12 or not (a_value.real < b_value.real):
+            return {'supported': False, 'reason': '外层积分区间必须按从小到大的有限实数给出。'}
+        f = parse_expression(integrand_text, variables=('x', 'y'))
+        lower = parse_expression(lower_text, variables=(outer,))
+        upper = parse_expression(upper_text, variables=(outer,))
+        allowed = {outer}
+        if {str(symbol) for symbol in lower.free_symbols} - allowed or {str(symbol) for symbol in upper.free_symbols} - allowed:
+            return {'supported': False, 'reason': f'内层边界只能含变量 {outer}。'}
+        result = general_swap(f, outer, a, b, lower, upper)
+    except Exception:  # noqa: BLE001 - 受限表达式或 SymPy 无法完成换序时明确拒绝
+        return {'supported': False, 'reason': '当前拖拽区域无法完成符号换序。'}
+    if result is None:
+        return {'supported': False, 'reason': '当前区域不满足自动分段换序的单调性条件，已保留原题区域。'}
+    records = result if isinstance(result, list) else [result]
+    if not records or len(records) > 48:
+        return {'supported': False, 'reason': '换序后的分段数量超出预览上限。'}
+    return {'supported': True, 'swaps': records, 'piece_count': len(records)}
 
 
 def general_swap(f,outer,a,b,lo,hi):

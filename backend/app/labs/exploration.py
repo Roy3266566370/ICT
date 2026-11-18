@@ -78,7 +78,13 @@ def observe(model, params, result):
         source = model.get('observation_expression') or source
     if not source:
         return result
-    expr = parse_expression(source, tuple(variables))
+    try:
+        expr = parse_expression(source, tuple(variables))
+    except ValueError:
+        if task == 'power_series':
+            # Optional plot expansions may exceed parser limits; keep the exact result.
+            return result
+        raise
     point = {v: float(params.get('probe_' + v, 0)) for v in variables}
     radius = float(params.get('view_radius', 3))
     if not math.isfinite(radius) or not 0.1 <= radius <= 10 or any(not math.isfinite(v) or abs(v)>10 for v in point.values()):

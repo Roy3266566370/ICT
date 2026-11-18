@@ -9,7 +9,9 @@ type ExamModel = LabModel & {
   partial_y?: string;
   partial_x?: string;
   vertical_normal?: boolean;
-  region_kind?: 'vertical_inequality' | 'between_axis';
+  region_kind?: 'vertical_inequality' | 'between_axis' | 'between_curves';
+  lower_expression?: string;
+  rotation_axis?: 'x' | 'y';
   effective_intervals?: string[][];
 };
 
@@ -34,10 +36,12 @@ export function evaluateExamMath(model: LabModel, params: Record<string, unknown
   if (model.task === 'implicit_normal') return normal(exam);
   if (!exam.reference_quantities?.length) throw new Error('请先核对区域函数与完整积分区间。');
   const compiled = compileExpression(expression(model.expression ?? ''), ['x']);
+  const lowerCompiled = exam.lower_expression ? compileExpression(expression(exam.lower_expression), ['x']) : null;
   const evaluate = (x: number) => {
     const value = compiled.evalOrNull({x});
     return exam.region_kind === 'vertical_inequality' && value !== null && value < 0 ? null : value;
   };
+  const evaluateLower = (x: number) => lowerCompiled ? lowerCompiled.evalOrNull({x}) : null;
   const lower = scalar(model.defaults.lower, 0);
   const upper = scalar(model.defaults.upper, 1);
   const n = Math.max(2, Math.min(80, Math.round(scalar(params.n ?? model.defaults.n, 16))));
@@ -45,28 +49,56 @@ export function evaluateExamMath(model: LabModel, params: Record<string, unknown
     const x = lower+(upper-lower)*index/259;
     return {x, y:evaluate(x)};
   });
+  const lowerSeries = lowerCompiled
+    ? Array.from({length: 260}, (_,index) => {
+        const x = lower+(upper-lower)*index/259;
+        return {x, y:evaluateLower(x)};
+      })
+    : undefined;
   const rects = Array.from({length:n}, (_,index) => {
     const x0 = lower+(upper-lower)*index/n;
     const x1 = lower+(upper-lower)*(index+1)/n;
     const mid = (x0+x1)/2;
-    return {x0,x1,mid,height:evaluate(mid) ?? 0};
+    const upperValue = evaluate(mid);
+    const lowerValue = evaluateLower(mid);
+    if (lowerCompiled) {
+      const values = [upperValue, lowerValue].filter((value): value is number => value !== null);
+      const top = values.length ? Math.max(...values) : 0;
+      const base = values.length ? Math.min(...values) : 0;
+      return {x0,x1,mid,height:top,base};
+    }
+    return {x0,x1,mid,height:upperValue ?? 0,base:0};
   });
   const quantities = exam.reference_quantities ?? [];
   const volumePreview = quantities[0]?.id === 'volume';
-  const approximation = rects.reduce((sum,rect) => sum+(volumePreview ? Math.PI*rect.height**2 : Math.abs(rect.height))*(rect.x1-rect.x0),0);
+  const axis = exam.rotation_axis ?? 'x';
+  const approximation = rects.reduce((sum,rect) => {
+    const width = rect.x1-rect.x0;
+    const base = rect.base ?? 0;
+    if (!volumePreview) return sum+Math.abs(rect.height-base)*width;
+    if (axis === 'y') return sum+2*Math.PI*Math.abs(rect.mid)*(rect.height-base)*width;
+    if (lowerCompiled) return sum+Math.PI*Math.abs(rect.height**2-base**2)*width;
+    return sum+Math.PI*rect.height**2*width;
+  },0);
   const reference = quantities[0]?.value ?? null;
   const answerText = quantities.map(q => `${q.label} = ${q.exact}`).join('；');
   const notes = [exam.region_kind === 'vertical_inequality'
     ? '不等式 0≤y≤f(x) 只在 f(x)≥0 时有非空纤维；负值区间不参与面积或旋转体积。'
-    : '曲线与矩形展示几何区域；面积逐段取绝对值，旋转体积使用 πf(x)²。'];
+    : exam.region_kind === 'between_curves'
+    ? '区域为两曲线之间，按交点分段后取上、下边界之差；不把其中一条边界替换成 x 轴。'
+    : '曲线与矩形展示几何区域；面积逐段取绝对值。'];
+  if (volumePreview && axis === 'y') notes.push('旋转体积使用壳层法 2π|x|·高度：矩形高度是到边界的距离，半径是到 y 轴的距离。');
+  else if (volumePreview && lowerCompiled) notes.push('旋转体积使用圆环法 π(f²-g²)；两曲线之间区域按交点分段。');
+  else if (volumePreview) notes.push('旋转体积使用圆盘法 πf(x)²。');
   if (model.improper_upper) notes.push(`原题上界为 +∞，图形及矩形在 x=${formatNumber(upper)} 截断；面积与体积指标为原题完整解析值。`);
   return {
     subject:'calculus', kind:'integral', headline:answerText || '几何区域预览',
     metrics: quantities.map(q => ({id:q.id,label:`${q.label}解析值`,value:formatNumber(q.value)})),
     checks:[], notes,
     trace:quantities.map((q,index) => ({index,label:q.label,detail:q.exact,values:{[q.id]:q.value}})),
-    domain:{x_min:lower,x_max:upper},series,rects,exact:reference,approx:approximation,
+    domain:{x_min:lower,x_max:upper},series,lowerSeries,rects,exact:reference,approx:approximation,
     error:reference === null ? null : Math.abs(reference-approximation),answerText,
+    rotation_axis:axis,region_kind:exam.region_kind,
   };
 }
 

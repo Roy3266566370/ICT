@@ -75,3 +75,22 @@ test('竖直切线附近改用x(y)追踪已确认的圆分支', async () => {
   for (const p of points) assert.ok(Math.abs(p.x*p.x+p.y!*p.y!-1)<1e-6);
   assert.equal(result?.point?.slope,0);
 });
+
+test('绕y轴旋转用壳层法近似，并明确标注半径与高度', async () => {
+  const result = await evaluate({task:'area_volume',expression:'x',region_kind:'between_axis',rotation_axis:'y',
+    defaults:{lower:0,upper:1,n:80},
+    reference_quantities:[{id:'volume',label:'旋转体积',value:2*Math.PI/3,exact:'2*pi/3'}]});
+  assert.equal(result?.rotation_axis,'y');
+  assert.ok(Math.abs((result?.approx ?? 0)-2*Math.PI/3)<0.02);
+  assert.ok(result?.notes.some(note=>note.includes('壳层')));
+});
+
+test('两曲线区域绘制下边界并按上下边界之差近似', async () => {
+  const result = await evaluate({task:'geometric_area',expression:'x',lower_expression:'x**2',
+    region_kind:'between_curves',defaults:{lower:0,upper:1,n:80},
+    reference_quantities:[{id:'area',label:'面积',value:1/6,exact:'1/6'}]});
+  assert.ok(result?.lowerSeries?.length);
+  assert.ok(result?.rects.every(rect=>rect.base !== undefined && rect.height >= rect.base));
+  assert.ok(Math.abs((result?.approx ?? 0)-1/6)<1e-3);
+  assert.ok(result?.notes.some(note=>note.includes('两曲线')));
+});

@@ -1,0 +1,15 @@
+{
+  "provenance": "2026-11-17 incident acceptance questions; no hand-authored plans",
+  "problems": [
+    {"id":"probability","text":"一个袋中有3个红球和2个白球。不放回地随机取出2个球，求两个球都是红球的概率。","expect":{"status":"ready"}},
+    {"id":"arithmetic","text":"等差数列首项为3，公差为4，求前20项的和。","expect":{"status":"ready"}},
+    {"id":"inequality","text":"解不等式2*x-3>5，x为实数。","expect":{"status":"ready"}},
+    {"id":"physics","text":"物体初速度v0=5米每秒，加速度a=2米每二次方秒，做匀加速直线运动。求t=3秒后的速度v，使用v=v0+a*t。","expect":{"status":"ready"}},
+    {"id":"logarithm","text":"求方程log(x)+log(x-3)=log(4)的实数解，其中log为自然对数。","expect":{"status":"ready"}},
+    {"id":"compound","text":"本金10000元，年利率5%，每年复利一次，存满3年后的本利和是多少？","expect":{"status":"ready"}},
+    {"id":"parameter","text":"已知lim_(x→0) a*sin(x)/x=6，求实数参数a。","expect":{"status":"ready"}},
+    {"id":"fruit","text":"苹果每千克8元，梨每千克12元，购买苹果和梨共5千克，共花52元。求苹果和梨分别购买多少千克。","expect":{"status":"ready"}},
+    {"id":"extrema","text":"求f(x)=x^3-3*x+1在闭区间[-2,2]上的最大值和最小值。","expect":{"status":"ready"}},
+    {"id":"tcp_concept","text":"为什么TCP建立连接需要三次握手，而不是两次？","expect":{"status":"reference"}}
+  ]
+}

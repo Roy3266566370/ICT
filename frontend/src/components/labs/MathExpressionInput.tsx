@@ -1,6 +1,7 @@
 import { useId, useImperativeHandle, useMemo, useRef, type MutableRefObject, type ReactNode } from 'react';
 import { editMath, inspectMath } from '@/labs/mathKeyboard';
-import Formula from '@/components/showcase/Formula';
+import { LabFormula as Formula } from './ProblemText';
+import { MathText } from './ProblemText';
 import styles from './MathExpressionInput.module.css';
 
 export interface MathKeyboardHandle {
@@ -104,7 +105,7 @@ export function MathExpressionInput({ label, value, onChange, variables, disable
   }));
 
   return <div className={styles.editor}>
-    <label className={styles.label} htmlFor={id}>{label}<small>{provenance}</small></label>
+    <label className={styles.label} htmlFor={id}><MathText text={label} /><small>{provenance}</small></label>
     <input ref={input} id={id} aria-label={label} className={styles.input} value={value} disabled={disabled}
       placeholder={placeholder} autoFocus={autoFocus}
       aria-describedby={`${id}-status${describedBy ? ` ${describedBy}` : ''}`}

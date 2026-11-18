@@ -312,6 +312,37 @@ def test_ai_model_generation_cache_replace_and_publish(owner: TestClient, guest:
     assert any(b["type"] == "canvas" and b["data"]["doc"]["model"]["program"] for b in public["blocks"])
 
 
+def test_canvas_block_uses_workshop_validation(owner: TestClient) -> None:
+    session, doc = _create_text_page(owner)
+    page_url = f"/api/v1/pages/{doc['page_id']}"
+    canvas = {
+        "id": "canvas_valid", "type": "canvas",
+        "data": {"doc": {
+            "version": 1, "title": "工坊验收",
+            "nodes": [{"id": "n1", "type": "functionSource", "x": 10, "y": 20, "params": {"a": 1, "b": 0, "c": 0}, "text": "x^2"}],
+            "wires": [], "strokes": [], "zoom": 1,
+        }},
+    }
+    saved = owner.patch(page_url, headers=_headers(session),
+                        json={"expected_revision": doc["revision"], "blocks": [canvas]})
+    assert saved.status_code == 200, saved.text
+    saved_block = saved.json()["data"]["blocks"][0]
+    assert saved_block["data"]["doc"]["nodes"][0]["type"] == "functionSource"
+
+    oversized = {
+        "id": "canvas_too_large", "type": "canvas",
+        "data": {"doc": {
+            "version": 1,
+            "nodes": [{"id": f"n{index}", "type": "functionSource", "x": 0, "y": 0, "params": {}}
+                      for index in range(301)],
+            "wires": [], "strokes": [], "zoom": 1,
+        }},
+    }
+    rejected = owner.patch(page_url, headers=_headers(session),
+                           json={"expected_revision": saved.json()["data"]["revision"], "blocks": [oversized]})
+    assert rejected.status_code == 422, rejected.text
+
+
 def test_ai_model_rejects_unowned_stale_and_empty_without_calling_ai(owner: TestClient, guest: TestClient, monkeypatch) -> None:
     import app.ppt_ai.page_lab as page_lab
     monkeypatch.setattr(page_lab, "generate_page_lab", lambda *a, **k: pytest.fail("invalid request must not call AI"))

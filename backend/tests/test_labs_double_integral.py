@@ -90,3 +90,20 @@ def test_out_of_plot_budget_coordinates_are_rejected_before_ready(outer_bounds,i
     from app.labs.double_integral import compile_model
     with pytest.raises(ValueError):
         compile_model({'integrand':'0','outer_bounds':outer_bounds,'inner_bounds':inner_bounds})
+
+
+def test_bare_y_outer_region_and_removable_singularity_numerical_check():
+    from app.labs.kernel_models import compile_kernel_problem
+    problem = compile_kernel_problem({
+        'task': 'double_integral',
+        'conditions': {
+            'integrand': '(x-y)^2 / (x^2 + y^2)',
+            'region_text': 'y-2 <= x <= sqrt(4-y^2), 0 <= y <= 2',
+        },
+    })
+    assert problem['status'] == 'ready'
+    assert problem['model']['outer_variable'] == 'y'
+    assert problem['solution']['exact'] == '-2 + 2*pi'
+    assert problem['solution']['answer_value'] == pytest.approx(2 * 3.141592653589793 - 2, abs=1e-6)
+    result = evaluate_problem(problem['model'], problem['model']['defaults'])
+    assert all(c['status'] == 'pass' for c in result['checks'])

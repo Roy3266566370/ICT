@@ -425,6 +425,27 @@ def _answer_for(
         if solution.get("global_note"):
             text += "\n" + str(solution["global_note"])
         return text + _follow_up(mode)
+    if evaluation.get("task") == "limit" and any(
+        word in question for word in ("极限", "左右", "逼近", "趋近", "参数", "为什么")
+    ):
+        model = problem.get("model") or {}
+        limit = evaluation.get("limit") or {}
+        left = limit.get("left") or {}
+        right = limit.get("right") or {}
+        both = limit.get("value") or {}
+        if model.get("modeling_task") == "parameter_limit":
+            parameter = str(model.get("parameter") or "a")
+            return (
+                f"含参极限先求双侧极限，得到 {model.get('parameter_limit_left') or parameter}；"
+                f"再令它等于题给极限 {model.get('target_value')}，解出 {parameter}={model.get('parameter_value')}，"
+                f"最后代回原式复核。当前函数左极限 {left.get('text') or '未求出'}、"
+                f"右极限 {right.get('text') or '未求出'}，双侧结论 {both.get('text') or '未求出'}。"
+            ) + _follow_up(mode)
+        return (
+            f"当前极限点 {limit.get('point')}：左极限 {left.get('text') or '不适用'}，"
+            f"右极限 {right.get('text') or '不适用'}，双侧结论 {both.get('text') or '未求出'}。"
+            "数值逼近只用于核对，不能替代符号极限。"
+        ) + _follow_up(mode)
     if evaluation.get("algorithm") == "heap":
         current = f"当前“{frame.get('label')}”：数组 {frame.get('array')}，已删除 {frame.get('deleted')}。" if frame else "尚无执行记录。"
         next_frame = _next_step_view(evaluation, index)

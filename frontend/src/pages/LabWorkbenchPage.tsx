@@ -6,9 +6,12 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
 import { errorMessage, isApiError } from '@/api/client';
+import { worksApi } from '@/api/works';
+import { compileLabToCanvas } from '@/labs/labToCanvas';
+import { needsModelAfterReview } from '@/labs/autoAI';
 import {
   askLab,
   getLab,
@@ -24,7 +27,7 @@ import { LabCanvas, type LabSelection } from '@/components/labs/LabCanvas';
 import { LabControls } from '@/components/labs/LabControls';
 import { LabTimeline } from '@/components/labs/LabTimeline';
 import { LabSourcePanel, type SourceTab } from '@/components/labs/LabSourcePanel';
-import { ProblemTitle } from '@/components/labs/ProblemText';
+import { MathText, ProblemTitle } from '@/components/labs/ProblemText';
 import { AssistantPanel } from '@/components/labs/AssistantPanel';
 import { ReviewDialog, type ReviewPayload } from '@/components/labs/ReviewDialog';
 import { OriginalCompare } from '@/components/labs/OriginalCompare';
@@ -32,6 +35,7 @@ import { OutcomePanel } from '@/components/labs/OutcomePanel';
 import { CompositeSolvePanel } from '@/components/labs/CompositeSolvePanel';
 import { LabAISolvePanel } from '@/components/labs/LabAISolvePanel';
 import { ManualIntegralResult } from '@/components/labs/ManualIntegralResult';
+import { GenericModelPanel } from '@/components/labs/GenericModelPanel';
 import { clamp, formatNumber } from '@/labs/expr';
 import { computeLab, currentFrame, defaultParams } from '@/labs/compute';
 import { OS_KIND_LABELS } from '@/labs/opsys';
@@ -62,6 +66,7 @@ import {
   type LabScenario,
   type LabState,
   type LabSubject,
+  type CalculusResult,
 } from '@/labs/types';
 import styles from './LabWorkbenchPage.module.css';
 
@@ -83,6 +88,8 @@ const ENGINE_LABELS: Record<string, string> = {
   space_v1: '空间对象 · 曲线、曲面与几何',
   proof_v1: '证明与存在性 · 证书核对',
   unsupported_v1: '待核对的题目',
+  generic_v1: '通用符号实验',
+  reference_v1: '参考解答',
   sympy: '数学模型',
 };
 
@@ -334,7 +341,7 @@ function Gate({
         <p>识别到了题目，但以下条件会影响数值或题意。系统不会在关键条件未确认时直接给出答案。</p>
         <ul>
           {blocking.map((item) => (
-            <li key={item.id}>{item.question}</li>
+            <li key={item.id}><MathText text={item.question} /></li>
           ))}
         </ul>
         <button type="button" className={styles.gateButton} onClick={onReview}>
@@ -347,6 +354,7 @@ function Gate({
 
 export function LabWorkbenchPage(): JSX.Element {
   const { labId = '' } = useParams();
+  const navigate = useNavigate();
   // 账号 scope 的唯一来源（C-SESSION@1）：本机草稿键按它隔离（R5-AC3）。
   const scope = useAccountScope();
   const reducedMotion = useReducedMotion();
@@ -382,6 +390,7 @@ export function LabWorkbenchPage(): JSX.Element {
   const [outcomeOpen, setOutcomeOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [canvasBusy, setCanvasBusy] = useState(false);
   const [useAi, setUseAi] = useState(false);
   const [commandText, setCommandText] = useState('');
   const [commandMessage, setCommandMessage] = useState<string | null>(null);
@@ -407,6 +416,14 @@ export function LabWorkbenchPage(): JSX.Element {
     () => lab?.problems.find((item) => item.problem_id === problemId) ?? lab?.problems[0] ?? null,
     [lab, problemId],
   );
+  const canvasCompiled = useMemo(() => {
+    if (!problem) return null;
+    try {
+      return compileLabToCanvas(problem, { params });
+    } catch {
+      return null;
+    }
+  }, [params, problem]);
 
   const applyProblemState = useCallback((nextProblem: LabProblem, nextRevision?: number) => {
     const state = stateFromProblem(nextProblem);
@@ -628,7 +645,7 @@ export function LabWorkbenchPage(): JSX.Element {
 
   const computed = useMemo(() => {
     if (!problem) return { result: null, error: null as string | null };
-    if (isBlocking(problem.recognition.ambiguities.filter(a => !(a.id === 'source_formula_confirmation' && problem.ai_solution?.agent_understanding && problem.ai_solution.verification === 'kernel')))) return { result: null, error: null as string | null };
+    if (isBlocking(problem.recognition.ambiguities.filter(a => !(a.id === 'source_formula_confirmation' && problem.ai_solution?.source_review_required && problem.ai_solution.verification === 'kernel')))) return { result: null, error: null as string | null };
     try {
       return { result: computeLab(problem, params), error: null as string | null };
     } catch (cause) {
@@ -672,7 +689,7 @@ export function LabWorkbenchPage(): JSX.Element {
       : COMMAND_EXAMPLES[problem.subject as LabSubject] ?? []
     : [];
   const draftText = uploadedText(lab, ['attempt']);
-  const blocking = problem ? isBlocking(problem.recognition.ambiguities.filter(a => !(a.id === 'source_formula_confirmation' && problem.ai_solution?.agent_understanding && problem.ai_solution.verification === 'kernel'))) : false;
+  const blocking = problem ? isBlocking(problem.recognition.ambiguities.filter(a => !(a.id === 'source_formula_confirmation' && problem.ai_solution?.source_review_required && problem.ai_solution.verification === 'kernel'))) : false;
   const supplemental = problem?.recognition.conditions.filter(
     (item) => item.provenance === 'supplement' || item.provenance === 'teaching',
   ) ?? [];
@@ -693,6 +710,36 @@ export function LabWorkbenchPage(): JSX.Element {
     },
     [problem, touch],
   );
+
+  const changeParams = useCallback(
+    (patch: Record<string, number>) => {
+      if (aiBusyRef.current || !problem) return;
+      const next = { ...paramsRef.current, ...patch };
+      const committed = commitHistory(historyRef.current, next, Object.keys(patch)[0] ?? 'drag');
+      historyRef.current = committed;
+      paramsRef.current = next;
+      setHistory(committed);
+      setParams(next);
+      setStep(0);
+      setPlaying(false);
+      touch(true);
+    },
+    [problem, touch],
+  );
+
+  const compileIntoCanvas = useCallback(async () => {
+    if (!canvasCompiled || canvasBusy) return;
+    setCanvasBusy(true);
+    setCommandMessage(null);
+    try {
+      const created = await worksApi.create(canvasCompiled.doc, `${problem?.title || '真题拆解'} · 工坊实验`);
+      navigate(`/canvas?work=${encodeURIComponent(created.work_id)}`);
+    } catch (cause) {
+      setCommandMessage(`拆解失败：${errorMessage(cause)}`);
+    } finally {
+      setCanvasBusy(false);
+    }
+  }, [canvasBusy, canvasCompiled, navigate, problem]);
 
   const goToStep = useCallback(
     (next: number) => {
@@ -789,6 +836,26 @@ export function LabWorkbenchPage(): JSX.Element {
     setCommandMessage(`已保存情景“${scenario.name}”；当前曲线可与原题条件对照。`);
   }, [logEvent, params, problem, result, scenarios, touch]);
 
+  const confirmTranscription = useCallback(async () => {
+    if (!problem) return;
+    setReviewBusy(true);
+    try {
+      const document = await reviewLabProblem({
+        labId,
+        problemId: problem.problem_id,
+        ambiguityAnswers: { source_formula_confirmation: 'confirmed' },
+      });
+      if (document.problems.length) {
+        adoptDocument(document);
+        setCommandMessage('已采用 AI 按原图的转写，并重新用内核计算。');
+      }
+    } catch (cause) {
+      setCommandMessage(`转写确认失败：${errorMessage(cause)}`);
+    } finally {
+      setReviewBusy(false);
+    }
+  }, [adoptDocument, labId, problem]);
+
   const resetOriginal = useCallback(() => {
     if (!problem) return;
     const defaults = defaultParams(problem);
@@ -857,7 +924,26 @@ export function LabWorkbenchPage(): JSX.Element {
       if (!document.problems.length) throw new Error('重新编译后没有可用题目');
       adoptDocument(document);
       setReviewOpen(false);
-      setCommandMessage('条件已核对并重新求解；原题与来源仍保留。');
+      const reviewed = document.problems.find(item => item.problem_id === problem.problem_id)!;
+      if (needsModelAfterReview(reviewed) && lab?.capabilities?.ai_solver_configured) {
+        setCommandMessage('条件已保存，正在根据确认后的题干重新建模…');
+        aiBusyRef.current = true;
+        setAiBusy(true);
+        try {
+          const modeled = await solveLabWithAI({ labId, problemId: reviewed.problem_id,
+            revision: document.revision, mode: 'auto', force: true });
+          adoptDocument(modeled);
+          const target = modeled.problems.find(item => item.problem_id === reviewed.problem_id);
+          setCommandMessage(target?.status === 'ready' ? '条件已确认，模型已更新。' : '条件已保存，但仍未建立可执行模型；请查看具体缺失项或题型支持说明。');
+        } catch (cause) {
+          setCommandMessage(`条件已保存，重新建模失败：${errorMessage(cause)}`);
+        } finally {
+          aiBusyRef.current = false;
+          setAiBusy(false);
+        }
+      } else {
+        setCommandMessage(reviewed.status === 'ready' ? '条件已核对，模型已更新。' : '条件已保存，尚未建立可执行模型；请检查模型服务配置或题型支持情况。');
+      }
     } catch (cause) {
       setCommandMessage(`修正失败：${errorMessage(cause)}`);
     } finally {
@@ -1068,6 +1154,8 @@ export function LabWorkbenchPage(): JSX.Element {
   }
 
   const noticeTeaching = supplemental.length > 0 || problem.model.teaching;
+  const referenceView = problem.status === 'reference';
+  const pendingView = problem.status === 'pending_ai' && !problem.ai_solution;
   const subjectLabel = SUBJECT_LABELS[problem.subject as LabSubject] ?? problem.subject_label;
 
   return (
@@ -1088,7 +1176,9 @@ export function LabWorkbenchPage(): JSX.Element {
               </h1>
               <span className={styles.subjectPill}>{subjectLabel}</span>
               <span className={styles.statusPill} data-status={problem.status}>
-                {aiBusy ? '正在准备实验' : problem.ai_solution ? problem.ai_solution.verification === 'kernel' ? problem.ai_solution.source_review_required ? '实验可操作 · 原图待核对' : '实验已就绪' : '需要补充条件'
+                {aiBusy ? '正在准备实验' : problem.status === 'reference' ? '参考解答 · 不自动判分'
+                  : problem.status === 'pending_ai' ? '等待 AI 理解'
+                  : problem.ai_solution ? problem.ai_solution.verification === 'kernel' ? problem.ai_solution.source_review_required ? '实验可操作 · 原图待核对' : '实验已就绪' : '需要补充条件'
                   : problem.status === 'ready' ? problem.manual_input ? '原题已确认 · 内核已计算' : '条件已就绪' : problem.status === 'needs_review' ? '待核对' : '暂不支持'}
               </span>
               {problem.model.teaching ? <span className={styles.teachingPill}>含教学示例</span> : null}
@@ -1100,7 +1190,7 @@ export function LabWorkbenchPage(): JSX.Element {
                   <select value={problem.problem_id} onChange={(event) => void switchProblem(event.target.value)}>
                     {lab.problems.map((item, index) => (
                       <option key={item.problem_id} value={item.problem_id}>
-                        {index + 1}. {item.title} · {SUBJECT_LABELS[item.subject]}
+                        {index + 1}. {/[$\\]/.test(item.title) ? `第 ${item.number || index + 1} 题` : item.title} · {SUBJECT_LABELS[item.subject]}
                       </option>
                     ))}
                   </select>
@@ -1129,6 +1219,15 @@ export function LabWorkbenchPage(): JSX.Element {
             <button type="button" className={styles.headerButton} onClick={() => setOutcomeOpen(true)}>
               学习成果
             </button>
+            <button
+              type="button"
+              className={styles.headerButton}
+              onClick={() => void compileIntoCanvas()}
+              disabled={!canvasCompiled || canvasBusy}
+              title={canvasCompiled ? '把这道题拆成可自由改造的工坊积木' : '当前题型暂不支持一键拆解（支持高数核心题型、2×2 矩阵、一维优化、斜抛/弹簧/单摆与 408）'}
+            >
+              {canvasBusy ? '拆解中…' : '拆成工坊积木 ↗'}
+            </button>
             <button type="button" className={styles.shareButton} onClick={() => void handleShare()} disabled={sharing}>
               {sharing ? '生成中…' : '分享'}
             </button>
@@ -1152,14 +1251,17 @@ export function LabWorkbenchPage(): JSX.Element {
             onTab={setSourceTab}
             onOpenReview={() => setReviewOpen(true)}
             onOpenCompare={() => setCompareOpen(true)}
+            onConfirmTranscription={() => void confirmTranscription()}
             onSelect={setSelected}
           />
 
           <section className={styles.mainColumn} aria-label="可操作模型">
-            <div className={styles.modelCard} style={(problem.model.teaching || (problem.ai_solution && blocking)) ? { display: 'none' } : undefined}>
+            <div className={styles.modelCard}>
               <div className={styles.modelHead}>
                 <div>
-                  <h2>{problem.model.task === 'triple_integral' ? '三重积分 · 区域与坐标变换'
+                  <h2>{problem.model.engine === 'generic_v1' ? '通用符号实验 · 步骤与曲线'
+                    : problem.model.modeling_task === 'parameter_limit' ? '已知极限求参数 · 代回与逼近'
+                    : problem.model.task === 'triple_integral' ? '三重积分 · 区域与坐标变换'
                     : problem.model.task === 'double_integral' ? '二重积分 · 区域与切片'
                     : problem.model.task === 'series_convergence' ? '数项级数 · 部分和观察'
                     : problem.model.task === 'power_series' ? '幂级数 · 收敛域与和函数'
@@ -1179,7 +1281,11 @@ export function LabWorkbenchPage(): JSX.Element {
                   <p>
                     {problem.model.teaching
                       ? '教学示例：题目未提供完整可计算数据，图形与结论已明确标注。'
-                      : problem.model.engine === 'space_v1'
+                      : problem.model.engine === 'generic_v1'
+                        ? 'AI 只声明变量、关系与运算步骤；滑杆变化后由本地符号内核重新执行并核验。'
+                      : problem.model.modeling_task === 'parameter_limit'
+                        ? '内核先算含参极限再解参数方程；图像使用代回参数后的函数，用于核对极限值。'
+                        : problem.model.engine === 'space_v1'
                         ? '空间对象由符号计算给出；图形为有限范围采样，用于辅助观察。'
                         : problem.model.engine === 'proof_v1'
                           ? '证明义务与证书由本地内核核验；图形与抽样仅辅助观察，不替代证明。'
@@ -1193,6 +1299,9 @@ export function LabWorkbenchPage(): JSX.Element {
                   </p>
                 </div>
                 <div className={styles.modelMeta}>
+                  {problem.model.modeling_task === 'parameter_limit' && problem.solution.answer ? (
+                    <span title="由参数极限内核解出">{problem.solution.answer}</span>
+                  ) : null}
                   <button type="button" onClick={() => setCompareOpen(true)}>原稿对照</button>
                 </div>
               </div>
@@ -1213,7 +1322,28 @@ export function LabWorkbenchPage(): JSX.Element {
                 <Gate problem={problem} onReview={() => setReviewOpen(true)} />
               ) : (
                 <>
-                  {computed.error ? (
+                  {problem.model.engine === 'generic_v1' ? null : referenceView || pendingView ? (
+                <div className={styles.noticeBanner} role="status">
+                  <span>{referenceView ? '参' : 'AI'}</span>
+                  <div>
+                    <strong>{referenceView ? '参考解答（不自动判分）' : '等待 AI 理解题目'}</strong>
+                    {referenceView ? <>
+                      <p><MathText text={problem.solution.answer || '参考解答尚未生成。'} /></p>
+                      {problem.solution.steps?.length ? <ul className={styles.referenceChecklist}>
+                        {problem.solution.steps.map((step) => <li key={step.id}>
+                          <label><input type="checkbox" /> <MathText text={step.title} />：<MathText text={step.detail} /></label>
+                        </li>)}
+                      </ul> : null}
+                      <p>请把上面的要点当作自查清单；本题没有经过内核计算，不参与自动判分。</p>
+                    </> : <p>本地识别器没有建立可靠模型；AI 正在或即将按原图重新转写与建模。若未自动开始，请点下方的“重新准备实验”。</p>}
+                  </div>
+                </div>
+              ) : null}
+              {problem.status === 'reference' || (problem.status === 'pending_ai' && !problem.ai_solution) ? null
+              : problem.model.engine === 'generic_v1' ? (
+                result ? <GenericModelPanel problem={problem} result={result as CalculusResult} params={params}
+                  onChange={changeParam} onReset={resetOriginal} /> : null
+              ) : computed.error ? (
                     <div className={styles.computeError} role="alert">
                       <strong>当前参数无法计算</strong>
                       <p>{computed.error}</p>
@@ -1229,10 +1359,12 @@ export function LabWorkbenchPage(): JSX.Element {
                         selected={selected}
                         onSelect={setSelected}
                         onStepChange={goToStep}
+                        labId={labId}
+                        onParamDrag={changeParams}
                       />
                     </div>
                   ) : null}
-                  <LabControls
+                  {problem.model.engine === 'generic_v1' || referenceView || pendingView ? null : <LabControls
                     model={problem.model}
                     params={params}
                     onChange={changeParam}
@@ -1262,8 +1394,8 @@ export function LabWorkbenchPage(): JSX.Element {
                         setReviewBusy(false);
                       }
                     }}
-                  />
-                  {result ? (
+                  />}
+                  {result && problem.model.engine !== 'generic_v1' && !referenceView && !pendingView ? (
                     <>
                       <LabTimeline
                         result={result}

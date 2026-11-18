@@ -11,6 +11,10 @@
   overscroll-behavior: contain;
 }
 
+.viewportEmbedded {
+  height: 100%;
+}
+
 .inner {
   position: relative;
   transform-origin: 0 0;
@@ -698,6 +702,15 @@
 
 .selBarBtn:last-child {
   background: rgba(255, 255, 255, 0.16);
+}
+
+.sequenceInput {
+  min-width: 220px;
+  padding: 3px 7px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-family-mono);
+  font-size: 11px;
 }
 
 .brickName {

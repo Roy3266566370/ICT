@@ -38,16 +38,18 @@ def test_two_curve_area_volume_keeps_second_boundary_and_rejects():
     assert all(step.get("capability") != "rotation_volume" for step in (result["plan"] or {}).get("steps", []))
 
 
-def test_multiple_rotation_axes_are_not_collapsed_to_the_first_axis():
+def test_multiple_rotation_axes_are_both_planned_not_collapsed():
     text = "曲线y=x与x轴围成的区域，分别绕x轴、y轴旋转，x∈[0,1]，求旋转体体积。"
     understanding = o.build_understanding(text, use_ai=False)
     assert len(understanding["asked"]) == 2
     assert any("x 轴" in q["goal"] for q in understanding["asked"])
     assert any("y 轴" in q["goal"] for q in understanding["asked"])
-    assert any("仅支持绕 x 轴" in note for note in understanding["ambiguities"])
     result = o.solve_composite(text, use_ai=False)
-    assert result["status"] == "needs_review"
-    assert result["answers"] == []
+    assert result["status"] == "完成"
+    axes = [step["inputs"]["rotation_axis"]["value"] for step in result["plan"]["steps"]
+            if step.get("capability") == "rotation_volume"]
+    assert axes == ["x", "y"]
+    assert len(result["answers"]) == 2
 
 
 def test_inverse_derivative_is_not_original_derivative():

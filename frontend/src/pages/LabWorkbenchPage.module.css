@@ -123,6 +123,10 @@
   color: var(--color-fail);
 }
 
+.statusPill[data-status='pending_ai'] { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+.statusPill[data-status='reference'] { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
+
+
 .teachingPill {
   background: var(--color-coral-soft);
   color: var(--color-coral-ink);
@@ -874,3 +878,19 @@
 }
 
 .layout > aside:last-child:not(:first-child) { overflow-y: auto; }
+
+.referenceChecklist {
+  margin: 8px 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.referenceChecklist label {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  cursor: pointer;
+}

@@ -244,16 +244,21 @@ def _strip_domain_conflict(f: sp.Expr, outer: str, a: sp.Expr, b: sp.Expr, lo: s
     return None
 
 
-def _numeric_2d(f, t, s, a, b, lo, hi) -> float | None:
+def _numeric_2d(f, t, s, a, b, lo, hi, *, split_zero: bool = False) -> float | None:
     try:
         import mpmath as mp
         numeric_f = sp.lambdify((t, s), f, 'mpmath')
         numeric_lo, numeric_hi = sp.lambdify(t, lo, 'mpmath'), sp.lambdify(t, hi, 'mpmath')
-        with mp.workdps(20):
-            value = mp.quad(
-                lambda q: mp.quad(lambda v: numeric_f(q, v), [numeric_lo(q), numeric_hi(q)]),
-                [mp.mpf(str(sp.N(a, 25))), mp.mpf(str(sp.N(b, 25)))],
-            )
+        with mp.workdps(25 if split_zero else 20):
+            a_mp, b_mp = mp.mpf(str(sp.N(a, 25))), mp.mpf(str(sp.N(b, 25)))
+            outer_pts = [a_mp, mp.mpf(0), b_mp] if split_zero and a_mp < 0 < b_mp else [a_mp, b_mp]
+
+            def inner_quad(q):
+                low, high = numeric_lo(q), numeric_hi(q)
+                inner_pts = [low, mp.mpf(0), high] if split_zero and low < 0 < high else [low, high]
+                return mp.quad(lambda v: numeric_f(q, v), inner_pts)
+
+            value = mp.quad(inner_quad, outer_pts)
         result = float(value)
         return result if math.isfinite(result) else None
     except Exception:  # noqa: BLE001
@@ -290,6 +295,8 @@ def _integrate_strip(f, outer, a, b, lo, hi):
     if exact.has(sp.Integral) or safe_float(exact) is None:
         raise ValueError('二重积分未得到有限实数结果，请核对区域和被积函数（含奇点）')
     numeric = _numeric_2d(f, t, s, a, b, lo, hi)
+    if numeric is None or abs(numeric - float(exact)) > 1e-6 * max(1, abs(float(exact))):
+        numeric = _numeric_2d(f, t, s, a, b, lo, hi, split_zero=True)
     if numeric is None:
         raise ValueError('无法完成独立数值复核，不能判为通过')
     if abs(numeric - float(exact)) > 1e-6 * max(1, abs(float(exact))):
@@ -764,8 +771,20 @@ def build_double_integral(text: str, source: Mapping, overrides: Mapping) -> dic
                 plan.pop(key, None)
     parts = [v.strip() for v in re.split(r'[,，;；]', region_text) if v.strip()]
     if 'polar' not in plan and 'pieces' not in plan:
+        def _is_const_bound(expr_text: str) -> bool:
+            try:
+                _expression(expr_text.strip(), ())
+                return True
+            except Exception:  # noqa: BLE001
+                return False
+
         for outer, inner in (('x','y'), ('y','x')):
-            outer_part = next((p.split('<=') for p in parts if re.fullmatch(r'[^<>=]+<=\s*'+outer+r'\s*<=[^<>=]+', p)), None)
+            outer_part = next(
+                (p.split('<=') for p in parts
+                 if re.fullmatch(r'[^<>=]+<=\s*'+outer+r'\s*<=[^<>=]+', p)
+                 and _is_const_bound(p.split('<=')[0]) and _is_const_bound(p.split('<=')[2])),
+                None,
+            )
             inner_part = next((p.split('<=') for p in parts if re.fullmatch(r'[^<>=]+<=\s*'+inner+r'\s*<=[^<>=]+', p)), None)
             if outer_part and inner_part and len(parts) == 2:
                 plan.setdefault('outer_variable', outer)

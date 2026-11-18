@@ -7,8 +7,8 @@ import type { NetworkResult } from './network.ts';
 
 export type LabSubject =
   | 'calculus' | 'optimization' | 'algorithm' | 'deep_learning' | 'linear_algebra' | 'operating_system'
-  | 'computer_organization' | 'computer_network' | 'physics' | 'unknown';
-export type LabStatus = 'ready' | 'needs_review' | 'unsupported';
+  | 'computer_organization' | 'computer_network' | 'physics' | 'general' | 'unknown';
+export type LabStatus = 'ready' | 'needs_review' | 'unsupported' | 'pending_ai' | 'reference';
 export type LabMode = 'explore' | 'guided' | 'solution';
 export type LabProvenance = 'original' | 'inferred' | 'user_confirmed' | 'supplement' | 'teaching';
 export type LabScalar = number | string | boolean;
@@ -23,6 +23,7 @@ export const SUBJECT_LABELS: Record<LabSubject, string> = {
   computer_organization: '计算机组成原理',
   computer_network: '计算机网络',
   physics: '大学物理',
+  general: '通用',
   unknown: '待确认',
 };
 
@@ -36,6 +37,7 @@ export const SUBJECT_SHORT: Record<LabSubject, string> = {
   computer_organization: 'COMPUTER ORGANIZATION',
   computer_network: 'NETWORK',
   physics: 'PHYSICS',
+  general: 'GENERAL',
   unknown: 'UNKNOWN',
 };
 
@@ -121,6 +123,10 @@ export interface LabRecognition {
   recognized_subject: LabSubject;
   ai_used?: boolean;
   reference_answer_text?: string;
+  quality?: { untrusted: boolean; issues: string[]; needs_visual_verification?: boolean; score?: number };
+  ai_transcription?: { text: string; confirmed: boolean };
+  local_build_skipped?: boolean;
+  model_text?: string;
 }
 
 export interface LabModelParam {
@@ -130,12 +136,25 @@ export interface LabModelParam {
   min: number | null;
   max: number | null;
   step: number | null;
+  value?: number;
   options: string[];
   note?: string;
 }
 
 export interface LabModel {
   modeling_task?: string;
+  answer_kind?: 'value' | 'values' | 'system' | 'text';
+  answer_formula?: string | string[] | string[][];
+  answer_variables?: string[];
+  symbols?: { name: string; role: string; domain: string }[];
+  constants?: { name: string; value: number; source?: string; tunable: boolean; min: number; max: number }[];
+  plot?: { expr: string; var: string; range: [number, number]; resolved?: boolean } | null;
+  protocol?: string;
+  parameter?: string;
+  parameter_value?: string;
+  parameter_limit_expression?: string;
+  parameter_limit_left?: string;
+  target_value?: string;
   observation_expression?: string;
   observation_partial?: boolean;
   goal?: 'extrema' | 'gradient_descent' | 'radius' | 'sum' | 'expand';
@@ -302,6 +321,8 @@ export interface LabCheck {
 }
 
 export interface LabSolution {
+  checks?: LabCheck[];
+  trace?: { id: string; text: string }[];
   continuity?: { classification: string; label: string; value: { text: string }; left: { text: string }; right: { text: string } };
   summary: string;
   answer: string;
@@ -582,7 +603,12 @@ export interface LabProblem {
     power_details?: PowerSeriesDetails | null;
     fourier_details?: FourierDetails | null;
     ode_details?: { ode_order?:number; ode_hints?:string[]; solution_latex?:string; initial_conditions?:string[]; residual_verified?:boolean; initial_conditions_verified?:boolean; free_constants?:boolean; solution_domain?:string | null; scope_note?:string } | null;
-    geometry_details?: { region_kind: string; rotation_axis: string | null; quantities: { id:string; label:string; exact:string; latex:string }[]; zero_points:string[]; effective_intervals:string[][] | null } | null;
+    geometry_details?: { region_kind: string; rotation_axis: string | null; lower_expression?: string | null; quantities: { id:string; label:string; exact:string; latex:string }[]; zero_points:string[]; effective_intervals:string[][] | null } | null;
+    integral_function_details?: { integrand:string; lower:string; upper:string; derivative:string; derivative_latex:string; point:string|null; value:string|null; value_latex:string|null; numeric_check:number|null; verification_level:string } | null;
+    parametric_details?: { x_expression:string; y_expression:string; t0:string; dxdt:string; dydt:string; slope:string; slope_value:string; second:string|null; second_value:string|null; point_x:string; point_y:string; tangent:string|null; numeric_slope:number|null; numeric_second:number|null; verification_level:string; slope_error:number|null } | null;
+    implicit_derivative_details?: { implicit_expression:string; point_x:string; point_y:string; partial_x:string; partial_y:string; slope:string; second:string|null; numeric_slope:number|null; numeric_second:number|null; verification_level:string } | null;
+    curvature_details?: { expression:string; point:string; value:string; first:string; second:string; curvature:string; curvature_value:number; radius:string|null; center:string[]|null; numeric_curvature:number|null; verification_level:string } | null;
+    application_details?: { kind:string; exact:string; exact_latex:string; value:number; numeric:number|null; verification_level:string; axis:string|null; lower:string; upper:string; pieces:string[][] } | null;
     taylor_details?: { point: string; order: number; coefficients: { order: number; value: string; latex: string }[]; polynomial_latex: string; remainder_kind: string; remainder_latex: string; relation_latex: string; window_lower: string; window_upper: string; error_bound: string | null; range_note: string } | null;
     study?: CalculusResult['study'];
     line_geometry?: { tangent: string; normal: string; tangent_direction: string; normal_direction: string; point_x: string; point_y: string } | null;
@@ -616,6 +642,15 @@ export interface LabProblem {
 }
 
 export interface LabAISolution {
+  source_recovery?: {
+    version: string;
+    attempted: boolean;
+    status: 'not_needed' | 'recovered' | 'unresolved' | 'failed';
+    issues: string[];
+    page_keys: string[];
+    remaining?: string[];
+  };
+  question?: string;
   failure_stage?: 'task_support' | 'source_coverage' | 'model_mapping' | string;
   source_review_required?: boolean;
   agent_understanding?: {
@@ -626,7 +661,17 @@ export interface LabAISolution {
   model_task_label?: string;
   model_condition_labels?: Record<string,string>;
   verification: 'kernel' | 'ai_reference' | 'needs_review';
+  verification_level?: 'kernel' | 'kernel_numeric';
   checkable: boolean;
+  subject?: string;
+  trace?: { stage: string; status: string; code?: string; reason?: string; detail?: string; ms?: number }[];
+  ai_reference_answer?: string;
+  model_comparison?: {
+    local: { engine: string; subject: string; answer: string };
+    ai: { engine: string; subject: string; answer: string };
+    adopted: string;
+    note: string;
+  };
   interpretation: string;
   conditions: string[];
   missing_conditions: string[];
@@ -831,14 +876,21 @@ export interface CalculusRect {
   x1: number;
   mid: number;
   height: number;
+  /** 两条曲线之间区域的下边界；缺省表示从 x 轴开始。 */
+  base?: number;
 }
 
 export interface CalculusResult extends LabResultBase {
   subject: 'calculus';
   task?: LabModel['task'];
-  kind: 'integral' | 'derivative' | 'antiderivative' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'constrained_extrema' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space' | 'proof' | 'multivariable' | 'multivariable_extrema';
+  kind: 'integral' | 'derivative' | 'antiderivative' | 'limit' | 'taylor' | 'higher_derivative' | 'function_study' | 'ode' | 'constrained_extrema' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space' | 'proof' | 'multivariable' | 'multivariable_extrema' | 'generic';
   domain: { x_min: number; x_max: number };
   series: CalculusPoint[];
+  /** 两条曲线之间区域的下边界曲线；仅在两曲线区域出现。 */
+  lowerSeries?: CalculusPoint[];
+  lowerExpression?: string;
+  rotation_axis?: string;
+  region_kind?: string;
   rects: CalculusRect[];
   exact: number | null;
   approx: number | null;

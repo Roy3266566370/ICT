@@ -19,13 +19,13 @@ from PIL import Image
 from ..settings import get_settings
 from .kernel_models import TASKS, task_catalog, _validate
 
-VERSION = 'staged-understanding.4'
+VERSION = 'staged-understanding.5'
 
 
-def candidate_tasks(reading: dict) -> list[str]:
+def _candidate_tasks(reading: dict) -> list[str]:
     # An invented target must not override an explicit operation in the question.
     text = (reading.get('question','') or reading.get('target','')).lower()
-    if '连续' in text or '间断' in text:
+    if re.search(r'连续性|间断|是否连续|处处连续|处连续|(?:讨论|判别|判断).*连续', text):
         return ['continuity']
     if re.search(r'方向导数|偏导|全微分|梯度(?!下降)', text):
         return ['multivariable']
@@ -39,21 +39,71 @@ def candidate_tasks(reading: dict) -> list[str]:
         return ['power_series']
     if '级数' in text:
         return ['series_convergence']
-    if re.search(r'空间几何|平面|直线|向量.*(?:夹角|投影|叉积|点积)', text):
-        return ['space_geometry']
+    if re.search(r'曲线积分|曲面积分|格林公式|高斯公式|斯托克斯|green|gauss|stokes', text, re.I):
+        tasks = []
+        if re.search(r'曲线积分|green|格林', text, re.I):
+            tasks.append('line_integral')
+        if re.search(r'曲面积分|gauss|高斯|stokes|斯托克斯', text, re.I):
+            tasks.append('surface_integral')
+        if re.search(r'green|格林', text, re.I):
+            tasks.append('green')
+        if re.search(r'gauss|高斯', text, re.I):
+            tasks.append('gauss')
+        if re.search(r'stokes|斯托克斯', text, re.I):
+            tasks.append('stokes')
+        return list(dict.fromkeys(tasks)) or ['line_integral', 'surface_integral']
+    if '三重积分' in text or '∭' in text:
+        return ['triple_integral']
     if '二重积分' in text or '∬' in text:
         return ['double_integral']
+    if re.search(
+        r'空间几何|空间(?:直线|平面|曲线|曲面)|点到平面|两平面|异面直线|法向量|方向向量|平面方程|'
+        r'球面|椭球面|抛物面|双曲面|柱面|二次曲面|向量.*(?:夹角|投影|叉积|点积|垂直|平行)',
+        text,
+    ):
+        return ['space_geometry']
     if '不定积分' in text or '原函数' in text:
         return ['antiderivative']
+    if re.search(r'定积分|计算积分|∫[^。；\n]{0,100}?d[xyzt]', text):
+        return ['integral']
     if '法线' in text:
         return ['implicit_normal']
     if '极坐标' in text and '面积' in text:
         return ['double_integral']
-    # Specific order-bearing derivative questions must precede the broad 导数 rule.
-    if re.search(r'高阶导数|(?:第\s*)?[0-9一二两三四五六七八九十]+\s*阶\s*导', text):
+    # "具有 n 阶导数" is a precondition, not an order-derivative request.
+    if re.search(r'(?:求|计算|写出|确定|证明)[^。；\n]{0,50}?(?:高阶导数|(?:第\s*)?[0-9n一二两三四五六七八九十]+\s*阶\s*导)', text):
         return ['higher_derivative']
     if '极值' in text and re.search(r'约束[^。；]*=|条件极值|拉格朗日', text):
         return ['constrained_extrema']
+    if '旋转曲面' in text:
+        return ['surface_of_revolution']
+    if '旋转体' in text or ('旋转' in text and '体积' in text):
+        if re.search(r'最[大小]值?|极[大小]?值', text):
+            return ['rotation_volume', 'optimization']
+        return ['rotation_volume']
+    if '渐近线' in text:
+        return ['asymptote', 'ode'] if '微分方程' in text else ['asymptote']
+    if '数列' in text and '极限' in text:
+        return ['sequence_limit']
+    if '反函数' in text and re.search(r'导|切线|斜率', text):
+        return ['inverse_derivative']
+    if '参数方程' in text and re.search(r'导|切线|斜率', text):
+        return ['parametric_derivative']
+    if '隐函数' in text and re.search(r'导|切线|斜率', text):
+        return ['implicit_derivative']
+    if '曲率' in text:
+        return ['curvature']
+    if '弧长' in text:
+        return ['parametric_arc_length'] if '参数' in text else (
+            ['polar_arc_length'] if '极坐标' in text else ['arc_length'])
+    if '泰勒' in text or '麦克劳林' in text:
+        return ['taylor']
+    if re.search(r'偏微分|∂\s*[²2]?\s*[guf]\s*/', text):
+        return ['ode', 'multivariable']
+    if '参数' in text and '极限' in text:
+        return ['parameter_limit']
+    if re.search(r'\\?lim(?![a-z])|lim\s*[_({]|极限', text, re.I):
+        return ['limit']
     rules = {
         'page_replace': ('页面', '缺页', 'lru', 'fifo', 'opt'),
         'disk_schedule': ('磁盘', '磁道', '磁头'),
@@ -63,6 +113,13 @@ def candidate_tasks(reading: dict) -> list[str]:
         'limit': ('极限','lim('), 'ode': ('微分方程',),
     }
     return [task for task, words in rules.items() if any(w in text for w in words)] or list(TASKS)
+
+
+def candidate_tasks(reading: dict) -> list[str]:
+    """Only return kernel-backed tasks; manual-only task ids must never leak here."""
+    selected = _candidate_tasks(reading)
+    known = [task for task in selected if task in TASKS]
+    return list(dict.fromkeys(known)) or list(TASKS)
 
 
 def unsupported_boundary(text: str) -> str:
@@ -106,6 +163,8 @@ FEW_SHOTS.update({
         {'task':'series_convergence','conditions':{'term':'1/n^3','index_start':2},'bindings':{'term':['a'],'index_start':['b']}}),
     'space_geometry': ({'conditions':[{'id':'a','value':'(1,2,3)'},{'id':'b','value':'x+y-5=0'}]},
         {'task':'space_geometry','conditions':{'geometry_kind':'point_plane_distance','point':['1','2','3'],'plane':['1','1','0','-5']},'bindings':{'point':['a'],'plane':['b']}}),
+    'rotation_volume': ({'conditions':[{'id':'a','value':'y=sin(x)'},{'id':'b','value':'0<=x<=pi/2'},{'id':'c','value':'与x轴围成'},{'id':'d','value':'绕y轴旋转'}]},
+        {'task':'rotation_volume','conditions':{'expression':'sin(x)','lower':'0','upper':'pi/2','region_kind':'between_axis','rotation_axis':'y'},'bindings':{'expression':['a'],'lower':['b'],'upper':['b'],'region_kind':['c'],'rotation_axis':['d']}}),
 })
 
 
@@ -120,6 +179,7 @@ ACCOUNT_RULES = {
     'double_integral': (
         dict(values=('二重积分', '计算二重积分', '求二重积分'), requires='二重积分',
              account='goal:double_integral'),
+        dict(pattern=r'(?i)(?:d[xy]){2}|dσ|ds|d[xy]d[xy]', account='goal:double_integral_differential'),
     ),
     'heap': (
         dict(values=('新堆', '得到的新堆'), requires='新堆', account='goal:resulting_heap'),
@@ -612,7 +672,17 @@ def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
         conditions=[dict(value='x^3',excerpt='x^3'),dict(value='x',excerpt='x')], uncertainties=[])
     read_messages[1:1] = [dict(role='user',content='{"text":"求x^3的不定积分","pages":[]}'),
                           dict(role='assistant',content=json.dumps(example,ensure_ascii=False))]
-    reading = request_json(read_messages, schema, deadline)
+    from .source_recovery import read_with_source_retry
+    def read(views, recovery):
+        messages = copy.deepcopy(read_messages)
+        messages[-1]['images'] = [p['image'] for p in views]
+        if recovery:
+            payload = json.loads(messages[-1]['content'])
+            payload['source_recovery'] = recovery
+            messages[-1]['content'] = json.dumps(payload, ensure_ascii=False)
+        return request_json(messages, schema, deadline)
+    reading = read_with_source_retry(problem, images, read, lab_id=lab_id, cloud=False)
+    recovery = reading.pop('_source_recovery', None)
     for i,fact in enumerate(reading['conditions']):
         fact.setdefault('id',f'c{i+1}')
         fact.setdefault('unit','')
@@ -620,6 +690,8 @@ def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
         fact.setdefault('page_key',images[0]['key'] if len(images)==1 else None)
     data = validate_understanding({**reading, 'model':{'kind':'none'}, 'unsupported_reason':'尚未建模'},
                                   [p['key'] for p in images])
+    if recovery:
+        data['_source_recovery'] = recovery
     source_question=text if not images else data['question']
     boundary=unsupported_boundary(source_question)
     if boundary:
@@ -668,6 +740,7 @@ def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
         '数学用显式乘号、^、sqrt。能填写的字段必须填写，缺失的字段用null，不能猜测。'
         '二重积分只提取integrand和完整region_text，程序推导积分限，不需要题目给出累次积分限。'
         '只有server_accounted列出的条件已由服务端处理，其余条件必须绑定；不能省略任何附加约束。'
+        '能由候选任务直接计算时务必选择对应任务并提取完整字段；只有原题包含候选任务无法表达的额外要求（如含参数最值、积分方程、多步耦合求解）时才选task="none"并写明unsupported_reason。'
         '将LaTeX公式转换为ASCII表达式，去掉$和排版命令，\\le转换为<=。')),
         dict(role='user',content=json.dumps({'understanding':{k:v for k,v in data.items() if k not in ('model','unsupported_reason')},
              'tasks':modelling_catalog(selected),
@@ -707,18 +780,19 @@ def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
         return result
     for attempt in range(2):
         if len(selected) == 1:
-            # A direct schema avoids an always-shorter `none` union branch.
-            # Missing fields remain representable and are rejected by _validate.
-            output_schema = copy.deepcopy(branches[0])
-            output_schema['properties'].pop('unsupported_reason')
-            output_schema['required'].remove('unsupported_reason')
+            # Keep the `none` union branch so unsupported multi-step or equation problems
+            # can honestly decline instead of hallucinating incompatible task fields.
+            direct_branch = copy.deepcopy(branches[0])
+            direct_branch['properties'].pop('unsupported_reason')
+            direct_branch['required'].remove('unsupported_reason')
             if selected == ['space_geometry'] and re.search(r'到.*平面.*距离', source_question):
                 keep = {'geometry_kind','point','plane'}
-                output_schema['properties']['conditions']['properties'] = {k:v for k,v in output_schema['properties']['conditions']['properties'].items() if k in keep}
-                output_schema['properties']['bindings']['properties'] = {k:v for k,v in output_schema['properties']['bindings']['properties'].items() if k in keep}
-            output_schema['properties']['conditions']['required'] = list(output_schema['properties']['conditions']['properties'])
-            for name, definition in output_schema['properties']['conditions']['properties'].items():
-                output_schema['properties']['conditions']['properties'][name] = {'anyOf':[definition,{'type':'null'}]}
+                direct_branch['properties']['conditions']['properties'] = {k:v for k,v in direct_branch['properties']['conditions']['properties'].items() if k in keep}
+                direct_branch['properties']['bindings']['properties'] = {k:v for k,v in direct_branch['properties']['bindings']['properties'].items() if k in keep}
+            direct_branch['properties']['conditions']['required'] = list(direct_branch['properties']['conditions']['properties'])
+            for name, definition in direct_branch['properties']['conditions']['properties'].items():
+                direct_branch['properties']['conditions']['properties'][name] = {'anyOf':[definition,{'type':'null'}]}
+            output_schema = {'oneOf': [direct_branch, branches[-1]]}
         else:
             output_schema = {'oneOf':branches}
         model = compiled if compiled is not None else request_json(messages, output_schema, deadline)

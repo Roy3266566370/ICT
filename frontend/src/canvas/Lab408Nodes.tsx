@@ -12,6 +12,7 @@ import {
   TREE_VISUALS,
   cacheSplit,
   pageReplacement,
+  parseReference,
   subnetInfo,
   treeTraversal,
 } from './lab408.ts';
@@ -92,15 +93,18 @@ export function CacheSplitBody({ node, onParams }: NodeBodyProps): JSX.Element {
   </div>;
 }
 
-export function PageReplaceBody({ node, onParams }: NodeBodyProps): JSX.Element {
+export function PageReplaceBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
   const algorithm = Math.max(0, Math.min(2, Math.round(node.params.algorithm ?? 0)));
   const capacity = Math.max(1, Math.min(4, Math.round(node.params.capacity ?? 3)));
-  const result = pageReplacement(algorithm, capacity);
+  const reference = parseReference(node.text);
+  const result = pageReplacement(algorithm, capacity, reference);
   const name = PAGE_ALGORITHMS[algorithm] ?? 'FIFO';
-  const fifo3 = pageReplacement(0, 3).faults;
-  const fifo4 = pageReplacement(0, 4).faults;
+  const fifo3 = pageReplacement(0, 3, reference).faults;
+  const fifo4 = pageReplacement(0, 4, reference).faults;
   const note = algorithm === 0
-    ? `FIFO 从 3 块增到 4 块：缺页 ${fifo3} → ${fifo4}，出现 Belady 异常。`
+    ? fifo4 > fifo3
+      ? `FIFO 从 3 块增到 4 块：缺页 ${fifo3} → ${fifo4}，出现 Belady 异常。`
+      : `FIFO 在本题序列上 3 块/4 块缺页为 ${fifo3}/${fifo4}，未出现 Belady 异常。`
     : algorithm === 1
       ? 'LRU 属栈式算法，增加物理块不会让缺页次数增加。'
       : 'OPT 预知未来访问，是缺页次数的理论下界。';
@@ -115,6 +119,14 @@ export function PageReplaceBody({ node, onParams }: NodeBodyProps): JSX.Element 
         </select>
       </label>
     </div>
+    <label className={styles.inlineField}>访问序列
+      <input
+        className={styles.sequenceInput}
+        value={node.text ?? PAGE_REFERENCE.join(',')}
+        aria-label="页面访问序列"
+        onChange={event => onText?.(event.target.value)}
+      />
+    </label>
     <div className={styles.pageWrap}>
       <table className={styles.pageTable}>
         <thead><tr><th>访问</th>{result.steps.map((step, index) => <th key={index}>{step.page}</th>)}</tr></thead>
@@ -130,7 +142,7 @@ export function PageReplaceBody({ node, onParams }: NodeBodyProps): JSX.Element 
         </tbody>
       </table>
     </div>
-    <div className={styles.miniRead}>{name}：缺页 <b className={styles.live}>{result.faults}</b> / {PAGE_REFERENCE.length} 次 · 命中 {result.hits} 次 · {fmt(result.rate * 100, 1)}%</div>
+    <div className={styles.miniRead}>{name}：缺页 <b className={styles.live}>{result.faults}</b> / {reference.length} 次 · 命中 {result.hits} 次 · {fmt(result.rate * 100, 1)}%</div>
     <div className={styles.miniRead}>{note}</div>
   </div>;
 }

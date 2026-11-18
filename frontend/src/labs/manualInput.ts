@@ -1,6 +1,6 @@
 import { inspectMath } from './mathKeyboard.ts';
 
-export type IntegralTask = 'integral' | 'antiderivative' | 'derivative' | 'limit' | 'higher_derivative' | 'continuity' | 'implicit_normal' | 'function_study' | 'taylor' | 'geometric_area' | 'rotation_volume' | 'ode' | 'multivariable' | 'multivariable_extrema' | 'double_integral' | 'triple_integral' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space_geometry' | 'curve_surface_integral' | 'proof';
+export type IntegralTask = 'integral' | 'antiderivative' | 'derivative' | 'inverse_derivative' | 'limit' | 'parameter_limit' | 'higher_derivative' | 'continuity' | 'implicit_normal' | 'implicit_derivative' | 'parametric_derivative' | 'curvature' | 'asymptote' | 'sequence_limit' | 'arc_length' | 'parametric_arc_length' | 'surface_of_revolution' | 'polar_area' | 'polar_arc_length' | 'function_study' | 'taylor' | 'geometric_area' | 'rotation_volume' | 'integral_function' | 'ode' | 'multivariable' | 'multivariable_extrema' | 'double_integral' | 'triple_integral' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space_geometry' | 'curve_surface_integral' | 'proof';
 export type SpaceGeometryKind = 'vector_operations' | 'vector_products' | 'line_from_points' | 'line_point_direction' | 'plane_point_normal' | 'plane_three_points' | 'line_line_relation' | 'line_plane_relation' | 'plane_plane_relation' | 'point_line_distance' | 'point_plane_distance' | 'line_plane_projection' | 'surface_tangent' | 'quadric_surface';
 export type SpaceFieldKey = 'spaceA' | 'spaceB' | 'spaceC' | 'spaceD';
 export interface SpaceFieldSpec { key: SpaceFieldKey; condition: string; label: string; placeholder: string; }
@@ -154,11 +154,15 @@ export type TripleMode = 'box' | 'z_simple' | 'cylindrical' | 'spherical';
 export interface ManualIntegralDraft {
   task: IntegralTask;
   expression: string;
+  xExpression?: string;
+  yExpression?: string;
   variable: string;
   lower: string;
   upper: string;
   point?: string;
   order?: string;
+  parameter?: string;
+  targetValue?: string;
   valueMode?: 'expression' | 'undefined' | 'value';
   pointValue?: string;
   pointY?: string;
@@ -189,7 +193,8 @@ export interface ManualIntegralDraft {
   multiPoint?: string;
   multiDirection?: string;
   directionLimit?: 'forward' | 'two_sided';
-  regionKind?: '' | 'between_axis' | 'vertical_inequality';
+  regionKind?: '' | 'between_axis' | 'vertical_inequality' | 'between_curves';
+  lowerExpression?: string;
   rotationAxis?: '' | 'x' | 'y';
   intervalType?: 'closed' | 'open' | 'left_open' | 'right_open';
   side?: 'both' | 'left' | 'right';
@@ -313,10 +318,26 @@ export function manualConditions(draft: ManualIntegralDraft): Record<string, str
   if (draft.task === 'multivariable_extrema') return {expression:draft.expression.trim(),variables:'x,y',operation:draft.extremaOperation ?? 'unconstrained',...(draft.extremaOperation === 'constrained' ? {constraint:draft.extremaConstraint?.trim() ?? ''} : {})};
   if (draft.task === 'multivariable') return {expression:draft.expression.trim(),variables:draft.multiVariables ?? 'x,y',operation:draft.multiOperation ?? 'partial',...(draft.multiPoint?.trim() ? {point:draft.multiPoint.trim()} : {}),...((draft.multiOperation ?? 'partial') === 'partial' ? {partial_variable:draft.partialVariable ?? 'x'} : {}),...(draft.multiOperation === 'directional' ? {direction:draft.multiDirection?.trim() ?? '',direction_limit:draft.directionLimit ?? 'forward'} : {})};
   if (draft.task === 'ode') return {equation:draft.expression.trim(),independent_variable:draft.variable,initial_conditions:draft.initialConditions?.trim() ?? ''};
-  if (['geometric_area','rotation_volume'].includes(draft.task)) return { expression:draft.expression.trim(), lower:draft.lower.trim(), upper:draft.upper.trim(), region_kind:draft.regionKind ?? '', ...(draft.task === 'rotation_volume' ? { rotation_axis:draft.rotationAxis ?? '' } : {}) };
+  if (['geometric_area','rotation_volume'].includes(draft.task)) return { expression:draft.expression.trim(), lower:draft.lower.trim(), upper:draft.upper.trim(), region_kind:draft.regionKind ?? '', ...(draft.regionKind === 'between_curves' ? { lower_expression:draft.lowerExpression?.trim() ?? '' } : {}), ...(draft.task === 'rotation_volume' ? { rotation_axis:draft.rotationAxis ?? '' } : {}) };
   if (draft.task === 'implicit_normal') return { implicit_expression: draft.expression.trim(), point_x: draft.point?.trim() ?? '', ...(draft.pointY?.trim() ? { point_y: draft.pointY.trim() } : {}) };
+  if (draft.task === 'parametric_derivative') return { x_expression: draft.xExpression?.trim() ?? '',
+    y_expression: draft.yExpression?.trim() ?? '', point: draft.point?.trim() ?? '', order: draft.order ?? '1' };
+  if (draft.task === 'implicit_derivative') return { implicit_expression: draft.expression.trim(),
+    point_x: draft.point?.trim() ?? '', ...(draft.pointY?.trim() ? { point_y: draft.pointY.trim() } : {}), order: draft.order ?? '1' };
+  if (draft.task === 'parametric_arc_length') return { x_expression: draft.xExpression?.trim() ?? '',
+    y_expression: draft.yExpression?.trim() ?? '', lower: draft.lower.trim(), upper: draft.upper.trim() };
+  if (['arc_length','surface_of_revolution','polar_area','polar_arc_length'].includes(draft.task)) return { expression: draft.expression.trim(),
+    lower: draft.lower.trim(), upper: draft.upper.trim(),
+    ...(draft.task === 'surface_of_revolution' ? { rotation_axis: draft.rotationAxis ?? '' } : {}) };
+  if (draft.task === 'curvature') return { expression: draft.expression.trim(), point: draft.point?.trim() ?? '' };
+  if (['asymptote','sequence_limit'].includes(draft.task)) return { expression: draft.expression.trim() };
+  if (draft.task === 'integral_function') return { expression: draft.expression.trim(),
+    lower_expression: draft.lower.trim(), upper_expression: draft.upper.trim(),
+    ...(draft.point?.trim() ? { point: draft.point.trim() } : {}) };
+  if (draft.task === 'parameter_limit') return { expression: draft.expression.trim(), variable: draft.variable,
+    point: (draft.point ?? '').trim(), parameter: (draft.parameter ?? '').trim(), target_value: (draft.targetValue ?? '').trim() };
   return { expression: draft.expression.trim(), variable: draft.variable,
-    ...(['derivative', 'limit', 'continuity', 'taylor'].includes(draft.task) ? { point: (draft.point ?? '').trim() } : {}),
+    ...(['derivative', 'inverse_derivative', 'limit', 'continuity', 'taylor'].includes(draft.task) ? { point: (draft.point ?? '').trim() } : {}),
     ...(draft.task === 'continuity' ? { value_mode: draft.valueMode ?? 'expression', ...(draft.valueMode === 'value' ? { point_value: draft.pointValue?.trim() ?? '' } : {}) } : {}),
     ...(draft.task === 'taylor' ? { order: draft.order ?? '3' } : {}),
     ...(draft.task === 'higher_derivative' ? { order: draft.order ?? '1', ...(draft.point?.trim() ? { point: draft.point.trim() } : {}) } : {}),
@@ -410,6 +431,64 @@ export function manualInputError(draft: ManualIntegralDraft): string | null {
     if (!/^(?:[1-9]|1[0-2])$/.test(draft.order ?? '3')) return '傅里叶截断阶数必须是1至12的整数。';
     return null;
   }
+  if (draft.task === 'parametric_derivative') {
+    if (!draft.xExpression?.trim() || inspectMath(draft.xExpression, ['t']).error) return '请填写 x(t)，只使用参数 t。';
+    if (!draft.yExpression?.trim() || inspectMath(draft.yExpression, ['t']).error) return '请填写 y(t)，只使用参数 t。';
+    if (!draft.point?.trim() || inspectMath(draft.point, []).error) return '请填写有限参数点 t0，如 1、pi/4。';
+    if (!['1','2'].includes(draft.order ?? '1')) return '参数方程求导只支持一阶或二阶。';
+    return null;
+  }
+  if (draft.task === 'implicit_derivative') {
+    const parts = draft.expression.split('=');
+    if (parts.length > 2 || parts.some(part => !part.trim() || inspectMath(part, ['x','y']).error)) return '请检查曲线方程，如 x^2+y^2=1 或 y-x^2=0。';
+    if (!draft.point?.trim() || inspectMath(draft.point, []).error) return '请填写研究点横坐标 x0，如 1/3、pi。';
+    if (draft.pointY?.trim() && inspectMath(draft.pointY, []).error) return '研究点纵坐标应为有限实常数。';
+    if (!['1','2'].includes(draft.order ?? '1')) return '隐函数求导只支持一阶或二阶。';
+    return null;
+  }
+  if (['arc_length','parametric_arc_length','surface_of_revolution','polar_area','polar_arc_length'].includes(draft.task)) {
+    if (draft.task === 'parametric_arc_length') {
+      if (!draft.xExpression?.trim() || inspectMath(draft.xExpression, ['t']).error) return '请填写 x(t)，只使用参数 t。';
+      if (!draft.yExpression?.trim() || inspectMath(draft.yExpression, ['t']).error) return '请填写 y(t)，只使用参数 t。';
+    } else {
+      const variables = ['polar_area','polar_arc_length'].includes(draft.task) ? ['theta'] : ['x'];
+      const label = variables[0] === 'theta' ? '极径 r(θ)' : '曲线 y=f(x)';
+      if (!draft.expression.trim() || inspectMath(draft.expression, variables).error) return `请填写${label}，只使用变量 ${variables[0]}。`;
+      if (draft.task === 'surface_of_revolution' && !['x','y'].includes(draft.rotationAxis ?? '')) return '请选择旋转轴（x 轴或 y 轴）。';
+    }
+    for (const [key, label] of [['lower', '下限'], ['upper', '上限']] as const) {
+      if (!draft[key].trim() || inspectMath(draft[key], []).error) return `积分${label}必须是有限实常数表达式，如 0、pi。`;
+    }
+    return null;
+  }
+  if (['asymptote','sequence_limit'].includes(draft.task)) {
+    const variable = draft.task === 'sequence_limit' ? 'n' : 'x';
+    if (!draft.expression.trim() || inspectMath(draft.expression, [variable]).error) return draft.task === 'sequence_limit' ? '请填写数列通项 aₙ，只使用指标 n。' : '请填写有理函数 f(x)（多项式之比），只使用变量 x。';
+    return null;
+  }
+  if (draft.task === 'curvature') {
+    if (!draft.expression.trim() || inspectMath(draft.expression, ['x']).error) return '请填写函数 f(x)，只使用变量 x。';
+    if (!draft.point?.trim() || inspectMath(draft.point, []).error) return '请填写有限曲率点 x0，如 1、pi/2。';
+    return null;
+  }
+  if (draft.task === 'integral_function') {
+    if (!draft.expression.trim()) return '请填写被积函数 f(t)。';
+    if (inspectMath(draft.expression, ['t']).error) return '被积函数只能含积分变量 t，不能含 x。';
+    for (const [key, label] of [['lower', '下限 a(x)'], ['upper', '上限 b(x)']] as const) {
+      if (!draft[key].trim() || inspectMath(draft[key], ['x']).error) return `${label}只能含自由变量 x，且必须完整填写。`;
+    }
+    if (draft.point?.trim() && inspectMath(draft.point, []).error) return '求值点必须是有限实常数，可留空。';
+    return null;
+  }
+  if (draft.task === 'parameter_limit') {
+    const parameter=(draft.parameter ?? '').trim();
+    if (!/^[a-df-hj-z]$/.test(parameter) || parameter === draft.variable) return '参数必须是不同于自变量的单个实数字母（不含 e、i）。';
+    if (!draft.expression.trim()) return '请填写含参函数表达式。';
+    if (inspectMath(draft.expression,[draft.variable,parameter]).error) return `请检查含参函数，只使用 ${draft.variable} 和参数 ${parameter}。`;
+    if (!draft.point?.trim() || inspectMath(draft.point, []).error) return '请填写有限极限点，可使用分数或 pi。';
+    if (!draft.targetValue?.trim() || inspectMath(draft.targetValue, []).error) return '请填写题目给定的有限极限值。';
+    return null;
+  }
   if (!draft.expression.trim()) return ['integral', 'antiderivative', 'triple_integral'].includes(draft.task) ? '请填写被积函数。' : '请填写函数表达式。';
   if (draft.task === 'triple_integral') {
     if (inspectMath(draft.expression,['x','y','z']).error) return '请检查三重积分被积函数，只使用x、y、z。';
@@ -500,15 +579,20 @@ export function manualInputError(draft: ManualIntegralDraft): string | null {
     if (!draft.point?.trim() || inspectMath(draft.point, []).error || (draft.pointY?.trim() && inspectMath(draft.pointY, []).error)) return '研究点坐标应为常数，如 1/3 或 pi。';
     return null;
   }
-  if (['geometric_area','rotation_volume'].includes(draft.task) && !draft.regionKind) return '请选择区域的完整定义，不能默认把负函数区域删去。';
-  if (draft.task === 'rotation_volume' && draft.rotationAxis !== 'x') return draft.rotationAxis ? '当前仅支持绕x轴旋转；不会替换题目给定的旋转轴。' : '请选择题目给定的旋转轴。';
+  if (['geometric_area','rotation_volume'].includes(draft.task) && !['between_axis','vertical_inequality','between_curves'].includes(draft.regionKind ?? '')) return '请选择区域的完整定义，不能默认把负函数区域删去。';
+  if (draft.task === 'rotation_volume' && !['x','y'].includes(draft.rotationAxis ?? '')) return '请选择题目给定的旋转轴（x 轴或 y 轴）。';
+  if (draft.regionKind === 'between_curves') {
+    const lower = draft.lowerExpression?.trim() ?? '';
+    if (!lower) return '请填写两条曲线之间区域的下边界函数 g(x)。';
+    if (inspectMath(lower, [draft.variable]).error) return '请检查下边界函数 g(x)，只使用变量 x。';
+  }
   const expression = inspectMath(draft.expression, [draft.variable]);
   if (expression.error) return `请检查公式：${expression.error}`;
   if (['higher_derivative','taylor'].includes(draft.task) && !/^(?:[1-9]|10)$/.test(draft.order ?? '1')) return '导数阶数必须是1至10的整数。';
-  if (draft.task === 'derivative' || draft.task === 'limit' || draft.task === 'continuity' || draft.task === 'taylor' || (draft.task === 'higher_derivative' && !!draft.point?.trim())) {
+  if (draft.task === 'derivative' || draft.task === 'inverse_derivative' || draft.task === 'limit' || draft.task === 'continuity' || draft.task === 'taylor' || (draft.task === 'higher_derivative' && !!draft.point?.trim())) {
     const point = draft.point?.trim() ?? '';
     const infinity = draft.task === 'limit' && ['oo', '+oo', '-oo', 'inf', '+inf', '-inf', '∞', '+∞', '-∞'].includes(point);
-    if (!point || (!infinity && inspectMath(point, []).error)) return '请填写常数求导点或趋近点，如 1/3、pi；极限还支持 ±∞。';
+    if (!point || (!infinity && inspectMath(point, []).error)) return draft.task === 'inverse_derivative' ? '请填写有限的反函数输入值，如 1/3、pi。' : '请填写常数求导点或趋近点，如 1/3、pi；极限还支持 ±∞。';
   }
   if (draft.task === 'continuity' && draft.valueMode === 'value' && (!draft.pointValue?.trim() || inspectMath(draft.pointValue, []).error)) return '请填写有限实常数单点函数值，如 1/3 或 pi。';
   if (['integral','function_study','geometric_area','rotation_volume'].includes(draft.task)) {

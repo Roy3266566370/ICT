@@ -1,4 +1,20 @@
 import type { LabProblem } from './types.ts';
+import { segmentProblemText } from './mathText.ts';
+
+/** Older saved titles may have been cut in the middle of a TeX expression. */
+export function readableProblemTitle(problem: LabProblem): string {
+  const [, prefix = '', body = ''] = problem.title.match(/^(第\s*\d+\s*题\s*[·.、:：]?\s*)?([\s\S]*)$/) ?? [];
+  if (!/\$|\\/.test(body) || !problem.text) return problem.title;
+  const incomplete = segmentProblemText(body).some(part => part.kind === 'text' && /(?<!\\)\$|\\[([]/.test(part.value));
+  if (!/(?:…|\.\.\.)$/.test(body) && !incomplete) return problem.title;
+  const stem = body.replace(/(?:…|\.\.\.)$/, '').trim();
+  const source = problem.text.trim().replace(/^(?:第\s*\d+\s*题\s*[·.、:：]?|[（(]?\d+[)）.、．])\s*/, '');
+  const compact = (text: string): string => text.replace(/\s+/g, ' ');
+  if (!compact(source).startsWith(compact(stem)) || compact(source) === compact(body)) return problem.title;
+  // Restore only a matching original with renderable math; never infer missing symbols.
+  if (segmentProblemText(source).some(part => part.kind === 'math')) return prefix + source;
+  return problem.title;
+}
 
 const INVERSE_NAMES: Record<string,string> = {
   arctan:'atan', arcsin:'asin', arccos:'acos', arccot:'acot', arcsec:'asec', arccsc:'acsc',

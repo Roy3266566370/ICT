@@ -16,6 +16,7 @@ import {
   recommendLivingModels,
 } from '@/api/living';
 import { errorMessage, isApiError } from '@/api/client';
+import { worksApi, type WorkSummary } from '@/api/works';
 import { SiteNav } from '@/components/home/SiteNav';
 import { BlockView, SuggestionCard } from '@/components/living/PageBlocks';
 import { PageOutline } from '@/components/living/PageOutline';
@@ -32,12 +33,13 @@ function newId(): string {
   return `blk_${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16)}`;
 }
 
-type InsertKind = 'text' | 'formula' | 'quiz' | 'checkpoint' | 'embed' | 'lab';
+type InsertKind = 'text' | 'formula' | 'quiz' | 'checkpoint' | 'embed' | 'lab' | 'canvas_work';
 
 const INSERT_ITEMS: { kind: InsertKind; label: string; hint: string }[] = [
   { kind: 'text', label: '文字', hint: '一段说明文字' },
   { kind: 'formula', label: '公式', hint: 'LaTeX 公式' },
   { kind: 'lab', label: '实验块', hint: '粘贴一道题，自动求解' },
+  { kind: 'canvas_work', label: '工坊积木', hint: '嵌入连线实验台' },
   { kind: 'quiz', label: '先猜再看', hint: '预测闸门' },
   { kind: 'checkpoint', label: '判分点', hint: '作答并比对参考答案' },
   { kind: 'embed', label: '嵌入', hint: '外部网页/GeoGebra' },
@@ -74,6 +76,7 @@ export default function LivingPageEditor(): ReactNode {
   const [editing, setEditing] = useState<{ id: string; field: string; value: string } | null>(null);
   const [insertAt, setInsertAt] = useState<number | null>(null);
   const [labText, setLabText] = useState('');
+  const [canvasPicks, setCanvasPicks] = useState<WorkSummary[] | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [insights, setInsights] = useState<LivingInsights | null>(null);
   const [showInsights, setShowInsights] = useState(false);
@@ -84,6 +87,10 @@ export default function LivingPageEditor(): ReactNode {
   const [aiPanel, setAiPanel] = useState<{ blockId?: string } | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
   const aiRunning = useRef(false);
+
+  useEffect(() => {
+    if (insertAt === null) setCanvasPicks(null);
+  }, [insertAt]);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,6 +183,18 @@ export default function LivingPageEditor(): ReactNode {
   const insert = async (kind: InsertKind): Promise<void> => {
     if (aiRunning.current) return;
     if (insertAt === null) return;
+    if (kind === 'canvas_work') {
+      setBusy('canvas-list');
+      setCanvasPicks(null);
+      try {
+        setCanvasPicks((await worksApi.list()).works);
+      } catch (e) {
+        setError(errorMessage(e));
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
     const at = insertAt;
     setInsertAt(null);
     if (kind === 'lab') {
@@ -204,6 +223,29 @@ export default function LivingPageEditor(): ReactNode {
     mutate(next);
     if (kind === 'text' || kind === 'formula') {
       setEditing({ id: block.id, field: kind === 'text' ? 'md' : 'latex', value: '' });
+    }
+  };
+
+  const insertCanvasWork = async (workId: string): Promise<void> => {
+    if (insertAt === null || !doc) return;
+    const at = insertAt;
+    setBusy('canvas-insert');
+    try {
+      const work = await worksApi.get(workId);
+      const block: PageBlock = {
+        id: newId(),
+        type: 'canvas',
+        data: { doc: work.document as unknown as Record<string, unknown> },
+      };
+      const next = [...blocks];
+      next.splice(at, 0, block);
+      setInsertAt(null);
+      setCanvasPicks(null);
+      mutate(next);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(null);
     }
   };
 
@@ -508,7 +550,19 @@ export default function LivingPageEditor(): ReactNode {
             onChange={(e) => setLabText(e.target.value)}
             rows={2}
           />
-          <button type="button" className={styles.ghostBtn} onClick={() => setInsertAt(null)}>关闭</button>
+          {busy === 'canvas-list' ? <p className={styles.canvasPicksLoading}>正在读取工坊作品…</p> : null}
+          {canvasPicks ? (
+            <div className={styles.canvasPicks} role="group" aria-label="选择工坊作品">
+              <strong>插入工坊作品（当前画布快照会冻结进讲义）</strong>
+              {canvasPicks.length ? canvasPicks.map((work) => (
+                <button key={work.work_id} type="button" disabled={busy !== null} onClick={() => void insertCanvasWork(work.work_id)}>
+                  <strong>{work.title || '未命名画布'}</strong>
+                  <span>{work.node_count} 个积木 · 更新于 {work.updated_at.slice(0, 10)}</span>
+                </button>
+              )) : <p>还没有工坊作品；先到 /canvas 搭建一个再回来。</p>}
+            </div>
+          ) : null}
+          <button type="button" className={styles.ghostBtn} onClick={() => { setInsertAt(null); setCanvasPicks(null); }}>关闭</button>
         </div>
       ) : null}
       </div>

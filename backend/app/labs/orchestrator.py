@@ -515,7 +515,7 @@ def _deterministic_understanding(text: str, *, deadline: float | None = None) ->
                 if primary_expr is None:
                     note_once(missing_note)
             elif context.get("second") is not None:
-                note_once("两条非零曲线之间区域的旋转体积暂无内核，不能自动改按与 x 轴之间的区域计算")
+                note_once("两条非零曲线之间区域的旋转体积需要在手动输入中完整给出上下边界；自动编排暂不建立该步骤，不能自动改按与 x 轴之间的区域计算")
             else:
                 axes = axis_letters or (
                     [last_axis] if last_axis and continuation and primary_expr is None else [])
@@ -526,9 +526,9 @@ def _deterministic_understanding(text: str, *, deadline: float | None = None) ->
                     qid = f"Q{question_no}"
                     axis_id = axis_given(axis)
                     if axis is None:
-                        note_once("请确认旋转轴；当前旋转体内核仅支持绕 x 轴，不会替换原题的旋转轴")
-                    elif axis != "x":
-                        note_once("当前旋转体内核仅支持绕 x 轴；绕 y 轴的体积不会自动改写成绕 x 轴结果")
+                        note_once("请确认旋转轴；当前旋转体内核支持绕 x 轴（圆盘/圆环法）与绕 y 轴（壳层法），不会替换原题的旋转轴")
+                    elif axis not in ('x', 'y'):
+                        note_once("当前旋转体内核只支持绕坐标轴旋转；绕 x=a 或 y=b 等一般直线的体积不会自动改写")
                     asked.append({"id": qid, "goal": f"该区域绕 {axis or '待确认'} 轴旋转的旋转体体积"})
                     mapping[qid] = {"curve": context["curve"], "interval": context["interval"],
                                     "axis": axis_id}
@@ -861,19 +861,19 @@ def deterministic_plan(text: str, understanding: Mapping[str, Any]) -> dict[str,
             if axis is None:
                 return None
             axis_value = str(axis.get("value") or "")
-            # 内核只支持绕 x 轴；绕 y 轴或未指明轴时保持“小问未覆盖”，
-            # 由计划校验明确报告，绝不改写成绕 x 轴的结果。
-            if axis_value != "x":
+            # 内核支持绕 x 轴（圆盘/圆环法）与绕 y 轴（壳层法）；一般直线轴与未指明轴
+            # 保持“小问未覆盖”，由计划校验明确报告，绝不改写成坐标轴结果。
+            if axis_value not in ("x", "y"):
                 continue
             sid = next_id()
-            steps.append({"id": sid, "goal": "计算该区域绕 x 轴旋转所得旋转体的体积",
+            steps.append({"id": sid, "goal": f"计算该区域绕 {axis_value} 轴旋转所得旋转体的体积",
                           "capability": "rotation_volume", "subquestion": str(question["id"]),
                           "covers": [],
                           "inputs": {"expression": _from_problem(str(ctx["curve"]), expr),
                                      "lower": _from_problem(str(ctx["interval"]), a),
                                      "upper": _from_problem(str(ctx["interval"]), b),
                                      "region_kind": _from_plan("between_axis"),
-                                     "rotation_axis": _from_problem(str(ctx["axis"]), "x")},
+                                     "rotation_axis": _from_problem(str(ctx["axis"]), axis_value)},
                           "done_when": "体积值由内核核验", "feeds": []})
             prepared[context_key]["compute"].append(sid)
     if not steps:

@@ -2,6 +2,7 @@ import { useId, type ReactNode } from 'react';
 import type { LabResult, LabSubject } from '@/labs/types';
 import { currentFrame } from '@/labs/compute';
 import styles from './labs.module.css';
+import { MathText } from './ProblemText';
 
 interface Props {
   result: LabResult;
@@ -65,7 +66,7 @@ export function LabTimeline({
           <strong>
             第 {current} / {total} 步
           </strong>
-          <small>{frame.label}</small>
+          <small><MathText text={frame.label} /></small>
         </div>
         <label className={styles.speedControl}>
           <span>速度</span>
@@ -103,7 +104,7 @@ export function LabTimeline({
         />
       </div>
       <div className={styles.timelineMeta}>
-        <span>{detail ?? frame.detail ?? '时间轴只回放真实执行记录。'}</span>
+        <span><MathText text={detail ?? frame.detail ?? '时间轴只回放真实执行记录。'} /></span>
         {reducedMotion ? <span>已按系统设置减少动效</span> : <span>空格播放 · ←/→ 单步</span>}
       </div>
     </section>

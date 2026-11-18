@@ -1,8 +1,12 @@
-import type { ReactNode } from 'react';
+import { MathText } from './ProblemText';
+import { useMemo, useState, type ReactNode } from 'react';
 import { formatNumber } from '@/labs/expr';
 import {
+  auditManualSchedule,
   DISK_LABELS,
+  firstScheduleDivergence,
   PAGE_LABELS,
+  referenceScheduleGantt,
   SCHED_LABELS,
   type OsBankerResult,
   type OsDiskResult,
@@ -75,37 +79,83 @@ function CompareBars({ title, values, labels, current, unit, lowerBetter = true 
 function SchedCanvas({ result, frame, selected, onSelect }: {
   result: OsSchedResult; frame: OsFrame; selected?: LabSelection | null; onSelect?: Props['onSelect'];
 }): ReactNode {
-  const full = result.stats.gantt;
-  const executed = read<OsGanttSegment[]>(frame, 'gantt', []).length;
-  const names = result.stats.processes.map((row) => row.id);
+  const [manualMode, setManualMode] = useState(false);
+  const [timeline, setTimeline] = useState<(string | null)[]>([]);
+  const [manualStep, setManualStep] = useState(1);
+  const processes = result.stats.processes;
+  const manual = useMemo(() => auditManualSchedule(processes, timeline, manualStep), [manualStep, processes, timeline]);
+  const reference = useMemo(() => referenceScheduleGantt(processes, 'srtf', manualStep), [manualStep, processes]);
+  const divergence = manual.complete ? firstScheduleDivergence(timeline, reference, manualStep) : null;
+  const manualTime = Number((timeline.length * manualStep).toFixed(6));
+  const earliestArrival = processes.length ? Math.min(...processes.map((process) => process.arrival)) : 0;
+  const leadingIdle = (step: number): (string | null)[] =>
+    Array.from({ length: Math.max(0, Math.ceil(earliestArrival / step - 1e-9)) }, () => null);
+  const startManual = (): void => {
+    setManualMode(true);
+    setTimeline((current) => current.length ? current : leadingIdle(manualStep));
+  };
+  const changeStep = (step: number): void => {
+    setManualStep(step);
+    setTimeline(leadingIdle(step));
+  };
+  const jumpToEarliest = (): void => {
+    setTimeline((current) => {
+      const target = Math.max(0, Math.ceil(earliestArrival / manualStep - 1e-9));
+      if (current.length >= target) return current;
+      return [...current, ...Array.from({ length: target - current.length }, () => null)];
+    });
+  };
+  const full = manualMode ? manual.segments : result.stats.gantt;
+  const executed = manualMode ? full.length : read<OsGanttSegment[]>(frame, 'gantt', []).length;
+  const names = processes.map((row) => row.id);
   const color = (id: string | null): string => (id === null ? '#cbd5e1' : PALETTE[names.indexOf(id) % PALETTE.length]!);
   const start = full[0]?.start ?? 0;
-  const span = Math.max(1e-9, result.stats.makespan - start);
+  const makespan = manualMode ? manual.makespan : result.stats.makespan;
+  const span = Math.max(1e-9, makespan - start);
   const pct = (time: number): number => ((time - start) / span) * 100;
   const rows = read<Record<string, unknown>[]>(frame, 'rows', []);
   const ready = read<string[]>(frame, 'ready', []);
   const running = read<string | null>(frame, 'running', null);
   const stateLabels: Record<string, string> = { pending: '未到达', ready: '就绪', running: '运行', done: '完成' };
+  const issueAt = (segment: OsGanttSegment): boolean =>
+    manualMode && manual.errors.some((error) => error.time >= segment.start && error.time < segment.end);
+  const manualRunning = manual.segments[manual.segments.length - 1]?.id ?? null;
   let lastLabel = -100;
   return (
     <>
       <div className={styles.block}>
-        <span className={styles.blockTitle}>甘特图 · t={formatNumber(Number(read(frame, 'time', start)))}</span>
-        <div className={styles.gantt} role="img" aria-label="CPU 甘特图">
+        <span className={styles.blockTitle}>调度模式</span>
+        <div className={styles.queue}>
+          <button type="button" className={styles.modeBtn} data-current={!manualMode || undefined} onClick={() => setManualMode(false)}>
+            内核自动推演
+          </button>
+          <button type="button" className={styles.modeBtn} data-current={manualMode || undefined} onClick={startManual}>
+            我来手动调度 ✋
+          </button>
+          {manualMode ? <small>每格 {formatNumber(manualStep)} 个时间单位；点击下方进程块填入当前时刻。</small> : null}
+        </div>
+      </div>
+      <div className={styles.block}>
+        <span className={styles.blockTitle}>
+          {manualMode ? `手动甘特图 · 当前 t=${formatNumber(manualTime)}` : `甘特图 · t=${formatNumber(Number(read(frame, 'time', start)))}`}
+        </span>
+        <div className={styles.gantt} role="img" aria-label={manualMode ? '手动 CPU 甘特图' : 'CPU 甘特图'}>
           {full.map((seg, index) => (
             <div
               key={`${seg.start}-${index}`}
               className={styles.ganttSeg}
-              data-state={index < executed ? (index === executed - 1 ? 'now' : 'done') : 'future'}
+              data-state={manualMode ? (index === executed - 1 ? 'now' : 'done') : index < executed ? (index === executed - 1 ? 'now' : 'done') : 'future'}
+              data-invalid={issueAt(seg) || undefined}
               style={{ left: `${pct(seg.start)}%`, width: `${pct(seg.end) - pct(seg.start)}%`, ['--seg' as string]: color(seg.id) }}
-              title={`${seg.id ?? '空闲'}：${formatNumber(seg.start)}–${formatNumber(seg.end)}`}
+              title={`${seg.id ?? '空闲'}：${formatNumber(seg.start)}–${formatNumber(seg.end)}${issueAt(seg) ? '（非法调度）' : ''}${manualMode ? ' · 点击从此时刻重新调度' : ''}`}
+              onClick={manualMode ? () => setTimeline((current) => current.slice(0, Math.max(0, Math.round(seg.start / manualStep)))) : undefined}
             >
               <span>{seg.id ?? '空闲'}</span>
             </div>
           ))}
         </div>
         <div className={styles.ganttAxis}>
-          {[...full.map((seg) => seg.start), result.stats.makespan].map((time, index) => {
+          {[...full.map((seg) => seg.start), makespan].map((time, index) => {
             const left = pct(time);
             const show = left - lastLabel >= 4;
             if (show) lastLabel = left;
@@ -113,54 +163,140 @@ function SchedCanvas({ result, frame, selected, onSelect }: {
           })}
         </div>
       </div>
+      {manualMode ? (
+        <div className={styles.block}>
+          <span className={styles.blockTitle}>手动调度 · 点击进程填入 t={formatNumber(manualTime)}</span>
+          <div className={styles.queue}>
+            <label className={styles.stepField}>时间粒度
+              <select aria-label="手动调度时间粒度" value={manualStep} onChange={(event) => changeStep(Number(event.target.value))}>
+                <option value={0.25}>0.25</option>
+                <option value={0.5}>0.5</option>
+                <option value={1}>1</option>
+              </select>
+            </label>
+            <button type="button" className={styles.queueCell} onClick={jumpToEarliest} disabled={manualTime >= earliestArrival - 1e-9}>
+              跳到最早到达
+            </button>
+            {manual.rows.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                className={styles.queueCell}
+                style={{ ['--seg' as string]: color(row.id) }}
+                disabled={row.finish !== null}
+                data-notready={row.arrival > manualTime + 1e-9 || undefined}
+                title={`到达 ${formatNumber(row.arrival)}，服务 ${formatNumber(row.burst)}，剩余 ${formatNumber(row.remaining)}`}
+                onClick={() => setTimeline((current) => [...current, row.id])}
+              >
+                {row.id} <small>{row.finish !== null ? '已完成' : `剩 ${formatNumber(row.remaining)}`}</small>
+              </button>
+            ))}
+            <button type="button" className={styles.queueCell} onClick={() => setTimeline((current) => [...current, null])}>空闲</button>
+            <button type="button" className={styles.queueCell} disabled={!timeline.length} onClick={() => setTimeline((current) => current.slice(0, -1))}>撤销一格</button>
+            <button type="button" className={styles.queueCell} disabled={!timeline.length} onClick={() => setTimeline([])}>清空</button>
+          </div>
+          {manual.errors.length ? (
+            <ul className={styles.schedIssues} role="alert">
+              {manual.errors.map((error, index) => <li key={`${error.time}-${index}`}>{error.reason}</li>)}
+            </ul>
+          ) : null}
+          {manual.warnings.length ? (
+            <ul className={styles.schedWarnings}>
+              {manual.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+            </ul>
+          ) : null}
+          {manual.complete && manual.avgWaiting !== null ? (
+            <p className={styles.schedSummary}>
+              完成：平均等待 {formatNumber(manual.avgWaiting)}，平均周转 {formatNumber(manual.avgTurnaround)}。
+              最佳参考（SRTF）平均等待 {formatNumber(result.stats.compare.srtf ?? null)}。
+            </p>
+          ) : <p className={styles.schedSummary}>尚未完成全部进程；补齐时间片后才能与内核算法比较。</p>}
+          {divergence ? (
+            <p className={styles.schedHint}>第一次与 SRTF 不同的时刻 t={formatNumber(divergence.time)}：你选择 {divergence.manual ?? '空闲'}，SRTF 选择 {divergence.reference ?? '空闲'}。</p>
+          ) : manual.complete ? <p className={styles.schedHint}>你的逐格选择与 SRTF 完全一致。</p> : null}
+        </div>
+      ) : null}
       <div className={styles.twoCols}>
         <div className={styles.block}>
           <span className={styles.blockTitle}>CPU 与就绪队列</span>
           <div className={styles.queue}>
-            <span className={styles.cpu} style={{ ['--seg' as string]: color(running) }}>{running ?? '空闲'}</span>
+            <span className={styles.cpu} style={{ ['--seg' as string]: color(manualMode ? manualRunning : running) }}>
+              {manualMode ? (manualRunning ?? '空闲') : (running ?? '空闲')}
+            </span>
             <em>←</em>
-            {ready.length ? ready.map((id) => (
-              <span key={id} className={styles.queueCell} style={{ ['--seg' as string]: color(id) }}>{id}</span>
-            )) : <small>队列为空</small>}
+            {manualMode
+              ? manual.rows.filter((row) => row.finish === null && row.arrival <= timeline.length * manualStep + 1e-9).map((row) => (
+                <span key={row.id} className={styles.queueCell} style={{ ['--seg' as string]: color(row.id) }}>{row.id}</span>
+              ))
+              : ready.length ? ready.map((id) => (
+                <span key={id} className={styles.queueCell} style={{ ['--seg' as string]: color(id) }}>{id}</span>
+              )) : <small>队列为空</small>}
           </div>
         </div>
-        {Object.keys(result.stats.compare).length ? (
+        {manualMode && manual.complete && manual.avgWaiting !== null ? (
+          <CompareBars title="平均等待时间对照（含你的手动调度）" values={{ ...result.stats.compare, manual: manual.avgWaiting }}
+            labels={{ ...SCHED_LABELS, manual: '你的手动调度' }} current="manual" unit="" />
+        ) : Object.keys(result.stats.compare).length ? (
           <CompareBars title="同一组进程 · 平均等待时间对照" values={result.stats.compare} labels={SCHED_LABELS}
             current={result.algorithm} unit="" />
         ) : null}
       </div>
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr><th>进程</th><th>到达</th><th>服务</th>{result.stats.processes.some((row) => row.priority !== null) ? <th>优先级</th> : null}
-              <th>剩余</th><th>状态</th><th>完成</th><th>周转</th><th>等待</th></tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const id = String(row.id);
-              const hasPriority = result.stats.processes.some((item) => item.priority !== null);
-              return (
-                <tr
-                  key={id}
-                  data-state={String(row.state)}
-                  data-selected={selected?.id === `os-proc-${id}` || undefined}
-                  onClick={() => onSelect?.({ id: `os-proc-${id}`, label: `进程 ${id}`, kind: 'os_process' })}
-                >
-                  <td><i style={{ background: color(id) }} />{id}</td>
-                  <td>{formatNumber(Number(row.arrival))}</td>
-                  <td>{formatNumber(Number(row.burst))}</td>
-                  {hasPriority ? <td>{row.priority === null ? '—' : formatNumber(Number(row.priority))}</td> : null}
-                  <td>{formatNumber(Number(row.remaining))}</td>
-                  <td><b>{stateLabels[String(row.state)] ?? String(row.state)}</b></td>
-                  <td>{row.finish === null ? '—' : formatNumber(Number(row.finish))}</td>
-                  <td>{row.turnaround === null ? '—' : formatNumber(Number(row.turnaround))}</td>
-                  <td>{row.waiting === null ? '—' : formatNumber(Number(row.waiting))}</td>
+      {manualMode ? (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>进程</th><th>到达</th><th>服务</th><th>剩余</th><th>状态</th><th>完成</th><th>周转</th><th>等待</th></tr>
+            </thead>
+            <tbody>
+              {manual.rows.map((row) => (
+                <tr key={row.id} data-state={row.state}>
+                  <td><i style={{ background: color(row.id) }} />{row.id}</td>
+                  <td>{formatNumber(row.arrival)}</td>
+                  <td>{formatNumber(row.burst)}</td>
+                  <td>{formatNumber(row.remaining)}</td>
+                  <td><b>{stateLabels[row.state] ?? row.state}</b></td>
+                  <td>{row.finish === null ? '—' : formatNumber(row.finish)}</td>
+                  <td>{row.turnaround === null ? '—' : formatNumber(row.turnaround)}</td>
+                  <td>{row.waiting === null ? '—' : formatNumber(row.waiting)}</td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr><th>进程</th><th>到达</th><th>服务</th>{result.stats.processes.some((row) => row.priority !== null) ? <th>优先级</th> : null}
+                <th>剩余</th><th>状态</th><th>完成</th><th>周转</th><th>等待</th></tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => {
+                const id = String(row.id);
+                const hasPriority = result.stats.processes.some((item) => item.priority !== null);
+                return (
+                  <tr
+                    key={id}
+                    data-state={String(row.state)}
+                    data-selected={selected?.id === `os-proc-${id}` || undefined}
+                    onClick={() => onSelect?.({ id: `os-proc-${id}`, label: `进程 ${id}`, kind: 'os_process' })}
+                  >
+                    <td><i style={{ background: color(id) }} />{id}</td>
+                    <td>{formatNumber(Number(row.arrival))}</td>
+                    <td>{formatNumber(Number(row.burst))}</td>
+                    {hasPriority ? <td>{row.priority === null ? '—' : formatNumber(Number(row.priority))}</td> : null}
+                    <td>{formatNumber(Number(row.remaining))}</td>
+                    <td><b>{stateLabels[String(row.state)] ?? String(row.state)}</b></td>
+                    <td>{row.finish === null ? '—' : formatNumber(Number(row.finish))}</td>
+                    <td>{row.turnaround === null ? '—' : formatNumber(Number(row.turnaround))}</td>
+                    <td>{row.waiting === null ? '—' : formatNumber(Number(row.waiting))}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </>
   );
 }
@@ -186,7 +322,7 @@ function PageCanvas({ result, frame }: { result: OsPageResult; frame: OsFrame })
           访问序列与物理块 · 缺页 {String(read(frame, 'faults', 0))} 次 / 命中 {String(read(frame, 'hits', 0))} 次
         </span>
         {result.stats.initial_frames.length ? (
-          <p className={styles.mono}>初始已装入：{result.stats.initial_frames.join('、')}（对它们的首次访问按命中计）</p>
+          <p className={styles.mono}>初始已装入：<MathText text={String(result.stats.initial_frames.join('、') ?? '')} />（对它们的首次访问按命中计）</p>
         ) : null}
         <div className={styles.pageScroll}>
           <table className={styles.pageTable} aria-label="页面置换过程表">
@@ -243,7 +379,7 @@ function PageCanvas({ result, frame }: { result: OsPageResult; frame: OsFrame })
       </div>
       <div className={styles.block}>
         <span className={styles.blockTitle}>
-          工作集 W(t,Δ={result.stats.window}) · 最大 {result.stats.max_working_set} 页
+          工作集 W(t,Δ=<MathText text={String(result.stats.window ?? '')} />) · 最大 <MathText text={String(result.stats.max_working_set ?? '')} /> 页
           {result.stats.thrash ? ' · 可能抖动' : ''}
         </span>
         <div className={styles.queue}>
@@ -257,8 +393,8 @@ function PageCanvas({ result, frame }: { result: OsPageResult; frame: OsFrame })
         <div className={styles.series}>
           {result.stats.series.slice(0, 8).map((item) => (
             <span key={item.frames} data-current={item.frames === framesCount || undefined}>
-              <small>{item.frames} 块</small>
-              <b>{item.faults}</b>
+              <small><MathText text={String(item.frames ?? '')} /> 块</small>
+              <b><MathText text={String(item.faults ?? '')} /></b>
             </span>
           ))}
         </div>
@@ -441,7 +577,7 @@ export function OsCanvas({ result, step, selected, onSelect }: Props): ReactNode
     <section className={styles.canvas} aria-label={`${KIND_TITLES[result.osKind]}实验`}>
       <header className={styles.heading}>
         <strong>{KIND_TITLES[result.osKind]}{algorithmLabel ? ` · ${algorithmLabel}` : ''}</strong>
-        <span>{result.headline}</span>
+        <span><MathText text={String(result.headline ?? '')} /></span>
       </header>
       <div className={styles.layout}>
         <div className={styles.stage}>
@@ -450,7 +586,7 @@ export function OsCanvas({ result, step, selected, onSelect }: Props): ReactNode
           {result.osKind === 'disk_schedule' ? <DiskCanvas result={result} frame={frame} /> : null}
           {result.osKind === 'banker' ? <BankerCanvas result={result} frame={frame} /> : null}
           {generic ? <GenericOsCanvas frame={frame} /> : null}
-          <p className={styles.caption}><strong>{frame.label}</strong>{frame.detail}</p>
+          <p className={styles.caption}><strong><MathText text={String(frame.label ?? '')} /></strong><MathText text={String(frame.detail ?? '')} /></p>
         </div>
         <aside className={styles.aside}>
           <Pseudocode result={result} frame={frame} />

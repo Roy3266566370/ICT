@@ -12,6 +12,21 @@ def test_specific_math_goals_have_a_task_schema(task,text):
     assert candidate_tasks({'question':text})==[task]
 
 
+def test_kernel_variables_array_is_normalized_for_all_tasks():
+    from app.labs.model_contract import normalize_plan
+    plan = normalize_plan({'kind': 'kernel', 'task': 'multivariable', 'conditions': {
+        'expression': 'x^2+y^2', 'variables': ['x', 'y'], 'operation': 'gradient', 'point': ['1', '2']}})
+    assert plan['conditions']['variables'] == 'x,y'
+    plan = normalize_plan({'kind': 'kernel', 'task': 'multivariable_extrema', 'conditions': {
+        'expression': 'x^2+y^2', 'variables': ['x', 'y'], 'operation': 'local_extrema'}})
+    assert plan['conditions']['variables'] == 'x,y'
+    for task, extra in (('constrained_extrema', {'constraint': 'x+y=1'}),
+                        ('optimization', {'goal': 'extrema', 'bounds': {}})):
+        plan = normalize_plan({'kind': 'kernel', 'task': task, 'conditions': {
+            'expression': 'x*y', 'variables': ['x', 'y'], **extra}})
+        assert plan['conditions']['variables'] == ['x', 'y']
+
+
 def test_explicit_missing_initial_condition_cannot_be_invented(monkeypatch):
     from app.labs import staged_understanding as s
     reading=dict(question="求微分方程y'=y的特解，初值条件待补充。",target='特解',subquestions=[],relations=[],uncertainties=[],

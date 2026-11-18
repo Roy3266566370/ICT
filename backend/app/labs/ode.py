@@ -225,6 +225,38 @@ def _check_side_at_point(side: sp.Expr, x: sp.Symbol, point: sp.Expr,
                 raise ValueError('原方程在初值点没有实定义，不能给出满足该初值的解')
 
 
+def _implicit_derivative_verified(equation, result, x) -> bool | None:
+    """Verify an implicit first-order solution by implicit differentiation.
+
+    ``checkodesol`` tries to solve F(x, y)=0 for y and raises on many valid
+    implicit answers (e.g. y - atan(x+y) = -pi/4). Differentiating F implicitly
+    gives dy/dx = -F_x/F_y, which can be compared with the ODE directly.
+    """
+    y_expr = sp.Function('y')(x)
+    if equation.has(sp.Derivative(y_expr, (x, 2))):
+        return None
+    value = sp.Symbol('y', real=True)
+    residual = sp.simplify((result.lhs - result.rhs).subs(y_expr, value))
+    f_x = sp.diff(residual, x)
+    f_y = sp.diff(residual, value)
+    if sp.simplify(f_y) == 0:
+        return None
+    try:
+        derivative = sp.simplify(-f_x / f_y)
+    except Exception:  # noqa: BLE001
+        return None
+    rhs = equation.rhs.subs(y_expr, value)
+    try:
+        return sp.simplify(derivative - rhs) == 0
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _implicit_text(result) -> str:
+    text = expression_text(sp.simplify(result.lhs - result.rhs)).replace('y(x)', 'y')
+    return f'{text} = 0'
+
+
 def _check_solution_points(raw: Any, independent: str, solution_expr: sp.Expr, ic_terms) -> None:
     normalized, _ = _normalize_equation(raw, independent, 'y')
     names = (independent, 'y', 'D1', 'D2', 'D3')
@@ -268,9 +300,14 @@ def _original_equation_domain(raw: Any, independent: str, ic_terms) -> sp.Set:
             continue
         domain = domain.intersect(side_domain)
     for _, point, _ in ic_terms:
+        known = _known_values_at(point, ic_terms)
         for side in sides:
-            _check_side_at_point(side, x, point, _known_values_at(point, ic_terms))
-        if sp.Interval(point, point).is_subset(domain) is not True:
+            _check_side_at_point(side, x, point, known)
+        # The x-domain may still contain y/D1 from the original equation, e.g.
+        # 1/(x+y)^2 gives Reals \ {-y}. At the initial point those are known,
+        # so substitute them before deciding whether the point belongs.
+        local_domain = domain.subs(known)
+        if sp.Interval(point, point).is_subset(local_domain) is not True:
             raise ValueError('原方程在初值点没有实定义，不能给出满足该初值的解')
     return domain
 
@@ -350,19 +387,33 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
             'solution_status': 'incomplete', 'solution_complete': False,
             'incomplete_reason': '微分方程未返回可核验的显式解',
         }
-    implicit = bool(dsolve_result.lhs != y)
-    solution_expr = dsolve_result.rhs
-    if solution_expr.has(sp.Integral) or solution_expr.has(sp.Derivative) or solution_expr.has(sp.dsolve):
-        complete = False
-    try:
-        residual_ok, residual = sp.checkodesol(equation, dsolve_result)
-    except Exception:  # noqa: BLE001
-        residual_ok, residual = False, None
-    if residual_ok is not True:
-        complete = False
+    implicit = bool(sp.simplify(dsolve_result.lhs - y) != 0)
+    solution_expr = None if implicit else dsolve_result.rhs
+    if implicit:
+        residual_ok, residual = _implicit_derivative_verified(equation, dsolve_result, x), None
+        if residual_ok is not True:
+            complete = False
+    else:
+        if solution_expr.has(sp.Integral) or solution_expr.has(sp.Derivative) or solution_expr.has(sp.dsolve):
+            complete = False
+        try:
+            residual_ok, residual = sp.checkodesol(equation, dsolve_result)
+        except Exception:  # noqa: BLE001
+            residual_ok, residual = False, None
+        if residual_ok is not True:
+            complete = False
     initial_ok = True
     for order_k, point, value in ic_terms:
         try:
+            if implicit:
+                if order_k != 0:
+                    initial_ok = False
+                    continue
+                # F(x, y)=0 must hold at the initial point.
+                substitution = {sp.Function('y')(x): value, x: point}
+                if sp.simplify((dsolve_result.lhs - dsolve_result.rhs).subs(substitution)) != 0:
+                    initial_ok = False
+                continue
             actual = solution_expr if order_k == 0 else sp.diff(solution_expr, x, order_k)
             if sp.simplify(actual.subs(x, point) - value) != 0:
                 initial_ok = False
@@ -371,46 +422,48 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
     domain = None
     domain_reason = None
     try:
-        if not implicit and not solution_expr.free_symbols - {x}:
-            domain = continuous_domain(solution_expr, x, sp.S.Reals).intersect(equation_domain)
-            for derivative_order in range(1, order + 1):
-                derivative_domain = continuous_domain(
-                    sp.diff(solution_expr, x, derivative_order), x, sp.S.Reals)
-                domain = domain.intersect(derivative_domain)
-            domain = domain.intersect(_equation_restricted_domain(
-                model['equation'], independent, solution_expr, order))
-            _check_solution_points(model['equation'], independent, solution_expr, ic_terms)
-        normalized, _ = _normalize_equation(model['equation'], independent, 'y')
-        names = (independent, 'y', 'D1', 'D2', 'D3')
-        replacements = {sp.Symbol('y', real=True):solution_expr}
-        replacements.update({sp.Symbol(f'D{k}',real=True):sp.diff(solution_expr,x,k) for k in (1,2,3)})
-        for raw in normalized.split('='):
-            preserved = parse_expression(raw, names, preserve_structure=True)
-            for node in sp.preorder_traversal(preserved):
-                if isinstance(node,sp.Pow) and node.exp.is_number and node.exp<0:
-                    base=sp.simplify(node.base.xreplace(replacements))
-                    for _,point,_ in ic_terms:
-                        if sp.simplify(base.subs(x,point))==0: raise ValueError('原方程在给定条件点分母为零，不能用化简后的残差补回定义')
-                    if domain is not None:
-                        if base==0: raise ValueError('候选解使原方程分母恒为零')
-                        domain=domain.intersect(continuous_domain(1/base,x,sp.S.Reals))
-        if domain is not None and ic_terms:
-            from .calculus_analysis import _interval_components
-            parts=_interval_components(domain)
-            component=next((p for p in parts or [] if all(p[0]<point<p[1] for _,point,_ in ic_terms)),None)
-            if component is None: raise ValueError('条件点不在同一个可确认的双侧实解区间内')
-            domain=sp.Interval(component[0],component[1],component[2],component[3])
+        if not implicit:
+            if not solution_expr.free_symbols - {x}:
+                domain = continuous_domain(solution_expr, x, sp.S.Reals).intersect(equation_domain)
+                for derivative_order in range(1, order + 1):
+                    derivative_domain = continuous_domain(
+                        sp.diff(solution_expr, x, derivative_order), x, sp.S.Reals)
+                    domain = domain.intersect(derivative_domain)
+                domain = domain.intersect(_equation_restricted_domain(
+                    model['equation'], independent, solution_expr, order))
+                _check_solution_points(model['equation'], independent, solution_expr, ic_terms)
+            normalized, _ = _normalize_equation(model['equation'], independent, 'y')
+            names = (independent, 'y', 'D1', 'D2', 'D3')
+            replacements = {sp.Symbol('y', real=True):solution_expr}
+            replacements.update({sp.Symbol(f'D{k}',real=True):sp.diff(solution_expr,x,k) for k in (1,2,3)})
+            for raw in normalized.split('='):
+                preserved = parse_expression(raw, names, preserve_structure=True)
+                for node in sp.preorder_traversal(preserved):
+                    if isinstance(node,sp.Pow) and node.exp.is_number and node.exp<0:
+                        base=sp.simplify(node.base.xreplace(replacements))
+                        for _,point,_ in ic_terms:
+                            if sp.simplify(base.subs(x,point))==0: raise ValueError('原方程在给定条件点分母为零，不能用化简后的残差补回定义')
+                        if domain is not None:
+                            if base==0: raise ValueError('候选解使原方程分母恒为零')
+                            domain=domain.intersect(continuous_domain(1/base,x,sp.S.Reals))
+            if domain is not None and ic_terms:
+                from .calculus_analysis import _interval_components
+                parts=_interval_components(domain)
+                component=next((p for p in parts or [] if all(p[0]<point<p[1] for _,point,_ in ic_terms)),None)
+                if component is None: raise ValueError('条件点不在同一个可确认的双侧实解区间内')
+                domain=sp.Interval(component[0],component[1],component[2],component[3])
     except (ValueError,TypeError,NotImplementedError) as exc:
         domain_reason=str(exc)
         initial_ok=False
     complete = complete and initial_ok
-    if implicit:
+    target = None if implicit else _target_value(solution_expr, x, model)
+    if implicit and str(model.get('target_kind') or 'none') not in ('none', ''):
+        # A requested area/volume cannot be derived from an implicit curve here.
         complete = False
-    target = _target_value(solution_expr, x, model) if not implicit else {'status': 'incomplete', 'reason': '隐式解无法直接计算组合量'}
     if target and target.get('status') != 'complete':
         complete = False
     plot_window = None
-    if complete and isinstance(domain, sp.Interval) and not solution_expr.free_symbols - {x}:
+    if complete and not implicit and isinstance(domain, sp.Interval) and not solution_expr.free_symbols - {x}:
         center=float(ic_terms[0][1]) if ic_terms else 0.0
         low,high=center-3,center+3
         if domain.start is not -sp.oo and low<=float(domain.start): low=center-(center-float(domain.start))/2
@@ -421,15 +474,28 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
         hints = _hint_labels(sp.classify_ode(equation, y))
     except Exception:  # noqa: BLE001
         hints = []
-    solution_text = f"y = {expression_text(solution_expr)}"
-    if ics and initial_ok and not solution_expr.free_symbols - {x}:
+    solution_body = _implicit_text(dsolve_result) if implicit else f"y = {expression_text(solution_expr)}"
+    solution_text = solution_body
+    if ics and initial_ok and (implicit or not solution_expr.free_symbols - {x}):
         solution_text += f"（满足初值 {', '.join(ic_texts)}）"
+    free_constants = bool(set((dsolve_result.lhs - dsolve_result.rhs).free_symbols
+                              if implicit else solution_expr.free_symbols) - {x})
     answer_parts = [solution_text]
     if target and target.get('status') == 'complete':
         answer_parts.append(f"{target['kind']} = {target['text']}")
     if target and target.get('status') != 'complete':
         answer_parts.append(target.get('reason', '组合量未完成'))
     answer = '；'.join(answer_parts)
+    if implicit:
+        general_solution = solution_body if (not ics or free_constants) else None
+        particular_solution = solution_body if (ics and initial_ok) else None
+    else:
+        general_solution = expression_text(dsolve_result.rhs) if not ics or solution_expr.free_symbols - {x} else None
+        particular_solution = expression_text(dsolve_result.rhs) if ics and not solution_expr.free_symbols - {x} else None
+    limitations = ['当前支持 1 至 3 阶常见常微分方程；未闭式可解的方程明确标为未完成。']
+    if implicit:
+        limitations.append('隐式解未显式解出 y，组合量计算不适用。')
+    limitations.append('组合量仅支持点值、面积、积分和绕 x 轴体积。')
     return {
         'summary': '微分方程：先求通解/特解，再用代入残差和初值条件核对。',
         'answer': answer if complete else '',
@@ -437,7 +503,7 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
         'exact': solution_text,
         'exact_latex': to_latex(dsolve_result) if complete else '',
         'solution_latex': to_latex(dsolve_result) if complete else '',
-        'free_constants': bool(solution_expr.free_symbols - {x}),
+        'free_constants': free_constants,
         'plot_window': plot_window,
         'solution_domain': (('(' if domain.left_open else '[')+('-∞' if domain.start is -sp.oo else str(domain.start))+', '+('+∞' if domain.end is sp.oo else str(domain.end))+(')' if domain.right_open else ']')) if isinstance(domain,sp.Interval) else str(domain) if domain is not None else None,
         'scope_note': '所示解或解族已代回方程核验，不据此宣称覆盖所有奇解、平衡解或非线性分支；条件不足时保留任意常数，不声明唯一性。',
@@ -445,21 +511,18 @@ def solve_ode(model: Mapping[str, Any]) -> dict:
         'steps': [
             {'id': 'equation', 'title': '确认方程与阶数', 'latex': to_latex(equation),
              'detail': f'{order} 阶常微分方程；初值条件 {len(ics)} 条。'},
-            {'id': 'dsolve', 'title': '求得显式解或解族' if complete else '候选解（未完成核验）', 'latex': to_latex(dsolve_result), 'detail': solution_text},
+            {'id': 'dsolve', 'title': ('求得隐式解' if implicit else '求得显式解或解族') if complete else '候选解（未完成核验）', 'latex': to_latex(dsolve_result), 'detail': solution_text},
             {'id': 'verify', 'title': '代入残差与初值核对', 'latex': r'\text{residual}=0' if residual_ok is True else r'\text{残差未通过核验}',
              'detail': f'代回方程残差核对：{residual_ok}；逐条条件及原式定义核对：{initial_ok}。'},
         ] + ([{'id': 'target', 'title': '计算组合量', 'latex': to_latex(target.get('integrand', '')), 'detail': target.get('text', '')}] if target else []),
         'conditions': [f'自变量 {independent}，未知函数 y。'] + ic_texts,
-        'limitations': [
-            '当前支持 1 至 3 阶常见常微分方程；未闭式可解的方程明确标为未完成。',
-            '组合量仅支持点值、面积、积分和绕 x 轴体积。',
-        ],
+        'limitations': limitations,
         'ode_order': order,
         'ode_equation': str(model.get('equation')),
         'ode_hints': hints,
         'initial_conditions': ic_texts,
-        'general_solution': expression_text(dsolve_result.rhs) if not ics or solution_expr.free_symbols - {x} else None,
-        'particular_solution': expression_text(dsolve_result.rhs) if ics and not solution_expr.free_symbols - {x} else None,
+        'general_solution': general_solution,
+        'particular_solution': particular_solution,
         'plot_expression': expression_text(solution_expr) if complete and plot_window is not None and not solution_expr.free_symbols - {x} and not implicit else None,
         'residual_verified': bool(residual_ok is True),
         'initial_conditions_verified': initial_ok,

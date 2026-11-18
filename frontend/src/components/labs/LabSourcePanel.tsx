@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { ProblemText } from './ProblemText';
+import { MathText, ProblemText } from './ProblemText';
+import { conditionValueText } from '@/labs/mathText';
 import {
   PROVENANCE_LABELS,
   type LabCondition,
@@ -21,22 +22,8 @@ interface Props {
   onTab: (tab: SourceTab) => void;
   onOpenReview: () => void;
   onOpenCompare: (pageKey?: string) => void;
+  onConfirmTranscription?: () => void;
   onSelect: (selection: LabSelection | null) => void;
-}
-
-function displayValue(value: unknown): string {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? String(Number(value.toFixed(6))) : '—';
-  }
-  if (typeof value === 'boolean') return value ? '是' : '否';
-  if (Array.isArray(value)) return value.map((item) => (typeof item === 'number' ? Number(item.toFixed(4)) : String(item))).join(', ');
-  if (typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([key, item]) => `${key}: ${displayValue(item)}`)
-      .join('；');
-  }
-  return String(value);
 }
 
 function Provenance({ value }: { value: LabCondition['provenance'] }): ReactNode {
@@ -66,19 +53,18 @@ function ConditionCard({
       onClick={() => onSelect({ id: condition.id, label: condition.label, kind: 'condition' })}
     >
       <span className={styles.conditionTop}>
-        <strong>{condition.label}</strong>
+        <strong><MathText text={condition.label} /></strong>
         <Provenance value={condition.provenance} />
       </span>
       <span className={styles.conditionValue}>
-        {displayValue(activeValue)}
+        <MathText text={conditionValueText(activeValue)} />
         {condition.unit ? <small>{condition.unit}</small> : null}
       </span>
-      {condition.note ? <small className={styles.conditionNote}>{condition.note}</small> : null}
+      {condition.note ? <small className={styles.conditionNote}><MathText text={condition.note} /></small> : null}
       {condition.source.excerpt ? (
         <span className={styles.conditionSource} title={condition.source.excerpt}>
           {condition.source.page ? `第 ${condition.source.page} 页 · ` : ''}
-          “{condition.source.excerpt.slice(0, 64)}
-          {condition.source.excerpt.length > 64 ? '…' : ''}”
+          “<MathText text={condition.source.excerpt} />”
         </span>
       ) : null}
     </button>
@@ -95,6 +81,7 @@ export function LabSourcePanel({
   onTab,
   onOpenReview,
   onOpenCompare,
+  onConfirmTranscription,
   onSelect,
 }: Props): ReactNode {
   const blocking = problem.recognition.ambiguities.filter((item) => item.severity === 'blocking' && !item.resolved);
@@ -118,7 +105,9 @@ export function LabSourcePanel({
         <div>
           <h2>题目与条件</h2>
           <span className={styles.statusPill} data-status={problem.status}>
-            {problem.ai_solution ? problem.ai_solution.verification === 'kernel' ? problem.ai_solution.source_review_required ? '待核对原图' : '可操作' : '待补充'
+            {problem.status === 'reference' ? '参考解答'
+              : problem.status === 'pending_ai' ? '等待 AI 理解'
+              : problem.ai_solution ? problem.ai_solution.verification === 'kernel' ? problem.ai_solution.source_review_required ? '待核对原图' : '可操作' : '待补充'
               : problem.status === 'ready' ? '可求解' : problem.status === 'needs_review' ? '待核对' : '暂不支持'}
           </span>
         </div>
@@ -151,6 +140,12 @@ export function LabSourcePanel({
               <span>{problem.number ? `第 ${problem.number} 题` : '完整题目'}</span>
               <span>{problem.source.label}</span>
             </div>
+            {problem.recognition.quality?.untrusted ? (
+              <div className={styles.blockingNotice} role="alert">
+                <strong>识别文字质量不可信，已跳过本地建模</strong>
+                <p>{problem.recognition.quality.issues.join('；')}。请以原图和 AI 转写为准核对。</p>
+              </div>
+            ) : null}
             {pages.some(page => page.image_key) ? <>
               {pages.filter(page => page.image_key).map(page => <button type="button" key={page.image_key}
                 onClick={() => onOpenCompare()} style={{ width: '100%', padding: 8, border: '1px solid var(--hairline)', borderRadius: 10, background: 'white', cursor: 'zoom-in' }}>
@@ -159,7 +154,16 @@ export function LabSourcePanel({
               <details><summary>查看识别文字 / 修正</summary><ProblemText text={problem.text} className={styles.problemText} />
                 <button type="button" onClick={onOpenReview}>修正题目</button></details>
             </> : <ProblemText text={problem.text} className={styles.problemText} />}
-            {problem.recognition.reference_answer_text ? <details><summary>上传的参考答案</summary><p>{problem.recognition.reference_answer_text}</p></details> : null}
+            {problem.recognition.ai_transcription?.text ? (
+              <div className={styles.aiTranscription}>
+                <span>AI 按原图转写</span>
+                <ProblemText text={problem.recognition.ai_transcription.text} className={styles.problemText} />
+                {!problem.recognition.ai_transcription.confirmed && onConfirmTranscription ? (
+                  <button type="button" onClick={onConfirmTranscription}>转写正确，按此建模</button>
+                ) : <small>已确认</small>}
+              </div>
+            ) : null}
+            {problem.recognition.reference_answer_text ? <details><summary>上传的参考答案</summary><ProblemText text={problem.recognition.reference_answer_text} /></details> : null}
             <button type="button" className={styles.inlineLink} onClick={() => onOpenCompare()}>
               打开原稿对照 →
             </button>
@@ -177,7 +181,7 @@ export function LabSourcePanel({
             {blocking.length ? (
               <div className={styles.blockingNotice} role="alert">
                 <strong>{blocking.length} 个关键条件需要先确认</strong>
-                <p>{blocking.map((item) => item.question).join(' ')}</p>
+                <p><MathText text={blocking.map((item) => item.question).join(' ')} /></p>
               </div>
             ) : null}
             <div className={styles.conditionList}>
@@ -197,7 +201,7 @@ export function LabSourcePanel({
                 {notices.map((item) => (
                   <p key={item.id} data-severity={item.severity}>
                     {item.resolved ? '✓ ' : '• '}
-                    {item.question}
+                    <MathText text={item.question} />
                   </p>
                 ))}
               </div>
@@ -235,7 +239,7 @@ export function LabSourcePanel({
                     <summary>
                       {item.role_label} · {item.name}
                     </summary>
-                    <pre>{item.text || '这份文件没有可提取的文字。'}</pre>
+                    <ProblemText text={item.text || '这份文件没有可提取的文字。'} className={styles.problemText} />
                   </details>
                 ))}
               </div>

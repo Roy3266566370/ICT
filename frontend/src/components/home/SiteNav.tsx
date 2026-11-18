@@ -9,7 +9,7 @@ import { navAccountEntries } from './navAccountItems';
 import type { NavAccountEntry } from './navAccountItems';
 import styles from './SiteNav.module.css';
 
-export type NavSection = 'canvas' | 'workspace' | 'examples' | 'labs' | 'living';
+export type NavSection = 'home' | 'canvas' | 'workspace' | 'examples' | 'labs' | 'living';
 
 interface NavItem {
   section: NavSection;
@@ -19,6 +19,7 @@ interface NavItem {
 
 /** 主站导航：使用指南已并入首页底部，不再占用独立入口。 */
 const NAV_ITEMS: readonly NavItem[] = [
+  { section: 'home', label: '首页', to: '/' },
   { section: 'canvas', label: '万象工坊', to: '/workshop' },
   { section: 'labs', label: '题目实验室', to: '/labs' },
   { section: 'living', label: '万象活页', to: '/living' },
@@ -38,7 +39,7 @@ const NOTICE_SIGN_OUT_FAILED: '退出未能完成，请稍后重试' = '退出�
 export interface SiteNavProps {
   /** 两个主页共用的纸面工作室外观；默认主题兼容其他页面。 */
   appearance?: 'default' | 'studio';
-  /** 需要高亮的栏目；首页传 `null`，不会错误地标出当前页。 */
+  /** 需要高亮的栏目；首页传 `'home'`，其它无对应栏目的页面传 `null`。 */
   current: NavSection | null;
   /** 首页等场景可提供一个上传入口；不传时保持原三栏导航。 */
   onUpload?: () => void;

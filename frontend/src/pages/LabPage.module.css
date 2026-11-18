@@ -713,6 +713,10 @@
   color: var(--color-fail);
 }
 
+.recentStatus[data-status='pending_ai'] { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+.recentStatus[data-status='reference'] { background: rgba(124, 58, 237, 0.12); color: #6d28d9; }
+
+
 .recentArrow {
   color: var(--ink-300);
   font-size: 14px;

@@ -102,7 +102,17 @@ export interface PageSimulation {
   rate: number;
 }
 
-export function pageReplacement(algorithm: number, capacity: number): PageSimulation {
+/** 解析逗号/空格/顿号分隔的页面访问序列；空输入回退到内置示例。 */
+export function parseReference(text: string | undefined): number[] {
+  const values = (text ?? '')
+    .split(/[\s,，、;；]+/)
+    .map((item) => Number.parseInt(item, 10))
+    .filter((value) => Number.isInteger(value) && value >= 0);
+  return values.length ? values.slice(0, 60) : [...PAGE_REFERENCE];
+}
+
+export function pageReplacement(algorithm: number, capacity: number, reference: readonly number[] = PAGE_REFERENCE): PageSimulation {
+  const refs = reference.length ? reference : PAGE_REFERENCE;
   const cap = Math.max(1, Math.min(4, Math.round(capacity)));
   const kind = algorithm === 1 ? 1 : algorithm === 2 ? 2 : 0;
   const frames: (number | null)[] = Array.from({ length: cap }, () => null);
@@ -111,7 +121,7 @@ export function pageReplacement(algorithm: number, capacity: number): PageSimula
   const steps: PageStep[] = [];
   let faults = 0;
 
-  PAGE_REFERENCE.forEach((page, access) => {
+  refs.forEach((page, access) => {
     let slot = frames.indexOf(page);
     const fault = slot < 0;
     let evicted: number | null = null;
@@ -136,7 +146,7 @@ export function pageReplacement(algorithm: number, capacity: number): PageSimula
           slot = 0;
           for (let s = 0; s < cap; s += 1) {
             const held = frames[s];
-            const next = held === null ? -1 : PAGE_REFERENCE.findIndex((value, index) => index > access && value === held);
+            const next = held === null ? -1 : refs.findIndex((value, index) => index > access && value === held);
             const distance = held === null ? Infinity : next < 0 ? Infinity : next;
             if (distance > farthest) {
               farthest = distance;
@@ -153,8 +163,8 @@ export function pageReplacement(algorithm: number, capacity: number): PageSimula
     steps.push({ page, frames: [...frames], fault, evicted });
   });
 
-  const hits = PAGE_REFERENCE.length - faults;
-  return { steps, faults, hits, rate: faults / PAGE_REFERENCE.length };
+  const hits = refs.length - faults;
+  return { steps, faults, hits, rate: faults / refs.length };
 }
 
 export interface SubnetResult {

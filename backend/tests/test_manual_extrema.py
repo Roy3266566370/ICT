@@ -93,6 +93,31 @@ def test_no_hidden_extra_conditions_or_dimension_change():
         preview_integral('multivariable_extrema', dict(expression='x*y',variables='x,y',operation='unconstrained',constraint='x+y=1'))
 
 
+def test_variables_accepts_list_for_the_fixed_pair():
+    doc = build_manual_document(lab_id='extrema', title='', task='multivariable_extrema',
+        conditions=dict(expression='x^2+y^2', operation='unconstrained', variables=['x', 'y']),
+        now_iso='2026-11-13')
+    problem_row = doc['problems'][0]
+    assert problem_row['status'] == 'ready'
+    assert '局部极小值' in problem_row['solution']['answer']
+    with pytest.raises(ValueError):
+        build_manual_document(lab_id='extrema', title='', task='multivariable_extrema',
+            conditions=dict(expression='u^2+v^2', operation='unconstrained', variables=['u', 'v']),
+            now_iso='2026-11-13')
+
+
+def test_provider_synonyms_map_to_unconstrained_or_constrained():
+    doc = build_manual_document(lab_id='extrema', title='', task='multivariable_extrema',
+        conditions=dict(expression='x^2+y^2', operation='local_extrema', variables=['x', 'y']),
+        now_iso='2026-11-13')
+    assert doc['problems'][0]['model']['typed_conditions']['operation'] == 'unconstrained'
+    doc = build_manual_document(lab_id='extrema', title='', task='multivariable_extrema',
+        conditions=dict(expression='x*y', operation='conditional', variables=['x', 'y'], constraint='x+y=2'),
+        now_iso='2026-11-13')
+    assert doc['problems'][0]['model']['typed_conditions']['operation'] == 'constrained'
+    assert '局部极大值' in doc['problems'][0]['solution']['answer']
+
+
 def test_review_recomputes_full_constraint():
     doc = document('x*y', 'x+y=2')
     p = doc['problems'][0]

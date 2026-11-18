@@ -148,6 +148,11 @@ def _validate_data(kind: str, data: Mapping[str, Any]) -> dict[str, Any]:
                             "anchor_id": _clamp_text(doc.get("anchor_id"), 40),
                             "input_hash": _clamp_text(doc.get("input_hash"), 100),
                             "instruction": _clamp_text(doc.get("instruction"), 1000)}}
+        if doc.get("version") == 1:
+            # 与工坊保存同源校验：节点上限、composite 深度、连线端点与坐标都由
+            # validate_canvas_doc 统一收敛，避免活页成为绕过校验的写入口。
+            from ..workshop.model import validate_canvas_doc
+            return {"doc": validate_canvas_doc(doc)}
         return {"doc": dict(doc)}
     if kind == "quiz":
         out = {

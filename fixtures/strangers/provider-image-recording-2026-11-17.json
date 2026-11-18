@@ -1,0 +1,200 @@
+{
+  "status": "ready",
+  "answer": "x=2（(52 - 5*pear_price)/(apple_price - pear_price)），y=3（(5*apple_price - 52)/(apple_price - pear_price)）",
+  "question": "苹果每千克8元，梨每千克12元。\n购买苹果和梨共5千克，共花52元。\n求苹果和梨分别购买多少千克。",
+  "elapsed_s": 21.97,
+  "ai_output": {
+    "model": {
+      "kind": "generic",
+      "subject": "苹果和梨购买量问题",
+      "symbols": [
+        {
+          "name": "x",
+          "label": "购买苹果的质量（千克）",
+          "role": "unknown",
+          "domain": "nonnegative"
+        },
+        {
+          "name": "y",
+          "label": "购买梨的质量（千克）",
+          "role": "unknown",
+          "domain": "nonnegative"
+        }
+      ],
+      "constants": [
+        {
+          "name": "apple_price",
+          "label": "苹果每千克价格（元）",
+          "value": 8,
+          "source": "苹果每千克8元"
+        },
+        {
+          "name": "pear_price",
+          "label": "梨每千克价格（元）",
+          "value": 12,
+          "source": "梨每千克12元"
+        }
+      ],
+      "steps": [
+        {
+          "id": "s1",
+          "op": "solve",
+          "label": "联立总质量与总花费方程，求苹果和梨的购买量",
+          "equations": [
+            "x+y=5",
+            "apple_price*x+pear_price*y=52"
+          ],
+          "for": [
+            "x",
+            "y"
+          ]
+        }
+      ],
+      "target": {
+        "step": "s1",
+        "label": "苹果和梨分别购买多少千克"
+      }
+    },
+    "answer": "",
+    "steps": [
+      {
+        "title": "设未知数",
+        "detail": "设购买苹果 x 千克、梨 y 千克。"
+      },
+      {
+        "title": "列方程",
+        "detail": "由总质量得 x+y=5；由总花费得 8x+12y=52。"
+      },
+      {
+        "title": "求解",
+        "detail": "联立两个方程可求出 x 与 y，即苹果和梨各自的购买量。"
+      }
+    ],
+    "question": "苹果每千克8元，梨每千克12元。\n购买苹果和梨共5千克，共花52元。\n求苹果和梨分别购买多少千克。",
+    "conditions": [
+      {
+        "value": "苹果每千克8元",
+        "excerpt": "苹果每千克8元"
+      },
+      {
+        "value": "梨每千克12元",
+        "excerpt": "梨每千克12元"
+      },
+      {
+        "value": "购买苹果和梨共5千克",
+        "excerpt": "购买苹果和梨共5千克"
+      },
+      {
+        "value": "共花52元",
+        "excerpt": "共花52元"
+      }
+    ],
+    "interpretation": "苹果和梨分别购买多少千克",
+    "missing_conditions": [],
+    "_staged_read": true,
+    "_source_recovery": {
+      "version": "source-recovery.1",
+      "attempted": false,
+      "status": "not_needed",
+      "issues": [],
+      "page_keys": [
+        "question"
+      ]
+    }
+  },
+  "model_attempts": [
+    {
+      "model": {
+        "kind": "generic",
+        "subject": "苹果和梨购买量问题",
+        "symbols": [
+          {
+            "name": "x",
+            "label": "购买苹果的质量（千克）",
+            "role": "unknown",
+            "domain": "nonnegative"
+          },
+          {
+            "name": "y",
+            "label": "购买梨的质量（千克）",
+            "role": "unknown",
+            "domain": "nonnegative"
+          }
+        ],
+        "constants": [
+          {
+            "name": "apple_price",
+            "label": "苹果每千克价格（元）",
+            "value": 8,
+            "source": "苹果每千克8元"
+          },
+          {
+            "name": "pear_price",
+            "label": "梨每千克价格（元）",
+            "value": 12,
+            "source": "梨每千克12元"
+          }
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "op": "solve",
+            "label": "联立总质量与总花费方程，求苹果和梨的购买量",
+            "equations": [
+              "x+y=5",
+              "apple_price*x+pear_price*y=52"
+            ],
+            "for": [
+              "x",
+              "y"
+            ]
+          }
+        ],
+        "target": {
+          "step": "s1",
+          "label": "苹果和梨分别购买多少千克"
+        }
+      },
+      "status": "ok"
+    }
+  ],
+  "trace": [
+    {
+      "stage": "ocr",
+      "status": "ok",
+      "detail": "识别方式：文本；9 字"
+    },
+    {
+      "stage": "quality",
+      "status": "ok",
+      "detail": "文字质量可用于本地识别"
+    },
+    {
+      "stage": "classify",
+      "status": "ok",
+      "detail": "本地判定为 unknown，置信度 0.30"
+    },
+    {
+      "stage": "ai_read",
+      "status": "ok",
+      "detail": "两步流程已完成读题；按读题结果建模。"
+    },
+    {
+      "stage": "ai_model",
+      "status": "ok",
+      "detail": "模型返回题干与声明式建模结果。",
+      "ms": 19906
+    },
+    {
+      "stage": "kernel",
+      "status": "ok",
+      "detail": "内核完成计算并通过独立核验。",
+      "ms": 796
+    },
+    {
+      "stage": "attach",
+      "status": "ok",
+      "detail": "内核模型已附到题目并进入就绪状态。"
+    }
+  ]
+}

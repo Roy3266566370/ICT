@@ -40,6 +40,7 @@ import { evaluateOs } from './opsys.ts';
 import { replayCompOrg } from './compOrg.ts';
 import { replayNetwork } from './network.ts';
 import { evaluateExamMath } from './examMath.ts';
+import { evaluateGeneric } from './generic.ts';
 
 type Params = Record<string, unknown>;
 
@@ -1439,6 +1440,7 @@ function computeDeepLearning(problem: LabProblem, params: Params): DlResult {
 /* -------------------------------------------------------------------------- */
 
 function computeModel(problem: LabProblem, params: Record<string, unknown>): LabResult {
+  if (problem.model.engine === 'generic_v1') return evaluateGeneric(problem, params);
   switch (problem.subject) {
     case 'calculus': {
       if (problem.manual_input?.double_extension || problem.manual_input?.conditions?.integral_mode === 'improper' || problem.manual_input?.conditions?.region_mode === 'improper') {

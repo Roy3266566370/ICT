@@ -7,29 +7,50 @@ import json
 import re
 import io
 import math
+import time
 from pathlib import Path
 
 import httpx
-from PIL import Image
+from PIL import Image, ImageOps
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..settings import LABS_DIR, get_settings
 from ..ppt_ai.util import now_iso, hash_json
 from .kernel_models import TASKS, FIELD_LABELS, task_catalog, ModelConditionsError
 
-VERSION = 'local-understanding.3'
+VERSION = 'local-understanding.4'
 
 # A2 conclusion: downsample staged analysis images to the fidelity-tested envelope.
 IMAGE_MAX_EDGE = 2500
 IMAGE_MAX_PIXELS = 5_000_000
+CLOUD_IMAGE_MAX_EDGE = 1800
+CLOUD_IMAGE_MAX_BYTES = 900 * 1024
 
 
-def _downsample_for_staged(raw: bytes) -> bytes:
+def _prepare_cloud_image(raw: bytes, *, max_bytes: int = CLOUD_IMAGE_MAX_BYTES) -> bytes:
+    with Image.open(io.BytesIO(raw)) as source:
+        image = ImageOps.exif_transpose(source).convert('RGBA')
+        background = Image.new('RGBA', image.size, 'white')
+        image = Image.alpha_composite(background, image).convert('RGB')
+        image.thumbnail((CLOUD_IMAGE_MAX_EDGE, CLOUD_IMAGE_MAX_EDGE), Image.LANCZOS)
+        while True:
+            buffer = io.BytesIO()
+            image.save(buffer, format='JPEG', quality=88, optimize=True)
+            if buffer.tell() <= max_bytes:
+                return buffer.getvalue()
+            # Bound all three Base64 images while reserving space for text and task metadata.
+            image = image.resize((max(1, int(image.width * .8)), max(1, int(image.height * .8))), Image.LANCZOS)
+
+
+def _downsample_for_staged(raw: bytes, *, token_budget: int | None = None) -> bytes:
     with Image.open(io.BytesIO(raw)) as image:
         width, height = image.size
-        if max(width, height) <= IMAGE_MAX_EDGE and width * height <= IMAGE_MAX_PIXELS:
+        patches = math.ceil(width / 14) * math.ceil(height / 14) + 256
+        if max(width, height) <= IMAGE_MAX_EDGE and width * height <= IMAGE_MAX_PIXELS and (token_budget is None or patches <= token_budget):
             return raw
         scale = min(IMAGE_MAX_EDGE / max(width, height), math.sqrt(IMAGE_MAX_PIXELS / (width * height)))
+        if token_budget is not None:
+            scale = min(scale, math.sqrt(max(1, token_budget - 512) * 196 / (width * height)))
         size = (max(1, round(width * scale)), max(1, round(height * scale)))
         if image.mode == 'RGBA':
             background = Image.new('RGB', image.size, 'white')
@@ -63,7 +84,21 @@ class Understanding(BaseModel):
     unsupported_reason: str = Field(max_length=2000)
 
 
-def source_images(lab_id: str | None, problem: dict) -> list[dict]:
+def ollama_available(timeout: float = 1.5) -> bool:
+    """Cheap reachability probe used only after a cloud transport failure."""
+    settings = get_settings()
+    base = (settings.lab_ollama_url or '').strip().rstrip('/')
+    if not base:
+        return False
+    try:
+        with httpx.Client(timeout=timeout, trust_env=False) as client:
+            response = client.get(base + '/api/tags')
+        return response.status_code == 200
+    except Exception:  # noqa: BLE001 - fallback must not mask the original error
+        return False
+
+
+def source_images(lab_id: str | None, problem: dict, *, cloud: bool | None = None, detail: bool = False) -> list[dict]:
     pages = [p for p in problem.get('source_pages', []) if p.get('image_key')]
     if not pages:
         return []
@@ -71,6 +106,8 @@ def source_images(lab_id: str | None, problem: dict) -> list[dict]:
         raise ValueError('题目来源标识无效')
     if len(pages) > 3:
         raise ValueError('当前一次支持最多3张题目页，请拆分题目后重试')
+    if cloud is None:
+        cloud = getattr(get_settings(), 'lab_understanding_provider', 'ollama') != 'ollama'
     base = (LABS_DIR / lab_id / 'previews').resolve()
     images = []
     total = 0
@@ -79,30 +116,53 @@ def source_images(lab_id: str | None, problem: dict) -> list[dict]:
         if not isinstance(key, str) or not re.fullmatch(r'[a-zA-Z0-9_-]+', key):
             raise ValueError('题目图片来源无效')
         path = (base / (key + '.png')).resolve()
-        if not path.is_relative_to(base) or not path.is_file():
-            raise ValueError('题目原图不可用，请重新上传')
         staged = get_settings().lab_understanding_pipeline == 'staged'
-        analysis = (LABS_DIR / lab_id / 'analysis' / (key + '.png')).resolve()
-        if staged and analysis.is_file():
+        analysis_base = (LABS_DIR / lab_id / 'analysis').resolve()
+        analysis = (analysis_base / (key + '.png')).resolve()
+        if not path.is_relative_to(base) or not analysis.is_relative_to(analysis_base):
+            raise ValueError('题目图片来源无效')
+        if analysis.is_file():
             path = analysis
+        if not path.is_file():
+            raise ValueError('题目原图不可用，请重新上传')
         raw = path.read_bytes()
-        if staged:
-            raw = _downsample_for_staged(raw)
-        total += len(raw)
-        if total > 12 * 1024 * 1024:
-            raise ValueError('题目图片超过12MB预算，请裁剪后上传')
-        with Image.open(io.BytesIO(raw)) as image:
-            if image.width * image.height > 16000000:
-                raise ValueError('题目图片分辨率过大，请裁剪题目区域')
-            image_budget = math.ceil(image.width / 14) * math.ceil(image.height / 14) + 256
-        images.append(dict(key=key, page=page.get('page'), token_budget=image_budget, sha256=hashlib.sha256(raw).hexdigest(),
-                           image=base64.b64encode(raw).decode('ascii')))
+        views = [('page', raw)]
+        if detail:
+            with Image.open(io.BytesIO(raw)) as image:
+                image = ImageOps.exif_transpose(image)
+                w, h = image.size
+                boxes = [(0, 0, w, math.ceil(h * .6)), (0, math.floor(h * .4), w, h)] if h >= w else [
+                    (0, 0, math.ceil(w * .6), h), (math.floor(w * .4), 0, w, h)]
+                for index, box in enumerate(boxes):
+                    buffer = io.BytesIO()
+                    image.crop(box).save(buffer, format='PNG')
+                    views.append((f'detail_{index + 1}', buffer.getvalue()))
+        for view, raw in views:
+            if cloud:
+                raw = _prepare_cloud_image(raw, max_bytes=min(CLOUD_IMAGE_MAX_BYTES, 2400000 // (len(pages) * len(views))))
+            elif staged or detail:
+                raw = _downsample_for_staged(raw, token_budget=16000 // (len(pages) * len(views)))
+            total += len(raw)
+            if total > 12 * 1024 * 1024:
+                raise ValueError('题目图片超过12MB预算，请裁剪后上传')
+            with Image.open(io.BytesIO(raw)) as image:
+                if image.width * image.height > 16000000:
+                    raise ValueError('题目图片分辨率过大，请裁剪题目区域')
+                image_budget = math.ceil(image.width / 14) * math.ceil(image.height / 14) + 256
+            images.append(dict(key=key, page=page.get('page'), view=view, mime_type='image/jpeg' if cloud else 'image/png', token_budget=image_budget, sha256=hashlib.sha256(raw).hexdigest(),
+                               image=base64.b64encode(raw).decode('ascii')))
     return images
 
 
 def input_hash(problem: dict, lab_id: str, mode: str) -> str:
     images = source_images(lab_id, problem)
     settings = get_settings()
+    if settings.lab_understanding_provider != 'ollama':
+        from .ai_solve import VERSION as cloud_version
+        return hash_json(dict(version=cloud_version, provider=settings.llm_provider,
+            model=settings.llm_model, base_url=settings.llm_base_url, text=problem['text'],
+            pages=[{k:v for k,v in p.items() if k != 'image'} for p in images],
+            ambiguities=problem.get('recognition', {}).get('ambiguities', []), mode=mode))
     from .staged_understanding import VERSION as staged_version
     return hash_json(dict(version=VERSION, model=settings.lab_ollama_model,
         pipeline=settings.lab_understanding_pipeline,
@@ -140,36 +200,64 @@ def validate_understanding(data: dict, page_keys: list[str]) -> dict:
 
 
 def finish_understanding(data: dict, problem: dict) -> dict:
-    from .ai_solve import run_kernel
+    from .ai_solve import run_kernel, trace_entry, KernelTimeoutError
+    recognition = problem.get('recognition') or {}
+    trace = []
+    if problem.get('source_pages'):
+        trace.append(trace_entry('ocr', 'ok' if problem.get('text') else 'warn',
+                                 detail=f'识别方式：{recognition.get("method") or "未知"}'))
+    quality = recognition.get('quality') or {}
+    if quality:
+        trace.append(trace_entry('quality', 'warn' if quality.get('untrusted') else 'ok',
+                                 code='OCR_GARBLED' if quality.get('untrusted') else None,
+                                 detail='；'.join(quality.get('issues') or [])))
+    trace.append(trace_entry('ai_read', 'ok', detail='AI 已读取题干与条件。'))
+    trace.append(trace_entry('ai_model', 'ok', detail=f'模型建议 kind={data["model"].get("kind")}'))
     unreviewed = any(a.get('id') == 'source_formula_confirmation' and not a.get('resolved')
         for a in problem.get('recognition', {}).get('ambiguities', []))
     result = dict(version=VERSION, source_hash=hash_json(problem.get('text', '')),
-        agent_understanding=data, interpretation=data['question'],
+        agent_understanding=data, question=data['question'], interpretation=data['question'],
         conditions=[c['value'] for c in data['conditions']], missing_conditions=data['uncertainties'][:],
         proposed_model=data['model'], verification='needs_review', checkable=False,
         source_review_required=unreviewed, computation=None, options=[], answer_choices=[],
-        answer='尚无内核计算结果', steps=[], reference_answer='', reference_steps=[],
+        answer='', steps=[], reference_answer='', reference_steps=[],
         limitations=[], model_name=get_settings().lab_ollama_model, created_at=now_iso(),
-        model_condition_labels=FIELD_LABELS)
+        model_condition_labels=FIELD_LABELS, trace=trace)
+    if data.get('_source_recovery'):
+        result['source_recovery'] = data['_source_recovery']
     if data['uncertainties']:
+        trace.append(trace_entry('validate', 'warn', code='MISSING_CONDITIONS',
+                                 detail='；'.join(str(v)[:200] for v in data['uncertainties'][:3])))
         return result
     if data['model'].get('kind') == 'none':
         result['limitations'].append(data['unsupported_reason'])
+        trace.append(trace_entry('validate', 'reference', code='AI_CHOSE_NONE', detail=data['unsupported_reason']))
         return result
+    kernel_started = time.monotonic()
     try:
         computed = run_kernel(data['model'])
         for i, step in enumerate(computed['steps']):
             step.setdefault('id', f'kernel_{i}')
         result.update(verification='kernel', computation=computed, answer=computed['answer'],
-            steps=computed['steps'], checkable=not unreviewed and computed.get('checkable', True))
+            steps=computed['steps'], checkable=not unreviewed and computed.get('checkable', True),
+            verification_level=computed.get('verification_level', 'kernel'))
+        trace.append(trace_entry('kernel', 'ok', detail='内核完成计算并通过独立核验。', started=kernel_started))
         if unreviewed:
             result['limitations'].append('模型待核对：以下为候选模型试算，不能据此判定原题答案正确。')
         if data['model'].get('task') in TASKS:
             result['model_task_label'] = TASKS[data['model']['task']]['label']
     except ModelConditionsError as exc:
         result['missing_conditions'].extend(exc.missing_conditions)
+        trace.append(trace_entry('kernel', 'error', code='MISSING_CONDITIONS',
+                                 detail='；'.join(exc.missing_conditions[:3])))
+    except KernelTimeoutError as exc:
+        result['limitations'].append('内核未能计算或复核：' + str(exc)[:250])
+        trace.append(trace_entry('kernel', 'error', code='KERNEL_TIMEOUT', detail=str(exc)[:300],
+                                 started=kernel_started))
     except (ValueError, TypeError, ArithmeticError, KeyError) as exc:
         result['limitations'].append('内核未能计算或复核：' + str(exc)[:250])
+        trace.append(trace_entry('kernel', 'error', code='KERNEL_ERROR', detail=str(exc)[:300],
+                                 started=kernel_started))
     if data.get('pipeline_review_only'):
         result['checkable'] = False
         result['pipeline_version'] = data['pipeline_review_only']
@@ -213,15 +301,19 @@ def understand(problem: dict, *, lab_id: str | None = None) -> dict:
         '如无法支持或条件无法完整映射，用kind=none并在unsupported_reason明确说明。'
         '不要提供答案，不要重复题意，不要把参考答案当成条件。')
     user = json.dumps(dict(ocr_text=text, source_pages=[{k:v for k,v in p.items() if k != 'image'} for p in images],
-        kernel_tasks={k:({**v, 'notes':v['notes']+'；也支持仅提供integrand和region_text原始完整区域，程序推导积分限。'} if k=='double_integral' else v) for k,v in task_catalog().items()}), ensure_ascii=False)
+        kernel_tasks={k:({**v, 'notes':v['notes']+'；也支持仅提供integrand和region_text原始完整区域，程序推导积分限。'} if k=='double_integral' else v) for k,v in task_catalog().items()}),
+        ensure_ascii=False, separators=(',', ':'))
     messages = [dict(role='system', content=system), dict(role='user', content=user,
         images=[p['image'] for p in images])]
     schema = understanding_schema()
-    # A UTF-8 byte is a conservative text-token upper bound; image patches get a separate allowance.
-    budget = len((system + user + json.dumps(schema, ensure_ascii=False)).encode('utf-8'))
+    schema_text = json.dumps(schema, ensure_ascii=False, separators=(',', ':'))
+    # Character length is a conservative text-token upper bound across mixed CJK/ASCII text;
+    # UTF-8 byte length inflates Chinese descriptions 3x and false-triggers on valid catalogs.
+    budget = len(system) + len(user) + len(schema_text)
     budget += sum(p['token_budget'] for p in images)
     if budget + 2400 + 2048 > 32768:
         raise ValueError('题文与图片超过上下文预算，请裁剪或拆分；未截断原题')
+    source_recovery_report = None
     for attempt in range(2):
         try:
             with httpx.Client(timeout=180, trust_env=False) as client:
@@ -235,6 +327,34 @@ def understand(problem: dict, *, lab_id: str | None = None) -> dict:
                 raise ValueError('模型输出截断，请缩小题目范围')
             content = body['message']['content']
             data = validate_understanding(json.loads(content), [p['key'] for p in images])
+            if images and source_recovery_report is None:
+                from .source_recovery import read_with_source_retry
+                def read(views, recovery):
+                    if recovery is None:
+                        return data
+                    retry_messages = [{**message, **({'images': []} if message.get('images') else {})} for message in messages] + [dict(role='user', content=json.dumps(
+                        {'source_recovery': recovery}, ensure_ascii=False, separators=(',', ':')), images=[p['image'] for p in views])]
+                    retry_budget = len(schema_text)
+                    retry_budget += sum(len(m.get('content', '')) for m in retry_messages)
+                    retry_budget += sum(p['token_budget'] for p in views)
+                    if retry_budget + 2400 + 2048 > 32768:
+                        raise ValueError('原图重识别超过上下文预算，请裁剪或拆分')
+                    try:
+                        with httpx.Client(timeout=180, trust_env=False) as retry_client:
+                            retry_response = retry_client.post(settings.lab_ollama_url.rstrip('/') + '/api/chat', json=dict(
+                                model=settings.lab_ollama_model, messages=retry_messages, stream=False, format=schema,
+                                options=dict(num_ctx=32768, num_predict=2400, temperature=0.2, repeat_penalty=1.1)))
+                            retry_response.raise_for_status()
+                            retry_body = retry_response.json()
+                        if retry_body.get('done_reason') == 'length':
+                            raise ValueError('原图重识别输出截断')
+                        return validate_understanding(json.loads(retry_body['message']['content']), [p['key'] for p in images])
+                    except httpx.HTTPError as exc:
+                        raise ValueError('原图重识别服务不可用') from exc
+                data = read_with_source_retry(problem, images, read, lab_id=lab_id, cloud=False)
+                source_recovery_report = data.get('_source_recovery')
+            elif source_recovery_report:
+                data['_source_recovery'] = source_recovery_report
             result = finish_understanding(data, problem)
             if result['computation'] is None and not data['uncertainties'] and data['model'].get('kind') != 'none':
                 raise ValueError('; '.join(result['limitations'] + result['missing_conditions']))

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mathSpanToLatex, segmentProblemText, type ProblemTextPart } from './mathText.ts';
+import { conditionValueText, mathSpanToLatex, segmentProblemText, type ProblemTextPart } from './mathText.ts';
 
 function mathOf(parts: ProblemTextPart[]): string[] {
   return parts.filter((part): part is Extract<ProblemTextPart, { kind: 'math' }> => part.kind === 'math').map((part) => part.tex);
@@ -77,4 +77,57 @@ test('括号不配对或未知多字母记号时保留原文', () => {
 test('纯文字题目输出单段原文，不改变字节', () => {
   const text = '求函数 f 在区间上的极值。\n（I）写出过程；\n（II）说明理由。';
   assert.deepEqual(segmentProblemText(text), [{ kind: 'text', value: text }]);
+});
+
+test('识别出的 LaTeX 公式按完整片段排版，不露出命令和定界符', () => {
+  for (const [text, expected] of [
+    [String.raw`计算 $\frac{1}{\sqrt{1+x^2}}$，说明理由。`, String.raw`\frac{1}{\sqrt{1+x^2}}`],
+    [String.raw`计算 \(\int_0^1 x^2\,dx\)。`, String.raw`\int_0^1 x^2\,dx`],
+    [String.raw`结果为 \[\begin{pmatrix}1&2\\3&4\end{pmatrix}\]。`, String.raw`\begin{pmatrix}1&2\\3&4\end{pmatrix}`],
+    ['求 $$\n\\sum_{n=1}^{\\infty} \\frac{1}{n^2}\n$$。', String.raw`\sum_{n=1}^{\infty} \frac{1}{n^2}`],
+    [String.raw`计算 \int_0^1 \frac{x}{\sqrt{1+x^2}}\,dx。`, String.raw`\int_0^1 \frac{x}{\sqrt{1+x^2}}\,dx`],
+  ]) {
+    const parts = segmentProblemText(text!);
+    assert.deepEqual(mathOf(parts), [expected], text);
+    assert.equal(parts.map(part => part.kind === 'math' ? part.source : part.value).join(''), text);
+  }
+});
+
+test('带中文说明的公式可以排版，坏公式与普通美元金额保留原文', () => {
+  assert.deepEqual(mathOf(segmentProblemText(String.raw`其中 $x>0\quad\text{且}\quad y\le 1$。`)),
+    [String.raw`x>0\quad\text{且}\quad y\le 1`]);
+  for (const text of [String.raw`结果 $\frac{1}{$。`, String.raw`结果 $\unknown{x}$。`, '费用 $20，另付 $30。']) {
+    assert.equal(mathOf(segmentProblemText(text)).length, 0, text);
+    assert.equal(segmentProblemText(text).map(part => part.kind === 'math' ? part.source : part.value).join(''), text);
+  }
+});
+
+test('显式公式支持加减式、负数与换行，Python 幂符号按指数显示', () => {
+  assert.deepEqual(mathOf(segmentProblemText('结果为 $a+b$，系数为 $-1$。')), ['a+b', '-1']);
+  assert.deepEqual(mathOf(segmentProblemText('求 $\\lim_{x\\to 0}\n\\frac{\\sin x}{x}$。')),
+    [String.raw`\lim_{x\to 0}
+\frac{\sin x}{x}`]);
+  assert.equal(mathSpanToLatex('x**2/2'), '\\frac{x^{2}}{2}');
+  assert.deepEqual(mathOf(segmentProblemText('条件为 $α≤1$。')), ['α≤1']);
+});
+
+test('结构化条件保留矩阵行、对象内容与空值，不显示 object Object', () => {
+  assert.equal(conditionValueText([[1, 2], [3, 4]]), '[[1, 2], [3, 4]]');
+  assert.equal(conditionValueText({ lower: 'sqrt(2)', enabled: true }), 'lower: sqrt(2)；enabled: 是');
+  assert.equal(conditionValueText(null), '—');
+});
+
+test('转义美元符号不会提前结束公式，不匹配残缺的双美元定界符', () => {
+  assert.deepEqual(mathOf(segmentProblemText(String.raw`价格 $p=\$20$，因此选 B。`)), [String.raw`p=\$20`]);
+  for (const text of ['结果 $$x^2$，因此选 B。', '结果 $x^2$$，因此选 B。']) {
+    const parts = segmentProblemText(text);
+    assert.equal(mathOf(parts).length, 0);
+    assert.equal(parts.map(part => part.kind === 'math' ? part.source : part.value).join(''), text);
+  }
+});
+
+test('内核返回的反三角函数和绝对值写法也按公式显示', () => {
+  assert.equal(mathSpanToLatex('x*atan(x)'), 'x\\arctan\\left(x\\right)');
+  assert.equal(mathSpanToLatex('asin(x)'), '\\arcsin\\left(x\\right)');
+  assert.equal(mathSpanToLatex('Abs(x)'), '\\left|x\\right|');
 });

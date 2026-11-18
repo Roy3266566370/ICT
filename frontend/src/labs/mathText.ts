@@ -12,9 +12,20 @@
  *   不用猜测出来的公式冒充分式、根号或指数结构。
  */
 
+import katex from 'katex';
+
+export function conditionValueText(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(Number(value.toFixed(6))) : '—';
+  if (typeof value === 'boolean') return value ? '是' : '否';
+  if (Array.isArray(value)) return `[${value.map(conditionValueText).join(', ')}]`;
+  if (typeof value === 'object') return Object.entries(value).map(([key, item]) => `${key}: ${conditionValueText(item)}`).join('；');
+  return String(value);
+}
+
 export type ProblemTextPart =
   | { kind: 'text'; value: string }
-  | { kind: 'math'; tex: string; source: string };
+  | { kind: 'math'; tex: string; source: string; block?: boolean };
 
 const SUP_DIGITS: Record<string, string> = {
   '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9',
@@ -34,6 +45,12 @@ const FUNCTIONS: Record<string, string> = {
   arcsin: '\\arcsin',
   arccos: '\\arccos',
   arctan: '\\arctan',
+  asin: '\\arcsin',
+  acos: '\\arccos',
+  atan: '\\arctan',
+  acot: '\\operatorname{arccot}',
+  asec: '\\operatorname{arcsec}',
+  acsc: '\\operatorname{arccsc}',
   sinh: '\\sinh',
   cosh: '\\cosh',
   tanh: '\\tanh',
@@ -66,10 +83,11 @@ const COMPARISONS: Record<string, string> = {
 
 /** 公式片段必须至少有一个这样的“强特征”，避免把年份、编号、选项列表当成公式。 */
 const FORMULA_CUE =
-  /[=<>≤≥≠≈∞π∫√∑^*/]|\b(?:sqrt|abs|exp|log|ln|sin|cos|tan|arcsin|arccos|arctan|sinh|cosh|tanh|max|min|lim)\s*\(/i;
+  /[=<>≤≥≠≈∞π∫√∑^*/]|\b(?:sqrt|abs|exp|log|ln|sin|cos|tan|arcsin|arccos|arctan|asin|acos|atan|acot|asec|acsc|sinh|cosh|tanh|max|min|lim)\s*\(/i;
 
 /** 展示层允许出现在公式片段里的字符；中文和中文标点会切断片段。 */
 function isMathChar(char: string): boolean {
+  if (char === '\\') return true;
   if (/[A-Za-z0-9+\-*/^=<>()_.[\]{}'!%|,]/.test(char)) return true;
   if (char === ' ' || char === '\t') return true;
   if (SUP_DIGITS[char] !== undefined || SUB_DIGITS[char] !== undefined) return true;
@@ -571,7 +589,7 @@ class Parser {
   }
 
   private parseIdentifier(token: Token): Expression {
-    const name = token.value;
+    const name = token.value === 'Abs' ? 'abs' : token.value;
     if (/^[A-Za-z][0-9]*$/.test(name)) {
       const letter = name.slice(0, 1);
       const digits = name.slice(1);
@@ -602,9 +620,10 @@ class Parser {
 
 /** 把一个候选公式片段转成 LaTeX；不可靠时返回 null，由调用方保留原文。 */
 export function mathSpanToLatex(source: string): string | null {
+  if (/\\[a-zA-Z]+/.test(source)) return validLatex(source);
   if (!looksLikeFormula(source)) return null;
   try {
-    const tokens = tokenize(source);
+    const tokens = tokenize(source.replace(/\*\*/g, '^'));
     return new Parser(tokens).parseDocument().tex;
   } catch {
     return null;
@@ -615,7 +634,7 @@ export function mathSpanToLatex(source: string): string | null {
  * 把题目原文切成“普通文字 / 公式”片段。
  * 只在能完整解析的片段上输出 LaTeX；其余内容与原文逐字一致。
  */
-export function segmentProblemText(text: string): ProblemTextPart[] {
+function segmentPlainText(text: string): ProblemTextPart[] {
   const parts: ProblemTextPart[] = [];
   let textBuffer = '';
   let index = 0;
@@ -641,6 +660,9 @@ export function segmentProblemText(text: string): ProblemTextPart[] {
     if (latex !== null) {
       flushText();
       parts.push({ kind: 'math', tex: latex, source: core });
+    } else if (/\\[A-Za-z]+/.test(core)) {
+      flushText();
+      parts.push({ kind: 'text', value: core });
     } else {
       textBuffer += core;
     }
@@ -648,5 +670,63 @@ export function segmentProblemText(text: string): ProblemTextPart[] {
     index = end;
   }
   flushText();
+  return parts;
+}
+
+/** Validate before rendering so malformed OCR does not become a red KaTeX error. */
+export function validLatex(source: string, displayMode = false): string | null {
+  source = source.trim();
+  for (const [open, close] of [['$$', '$$'], ['\\[', '\\]'], ['\\(', '\\)'], ['$', '$']]) {
+    if (source.startsWith(open!) && source.endsWith(close!) && source.length > open!.length + close!.length) {
+      source = source.slice(open!.length, -close!.length).trim();
+      break;
+    }
+  }
+  if (!source.trim() || source.length > 4000) return null;
+  try {
+    katex.renderToString(source, { displayMode, throwOnError: true, strict: 'ignore', trust: false, maxExpand: 1000 });
+    return source.trim();
+  } catch {
+    return null;
+  }
+}
+
+export function segmentProblemText(text: string): ProblemTextPart[] {
+  const parts: ProblemTextPart[] = [];
+  const delimiters = /\$\$|\$|\\\[|\\\(/g;
+  const escaped = (index: number): boolean => {
+    let count = 0;
+    while (index > 0 && text[--index] === '\\') count += 1;
+    return count % 2 === 1;
+  };
+  let start = 0;
+  let match: RegExpExecArray | null;
+  while ((match = delimiters.exec(text)) !== null) {
+    if (escaped(match.index)) continue;
+    const open = match[0];
+    const close = open === '\\[' ? '\\]' : open === '\\(' ? '\\)' : open;
+    let end = text.indexOf(close, delimiters.lastIndex);
+    while (end >= 0 && (escaped(end) || (close.startsWith('$') && (text[end - 1] === '$' || text[end + close.length] === '$')))) {
+      end = text.indexOf(close, end + 1);
+    }
+    parts.push(...segmentPlainText(text.slice(start, match.index)));
+    if (end < 0) {
+      // Preserve the prose following an incomplete formula instead of hiding the sentence.
+      const boundary = text.slice(delimiters.lastIndex).search(/[\n\u3400-\u9fff，。；：！？]/);
+      const stop = boundary < 0 ? text.length : delimiters.lastIndex + boundary;
+      parts.push({ kind: 'text', value: text.slice(match.index, stop) });
+      start = delimiters.lastIndex = stop;
+      continue;
+    }
+    const candidate = text.slice(delimiters.lastIndex, end);
+    const source = text.slice(match.index, end + close.length);
+    const block = open === '$$' || open === '\\[';
+    // A pair of currency signs alone is not evidence of a formula.
+    const tex = /\\[a-zA-Z]+/.test(candidate) || (!/[\u3400-\u9fff，。；]/.test(candidate) && /[\p{L}\p{N}]/u.test(candidate))
+      ? validLatex(candidate, block) : null;
+    parts.push(tex === null ? { kind: 'text', value: source } : { kind: 'math', tex, source, ...(block ? { block } : {}) });
+    start = delimiters.lastIndex = end + close.length;
+  }
+  parts.push(...segmentPlainText(text.slice(start)));
   return parts;
 }

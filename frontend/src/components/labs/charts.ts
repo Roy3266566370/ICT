@@ -11,6 +11,20 @@ export function linearScale(domain: [number, number], range: [number, number]): 
   return (value: number) => r0 + ((value - d0) / span) * (r1 - r0);
 }
 
+/** linearScale 的逆映射：像素坐标 → 数据坐标。 */
+export function invertLinearScale(domain: [number, number], range: [number, number]): Scale {
+  const [d0, d1] = domain;
+  const [r0, r1] = range;
+  const span = r1 - r0 || 1;
+  return (pixel: number) => d0 + ((pixel - r0) / span) * (d1 - d0);
+}
+
+/** 把数值吸附到最近的步长；用于拖拽反推时避免 0.983742 这类灾难小数。 */
+export function snapToStep(value: number, step: number): number {
+  if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) return value;
+  return Math.round(value / step) * step;
+}
+
 export function niceTicks(min: number, max: number, count = 6): number[] {
   if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [min];
   const span = max - min;

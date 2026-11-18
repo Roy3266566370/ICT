@@ -2808,6 +2808,18 @@ def solve_problem(model: Mapping[str, Any]) -> dict[str, Any]:
         if model.get('task') == 'proof':
             from .proof import solve_proof
             return solve_proof(model)
+        if model.get('task') == 'integral_function':
+            from .integral_function import solve_integral_function
+            return solve_integral_function(model)
+        if model.get('task') in ('parametric_derivative','implicit_derivative','curvature'):
+            from .derivative_extra import solve_derivative_extra
+            return solve_derivative_extra(model)
+        if model.get('task') in ('arc_length','parametric_arc_length','surface_of_revolution','polar_area','polar_arc_length'):
+            from .integral_applications import solve_integral_application
+            return solve_integral_application(model)
+        if model.get('task') in ('asymptote','sequence_limit'):
+            from .limit_extra import solve_limit_extra
+            return solve_limit_extra(model)
         from .exam_math import solve_exam_math
         exam = solve_exam_math(model)
         if exam is not None:
@@ -2939,6 +2951,9 @@ def solve_problem(model: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    if model.get('engine') == 'generic_v1':
+        from .generic_model import evaluate_generic
+        return evaluate_generic(model, params)
     if model.get('manual_improper_conditions'):
         from .manual_improper_integral import evaluate
         return evaluate(model)
@@ -3006,6 +3021,15 @@ def _evaluate_problem(model: Mapping[str, Any], params: Mapping[str, Any]) -> di
         if exam is not None:
             exam['task'] = model.get('task')
             return exam
+        if model.get('task') == 'integral_function':
+            from .integral_function import evaluate_integral_function
+            return evaluate_integral_function(model, params)
+        if model.get('task') in ('parametric_derivative','implicit_derivative','curvature'):
+            from .derivative_extra import evaluate_derivative_extra
+            return evaluate_derivative_extra(model, params)
+        if model.get('task') in ('arc_length','parametric_arc_length','surface_of_revolution','polar_area','polar_arc_length'):
+            from .integral_applications import evaluate_integral_application
+            return evaluate_integral_application(model, params)
         from .calculus_analysis import evaluate_analysis
         analysis = evaluate_analysis(model, params)
         if analysis is not None:

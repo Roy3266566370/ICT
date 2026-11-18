@@ -10,7 +10,10 @@ from __future__ import annotations
 import io
 import re
 import threading
+import time
 import zipfile
+from importlib.util import find_spec
+from multiprocessing import get_context
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -35,10 +38,22 @@ _OCR_LOCK = threading.Lock()
 _OCR_ENGINE: Any | None = None
 _LATEX_OCR_LOCK = threading.Lock()
 _LATEX_OCR_ENGINE: Any | None = None
-_LATEX_OCR_FAILED = False
+_LATEX_OCR_RETRY_AT = 0.0
 
-#: 公式模型需要比普通 OCR 更长的初始化时间（首次使用会下载约 180MB 权重）。
+#: Hard wall-clock budget for one local formula read. The autoregressive LaTeX
+#: model can spend minutes on a full-width line and still reject its own output;
+#: after this deadline the request continues with ordinary OCR + AI reading.
+_MATH_OCR_TIMEOUT_S = 15.0
+_LATEX_MODEL_FILES = {
+    'image_resizer_path': 'image_resizer.onnx',
+    'encoder_path': 'encoder.onnx',
+    'decoder_path': 'decoder.onnx',
+    'tokenizer_json': 'tokenizer.json',
+}
+
+#: 本地公式模型约 180MB；只使用已下载到包目录的权重，请求内不触发下载。
 _MATH_OCR_CUES = ("∫", "\\int", "\\frac", "dx", "dy", "dt", "\\sqrt")
+_LIMIT_CUE = re.compile(r"(?<![A-Za-z])lim(?![A-Za-z])|极限", re.I)
 
 
 class ExtractError(ValueError):
@@ -82,11 +97,16 @@ def _ocr(image: Image.Image) -> tuple[str, float | None]:
         import numpy as np
 
         engine = _ocr_engine()
-        array = np.asarray(image.convert("RGB"))
+        prepared = image.convert("RGB")
+        # 截图类小图直接送模型时上下标和斜体 a/α 很容易混淆；先放大再识别。
+        if prepared.width < 900 and prepared.height < 260:
+            prepared = prepared.resize((prepared.width * 4, prepared.height * 4), Image.LANCZOS)
+            prepared = ImageOps.expand(prepared, border=12, fill="white")
+        array = np.asarray(prepared)
         result, _elapsed = engine(array)
     except Exception:  # noqa: BLE001 - OCR 缺失不应让整次上传失败
         return "", None
-    lines: list[str] = []
+    rows: list[dict] = []
     scores: list[float] = []
     for item in result or []:
         if not isinstance(item, (list, tuple)) or len(item) < 3:
@@ -98,30 +118,95 @@ def _ocr(image: Image.Image) -> tuple[str, float | None]:
             scores.append(float(item[2]))
         except (TypeError, ValueError):
             pass
-        lines.append(text)
-    if not lines:
+        box = item[0]
+        ys = [float(point[1]) for point in box]
+        rows.append({'text': text, 'x': min(float(point[0]) for point in box),
+                     'cy': sum(ys) / len(ys), 'height': max(ys) - min(ys)})
+    if not rows:
         return "", None
+    lines: list[dict] = []
+    for row in sorted(rows, key=lambda row: row['cy']):
+        group = next((line for line in lines if abs(line['cy'] - row['cy'])
+                      <= max(line['height'], row['height']) * .55), None)
+        if group is None:
+            lines.append({**row, 'rows': [row]})
+        else:
+            group['rows'].append(row)
     average = sum(scores) / len(scores) if scores else None
-    return "\n".join(lines), average
+    return '\n'.join(' '.join(row['text'] for row in sorted(line['rows'], key=lambda row: row['x']))
+                     for line in lines), average
+
+
+def _local_latex_paths() -> dict[str, Any]:
+    """Use only weights already on disk; never download inside a request."""
+    try:
+        spec = find_spec('rapid_latex_ocr')
+    except (ImportError, ValueError):
+        return {'available': False}
+    origin = getattr(spec, 'origin', None) if spec else None
+    if not origin:
+        return {'available': False}
+    base = Path(origin).parent
+    config = base / 'config.yaml'
+    paths = {key: base / 'models' / name for key, name in _LATEX_MODEL_FILES.items()}
+    if not config.is_file() or not all(path.is_file() for path in paths.values()):
+        return {'available': False}
+    return {'available': True, 'config_path': config, **paths}
 
 
 def _latex_ocr_engine() -> Any | None:
-    """懒加载本地公式 OCR；模型不可用时返回 None，不影响普通 OCR。"""
+    """懒加载本地公式 OCR；模型不完整时返回 None，不影响普通 OCR。"""
 
-    global _LATEX_OCR_ENGINE, _LATEX_OCR_FAILED
-    if _LATEX_OCR_FAILED:
-        return None
+    global _LATEX_OCR_ENGINE, _LATEX_OCR_RETRY_AT
     with _LATEX_OCR_LOCK:
         if _LATEX_OCR_ENGINE is not None:
             return _LATEX_OCR_ENGINE
+        if time.monotonic() < _LATEX_OCR_RETRY_AT:
+            return None
+        paths = _local_latex_paths()
+        if not paths.get('available'):
+            _LATEX_OCR_RETRY_AT = time.monotonic() + 60
+            return None
         try:
             from rapid_latex_ocr import LaTeXOCR  # 延迟加载，避免拖慢无公式的请求
 
-            _LATEX_OCR_ENGINE = LaTeXOCR()
-        except Exception:  # noqa: BLE001 - 缺模型/下载失败时回退普通 OCR
-            _LATEX_OCR_FAILED = True
+            _LATEX_OCR_ENGINE = LaTeXOCR(
+                config_path=paths['config_path'],
+                image_resizer_path=paths['image_resizer_path'],
+                encoder_path=paths['encoder_path'],
+                decoder_path=paths['decoder_path'],
+                tokenizer_json=paths['tokenizer_json'],
+            )
+        except Exception:  # noqa: BLE001 - 缺模型时回退普通 OCR
+            _LATEX_OCR_RETRY_AT = time.monotonic() + 60
             return None
         return _LATEX_OCR_ENGINE
+
+
+def _latex_worker(connection: Any, paths: dict[str, Any], array: Any) -> None:
+    """Subprocess body: one bounded formula read, then exit."""
+    try:
+        from rapid_latex_ocr import LaTeXOCR
+
+        engine = LaTeXOCR(
+            config_path=paths['config_path'],
+            image_resizer_path=paths['image_resizer_path'],
+            encoder_path=paths['encoder_path'],
+            decoder_path=paths['decoder_path'],
+            tokenizer_json=paths['tokenizer_json'],
+        )
+        latex, _elapsed = engine(array)
+        connection.send(str(latex or ''))
+    except Exception:  # noqa: BLE001 - 失败时让父进程走普通 OCR
+        try:
+            connection.send('')
+        except Exception:  # noqa: BLE001
+            pass
+    finally:
+        try:
+            connection.close()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _looks_like_formula(latex: str) -> bool:
@@ -133,6 +218,14 @@ def _looks_like_formula(latex: str) -> bool:
     if not any(cue in text for cue in ("\\int", "\\frac", "\\sqrt", "^{", "_{", "=")):
         return False
     if text.count("\\text{") > 2:
+        return False
+    # Fragment soup from a mostly visual layout (many tildes/overlines) is worse
+    # than ordinary OCR; keep the latter instead of polluting the question text.
+    if text.count("\\tilde") >= 2 or text.count("\\overline") >= 2 or text.count("\\mathrm") >= 3:
+        return False
+    if "\\begin{array}" in text and not any(cue in text for cue in ("\\int", "\\frac", "\\sqrt", "=")):
+        return False
+    if text.count("\\sim") >= 2 or text.count("\\nu") >= 3:
         return False
     cjk = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
     return cjk <= 4
@@ -156,7 +249,11 @@ def _latex_display(latex: str) -> str:
     """把公式模型的 LaTeX 转成学生能直接读懂的一行公式。"""
 
     text = normalize_function_notation(latex.strip())
+    text = _ARRAY_WRAPPER.sub("", text)
     text = text.replace('\\ ', ' ')
+    text = re.sub(r"\\lim\s*_\s*\{([^{}]*)\}", lambda match: f"lim_{match.group(1)}", text)
+    text = text.replace("\\to", "→").replace("\\rightarrow", "→")
+    text = text.replace("\\lim", "lim")
     for command in ("\\textstyle", "\\displaystyle", "\\!", "\\,", "\\;", "\\left", "\\right"):
         text = text.replace(command, "")
     text = (
@@ -226,6 +323,7 @@ def _latex_display(latex: str) -> str:
     text = re.sub(r"\}\s*d\s*([xyzt])", r"} d\1", text)
     text = re.sub(r"(?<=[)\]\d])d\s*([xyzt])\b", r" d\1", text)
     text = text.replace("{", "").replace("}", "")
+    text = re.sub(r"\blim_([^\s(（]+)", r"lim_{\1}", text)
     # Preserve unrecognized commands: deleting them can silently change the
     # function or consume its argument after braces have been flattened.
     return re.sub(r"\s+", " ", text).strip()
@@ -238,14 +336,17 @@ def _should_try_math_ocr(text: str) -> bool:
     """
 
     compact = re.sub(r"\s+", "", text or "")
+    limit_cue = bool(_LIMIT_CUE.search(text or ""))
     if len(compact) <= 160 and ('二重积分' in compact or '∬' in compact):
         return True
     if len(compact) >= 24:
         chinese = len(re.findall(r'[\u4e00-\u9fff]', compact))
-        return len(compact) <= 160 and chinese <= 12 and any(cue in compact for cue in _MATH_OCR_CUES)
+        return len(compact) <= 160 and chinese <= 12 and (
+            limit_cue or any(cue in compact for cue in _MATH_OCR_CUES)
+        )
     if len(compact) < 12:
         return True
-    return any(cue in compact for cue in _MATH_OCR_CUES)
+    return limit_cue or any(cue in compact for cue in _MATH_OCR_CUES)
 
 
 def _is_ocr_noise(text: str) -> bool:
@@ -309,6 +410,50 @@ def _pdf_has_visible_images(page: Any) -> bool:
     return False
 
 
+def _crop_multiline_formula(image: Image.Image, regions: Sequence[Any]) -> Image.Image:
+    """Crop a tall or wide formula block so the local decoder sees only math.
+
+    Full-width question screenshots often contain a scoring label above a
+    multi-line fraction. The formula decoder otherwise spends its budget on the
+    label and returns fragment soup.
+    """
+    rows = []
+    label_bottom = 0.0
+    for item in regions or []:
+        try:
+            points, text = item[0], str(item[1])
+            box = (min(float(p[0]) for p in points), min(float(p[1]) for p in points),
+                   max(float(p[0]) for p in points), max(float(p[1]) for p in points))
+        except (TypeError, ValueError, IndexError):
+            continue
+        if not text.strip():
+            continue
+        if re.search(r'[\u4e00-\u9fff]', text):
+            label_bottom = max(label_bottom, box[3])
+            continue
+        if re.search(r'[0-9A-Za-z∫√^=+*/()\[\]−-]', text):
+            rows.append(box)
+    if image.width > 1600 and image.height > 200:
+        top = label_bottom + image.height * 0.08 if label_bottom else image.height * 0.05
+        box = (int(image.width * 0.04), max(0, int(top)),
+               int(image.width * 0.70), image.height)
+        if box[3] - box[1] >= image.height * 0.2:
+            return image.crop(box)
+    if len(rows) < 2:
+        return image
+    left, top = min(box[0] for box in rows), min(box[1] for box in rows)
+    right, bottom = max(box[2] for box in rows), max(box[3] for box in rows)
+    if bottom - top < image.height * 0.25:
+        return image
+    pad_x = int((right - left) * 0.25) + 16
+    pad_y = int((bottom - top) * 0.45) + 12
+    box = (max(0, int(left) - pad_x), max(0, int(top) - pad_y),
+           min(image.width, int(right) + pad_x), min(image.height, int(bottom) + pad_y))
+    if box[2] - box[0] < image.width * 0.25 or box[3] - box[1] < image.height * 0.2:
+        return image
+    return image.crop(box)
+
+
 def _crop_formula_region(image: Image.Image, regions: Sequence[Any]) -> Image.Image:
     """Separate a one-line formula from a Chinese example label, keeping margins.
 
@@ -347,36 +492,137 @@ def _crop_formula_region(image: Image.Image, regions: Sequence[Any]) -> Image.Im
     return image.crop((max(0,int(prefix_right)-3),0,image.width,image.height))
 
 
-def _math_ocr(image: Image.Image) -> str | None:
+def _math_ocr(image: Image.Image, *, loose: bool = False) -> str | None:
     """把公式截图转成 LaTeX；失败时返回 None。
 
     小图先放大两倍再送模型，能显著减少上下标、``dx`` 和分数被漏掉的情况。
+    ``loose=True`` 供手写圈选使用：放宽“必须含积分/分数/上下标”的启发式，
+    但仍拒绝大段中文和过短/过长结果。
     """
 
     try:
         import numpy as np
 
-        engine = _latex_ocr_engine()
-        if engine is None:
+        if image.width > 1200 and image.height <= 200:
+            # A full-width single line is prose or a multi-part formula. The
+            # LaTeX decoder would spend its whole budget on it and reject the
+            # result; ordinary OCR + the AI read path handle this shape.
+            return None
+        paths = _local_latex_paths()
+        if not paths.get('available'):
             return None
         prepared = image.convert("RGB")
-        if prepared.width <= 1600 and prepared.height <= 420 and prepared.width / max(prepared.height,1) >= 2.4:
-            try:
-                regions, _ = _ocr_engine()(np.asarray(prepared))
+        try:
+            regions, _ = _ocr_engine()(np.asarray(prepared))
+            if prepared.width > 1600 or prepared.height > 420:
+                prepared = _crop_multiline_formula(prepared, regions)
+            elif prepared.width / max(prepared.height, 1) >= 2.4:
                 prepared = _crop_formula_region(prepared, regions)
-            except Exception:  # Recognition remains available if region detection fails.
-                pass
+        except Exception:  # Recognition remains available if region detection fails.
+            pass
         if prepared.width <= 900 and prepared.height <= 420:
             prepared = prepared.resize(
-                (max(1, prepared.width * 2), max(1, prepared.height * 2)), Image.LANCZOS
+                (max(1, prepared.width * 3), max(1, prepared.height * 3)), Image.LANCZOS
             )
             prepared = ImageOps.expand(prepared, border=24, fill="white")
+        array = np.asarray(prepared)
         with _LATEX_OCR_LOCK:
-            latex, _elapsed = engine(np.asarray(prepared))
+            context = get_context('spawn')
+            receiver, sender = context.Pipe(duplex=False)
+            process = context.Process(target=_latex_worker, args=(sender, paths, array), daemon=True)
+            process.start()
+            sender.close()
+            latex = None
+            try:
+                if receiver.poll(_MATH_OCR_TIMEOUT_S):
+                    try:
+                        latex = receiver.recv()
+                    except EOFError:
+                        latex = None
+                else:
+                    # The autoregressive decoder is still running; abandon it
+                    # rather than holding the upload for minutes.
+                    process.terminate()
+            finally:
+                process.join()
+                try:
+                    process.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                try:
+                    receiver.close()
+                except Exception:  # noqa: BLE001
+                    pass
     except Exception:  # noqa: BLE001 - 公式模型失败时保持普通 OCR 路径
         return None
     text = str(latex or "").strip()
+    if loose:
+        if not 2 <= len(text) <= 500:
+            return None
+        cjk = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
+        return None if cjk > 4 or text.count("\\text{") > 2 else text
     return text if _looks_like_formula(text) else None
+
+
+_ARRAY_WRAPPER = re.compile(r"\\(?:begin|end)\{array\}(?:\{[^{}]*\})?")
+_LIMIT_OPERATOR = re.compile(r"\\(?:lim|int|prod|sum)\s*_\s*\{[^{}]*(?:\\to|\\rightarrow|→|->)[^{}]*\}")
+_ARROW_SUBSCRIPT = re.compile(r"(_\s*\{\s*[A-Za-z]\s*\\?(?:to|rightarrow)\s*[^{}]*\})")
+
+
+def _repair_math_formula(latex: str, ocr_text: str) -> str:
+    """公式模型常把竖排 lim 读成积分号，并把版面碎片带进结果。
+
+    只在普通 OCR 明确出现 lim/极限时改写带箭头下标的积分号，避免误伤真正的
+    积分题；随后截取“算子 + 左式 = 数值”这一段，丢掉题号和答题横线等碎片。
+    """
+
+    text = _ARRAY_WRAPPER.sub("", latex or "")
+    if re.search(r"(?:\\?lim|极限)", ocr_text or "", flags=re.I):
+        text = re.sub(
+            r"\\(?:int|prod|sum)(?=" + _ARROW_SUBSCRIPT.pattern + ")",
+            r"\\lim",
+            text,
+            count=1,
+        )
+    operator = _LIMIT_OPERATOR.search(text)
+    if operator:
+        core = text[operator.start():]
+        equation = re.search(r"=\s*[-+]?(?:\d+(?:\.\d+)?|\.\d+)", core)
+        if equation:
+            core = core[: equation.end()]
+        text = core
+    return text.strip()
+
+
+def _merge_math_text(ocr_text: str, display_text: str) -> str:
+    """把公式 OCR 结果放到一行可读公式里，同时保留普通 OCR 的中文题干。
+
+    小截图里题号常被单独识别成一行，直接保留会让拆题器把一道题拆成两段；
+    只有一个题号时才重排，多题截图仍按原文本拆分。纯公式碎片已在可读公式里
+    完整出现，不再拼进“原题”文本。
+    """
+
+    lines = [line.strip() for line in (ocr_text or "").splitlines() if line.strip()]
+    markers = []
+    stripped: list[str] = []
+    for line in lines:
+        match = re.match(r"^(?:第\s*)?([0-9]{1,2}|[一二三四五六七八九十]{1,3})\s*[.、．:：)）]\s*", line)
+        if match:
+            markers.append(match.group(1))
+            line = line[match.end():].strip()
+        if not line:
+            continue
+        if re.search(r"[\u4e00-\u9fff]", line):
+            stripped.append(line)
+            continue
+        if line[0] in "(（[{<≥≤=+-/*^" or line[0].isdigit():
+            continue
+        if len(re.findall(r"[A-Za-z]{2,}", line)) >= 2 and len(line) >= 10:
+            stripped.append(line)
+    if len(set(markers)) > 1:
+        return f"{ocr_text.strip()}\n{display_text}".strip()
+    head = f"{markers[0]}. {display_text}" if markers else display_text
+    return "\n".join([head, *stripped])
 
 
 def _save_preview(image: Image.Image, lab_dir: Path, key: str, max_width: int = 1400, *, fast: bool = False) -> str:
@@ -453,7 +699,7 @@ def _pdf_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int, *, pres
                     if _should_try_math_ocr(text) and image is not None:
                         math_text = _math_ocr(image)
                         if math_text is not None:
-                            display_text = _latex_display(math_text)
+                            display_text = _latex_display(_repair_math_formula(math_text, text))
                             noise = _is_ocr_noise(text)
                             text = display_text if noise else f"{text}\n{display_text}".strip()
                             method = "pdf_math_ocr" if noise else "pdf_ocr+math_ocr"
@@ -493,6 +739,7 @@ def _image_pages(data: bytes, file_id: str, lab_dir: Path) -> tuple[list[dict[st
     try:
         image = Image.open(io.BytesIO(data))
         image.load()
+        image = ImageOps.exif_transpose(image)
     except Exception as exc:  # noqa: BLE001
         raise ExtractError("图片无法读取，请换一张 PNG/JPG/WebP") from exc
     preview = _save_preview(image, lab_dir, f"{file_id}_p1")
@@ -500,12 +747,12 @@ def _image_pages(data: bytes, file_id: str, lab_dir: Path) -> tuple[list[dict[st
     math_text = _math_ocr(image) if _should_try_math_ocr(ocr_text) else None
     if math_text is not None:
         # 通用 OCR 只剩公式碎片时直接用可读公式；否则保留其文字并追加公式。
-        display_text = _latex_display(math_text)
+        display_text = _latex_display(_repair_math_formula(math_text, ocr_text))
         if _is_ocr_noise(ocr_text):
             text = display_text
             method = "image_math_ocr"
         else:
-            text = f"{ocr_text}\n{display_text}".strip()
+            text = _merge_math_text(ocr_text, display_text)
             method = "image_ocr+math_ocr"
     else:
         text = ocr_text

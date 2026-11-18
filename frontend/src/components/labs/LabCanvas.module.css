@@ -93,6 +93,20 @@
   stroke-width: 2;
 }
 
+.dragHandle {
+  fill: rgba(249, 115, 22, 0.14);
+  stroke: #f97316;
+  stroke-width: 2.4;
+  stroke-dasharray: 3 2;
+  cursor: grab;
+  touch-action: none;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+  fill: rgba(249, 115, 22, 0.3);
+}
+
 .tracePoint {
   fill: rgba(79, 70, 229, 0.62);
   stroke: #fff;

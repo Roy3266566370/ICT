@@ -256,7 +256,7 @@ export function HomePage(): JSX.Element {
 
   return (
     <>
-      <SiteNav current={null} onUpload={openUpload} />
+      <SiteNav current="home" onUpload={openUpload} />
 
       <div className="wx-home">
         <div className="ruler" aria-hidden="true">

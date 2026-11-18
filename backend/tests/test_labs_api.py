@@ -61,6 +61,147 @@ def legacy_model_provider(monkeypatch):
     monkeypatch.setattr(get_settings(), 'lab_understanding_provider', 'legacy')
 
 
+def test_empty_ocr_image_upload_cloud_solve_and_condition_review(owner, monkeypatch):
+    import io
+    from types import SimpleNamespace
+    from PIL import Image
+    from app.labs import extract
+    from app.ppt_ai.client import PPTAIClient
+    monkeypatch.setattr(extract, '_ocr', lambda image: ('', None))
+    monkeypatch.setattr(extract, '_math_ocr', lambda image: None)
+    captured = {}
+    def generate(self, task, payload, *args, **kwargs):
+        captured.update(kwargs)
+        assert payload['ocr_hint'] == ''
+        return SimpleNamespace(data={'question': '求函数x^3的导数', 'answer': '3*x^2', 'steps': [],
+            'model': {'kind': 'kernel', 'task': 'higher_derivative',
+                      'conditions': {'expression': 'x^3', 'variable': 'x', 'order': 1}}})
+    monkeypatch.setattr(PPTAIClient, 'generate_json', generate)
+    session = _session(owner)
+    image = io.BytesIO()
+    Image.new('RGB', (150, 100), 'white').save(image, format='PNG')
+    response = owner.post('/api/v1/labs', headers=_headers(session),
+        files=[('files', ('formula.png', image.getvalue(), 'image/png'))])
+    assert response.status_code == 201, response.text
+    document = response.json()['data']
+    p = document['problems'][0]
+    url = f'/api/v1/labs/{document["lab_id"]}'
+    response = owner.post(url + '/ai-solve', headers=_headers(session), json={
+        'problem_id': p['problem_id'], 'expected_revision': document['revision']})
+    assert response.status_code == 200, response.text
+    p = response.json()['data']['document']['problems'][0]
+    assert p['status'] == 'ready'
+    assert p['ai_solution']['verification'] == 'kernel'
+    assert captured['image_urls'][0].startswith('data:image/jpeg;base64,')
+    assert p['ai_solution']['source_review_required'] is True
+    assert p['ai_solution']['checkable'] is False
+    from app.db.session import get_session_factory
+    from app.db.models import LabRecord
+    with get_session_factory()() as db:
+        row = db.get(LabRecord, document['lab_id'])
+        assert row.status == row.document['status']
+        assert row.subject == row.document['subject']
+    response = owner.post(url + '/review', headers=_headers(session), json={
+        'problem_id': p['problem_id'], 'text': p['text'], 'subject': p['subject'],
+        'condition_values': {'expression': 'x^2'}, 'ambiguity_answers': {}})
+    assert response.status_code == 200, response.text
+    p = response.json()['data']['problems'][0]
+    assert p['ai_solution']['verification'] == 'kernel'
+    assert p['ai_solution']['proposed_model']['conditions']['expression'] == 'x^2'
+
+
+def test_reference_transcription_is_saved_and_cache_uses_updated_text(owner, monkeypatch):
+    import io
+    from types import SimpleNamespace
+    from PIL import Image
+    from app.labs import extract
+    from app.ppt_ai.client import PPTAIClient
+    monkeypatch.setattr(extract, '_ocr', lambda image: ('', None))
+    monkeypatch.setattr(extract, '_math_ocr', lambda image: None)
+    calls = []
+    def generate(*args, **kwargs):
+        calls.append(1)
+        return SimpleNamespace(data={'question': '解释电路图中两个元件的作用。', 'answer': '参考说明',
+            'conditions': ['两个元件串联'], 'steps': [{'title': '读图', 'detail': '逐个分析元件'}],
+            'model': {'kind': 'none'}})
+    monkeypatch.setattr(PPTAIClient, 'generate_json', generate)
+    session = _session(owner)
+    image = io.BytesIO()
+    Image.new('RGB', (100, 100), 'white').save(image, format='PNG')
+    response = owner.post('/api/v1/labs', headers=_headers(session),
+        files=[('files', ('circuit.png', image.getvalue(), 'image/png'))])
+    assert response.status_code == 201, response.text
+    document = response.json()['data']
+    url = f'/api/v1/labs/{document["lab_id"]}'
+    body = {'problem_id': document['problems'][0]['problem_id'], 'expected_revision': document['revision']}
+    response = owner.post(url + '/ai-solve', headers=_headers(session), json=body)
+    assert response.status_code == 200, response.text
+    document = response.json()['data']['document']
+    p = document['problems'][0]
+    assert p['text'] == '解释电路图中两个元件的作用。'
+    assert p['title'] == p['text']
+    assert p['recognition']['original_ocr_text'] == ''
+    assert p['ai_solution']['answer'] == '参考说明'
+    assert p['ai_solution']['verification'] == 'ai_reference'
+    saved = owner.get(url).json()['data']['problems'][0]
+    assert saved['text'] == p['text']
+    body['expected_revision'] = document['revision']
+    response = owner.post(url + '/ai-solve', headers=_headers(session), json=body)
+    assert response.status_code == 200, response.text
+    assert response.json()['data']['cached'] is True
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('legacy', [False, True])
+@pytest.mark.parametrize('read_first', [False, True])
+@pytest.mark.parametrize('edit', [False, True])
+def test_non_kernel_confirmation_keeps_equation_plan(owner, monkeypatch, legacy, read_first, edit):
+    from types import SimpleNamespace
+    from app.ppt_ai.client import PPTAIClient
+    plan = {'kind': 'equations', 'variables': ['x'], 'equations': ['3*x=12']}
+    calls = []
+    def generate(*args, **kwargs):
+        calls.append(1)
+        return SimpleNamespace(data={'model': plan, 'answer': '4', 'steps': []})
+    monkeypatch.setattr(PPTAIClient, 'generate_json', generate)
+    session, document = _create_lab(owner, '三个同价商品共花十二元，求每件价格。')
+    url = f'/api/v1/labs/{document["lab_id"]}'
+    problem_id = document['problems'][0]['problem_id']
+    response = owner.post(url + '/ai-solve', headers=_headers(session),
+        json={'problem_id': problem_id, 'expected_revision': document['revision']})
+    assert response.status_code == 200, response.text
+    p = response.json()['data']['document']['problems'][0]
+    if legacy:
+        import copy
+        from app.db.session import get_session_factory
+        from app.db.models import LabRecord
+        with get_session_factory()() as db:
+            row = db.get(LabRecord, document['lab_id'])
+            saved = copy.deepcopy(row.document)
+            saved['problems'][0]['ai_solution'].pop('agent_understanding')
+            saved['problems'][0]['recognition']['conditions'] = []
+            row.document = saved
+            db.commit()
+    if read_first:
+        loaded = owner.get(url).json()['data']['problems'][0]
+        assert loaded['ai_solution']['agent_understanding']['model'] == plan
+        assert {c['id'] for c in loaded['recognition']['conditions']} >= {'equations', 'variables'}
+        if legacy:
+            with get_session_factory()() as db:
+                assert 'agent_understanding' not in db.get(LabRecord, document['lab_id']).document['problems'][0]['ai_solution']
+    response = owner.post(url + '/review', headers=_headers(session), json={
+        'problem_id': problem_id, 'text': p['text'], 'subject': p['subject'],
+        'condition_values': {'equations': '["3*x=18"]'} if edit else {},
+        'ambiguity_answers': {'source_formula_confirmation': 'confirmed'}})
+    assert response.status_code == 200, response.text
+    p = response.json()['data']['problems'][0]
+    expected = {**plan, 'equations': ['3*x=18']} if edit else plan
+    assert p['ai_solution']['proposed_model'] == expected
+    assert p['ai_solution']['checkable'] is True
+    assert p['ai_solution']['answer'] == ('6' if edit else '4')
+    assert len(calls) == 1
+
+
 def test_visual_model_survives_unchanged_subject_confirmation(owner, monkeypatch):
     from app.labs import local_agent
     from test_local_agent import candidate
@@ -544,3 +685,30 @@ def test_physics_third_batch_text_lab_is_created(owner: TestClient) -> None:
     assert problem['status'] == 'ready'
     assert problem['model']['physics_mode'] == 'double_slit'
     assert '0.003' in problem['solution']['answer']
+
+
+def test_cloud_transport_failure_falls_back_to_local_vision(owner, monkeypatch):
+    from app.labs import local_agent
+    from app.ppt_ai.client import PPTAIClient, PPTAIError
+
+    def fail(*_args, **_kwargs):
+        raise PPTAIError('transport', '模型调用失败：ConnectError', retryable=True)
+
+    def local_understand(problem, *, lab_id=None):
+        return {'verification': 'needs_review', 'question': '求极限 lim(x→0) sin(x)/x',
+                'interpretation': '求极限', 'conditions': [], 'missing_conditions': [],
+                'proposed_model': {'kind': 'none'}, 'answer': '', 'steps': [],
+                'reference_answer': '', 'reference_steps': [], 'computation': None,
+                'limitations': ['本地视觉模型也未能建模。'], 'trace': []}
+
+    monkeypatch.setattr(PPTAIClient, 'generate_json', fail)
+    monkeypatch.setattr(local_agent, 'ollama_available', lambda timeout=1.5: True)
+    monkeypatch.setattr(local_agent, 'understand', local_understand)
+    session, document = _create_lab(owner, '求极限 lim(x→0) sin(x)/x')
+    response = owner.post(f"/api/v1/labs/{document['lab_id']}/ai-solve", headers=_headers(session),
+                          json={'problem_id': document['problems'][0]['problem_id'],
+                                'expected_revision': document['revision']})
+    assert response.status_code == 200, response.text
+    problem = response.json()['data']['document']['problems'][0]
+    assert problem['ai_solution']['fallback']['to'] == 'ollama'
+    assert '本机视觉模型' in problem['ai_solution']['limitations'][0]

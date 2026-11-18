@@ -26,3 +26,26 @@
 .modelConditions dd { margin: 0; min-width: 0; white-space: pre-wrap; }
 .modelConditions pre { margin: 0; max-height: 150px; }
 @media(max-width:600px) { .modelConditions > div { grid-template-columns: 1fr; gap: 3px; } }
+
+.traceCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid rgba(220, 38, 38, 0.18);
+  border-radius: 10px;
+  background: rgba(254, 242, 242, 0.75);
+}
+
+.traceCard strong {
+  color: #b91c1c;
+  font-size: 11px;
+}
+
+.traceCard p {
+  margin: 0;
+  color: #7f1d1d;
+  font-size: 11px;
+  line-height: 1.5;
+}

@@ -16,6 +16,9 @@ _CONCEPT = (
     r'(?:进程|程序)调度(?:程序)?(?:执行|需要)',
     r'调度需要使用',
     r'概念|定义(?!域|区间)|区别|联系|作用|功能|特点|含义|术语|基本思想|基本思路',
+    r'为什么|为何|说明(?:原因|理由|其|一下)?|简述|如何修改|如何改进',
+    r'比较[^。？?]{0,20}(?:优劣|差异|区别|异同)',
+    r'分析[^。？?]{0,20}(?:原因|现象|影响|性质)',
 )
 
 _PROPERTY = (
@@ -61,8 +64,10 @@ def task_limit(text: str) -> str:
         return '当前内核不支持一般程序或操作的时间复杂度分析。'
     if '偏导' in text and re.search(r'隐式|隐函数|由方程', text):
         return '当前声明式任务未支持隐式多元偏导数，不能替换为单变量求导。'
-    if '渐近线' in text or '凹凸' in text:
-        return '当前函数研究任务不能完整覆盖凹凸与渐近线目标。'
+    if '凹凸' in text:
+        return '当前函数研究任务不能完整覆盖凹凸区间目标。'
+    if '渐近线' in text and re.search(r"微分方程|y\s*\(\s*x\s*\)|y\s*['′]", text):
+        return '当前不支持先求解微分方程再求渐近线的复合流程。'
     if '最短路径' in text and re.search(r'哪些.*一定|一定能', text):
         return '这是算法性质辨析，当前遍历内核只支持给定图的执行，不需要补造节点和边。'
     if '反常积分' in text and re.search(r'正无穷|负无穷|无穷大', text):
@@ -99,6 +104,11 @@ def _concept_kernel_kind(subject: str | None, model: object) -> str | None:
 
 def unsupported_reason(question: str, *, subject: str | None = None,
                        model: object | None = None) -> str:
+    if (subject == 'computer_network' and isinstance(model, dict) and model.get('net_kind') == 'transport'
+            and re.search(r'为什么|为何|解释|说明.*原因|简述', question)
+            and re.search(r'三次握手|四次挥手', question)
+            and not re.search(r'ISN|初始序号|seq\s*[=:]|数据.*\d+.*字节', question, re.I)):
+        return '这是连接机制概念题，序号计算内核不能核验原因解释。'
     if str(subject or '') in _CONCEPT_SUBJECT_KINDS and _concept_kernel_kind(subject, model) is None:
         return ('已识别为 408 科目，但当前题面没有确定可执行内核题型；'
                 '原题条件并未缺失，请不要补造条件或改用其他题型。')

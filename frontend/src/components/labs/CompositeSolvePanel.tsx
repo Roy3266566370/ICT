@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { LabOrchestration } from '@/labs/types';
 import { errorMessage } from '@/api/client';
+import { MathText, ProblemText } from './ProblemText';
 
 export function CompositeSolvePanel({ result, onSolve }: {
   result: LabOrchestration;
@@ -34,15 +35,16 @@ export function CompositeSolvePanel({ result, onSolve }: {
         {plannerNode?.error ? ' · AI 规划失败，已回退' : ''}
       </p>
       {plannerNode?.error ? <p role="status" style={{ margin: '0 0 4px' }}>AI 规划失败原因：{plannerNode.error}</p> : null}
-      {result.understanding?.ai_error ? <p role="status" style={{ margin: '0 0 4px' }}>AI 理解失败：{result.understanding.ai_error}</p> : null}
+      {result.understanding?.ai_error ? <p role="status" style={{ margin: '0 0 4px' }}>AI 理解失败：<MathText text={String(result.understanding.ai_error ?? '')} /></p> : null}
       {errors.map((note, index) => <p key={`error-${index}`} role="alert" style={{ margin: '0 0 4px' }}>{note}</p>)}
       {warnings.length ? <div aria-label="规划校验警告">
         <strong>校验警告</strong>
-        <ul style={{ margin: '4px 0 0' }}>{warnings.map((note, index) => <li key={`warning-${index}`}>{note}</li>)}</ul>
+        <ul style={{ margin: '4px 0 0' }}>{warnings.map((note, index) => <li key={`warning-${index}`}><MathText text={note} /></li>)}</ul>
       </div> : null}
     </div>
     <details open={result.stale || result.status !== '完成' || errors.length > 0 || warnings.length > 0}>
       <summary>完整题目与分问解答 · {result.stale ? '条件已修改，请重新求解' : result.status}</summary>
+      <ProblemText text={result.problem.text} />
       <label style={{ display: 'block', marginTop: 12 }}>完整题目
         <textarea aria-label="修改完整题目" value={text} onChange={(event) => setText(event.target.value)}
           rows={4} disabled={busy} style={{ display: 'block', width: '100%', boxSizing: 'border-box' }} />
@@ -52,22 +54,22 @@ export function CompositeSolvePanel({ result, onSolve }: {
       </button>
       {error ? <p role="alert">{error}</p> : null}
       {result.stale ? <p>分问条件已有修改，原汇总已失效。修改上方完整题目后重新求解。</p> : <>
-        {result.note ? <p>{result.note}</p> : null}
+        {result.note ? <p><MathText text={result.note} /></p> : null}
         <ol>{result.answers.map((answer, index) => <li key={`${answer.subquestion}-${index}`}>
-          <strong>{answer.goal || answer.subquestion}</strong>：{answer.answer || answer.state || '尚未完成'}
+          <strong><MathText text={answer.goal || answer.subquestion} /></strong>：<MathText text={answer.answer || answer.state || '尚未完成'} />
         </li>)}</ol>
         <details><summary>计算步骤</summary><ol>{result.solve.steps.map((step) => <li key={step.id}>
-          {step.goal} · {step.state}{step.capability ? ` · ${step.capability}` : ''}{step.detail ? <p>{step.detail}</p> : null}
+          <MathText text={step.goal} /> · <MathText text={String(step.state ?? '')} />{step.capability ? ` · ${step.capability}` : ''}{step.detail ? <p><MathText text={step.detail} /></p> : null}
         </li>)}</ol></details>
         {planSteps.length ? <details><summary>实际执行计划（{planSteps.length} 步）</summary>
           <ol>{planSteps.map((step) => <li key={step.id}>
-            {step.id} · {step.goal || '未命名步骤'} · {step.capability || '未知能力'}
+            <MathText text={String(step.id ?? '')} /> · <MathText text={step.goal || '未命名步骤'} /> · {step.capability || '未知能力'}
             {step.subquestion ? ` · 小问 ${step.subquestion}` : ''}
           </li>)}</ol>
         </details> : null}
         {adjustments.length ? <details><summary>计划调整（{adjustments.length} 次）</summary>
           <ol>{adjustments.map((item, index) => <li key={`adjustment-${index}`}>
-            {item.step}：{item.from || item.result || '调整'}{item.to ? ` → ${item.to}` : ''}
+            <MathText text={String(item.step ?? '')} />：{item.from || item.result || '调整'}{item.to ? ` → ${item.to}` : ''}
             {item.reason ? `（${item.reason}）` : ''}
             {item.error ? `（${item.error}）` : ''}
             {item.rejected?.length ? <ul>{item.rejected.map((note, rejectedIndex) =>
@@ -81,13 +83,13 @@ export function CompositeSolvePanel({ result, onSolve }: {
         </details> : null}
         {provenance.length ? <details><summary>来源记录</summary>
           <ul>{provenance.map((row, index) => <li key={`provenance-${index}`}>
-            {row.step} · {row.item} · {row.source}{row.detail ? `：${row.detail}` : ''}
+            <MathText text={String(row.step ?? '')} /> · <MathText text={String(row.item ?? '')} /> · <MathText text={String(row.source ?? '')} />{row.detail ? <MathText text={`：${row.detail}`} /> : null}
           </li>)}</ul>
         </details> : null}
         <p>在题目列表中选择分问，可查看对应内核生成的模型与计算过程。</p>
       </>}
       {result.previous_summary ? <details><summary>上一次题目结果</summary><ul>
-        {result.previous_summary.answers.map((answer, index) => <li key={index}>{answer.goal}：{answer.answer || '尚未完成'}</li>)}
+        {result.previous_summary.answers.map((answer, index) => <li key={index}><MathText text={answer.goal || `第 ${index + 1} 问`} />：<MathText text={answer.answer || '尚未完成'} /></li>)}
       </ul></details> : null}
     </details>
   </section>;

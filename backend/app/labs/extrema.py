@@ -1,4 +1,6 @@
 """二元局部极值编排；候选全集、奇异约束点与分类分开核验。"""
+import re
+
 import sympy as sp
 from sympy.polys.polyerrors import BasePolynomialError
 
@@ -9,17 +11,45 @@ LABELS = {'minimum':'局部极小值', 'maximum':'局部极大值', 'saddle':'�
 SCOPE = '只判定局部极值与鞍点，不由候选值比较宣称全局最值。首批支持二元多项式；不等式、多约束、额外区域边界和驻点族的完整分类尚未开放。'
 
 
+_OPERATIONS = {
+    'unconstrained': 'unconstrained', 'unconstrained_extrema': 'unconstrained',
+    'local_extrema': 'unconstrained', 'extrema': 'unconstrained', 'extremum': 'unconstrained',
+    'local': 'unconstrained', 'free': 'unconstrained', '无约束': 'unconstrained',
+    '无约束极值': 'unconstrained', '无条件极值': 'unconstrained',
+    'constrained': 'constrained', 'constrained_extrema': 'constrained',
+    'conditional': 'constrained', 'conditional_extrema': 'constrained', 'lagrange': 'constrained',
+    '条件极值': 'constrained', '有条件极值': 'constrained',
+}
+
+
+def _operation_text(raw):
+    """Map provider synonyms to the two kernel operations."""
+    if not isinstance(raw, str):
+        return ''
+    return _OPERATIONS.get(raw.strip().lower(), '')
+
+
+def _variables_text(raw):
+    """Accept both "x,y" and ["x", "y"]; the kernel only supports the fixed pair."""
+    if isinstance(raw, (list, tuple)):
+        raw = ','.join(str(item).strip() for item in raw)
+    if not isinstance(raw, str):
+        return ''
+    return re.sub(r'\s+', '', raw)
+
+
 def parse_inputs(c):
-    if c.get('variables') != 'x,y':
+    if _variables_text(c.get('variables')) != 'x,y':
         raise ValueError('首批多元极值固定二元变量顺序x,y')
-    if c.get('operation') not in ('unconstrained','constrained'):
+    operation = _operation_text(c.get('operation'))
+    if not operation:
         raise ValueError('请选择无约束局部极值或单等式约束极值')
     raw = c.get('expression')
     if not isinstance(raw,str) or not 1 <= len(raw) <= 600:
         raise ValueError('目标函数必须是600字以内的表达式')
     objective = parse_expression(raw, ('x','y'), preserve_structure=True)
     constraint = None
-    if c['operation'] == 'constrained':
+    if operation == 'constrained':
         raw = c.get('constraint')
         if not isinstance(raw,str) or not 1 <= len(raw) <= 600 or raw.count('=') != 1 or any(v in raw for v in ('\n','\r',';',',','；','，')):
             raise ValueError('首批仅支持一个完整等式约束；多约束或附加条件不能遗漏，请保留原题')
@@ -27,7 +57,7 @@ def parse_inputs(c):
         constraint = parse_expression(f'({left})-({right})', ('x','y'), preserve_structure=True)
         if not constraint.free_symbols:
             raise ValueError('约束必须含x或y，不能用恒等式替代题目约束')
-    elif 'constraint' in c:
+    elif 'constraint' in c and c.get('constraint') not in (None, ''):
         raise ValueError('无约束任务不能忽略额外约束，请选择条件极值')
     return objective,constraint
 
@@ -90,13 +120,89 @@ def _feasible_witness(g, candidates):
     return False
 
 
+def _periodic_quadratic(f):
+    """Certify a*x²/2 + B*x*exp(c + d*T(w*y+p)) + C on R².
+
+    The raw syntax guard is essential: cancellation must never erase a hole.
+    Only exp/sin/cos and polynomial arithmetic are globally smooth here.
+    """
+    for node in sp.preorder_traversal(f):
+        if node.is_Function and node.func not in (sp.exp, sp.sin, sp.cos):
+            return None
+        if isinstance(node, sp.Pow) and node.free_symbols and (node.exp.is_integer is not True or node.exp.is_nonnegative is not True):
+            return None
+        if not node.free_symbols and (node.is_real is not True or safe_float(node) is None):
+            return None
+    try:
+        poly = sp.Poly(f, X)
+    except BasePolynomialError:
+        return None
+    if poly.degree() != 2:
+        return None
+    a, b, constant = [sp.simplify(v) for v in (2*poly.nth(2), poly.nth(1), poly.nth(0))]
+    if any(v.free_symbols or v.is_real is not True or safe_float(v) is None for v in (a, constant)) or a.is_zero is not False:
+        return None
+    exponentials = list(b.atoms(sp.exp))
+    if len(exponentials) != 1:
+        return None
+    exponential = exponentials[0]
+    scale = sp.simplify(b/exponential)
+    if scale.free_symbols or scale.is_real is not True or scale.is_zero is not False or safe_float(scale) is None:
+        return None
+    h = exponential.args[0]
+    trig = list(h.atoms(sp.sin, sp.cos))
+    if len(trig) != 1:
+        return None
+    t = trig[0]
+    amplitude = sp.simplify(sp.diff(h, Y)/sp.diff(t, Y))
+    offset = sp.simplify(h-amplitude*t)
+    frequency = sp.diff(t.args[0], Y)
+    phase = sp.simplify(t.args[0]-frequency*Y)
+    if any(v.free_symbols or v.is_real is not True or safe_float(v) is None for v in (amplitude, offset, frequency, phase)) or amplitude.is_zero is not False or frequency.is_zero is not False:
+        return None
+    # solveset returns the full real zero set, rather than sample roots.
+    roots = sp.solveset(sp.diff(h, Y), Y, domain=sp.S.Reals)
+    families = list(roots.args) if isinstance(roots, sp.Union) else [roots]
+    if not families or len(families) > 8:
+        return None
+    k = sp.Symbol('k', integer=True)
+    candidates = []
+    for family in families:
+        if not isinstance(family, sp.ImageSet) or family.base_set != sp.S.Integers or len(family.lamda.variables) != 1:
+            return None
+        y = sp.simplify(family.lamda.expr.subs(family.lamda.variables[0], k))
+        x = sp.simplify((-b/a).subs(Y, y))
+        point = {X: x, Y: y}
+        if any(sp.simplify(sp.diff(f, v).subs(point)) != 0 for v in (X, Y)):
+            return None
+        determinant = sp.simplify(sp.hessian(f, (X, Y)).subs(point).det())
+        if determinant.is_negative:
+            classification = 'saddle'
+        elif determinant.is_positive and (a.is_positive or a.is_negative):
+            classification = 'minimum' if a.is_positive else 'maximum'
+        else:
+            return None
+        candidates.append(dict(point=[str(x), str(y)], value=str(sp.simplify(f.subs(point))), classification=classification,
+            kind='stationary', multiplier=None, residual_verified=True, constraint_verified=None,
+            evidence=f'k为任意整数；整族代回梯度为零；A=f_xx={a}，D={determinant}；{LABELS[classification]}'))
+    return candidates, a, b, roots
+
+
 def solve_extrema(model):
     c=model['typed_conditions'];f,g=parse_inputs(c)
     d=dict(operation=c['operation'],variables=['x','y'],constraint=c.get('constraint'),candidates=[],stationary_complete=False,
            classification_complete=False,singular_complete=None,scope_note=SCOPE)
     steps=[]
     reason=''
-    if not _polynomial(f,6) or (g is not None and not _polynomial(g,4)):
+    periodic = _periodic_quadratic(f) if g is None and not _polynomial(f,6) else None
+    if periodic is not None:
+        candidates, a, b, roots = periodic
+        d.update(candidates=candidates, stationary_complete=True, classification_complete=True,
+                 scope_note='已认证全实平面光滑的常系数二次项与指数正弦/余弦系数；保留全部整数参数驻点族。')
+        steps=[dict(id='gradient', title='消元并核查驻点全集', latex=rf'f_x={to_latex(sp.diff(f,X))}=0,\quad f_y={to_latex(sp.diff(f,Y))}=0',
+                    detail=f'二次项系数非零且指数系数处处非零。由f_x=0得x=-({b})/({a})，代入f_y=0等价于指数的导数为零；solveset实零点全集为{roots}。'),
+               dict(id='hessian', title='对完整整数参数族作二阶判别', detail='k为任意整数；整族代回梯度核验，并对含整数参数的Hessian行列式作精确符号判别，不只取k=0。')]
+    elif not _polynomial(f,6) or (g is not None and not _polynomial(g,4)):
         reason='首批仅确认六次以内多项式目标与四次以内多项式约束；保留原式，不化简掉分母、非光滑点或定义域条件'
     elif g is None:
         from .exam_math import complete_extrema
@@ -155,6 +261,10 @@ def solve_extrema(model):
     complete=d['classification_complete']
     descriptions=[f"{LABELS[p['classification']]}点({', '.join(p['point'])})，f={p['value']}" for p in d['candidates']]
     answer='；'.join(descriptions) if complete else ''
+    if complete and periodic is not None:
+        answer+='；k为任意整数'
+        if not any(p['classification']=='maximum' for p in d['candidates']):answer+='；无局部极大值'
+        if not any(p['classification']=='minimum' for p in d['candidates']):answer+='；无局部极小值'
     if complete and not descriptions:answer='在已确认的光滑可行域中没有驻点，因此不存在局部极值'
     tex=r'\begin{gathered}'+r'\\'.join(rf'f({",".join(to_latex(sp.sympify(v)) for v in p["point"])})={to_latex(sp.sympify(p["value"]))}\quad\text{{{LABELS[p["classification"]]}}}' for p in d['candidates'])+r'\end{gathered}' if complete and descriptions else r'\text{没有驻点及局部极值}' if complete else ''
     d['result_latex']=tex
@@ -172,6 +282,11 @@ def preview(c):
 
 def build_problem(c):
     from .exam_math import _condition
+    c = dict(c)
+    if _operation_text(c.get('operation')):
+        c['operation'] = _operation_text(c.get('operation'))
+    if _variables_text(c.get('variables')) == 'x,y':
+        c['variables'] = 'x,y'
     p=preview(c)
     conditions=[_condition(k,{'expression':'目标函数','constraint':'完整等式约束','operation':'极值任务','variables':'变量顺序'}.get(k,k),v,{}) for k,v in c.items()]
     for item in conditions:

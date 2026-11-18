@@ -2278,6 +2278,10 @@ _SERVICE_PORTS = {20: "FTP 数据", 21: "FTP 控制", 22: "SSH", 23: "Telnet", 2
 
 
 def _eval_transport(text: str) -> dict[str, Any]:
+    if (re.search(r'为什么|为何|解释|说明.*原因|简述', text)
+            and re.search(r'三次握手|四次挥手', text)
+            and not re.search(r'ISN|初始序号|seq\s*[=:]|数据.*\d+.*字节', text, re.I)):
+        return _blocked('transport', '这是一道连接机制概念题，需要参考解答。')
     frames: list[dict[str, Any]] = []
     answer_bits: list[str] = []
     stats: dict[str, Any] = {}

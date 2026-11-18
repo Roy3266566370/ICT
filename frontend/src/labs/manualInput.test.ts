@@ -93,9 +93,68 @@ test('积分应用保留区域定义与旋转轴，不夹带隐藏变量或上�
   assert.match(manualInputError({...d,regionKind:''})!,/区域/);
   const v={...d,task:'rotation_volume' as const,rotationAxis:'x' as const};
   assert.equal(manualConditions(v).rotation_axis,'x');
-  assert.match(manualInputError({...v,rotationAxis:'y'})!,/不会替换/);
+  assert.equal(manualInputError({...v,rotationAxis:'y'}),null);
+  assert.equal(manualConditions({...v,rotationAxis:'y'}).rotation_axis,'y');
   assert.match(manualInputError({...v,rotationAxis:''})!,/请选择/);
   assert.notEqual(manualInputKey(d),manualInputKey({...d,regionKind:'vertical_inequality'}));
+  const two={...d,regionKind:'between_curves' as const,lowerExpression:'x^2'};
+  assert.deepEqual(manualConditions(two),{expression:'x',lower:'-1',upper:'1',region_kind:'between_curves',lower_expression:'x^2'});
+  assert.equal(manualInputError(two),null);
+  assert.match(manualInputError({...two,lowerExpression:''})!,/下边界/);
+  assert.match(manualInputError({...two,lowerExpression:'x+y'})!,/下边界/);
+  assert.notEqual(manualInputKey(two),manualInputKey({...two,lowerExpression:'x^3'}));
+});
+
+test('变限积分求导保留被积函数、上下限和可选求值点',()=>{
+  const d={...draft,task:'integral_function' as const,expression:'exp(-t^2)',lower:'0',upper:'x',point:''};
+  assert.deepEqual(manualConditions(d),{expression:'exp(-t^2)',lower_expression:'0',upper_expression:'x'});
+  assert.equal(manualInputError(d),null);
+  assert.match(manualInputError({...d,expression:'exp(-x^2)'})!,/积分变量/);
+  assert.match(manualInputError({...d,upper:'t'})!,/自由变量/);
+  assert.equal(manualInputError({...d,point:'1'}),null);
+  assert.equal(manualConditions({...d,point:'1'}).point,'1');
+  assert.match(manualInputError({...d,point:'x'})!,/求值点/);
+});
+
+test('反函数导数与已知极限求参数保留各自条件，不给参数补默认值',()=>{
+  const inverse={...draft,task:'inverse_derivative' as const,expression:'x^3',point:'2'};
+  assert.deepEqual(manualConditions(inverse),{expression:'x^3',variable:'x',point:'2'});
+  assert.equal(manualInputError(inverse),null);
+  assert.match(manualInputError({...inverse,point:'x'})!,/反函数/);
+  const limit={...draft,task:'parameter_limit' as const,expression:'sin(a*x)/x',point:'0',parameter:'a',targetValue:'2'};
+  assert.deepEqual(manualConditions(limit),{expression:'sin(a*x)/x',variable:'x',point:'0',parameter:'a',target_value:'2'});
+  assert.equal(manualInputError(limit),null);
+  assert.match(manualInputError({...limit,parameter:'x'})!,/参数/);
+  assert.match(manualInputError({...limit,targetValue:''})!,/极限值/);
+  assert.match(manualInputError({...limit,parameter:'e'})!,/参数/);
+});
+
+test('参数方程、隐函数与曲率保留各自条件',()=>{
+  const p={...draft,task:'parametric_derivative' as const,xExpression:'t^2',yExpression:'t^3',point:'1',order:'2'};
+  assert.deepEqual(manualConditions(p),{x_expression:'t^2',y_expression:'t^3',point:'1',order:'2'});
+  assert.equal(manualInputError(p),null);
+  assert.match(manualInputError({...p,xExpression:'x^2'})!,/参数 t/);
+  assert.match(manualInputError({...p,order:'3'})!,/一阶或二阶/);
+  const i={...draft,task:'implicit_derivative' as const,expression:'x^2+y^2=1',point:'0',pointY:'1',order:'2'};
+  assert.deepEqual(manualConditions(i),{implicit_expression:'x^2+y^2=1',point_x:'0',point_y:'1',order:'2'});
+  assert.equal(manualInputError(i),null);
+  assert.match(manualInputError({...i,expression:'x^2+y^2='})!,/曲线方程/);
+  const c={...draft,task:'curvature' as const,expression:'x^2',point:'1'};
+  assert.deepEqual(manualConditions(c),{expression:'x^2',point:'1'});
+  assert.equal(manualInputError(c),null);
+  assert.match(manualInputError({...c,point:'x'})!,/曲率点/);
+});
+
+test('渐近线与数列极限只收单一表达式并限定变量',()=>{
+  const a={...draft,task:'asymptote' as const,expression:'(x^2+1)/(x-1)'};
+  assert.deepEqual(manualConditions(a),{expression:'(x^2+1)/(x-1)'});
+  assert.equal(manualInputError(a),null);
+  assert.match(manualInputError({...a,expression:''})!,/有理函数/);
+  assert.match(manualInputError({...a,expression:'n+1'})!,/有理函数/);
+  const s={...draft,task:'sequence_limit' as const,expression:'(1+1/n)^n'};
+  assert.deepEqual(manualConditions(s),{expression:'(1+1/n)^n'});
+  assert.equal(manualInputError(s),null);
+  assert.match(manualInputError({...s,expression:'x+1'})!,/通项/);
 });
 
 test('微分方程完整保留方程、自变量和逐行条件，允许不填初值',()=>{

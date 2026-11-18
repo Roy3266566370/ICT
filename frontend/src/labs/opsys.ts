@@ -20,6 +20,24 @@ export interface OsSchedStats {
   processes: OsProcessRow[]; avg_waiting: number; avg_turnaround: number; avg_weighted: number;
   makespan: number; switches: number; gantt: OsGanttSegment[]; compare: Record<string, number>; quantum: number;
 }
+
+export interface ManualScheduleRow {
+  id: string; arrival: number; burst: number; finish: number | null;
+  turnaround: number | null; waiting: number | null; remaining: number;
+  state: 'pending' | 'ready' | 'done';
+}
+export interface ManualScheduleIssue { time: number; process: string | null; reason: string }
+export interface ManualScheduleAudit {
+  segments: OsGanttSegment[];
+  rows: ManualScheduleRow[];
+  errors: ManualScheduleIssue[];
+  warnings: string[];
+  complete: boolean;
+  makespan: number;
+  avgWaiting: number | null;
+  avgTurnaround: number | null;
+  idleSlots: number;
+}
 export interface OsPageStats {
   faults: number; hits: number; total: number; rate: number; frames_count: number;
   initial_frames: string[]; window: number; working_set: string[]; max_working_set: number;
@@ -377,6 +395,139 @@ function simulateSchedule(processes: OsProcess[], algorithm: string, quantum: nu
     avgWaiting: mean((r) => r.waiting), avgTurnaround: mean((r) => r.turnaround), avgWeighted: mean((r) => r.weighted),
     start: clean(Math.min(...arrival)), makespan: clean(Math.max(...(finish as number[]))), switches,
   };
+}
+
+/**
+ * 审计学生手工排列的时间片（每格 1 个时间单位）。
+ * 只读：不修改内核结果，也不把非法调度静默修正成合法。
+ */
+export function auditManualSchedule(
+  processes: OsProcess[],
+  timeline: (string | null)[],
+  step = 1,
+): ManualScheduleAudit {
+  const quantum = Number.isFinite(step) && step > 0 ? step : 1;
+  const byId = new Map(processes.map((process) => [process.id, process]));
+  const remaining = new Map(processes.map((process) => [process.id, process.burst]));
+  const finish = new Map<string, number | null>(processes.map((process) => [process.id, null]));
+  const errors: ManualScheduleIssue[] = [];
+  const warnings: string[] = [];
+  const segments: OsGanttSegment[] = [];
+  let idleSlots = 0;
+  let idleWarningShown = false;
+  const push = (id: string | null, slot: number): void => {
+    const start = clean(slot * quantum);
+    const end = clean((slot + 1) * quantum);
+    const last = segments[segments.length - 1];
+    if (last && last.id === id && Math.abs(last.end - start) < EPS) last.end = end;
+    else segments.push({ id, start, end });
+  };
+  timeline.forEach((id, slot) => {
+    const time = clean(slot * quantum);
+    if (id === null) {
+      idleSlots += 1;
+      const ready = processes.some((process) => process.arrival <= time + EPS && finish.get(process.id) === null);
+      if (ready && !idleWarningShown) {
+        warnings.push(`t=${fmt(time)}：就绪队列非空时选择了空闲，CPU 被浪费。`);
+        idleWarningShown = true;
+      }
+      push(null, slot);
+      return;
+    }
+    const process = byId.get(id);
+    if (!process) {
+      errors.push({ time, process: id, reason: `进程 ${id} 不在本题进程表中，t=${fmt(time)} 的这一格按空闲处理。` });
+      push(null, slot);
+      return;
+    }
+    if (process.arrival > time + EPS) {
+      errors.push({ time, process: id, reason: `❌ 非法调度：t=${fmt(time)} 时进程 ${id} 尚未到达（到达时间 ${fmt(process.arrival)}）。` });
+      push(null, slot);
+      return;
+    }
+    const left = remaining.get(id) ?? 0;
+    if (left <= EPS) {
+      errors.push({ time, process: id, reason: `❌ 非法调度：进程 ${id} 已在 t=${fmt(finish.get(id) ?? 0)} 前完成，不能再运行。` });
+      push(null, slot);
+      return;
+    }
+    const next = clean(Math.max(0, left - quantum));
+    remaining.set(id, next);
+    if (next <= EPS) finish.set(id, clean((slot + 1) * quantum));
+    push(id, slot);
+    idleWarningShown = false;
+  });
+
+  const rows: ManualScheduleRow[] = processes.map((process) => {
+    const left = remaining.get(process.id) ?? 0;
+    const finishedAt = finish.get(process.id) ?? null;
+    const done = finishedAt !== null && left <= EPS;
+    const turnaround = done ? clean(finishedAt! - process.arrival) : null;
+    return {
+      id: process.id,
+      arrival: process.arrival,
+      burst: process.burst,
+      finish: done ? finishedAt : null,
+      turnaround,
+      waiting: turnaround === null ? null : clean(turnaround - process.burst),
+      remaining: left,
+      state: done ? 'done' : process.arrival <= timeline.length * quantum + EPS ? 'ready' : 'pending',
+    };
+  });
+  const complete = rows.every((row) => row.finish !== null);
+  if (!complete) warnings.push('还没有为所有进程分配足够的时间片；补齐后才能比较平均等待时间。');
+  const finishedRows = rows.filter((row): row is ManualScheduleRow & { finish: number; turnaround: number; waiting: number } =>
+    row.finish !== null && row.turnaround !== null && row.waiting !== null);
+  const mean = (pick: (row: ManualScheduleRow & { turnaround: number; waiting: number }) => number): number =>
+    clean(finishedRows.reduce((sum, row) => sum + pick(row), 0) / finishedRows.length);
+  return {
+    segments,
+    rows,
+    errors,
+    warnings,
+    complete,
+    makespan: Math.max(clean(timeline.length * quantum), ...finishedRows.map((row) => row.finish), 0),
+    avgWaiting: complete && finishedRows.length ? mean((row) => row.waiting) : null,
+    avgTurnaround: complete && finishedRows.length ? mean((row) => row.turnaround) : null,
+    idleSlots,
+  };
+}
+
+/** 用同一组进程生成参考算法的时间片序列，供“第一次分歧”提示使用。 */
+export function referenceScheduleGantt(
+  processes: OsProcess[],
+  algorithm = 'srtf',
+  quantum = 1,
+): OsGanttSegment[] {
+  if (!processes.length || !(algorithm in SCHED_LABELS)) return [];
+  try {
+    const sim = simulateSchedule(processes, algorithm, quantum);
+    return sim.segments.map((segment) => ({
+      id: segment.index >= 0 ? processes[segment.index]!.id : null,
+      start: segment.start,
+      end: segment.end,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** 找到学生的第一格与参考算法不同的时间点。 */
+export function firstScheduleDivergence(
+  timeline: (string | null)[],
+  reference: OsGanttSegment[],
+  step = 1,
+): { time: number; manual: string | null; reference: string | null } | null {
+  const quantum = Number.isFinite(step) && step > 0 ? step : 1;
+  const end = Math.max(timeline.length * quantum, ...reference.map((segment) => segment.end), 0);
+  for (let time = 0; time < end; time += quantum) {
+    const slot = Math.round(time / quantum);
+    const manual = timeline[slot] ?? null;
+    const segment = reference.find((item) => time >= item.start - EPS && time < item.end - EPS);
+    const expected = segment?.id ?? null;
+    if (manual !== expected) return { time: clean(time), manual, reference: expected };
+  }
+  return null;
 }
 
 function evalSchedule(model: LabModel, params: Record<string, unknown>): OsResult {

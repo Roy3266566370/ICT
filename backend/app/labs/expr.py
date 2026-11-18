@@ -383,7 +383,9 @@ def parse_expression(raw: str, variables: Iterable[str] = ("x",), *, preserve_st
     if not names or any(not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name) for name in names):
         raise ExprError("变量名不合法")
     text = normalize_math(raw)
-    text = _split_juxtaposition(text)
+    # Declared identifiers take precedence over OCR's implicit function notation.
+    text = _IDENTIFIER.sub(lambda match: match.group() if match.group() in names
+                           else _split_juxtaposition(match.group()), text)
     allowed = set(names) | set(FUNCTIONS) | set(CONSTANTS)
     for token in _IDENTIFIER.findall(text):
         if token not in allowed:
