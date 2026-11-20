@@ -216,3 +216,32 @@ def test_p1_attempt_grading_uses_symbolic_meaning():
     higher_problem = {"subject": "calculus", "model": higher_plan["interactive_model"],
                       "solution": higher_plan["interactive_solution"]}
     assert check_attempt(higher_problem, {}, answer="12")["correct"]
+
+def test_ocr_trailing_answer_blank_is_not_part_of_limit_expression():
+    """题尾 `（）` / `()` 是答题空，不能并进极限表达式。"""
+    from app.labs.recognize import build_problem, _attach_solution
+    p = build_problem('1.求极限lim(x→0) sinx/x（）。')
+    assert p['model']['task'] == 'limit'
+    _attach_solution(p)
+    assert p['status'] == 'ready'
+    assert p['solution']['answer'] == '极限为 1'
+
+    p2 = build_problem('2. 求极限lim(x→0)(1-cosx)/x^2（）。')
+    _attach_solution(p2)
+    assert p2['status'] == 'ready'
+    assert p2['solution']['answer'] == '极限为 1/2'
+
+def test_ocr_parameter_limit_paren_form_fraction_target_and_juxtaposed_param():
+    """`lim(x→0)` 括号式、目标值 `1/6` 分数、`ax` 连写参数都要被参数极限内核接住。"""
+    from app.labs.recognize import build_problem, _attach_solution
+    from app.labs.parameter_limit import _parse_limit, build_parameter_limit_from_text
+
+    parsed = _parse_limit('已知lim(x→0)(x-sin(ax))/x^3=1/6，求参数a。')
+    assert parsed is not None
+    assert parsed[3] == pytest.approx(1/6)
+
+    p = build_problem('6.已知lim(x→0)sin(ax)/x=2，求参数a。')
+    _attach_solution(p)
+    assert p['status'] == 'ready'
+    assert p['solution']['answer'] == 'a=2'
+    assert p['model'].get('modeling_task') == 'parameter_limit'

@@ -64,7 +64,7 @@ def _point_payload(value: Any) -> dict[str, Any]:
     numeric = float(converted.real)
     if not math.isfinite(numeric):
         return {"kind": "undetermined", "value": None, "text": "无法判定"}
-    return {"kind": "finite", "value": numeric, "text": str(sp.simplify(value))}
+    return {"kind": "finite", "value": numeric, "text": expression_text(sp.simplify(value))}
 
 
 def _limit_at(expression: sp.Expr, variable: sp.Symbol, point: sp.Expr, direction: str | None = None) -> dict[str, Any]:
@@ -124,7 +124,10 @@ def _same_limit(left: Mapping[str, Any], right: Mapping[str, Any]) -> bool:
         return left.get("sign") == right.get("sign")
     if left["kind"] == "finite" and right["kind"] == "finite":
         try:
-            return sp.simplify(sp.sympify(left["text"]) - sp.sympify(right["text"])) == 0
+            return sp.simplify(
+                sp.sympify(str(left["text"]).replace("^", "**"))
+                - sp.sympify(str(right["text"]).replace("^", "**"))
+            ) == 0
         except Exception:  # noqa: BLE001
             return float(left["value"]) == float(right["value"])
     return left["kind"] == right["kind"] == "does_not_exist"
@@ -1190,7 +1193,10 @@ def detect_analysis_kind(text: str) -> str | None:
     ) or bool(re.search(r"偏导|∂|\\partial", text))
     if has_higher_phrase and not is_precondition_only:
         return "higher_derivative"
-    if re.search(r"单调|凹凸|拐点|渐近线", text):
+    if re.search(r"单调|凹凸|拐点|渐近线", text) or (
+        re.search(r"极值|驻点", text) and re.search(r"(?:f|g|h)\s*\(\s*x\s*\)", text)
+        and not re.search(r"梯度|学习率|迭代|约束", text)
+    ):
         return "function_study"
     return None
 
@@ -1206,9 +1212,17 @@ def _parse_limit_text(text: str) -> tuple[str | None, str, str]:
     variable, point, body = match.group(1), match.group(2), match.group(3)
     body = re.split(r"(?:的极限|极限为|等于|求|=)", body, maxsplit=1)[0].strip(" ：:，,。；;")
     body = body.strip(" ：:，,。；;")
+    # 题尾的"（8分）"/"(10分)"分值标注与空答题括号"（）"均不属于表达式。
+    body = re.sub(r'[（(]\s*\d+(?:\.\d+)?\s*分\s*[）)]\s*$', '', body)
+    body = re.sub(r'(?:[（(]\s*[）)]|[（(])\s*$', '', body)
+    body = body.strip(' 。，,；;:：')
     # OCR often drops the parentheses around a one-token function argument.
     body = re.sub(r"\b(ln|log|sin|cos|tan|exp|sqrt|abs)\s+([A-Za-z0-9]+)", r"\1(\2)", body)
     body = body.replace("·", "*").replace("×", "*")
+    body = body.replace("√", "sqrt")
+    body = re.sub(r"([0-9)])\s*\(", r"\1*(", body)
+    body = re.sub(r"(?<![A-Za-z])([A-Za-z])\s*\(", r"\1*(", body)
+    body = re.sub(r"\)\s*([A-Za-z0-9(])", r")*\1", body)
     point = point.replace("＋", "+").replace("−", "-")
     return body or None, variable, point
 
@@ -1271,11 +1285,14 @@ def _parse_point_number(text: str) -> float | None:
 
 
 def _extract_expression_text(text: str) -> str | None:
-    match = re.search(r"(?:f|g|h|y)\s*\(\s*[xX]\s*\)\s*=\s*([^\n，,。；;]+)", text)
+    match = re.search(r"(?:f|g|h|y)\s*(?:\(\s*[xX]\s*\))?\s*=\s*([^\n，,。；;]+)", text)
     if not match:
         return None
     raw = re.split(r"\s*(?:在|的|处|求|，|,|。|；|;|\n)", match.group(1), maxsplit=1)[0]
-    return raw.strip() or None
+    raw = raw.strip()
+    if not raw or not re.search(r"[xX]", raw):
+        return None
+    return raw.replace("√", "sqrt")
 
 
 def build_analysis_problem(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any] | None:

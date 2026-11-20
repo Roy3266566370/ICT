@@ -218,3 +218,68 @@ def test_network_result_embeds_for_replay():
     problem = _problem("数据为 1011，采用偶校验，求海明码。")
     assert problem["model"]["net_result"]["engine"] == "net_error_v1"
     assert solve_problem(problem["model"])["answer"] == problem["solution"]["answer"]
+
+
+def test_408_nyquist_composite_qam_levels():
+    """2009-34：相位×振幅复合 QAM 应推导为 16 个码元电平。"""
+    problem = _problem(
+        "在无噪声情况下，若某通信链路的带宽为3kHz，采用4个相位，每个相位具有4种振幅的QAM调制技术，"
+        "则该通信链路的最大数据传输速率是？")
+    assert problem["model"]["net_kind"] == "physical"
+    assert problem["solution"]["answer_value"] == pytest.approx(24000)
+
+
+def test_408_gbn_cumulative_ack_retransmission():
+    """2009-35：GBN 累积确认——只收到 0、2、3 号帧确认即重发 4~7。"""
+    problem = _problem(
+        "数据链路层采用后退N帧（GBN）协议，发送方已经发送了编号为0~7的帧。"
+        "当计时器超时时，若发送方只收到0、2、3号帧的确认，则发送方需要重发的帧数是？")
+    result = problem["model"]["net_result"]
+    assert result["stats"]["retransmissions"] == [4, 5, 6, 7]
+    assert problem["solution"]["answer_value"] == pytest.approx(4)
+
+
+def test_408_csmacd_frame_delta_distance():
+    """2009-37：最小帧长减少 800bit → 最远站点距离减少 80m。"""
+    problem = _problem(
+        "在一个采用CSMA/CD协议的网络中，传输介质是一根完整的电缆，传输速率为1Gbps，"
+        "电缆中的信号传播速度是200 000km/s。若最小数据帧长度减少800比特，"
+        "则最远的两个站点之间的距离至少需要？")
+    result = problem["model"]["net_result"]
+    assert result["stats"]["csma_cd"]["delta_m"] == pytest.approx(-80)
+    assert problem["solution"]["answer_value"] == pytest.approx(80)
+
+
+def test_408_subnet_explicit_mask_fixed_length():
+    """2010-37：/24 母网 + 独立 .248 掩码 → 32 个 /29 子网、每子网 6 台可用。"""
+    problem = _problem(
+        "某网络的IP地址空间为192.168.5.0/24，采用定长子网划分，子网掩码为255.255.255.248，"
+        "则该网络中的最大子网个数、每个子网内的最大可分配IP地址个数分别为？")
+    result = problem["model"]["net_result"]
+    assert result["stats"]["subnets"][0]["network"] == "192.168.5.0"
+    assert result["stats"]["subnets"][0]["hosts"] == 6
+    assert "32 个 /29 子网" in problem["solution"]["answer"]
+    assert "6 台可用主机" in problem["solution"]["answer"]
+    assert problem["solution"]["answer_value"] == pytest.approx(32)
+
+
+def test_408_tcp_multi_segment_ack():
+    """2009-38：两段 TCP（300B+500B，首段序号 200）→ 累积确认号 1000。"""
+    problem = _problem(
+        "主机甲向主机乙发送两个连续的TCP段，分别包含300字节和500字节的有效载荷，"
+        "第一个段的序列号为200，主机乙正确接收到两个段后，发送给主机甲的确认序列号是？")
+    result = problem["model"]["net_result"]
+    assert result["stats"]["segments"]["ack"] == 1000
+    assert problem["solution"]["answer_value"] == pytest.approx(1000)
+
+
+def test_408_tcp_timeout_restart_slow_start():
+    """2009-39：cwnd=16KB 超时 → ssthresh=8、cwnd=1；4 个成功 RTT 后 cwnd=9KB。"""
+    problem = _problem(
+        "一个TCP连接总是以1KB的最大段长发送TCP段，发送方有足够多的数据要发送。"
+        "当拥塞窗口为16KB时发生了超时，如果接下来的4个RTT时间内TCP段的传输都是成功的，"
+        "那么当第4个RTT时间内发送的所有TCP段都得到肯定应答时，拥塞窗口大小是？")
+    result = problem["model"]["net_result"]
+    assert result["stats"]["final_cwnd"] == pytest.approx(9)
+    assert "9 KB" in problem["solution"]["answer"]
+    assert problem["solution"]["answer_value"] == pytest.approx(9)

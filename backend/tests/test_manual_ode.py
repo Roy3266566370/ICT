@@ -124,3 +124,15 @@ def test_solution_domain_preserves_original_equation_restrictions(equation, cond
     p = document(equation, conditions)['problems'][0]
     assert p['manual_input']['result_status'] == 'complete'
     assert p['solution']['solution_domain'] == domain
+
+def test_ocr_dydx_notation_and_leading_prose_still_parse():
+    """`dy/dx=2y` 记法 + `求微分方程...的通解` 引导语 + 选项行污染都要过滤。"""
+    from app.labs.recognize import build_problem, _attach_solution
+    from app.labs.ode import build_ode_from_text
+    r = build_ode_from_text('9.求微分方程dy/dx=2y的通解（）。\nA. y=Ce^x B. y=Ce^2x C. y=2x+C D.y=x^2+C', {}, {})
+    assert r is not None and r['model']['engine'] == 'ode_v1'
+    p = build_problem('9.求微分方程dy/dx=2y的通解（）。')
+    _attach_solution(p)
+    assert p['model']['engine'] == 'ode_v1'
+    assert p['status'] == 'ready'
+    assert 'exp(2*x)' in p['solution']['answer']

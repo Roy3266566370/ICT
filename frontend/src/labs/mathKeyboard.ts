@@ -1,9 +1,9 @@
-import { compileExpression } from './expr.ts';
+import { compileExpression, normalizeExpressionInput } from './expr.ts';
 import { mathSpanToLatex } from './mathText.ts';
 
 export interface MathEdit { value: string; start: number; end: number }
 const FUNCTIONS = new Set(['sqrt', 'abs', 'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
-  'arcsin', 'arccos', 'arctan', 'ln', 'exp', 'sinh', 'cosh', 'tanh']);
+  'arcsin', 'arccos', 'arctan', 'ln', 'log', 'exp', 'sinh', 'cosh', 'tanh']);
 
 /** Apply a keypad action to the current input selection. Templates keep operands grouped. */
 export function editMath(state: MathEdit, key: string): MathEdit {
@@ -45,8 +45,9 @@ export function editMath(state: MathEdit, key: string): MathEdit {
 /** Validate syntax without evaluating at a point (e.g. ln(x) is valid even if x=0 is not). */
 export function inspectMath(value: string, variables: readonly string[] = ['x']): { error: string | null; tex: string | null } {
   try {
-    compileExpression(value, variables);
-    const display = value.replace(/\b(atan|asin|acos|acot|asec|acsc)\b/g, (name) => ({
+    const normalized = normalizeExpressionInput(value, variables);
+    compileExpression(normalized, variables);
+    const display = normalized.replace(/\b(atan|asin|acos|acot|asec|acsc)\b/g, (name) => ({
       atan: 'arctan', asin: 'arcsin', acos: 'arccos', acot: 'arccot', asec: 'arcsec', acsc: 'arccsc',
     })[name]!);
     // The assignment supplies a formula cue for single letters/numbers as well.

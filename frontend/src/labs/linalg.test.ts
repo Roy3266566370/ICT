@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateLinAlg } from './linalg.ts';
-import type { LabModel } from './types.ts';
+import { evaluateLinAlg, replayEigen } from './linalg.ts';
+import type { LabModel, LabProblem } from './types.ts';
 
 function systemModel(): LabModel {
   return {
@@ -92,6 +92,40 @@ test('elementwise ops and live scalar parameter', () => {
   } as LabModel;
   assert.deepEqual(evaluateLinAlg(scalar, {}).resultMatrix, [[3, 6], [9, 12]]);
   assert.deepEqual(evaluateLinAlg(scalar, { scalar: -1 }).resultMatrix, [[-1, -2], [-3, -4]]);
+});
+
+test('unknown and eigen kinds never fall through to Gaussian elimination', () => {
+  for (const kind of ['eigen', 'future_kind']) {
+    const result = evaluateLinAlg({ ...systemModel(), la_kind: kind } as LabModel, {});
+    assert.equal(result.status, 'blocked');
+    assert.equal(result.answer, '');
+    assert.equal(result.frames.length, 0);
+  }
+});
+
+test('eigen replay uses exact kernel steps and preserves confirmation gate', () => {
+  const problem = {
+    model: { ...systemModel(), la_kind: 'eigen', matrix_a_exact: [['1/3', '0'], ['0', '1/2']] }, status: 'ready',
+    recognition: { ambiguities: [] },
+    solution: {
+      answer: 'λ=1，λ=3', summary: '精确特征值', solution_complete: true,
+      steps: [{ id: 'roots', title: '解特征方程', detail: 'λ=1，λ=3' }],
+      checks: [{ id: 'eigen', label: 'Av=λv', status: 'pass', detail: '精确验证' }],
+    },
+  } as unknown as LabProblem;
+  const result = replayEigen(problem);
+  assert.equal(result.status, 'ok');
+  assert.equal(result.laKind, 'eigen');
+  assert.equal(result.answer, 'λ=1，λ=3');
+  assert.equal(result.det, null);
+  assert.deepEqual(result.matrixAExact, [['1/3', '0'], ['0', '1/2']]);
+  assert.deepEqual(result.pseudocode, ['解特征方程']);
+  assert.deepEqual(result.checks, problem.solution.checks);
+  assert.equal(replayEigen({ ...problem, status: 'needs_review' }).status, 'blocked');
+  assert.equal(replayEigen({ ...problem, solution: { ...problem.solution, solution_complete: false } }).status, 'blocked');
+  problem.recognition.ambiguities.push({ id: 'source_formula_confirmation', field: 'source_formula',
+    question: '请确认公式', severity: 'blocking', resolved: false, options: [], answer: null });
+  assert.equal(replayEigen(problem).status, 'blocked');
 });
 
 test('blocked when shapes are wrong instead of fabricating', () => {

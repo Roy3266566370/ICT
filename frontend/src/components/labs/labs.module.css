@@ -23,8 +23,8 @@
 .controlsPanel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: 5px;
+  padding: 7px 11px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.72);
@@ -33,15 +33,19 @@
 
 .controlsHead {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: 8px;
+}
+
+.controlsHead .eyebrow {
+  display: none;
 }
 
 .controlsHead h3 {
-  margin: 4px 0 0;
-  font-size: 17px;
-  letter-spacing: -0.02em;
+  margin: 0;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
 }
 
 .controlsActions {
@@ -52,13 +56,13 @@
 }
 
 .textButton {
-  padding: 5px 7px;
+  padding: 2px 5px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink-500);
   font: inherit;
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 600;
   cursor: pointer;
   text-decoration: underline;
@@ -92,11 +96,11 @@
 }
 
 .secondaryButton {
-  padding: 7px 12px;
+  padding: 2px 8px;
   border: 1px solid var(--hairline-strong);
   background: var(--paper-0);
   color: var(--ink-700);
-  font-size: 11.5px;
+  font-size: 10.5px;
 }
 
 .secondaryButton:hover {
@@ -136,13 +140,13 @@
 .controlGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 11px 18px;
+  gap: 6px 14px;
 }
 
 .control {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
 }
 
@@ -150,8 +154,8 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
-  font-size: 11.5px;
+  gap: 6px;
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--ink-700);
 }
@@ -159,7 +163,7 @@
 .controlHead output {
   color: var(--color-indigo-strong);
   font-family: var(--font-family-mono);
-  font-size: 12.5px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -171,14 +175,14 @@
 
 .controlRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 74px;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: 6px;
   align-items: center;
 }
 
 .controlRow input[type='range'] {
   width: 100%;
-  height: 18px;
+  height: 14px;
   margin: 0;
   accent-color: var(--color-indigo);
   cursor: pointer;
@@ -204,6 +208,14 @@
   font: inherit;
   font-size: 11.5px;
   line-height: 1.4;
+}
+
+.numberInput,
+.controlsPanel .select {
+  min-height: 24px;
+  height: 24px;
+  padding: 2px 6px;
+  font-size: 10.5px;
 }
 
 .numberInput {
@@ -301,8 +313,8 @@
 .timeline {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding: 13px 15px;
+  gap: 4px;
+  padding: 7px 11px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-lg);
   background:
@@ -327,12 +339,12 @@
 }
 
 .ghostButton {
-  width: 30px;
-  height: 30px;
+  width: 22px;
+  height: 22px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
   color: rgba(238, 243, 255, 0.78);
-  font-size: 16px;
+  font-size: 13px;
   line-height: 1;
 }
 
@@ -349,15 +361,15 @@
 .playButton {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 14px;
+  gap: 5px;
+  height: 22px;
+  padding: 0 10px;
   border: 1px solid rgba(255, 122, 89, 0.55);
   border-radius: var(--radius-pill);
   background: rgba(255, 122, 89, 0.16);
   color: #ffe7df;
   font: inherit;
-  font-size: 11.5px;
+  font-size: 10.5px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -405,7 +417,7 @@
 }
 
 .speedControl select {
-  height: 26px;
+  height: 20px;
   padding: 0 6px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-sm);
@@ -417,7 +429,7 @@
 
 .timelineTrack {
   position: relative;
-  height: 20px;
+  height: 12px;
   border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.08);
 }
@@ -442,9 +454,9 @@
 
 .tick {
   position: absolute;
-  top: 6px;
+  top: 3px;
   width: 2px;
-  height: 8px;
+  height: 6px;
   padding: 0;
   border: 0;
   border-radius: 2px;
@@ -454,8 +466,8 @@
 }
 
 .tick[aria-current='step'] {
-  height: 12px;
-  top: 4px;
+  height: 8px;
+  top: 2px;
   background: #fff;
   box-shadow: 0 0 0 3px rgba(255, 122, 89, 0.35);
 }
@@ -963,8 +975,8 @@
   background: var(--color-pass-soft);
 }
 
-.answerBox span,
-.compareAnswer span {
+.answerBox > span,
+.compareAnswer > span {
   color: var(--color-pass);
   font-size: 8.5px;
   font-weight: 700;
@@ -1247,7 +1259,7 @@ button.formulaBlock {
   background: #fffaf7;
 }
 
-.formulaBlock span {
+.formulaBlock > span {
   color: var(--ink-400);
   font-size: 8.5px;
 }
@@ -1264,7 +1276,7 @@ button.formulaBlock {
   background: var(--paper-1);
 }
 
-.referenceAnswer span {
+.referenceAnswer > span {
   color: var(--ink-400);
   font-size: 8.5px;
   font-weight: 700;
@@ -1807,7 +1819,7 @@ button.formulaBlock {
   min-width: 0;
 }
 
-.formField span {
+.formField > span {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1817,7 +1829,7 @@ button.formulaBlock {
   font-weight: 600;
 }
 
-.formField span small {
+.formField > span > small {
   color: var(--ink-400);
   font-size: 8.5px;
   font-weight: 400;

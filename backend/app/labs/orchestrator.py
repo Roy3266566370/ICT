@@ -219,10 +219,9 @@ def _bind_conditions(step: Mapping[str, Any], understanding: Mapping[str, Any]) 
 
 
 def _ai_available() -> bool:
-    from ..settings import get_settings
-    settings = get_settings()
-    return (getattr(settings, "lab_understanding_provider", "") == "ollama"
-            and bool(getattr(settings, "lab_ollama_url", "")))
+    from ..ppt_ai.client import PPTAIClient
+
+    return PPTAIClient().available()
 
 
 # ---------------------------------------------------------------------------

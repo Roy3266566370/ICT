@@ -1,6 +1,8 @@
 import { MathText } from './ProblemText';
 import { useMemo, type ReactNode } from 'react';
 import {LabFormula as Formula} from './ProblemText';
+import { auditManualTraversal } from '@/labs/graphManual';
+import { useManualState } from './manualState';
 import {
   clampBox,
   contourLevels,
@@ -57,6 +59,9 @@ interface Props {
   labId?: string;
   /** 拖动画布上的几何参数时回写滑杆值；不传则画布只读。 */
   onParamDrag?: (patch: Record<string, number>) => void;
+  /** 「我来 ✋」手动轨迹切片（LabState.manual）与回写；分享页只传 manual 做只读回放。 */
+  manual?: Record<string, unknown>;
+  onManualChange?: (key: string, value: unknown) => void;
 }
 
 const WIDTH = 760;
@@ -135,6 +140,7 @@ function CalculusCanvas({
   onSelect,
   onParamDrag,
   readOnly,
+  boundsDraggable = false,
 }: {
   result: CalculusResult;
   isNormal?: boolean;
@@ -144,6 +150,8 @@ function CalculusCanvas({
   onSelect: (selection: LabSelection | null) => void;
   onParamDrag?: (patch: Record<string, number>) => void;
   readOnly?: boolean;
+  /** 仅普通定积分（computeCalculus 分支）允许拖 a/b；几何面积/旋转体的区间来自 model.defaults。 */
+  boundsDraggable?: boolean;
 }): ReactNode {
   const bounds = useMemo(
     () => boundsOfWork(
@@ -161,29 +169,45 @@ function CalculusCanvas({
   const xTicks = niceTicks(bounds.xMin, bounds.xMax, 7);
   const yTicks = niceTicks(bounds.yMin, bounds.yMax, 5);
   const canDrag = Boolean(onParamDrag) && !readOnly && !isNormal;
-  const beginPointDrag = (event: React.PointerEvent<SVGCircleElement>): void => {
-    if (!onParamDrag || readOnly || isNormal) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const svg = event.currentTarget.ownerSVGElement;
-    if (!svg) return;
-    const inverse = invertLinearScale([bounds.xMin, bounds.xMax], [MARGIN.left, MARGIN.left + PLOT_W]);
-    const move = (moveEvent: PointerEvent): void => {
-      const rect = svg.getBoundingClientRect();
-      const viewX = ((moveEvent.clientX - rect.left) / Math.max(1, rect.width)) * WIDTH;
-      const value = clampBox(snapToStep(inverse(viewX), 0.05), bounds.xMin, bounds.xMax);
-      if (Number.isFinite(value)) onParamDrag({ point: value });
+  const beginAxisDrag = (write: (value: number) => void) =>
+    (event: React.PointerEvent<SVGCircleElement>): void => {
+      if (!onParamDrag || readOnly || isNormal) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const svg = event.currentTarget.ownerSVGElement;
+      if (!svg) return;
+      const inverse = invertLinearScale([bounds.xMin, bounds.xMax], [MARGIN.left, MARGIN.left + PLOT_W]);
+      const move = (moveEvent: PointerEvent): void => {
+        const rect = svg.getBoundingClientRect();
+        const viewX = ((moveEvent.clientX - rect.left) / Math.max(1, rect.width)) * WIDTH;
+        const value = clampBox(snapToStep(inverse(viewX), 0.05), bounds.xMin, bounds.xMax);
+        if (Number.isFinite(value)) write(value);
+      };
+      const cancel = (): void => {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        document.removeEventListener('pointercancel', cancel);
+      };
+      const up = (): void => cancel();
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', cancel);
     };
-    const cancel = (): void => {
-      document.removeEventListener('pointermove', move);
-      document.removeEventListener('pointerup', up);
-      document.removeEventListener('pointercancel', cancel);
+  const beginPointDrag = beginAxisDrag((value) => onParamDrag?.({ point: value }));
+  /** 定积分：上下限 a/b 端点可拖，回写 params.lower / params.upper 触发内核重算。 */
+  const integralBounds = result.kind === 'integral' && boundsDraggable && result.rects.length >= 2
+    ? { lower: result.rects[0]!.x0, upper: result.rects[result.rects.length - 1]!.x1 }
+    : null;
+  const boundKeyDown = (key: 'lower' | 'upper', current: number) =>
+    (event: React.KeyboardEvent<SVGCircleElement>): void => {
+      if (!onParamDrag || readOnly) return;
+      const step = event.shiftKey ? 0.5 : 0.05;
+      const delta = event.key === 'ArrowRight' || event.key === 'ArrowUp' ? step
+        : event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -step : 0;
+      if (!delta) return;
+      event.preventDefault();
+      onParamDrag({ [key]: Number((current + delta).toFixed(6)) });
     };
-    const up = (): void => cancel();
-    document.addEventListener('pointermove', move);
-    document.addEventListener('pointerup', up);
-    document.addEventListener('pointercancel', cancel);
-  };
   const path = seriesPath(result.series, xScale, yScale);
   const comparePath =
     compare && compare.subject === 'calculus' ? seriesPath(compare.series, xScale, yScale) : '';
@@ -592,12 +616,49 @@ function CalculusCanvas({
       {comparePath ? <path d={comparePath} className={styles.compareCurve} /> : null}
       {lowerPath ? <path d={lowerPath} className={styles.compareCurve} /> : null}
       <path d={path} className={emphasis === 'antiderivative' ? `${styles.curve} ${styles.curveStrong}` : styles.curve} />
+      {integralBounds && canDrag ? (
+        <g aria-label="拖动端点改变积分区间">
+          {(['lower', 'upper'] as const).map((key) => {
+            const value = integralBounds[key];
+            const name = key === 'lower' ? 'a' : 'b';
+            return (
+              <g key={key}>
+                <line
+                  x1={xScale(value)} x2={xScale(value)}
+                  y1={MARGIN.top} y2={MARGIN.top + PLOT_H}
+                  className={styles.boundLine}
+                />
+                <circle
+                  cx={xScale(value)}
+                  cy={MARGIN.top + PLOT_H}
+                  r="7"
+                  className={styles.dragHandle}
+                  data-testid={`integral-bound-${key}`}
+                  onPointerDown={beginAxisDrag((next) => onParamDrag?.({ [key]: next }))}
+                  onKeyDown={boundKeyDown(key, value)}
+                  tabIndex={0}
+                  role="slider"
+                  aria-label={`积分${key === 'lower' ? '下' : '上'}限 ${name}`}
+                  aria-valuemin={bounds.xMin}
+                  aria-valuemax={bounds.xMax}
+                  aria-valuenow={value}
+                >
+                  <title>拖动改变积分{key === 'lower' ? '下' : '上'}限 {name}（方向键微调，Shift 大步）</title>
+                </circle>
+                <text x={xScale(value)} y={MARGIN.top + PLOT_H + 32} textAnchor="middle" className={styles.boundLabel}>
+                  {name}={formatNumber(value)}
+                </text>
+              </g>
+            );
+          })}
+        </g>
+      ) : null}
       <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>
         黎曼和 {formatNumber(result.approx)}
       </text>
       <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
         {result.exact !== null ? `解析/参照 ${formatNumber(result.exact)}` : '等待可计算表达式'} · 误差{' '}
-        {formatNumber(result.error)}
+        {formatNumber(result.error)}{integralBounds && canDrag ? ' · 可拖动 a/b 端点改区间' : ''}
       </text>
       {lowerPath ? (
         <text x={MARGIN.left + 16} y={MARGIN.top + 56} className={styles.compareNote}>
@@ -902,20 +963,50 @@ function OptimizationCanvas({
 /* BFS                                                                        */
 /* -------------------------------------------------------------------------- */
 
+interface GraphManual { mode: boolean; picks: string[] }
+
 function BfsCanvas({
   result,
   step,
   selected,
   onSelect,
+  saved,
+  onSave,
+  readOnly,
 }: {
   result: BfsResult;
   step: number;
   selected: LabSelection | null;
   onSelect: (selection: LabSelection | null) => void;
+  saved?: { mode?: boolean; picks?: string[] };
+  onSave?: (value: unknown) => void;
+  readOnly?: boolean;
 }): ReactNode {
   const index = Math.max(0, Math.min(step, result.frames.length - 1));
   const frame: BfsResultFrame = result.frames[index] ?? result.frames[0]!;
   const nodes = result.nodes;
+  const [gm, setGm] = useManualState<GraphManual>(
+    saved as GraphManual | undefined, onSave, { mode: false, picks: [] });
+  const ro = readOnly === true;
+  const traversalKind = result.algorithm === 'dfs' ? 'dfs' : result.algorithm === 'bfs' ? 'bfs' : null;
+  const manualMode = traversalKind !== null && (ro ? saved?.mode === true : gm.mode);
+  const picks = gm.picks;
+  const isDfs = traversalKind === 'dfs';
+  const audit = useMemo(
+    () => auditManualTraversal(result.adjacency, nodes.map((node) => node.id), result.start, picks, traversalKind ?? 'bfs'),
+    [traversalKind, nodes, picks, result.adjacency, result.start],
+  );
+  // 每个被点选节点在「你的访问序」中的首次位置与该步审计结果。
+  const pickIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    picks.forEach((id, pick) => { if (!map.has(id)) map.set(id, pick); });
+    return map;
+  }, [picks]);
+  const okPicks = useMemo(() => {
+    const set = new Set<string>();
+    audit.steps.forEach((item, pick) => { if (item.ok) set.add(picks[pick]!); });
+    return set;
+  }, [audit.steps, picks]);
   const positions = useMemo(() => {
     const map: Record<string, { x: number; y: number }> = {};
     const columns = nodes.length <= 8 ? 1 : Math.ceil(Math.sqrt(nodes.length));
@@ -935,7 +1026,6 @@ function BfsCanvas({
     });
     return map;
   }, [nodes]);
-  const isDfs = result.algorithm === 'dfs';
   // DFS 的等待集合是栈；BFS 是队列。节点状态与下方面板按同一字段渲染。
   const queue = new Set(isDfs ? (frame.stack ?? []) : frame.queue);
   const visited = new Set(frame.visited);
@@ -943,9 +1033,21 @@ function BfsCanvas({
   const emphasis = selected?.kind === 'solution-step' ? selected.id : null;
   const discoverAction = isDfs ? 'push' : 'enqueue';
   const orderWord = isDfs ? '访问' : '出队';
+  const manualState = (id: string): 'visited' | 'error' | 'unvisited' => {
+    if (!pickIndex.has(id)) return 'unvisited';
+    return okPicks.has(id) ? 'visited' : 'error';
+  };
   return (
     <div className={styles.bfsLayout}>
-      <svg viewBox="0 0 520 400" className={styles.svgBfs} role="img" aria-label={`${isDfs ? 'DFS' : 'BFS'} 图、${isDfs ? '栈' : '队列'}与已访问集合`}>
+      <div className={styles.bfsMain}>
+        {ro || traversalKind === null ? null : (
+          <div className={styles.manualBar} role="group" aria-label="遍历模式切换">
+            <button type="button" className={styles.modeBtn} data-current={!manualMode || undefined} onClick={() => setGm((m) => ({ ...m, mode: false }))}>内核推演</button>
+            <button type="button" className={styles.modeBtn} data-current={manualMode || undefined} onClick={() => setGm((m) => ({ ...m, mode: true }))}>我来手动{isDfs ? '走 DFS' : '走 BFS'} ✋</button>
+            {manualMode ? <small>{isDfs ? '点选下一个要访问的节点；栈顶决定顺序' : '点选下一个要出队的节点；队首先入先出'}</small> : null}
+          </div>
+        )}
+        <svg viewBox="0 0 520 400" className={styles.svgBfs} role="img" aria-label={`${isDfs ? 'DFS' : 'BFS'} 图、${isDfs ? '栈' : '队列'}与已访问集合`}>
         <defs>
           <marker id="bfs-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
             <path d="M0,0 L8,4 L0,8 Z" fill="context-stroke" />
@@ -973,22 +1075,31 @@ function BfsCanvas({
           const position = positions[node.id];
           if (!position) return null;
           const isCurrent = frame.current === node.id;
-          const state = isCurrent ? 'current' : queue.has(node.id) ? 'queue' : visited.has(node.id) ? 'visited' : 'unvisited';
+          const state = manualMode ? manualState(node.id) : isCurrent ? 'current' : queue.has(node.id) ? 'queue' : visited.has(node.id) ? 'visited' : 'unvisited';
+          const pick = pickIndex.get(node.id);
+          const clickNode = manualMode && !ro
+            ? () => setGm((m) => ({ ...m, picks: [...m.picks, node.id] }))
+            : () => onSelect({ id: `node:${node.id}`, label: `节点 ${node.label}`, kind: 'node' });
           return (
             <g
               key={node.id}
               className={styles.nodeGroup}
               data-emphasis={(emphasis === 'init' && node.id === result.start) || (emphasis === (isDfs ? 'visit' : 'dequeue') && isCurrent) || undefined}
-              onClick={() => onSelect({ id: `node:${node.id}`, label: `节点 ${node.label}`, kind: 'node' })}
+              onClick={clickNode}
               role="button"
               tabIndex={0}
-              aria-label={`节点 ${node.label}，${state}`}
+              aria-label={manualMode ? `点选 ${node.label} 为下一个${orderWord}节点` : `节点 ${node.label}，${state}`}
             >
-              {isCurrent ? <circle cx={position.x} cy={position.y} r="29" className={styles.nodeHalo} /> : null}
+              {!manualMode && isCurrent ? <circle cx={position.x} cy={position.y} r="29" className={styles.nodeHalo} /> : null}
               <circle cx={position.x} cy={position.y} r="20" data-state={state} className={styles.node} />
               <text x={position.x} y={position.y + 5} textAnchor="middle" className={styles.nodeLabel}>
                 {node.label}
               </text>
+              {manualMode && pick !== undefined ? (
+                <text x={position.x + 22} y={position.y - 12} textAnchor="middle" className={styles.pickOrder} data-ok={okPicks.has(node.id) || undefined}>
+                  {pick + 1}
+                </text>
+              ) : null}
               <text x={position.x} y={position.y + 37} textAnchor="middle" className={styles.nodeLevel}>
                 {result.level[node.id] !== undefined ? `L${result.level[node.id]}` : '—'}
               </text>
@@ -996,50 +1107,105 @@ function BfsCanvas({
           );
         })}
         <text x="18" y="26" className={styles.canvasLabel}>
-          {frame.label}
+          {manualMode ? `手动${isDfs ? ' DFS' : ' BFS'} · 已选 ${picks.length} / ${audit.expected.length} 个节点` : frame.label}
         </text>
         <text x="18" y="46" className={styles.canvasNote}>
-          {frame.detail}
+          {manualMode ? (ro ? '分享回放：学生的访问序与审计结论' : `点选图中的节点作为下一个${orderWord}对象`) : frame.detail}
         </text>
       </svg>
+      </div>
       <aside className={styles.bfsState}>
-        <div className={styles.stateBlock}>
-          <span className={styles.stateTitle}>{isDfs ? '栈（LIFO，栈顶在右）' : '队列（FIFO）'}</span>
-          <div className={styles.queueRow}>
-            {frame.queue.length ? (
-              frame.queue.map((item, queueIndex) => (
-                <span key={`${item}-${queueIndex}`} className={styles.queueCell}>
-                  {item}
-                </span>
-              ))
-            ) : (
-              <span className={styles.emptyText}>空</span>
+        {manualMode ? (
+          <>
+            <div className={styles.stateBlock}>
+              <span className={styles.stateTitle}>你的{orderWord}顺序</span>
+              <div className={styles.chipRow}>
+                {picks.length ? picks.map((item, pick) => (
+                  <span key={`${item}-${pick}`} className={styles.pickChip} data-ok={audit.steps[pick]?.ok === true || undefined}>
+                    {pick + 1}.{item}
+                  </span>
+                )) : <span className={styles.emptyText}>点选图中的节点开始</span>}
+              </div>
+            </div>
+            {ro ? null : (
+              <div className={styles.queueRow}>
+                <button type="button" className={styles.pickBtn} disabled={!picks.length}
+                  onClick={() => setGm((m) => ({ ...m, picks: m.picks.slice(0, -1) }))}>撤销一步</button>
+                <button type="button" className={styles.pickBtn} disabled={!picks.length}
+                  onClick={() => setGm((m) => ({ ...m, picks: [] }))}>清空</button>
+              </div>
             )}
-          </div>
-        </div>
-        <div className={styles.stateBlock}>
-          <span className={styles.stateTitle}>已访问</span>
-          <div className={styles.chipRow}>
-            {frame.visited.map((item) => (
-              <span key={item} className={styles.visitedChip}>
-                {item}
-              </span>
-            ))}
-          </div>
-        </div>
-        <div className={styles.stateBlock}>
-          <span className={styles.stateTitle}>{orderWord}顺序</span>
-          <p className={styles.orderText}>{frame.order.join(' → ') || `尚未${orderWord}`}</p>
-        </div>
-        <div className={styles.pseudocode} aria-label="伪代码">
-          {result.pseudocode.map((line, lineIndex) => (
-            <code key={lineIndex} data-active={frame.pseudocodeLine === lineIndex + 1 || undefined}>
-              <i>{lineIndex + 1}</i>
-              {line}
-            </code>
-          ))}
-        </div>
-        <p className={styles.stateNote}>入队即标记；同层邻居按节点编号升序。</p>
+            {audit.errors.length || audit.warnings.length ? (
+              <div className={styles.stateBlock}>
+                <span className={styles.stateTitle}>审计</span>
+                <ul className={styles.auditList} role={audit.errors.length ? 'alert' : undefined}>
+                  {audit.errors.map((error, index) => <li key={`e${index}`}>{error}</li>)}
+                  {audit.warnings.map((warning, index) => <li key={`w${index}`} className={styles.auditWarn}>{warning}</li>)}
+                </ul>
+              </div>
+            ) : null}
+            {audit.divergence ? (
+              <p className={styles.orderText}>
+                首次分歧在第 {audit.divergence.index + 1} 步：你选 {audit.divergence.pick}，内核{orderWord} {audit.divergence.expected}。
+              </p>
+            ) : null}
+            {audit.unreachable.length ? (
+              <div className={styles.stateBlock}>
+                <span className={styles.stateTitle}>不可达节点</span>
+                <div className={styles.chipRow}>
+                  {audit.unreachable.map((item) => <span key={item} className={styles.visitedChip}>{item}</span>)}
+                </div>
+              </div>
+            ) : null}
+            {audit.complete ? (
+              <p className={styles.orderText}>
+                {audit.matchesKernel
+                  ? `完成：你的${orderWord}顺序与内核完全一致。`
+                  : '已走完整个序列；对照审计找出分歧。'}
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div className={styles.stateBlock}>
+              <span className={styles.stateTitle}>{isDfs ? '栈（LIFO，栈顶在右）' : '队列（FIFO）'}</span>
+              <div className={styles.queueRow}>
+                {frame.queue.length ? (
+                  frame.queue.map((item, queueIndex) => (
+                    <span key={`${item}-${queueIndex}`} className={styles.queueCell}>
+                      {item}
+                    </span>
+                  ))
+                ) : (
+                  <span className={styles.emptyText}>空</span>
+                )}
+              </div>
+            </div>
+            <div className={styles.stateBlock}>
+              <span className={styles.stateTitle}>已访问</span>
+              <div className={styles.chipRow}>
+                {frame.visited.map((item) => (
+                  <span key={item} className={styles.visitedChip}>
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className={styles.stateBlock}>
+              <span className={styles.stateTitle}>{orderWord}顺序</span>
+              <p className={styles.orderText}>{frame.order.join(' → ') || `尚未${orderWord}`}</p>
+            </div>
+            <div className={styles.pseudocode} aria-label="伪代码">
+              {result.pseudocode.map((line, lineIndex) => (
+                <code key={lineIndex} data-active={frame.pseudocodeLine === lineIndex + 1 || undefined}>
+                  <i>{lineIndex + 1}</i>
+                  {line}
+                </code>
+              ))}
+            </div>
+            <p className={styles.stateNote}>入队即标记；同层邻居按节点编号升序。</p>
+          </>
+        )}
       </aside>
     </div>
   );
@@ -1059,7 +1225,7 @@ function MatrixTable({
   highlightCol = null,
   ariaLabel,
 }: {
-  matrix: (number | null)[][];
+  matrix: (number | string | null)[][];
   augCols?: number;
   pivot?: { row: number; col: number } | null;
   rows?: number[];
@@ -1080,7 +1246,7 @@ function MatrixTable({
               data-pivot={(pivot && pivot.row === r && pivot.col === c) || undefined}
               data-active={(cell && cell.row === r && cell.col === c) || highlightCol === c || undefined}
               data-aug={(augCols > 0 && c === augStart) || undefined}>
-              {value === null ? '·' : formatNumber(value)}
+              {value === null ? '·' : typeof value === 'string' ? value : formatNumber(value)}
             </span>
           ))}
         </div>
@@ -1093,6 +1259,33 @@ function LinAlgCanvas({ result, step }: { result: LinAlgResult; step: number }):
   const frame = result.frames[Math.min(Math.max(0, step), result.frames.length - 1)] ?? result.frames[0];
   if (!frame) return <p>暂无可展示的轨迹。</p>;
   const values = (frame.values ?? {}) as Record<string, unknown>;
+
+  if (result.laKind === 'eigen') {
+    return (
+      <div className={styles.laLayout}>
+        <div className={styles.laStage}>
+          {result.matrixA ? <MatrixTable matrix={result.matrixAExact ?? result.matrixA} ariaLabel="原矩阵 A" /> : null}
+          <p className={styles.laCaption}>
+            <strong><MathText text={frame.label} /></strong>
+            <MathText text={String(frame.detail ?? '')} />
+          </p>
+        </div>
+        <aside className={styles.laState}>
+          <div className={styles.stateBlock}>
+            <span className={styles.stateTitle}>精确特征值与特征空间</span>
+            <p className={styles.stateNote}><MathText text={result.answer} /></p>
+          </div>
+          <div className={styles.pseudocode} aria-label="特征值求解步骤">
+            {result.pseudocode.map((line, index) => (
+              <code key={index} data-active={frame.pseudocodeLine === index + 1 || undefined}>
+                <i>{index + 1}</i>{line}
+              </code>
+            ))}
+          </div>
+        </aside>
+      </div>
+    );
+  }
 
   if (result.engine === 'matmul_v1') {
     const a = (values.a ?? null) as (number | null)[][] | null;
@@ -1179,21 +1372,63 @@ function LinAlgCanvas({ result, step }: { result: LinAlgResult; step: number }):
 /* 深度学习                                                                   */
 /* -------------------------------------------------------------------------- */
 
+interface DlManual {
+  mode?: boolean;
+  /** 输出层 argmax 预测记录（按帧下标记）。 */
+  picks: { step: number; pick: number }[];
+  /** 损失方向预测：step 帧处猜「下一步 loss 下降?」。 */
+  guesses: { step: number; down: boolean }[];
+}
+
 function DlCanvas({
   result,
   step,
   selected,
   onSelect,
   compare,
+  readOnly,
+  saved,
+  onSave,
 }: {
   result: DlResult;
   step: number;
   selected: LabSelection | null;
   onSelect: (selection: LabSelection | null) => void;
   compare?: LabResult | null;
+  readOnly?: boolean;
+  saved?: DlManual;
+  onSave?: (value: DlManual) => void;
 }): ReactNode {
+  const ro = readOnly === true;
+  const [gm, setGm] = useManualState<DlManual>(saved, onSave, { mode: false, picks: [], guesses: [] });
+  const manualMode = ro ? saved?.mode === true : gm.mode;
   const index = Math.max(0, Math.min(step, result.frames.length - 1));
   const frame: DlFrame = result.frames[index] ?? result.frames[0]!;
+  const outputIndex = Math.max(0, result.layers.length - 1);
+  const outputA = frame.activations[outputIndex]?.a ?? [];
+  const argmax = outputA.length ? outputA.indexOf(Math.max(...outputA)) : -1;
+  const pick = gm.picks.find((entry) => entry.step === index)?.pick;
+  const guess = gm.guesses.find((entry) => entry.step === index);
+  const nextFrame = result.frames[index + 1];
+  const revealPick = !manualMode || pick !== undefined;
+  const pickHits = gm.picks.filter((entry) => {
+    const f = result.frames[entry.step];
+    const a = f?.activations[outputIndex]?.a ?? [];
+    return a.length > 0 && a.indexOf(Math.max(...a)) === entry.pick;
+  }).length;
+  const guessHits = gm.guesses.filter((entry) => {
+    const f = result.frames[entry.step];
+    const nf = result.frames[entry.step + 1];
+    return !!f && !!nf && (nf.loss < f.loss) === entry.down;
+  }).length;
+  const recordPick = (nodeIndex: number): void => {
+    if (ro || !manualMode || pick !== undefined) return;
+    setGm((previous) => ({ ...previous, picks: [...previous.picks, { step: index, pick: nodeIndex }] }));
+  };
+  const recordGuess = (down: boolean): void => {
+    if (ro || !manualMode || guess || !nextFrame) return;
+    setGm((previous) => ({ ...previous, guesses: [...previous.guesses, { step: index, down }] }));
+  };
   const emphasis = selected?.kind === 'solution-step' ? selected.id : null;
   const positions = useMemo(() => {
     const resultLayers: { x: number; y: number }[][] = [];
@@ -1241,6 +1476,13 @@ function DlCanvas({
   const layerInfo = frame.activations[selectedLayer];
   return (
     <div className={styles.dlLayout}>
+      {ro ? null : (
+        <div className={styles.manualBar} role="group" aria-label="预测模式切换">
+          <button type="button" className={styles.modeBtn} data-current={!manualMode || undefined} onClick={() => setGm((m) => ({ ...m, mode: false }))}>内核推演</button>
+          <button type="button" className={styles.modeBtn} data-current={manualMode || undefined} onClick={() => setGm((m) => ({ ...m, mode: true }))}>我来预测 ✋</button>
+          {manualMode ? <small>先遮住输出层：点选你认为激活最强的输出节点，再猜下一步损失方向</small> : null}
+        </div>
+      )}
       <div className={styles.dlTop}>
         <svg viewBox="0 0 760 400" className={styles.svgDl} role="img" aria-label="神经网络结构、权重与当前激活">
           {result.layers.slice(0, -1).map((_, layerIndex) =>
@@ -1285,27 +1527,68 @@ function DlCanvas({
               {positions[layerIndex]!.map((position, nodeIndex) => {
                 const activation = frame.activations[layerIndex]?.a[nodeIndex] ?? 0;
                 const alpha = 0.15 + Math.min(0.85, Math.abs(activation));
+                const isOutput = layerIndex === outputIndex;
+                const masked = manualMode && isOutput && !revealPick;
+                const picked = manualMode && isOutput && pick === nodeIndex;
+                const actual = manualMode && isOutput && revealPick && argmax === nodeIndex;
                 return (
-                  <g key={nodeIndex}>
+                  <g
+                    key={nodeIndex}
+                    onClick={masked ? (event) => { event.stopPropagation(); recordPick(nodeIndex); } : undefined}
+                    data-predict={masked ? 'masked' : undefined}
+                  >
                     <circle
                       cx={position.x}
                       cy={position.y}
                       r="17"
-                      fill={activation >= 0 ? `rgba(79,70,229,${alpha})` : `rgba(255,122,89,${alpha})`}
-                      className={selectedLayer === layerIndex ? styles.nodeSelected : styles.netNode}
+                      fill={masked ? 'rgba(148,163,184,0.3)' : activation >= 0 ? `rgba(79,70,229,${alpha})` : `rgba(255,122,89,${alpha})`}
+                      className={[
+                        selectedLayer === layerIndex ? styles.nodeSelected : styles.netNode,
+                        masked ? styles.nodeMasked : '',
+                        actual ? styles.nodeArgmax : '',
+                        picked ? (pick === argmax ? styles.nodePickHit : styles.nodePickMiss) : '',
+                      ].join(' ').trim()}
                     />
                     <text x={position.x} y={position.y + 4} textAnchor="middle" className={styles.netNodeText}>
-                      {formatNumber(activation, 2)}
+                      {masked ? '?' : formatNumber(activation, 2)}
                     </text>
+                    {picked ? <text x={position.x} y={position.y - 22} textAnchor="middle" className={styles.pickBadge}>{pick === argmax ? '✓' : '✗'}</text> : null}
+                    {actual && !picked ? <text x={position.x} y={position.y - 22} textAnchor="middle" className={styles.argmaxBadge}>最强</text> : null}
                   </g>
                 );
               })}
             </g>
           ))}
           <text x="24" y="372" className={styles.canvasNote}>
-            边宽与颜色表示权重方向；节点颜色表示当前激活。点击层可展开中间数值。
+            {manualMode ? '预测模式：输出层已遮住。点选最强节点；点击层名仍可展开数值。' : '边宽与颜色表示权重方向；节点颜色表示当前激活。点击层可展开中间数值。'}
           </text>
         </svg>
+        {manualMode ? (
+          <div className={styles.predictBar} data-testid="dl-predict">
+            {revealPick ? (
+              <span data-hit={pick === argmax || undefined}>
+                输出预测：你选了第 {pick! + 1} 节点，实际最强是第 {argmax + 1} 节点{pick === argmax ? ' ✓ 命中' : ' ✗ 未中'}
+              </span>
+            ) : <span>输出层已遮住：点击你认为激活最强的节点</span>}
+            {nextFrame ? (
+              guess ? (
+                <span data-hit={(nextFrame.loss < frame.loss) === guess.down || undefined}>
+                  损失方向：你猜{guess.down ? '下降' : '上升/持平'}，实际{nextFrame.loss < frame.loss ? '下降' : '未降'}
+                  {(nextFrame.loss < frame.loss) === guess.down ? ' ✓' : ' ✗'}
+                </span>
+              ) : ro ? <span>下一步损失方向：未作答</span> : (
+                <span role="group" aria-label="预测下一步损失方向">
+                  下一步损失？
+                  <button type="button" className={styles.pickBtn} onClick={() => recordGuess(true)}>↓ 下降</button>
+                  <button type="button" className={styles.pickBtn} onClick={() => recordGuess(false)}>↑/＝ 不降</button>
+                </span>
+              )
+            ) : <span>已到最后一帧，无下一步可猜</span>}
+            <span className={styles.predictStats}>
+              argmax {pickHits}/{gm.picks.length} · 方向 {guessHits}/{gm.guesses.length}
+            </span>
+          </div>
+        ) : null}
       </div>
       <div className={styles.dlBottom}>
         <div className={styles.lossPanel} data-emphasis={emphasis === 'loss' || emphasis === 'forward' || undefined}>
@@ -1510,14 +1793,15 @@ export function LabCanvas(props: Props): ReactNode {
       return <section className={styles.canvasRoot} aria-label="多元微分结果"><h3>多元微分计算</h3><p>变量顺序：{data?.variables.join('、')}</p>{data?.point ? <p>求值点：({data.point.join(', ')})</p> : <p>未指定求值点，展示条件适用的符号公式。</p>}{props.problem.solution.solution_complete && data?.result_latex ? <Formula tex={data.result_latex} block /> : <p><MathText text={props.problem.solution.incomplete_reason || props.problem.solution.summary} /></p>}<CalculusCanvas result={result} compare={compare} selected={selected} onSelect={onSelect} /><p>本任务展示符号结果与核验依据；求值点或方向修改后需要重新确认计算。</p></section>;
     }
     if (result.kind === 'proof' || result.proof) return <div className={styles.canvasRoot} data-subject="calculus"><ProofCanvas result={result} /><ol>{result.proof?.obligations.map(item => <li key={item.id}><MathText text={`${item.label}：${item.detail}`} /></li>)}</ol></div>;
-    if (result.kind === 'space' || result.space) return <div className={styles.canvasRoot} data-subject="calculus"><SpaceCanvas result={result} /><p><MathText text={result.answerText || result.headline} /></p></div>;
+    if (result.kind === 'space' || result.space) return <div className={styles.canvasRoot} data-subject="calculus"><SpaceCanvas result={result} /><p className={styles.canvasCaption}><span>当前结果</span><MathText text={result.answerText || result.headline} /></p></div>;
     if (result.task === 'double_integral') return <DoubleIntegralCanvas model={props.problem.model} result={result as DoubleIntegralResult} labId={props.labId} problemId={props.problem.problem_id} />;
     return (
       <div className={styles.canvasRoot} data-subject="calculus">
         <CalculusCanvas result={result} compare={compare} selected={selected} onSelect={onSelect}
           onParamDrag={props.onParamDrag} readOnly={props.readOnly}
+          boundsDraggable={!['geometric_area', 'area_volume', 'rotation_volume'].includes(props.problem.model.task ?? '')}
           isNormal={props.problem.model.task === 'implicit_normal'} verticalNormal={props.problem.model.vertical_normal} />
-        <p><MathText text={result.answerText || result.headline} /></p>
+        <p className={styles.canvasCaption}><span>当前结果</span><MathText text={result.answerText || result.headline} /></p>
       </div>
     );
   }
@@ -1538,7 +1822,11 @@ export function LabCanvas(props: Props): ReactNode {
     );
   }
   if (result.subject === 'algorithm') {
-    if (result.algorithm === 'heap') return <HeapCanvas result={result} step={step} selected={selected} onSelect={onSelect} />;
+    const manualSlice = (key: string) => ({
+      saved: props.manual?.[key] as { mode?: boolean } | undefined,
+      onSave: props.onManualChange ? (value: unknown) => props.onManualChange!(key, value) : undefined,
+    });
+    if (result.algorithm === 'heap') return <HeapCanvas result={result} step={step} selected={selected} onSelect={onSelect} readOnly={props.readOnly} {...manualSlice('heap')} />;
     if ('dsKind' in result) {
       return (
         <div className={styles.canvasRoot} data-subject="algorithm">
@@ -1549,7 +1837,7 @@ export function LabCanvas(props: Props): ReactNode {
     }
     return (
       <div className={styles.canvasRoot} data-subject="algorithm">
-        <BfsCanvas result={result} step={step} selected={selected} onSelect={onSelect} />
+        <BfsCanvas result={result} step={step} selected={selected} onSelect={onSelect} readOnly={props.readOnly} {...manualSlice('graph')} />
         {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
       </div>
     );
@@ -1565,7 +1853,8 @@ export function LabCanvas(props: Props): ReactNode {
   if (result.subject === 'operating_system') {
     return (
       <div className={styles.canvasRoot} data-subject="operating_system">
-        <OsCanvas result={result} step={step} selected={selected} onSelect={onSelect} />
+        <OsCanvas result={result} step={step} selected={selected} onSelect={onSelect}
+          manual={props.manual} onManualChange={props.onManualChange} readOnly={props.readOnly} />
         {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
       </div>
     );
@@ -1596,7 +1885,10 @@ export function LabCanvas(props: Props): ReactNode {
   }
   return (
     <div className={styles.canvasRoot} data-subject="deep_learning">
-      <DlCanvas result={result} step={step} selected={selected} onSelect={onSelect} compare={compare} />
+      <DlCanvas result={result} step={step} selected={selected} onSelect={onSelect} compare={compare}
+        readOnly={props.readOnly}
+        saved={props.manual?.dl as DlManual | undefined}
+        onSave={props.onManualChange ? (value) => props.onManualChange!('dl', value) : undefined} />
       {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
     </div>
   );

@@ -259,7 +259,7 @@ def _width(text: str, default: int = 8) -> int:
 
 def _time_ns(text: str, labels: str) -> float | None:
     match = re.search(
-        rf"(?:{labels})\s*(?:为|是|约|=|:|：)?\s*([0-9]+(?:\.[0-9]+)?)\s*(ps|ns|us|μs|ms|s)",
+        rf"(?:{labels})(?:\s*[A-Za-zτΔ][A-Za-z0-9_]*)?\s*(?:为|是|约|=|:|：)?\s*([0-9]+(?:\.[0-9]+)?)\s*(ps|ns|us|μs|ms|s)",
         text, re.I)
     if not match:
         return None
@@ -408,9 +408,12 @@ def _eval_performance(text: str) -> dict[str, Any]:
         f"代入得 {fmt(count)} × {fmt(cpi)} / {fmt(freq)} = {fmt(runtime)} s。",
         {"公式": "T = N × CPI / f", "执行时间(s)": fmt(runtime)}, 2))
     if period is not None and cpi is not None and count is not None:
-        frames.append(_frame(3, "时钟周期与 MIPS",
-                             f"时钟周期 = 1/f = {fmt(period)} s；MIPS = f/(CPI×10⁶) ≈ {fmt(mips)}。",
-                             {"时钟周期(s)": fmt(period), "MIPS": fmt(mips)}, 3))
+        gips = mips / 1000.0 if mips is not None else None
+        speed_note = f"；指令执行速度 = {fmt(gips)} GIPS" if gips is not None and gips >= 0.01 else ""
+        frames.append(_frame(3, "时钟周期与指令速度",
+                             f"时钟周期 = 1/f = {fmt(period)} s；MIPS = f/(CPI×10⁶) ≈ {fmt(mips)}{speed_note}。",
+                             {"时钟周期(s)": fmt(period), "MIPS": fmt(mips),
+                              **({"GIPS": fmt(gips)} if gips is not None and gips >= 0.01 else {})}, 3))
     answer_bits = []
     if count is not None:
         answer_bits.append(f"指令数 = {fmt(count)}")
@@ -420,9 +423,13 @@ def _eval_performance(text: str) -> dict[str, Any]:
         answer_bits.append(f"主频 = {fmt(freq)} Hz")
     if period is not None:
         answer_bits.append(f"时钟周期 = {fmt(period)} s")
-    answer_bits.append(f"CPU 执行时间 = {fmt(runtime)} s")
+    time_text = f"{fmt(runtime)} s（{fmt(runtime * 1e3)} ms）" if 1e-4 <= runtime < 0.1 else f"{fmt(runtime)} s"
+    answer_bits.append(f"CPU 执行时间 = {time_text}")
     if mips is not None:
-        answer_bits.append(f"MIPS ≈ {fmt(mips)}")
+        if mips >= 100 or re.search(r"GIPS|指令执行速度", text, re.I):
+            answer_bits.append(f"指令执行速度 ≈ {fmt(mips / 1000.0)} GIPS（{fmt(mips)} MIPS）")
+        else:
+            answer_bits.append(f"MIPS ≈ {fmt(mips)}")
     answer = "；".join(answer_bits)
     checks = [
         _check("formula", "公式口径", True, "T = N × CPI × 时钟周期；时钟周期 = 1/主频。"),
@@ -811,10 +818,18 @@ def _parse_operand(text: str, labels: str, width: int, default: int | None = Non
     return int(token)
 
 
+def _signed_binary_expr(text: str) -> tuple[int, str, int] | None:
+    match = re.search(r"\(?\s*(-?\d+)\s*\)?\s*([+\-−])\s*\(?\s*(-?\d+)\s*\)?", text)
+    if not match:
+        return None
+    op = "-" if match.group(2) in ("-", "−") else "+"
+    return int(match.group(1)), op, int(match.group(3))
+
+
 def _operands_two(text: str, width: int) -> tuple[int, int] | None:
-    expression = re.search(r"(-?\d+)\s*([+\-])\s*(-?\d+)", text)
+    expression = _signed_binary_expr(text)
     if expression:
-        return int(expression.group(1)), int(expression.group(3))
+        return expression[0], expression[2]
     a = _parse_operand(text, r"A|X|操作数1|被加数|被减数|被乘数|被除数|第一个数", width)
     b = _parse_operand(text, r"B|Y|操作数2|加数|减数|乘数|除数|第二个数", width)
     if a is not None and b is not None:
@@ -839,10 +854,10 @@ def _eval_fixed_addsub(text: str) -> dict[str, Any]:
         raise ValueError("需要两个操作数（A、B）或形如 5 + (-3) 的表达式")
     a_value, b_value = operands
     subtraction = bool(re.search(r"减法|相减|-\s*B|B\s*为减数", text) or "-" in text and "减法" in text
-                       or re.search(r"计算\s*-?\d+\s*-\s*-?\d+", text))
-    expression = re.search(r"(-?\d+)\s*([+\-])\s*(-?\d+)", text)
+                       or re.search(r"计算\s*\(?\s*-?\d+\s*\)?\s*[-−]\s*\(?\s*-?\d+", text))
+    expression = _signed_binary_expr(text)
     if expression:
-        subtraction = expression.group(2) == "-"
+        subtraction = expression[1] == "-"
     if not -(1 << (width - 1)) <= a_value <= (1 << (width - 1)) - 1 \
             or not -(1 << (width - 1)) <= b_value <= (1 << (width - 1)) - 1:
         raise ValueError(f"{width} 位补码操作数超出范围")
@@ -1104,9 +1119,11 @@ def _eval_floating(text: str) -> dict[str, Any]:
     spec = _format_changed(text)
     width = int(spec["width"])
     bits_token = None
-    hex_match = re.search(rf"0[xX]\s*([0-9A-Fa-f]{{{width // 4}}})", text)
+    hex_digits = width // 4
+    hex_match = re.search(rf"0[xX]\s*([0-9A-Fa-f]{{{hex_digits}}})|\b([0-9A-Fa-f]{{{hex_digits}}})[Hh]\b", text)
     if hex_match:
-        bits_token = format(int(hex_match.group(1), 16), f"0{width}b")
+        hex_raw = hex_match.group(1) or hex_match.group(2)
+        bits_token = format(int(hex_raw, 16), f"0{width}b")
     else:
         candidate = _bits_token(text)
         if candidate and len(candidate) in (32, 64):
@@ -1192,9 +1209,12 @@ def _eval_floating(text: str) -> dict[str, Any]:
                    {"真值": fmt(fields["value"]), "规格化形式": _normalized_text(fields, spec)}, 3),
         ]
         answer = f"{hex_text} 解码为 {spec['name']}：{_normalized_text(fields, spec)}，真值 = {fmt(fields['value'])}"
+        val = fields["value"]
+        numeric_val = float(val) if isinstance(val, (int, float)) and math.isfinite(float(val)) else None
         return _ok("floating", answer, frames, PSEUDOCODES["floating"],
                    [_check("fields", "字段拆分", True, "IEEE 754 按符号、阶码、尾数三段拆分。")],
-                   ["阶码全 0 为非规格化/零，阶码全 1 为无穷/NaN。"])
+                   ["阶码全 0 为非规格化/零，阶码全 1 为无穷/NaN。"],
+                   answer_value=numeric_val, answer_order=[fmt(val), hex_text, bits_token])
 
     if not numbers:
         raise ValueError("未识别到待编码的十进制浮点数或 IEEE 754 位串")
@@ -1300,9 +1320,9 @@ def _eval_mux(text: str) -> dict[str, Any]:
         raise ValueError("未识别到多路选择器的 D0、D1…输入")
     width = max(len(value) for value in inputs.values())
     select_match = re.search(
-        r"(?:选择信号|select|S\d*S\d*)\s*(?:为|是|=|:|：)?\s*([01]{1,8}|\d+)", text, re.I)
+        r"(?:选择信号|选择端|select)(?:\s*[A-Za-z]\w*)?\s*(?:为|是|=|:|：)?\s*([01]{1,8}|\d+)", text, re.I)
     if not select_match:
-        select_match = re.search(r"S\d*S\d*\s*(?:=|为|是|:|：)\s*([01]{1,8})", text, re.I)
+        select_match = re.search(r"\bS(?:\d+S\d+|\d*)\s*(?:=|为|是|:|：)\s*([01]{1,8}|\d+)", text, re.I)
     if not select_match:
         raise ValueError("未识别到多路选择器的选择信号")
     token = select_match.group(1)
@@ -1473,31 +1493,43 @@ def _fmt_hex(value: int) -> str:
 def _eval_memory(text: str) -> dict[str, Any]:
     if re.search(r"交叉编址|交叉存储|多体交叉|交叉存取", text):
         bank_match = re.search(r"(\d+)\s*(?:个|路|体|模块)", text)
-        width = _number_after(text, r"(?:总线宽度|数据线宽度|每个字|字长)", r"位")
+        width = _number_after(text, r"(?:总线宽度?|数据线宽度?|每个字|字长)", r"位")
         access = _time_ns(text, r"(?:存取周期|存储周期|访问周期)")
-        transfer = _time_ns(text, r"(?:总线周期|传送周期|总线传送周期)")
-        if bank_match is None or width is None:
-            raise ValueError("交叉编址需要给出存储体数 m 和每个字/总线宽度")
+        transfer = _time_ns(text, r"(?:总线周期|传送周期|总线传送周期|传输周期|总线传输周期)")
+        count_match = re.search(r"(?:连续(?:读取|写入|访问|传送)|读取|访问)\s*(\d+)\s*个字", text)
+        if bank_match is None:
+            raise ValueError("交叉编址需要给出存储体数 m")
         banks = int(bank_match.group(1))
+        count = int(count_match.group(1)) if count_match else banks
         if access is None:
             raise ValueError("交叉编址需要给出存取周期 T")
+        if width is None and re.search(r"带宽|吞吐率|Gbit/s|GB/s|MB/s|bps", text, re.I):
+            raise ValueError("计算交叉存储器带宽需要给出每个字/总线宽度（位）")
         tau = transfer if transfer is not None else access / banks
-        total = access + (banks - 1) * tau
-        bandwidth_gbps = banks * width / total
-        bandwidth = bandwidth_gbps * 1e9
+        total = access + (count - 1) * tau
         frames = [
-            _frame(1, "确定参数", f"{banks} 体交叉，字宽 {fmt(width)} 位，存取周期 T={fmt(access)} ns，"
-                                  f"总线传送周期 τ={fmt(tau)} ns。",
-                   {"体数": str(banks), "字宽": fmt(width), "T(ns)": fmt(access), "τ(ns)": fmt(tau)}, 1),
-            _frame(2, "连续访问 m 个字", f"首个字需要完整存取周期，其后每个字错开 τ："
-                                        f"T+(m−1)τ = {fmt(total)} ns。", {"总时间(ns)": fmt(total)}, 2),
-            _frame(3, "带宽", f"带宽 = m×W/T_total = {fmt(bandwidth_gbps)} Gbit/s。",
-                   {"带宽(Gbit/s)": fmt(bandwidth_gbps)}, 3),
+            _frame(1, "确定参数", f"{banks} 体交叉，"
+                                  + (f"字宽 {fmt(width)} 位，" if width is not None else "")
+                                  + f"存取周期 T={fmt(access)} ns，总线传送周期 τ={fmt(tau)} ns。",
+                   {"体数": str(banks), **({"字宽": fmt(width)} if width is not None else {}),
+                    "T(ns)": fmt(access), "τ(ns)": fmt(tau)}, 1),
+            _frame(2, f"连续访问 {count} 个字",
+                   f"首个字需要完整存取周期，其后每个字错开 τ：T+(m−1)τ = {fmt(total)} ns。",
+                   {"总时间(ns)": fmt(total)}, 2),
         ]
-        answer = f"{banks} 体交叉：连续 {banks} 个字耗时 {fmt(total)} ns，带宽约 {fmt(bandwidth_gbps)} Gbit/s"
+        if width is not None:
+            bandwidth_gbps = count * width / total
+            bandwidth = bandwidth_gbps * 1e9
+            frames.append(_frame(3, "带宽", f"带宽 = m×W/T_total = {fmt(bandwidth_gbps)} Gbit/s。",
+                                 {"带宽(Gbit/s)": fmt(bandwidth_gbps)}, 3))
+            answer = f"{banks} 体交叉：连续 {count} 个字耗时 {fmt(total)} ns，带宽约 {fmt(bandwidth_gbps)} Gbit/s"
+            return _ok("memory", answer, frames, PSEUDOCODES["memory"],
+                       [_check("time", "交叉访问时间", True, "T+(m−1)τ；τ 未给出时按 T/m 均分。")],
+                       ["带宽按 bit/s 给出，除以 8 可换算为 Byte/s。"], answer_value=bandwidth)
+        answer = f"{banks} 体交叉：连续访问 {count} 个字耗时 {fmt(total)} ns"
         return _ok("memory", answer, frames, PSEUDOCODES["memory"],
                    [_check("time", "交叉访问时间", True, "T+(m−1)τ；τ 未给出时按 T/m 均分。")],
-                   ["带宽按 bit/s 给出，除以 8 可换算为 Byte/s。"], answer_value=bandwidth)
+                   ["若需同时求最大带宽，请补充字长或数据总线宽度。"], answer_value=total)
 
     pairs = _capacity_pairs(text)
     base = _parse_hex_address(text)
@@ -1634,9 +1666,9 @@ def _parse_address_bits(text: str, labels: str = r"主存地址|地址|虚拟地
 
 
 def _eval_cache(text: str) -> dict[str, Any]:
-    cache_size = _size_bytes(text, r"Cache\s*容量|缓存容量|Cache\s*大小|Cache\s*数据区")
+    cache_size = _size_bytes(text, r"Cache\s*容量|缓存容量|Cache\s*大小|Cache\s*数据区(?:大小|容量)?")
     block_size = _size_bytes(text, r"块大小|块长|行大小|Cache\s*块大小|每块")
-    address_bits = _parse_address_bits(text)
+    address_bits = _parse_address_bits(text, r"物理地址|主存地址|实地址") or _parse_address_bits(text)
     hit_rate = _parse_percent(text, r"命中率")
     hit_time = _time_ns(text, r"(?:Cache\s*)?命中时间|访问\s*Cache\s*时间|Cache\s*访问时间")
     miss_penalty = _time_ns(text, r"缺失代价|缺失开销|访问主存时间|主存访问时间")
@@ -1701,12 +1733,14 @@ def _eval_cache(text: str) -> dict[str, Any]:
     lines = cache_size / block_size
     if lines < 1:
         raise ValueError("Cache 容量应不小于一个块")
-    if re.search(r"全相联", text):
-        mapping, ways = "全相联", int(lines)
-    elif re.search(r"组相联", text):
+    if re.search(r"组\s*相\s*联", text):
         mapping = "组相联"
         way_match = re.search(r"(\d+)\s*路", text) or re.search(r"每组\s*(\d+)\s*行", text)
         ways = int(way_match.group(1)) if way_match else 2
+    elif re.search(r"直接\s*映射", text):
+        mapping, ways = "直接映射", 1
+    elif re.search(r"全\s*相\s*联", text):
+        mapping, ways = "全相联", int(lines)
     else:
         mapping, ways = "直接映射", 1
     if ways < 1 or ways > lines:
@@ -1742,6 +1776,18 @@ def _eval_cache(text: str) -> dict[str, Any]:
                                          f"tag={tag}、组号 {index}、块内偏移 {offset}。",
                              {"tag值": str(tag), "组号": str(index), "块内偏移": str(offset)}, 2))
         answer += f"；地址拆解：tag {tag}、组号 {index}、块内偏移 {offset}"
+    block_no_match = re.search(r"(?:主存)?块号\s*(?:为|是|=|:|：)?\s*(\d+)", text)
+    if block_no_match is not None:
+        block_no = int(block_no_match.group(1))
+        mapped_set = block_no % int(sets)
+        set_label = "行号" if mapping == "直接映射" else "组号"
+        frames.append(_frame(
+            len(frames) + 1,
+            f"块号映射{set_label}",
+            f"主存块号 {block_no} mod {int(sets)} = {mapped_set}，映射到 Cache 第 {mapped_set} {set_label[:-1]}。",
+            {"主存块号": str(block_no), f"Cache {set_label}": str(mapped_set)}, 2,
+        ))
+        answer += f"；主存块号 {block_no} 映射到 Cache {set_label} {mapped_set}"
     return _ok("cache", answer, frames, PSEUDOCODES["cache"],
                [_check("fields", "字段长度", True, "tag + index + offset = 主存地址位数。")],
                ["组相联每组 ways 行；全相联可视为只有 1 组，直接映射可视为每组 1 行。"])
@@ -1803,25 +1849,36 @@ def _eval_virtual_memory(text: str) -> dict[str, Any]:
             answer_bits.append(f"页表大小 {fmt(table_bytes)} B")
     tlb_hit = _parse_percent(text, r"TLB\s*命中率|快表命中率")
     cache_hit = _parse_percent(text, r"Cache\s*命中率")
-    tlb_time = _time_ns(text, r"TLB\s*访问时间|查\s*TLB\s*时间|TLB\s*时间")
+    tlb_time = _time_ns(text, r"TLB\s*访问时间|查\s*TLB\s*时间|TLB\s*时间|快表访问时间")
     page_time = _time_ns(text, r"页表访问时间|查页表时间")
     cache_time = _time_ns(text, r"Cache\s*访问时间|访问\s*Cache\s*时间")
-    memory_time = _time_ns(text, r"主存访问时间|访问主存时间")
+    memory_time = _time_ns(text, r"主存访问时间|访问主存时间|内存访问时间|访问内存时间|主存时间|内存时间")
+    levels_match = re.search(r"([1-4一二两三四])\s*级页表", text)
+    level_map = {"一": 1, "二": 2, "两": 2, "三": 3, "四": 4}
+    levels = int(level_map.get(levels_match.group(1), levels_match.group(1))) if levels_match else 1
     amat = None
     if tlb_hit is not None and (tlb_time is not None or cache_time is not None):
+        has_cache = (cache_hit is not None) or (cache_time is not None)
+        if not has_cache and memory_time is None:
+            raise ValueError("计算平均有效访问时间还需要主存/内存访问时间")
         tlb_time = tlb_time or 0.0
-        page_time = page_time or 0.0
-        cache_time = cache_time or 0.0
         memory_time = memory_time or 0.0
+        cache_time = cache_time or 0.0
         parallel = bool(re.search(r"同时|并行", text))
         miss_tlb = 1 - tlb_hit
-        miss_cache = 1 - (cache_hit if cache_hit is not None else 1.0)
-        if parallel:
-            amat = max(tlb_time, cache_time) + miss_tlb * page_time + miss_cache * memory_time
-            mode = "TLB 与 Cache 并行访问"
+        if has_cache:
+            page_access = page_time or 0.0
+            miss_cache = 1 - (cache_hit if cache_hit is not None else 1.0)
+            if parallel:
+                amat = max(tlb_time, cache_time) + miss_tlb * levels * page_access + miss_cache * memory_time
+                mode = "TLB 与 Cache 并行访问"
+            else:
+                amat = tlb_time + miss_tlb * levels * page_access + cache_time + miss_cache * memory_time
+                mode = "TLB → 页表 → Cache → 主存 顺序访问"
         else:
-            amat = tlb_time + miss_tlb * page_time + cache_time + miss_cache * memory_time
-            mode = "TLB → 页表 → Cache → 主存 顺序访问"
+            page_access = page_time if page_time is not None else memory_time
+            amat = tlb_time + miss_tlb * levels * page_access + memory_time
+            mode = f"TLB + {levels} 级页表 + 主存（无 Cache）"
         frames.append(_frame(len(frames) + 1, "联合访问时间", f"{mode}：T = {fmt(amat)} ns。",
                              {"AMAT(ns)": fmt(amat)}, 4))
         answer_bits.append(f"平均访问时间 {fmt(amat)} ns")
@@ -2207,6 +2264,47 @@ def _eval_cpu_control(text: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def _eval_pipeline(text: str) -> dict[str, Any]:
+    # 题型 A：已知各功能部件/流水段耗时（与可选流水段寄存器延时），求最短 CPU 时钟周期。
+    stem = re.split(r"(?:\r?\n|\s)A[.、]", text, maxsplit=1)[0]
+    latch_match = re.search(
+        r"(?:流水段寄存器|锁存器|段间寄存器|缓冲寄存器)[^，。；;\n]{0,10}(?:延时|延迟|时间)\s*(?:为|是|=|:|：)?\s*([0-9]+(?:\.[0-9]+)?)\s*(ps|ns|us|μs)",
+        stem, re.I,
+    )
+    stem_wo_latch = stem[:latch_match.start()] + stem[latch_match.end():] if latch_match else stem
+    stage_unit_matches = re.findall(r"([0-9]+(?:\.[0-9]+)?)\s*(ps|ns|us|μs)", stem_wo_latch, re.I)
+    asks_clock_period = bool(re.search(r"时钟周期(?:至少|最小|最短|为|是)|最短.*周期|流水线周期", stem))
+    if len(stage_unit_matches) >= 2 and (asks_clock_period or latch_match is not None):
+        unit_scale = {"ps": 1.0, "ns": 1e3, "us": 1e6, "μs": 1e6}
+        display_unit = stage_unit_matches[0][1].lower()
+        base_scale = unit_scale[display_unit]
+        stage_vals = [float(v) * unit_scale[u.lower()] / base_scale for v, u in stage_unit_matches]
+        latch_val = (
+            float(latch_match.group(1)) * unit_scale[latch_match.group(2).lower()] / base_scale
+            if latch_match else 0.0
+        )
+        max_stage = max(stage_vals)
+        min_clock = max_stage + latch_val
+        stage_list_text = "、".join(f"{fmt(v)}{display_unit}" for v in stage_vals)
+        frames = [
+            _frame(1, "各流水段耗时",
+                   f"共 {len(stage_vals)} 个功能部件，耗时分别为 {stage_list_text}，最慢段为 {fmt(max_stage)} {display_unit}。",
+                   {"段数": str(len(stage_vals)), f"最慢段({display_unit})": fmt(max_stage)}, 1),
+            _frame(2, "计入段间寄存器延时",
+                   f"流水线时钟周期 ≥ max(各段耗时) + 流水段寄存器延时 = {fmt(max_stage)} + {fmt(latch_val)} = {fmt(min_clock)} {display_unit}。",
+                   {f"锁存器延时({display_unit})": fmt(latch_val), f"最短时钟周期({display_unit})": fmt(min_clock)}, 2),
+        ]
+        answer = (
+            f"各段最慢耗时 {fmt(max_stage)} {display_unit}"
+            + (f"，加流水段寄存器延时 {fmt(latch_val)} {display_unit}" if latch_val > 0 else "")
+            + f"，CPU 时钟周期至少为 {fmt(min_clock)} {display_unit}"
+        )
+        return _ok(
+            "pipeline", answer, frames, PSEUDOCODES["pipeline"],
+            [_check("clock", "最短时钟周期", True, "T_clk ≥ max(各功能段耗时) + 流水段寄存器延时。")],
+            ["流水线时钟周期由最慢功能段决定，有段间寄存器时需额外加上寄存器延时。"],
+            answer_value=min_clock,
+        )
+
     stage_match = re.search(r"(\d+)\s*段(?:流水线)?|流水线[^。；;\n]{0,8}(\d+)\s*段|k\s*=\s*(\d+)", text)
     count = _parse_instruction_count(text)
     if count is None:
@@ -2239,8 +2337,10 @@ def _eval_pipeline(text: str) -> dict[str, Any]:
             clock_ns = max(stage_times[:stages])
         else:
             raise ValueError("流水线题需要时钟周期或各段时间")
-    stall_match = re.search(r"(?:停顿|暂停|阻塞)\s*(\d+)\s*个?(?:时钟)?周期", text)
-    stalls = int(stall_match.group(1)) if stall_match else 0
+    stall_match = re.search(
+        r"(?:停顿|暂停|阻塞|气泡)\s*(\d+)\s*个?(?:时钟)?周期|(\d+)\s*个?(?:时钟)?周期(?:的)?[^\n。；]{0,12}(?:停顿|暂停|阻塞|气泡)",
+        text)
+    stalls = int(stall_match.group(1) or stall_match.group(2)) if stall_match else 0
     cycles = stages + (n - 1) + stalls
     time_total = cycles * clock_ns
     sequential_cycles = n * stages
@@ -2284,24 +2384,44 @@ def _eval_pipeline(text: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def _eval_bus_io(text: str) -> dict[str, Any]:
-    width_bits = _number_after(text, r"总线宽度|数据总线宽度|数据线宽度", r"位")
+    width_bits = _number_after(text, r"总线宽度?|数据总线宽度?|数据线宽度?", r"位")
+    if width_bits is None:
+        bytes_match = re.search(r"(?:并行)?(?:传输|传送)\s*(\d+(?:\.\d+)?)\s*(?:字节|B\b)", text, re.I)
+        if bytes_match:
+            width_bits = float(bytes_match.group(1)) * 8.0
     frequency = _parse_frequency(text)
     cycle_ns = _time_ns(text, r"总线周期|传输周期|总线时钟周期")
-    transfers = _number_after(text, r"(?:每次|每个周期)(?:传送|传输)", r"次|个")
+    transfers = _number_after(text, r"(?:每次|每个周期|每周期)(?:传送|传输)", r"次|个")
+    per_n_cycles = re.search(r"每\s*(\d+)\s*个?(?:总线|时钟)?周期(?:传送|传输)\s*(\d+|一)?\s*次?", text)
+    clocks_per_bus_cycle = re.search(
+        r"(?:一个|每个?)\s*总线周期(?:占用?|包含|需要|为)\s*(\d+)\s*个?(?:总线)?时钟周期", text
+    )
     if width_bits is not None and (frequency or cycle_ns):
-        transfer_count = int(transfers) if transfers else 1
-        if cycle_ns:
-            bandwidth_bytes = (width_bits / 8) * transfer_count / (cycle_ns * 1e-9)
+        if per_n_cycles and transfers is None:
+            cyc_n = max(1, int(per_n_cycles.group(1)))
+            tx_raw = per_n_cycles.group(2)
+            tx_k = 1 if (not tx_raw or tx_raw == "一") else int(tx_raw)
+            transfer_rate_ratio = tx_k / cyc_n
+            rate_desc = f"每 {cyc_n} 周期传送 {tx_k} 次"
+        elif clocks_per_bus_cycle and transfers is None:
+            cyc_n = max(1, int(clocks_per_bus_cycle.group(1)))
+            transfer_rate_ratio = 1.0 / cyc_n
+            rate_desc = f"每总线周期占 {cyc_n} 个时钟周期"
         else:
-            bandwidth_bytes = (width_bits / 8) * frequency * transfer_count
+            transfer_rate_ratio = float(int(transfers) if transfers else 1)
+            rate_desc = f"每周期传送 {int(transfer_rate_ratio)} 次"
+        if cycle_ns:
+            bandwidth_bytes = (width_bits / 8) * transfer_rate_ratio / (cycle_ns * 1e-9)
+            formula_rhs = f"{fmt(width_bits / 8)} B × {fmt(transfer_rate_ratio)} ÷ {fmt(cycle_ns)} ns"
+        else:
+            bandwidth_bytes = (width_bits / 8) * (frequency or 0.0) * transfer_rate_ratio
+            formula_rhs = f"{fmt(width_bits / 8)} B × {fmt(transfer_rate_ratio)} × {fmt((frequency or 0.0) / 1e6)} MHz"
         frames = [
-            _frame(1, "总线参数", f"宽度 {fmt(width_bits)} 位，"
-                                 f"{'周期 ' + fmt(cycle_ns) + ' ns' if cycle_ns else '频率 ' + fmt(frequency or 0) + ' Hz'}，"
-                                 f"每周期传送 {transfer_count} 次。",
-                   {"宽度(位)": fmt(width_bits), "传送次数": str(transfer_count)}, 1),
-            _frame(2, "带宽", f"带宽 = {fmt(width_bits / 8)} B × {fmt(transfer_count)} ÷ "
-                              f"{fmt(cycle_ns) + ' ns' if cycle_ns else fmt(frequency or 0) + ' Hz'} "
-                              f"= {fmt(bandwidth_bytes / 1e6)} MB/s。",
+            _frame(1, "总线参数", f"宽度 {fmt(width_bits)} 位（{fmt(width_bits / 8)} B），"
+                                 f"{'周期 ' + fmt(cycle_ns) + ' ns' if cycle_ns else '频率 ' + fmt((frequency or 0.0) / 1e6) + ' MHz'}，"
+                                 f"{rate_desc}。",
+                   {"宽度(位)": fmt(width_bits), "传送节奏": rate_desc}, 1),
+            _frame(2, "带宽", f"带宽 = {formula_rhs} = {fmt(bandwidth_bytes / 1e6)} MB/s。",
                    {"带宽(MB/s)": fmt(bandwidth_bytes / 1e6)}, 2),
         ]
         answer = f"总线带宽 ≈ {fmt(bandwidth_bytes / 1e6)} MB/s"
@@ -2407,6 +2527,10 @@ def _detect_kind(text: str, merged: Mapping[str, Any]) -> str | None:
         return "pipeline"
     if re.search(r"取指|间址|中断周期|控制器|微程序|微指令|硬布线|单周期|多周期|控制存储器", text):
         return "cpu_control"
+    if re.search(r"Cache|缓存", text, re.I) and re.search(
+            r"组相联|直接映射|标记|Tag|组号|Index|块内偏移|Offset|Cache\s*组号|Cache\s*行号|映射到\s*Cache",
+            text, re.I):
+        return "cache"
     if re.search(r"虚拟存储|虚拟地址|虚地址|虚实地址|页表|TLB|快表|页框|物理地址|缺页", text, re.I):
         return "virtual_memory"
     if re.search(r"Cache|缓存|相联|命中率|替换策略|替换算法|写直达|写回|写分配", text, re.I):
@@ -2422,11 +2546,11 @@ def _detect_kind(text: str, merged: Mapping[str, Any]) -> str | None:
         return "performance"
     if re.search(r"CPU\s*时间|执行时间|主频|时钟频率|时钟周期|CPI|MIPS|指令(?:数量|条数|数)", text, re.I):
         return "performance"
+    if re.search(r"IEEE|754|浮点|单精度|双精度|阶码|尾数", text, re.I):
+        return "floating"
     if re.search(r"进制|二进制|八进制|十进制|十六进制", text) and re.search(
             r"转换|转成|转为|化为|变成|转", text):
         return "data_repr"
-    if re.search(r"IEEE|754|浮点|单精度|双精度|阶码|尾数", text, re.I):
-        return "floating"
     if re.search(r"符号扩展", text):
         return "data_repr"
     if re.search(r"算术移位|逻辑移位|循环移位|移位|左移|右移", text):
@@ -2460,6 +2584,8 @@ def build_comp_org(text: str, source: Mapping[str, Any], overrides: Mapping[str,
         return built
     model = {"engine": ENGINES[kind], "subject": "computer_organization", "co_kind": kind,
              "raw": text, "defaults": {}, "params": [], "teaching": False}
+    if kind == "cache" and re.search(r"(?:主存)?块号\s*(?:为|是|=|:|：)?\s*\d+", text):
+        model["target_kind"] = "cache_address_and_mapping"
     conditions = [_condition("co_kind", "题型", KIND_LABELS[kind], source=source)]
     formulas = [{
         "id": "co_rule",

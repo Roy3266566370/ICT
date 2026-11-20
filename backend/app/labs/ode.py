@@ -27,8 +27,17 @@ def _normalize_equation(raw: Any, independent: str, dependent: str) -> tuple[str
     if not isinstance(raw, str) or not 1 <= len(raw) <= 600:
         raise ValueError('微分方程必须是600字以内的字符串')
     text = raw.replace('′', "'").replace('’', "'").replace('−', '-').replace('＝', '=')
+    # OCR 常把 y'' 读成 y"（双引号/双撇号）——只在字母后替换以免误伤引号文本。
+    text = re.sub(r'(?<=[A-Za-z])["”″]', "''", text)
     text = text.replace(f'{dependent}({independent})', dependent)
     text = re.sub(r'\b' + re.escape(dependent) + r'\s*\(\s*' + re.escape(independent) + r'\s*\)', dependent, text)
+    # 莱布尼茨记法 dy/dx、d²y/dx²、d^2y/dx^2 → 撇号记法。
+    _dep, _ind = re.escape(dependent), re.escape(independent)
+    for _order, _glyph in ((3, r'3|³'), (2, r'2|²')):
+        text = re.sub(
+            rf'd\s*(?:\^\s*)?(?:{_glyph})\s*{_dep}\s*/\s*d\s*{_ind}\s*(?:\^\s*)?(?:{_glyph})',
+            dependent + "'" * _order, text)
+    text = re.sub(rf'd\s*{_dep}\s*/\s*d\s*{_ind}', dependent + "'", text)
     if text.count('=') != 1:
         raise ValueError('微分方程必须包含且只包含一个等号')
     left, right = [item.strip() for item in text.split('=')]
@@ -619,6 +628,8 @@ def build_ode_from_text(text: str, source: Mapping, overrides: Mapping) -> dict 
         if not match:
             return None
         equation = match.group(1).strip().strip('，, ')
+        # 标题/题号引导语可能残留在捕获头（"9.求微分方程dy/dx=…"），先剥到数学开头。
+        equation = re.sub(r'^(?:[\d.、\s]*(?:求|解|微分方程|方程|已知|设|若|对于|计算|求证))+\s*', '', equation)
         equation = re.split(r"\s*(?:满足|其中|求|的|特解|通解)", equation)[0].strip()
     initial_conditions = overrides.get('initial_conditions')
     if initial_conditions is None:

@@ -835,7 +835,8 @@ def evaluate_fourier(model: Mapping[str, Any], params: Mapping[str, Any]) -> dic
 def build_series_from_text(text: str, source: Mapping, overrides: Mapping) -> dict | None:
     """Small local recognizer for common series phrasing; AI/declarative remains primary."""
     import re as _re
-    compact = text.replace('−', '-').replace('≤', '<=').replace('≥', '>=').replace('π', 'pi').replace('∞', 'oo')
+    compact = (text.replace('−', '-').replace('≤', '<=').replace('≥', '>=')
+               .replace('π', 'pi').replace('∞', 'oo').replace('Σ', '∑'))
     def finish(problem):
         problem['recognition']['raw_text'] = text
         problem['recognition']['method'] = 'typed_text'
@@ -857,9 +858,9 @@ def build_series_from_text(text: str, source: Mapping, overrides: Mapping) -> di
             except Exception:  # noqa: BLE001
                 return None
     if '幂级数' in compact:
-        body_match = _re.search(r'∑\s*(.*?)(?:的|，|,|。|求|收敛)', compact) or _re.search(r'幂级数\s*(.*?)(?:的|，|,|。|求|收敛)', compact)
+        body_match = _re.search(r'(?:[∑ΣE]|>=)\s*(.*?)(?:的|，|,|。|求|收敛)', compact) or _re.search(r'幂级数\s*(.*?)(?:的|，|,|。|求|收敛)', compact)
         body = body_match.group(1).strip() if body_match else ''
-        body = _re.sub(r'^∑\s*', '', body)
+        body = _re.sub(r'^(?:[∑ΣE]|>=)\s*', '', body)
         if body:
             try:
                 from .expr import parse_expression as _parse
@@ -876,9 +877,9 @@ def build_series_from_text(text: str, source: Mapping, overrides: Mapping) -> di
             except Exception:  # noqa: BLE001
                 return None
     if '级数' in compact and '敛散' in compact or '级数' in compact and '收敛' in compact:
-        body_match = _re.search(r'∑\s*(.*?)(?:的|，|,|。|敛散|收敛)', compact) or _re.search(r'级数\s*(.*?)(?:的|，|,|。|敛散|收敛)', compact)
+        body_match = _re.search(r'(?:[∑ΣE]|>=)\s*(.*?)(?:的|，|,|。|敛散|收敛)', compact) or _re.search(r'级数\s*(.*?)(?:的|，|,|。|敛散|收敛)', compact)
         body = body_match.group(1).strip() if body_match else ''
-        body = _re.sub(r'^∑\s*', '', body)
+        body = _re.sub(r'^(?:[∑ΣE]|>=)\s*', '', body)
         body = _re.sub(r'^[_^]?\{?n\s*=\s*\d+\}?', '', body).strip()
         if body:
             try:

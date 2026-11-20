@@ -155,3 +155,19 @@ def test_p4_invalid_conditions_are_rejected():
         fourier_plan(expression='x', lower='1', upper='0')
     with pytest.raises(ValueError):
         series_plan(term='1/n', index_start=-1)
+
+def test_ocr_sigma_read_as_latin_e_still_routes_to_series():
+    from app.labs.recognize import build_problem, _attach_solution
+    problem = build_problem('8.判别级数E1/n^2的收敛性（）。')
+    _attach_solution(problem)
+    assert problem['model']['task'] == 'series_convergence'
+    assert problem['status'] == 'ready'
+    assert '绝对收敛' in problem['solution']['answer']
+
+
+def test_ocr_greek_sigma_variant_also_routes():
+    from app.labs.recognize import build_problem, _attach_solution
+    problem = build_problem('判断级数 Σ 1/n^2 的敛散性。')
+    _attach_solution(problem)
+    assert problem['model']['task'] == 'series_convergence'
+    assert problem['status'] == 'ready'

@@ -50,6 +50,7 @@ export function ManualTextComposer({ definition }: Props): JSX.Element {
         title: title.trim() || selected.title,
         text: text.trim(),
         subject: definition.id,
+        single_problem: true,
       });
       navigate(`/labs/${lab.lab_id}`);
     } catch (cause) {
@@ -60,23 +61,24 @@ export function ManualTextComposer({ definition }: Props): JSX.Element {
   };
 
   return <fieldset className={styles.fields} disabled={busy}>
-    <div className={styles.classification}>
-      <span>题型<strong>{selected ? selected.label : '请选择题型'}</strong></span>
-      <p>共 {manualTextTypeCount(definition)} 种题型；选中后填写完整题目原文。</p>
-    </div>
-    <div className={styles.moduleBar} role="group" aria-label={`${definition.label}知识模块`}>
-      {definition.groups.map(group => <button key={group.label} type="button" aria-pressed={activeGroupDefinition?.label === group.label} onClick={() => setActiveGroup(group.label)}>
-        <strong>{group.label}</strong><span>{group.types.length} 个题型</span>
-      </button>)}
-    </div>
-    {activeGroupDefinition ? <>
-      <p className={styles.moduleHint}>{definition.label} · {activeGroupDefinition.label}：共 {activeGroupDefinition.types.length} 个题型。</p>
-      <div className={styles.tasks} role="group" aria-label={`${definition.label} · ${activeGroupDefinition.label}`}>
-        {activeGroupDefinition.types.map(type => <button key={type.id} type="button" aria-pressed={selectedId === type.id} onClick={() => choose(type, activeGroupDefinition.label)}>
-          <strong>{type.label}</strong><span>{type.hint}</span>
+    <div className={styles.moduleSection}>
+      <div className={styles.moduleHeader}>
+        <span className={styles.stepTag}>STEP 01 · {definition.label}（共 {manualTextTypeCount(definition)} 类题型）</span>
+        <span className={styles.currentBadge}>当前选中：<strong>{selected ? selected.label : '请从下方选择题型'}</strong></span>
+      </div>
+      <div className={styles.moduleBar} role="group" aria-label={`${definition.label}知识模块`}>
+        {definition.groups.map(group => <button key={group.label} type="button" aria-pressed={activeGroupDefinition?.label === group.label} onClick={() => setActiveGroup(group.label)}>
+          <strong>{group.label}</strong><span>{group.types.length} 类</span>
         </button>)}
       </div>
-    </> : null}
+      {activeGroupDefinition ? (
+        <div className={styles.tasks} role="group" aria-label={`${definition.label} · ${activeGroupDefinition.label}`}>
+          {activeGroupDefinition.types.map(type => <button key={type.id} type="button" aria-pressed={selectedId === type.id} onClick={() => choose(type, activeGroupDefinition.label)}>
+            <strong>{type.label}</strong><span>{type.hint}</span>
+          </button>)}
+        </div>
+      ) : null}
+    </div>
     {selected ? <>
       <label className={styles.modeField}>题目原文
         <textarea aria-label="题目原文" rows={8} value={text} onChange={event => editText(event.target.value)} placeholder="按所选题型填写完整题目原文，保留全部数据与限制条件" />

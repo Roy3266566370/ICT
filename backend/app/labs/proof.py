@@ -612,9 +612,10 @@ def build_proof_from_text(text: str, source: Mapping, overrides: Mapping) -> dic
     """Recognize explicit theorem-proof phrasing; never infer a proof from prose alone."""
     import re as _re
     lowered = text.replace('−', '-').replace('≤', '<=').replace('≥', '>=')
-    if not any(key in lowered for key in ('罗尔定理', '拉格朗日中值定理', '中值定理', '介值定理', '有根', '零点')):
+    squashed = _re.sub(r'\s+', '', lowered)  # OCR 断行会把“罗尔\n定理”拆开
+    if not any(key in squashed for key in ('罗尔定理', '拉格朗日中值定理', '中值定理', '介值定理', '有根', '实根', '零点')):
         return None
-    interval = _re.search(r'\[\s*(-?(?:\d+(?:\.\d+)?|pi))\s*,\s*(-?(?:\d+(?:\.\d+)?|pi))\s*\]', lowered)
+    interval = _re.search(r'[\[(（]\s*(-?(?:\d+(?:\.\d+)?|pi))\s*,\s*(-?(?:\d+(?:\.\d+)?|pi))\s*[\])）]', lowered)
     if not interval:
         return None
     expression_match = _re.search(r'(?:f|g)\s*\(\s*x\s*\)\s*=\s*([^，,。；;]+)', lowered)
@@ -625,9 +626,12 @@ def build_proof_from_text(text: str, source: Mapping, overrides: Mapping) -> dic
         if not equation:
             return None
         expression_text_raw = equation.group(1).strip()
-    proof_kind = ('ivt_unique_root' if ('唯一' in lowered and ('根' in lowered or '零点' in lowered))
-                  else 'rolle' if '罗尔' in lowered
-                  else ('mvt' if ('中值定理' in lowered or '拉格朗日' in lowered) else 'ivt_root'))
+    # OCR 常把幂号 ^ 读成 ~（`x~2` → `x^2`）、把 x 读成 ×（`+×-1` → `+x-1`）。
+    expression_text_raw = expression_text_raw.replace('~', '^')
+    expression_text_raw = _re.sub(r'(?<![\dA-Za-z])\s*×|×\s*(?![\dA-Za-z])', 'x', expression_text_raw)
+    proof_kind = ('ivt_unique_root' if ('唯一' in squashed and ('根' in squashed or '零点' in squashed))
+                  else 'rolle' if '罗尔' in squashed
+                  else ('mvt' if ('中值定理' in squashed or '拉格朗日' in squashed) else 'ivt_root'))
     try:
         problem = build_proof_problem({
             'proof_kind': proof_kind, 'expression': expression_text_raw,

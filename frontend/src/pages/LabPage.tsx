@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ClipboardEvent, type DragEvent } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
 import { MathText } from '@/components/labs/ProblemText';
+import { ShowcaseExamples } from '@/components/showcase/ShowcaseExamples';
 import { createTextLab, listLabs, uploadLab, type LabUploadFile } from '@/api/labs';
 import { errorMessage } from '@/api/client';
 import type { LabSubject, LabSummary } from '@/labs/types';
@@ -17,65 +18,14 @@ const ROLES: { id: LabUploadFile['role']; label: string; hint: string }[] = [
   { id: 'courseware', label: '课件', hint: '从已有 PPTX 中选一道题' },
 ];
 
-const SAMPLES: {
-  id: string;
-  subject: LabSubject;
-  label: string;
-  kicker: string;
-  text: string;
-  title: string;
-}[] = [
-  {
-    id: 'gradient',
-    subject: 'optimization',
-    label: '梯度下降',
-    kicker: '初始点、学习率、每一步的方向',
-    title: '梯度下降求最小值',
-    text: '使用梯度下降法求 f(x)=(x-3)^2 的最小值，初始点为 x0=0，学习率为 0.1。',
-  },
-  {
-    id: 'integral',
-    subject: 'calculus',
-    label: '定积分',
-    kicker: '曲线、积分区域与黎曼和',
-    title: '定积分的几何意义',
-    text: '计算定积分 ∫_0^2 x^2 dx，并观察分割数对数值近似的影响。',
-  },
-  {
-    id: 'bfs',
-    subject: 'algorithm',
-    label: '广度优先搜索',
-    kicker: '队列、已访问集合、逐行伪代码',
-    title: 'BFS 执行过程',
-    text: '对下图从 A 开始执行广度优先搜索。边：A-B, A-C, B-D, C-D, D-E。',
-  },
-  {
-    id: 'mlp',
-    subject: 'deep_learning',
-    label: '小型网络',
-    kicker: '前向、损失、梯度与参数更新',
-    title: '两层网络反向传播',
-    text: '对一个 2-3-1 神经网络做反向传播，输入 x=[0.6, -0.2]，目标 y=1，学习率 0.1，训练 5 轮。',
-  },
-  {
-    id: 'gauss',
-    subject: 'linear_algebra',
-    label: '高斯消元',
-    kicker: '增广矩阵、主元、回代与核对',
-    title: '高斯消元解方程组',
-    text: '解方程组：2x+y-z=8，-3x-y+2z=-11，-2x+y+2z=-3',
-  },
-  {
-    id: 'cpu-schedule',
-    subject: 'operating_system',
-    label: '进程调度',
-    kicker: '甘特图、就绪队列与四种算法对照',
-    title: '短作业优先与最短剩余时间',
-    text: '采用最短剩余时间优先（抢占）调度下列进程，求平均周转时间和平均等待时间。\n进程 到达时间 服务时间\nP1 0 7\nP2 2 4\nP3 4 1\nP4 5 4',
-  },
-];
-
 const ACCEPT = '.pdf,.png,.jpg,.jpeg,.webp,.pptx,.txt,.md,.csv';
+
+const DISCIPLINE_SPECS = [
+  { index: '01', name: '高等数学', scope: '7 大模块 · 33 类题型', detail: '极限 / 导数 / 积分 / 多元 / 级数 / 微分方程 / 证明' },
+  { index: '02', name: '408 统考', scope: '4 科全题型覆盖', detail: '数据结构 / 计算机组成 / 操作系统 / 计算机网络' },
+  { index: '03', name: '大学物理', scope: '4 大模块 · 15 类模型', detail: '力学 / 电磁学 / 波动与光学 / 热学与近代物理' },
+  { index: '04', name: '原稿识别', scope: '多模态题干提取', detail: 'PDF / 截图 / PPTX 课件 / 自由题干文本' },
+];
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
@@ -95,10 +45,17 @@ function statusLabel(status: string, aiVerification?: string | null): string {
 
 export function LabPage(): JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const initialQuestion = searchParams.get('question')?.trim() ?? '';
+  const initialExample = searchParams.get('example') ?? searchParams.get('lab');
   const inputRef = useRef<HTMLInputElement>(null);
+  const workbenchRef = useRef<HTMLElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
+  const samplesRef = useRef<HTMLElement>(null);
+  const [entryMode, setEntryMode] = useState<'structured' | 'ingest'>(
+    initialQuestion === '' ? 'structured' : 'ingest',
+  );
   const [mode, setMode] = useState<'files' | 'text'>(initialQuestion === '' ? 'files' : 'text');
   const [entries, setEntries] = useState<LabUploadFile[]>([]);
   const [title, setTitle] = useState('');
@@ -111,8 +68,12 @@ export function LabPage(): JSX.Element {
   const [recentError, setRecentError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (location.hash === '#lab-samples-title' || initialExample) {
+      samplesRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      return;
+    }
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  }, []);
+  }, [location.hash, initialExample]);
 
   const loadRecent = useCallback(async () => {
     try {
@@ -191,7 +152,7 @@ export function LabPage(): JSX.Element {
     setError(null);
     try {
       const lab = await createTextLab({
-        title: title.trim() || text.trim().split('\n')[0]!.slice(0, 56),
+        title: title.trim(),
         text,
         orchestrate: true,
         subject: subject || undefined,
@@ -204,318 +165,405 @@ export function LabPage(): JSX.Element {
     }
   };
 
-  const openSample = async (sample: (typeof SAMPLES)[number]): Promise<void> => {
-    if (busy) return;
-    setBusy(`sample-${sample.id}`);
-    setError(null);
-    try {
-      const lab = await createTextLab({ title: sample.title, text: sample.text, subject: sample.subject });
-      navigate(`/labs/${lab.lab_id}`);
-    } catch (cause) {
-      setError(errorMessage(cause));
-    } finally {
-      setBusy(null);
-    }
-  };
-
   return (
     <div className={`${styles.page} studio-scope`}>
       <SiteNav current="labs" appearance="studio" />
       <main id="main" className={styles.main}>
-        <header className={styles.hero}>
-          <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>PROBLEM → INTERACTIVE MODEL</p>
-            <h1>
-              把一道题，变成
-              <span>可以亲手推演的实验。</span>
-            </h1>
-            <p className={styles.lead}>
-              先选择科目与题型，填写公式或题目原文，确认题目后由内核计算，再亲手观察每一步。
-              手动输入开放高数定积分、不定积分、导函数、高阶导数、指定点求导、反函数导数、参数方程求导、隐函数求导、曲率与曲率半径、极限、已知极限求参数、连续性、变限积分求导、函数区间研究、泰勒展开、数项级数敛散性、幂级数收敛域与求和、傅里叶级数、积分应用（曲线与x轴/两条曲线之间面积、绕x轴或y轴旋转体积、弧长、旋转曲面面积、极坐标面积与弧长）、常微分方程、多元微分及多元局部极值与等式约束极值、二重积分（直角坐标分片、极坐标、换序、反常积分、变量代换与密度应用）及三重积分（长方体、z型区域、柱坐标、球坐标）；408 四科可在上方按科目选择题型后填写题目原文；大学物理三批已开放质点运动学、牛顿定律、功与能、动量与碰撞、振动，刚体转动、机械波、静电场、电容与电路、磁场、电磁感应、热学与热力学，以及波动光学、几何光学、近代物理基础；也可继续上传文件识别，或修改通用示例进行学习。
-            </p>
-            <div className={styles.heroStats}>
-              <span>
-                <strong>33</strong> 类手动高数题
-              </span>
-              <span>
-                <strong>4</strong> 科 408 题型
-              </span>
-              <span>
-                <strong>15</strong> 类物理实验
-              </span>
-              <span>
-                <strong>3</strong> 种学习方式
-              </span>
-              <span>
-                <strong>1</strong> 份可分享成果
-              </span>
-              <span className={styles.heroLocal}>手动输入直接调用本地内核</span>
-            </div>
+        {/* ═══ HERO HEADER ═══ */}
+        <section className={styles.hero} aria-labelledby="lab-hero-title">
+          <div className={styles.heroMeta}>
+            <span className={styles.eyebrow}>
+              <span className={styles.cross}>+</span> QUESTION LAB · 题目实验室
+            </span>
+            <span className={styles.metaCode}>DETERMINISTIC KERNEL · 先核对条件，再推演过程</span>
           </div>
-          <aside className={styles.heroAside} aria-label="题目实验室原则">
-            <span>不是“直接给答案”</span>
-            <p>
-              先核对完整题目，再查看结果与计算轨迹。手动输入不会自动补条件；修改实验参数后可以恢复原题。
-            </p>
-          </aside>
-        </header>
 
-        <ManualLabComposer />
-
-        <section className={styles.workbench} aria-label="文件识别与题目文字">
-          <div className={styles.composer} ref={composerRef} tabIndex={0} onPaste={handlePaste}>
-            <div className={styles.composerHead}>
-              <div>
-                <span className={styles.eyebrow}>NEW LAB</span>
-                <h2>文件识别与题目文字</h2>
-                <p>保留原有识别入口；识别后可在工作台核对公式与条件。</p>
-              </div>
-              <div className={styles.modeSwitch} role="tablist" aria-label="输入方式">
-                <button type="button" role="tab" aria-selected={mode === 'files'} onClick={() => setMode('files')}>
-                  上传文件
-                </button>
-                <button type="button" role="tab" aria-selected={mode === 'text'} onClick={() => setMode('text')}>
-                  粘贴文字
-                </button>
-              </div>
-            </div>
-
-            {mode === 'files' ? (
-              <>
-                <div
-                  className={styles.dropzone}
-                  data-drag={dragOver || undefined}
-                  onClick={() => inputRef.current?.click()}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    setDragOver(true);
+          <div className={styles.heroGrid}>
+            <div className={styles.heroMain}>
+              <h1 id="lab-hero-title" className={styles.title}>
+                把一道题，拆成<em>可推演的实验室</em>。
+              </h1>
+              <p className={styles.lead}>
+                按学科题型填入公式与条件，或上传试卷截图与题干文本。所有条件先经你核对确认，再由确定性计算内核生成步骤、图形与检验。
+              </p>
+              <div className={styles.heroActions}>
+                <button
+                  type="button"
+                  className={styles.primaryCta}
+                  onClick={() => {
+                    setEntryMode('structured');
+                    workbenchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={handleDrop}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') inputRef.current?.click();
-                  }}
-                  aria-label="选择或拖入题目文件，也可以粘贴截图"
                 >
-                  <input
-                    ref={inputRef}
-                    type="file"
-                    accept={ACCEPT}
-                    multiple
-                    hidden
-                    onChange={(event) => {
-                      addFiles(Array.from(event.target.files ?? []));
-                      event.target.value = '';
-                    }}
-                  />
-                  <span className={styles.dropIcon} aria-hidden="true">
-                    <svg viewBox="0 0 40 40" width="42" height="42">
-                      <rect x="7" y="4" width="26" height="32" rx="4" fill="none" stroke="currentColor" strokeWidth="1.6" />
-                      <path d="M13 14h14M13 20h10M13 26h7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                      <circle cx="30" cy="30" r="7" fill="var(--paper-0)" stroke="var(--color-coral)" strokeWidth="1.8" />
-                      <path d="M30 26v8M26 30h8" stroke="var(--color-coral)" strokeWidth="1.8" strokeLinecap="round" />
-                    </svg>
-                  </span>
-                  <strong>拖入题目文件，或粘贴一张截图</strong>
-                  <span>PDF · PNG / JPG / WebP · PPTX · TXT / MD / CSV</span>
-                  <small>最多 6 个文件，每个 70MB；可以同时带上数据、我的解答与参考答案。</small>
-                </div>
-
-                {entries.length ? (
-                  <div className={styles.fileList}>
-                    {entries.map((entry, index) => (
-                      <div key={`${entry.file.name}-${index}`} className={styles.fileRow}>
-                        <span className={styles.fileIndex}>{String(index + 1).padStart(2, '0')}</span>
-                        <span className={styles.fileMeta}>
-                          <strong>{entry.file.name}</strong>
-                          <small>
-                            {formatBytes(entry.file.size)} · {entry.file.type || '未知类型'}
-                          </small>
-                        </span>
-                        <select
-                          value={entry.role}
-                          aria-label={`${entry.file.name} 的用途`}
-                          onChange={(event) =>
-                            setEntries((current) =>
-                              current.map((item, itemIndex) =>
-                                itemIndex === index ? { ...item, role: event.target.value as LabUploadFile['role'] } : item,
-                              ),
-                            )
-                          }
-                        >
-                          {ROLES.map((role) => (
-                            <option key={role.id} value={role.id}>
-                              {role.label} · {role.hint}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          className={styles.removeFile}
-                          aria-label={`移除 ${entry.file.name}`}
-                          onClick={() => setEntries((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  按学科题型录入 ↙
+                </button>
+                <button
+                  type="button"
+                  className={styles.secondaryCta}
+                  onClick={() => {
+                    setEntryMode('ingest');
+                    setMode('files');
+                    workbenchRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
+                  上传原题 / 粘贴题干
+                </button>
+                <a className={styles.ghostLink} href="#lab-samples-title">
+                  体验交互示例 ↓
+                </a>
+                {recent.length > 0 ? (
+                  <a className={styles.ghostLink} href="#lab-recent-title">
+                    最近成果 ({recent.length}) ↓
+                  </a>
                 ) : null}
+              </div>
+            </div>
 
-                <div className={styles.formRow}>
-                  <label className={styles.field}>
-                    <span>实验标题（可选）</span>
-                    <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：作业第 3 题 · 梯度下降" />
-                  </label>
-                  <label className={styles.field}>
-                    <span>题目类型（可选，默认自动判断）</span>
-                    <select value={subject} onChange={(event) => setSubject(event.target.value as LabSubject | '')}>
-                      <option value="">自动判断</option>
-                      {Object.entries(SUBJECT_LABELS)
-                        .filter(([key]) => key !== 'unknown')
-                        .map(([key, label]) => (
-                          <option key={key} value={key}>
-                            {label}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <button type="button" className={styles.primaryAction} onClick={() => void startUpload()} disabled={busy !== null}>
-                    {busy === 'upload' ? '正在识别与建模…' : '开始识别'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <label className={styles.textField}>
-                  <span>题目原文</span>
-                  <textarea
-                    value={text}
-                    rows={9}
-                    placeholder={'粘贴一道完整题目。例如：\n使用梯度下降法求 f(x)=(x-3)^2 的最小值，初始点为 x0=0，学习率为 0.1。'}
-                    onChange={(event) => setText(event.target.value)}
-                  />
-                </label>
-                <div className={styles.formRow}>
-                  <label className={styles.field}>
-                    <span>实验标题（可选）</span>
-                    <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：梯度下降作业" />
-                  </label>
-                  <label className={styles.field}>
-                    <span>题目类型（可选）</span>
-                    <select value={subject} onChange={(event) => setSubject(event.target.value as LabSubject | '')}>
-                      <option value="">自动判断</option>
-                      {Object.entries(SUBJECT_LABELS)
-                        .filter(([key]) => key !== 'unknown')
-                        .map(([key, label]) => (
-                          <option key={key} value={key}>
-                            {label}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-                  <button type="button" className={styles.primaryAction} onClick={() => void startText()} disabled={busy !== null}>
-                    {busy === 'text' ? '正在建立模型…' : '建立实验室'}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {error ? <p className={styles.error} role="alert">{error}</p> : null}
-            <p className={styles.privacyNote}>
-              文件只用于本次实验室识别；未开启模型增强时不会发送到外部服务。扫描版 PDF 与截图使用本机 OCR，可能需要几秒。
-            </p>
+            <aside className={styles.heroSpecBox} aria-label="实验室覆盖学科与工作流">
+              <div className={styles.specBoxHead}>
+                <span>COVERAGE MATRIX · 支持体系</span>
+                <span>4 大通道</span>
+              </div>
+              <div className={styles.disciplineList}>
+                {DISCIPLINE_SPECS.map((item) => (
+                  <div key={item.index} className={styles.disciplineRow}>
+                    <span className={styles.disciplineIdx}>{item.index}</span>
+                    <div className={styles.disciplineCopy}>
+                      <strong>
+                        {item.name} <em>{item.scope}</em>
+                      </strong>
+                      <span>{item.detail}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </aside>
           </div>
-
-          <aside className={styles.sideRail} aria-label="实验室会保存什么">
-            <div className={styles.sideCard}>
-              <span className={styles.eyebrow}>WHAT GETS SAVED</span>
-              <h2>一份完整的学习成果</h2>
-              <ul className={styles.savedList}>
-                <li><b>原题与来源</b><span>题目原文、页码、文件用途</span></li>
-                <li><b>识别条件</b><span>公式、区间、数据与来源标记</span></li>
-                <li><b>可操作模型</b><span>参数、可执行步骤与约束</span></li>
-                <li><b>原题解答</b><span>精确结果、近似值与适用条件</span></li>
-                <li><b>执行轨迹</b><span>每次迭代、队列或训练轮</span></li>
-                <li><b>探索情景</b><span>原条件与改条件后的对照</span></li>
-                <li><b>学生记录</b><span>笔记、预测与尝试反馈</span></li>
-              </ul>
-            </div>
-            <div className={styles.sideCard}>
-              <span className={styles.eyebrow}>HOW IT WORKS</span>
-              <ol className={styles.flowList}>
-                <li><i>01</i> 定位一道题，合并跨页内容</li>
-                <li><i>02</i> 显示公式与数据，先核对再求解</li>
-                <li><i>03</i> 进入可单步执行的实验台</li>
-                <li><i>04</i> 探索、对照、记录并分享</li>
-              </ol>
-            </div>
-          </aside>
         </section>
 
-        <section className={styles.samples} aria-labelledby="lab-samples-title">
-          <div className={styles.sectionHead}>
-            <div>
-              <span className={styles.eyebrow}>START FROM A KNOWN MODEL</span>
-              <h2 id="lab-samples-title">没有题目文件？先用六个通用示例走一遍</h2>
+        {/* ═══ § 01 · WORKBENCH (Unified Entry) ═══ */}
+        <section
+          ref={workbenchRef}
+          className={styles.sectionBlock}
+          aria-labelledby="lab-workbench-heading"
+        >
+          <div className={styles.sectionHeader}>
+            <div className={styles.sectionTitleGroup}>
+              <span className={styles.sectionIndex}>§ 01 / WORKBENCH</span>
+              <h2 id="lab-workbench-heading">录入与建模工作台</h2>
+              <p>根据手头材料选择录入方式：结构化题型直连符号内核，原稿识别支持文件、截图与整段题干。</p>
             </div>
-            <p>通用示例会明确标注为教学模型；408 科目请在上方“输入我的题目”中先选科目，再选题型。</p>
-          </div>
-          <div className={styles.sampleGrid}>
-            {SAMPLES.map((sample) => (
+            <div className={styles.entrySwitcher} role="tablist" aria-label="题目录入方式">
               <button
-                key={sample.id}
                 type="button"
-                className={styles.sampleCard}
-                data-subject={sample.subject}
-                onClick={() => void openSample(sample)}
-                disabled={busy !== null}
+                role="tab"
+                aria-selected={entryMode === 'structured'}
+                className={entryMode === 'structured' ? styles.entryTabActive : styles.entryTab}
+                onClick={() => setEntryMode('structured')}
               >
-                <span className={styles.sampleSubject}>{SUBJECT_LABELS[sample.subject]}</span>
-                <strong>{sample.label}</strong>
-                <span>{sample.kicker}</span>
-                <small>{busy === `sample-${sample.id}` ? '正在建立…' : '打开示例 →'}</small>
+                <span className={styles.tabNum}>01</span>
+                <div>
+                  <strong>按学科题型录入</strong>
+                  <small>高数公式键盘 · 408 · 大学物理</small>
+                </div>
               </button>
-            ))}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={entryMode === 'ingest'}
+                className={entryMode === 'ingest' ? styles.entryTabActive : styles.entryTab}
+                onClick={() => setEntryMode('ingest')}
+              >
+                <span className={styles.tabNum}>02</span>
+                <div>
+                  <strong>文件识别与题目文字</strong>
+                  <small>PDF / 截图 / 课件 / 自由文本</small>
+                </div>
+              </button>
+            </div>
           </div>
+
+          {entryMode === 'structured' ? (
+            <ManualLabComposer />
+          ) : (
+            <div className={styles.workbench} aria-label="文件识别与题目文字">
+              <div ref={composerRef} className={styles.composer} onPaste={handlePaste}>
+                <div className={styles.composerHead}>
+                  <div>
+                    <span className={styles.panelKicker}>
+                      <span className={styles.cross}>+</span> SOURCE INGESTION · 原稿识别
+                    </span>
+                    <h3>文件识别与题目文字</h3>
+                  </div>
+                  <div className={styles.modeSwitch} role="tablist" aria-label="导入模式">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === 'files'}
+                      className={mode === 'files' ? styles.modeActive : styles.modeButton}
+                      onClick={() => setMode('files')}
+                    >
+                      文件 / 截图
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === 'text'}
+                      className={mode === 'text' ? styles.modeActive : styles.modeButton}
+                      onClick={() => setMode('text')}
+                    >
+                      粘贴题目文字
+                    </button>
+                  </div>
+                </div>
+
+                <div className={styles.metaFields}>
+                  <label className={styles.metaField}>
+                    <span>题目名称（可选）</span>
+                    <input
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      placeholder="留空则默认按 question_i 自动编号"
+                    />
+                  </label>
+                  <label className={styles.metaField}>
+                    <span>所属学科</span>
+                    <select
+                      aria-label="所属学科"
+                      value={subject}
+                      onChange={(event) => setSubject(event.target.value as LabSubject | '')}
+                    >
+                      <option value="">自动识别</option>
+                      <optgroup label="数学与自然科学">
+                        <option value="calculus">{SUBJECT_LABELS.calculus}</option>
+                        <option value="linear_algebra">{SUBJECT_LABELS.linear_algebra}</option>
+                        <option value="optimization">{SUBJECT_LABELS.optimization}</option>
+                        <option value="physics">{SUBJECT_LABELS.physics}</option>
+                      </optgroup>
+                      <optgroup label="计算机与 408">
+                        <option value="algorithm">{SUBJECT_LABELS.algorithm}</option>
+                        <option value="computer_organization">{SUBJECT_LABELS.computer_organization}</option>
+                        <option value="operating_system">{SUBJECT_LABELS.operating_system}</option>
+                        <option value="computer_network">{SUBJECT_LABELS.computer_network}</option>
+                        <option value="deep_learning">{SUBJECT_LABELS.deep_learning}</option>
+                      </optgroup>
+                    </select>
+                  </label>
+                </div>
+
+                {mode === 'files' ? (
+                  <>
+                    <div
+                      className={`${styles.dropzone} ${dragOver ? styles.dropzoneActive : ''}`}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        setDragOver(true);
+                      }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={handleDrop}
+                      onClick={() => inputRef.current?.click()}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          inputRef.current?.click();
+                        }
+                      }}
+                    >
+                      <input
+                        ref={inputRef}
+                        type="file"
+                        multiple
+                        accept={ACCEPT}
+                        hidden
+                        onChange={(event) => {
+                          addFiles(Array.from(event.target.files ?? []));
+                          event.target.value = '';
+                        }}
+                      />
+                      <span className={styles.dropBadge}>DROP / PASTE / SELECT</span>
+                      <strong>拖入 PDF、题目截图、PPTX 或数据文件</strong>
+                      <p>支持直接 Ctrl+V 粘贴剪贴板截图 · 单次最多 6 份材料</p>
+                      <span className={styles.dropAction}>选择本地文件 →</span>
+                    </div>
+
+                    {entries.length > 0 ? (
+                      <div className={styles.fileList} aria-label="已选文件">
+                        {entries.map((entry, index) => (
+                          <div key={`${entry.file.name}-${index}`} className={styles.fileRow}>
+                            <div className={styles.fileMain}>
+                              <strong>{entry.file.name}</strong>
+                              <span>{formatBytes(entry.file.size)}</span>
+                            </div>
+                            <label className={styles.roleLabel}>
+                              <span className="sr-only">文件用途</span>
+                              <select
+                                value={entry.role}
+                                onChange={(event) => {
+                                  const role = event.target.value as LabUploadFile['role'];
+                                  setEntries((current) =>
+                                    current.map((item, idx) => (idx === index ? { ...item, role } : item)),
+                                  );
+                                }}
+                              >
+                                {ROLES.map((role) => (
+                                  <option key={role.id} value={role.id}>
+                                    {role.label} — {role.hint}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <button
+                              type="button"
+                              className={styles.removeBtn}
+                              onClick={() => setEntries((current) => current.filter((_, idx) => idx !== index))}
+                            >
+                              移除
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div className={styles.submitRow}>
+                      <p className={styles.submitHint}>识别出的公式、区间与数值会先展示供你核对，再进入求解。</p>
+                      <button
+                        type="button"
+                        className={styles.submitBtn}
+                        disabled={busy !== null}
+                        onClick={() => void startUpload()}
+                      >
+                        {busy === 'upload' ? '正在识别题目…' : '开始识别并建模 →'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className={styles.textAreaWrap}>
+                      <span>题目文字、LaTeX 公式、已知条件或你的尝试</span>
+                      <textarea
+                        rows={6}
+                        value={text}
+                        onChange={(event) => setText(event.target.value)}
+                        placeholder="粘贴完整题干。例如：求定积分 ∫_0^2 (x^3 - 2x + 1) dx；或粘贴数据结构、操作系统、物理题干。"
+                      />
+                    </label>
+                    <div className={styles.submitRow}>
+                      <p className={styles.submitHint}>提取出的条件可逐项修改，确认无误后再启动内核计算。</p>
+                      <button
+                        type="button"
+                        className={styles.submitBtn}
+                        disabled={busy !== null}
+                        onClick={() => void startText()}
+                      >
+                        {busy === 'text' ? '正在分析题目…' : '识别文字并建模 →'}
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {error ? (
+                  <p className={styles.error} role="alert">
+                    {error}
+                  </p>
+                ) : null}
+              </div>
+
+              <aside className={styles.sideRail} aria-label="原稿识别说明">
+                <div className={styles.railCard}>
+                  <span className={styles.panelKicker}>WORKFLOW · 识别与求解机制</span>
+                  <h3>四步闭环核验</h3>
+                  <ol className={styles.railSteps}>
+                    <li>
+                      <span>01</span>
+                      <div>
+                        <strong>原稿转写</strong>
+                        <p>保留原题截图与页码，提取公式与附加数据。</p>
+                      </div>
+                    </li>
+                    <li>
+                      <span>02</span>
+                      <div>
+                        <strong>条件核对</strong>
+                        <p>关键符号、上下限与初值由你确认，避免黑箱误读。</p>
+                      </div>
+                    </li>
+                    <li>
+                      <span>03</span>
+                      <div>
+                        <strong>内核推演</strong>
+                        <p>调用符号/数值内核生成可回放步骤与交互图像。</p>
+                      </div>
+                    </li>
+                    <li>
+                      <span>04</span>
+                      <div>
+                        <strong>学习归档</strong>
+                        <p>支持答案自测、原稿对照与笔记保存。</p>
+                      </div>
+                    </li>
+                  </ol>
+                </div>
+              </aside>
+            </div>
+          )}
         </section>
 
-        <section className={styles.recent} aria-labelledby="lab-recent-title">          <div className={styles.sectionHead}>
-            <div>
-              <span className={styles.eyebrow}>RECENT LEARNING</span>
-              <h2 id="lab-recent-title">最近的学习成果</h2>
+        {/* ═══ § 02 · INTERACTIVE SPECIMENS ═══ */}
+        <section ref={samplesRef} className={styles.sectionBlock} aria-labelledby="lab-samples-title">
+          <div className={styles.sectionHeader}>
+            <div className={styles.sectionTitleGroup}>
+              <span className={styles.sectionIndex}>§ 02 / INTERACTIVE SPECIMENS</span>
+              <h2 id="lab-samples-title">没有题目文件？先用通用示例走一遍</h2>
+              <p>三组跨学科典型实验台（数学 · 计算机 · 物理），直接体验参数调节、步骤推演与可视化联动。</p>
             </div>
-            <button type="button" className={styles.refreshButton} onClick={() => void loadRecent()}>
-              刷新
-            </button>
           </div>
+
+          <ShowcaseExamples />
+        </section>
+
+        {/* ═══ § 03 · RECENT ARCHIVE ═══ */}
+        <section className={styles.sectionBlock} aria-labelledby="lab-recent-title">
+          <div className={styles.sectionHeader}>
+            <div className={styles.sectionTitleGroup}>
+              <span className={styles.sectionIndex}>§ 03 / RECENT ARCHIVE</span>
+              <h2 id="lab-recent-title">最近的学习成果</h2>
+              <p>已建立的题目实验台与推演记录，点击即可回到上次停下的步骤。</p>
+            </div>
+            {recent.length > 0 ? (
+              <span className={styles.archiveCount}>共 {recent.length} 份记录</span>
+            ) : null}
+          </div>
+
           {recentError ? <p className={styles.error}>{recentError}</p> : null}
-          {recent.length ? (
-            <div className={styles.recentList}>
-              {recent.map((item) => (
-                <Link key={item.lab_id} to={`/labs/${item.lab_id}`} className={styles.recentRow}>
-                  <span className={styles.recentSubject}>{SUBJECT_LABELS[item.subject] ?? item.subject}</span>
-                  <span>
-                    <strong><MathText text={item.title} /></strong>
-                    <small>
-                      {item.problem_count} 道题 · 更新于 {new Date(item.updated_at).toLocaleString('zh-CN', { hour12: false })}
-                    </small>
-                  </span>
-                  <span className={styles.recentStatus} data-status={item.status}>
-                    {statusLabel(item.status, item.ai_verification)}
-                  </span>
-                  <span aria-hidden="true" className={styles.recentArrow}>→</span>
+          {recent.length === 0 ? (
+            <div className={styles.emptyRecent}>
+              <p>还没有建立学习成果。在上方录入一道题，或从通用示例开始。</p>
+            </div>
+          ) : (
+            <div className={styles.recentGrid}>
+              {recent.map((lab, idx) => (
+                <Link key={lab.lab_id} to={`/labs/${lab.lab_id}`} className={styles.recentCard}>
+                  <div className={styles.recentTop}>
+                    <span className={styles.recentIdx}>#{String(idx + 1).padStart(2, '0')}</span>
+                    <span className={styles.recentSubject}>
+                      {lab.subject_label || SUBJECT_LABELS[lab.subject]} · {lab.problem_count} 题
+                    </span>
+                    <em className={styles.recentStatus} data-status={lab.status}>
+                      {statusLabel(lab.status, lab.ai_verification)}
+                    </em>
+                  </div>
+                  <strong className={styles.recentTitle}>
+                    <MathText text={lab.title} />
+                  </strong>
+                  <p className={styles.recentSummary}>
+                    {lab.updated_at ? `更新于 ${lab.updated_at.slice(0, 16).replace('T', ' ')}` : '点击进入实验台查看完整推导与图形'}
+                  </p>
                 </Link>
               ))}
             </div>
-          ) : !recentError ? (
-            <div className={styles.emptyRecent}>
-              <span>还没有学习成果</span>
-              <p>上传一道题或打开上方示例，结束后会在这里按会话保留。</p>
-            </div>
-          ) : null}
+          )}
         </section>
       </main>
     </div>

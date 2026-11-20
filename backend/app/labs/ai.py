@@ -4,7 +4,7 @@
 只有同时满足以下条件才会联网：
 
 - ``LAB_AI_ENABLED=true``；
-- ``LLM_PROVIDER`` 为 ``maas`` 或 ``openai_compatible``；
+- ``LLM_PROVIDER`` 为 ``maas``；
 - ``LLM_API_KEY`` 与 ``LLM_MODEL`` 非空，地址不是占位域名。
 
 讲解请求只发送当前题目文字、已计算出的轨迹摘要和学生问题，不发送原始文件、Cookie
@@ -45,7 +45,7 @@ class LabAI:
         settings = self._settings
         if not settings.lab_ai_enabled:
             return False
-        if str(settings.llm_provider).lower() not in ("maas", "openai_compatible"):
+        if str(settings.llm_provider).strip().lower() != "maas":
             return False
         if not settings.llm_api_key.strip() or not settings.llm_model.strip():
             return False

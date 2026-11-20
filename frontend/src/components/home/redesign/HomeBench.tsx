@@ -1,7 +1,8 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
 
-type BenchMode = 'integral' | 'gradient' | 'bfs';
+type BenchMode = 'integral' | 'gradient' | 'bfs' | 'schedule';
 type IntegralMethod = 'left' | 'mid' | 'right';
+type ScheduleAlgo = 'fcfs' | 'sjf' | 'srtf' | 'rr';
 
 const PLOT = { left: 52, right: 534, top: 28, bottom: 258 };
 const PLOT_WIDTH = PLOT.right - PLOT.left;
@@ -116,6 +117,134 @@ function buildBfsSnapshots(): BfsSnapshot[] {
 
 const BFS_SNAPSHOTS = buildBfsSnapshots();
 
+interface ScheduleProcess {
+  id: 'P1' | 'P2' | 'P3' | 'P4';
+  arrival: number;
+  burst: number;
+}
+
+const SCHEDULE_PROCESSES: readonly ScheduleProcess[] = [
+  { id: 'P1', arrival: 0, burst: 7 },
+  { id: 'P2', arrival: 2, burst: 4 },
+  { id: 'P3', arrival: 4, burst: 1 },
+  { id: 'P4', arrival: 5, burst: 4 },
+];
+
+interface GanttSegment {
+  pid: ScheduleProcess['id'];
+  start: number;
+  end: number;
+}
+
+function runSchedule(algo: ScheduleAlgo, quantum: number): {
+  segments: GanttSegment[];
+  totalTime: number;
+  avgTurnaround: number;
+  avgWait: number;
+  finishByPid: Record<ScheduleProcess['id'], number>;
+} {
+  const remaining: Record<ScheduleProcess['id'], number> = {
+    P1: 7, P2: 4, P3: 1, P4: 4,
+  };
+  const finishByPid: Record<ScheduleProcess['id'], number> = {
+    P1: 0, P2: 0, P3: 0, P4: 0,
+  };
+  const segments: GanttSegment[] = [];
+
+  if (algo === 'rr') {
+    let t = 0;
+    const ready: ScheduleProcess['id'][] = [];
+    const enqueued = new Set<ScheduleProcess['id']>();
+    const enqueueArrivals = (limit: number): void => {
+      for (const proc of SCHEDULE_PROCESSES) {
+        if (!enqueued.has(proc.id) && proc.arrival <= limit) {
+          enqueued.add(proc.id);
+          ready.push(proc.id);
+        }
+      }
+    };
+    enqueueArrivals(0);
+    while (Object.values(remaining).some((v) => v > 0)) {
+      if (ready.length === 0) {
+        t += 1;
+        enqueueArrivals(t);
+        continue;
+      }
+      const pid = ready.shift()!;
+      const runFor = Math.min(quantum, remaining[pid]);
+      const start = t;
+      t += runFor;
+      remaining[pid] -= runFor;
+      const last = segments[segments.length - 1];
+      if (last && last.pid === pid && last.end === start) {
+        last.end = t;
+      } else {
+        segments.push({ pid, start, end: t });
+      }
+      enqueueArrivals(t);
+      if (remaining[pid] > 0) {
+        ready.push(pid);
+      } else {
+        finishByPid[pid] = t;
+      }
+    }
+  } else {
+    let t = 0;
+    let done = 0;
+    while (done < SCHEDULE_PROCESSES.length) {
+      const available = SCHEDULE_PROCESSES.filter((proc) => proc.arrival <= t && remaining[proc.id] > 0);
+      if (available.length === 0) {
+        t += 1;
+        continue;
+      }
+      available.sort((a, b) => {
+        if (algo === 'fcfs') return a.arrival - b.arrival || a.id.localeCompare(b.id);
+        const ra = remaining[a.id];
+        const rb = remaining[b.id];
+        return ra - rb || a.arrival - b.arrival || a.id.localeCompare(b.id);
+      });
+      const chosen = available[0]!;
+      const runFor = algo === 'srtf' ? 1 : remaining[chosen.id];
+      const start = t;
+      t += runFor;
+      remaining[chosen.id] -= runFor;
+      const last = segments[segments.length - 1];
+      if (last && last.pid === chosen.id && last.end === start) {
+        last.end = t;
+      } else {
+        segments.push({ pid: chosen.id, start, end: t });
+      }
+      if (remaining[chosen.id] === 0) {
+        finishByPid[chosen.id] = t;
+        done += 1;
+      }
+    }
+  }
+
+  let sumTat = 0;
+  let sumWt = 0;
+  for (const proc of SCHEDULE_PROCESSES) {
+    const tat = finishByPid[proc.id] - proc.arrival;
+    const wt = tat - proc.burst;
+    sumTat += tat;
+    sumWt += wt;
+  }
+  return {
+    segments,
+    totalTime: segments[segments.length - 1]?.end ?? 16,
+    avgTurnaround: sumTat / SCHEDULE_PROCESSES.length,
+    avgWait: sumWt / SCHEDULE_PROCESSES.length,
+    finishByPid,
+  };
+}
+
+function algoLabel(algo: ScheduleAlgo): string {
+  if (algo === 'fcfs') return 'FCFS 先来先服务';
+  if (algo === 'sjf') return 'SJF 短作业优先';
+  if (algo === 'srtf') return 'SRTF 最短剩余时间';
+  return 'RR 时间片轮转';
+}
+
 export function HomeBench(): JSX.Element {
   const [mode, setMode] = useState<BenchMode>('integral');
   const [n, setN] = useState(12);
@@ -123,11 +252,14 @@ export function HomeBench(): JSX.Element {
   const [lr, setLr] = useState(0.12);
   const [gradientReplay, setGradientReplay] = useState(0);
   const [bfsStep, setBfsStep] = useState(0);
+  const [scheduleAlgo, setScheduleAlgo] = useState<ScheduleAlgo>('srtf');
+  const [quantum, setQuantum] = useState(2);
 
   const gradient = useMemo(() => gradientRun(lr), [lr]);
   const gradientStart = gradient.points[0] ?? [-1.68, 1.24];
   const gradientEnd = gradient.points[gradient.points.length - 1] ?? [0, 0];
   const bfs = BFS_SNAPSHOTS[Math.min(bfsStep, BFS_SNAPSHOTS.length - 1)]!;
+  const schedule = useMemo(() => runSchedule(scheduleAlgo, quantum), [scheduleAlgo, quantum]);
 
   const integral = useMemo(() => {
     const dx = 1 / n;
@@ -174,6 +306,11 @@ export function HomeBench(): JSX.Element {
       title: <>从 A 出发，按层遍历这张无向图，并写出队列的出队顺序。</>,
       stamp: '可回放',
     },
+    schedule: {
+      tag: '样题 04 / 操作系统',
+      title: <>对比 <b>FCFS / SJF / SRTF / RR</b> 调度 4 个进程，观察甘特图与等待时间。</>,
+      stamp: '可切换',
+    },
   };
 
   function selectMode(nextMode: BenchMode, focus = false): void {
@@ -186,7 +323,7 @@ export function HomeBench(): JSX.Element {
   }
 
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number): void {
-    const order: BenchMode[] = ['integral', 'gradient', 'bfs'];
+    const order: BenchMode[] = ['integral', 'gradient', 'bfs', 'schedule'];
     let next: BenchMode | null = null;
     if (event.key === 'ArrowRight' || event.key === 'ArrowDown') next = order[(index + 1) % order.length] ?? null;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') next = order[(index - 1 + order.length) % order.length] ?? null;
@@ -203,7 +340,8 @@ export function HomeBench(): JSX.Element {
   const bfsOutput = bfsDone
     ? '访问顺序 A → B → C → D → E → F · 共 3 层'
     : `已访问 ${bfs.order.length} / 6 · 队列 ${bfs.queue.join(' → ') || '空'}`;
-  const output = mode === 'integral' ? integralOutput : mode === 'gradient' ? gradientOutput : bfsOutput;
+  const scheduleOutput = `${scheduleAlgo.toUpperCase()}${scheduleAlgo === 'rr' ? ` q=${quantum}` : ''} · 平均周转 ${schedule.avgTurnaround.toFixed(2)} · 平均等待 ${schedule.avgWait.toFixed(2)} · ${schedule.segments.length} 段`;
+  const output = mode === 'integral' ? integralOutput : mode === 'gradient' ? gradientOutput : mode === 'bfs' ? bfsOutput : scheduleOutput;
 
   return (
     <div className="bench" id="bench" aria-label="可交互的样题实验台">
@@ -214,7 +352,7 @@ export function HomeBench(): JSX.Element {
       </div>
 
       <div className="bench__tabs" role="tablist" aria-label="切换样题">
-        {(['integral', 'gradient', 'bfs'] as const).map((item, index) => (
+        {(['integral', 'gradient', 'bfs', 'schedule'] as const).map((item, index) => (
           <button
             key={item}
             className={`bench__tab${mode === item ? ' is-active' : ''}`}
@@ -228,7 +366,7 @@ export function HomeBench(): JSX.Element {
             onKeyDown={(event) => handleTabKey(event, index)}
           >
             <span className="bench__tab-no">{String(index + 1).padStart(2, '0')}</span>
-            {item === 'integral' ? '定积分' : item === 'gradient' ? '梯度下降' : '广度优先'}
+            {item === 'integral' ? '定积分' : item === 'gradient' ? '梯度下降' : item === 'bfs' ? '广度优先' : '进程调度'}
           </button>
         ))}
       </div>
@@ -353,6 +491,102 @@ export function HomeBench(): JSX.Element {
               <text className="plot-label" x={PLOT.left + 8} y={PLOT.bottom + 18}>蓝色已访问 · 红色当前 · 虚线在队列中</text>
             </svg>
           ) : null}
+          {mode === 'schedule' ? (
+            <svg
+              viewBox="0 0 560 300"
+              role="img"
+              aria-label={`进程调度甘特图，算法 ${algoLabel(scheduleAlgo)}，平均周转 ${schedule.avgTurnaround.toFixed(2)}`}
+            >
+              <Grid xSteps={[0, 0.25, 0.5, 0.75, 1]} ySteps={[0, 0.25, 0.5, 0.75, 1]} />
+              <path className="plot-axis" d={`M${PLOT.left} ${PLOT.top + 22}V${PLOT.bottom - 18}H${PLOT.right}`} />
+              <text className="plot-label plot-label--ink" x={PLOT.left + 8} y={PLOT.top + 12}>
+                {algoLabel(scheduleAlgo)} · 甘特图（t = 0 → {schedule.totalTime}）
+              </text>
+              {(() => {
+                const colors: Record<ScheduleProcess['id'], string> = {
+                  P1: 'var(--blue)',
+                  P2: '#0f7b5f',
+                  P3: 'var(--red)',
+                  P4: '#8a5a16',
+                };
+                const rowY = (idx: number) => PLOT.top + 38 + idx * 44;
+                const xAt = (t: number) => PLOT.left + (t / schedule.totalTime) * PLOT_WIDTH;
+                return (
+                  <g>
+                    {SCHEDULE_PROCESSES.map((proc, idx) => {
+                      const y = rowY(idx);
+                      const arrX = xAt(proc.arrival);
+                      const fin = schedule.finishByPid[proc.id];
+                      const finX = xAt(fin);
+                      return (
+                        <g key={proc.id}>
+                          <text className="plot-label plot-label--ink" x={PLOT.left - 34} y={y + 16}>
+                            {proc.id}
+                          </text>
+                          <line
+                            x1={arrX}
+                            y1={y + 12}
+                            x2={finX}
+                            y2={y + 12}
+                            stroke="rgba(16, 29, 49, 0.16)"
+                            strokeWidth="2"
+                            strokeDasharray="3 3"
+                          />
+                          <circle cx={arrX} cy={y + 12} r="3" fill="var(--ink)" />
+                        </g>
+                      );
+                    })}
+                    {schedule.segments.map((seg, segIdx) => {
+                      const rowIdx = SCHEDULE_PROCESSES.findIndex((p) => p.id === seg.pid);
+                      const y = rowY(rowIdx);
+                      const x = xAt(seg.start);
+                      const w = Math.max(4, xAt(seg.end) - x - 1.5);
+                      return (
+                        <g key={`${seg.pid}-${seg.start}-${segIdx}`}>
+                          <rect
+                            x={x}
+                            y={y}
+                            width={w}
+                            height="24"
+                            rx="3"
+                            fill={colors[seg.pid]}
+                            opacity="0.88"
+                          />
+                          {w >= 26 ? (
+                            <text
+                              x={x + w / 2}
+                              y={y + 15}
+                              textAnchor="middle"
+                              fill="#ffffff"
+                              fontSize="9.5"
+                              fontFamily="var(--mono)"
+                              fontWeight="700"
+                            >
+                              {seg.pid}
+                            </text>
+                          ) : null}
+                        </g>
+                      );
+                    })}
+                    {[0, 2, 4, 6, 8, 10, 12, 14, 16].map((tick) => (
+                      <text
+                        key={tick}
+                        className="plot-label"
+                        x={xAt(tick)}
+                        y={PLOT.bottom - 2}
+                        textAnchor="middle"
+                      >
+                        {tick}
+                      </text>
+                    ))}
+                    <text className="plot-label" x={PLOT.left + 8} y={PLOT.bottom + 18}>
+                      黑点为到达时刻 · 虚线表示就绪等待与执行跨度
+                    </text>
+                  </g>
+                );
+              })()}
+            </svg>
+          ) : null}
           <span className="bench__stamp" aria-hidden="true">{pageCopy[mode].stamp}</span>
         </div>
 
@@ -439,6 +673,49 @@ export function HomeBench(): JSX.Element {
                 </button>
                 <button className="bench-btn" type="button" onClick={() => setBfsStep(0)}>重置</button>
                 <span className="ctrl__hint">{bfsStep === 0 ? '等待出队 A' : bfsDone ? '全部节点已访问' : `刚出队 ${bfs.current}`}</span>
+              </div>
+            </>
+          ) : null}
+
+          {mode === 'schedule' ? (
+            <>
+              <div className="ctrl">
+                <span className="ctrl__label">调度算法</span>
+                <div className="seg" role="group" aria-label="进程调度算法">
+                  {(['fcfs', 'sjf', 'srtf', 'rr'] as const).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      className={scheduleAlgo === item ? 'is-active' : ''}
+                      aria-pressed={scheduleAlgo === item}
+                      onClick={() => setScheduleAlgo(item)}
+                    >
+                      {item.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+                <span className="ctrl__hint">{algoLabel(scheduleAlgo)}</span>
+              </div>
+              <div className="ctrl">
+                {scheduleAlgo === 'rr' ? (
+                  <>
+                    <label className="ctrl__label" htmlFor="home-bench-q">时间片 q</label>
+                    <input
+                      id="home-bench-q"
+                      type="range"
+                      min="1"
+                      max="4"
+                      step="1"
+                      value={quantum}
+                      onChange={(event) => setQuantum(Number(event.target.value))}
+                    />
+                    <output className="ctrl__value">{quantum}</output>
+                  </>
+                ) : (
+                  <span className="ctrl__hint">
+                    到达/服务：P1(0,7) · P2(2,4) · P3(4,1) · P4(5,4)
+                  </span>
+                )}
               </div>
             </>
           ) : null}

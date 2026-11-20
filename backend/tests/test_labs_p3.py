@@ -92,7 +92,7 @@ def test_second_order_constant_coefficient_and_euler_odes():
 
     euler = ode_plan(equation="x^2*y'' + x*y' + y = 0", initial_conditions=['y(1)=1', "y'(1)=0"])
     assert euler['interactive_solution']['solution_status'] == 'complete'
-    assert 'cos(log(x))' in euler['answer']
+    assert 'cos(ln(x))' in euler['answer']
 
 
 def test_separable_ode_and_geometric_targets():

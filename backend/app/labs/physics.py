@@ -172,6 +172,9 @@ def _g_value(text: str) -> float:
 
 def _normalize_units(text: str) -> str:
     """把高中常见的非 SI 单位换成 SI；未识别的单位仍按题面数值处理。"""
+    text = re.sub(rf"({_NUM})\s*[×xX*]\s*10\s*\^?\s*([-+]?\d+)",
+                  lambda match: f"{float(match.group(1)):g}e{int(match.group(2))}", text)
+
     def replace(pattern: str, fn) -> None:
         nonlocal text
         text = re.sub(pattern, fn, text, flags=re.I)
@@ -189,6 +192,8 @@ def _normalize_units(text: str) -> str:
 
 
 def _detect_mode(text: str) -> str | None:
+    # OCR 可能把关键词从中间断行（"安\n培力"），关键词探测用折叠文本。
+    text = re.sub(r"\s+", "", text or "")
     low = text.lower()
     if "单摆" in text:
         return "pendulum"
@@ -200,7 +205,7 @@ def _detect_mode(text: str) -> str | None:
         return "inelastic"
     if "弹性碰撞" in text:
         return "elastic"
-    if "冲量" in text or "动量定理" in text:
+    if "冲量" in text or "动量定理" in text or "冲力" in text:
         return "impulse"
     if "动能定理" in text or ("合力" in text and "功" in text):
         return "work_energy"
@@ -218,7 +223,7 @@ def _detect_mode(text: str) -> str | None:
         return "projectile_h"
     if "斜抛" in text or "仰角" in text or "抛射角" in text:
         return "projectile_o"
-    if "自由落体" in text or "自由下落" in text:
+    if "自由落体" in text or "自由下落" in text or "自由落下" in text or "自由降落" in text:
         return "free_fall"
     if "相对" in text and "速度" in text:
         return "relative"
@@ -260,7 +265,11 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
     elif mode == "incline":
         need("m", _mass(text), "质量 m")
         need("angle", _angle(text, ("倾角", "角度", "θ")), "斜面倾角 θ")
-        need("mu", _found(text, [rf"(?:动摩擦因数|摩擦因数|摩擦系数)\s*(?:μ\s*)?(?:为|是|=|：|:)?\s*({_NUM})", rf"μ\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "动摩擦因数 μ")
+        mu = _found(text, [rf"(?:动摩擦因数|摩擦因数|摩擦系数)\s*(?:μ\s*)?(?:为|是|=|：|:)?\s*({_NUM})",
+                           rf"μ\s*(?:为|是|=|：|:)?\s*({_NUM})"])
+        if mu is None and ("光滑" in text or "无摩擦" in text):
+            mu = 0.0
+        need("mu", mu, "动摩擦因数 μ")
     elif mode == "atwood":
         need("m1", _mass(text, 1), "质量 m1")
         need("m2", _mass(text, 2), "质量 m2")
@@ -298,7 +307,10 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
         need("A", _found(text, [rf"(?:振幅)\s*(?:A\s*)?(?:为|是|=|：|:)?\s*({_NUM})", rf"(?<![A-Za-z])A\s*(?:为|是|=|：|:)\s*({_NUM})"]), "振幅 A")
     elif mode == "pendulum":
         need("L", _found(text, [rf"(?:摆长)\s*(?:L\s*)?(?:为|是|=|：|:)?\s*({_NUM})", rf"(?<![A-Za-z])L\s*(?:为|是|=|：|:)\s*({_NUM})"]), "摆长 L")
-        need("theta0", _found(text, [rf"(?:初始摆角|摆角|θ0|θ₀)\s*(?:为|是|=|：|:)?\s*({_NUM})\s*°?"]), "初始摆角 θ0")
+        # OCR 可能把 θ0 读成 "00/O0"（"初始摆角00=5°"），标签与数值间容忍一个乱码符号。
+        need("theta0", _found(text, [
+            rf"(?:初始摆角|摆角|初始角度)\s*[θθ₀Ο0Oo]{{0,2}}\s*(?:为|是|=|：|:)?\s*({_NUM})\s*°?",
+            rf"(?:θ0|θ₀)\s*(?:为|是|=|：|:)?\s*({_NUM})\s*°?"]), "初始摆角 θ0")
         values["m"] = _mass(text) or 1.0
     elif mode == "shm":
         need("A", _found(text, [rf"(?:振幅)\s*(?:A\s*)?(?:为|是|=|：|:)?\s*({_NUM})", rf"(?<![A-Za-z])A\s*(?:为|是|=|：|:)\s*({_NUM})"]), "振幅 A")
@@ -370,7 +382,32 @@ def _params_for(mode: str) -> list[dict[str, Any]]:
     return []
 
 
-def _conditions_for(mode: str, values: Mapping[str, float], source: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _apply_overrides(values: dict[str, float], overrides: Mapping[str, Any]) -> set[str]:
+    """将核对修正弹窗传回的数值条件（支持 `phy_<key>` 或 `<key>`）合并到模型默认值中。"""
+    overridden: set[str] = set()
+    merged: dict[str, Any] = dict(overrides.get("condition_values") or {})
+    for raw_key, raw_value in merged.items():
+        if raw_value is None or isinstance(raw_value, bool):
+            continue
+        key = raw_key[4:] if raw_key.startswith("phy_") else raw_key
+        if key not in values:
+            continue
+        try:
+            parsed = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(parsed):
+            values[key] = parsed
+            overridden.add(key)
+    return overridden
+
+
+def _conditions_for(
+    mode: str,
+    values: Mapping[str, float],
+    source: Mapping[str, Any],
+    overridden: set[str] | None = None,
+) -> list[dict[str, Any]]:
     labels = {
         "v0": ("初速度 v0", "m/s"), "a": ("加速度 a", "m/s²"), "t": ("时间 t", "s"),
         "h": ("高度 h", "m"), "h0": ("初始高度 h0", "m"), "angle": ("角度 θ", "°"),
@@ -385,10 +422,12 @@ def _conditions_for(mode: str, values: Mapping[str, float], source: Mapping[str,
     conditions = [{"id": "physics_mode", "label": "物理题型", "value": MODE_LABELS[mode], "kind": "text",
                    "unit": "", "provenance": "original", "source": dict(source), "editable": False,
                    "options": [], "min": None, "max": None, "step": None, "note": None}]
+    confirmed = overridden or set()
     for key, value in values.items():
         label, unit = labels.get(key, (key, ""))
         conditions.append({"id": f"phy_{key}", "label": label, "value": value, "kind": "number",
-                           "unit": unit, "provenance": "original", "source": dict(source),
+                           "unit": unit, "provenance": "student_confirmed" if key in confirmed else "original",
+                           "source": dict(source),
                            "editable": True, "options": [], "min": None, "max": None, "step": None,
                            "note": None})
     return conditions
@@ -450,10 +489,11 @@ def build_physics(text: str, source: Mapping[str, Any], overrides: Mapping[str, 
         })
         return built
     values, missing = _parse_mode(mode, _normalize_units(text))
+    overridden = _apply_overrides(values, overrides)
     model = {"engine": "physics_v1", "subject": "physics", "physics_kind": MODE_KIND[mode],
              "physics_mode": mode, "raw": text, "defaults": values, "params": _params_for(mode),
              "teaching": False}
-    conditions = _conditions_for(mode, values, source)
+    conditions = _conditions_for(mode, values, source, overridden)
     formulas = _formulas_for(mode)
     ambiguities: list[dict[str, Any]] = []
     if missing:
@@ -503,7 +543,7 @@ def _samples(t_end: float, fn, count: int = 24) -> list[dict[str, float]]:
     return out
 
 
-def _evaluate_mode(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
+def _evaluate_mode(mode: str, p: Mapping[str, Any], text: str = "") -> dict[str, Any]:
     g = _value(p, "g", G_DEFAULT)
     if g <= 0:
         raise ValueError("重力加速度必须为正数")
@@ -542,7 +582,7 @@ def _evaluate_mode(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
         return {
             "kind": "kinematics", "mode": mode,
             "answer": f"落地时间 t={_fmt(t)} s，落地速度 v={_fmt(v)} m/s。",
-            "answer_value": t,
+            "answer_value": v if ("速度" in text and "时间" not in text) else t,
             "metrics": _metrics([("t", "落地时间", f"{_fmt(t)} s", "accent"),
                                   ("v", "落地速度", f"{_fmt(v)} m/s", None),
                                   ("h", "下落高度", f"{_fmt(h)} m", None)]),
@@ -663,7 +703,7 @@ def _evaluate_mode(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
         return {
             "kind": "newton", "mode": mode,
             "answer": f"加速度大小 {_fmt(abs(acceleration))} m/s²（{direction}），绳张力 T={_fmt(tension)} N。",
-            "answer_value": acceleration,
+            "answer_value": abs(acceleration),
             "metrics": _metrics([("a", "加速度", f"{_fmt(abs(acceleration))} m/s²", "accent"),
                                   ("T", "绳张力", f"{_fmt(tension)} N", None),
                                   ("total", "总质量", f"{_fmt(total)} kg", None)]),
@@ -775,7 +815,7 @@ def _evaluate_mode(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
         return {
             "kind": "momentum", "mode": mode,
             "answer": f"动量变化 Δp={_fmt(impulse)} kg·m/s，冲量 I={_fmt(impulse)} N·s，平均力 F={_fmt(average)} N。",
-            "answer_value": impulse,
+            "answer_value": average if re.search(r"冲力|平均力|平均作用力", text) else impulse,
             "metrics": _metrics([("dp", "动量变化", f"{_fmt(impulse)} kg·m/s", "accent"),
                                   ("I", "冲量", f"{_fmt(impulse)} N·s", None),
                                   ("F", "平均力", f"{_fmt(average)} N", None)]),
@@ -939,7 +979,7 @@ def evaluate_physics(model: Mapping[str, Any], params: Mapping[str, Any] | None 
                 "reason": "未确定物理题型", "answer": "", "metrics": [], "checks": [],
                 "notes": [], "frames": [], "scene": {}}
     try:
-        result = _evaluate_mode(mode, merged)
+        result = _evaluate_mode(mode, merged, str(model.get("raw") or ""))
     except (ValueError, TypeError, ArithmeticError, ZeroDivisionError) as exc:
         return {"status": "blocked", "kind": MODE_KIND.get(mode), "mode": mode,
                 "reason": str(exc), "answer": "", "metrics": [], "checks": [],

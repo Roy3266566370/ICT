@@ -206,6 +206,137 @@ export function evaluateSandboxRegion(
   };
 }
 
+export interface PiecesSandboxResult {
+  /** 每片的外层区间、采样多边形与片中点和。 */
+  pieces: { outer: [number, number]; region: { outer: number; lower: number; upper: number }[]; approx: number }[];
+  approx: number;
+  slice: { position: number; lower: number; upper: number; piece: number };
+}
+
+/**
+ * 分片区域拖拽沙盒：逐片重采边界 + 可选拖动公共分割线。
+ * innerBounds[i] 对应 model.pieces[i] 的两条内边界表达式；
+ * outerBounds[i] 允许覆盖该片外层区间（分割线拖动时用），但调用方须保证相邻片首尾相接。
+ */
+export function evaluatePiecesSandbox(
+  model: LabModel,
+  innerBounds: [string, string][],
+  outerBounds: [number, number][],
+  params: Record<string, unknown> = {},
+): PiecesSandboxResult {
+  const outer = (model.outer_variable ?? 'x') as 'x' | 'y';
+  const modelPieces = model.pieces ?? [];
+  if (!modelPieces.length || innerBounds.length !== modelPieces.length || outerBounds.length !== modelPieces.length) {
+    throw new Error('分片数量与拖拽输入不一致');
+  }
+  const integrand = compileExpression(model.integrand ?? '1', ['x', 'y']);
+  const nRaw = Number(params.n ?? 20);
+  const n = clamp(Number.isFinite(nRaw) ? Math.round(nRaw) : 20, 4, 80);
+  const pieces: PiecesSandboxResult['pieces'] = [];
+  let approx = 0;
+  for (let i = 0; i < modelPieces.length; i += 1) {
+    const [a, b] = outerBounds[i]!;
+    if (!(a < b)) throw new Error(`第 ${i + 1} 片外层区间顺序错误`);
+    const low = compileExpression(innerBounds[i]![0], [outer]);
+    const high = compileExpression(innerBounds[i]![1], [outer]);
+    const sample = (q: number) => {
+      const lower = low.evalOrNull({ [outer]: q });
+      const upper = high.evalOrNull({ [outer]: q });
+      if (lower === null || upper === null || !Number.isFinite(lower) || !Number.isFinite(upper)) {
+        throw new Error(`第 ${i + 1} 片拖拽边界无法计算`);
+      }
+      if (upper < lower - 1e-10) throw new Error(`第 ${i + 1} 片上下边界交叉`);
+      return { outer: q, lower, upper };
+    };
+    let pieceApprox = 0;
+    for (let k = 0; k < n; k += 1) {
+      const q = a + (k + 0.5) * (b - a) / n;
+      const { lower, upper } = sample(q);
+      for (let j = 0; j < n; j += 1) {
+        const value = integrand.evalOrNull(outer === 'x'
+          ? { x: q, y: lower + (j + 0.5) * (upper - lower) / n }
+          : { x: lower + (j + 0.5) * (upper - lower) / n, y: q });
+        if (value === null || !Number.isFinite(value)) throw new Error(`第 ${i + 1} 片被积函数无法计算`);
+        pieceApprox += value * (upper - lower) * (b - a) / n ** 2;
+      }
+    }
+    approx += pieceApprox;
+    pieces.push({ outer: [a, b], region: Array.from({ length: 61 }, (_, k) => sample(a + k * (b - a) / 60)), approx: pieceApprox });
+  }
+  const firstA = pieces[0]!.outer[0];
+  const lastB = pieces[pieces.length - 1]!.outer[1];
+  const position = clamp(Number(params.slice ?? (firstA + lastB) / 2), firstA, lastB);
+  const hit = Math.max(0, pieces.findIndex((piece) => position >= piece.outer[0] - 1e-9 && position <= piece.outer[1] + 1e-9));
+  const activeLow = compileExpression(innerBounds[hit]![0], [outer]);
+  const activeHigh = compileExpression(innerBounds[hit]![1], [outer]);
+  const lower = activeLow.evalOrNull({ [outer]: position }) ?? 0;
+  const upper = Math.max(lower, activeHigh.evalOrNull({ [outer]: position }) ?? lower);
+  return { pieces, approx, slice: { position, lower, upper, piece: hit } };
+}
+
+export interface PolarSandboxResult {
+  theta: [number, number];
+  outerPoints: { x: number; y: number }[];
+  innerPoints: { x: number; y: number }[];
+  approx: number;
+  slice: { theta: number; r_lower: number; r_upper: number };
+}
+
+/**
+ * 极坐标区域拖拽沙盒：θ 边界两条射线 + r 边界曲线控制点。
+ * 近似沿用内核的 transformed_integrand（已含 Jacobian r），只作观察不做符号换序。
+ */
+export function evaluatePolarSandbox(
+  model: LabModel,
+  bounds: { theta: [number, number]; r: [string, string] },
+  params: Record<string, unknown> = {},
+): PolarSandboxResult {
+  const polar = model.polar;
+  if (!polar) throw new Error('当前题目不是极坐标区域');
+  const [a, b] = bounds.theta;
+  if (!(a < b)) throw new Error('极角区间顺序错误');
+  const low = compileExpression(bounds.r[0], ['theta']);
+  const high = compileExpression(bounds.r[1], ['theta']);
+  const integrand = compileExpression(polar.transformed_integrand, ['theta', 'r']);
+  const sample = (theta: number) => {
+    const lower = low.evalOrNull({ theta }) ?? NaN;
+    const upper = high.evalOrNull({ theta }) ?? NaN;
+    if (!Number.isFinite(lower) || !Number.isFinite(upper)) throw new Error('拖拽后的 r 边界无法计算');
+    if (upper < lower - 1e-10) throw new Error('拖拽后内外边界交叉');
+    return { lower, upper: Math.max(0, upper) };
+  };
+  const nRaw = Number(params.n ?? 20);
+  const n = clamp(Number.isFinite(nRaw) ? Math.round(nRaw) : 20, 4, 80);
+  let approx = 0;
+  for (let i = 0; i < n; i += 1) {
+    const theta = a + (i + 0.5) * (b - a) / n;
+    const { lower, upper } = sample(theta);
+    for (let j = 0; j < n; j += 1) {
+      const r = lower + (j + 0.5) * (upper - lower) / n;
+      const value = integrand.evalOrNull({ theta, r });
+      if (value === null || !Number.isFinite(value)) throw new Error('被积函数在拖拽区域内无法计算');
+      approx += value * (upper - lower) * (b - a) / n ** 2;
+    }
+  }
+  const theta = clamp(Number(params.theta ?? (a + b) / 2), a, b);
+  const active = sample(theta);
+  return {
+    theta: [a, b],
+    outerPoints: Array.from({ length: 121 }, (_, i) => {
+      const t = a + (b - a) * i / 120;
+      const r = sample(t).upper;
+      return { x: r * Math.cos(t), y: r * Math.sin(t) };
+    }),
+    innerPoints: Array.from({ length: 121 }, (_, i) => {
+      const t = a + (b - a) * i / 120;
+      const r = sample(t).lower;
+      return { x: r * Math.cos(t), y: r * Math.sin(t) };
+    }),
+    approx,
+    slice: { theta, r_lower: active.lower, r_upper: active.upper },
+  };
+}
+
 function evaluatePolar(model: LabModel, params: Record<string, unknown>): DoubleIntegralResult {
   const polar = model.polar!;
   const scalar = (source: string) => {

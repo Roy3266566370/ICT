@@ -74,9 +74,10 @@ def _param(cid: str, label: str, min_value: float | None, max_value: float | Non
 
 
 def _condition(cid: str, label: str, value: Any, *, unit: str = "",
-               source: Mapping[str, Any] | None = None) -> dict[str, Any]:
+               source: Mapping[str, Any] | None = None, editable: bool = True,
+               provenance: str = "original") -> dict[str, Any]:
     return {"id": cid, "label": label, "value": value, "kind": "number", "unit": unit,
-            "provenance": "original", "source": dict(source or {}), "editable": True,
+            "provenance": provenance, "source": dict(source or {}), "editable": editable,
             "options": [], "min": None, "max": None, "step": None, "note": None}
 
 
@@ -132,6 +133,8 @@ def _ev_value(text: str, patterns: list[str]) -> float | None:
 
 
 def detect_third_mode(text: str) -> str | None:
+    # OCR 断行会拆散关键词，探测用折叠文本。
+    text = re.sub(r"\s+", "", text or "")
     if any(word in text for word in ("光电效应", "逸出功", "遏止电压", "截止频率")):
         return "photoelectric"
     if "德布罗意" in text or "物质波" in text:
@@ -172,14 +175,15 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
 
     def wavelength() -> float | None:
         return first([
-            rf"(?:入射光波长|光波长|波长)\s*(?:λ\s*)?(?:为|是|=|：|:)?\s*({_NUM})",
-            rf"(?:λ)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+            # OCR 常把 λ 读成 "入/人/Λ"（"波长入=600nm"）。
+            rf"(?:入射光波长|光波长|波长)\s*(?:λ|入|人|Λ)?\s*(?:为|是|=|：|:)?\s*({_NUM})",
+            rf"(?:λ|入)\s*(?:为|是|=|：|:)\s*({_NUM})\s*(?:nm|μm|mm|m|米)",
         ])
 
     if mode == "double_slit":
         need("d", first([rf"(?:双缝间距|缝间距|双缝距离)\s*(?:d\s*)?(?:为|是|=|：|:)?\s*({_NUM})"]), "双缝间距 d")
-        need("D", first([rf"(?:双缝到屏|屏到双缝|缝到屏|屏距)[^。；;]{{0,12}}?({_NUM})",
-                         rf"(?:到屏距离|距屏)\s*(?:D\s*)?(?:为|是|=|：|:)?\s*({_NUM})"]), "缝到屏距离 D")
+        need("D", first([rf"(?:双缝到屏|屏到双缝|缝到屏|缝屏间距|屏距)[^。；;]{{0,12}}?({_NUM})",
+                         rf"(?:到屏距离|距屏|与屏距离)\s*(?:D\s*)?(?:为|是|=|：|:)?\s*({_NUM})"]), "缝到屏距离 D")
         need("lam", wavelength(), "光波长 λ")
         values["n"] = first([rf"(?:介质折射率|折射率)\s*(?:n\s*)?(?:为|是|=|：|:)?\s*({_NUM})"]) or 1.0
         values["k"] = first([rf"第\s*({_NUM})\s*级(?:明纹|亮纹|条纹)"]) or 1.0
@@ -196,10 +200,17 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
             need("d", d_value, "薄膜厚度 d")
         need("lam", wavelength(), "光波长 λ")
     elif mode == "single_slit":
-        need("a", first([rf"(?:单缝宽度|单缝宽|缝宽)\s*(?:a\s*)?(?:为|是|=|：|:)?\s*({_NUM})"]), "单缝宽度 a")
+        need("a", first([rf"(?:单缝宽度|单缝宽|缝宽|宽度)\s*(?:a\s*)?(?:为|是|=|：|:)?\s*({_NUM})",
+                         rf"(?<![A-Za-z])a\s*(?:为|是|=|：|:)\s*({_NUM})"]), "单缝宽度 a")
         need("lam", wavelength(), "光波长 λ")
-        need("L", first([rf"(?:透镜焦距|焦距)\s*(?:f\s*)?(?:为|是|=|：|:)?\s*({_NUM})",
-                         rf"(?:屏距|距屏|到屏距离)\s*(?:L\s*)?(?:为|是|=|：|:)?\s*({_NUM})"]), "透镜焦距或屏距 L")
+        l_value = first([rf"(?:透镜焦距|焦距)\s*(?:f\s*)?(?:为|是|=|：|:)?\s*({_NUM})",
+                         rf"(?:屏距|距屏|到屏距离)\s*(?:L\s*)?(?:为|是|=|：|:)?\s*({_NUM})"])
+        # 只问半角宽/衍射角时不需要屏距；问屏上条纹位置/宽度才必须给 L。
+        asks_angular = bool(re.search(r"角宽|半角|衍射角|角位置|角距离", text))
+        if asks_angular and l_value is None:
+            values["angular_only"] = 1.0
+        else:
+            need("L", l_value, "透镜焦距或屏距 L")
     elif mode == "grating":
         per_mm = re.search(rf"每\s*(?:毫米|mm)\s*(?:有|刻有|刻痕|条|刻线)?\s*({_NUM})\s*(?:条|刻痕|刻线)?",
                            text, re.I)
@@ -213,13 +224,20 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
             need("d", first([rf"(?:光栅常数)\s*(?:d\s*)?(?:为|是|=|：|:)?\s*({_NUM})",
                              rf"(?<![A-Za-z])d\s*(?:为|是|=|：|:)\s*({_NUM})"]), "光栅常数 d")
         need("lam", wavelength(), "光波长 λ")
-        values["k"] = first([rf"第\s*({_NUM})\s*级(?:明纹|亮纹|条纹)",
+        values["k"] = first([rf"第\s*({_NUM})\s*级(?:明纹|亮纹|条纹|主极大|光谱|衍射|级)?",
                              rf"(?:级次|k)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or 1.0
     elif mode == "polarization":
         values["I0"] = first([rf"(?:入射光强|自然光强|光强|强度)\s*(?:为|是)?\s*(?:I0|I₀|I)\s*(?:为|是|=|：|:)?\s*({_NUM})",
                               rf"(?:I0|I₀)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or 1.0
-        need("theta", first([rf"(?:偏振化方向夹角|夹角)\s*(?:θ\s*)?(?:为|是|=|：|:)?\s*({_NUM})",
-                             rf"(?:θ)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "偏振化方向夹角 θ")
+        theta_val = first([rf"(?:偏振化方向夹角|夹角)\s*(?:θ\s*)?(?:为|是|=|：|:)?\s*({_NUM})",
+                           rf"(?:θ)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                           rf"夹角\s*(?:为|是|of|达到)?\s*({_NUM})\s*°"])
+        # 只问布儒斯特角时不需要偏振片夹角。
+        if theta_val is None and "布儒斯特" in text:
+            values["theta"] = 0.0
+            values["brewster_only"] = 1.0
+        else:
+            need("theta", theta_val, "偏振化方向夹角 θ")
         values["n"] = first([rf"(?:折射率)\s*(?:n\s*)?(?:为|是|=|：|:)?\s*({_NUM})"]) or 1.5
         values["natural"] = 1.0 if "自然光" in text else 0.0
     elif mode == "refraction":
@@ -302,6 +320,10 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
             values["E2"] = e2
         if e1 is not None:
             values["E1"] = e1
+        if re.search(r"几种|多少种|不同频率|谱线数|最多发出", text):
+            values["asks_lines"] = 1.0
+        elif "最短波长" in text:
+            values["asks_shortest"] = 1.0
         if not match and values["group_n"] <= 0 and (e1 is None or e2 is None):
             missing.append("跃迁初末能级或两个能级能量")
         if hydrogen and values["group_n"] > 0 and "n_hi" not in values:
@@ -317,23 +339,31 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
         if half_life is None:
             half_life = _duration(text, [rf"(?<![A-Za-z])T\s*(?:为|是|=|：|:)?\s*({_NUM})\s*(秒|s|分钟|min|小时|h|天|d|日|年|a)?"])
         need("T", half_life, "半衰期 T")
-        need("N0", first([rf"(?:原有|初始|N0|N₀)\s*(?:原子核|核)?\s*(?:数|数目|个数)?\s*(?:为|是|=|：|:)?\s*({_NUM})",
-                          rf"(?:N0|N₀)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "初始核数 N0")
+        n0_val = first([rf"(?:原有|初始|N0|N₀)\s*(?:原子核|核)?\s*(?:数|数目|个数)?\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                        rf"(?:N0|N₀)\s*(?:为|是|=|：|:)?\s*({_NUM})"])
+        if n0_val is None and re.search(r"百分比|比例|分之几|占|剩余比", text):
+            # 求剩余比例/百分比时 N0 相消，按 1 归一。
+            n0_val = 1.0
+            values["n0_assumed"] = 1.0
+        need("N0", n0_val, "初始核数 N0")
         elapsed = _duration(text, [rf"(?:经过|时间)\s*(?:t\s*)?(?:为|是|=|：|:)?\s*({_NUM})\s*(秒|s|分钟|min|小时|h|天|d|日|年|a)?",
                                    rf"(?<![A-Za-z])t\s*(?:为|是|=|：|:)\s*({_NUM})\s*(秒|s|分钟|min|小时|h|天|d|日|年|a)?"])
         need("t", elapsed, "经过时间 t")
     return values, missing
 
 
-def _params_for(mode: str) -> list[dict[str, Any]]:
+def _params_for(mode: str, values: Mapping[str, float] | None = None) -> list[dict[str, Any]]:
+    vals = values or {}
     if mode == "double_slit":
         return [_param("d", "双缝间距 d (m)", 1e-6, 0.1, 1e-6), _param("D", "缝到屏距离 D (m)", 0.01, 20, 0.01),
                 _param("lam", "波长 λ (m)", 1e-9, 1e-5, 1e-9), _param("n", "介质折射率 n", 1, 3, 0.01),
                 _param("k", "条纹级次 k", 1, 20, 1)]
     if mode == "thin_film":
-        return [_param("n", "薄膜折射率 n", 1, 3, 0.01), _param("d", "薄膜厚度 d (m)", 0, 1e-4, 1e-9),
-                _param("lam", "波长 λ (m)", 1e-9, 1e-5, 1e-9), _param("target", "目标（0判断/1增透/2增反）", 0, 2, 1),
-                _param("phase", "附加半波损失（0/1）", 0, 1, 1)]
+        items = [_param("n", "薄膜折射率 n", 1.01, 3, 0.01), _param("lam", "波长 λ (m)", 1e-9, 1e-5, 1e-9),
+                 _param("phase", "附加半波损失（0/1）", 0, 1, 1)]
+        if vals.get("target", 0.0) < 0.5:
+            items.insert(1, _param("d", "薄膜厚度 d (m)", 1e-9, 1e-4, 1e-9))
+        return items
     if mode == "single_slit":
         return [_param("a", "单缝宽度 a (m)", 1e-6, 1e-2, 1e-6), _param("lam", "波长 λ (m)", 1e-9, 1e-5, 1e-9),
                 _param("L", "透镜焦距/屏距 L (m)", 0.01, 20, 0.01)]
@@ -352,12 +382,15 @@ def _params_for(mode: str) -> list[dict[str, Any]]:
     if mode == "photoelectric":
         return [_param("lam", "入射光波长 λ (m)", 1e-9, 1e-6, 1e-9), _param("W", "逸出功 W (eV)", 0.1, 10, 0.01)]
     if mode == "de_broglie":
-        return [_param("m", "质量 m (kg)", 1e-31, 10, 1e-31), _param("v", "速度 v (m/s)", 0, 1e8, 1),
-                _param("U", "加速电压 U (V)", 0, 1e6, 1), _param("electron", "电子（0/1）", 0, 1, 1)]
+        if vals.get("electron", 0.0) > 0.5 and vals.get("U", 0.0) > 0:
+            return [_param("m", "质量 m (kg)", 1e-31, 10, 1e-31), _param("U", "加速电压 U (V)", 1, 1e6, 1)]
+        return [_param("m", "质量 m (kg)", 1e-31, 10, 1e-31), _param("v", "速度 v (m/s)", 0.01, 1e8, 1)]
     if mode == "energy_level":
-        return [_param("n_hi", "初能级 n_hi", 1, 10, 1), _param("n_lo", "末能级 n_lo", 1, 10, 1),
-                _param("group_n", "一群原子的最高能级 n", 0, 10, 1), _param("E1", "能级 E1 (eV)", -100, 100, 0.1),
-                _param("E2", "能级 E2 (eV)", -100, 100, 0.1), _param("hydrogen", "氢原子（0/1）", 0, 1, 1)]
+        if vals.get("hydrogen", 1.0) > 0.5:
+            if vals.get("group_n", 0.0) >= 2:
+                return [_param("group_n", "一群原子的最高能级 n", 2, 10, 1)]
+            return [_param("n_hi", "初能级 n_hi", 2, 10, 1), _param("n_lo", "末能级 n_lo", 1, 9, 1)]
+        return [_param("E1", "能级 E1 (eV)", -100, 100, 0.1), _param("E2", "能级 E2 (eV)", -100, 100, 0.1)]
     if mode == "decay":
         return [_param("T", "半衰期 T (s)", 1, 1e12, 1), _param("N0", "初始核数 N0", 1, 1e30, 1),
                 _param("t", "经过时间 t (s)", 0, 1e12, 1)]
@@ -386,8 +419,10 @@ def build_physics_third(text: str, source: Mapping[str, Any], overrides: Mapping
         return None
     normalized = _normalize_scientific(_normalize_units(text))
     values, missing = _parse_mode(mode, normalized)
+    from .physics import _apply_overrides
+    overridden = _apply_overrides(values, overrides)
     model = {"engine": "physics_v1", "subject": "physics", "physics_kind": MODE_KIND[mode],
-             "physics_mode": mode, "raw": text, "defaults": values, "params": _params_for(mode),
+             "physics_mode": mode, "raw": text, "defaults": values, "params": _params_for(mode, values),
              "teaching": False}
     labels = {
         "d": "间距/光栅常数/厚度 d", "D": "缝到屏距离 D", "lam": "波长 λ", "n": "折射率 n",
@@ -403,7 +438,10 @@ def build_physics_third(text: str, source: Mapping[str, Any], overrides: Mapping
                    "kind": "text", "unit": "", "provenance": "original", "source": dict(source),
                    "editable": False, "options": [], "min": None, "max": None, "step": None, "note": None}]
     for key, value in values.items():
-        conditions.append(_condition(f"phy_{key}", labels.get(key, key), value, source=source))
+        conditions.append(_condition(
+            f"phy_{key}", labels.get(key, key), value, source=source,
+            editable=key not in {"target", "phase", "natural", "convex", "electron", "hydrogen"},
+            provenance="student_confirmed" if key in overridden else "original"))
     plain = FORMULAS[mode]
     formulas = [{"id": "physics_rule", "tex": r"\text{" + plain.replace("²", "^2").replace("√", "\\sqrt ") + "}",
                  "plain": plain, "role": "物理规律"}]
@@ -508,9 +546,30 @@ def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
                       "requiredQuarter": required_quarter, "requiredHalf": required_half, "state": state},
         }
     if mode == "single_slit":
-        slit, lam, distance = _v(p, "a"), _v(p, "lam"), _v(p, "L")
-        if slit <= 0 or lam <= 0 or distance <= 0:
-            raise ValueError("缝宽、波长和屏距必须为正数")
+        slit, lam, distance = _v(p, "a"), _v(p, "lam"), _v(p, "L", None)
+        if slit <= 0 or lam <= 0:
+            raise ValueError("缝宽和波长必须为正数")
+        if distance is None:
+            # 没有屏距：只给出角量结果（半角宽、角位置），不虚构线宽度。
+            sin1 = min(1.0, lam / slit)
+            half_deg = math.degrees(math.asin(sin1))
+            half_rad = math.asin(sin1)
+            return {
+                "kind": "wave_optics", "mode": mode,
+                "answer": (f"第一级暗纹衍射角 θ1={_fmt(half_deg)}°（≈{_fmt(half_rad)} rad），"
+                           f"中央明纹角宽度 2θ1={_fmt(2 * half_deg)}°。"),
+                "answer_value": half_deg,
+                "metrics": [_metric("theta1", "半角宽 θ1", f"{_fmt(half_deg)}°", "accent"),
+                            _metric("theta1rad", "半角宽（弧度）", f"{_fmt(half_rad)} rad"),
+                            _metric("a", "缝宽", f"{_fmt(slit)} m")],
+                "checks": [_check("dark", "暗纹条件", True, "a sinθ = λ，θ1 = arcsin(λ/a)")],
+                "notes": [MODE_LIMITS[mode], "未给屏距，仅求角量；屏上条纹位置需补充焦距或屏距。"],
+                "frames": [_frame(0, "暗纹条件", f"θ1={_fmt(half_deg)}°", {"theta1": half_deg})],
+                "scene": {"type": "single_slit", "a": slit, "lam": lam, "L": None,
+                          "theta1": half_deg, "angular": True},
+            }
+        if distance <= 0:
+            raise ValueError("屏距必须为正数")
         half_width = lam * distance / slit
         width = 2 * half_width
         samples = []
@@ -573,9 +632,20 @@ def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
         if intensity < 0 or index_n <= 0:
             raise ValueError("入射光强不能为负，折射率必须为正")
         theta = theta_deg * math.pi / 180
+        brewster = math.degrees(math.atan(index_n))
+        if _v(p, "brewster_only") > 0.5:
+            return {
+                "kind": "wave_optics", "mode": mode,
+                "answer": f"布儒斯特角 θ_B=atan(n)={_fmt(brewster)}°（入射角为此值时反射光为全偏振光）。",
+                "answer_value": brewster,
+                "metrics": [_metric("brewster", "布儒斯特角", f"{_fmt(brewster)}°", "accent")],
+                "checks": [_check("brewster", "布儒斯特定律", abs(brewster - math.degrees(math.atan(index_n))) < 1e-9, "tanθ_B = n")],
+                "notes": [MODE_LIMITS[mode]],
+                "frames": [_frame(0, "布儒斯特角", f"θ_B={_fmt(brewster)}°", {"brewster": brewster})],
+                "scene": {"type": "polarization", "n": index_n, "brewster": brewster, "brewsterOnly": True},
+            }
         first_intensity = intensity * (0.5 if natural else 1.0)
         second_intensity = first_intensity * math.cos(theta) ** 2
-        brewster = math.degrees(math.atan(index_n))
         return {
             "kind": "wave_optics", "mode": mode,
             "answer": f"第一偏振片后 I1={_fmt(first_intensity)} W/m²，检偏器后 I2={_fmt(second_intensity)} W/m²；布儒斯特角 θ_B={_fmt(brewster)}°。",
@@ -767,8 +837,14 @@ def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
             if shortest is not None:
                 answer += f"，最短波长 {_fmt(shortest * 1e9)} nm"
             answer += "。"
+        if _v(p, "asks_lines") > 0.5 and group_n >= 2:
+            answer_value = float(lines)
+        elif _v(p, "asks_shortest") > 0.5 and shortest is not None:
+            answer_value = shortest * 1e9
+        else:
+            answer_value = delta_ev
         return {
-            "kind": "modern_physics", "mode": mode, "answer": answer, "answer_value": delta_ev,
+            "kind": "modern_physics", "mode": mode, "answer": answer, "answer_value": answer_value,
             "metrics": metrics,
             "checks": [_check("photon", "光子能量", abs(delta_ev * E_CHARGE - PLANCK * LIGHT_SPEED / wavelength) < 1e-24, "hν = ΔE"),
                        _check("count", "谱线数", lines == (group_n * (group_n - 1) // 2 if group_n >= 2 else 1), "N = n(n−1)/2")],
@@ -790,15 +866,24 @@ def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
         fraction = remaining / initial
         activity = decay_constant * remaining
         initial_activity = decay_constant * initial
+        assumed = _v(p, "n0_assumed") > 0.5
         samples = []
         span = max(4 * half_life, elapsed * 1.2, half_life)
         for step in range(81):
             t_value = span * step / 80
             samples.append({"t": t_value, "N": initial * math.exp(-decay_constant * t_value)})
+        if assumed:
+            answer_text = (f"剩余比例 N/N0={_fmt(fraction * 100)}%（按 N0=1 归一计算，比值与 N0 无关），"
+                           f"衰变常数 λ={_fmt(decay_constant)} s⁻¹。")
+            answer_value = fraction
+        else:
+            answer_text = (f"剩余核数 N={_fmt(remaining)}，剩余比例 {_fmt(fraction * 100)}%，"
+                           f"当前活度 A={_fmt(activity)} Bq（初始活度 {_fmt(initial_activity)} Bq）。")
+            answer_value = remaining
         return {
             "kind": "modern_physics", "mode": mode,
-            "answer": f"剩余核数 N={_fmt(remaining)}，剩余比例 {_fmt(fraction * 100)}%，当前活度 A={_fmt(activity)} Bq（初始活度 {_fmt(initial_activity)} Bq）。",
-            "answer_value": remaining,
+            "answer": answer_text,
+            "answer_value": answer_value,
             "metrics": [_metric("N", "剩余核数", _fmt(remaining), "accent"),
                         _metric("fraction", "剩余比例", f"{_fmt(fraction * 100)} %"),
                         _metric("A", "当前活度", f"{_fmt(activity)} Bq"),

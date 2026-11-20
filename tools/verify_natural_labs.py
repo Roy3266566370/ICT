@@ -1,4 +1,4 @@
-"""Real Ollama + Chromium acceptance runner; no model mocks or output injection."""
+"""Real MaaS + Chromium acceptance runner; no model mocks or output injection."""
 import argparse
 import json
 import subprocess
@@ -9,7 +9,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'verify' / 'natural-labs-2026-11-16'
-OUT.mkdir(parents=True, exist_ok=True)
+sys.path.insert(0, str(ROOT / 'backend'))
+from scripts.dev_server import server_session
+
 CLI = Path.home() / 'AppData/Roaming/npm/node_modules/agent-browser/bin/agent-browser-win32-x64.exe'
 SESSION = 'ict-natural-matrix'
 CASES = {
@@ -180,36 +182,60 @@ def audit(family, lab_id):
     return result
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('family', choices=list(CASES) + ['all'])
     parser.add_argument('--scenario', choices=['full', 'missing', 'fill', 'edit', 'audit'], default='full')
     parser.add_argument('--lab')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--fresh', action='store_true', help='Start/stop an owned backend on 8000 (default); occupied port fails')
+    mode.add_argument('--existing', action='store_true', help='Borrow a verified backend; requires --launch-id')
+    parser.add_argument('--launch-id')
+    parser.add_argument('--check-only', action='store_true', help='Verify backend and Vite proxy identity without browser/AI requests')
     args = parser.parse_args()
-    import urllib.request
-    for _ in range(60):
+    failed = False
+    with server_session(port=8000, existing=args.existing, launch_id=args.launch_id) as server:
+        # Verify the actual frontend proxy as well, not just a different backend
+        # on the expected port. /api/__dev__/identity passes through Vite's /api proxy.
+        server.check('http://localhost:5173')
+        print(json.dumps({'server_identity': server.identity}), flush=True)
+        if args.check_only:
+            return 0
+        OUT.mkdir(parents=True, exist_ok=True)
+        save(OUT / ('run-identity-' + server.identity['launch_id'] + '.json'), server.identity)
         try:
-            with urllib.request.urlopen('http://127.0.0.1:8000/openapi.json',timeout=2) as response:
-                if response.status == 200:break
-        except OSError:
-            time.sleep(.5)
-    else:raise RuntimeError('backend did not become ready')
-    for family in CASES if args.family == 'all' else [args.family]:
-        try:
-            if args.scenario in ('full', 'missing'):
-                create(family, args.scenario)
-            else:
-                lab_id=args.lab
-                if not lab_id:
-                    source_scenario='missing' if args.scenario=='fill' else 'edit' if args.scenario=='audit' else 'full'
-                    candidates=[json.loads(p.read_text(encoding='utf-8')) for p in sorted(OUT.glob(family+'-'+source_scenario+'-*-result.json'))]
-                    candidates=[r for r in candidates if r.get('pass')]
-                    if not candidates:raise RuntimeError('no passing source case for review')
-                    lab_id=candidates[-1]['lab_id']
-                if args.scenario == 'audit':
-                    audit(family, lab_id)
-                else:
-                    review(family, args.scenario, lab_id)
-        except Exception as e:
-            print(json.dumps(dict(family=family, scenario=args.scenario, error=str(e)), ensure_ascii=False), flush=True)
-            save(OUT / (family + '-' + args.scenario + '-error-' + str(int(time.time())) + '.json'), {'error': str(e)})
+            for family in CASES if args.family == 'all' else [args.family]:
+                # Fail closed outside the per-case error handler: never continue
+                # submitting paid requests after the process/source has changed.
+                server.check('http://localhost:5173')
+                try:
+                    if args.scenario in ('full', 'missing'):
+                        result = create(family, args.scenario)
+                    else:
+                        lab_id=args.lab
+                        if not lab_id:
+                            source_scenario='missing' if args.scenario=='fill' else 'edit' if args.scenario=='audit' else 'full'
+                            candidates=[json.loads(p.read_text(encoding='utf-8')) for p in sorted(OUT.glob(family+'-'+source_scenario+'-*-result.json'))]
+                            candidates=[r for r in candidates if r.get('pass')]
+                            if not candidates:raise RuntimeError('no passing source case for review')
+                            lab_id=candidates[-1]['lab_id']
+                        if args.scenario == 'audit':
+                            result = audit(family, lab_id)
+                        else:
+                            result = review(family, args.scenario, lab_id)
+                    failed = failed or not result.get('pass')
+                except Exception as e:
+                    failed = True
+                    print(json.dumps(dict(family=family, scenario=args.scenario, error=str(e)), ensure_ascii=False), flush=True)
+                    save(OUT / (family + '-' + args.scenario + '-error-' + str(int(time.time())) + '.json'), {'error': str(e)})
+                server.check('http://localhost:5173')
+        finally:
+            try:
+                cli('close')
+            except Exception as exc:
+                print('Browser cleanup failed: ' + str(exc), file=sys.stderr)
+    return 1 if failed else 0
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -163,8 +163,8 @@ export function buildHomeSlides({ onUpload, onTry, goTo, accountLink }: HomeSlid
             <PathBody tag="从一道题开始" drawText="x² + y² = r²" title="让问题，变得可推演。" detail="上传题目或粘贴文字，在分步实验中探索条件、过程与答案。" action="进入题目实验室"
               art={<svg viewBox="0 0 300 90" fill="none"><path d="M10 70h280M55 85V5" stroke="currentColor" opacity=".2" /><path d="M35 75Q105-38 175 75M155 75Q210-13 265 45" stroke="currentColor" strokeWidth="1.4" /><circle cx="105" cy="19" r="4" fill="currentColor" /><path d="M105 19v51" stroke="currentColor" strokeDasharray="3 4" opacity=".4" /></svg>} />
           </Build>
-          <Build at={3} as={Link} className={styles.path} extra={{ to: '/examples' }}>
-            <PathBody tag="从一次体验开始" drawText="A → B → C" title="换个视角，重新理解。" detail="从数学、计算机到办公推演，打开一个示例，直接动手试。" action="探索交互示例"
+          <Build at={3} as={Link} className={styles.path} extra={{ to: '/labs#lab-samples-title' }}>
+            <PathBody tag="从一次体验开始" drawText="A → B → C" title="换个视角，重新理解。" detail="从数学、计算机到物理动力学，打开一个示例，直接动手试。" action="浏览通用示例"
               art={<svg viewBox="0 0 300 90" fill="none"><path d="M47 46h96l78-27M143 46l78 27" stroke="currentColor" strokeWidth="1.3" /><circle cx="47" cy="46" r="16" fill="var(--deck-card)" stroke="currentColor" /><circle cx="143" cy="46" r="16" fill="var(--deck-card)" stroke="currentColor" /><circle cx="235" cy="19" r="13" fill="var(--deck-card)" stroke="currentColor" /><circle cx="235" cy="73" r="13" fill="var(--deck-card)" stroke="currentColor" /><circle cx="143" cy="46" r="4" fill="currentColor" /></svg>} />
           </Build>
         </div>
@@ -219,7 +219,7 @@ export function buildHomeSlides({ onUpload, onTry, goTo, accountLink }: HomeSlid
             <button className={styles.primary} type="button" onClick={onUpload}>带来你的 PPT <ArrowIcon /></button>
           </div>
           <div className={styles.links}>
-            <RouteLink className={styles.textLink} to="/examples">浏览交互示例 <ArrowIcon diagonal /></RouteLink>
+            <RouteLink className={styles.textLink} to="/labs#lab-samples-title">浏览通用示例 <ArrowIcon diagonal /></RouteLink>
             <RouteLink className={styles.textLink} to="/labs">进入题目实验室 <ArrowIcon diagonal /></RouteLink>
             {accountLink !== null && <Link className={styles.textLink} to={accountLink.to}>{accountLink.label} <ArrowIcon diagonal /></Link>}
           </div>

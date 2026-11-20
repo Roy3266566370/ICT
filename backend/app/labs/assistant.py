@@ -322,10 +322,21 @@ def _why_move(evaluation: Mapping[str, Any], step: int) -> str:
             f"与解析值的误差 {_fmt(values.get('error'))}。改变 n 是观察“求和趋近积分”的直接方式。"
         )
     if evaluation.get("subject") == "algorithm":
-        return (
-            f"当前是“{frame.get('label')}”。队列为 [{', '.join(frame.get('queue') or [])}]，"
-            f"已访问 {{{', '.join(frame.get('visited') or [])}}}。{frame.get('detail')}"
-        )
+        if evaluation.get("algorithm") == "dfs" and "stack" in frame:
+            return (
+                f"当前是“{frame.get('label')}”。栈为 [{', '.join(frame.get('stack') or [])}]，"
+                f"已访问 {{{', '.join(frame.get('visited') or [])}}}。{frame.get('detail')}"
+            )
+        if evaluation.get("algorithm") == "bfs" or ("queue" in frame and "visited" in frame):
+            return (
+                f"当前是“{frame.get('label')}”。队列为 [{', '.join(frame.get('queue') or [])}]，"
+                f"已访问 {{{', '.join(frame.get('visited') or [])}}}。{frame.get('detail')}"
+            )
+        values = frame.get("values")
+        extra = ""
+        if isinstance(values, Mapping) and values:
+            extra = "（" + "；".join(f"{k}：{v}" for k, v in list(values.items())[:4]) + "）"
+        return f"当前是“{frame.get('label')}”。{frame.get('detail')}{extra}"
     if evaluation.get("subject") == "deep_learning":
         values = frame.get("values") or {}
         return (
@@ -453,7 +464,9 @@ def _answer_for(
         return current + "\n删除堆顶会让末尾元素移到根，可能破坏堆序，需与优先孩子交换并继续向下筛选。\n" + next_text + _follow_up(mode)
     if evaluation.get('task') == 'implicit_normal':
         return f"原题法线：{solution.get('answer')}。\n" + _concept_hint(evaluation)[1] + '\n' + _concept_hint(evaluation)[2] + _follow_up(mode)
-    if any(word in question for word in ("为什么", "为何", "方向", "移动", "梯度")) and subject == "optimization":
+    if any(word in question for word in ("为什么", "为何")) or (
+        any(word in question for word in ("方向", "移动", "梯度")) and subject == "optimization"
+    ):
         return _why_move(evaluation, step) + _follow_up(mode)
     if any(word in question for word in ("下一步", "接下来", "怎么走", "如何继续")):
         next_frame = _next_step_view(evaluation, step)
@@ -484,13 +497,23 @@ def _answer_for(
             ) + _follow_up(mode)
     if any(word in question for word in ("队列", "顺序", "已访问", "bfs", "dfs", "栈", "层")) and subject == "algorithm":
         if frame:
-            is_dfs = evaluation.get("algorithm") == "dfs" and "stack" in frame
-            structure = f"栈 [{', '.join(frame.get('stack') or [])}]" if is_dfs else f"队列 [{', '.join(frame.get('queue') or [])}]"
-            order_word = "访问顺序" if is_dfs else "出队顺序"
+            if evaluation.get("algorithm") in ("bfs", "dfs") or "queue" in frame or "stack" in frame:
+                is_dfs = evaluation.get("algorithm") == "dfs" and "stack" in frame
+                structure = f"栈 [{', '.join(frame.get('stack') or [])}]" if is_dfs else f"队列 [{', '.join(frame.get('queue') or [])}]"
+                order_word = "访问顺序" if is_dfs else "出队顺序"
+                return (
+                    f"当前 {frame.get('label')}：{structure}，"
+                    f"已访问 {{{', '.join(frame.get('visited') or [])}}}，{order_word} {' → '.join(frame.get('order') or [])}。"
+                    f"{frame.get('detail')}"
+                ) + _follow_up(mode)
+            values = frame.get("values")
+            extra = (
+                "；".join(f"{k}={v}" for k, v in list(values.items())[:4])
+                if isinstance(values, Mapping) and values else ""
+            )
             return (
-                f"当前 {frame.get('label')}：{structure}，"
-                f"已访问 {{{', '.join(frame.get('visited') or [])}}}，{order_word} {' → '.join(frame.get('order') or [])}。"
-                f"{frame.get('detail')}"
+                f"当前 {frame.get('label')}：{frame.get('detail')}"
+                + (f"（{extra}）" if extra else "")
             ) + _follow_up(mode)
     if selected and (selected.get("label") or selected.get("id")):
         return _explain_selected(selected, problem, evaluation) + _follow_up(mode)
@@ -520,6 +543,33 @@ def _guided_prompt(evaluation: Mapping[str, Any], step: int) -> str:
     if subject == "algorithm":
         if evaluation.get("algorithm") == "dfs":
             return "先预测：下一个被访问的节点是谁？在右侧提交预测，再单步核对。"
+        if evaluation.get("algorithm") == "binary_search":
+            return "先预测：当前区间的中点 mid 在哪里？目标值会落在左半段还是右半段？再单步核对。"
+        ds_kind = evaluation.get("ds_kind")
+        ds_prompts = {
+            "list_ops": "先预测：当前操作会移动或修改哪些元素？表长与比较次数会如何变化？",
+            "stack_ops": "先预测：当前元素会入栈还是弹栈？栈顶和出栈序列是什么？",
+            "brackets": "先预测：当前括号会入栈还是与栈顶配对？栈顶现在是什么？",
+            "deque": "先预测：下一步可从哪一端输入或输出？当前队列状态是什么？",
+            "stack_queue_sim": "先预测：两个容器之间会如何倒腾元素？下一个输出的元素是谁？",
+            "queue_ops": "先预测：队头 front 和队尾 rear 指针如何移动？当前队列长度是多少？",
+            "expression": "先预测：当前运算符与栈顶优先级谁高？后缀序列或操作数栈如何变化？",
+            "recursion": "先预测：这一层调用会继续压栈还是返回什么结果？当前栈深是多少？",
+            "array_address": "先预测：这个元素在行优先/列优先下偏移了多少个存储单元？",
+            "matrix_storage": "先预测：这个矩阵元素映射到压缩一维数组中的哪个下标 k？",
+            "sparse": "先预测：非零元在三元组或按列转置表中的新位置在哪里？",
+            "string_match": "先预测：失配时模式串指针按 next 或 nextval 跳转到第几位？",
+            "btree_ops": "先预测：按当前遍历次序或线索化规则，下一个访问的结点是谁？",
+            "tree_forest": "先预测：下一步会合并哪两棵权值最小的树，或得到什么编码/转换结果？",
+            "graph_repr": "先预测：这条边在邻接矩阵或邻接表中对应哪个位置和权重？",
+            "graph_apply": "先预测：这一步会选择哪条边、更新哪个距离，或输出哪个顶点？",
+            "search_ops": "先预测：当前比较的关键字或散列探查地址是多少？是否命中或冲突？",
+            "sort_ops": "先预测：这一趟排序结束后枢轴或当前极值会停在什么位置？",
+            "analysis": "先预测：内层循环执行次数随外层变量如何累加？量级由哪一项主导？",
+            "algo_design": "先对照题目要求梳理核心思路与关键操作变量，再核对伪代码与复杂度。",
+        }
+        if ds_kind in ds_prompts:
+            return ds_prompts[ds_kind]
         return "先预测：下一个出队的节点是谁？在右侧提交预测，再单步核对。"
     if subject == "linear_algebra":
         return "先预测：这一列的主元在哪一行？消元后该行第一个非零元素会变成几？再单步核对。"
@@ -1104,28 +1154,43 @@ def check_attempt(
             "detail": "开放作答不判分，按四要素自评。",
         }
     if subject == "algorithm":
+        model = problem.get("model") or {}
+        ds_kind = model.get("ds_kind")
         wanted = [str(item).upper() for item in solution.get("answer_order") or []]
         expected = " → ".join(solution.get("answer_order") or [])
-        is_dfs = problem.get("model", {}).get("algorithm") == "dfs"
+        alg = model.get("algorithm")
         if wanted:
             tokens = re.findall(r"[A-Za-z0-9_\u4e00-\u9fa5]+", actual.upper())
             correct = tokens == wanted
+            if alg == "dfs":
+                hint = "DFS 的访问顺序在首次到达节点时记录；回溯不重复计入。"
+            elif alg == "bfs":
+                hint = "BFS 的入队与出队顺序是两种不同记录，这里核对的是出队顺序。"
+            else:
+                hint = "可回到执行记录逐步对照每步后的序列变化。"
             detail = (
                 "顺序与原题执行轨迹一致。" if correct else
-                f"你的顺序是 {' → '.join(tokens) or '空'}；原题轨迹是 {expected or '未计算'}。"
-                + (
-                    "DFS 的访问顺序在首次到达节点时记录；回溯不重复计入。"
-                    if is_dfs
-                    else "BFS 的入队与出队顺序是两种不同记录，这里核对的是出队顺序。"
-                )
+                f"你的顺序是 {' → '.join(tokens) or '空'}；原题轨迹是 {expected or '未计算'}。" + hint
             )
         else:
             answer_value = solution.get("answer_value")
+            if answer_value is None:
+                expected = str(solution.get("answer") or "")
+                return {
+                    "correct": False,
+                    "expected": expected,
+                    "actual": actual[:600],
+                    "field": field or ("text" if kind != "draft" else "draft"),
+                    "kind": kind,
+                    "feedback": ("判断：该题型结果为矩阵、表达式或组合结论，系统不做单一数值自动判分；"
+                                 "请对照完整讲解中的表格、序列与最终结论逐条自评。"),
+                    "detail": "组合/文本结论不自动判分，按完整讲解逐条核对。",
+                }
             student = _parse_number(actual)
-            expected = str(answer_value) if answer_value is not None else expected
-            if student is None or answer_value is None:
+            expected = str(answer_value)
+            if student is None:
                 correct = False
-                detail = "请填写与执行结果一致的数值（次数、地址等）。"
+                detail = "请填写与执行结果一致的数值（次数、地址、下标等）。"
             else:
                 tolerance = max(1e-6, abs(float(answer_value)) * 0.01)
                 correct = abs(student - float(answer_value)) <= tolerance
@@ -1178,11 +1243,14 @@ def check_attempt(
             correct, detail = check_banker_sequence(model, tokens) if tokens else (False, "请按完成顺序写出进程，例如 P1 → P3 → P4 → P0 → P2。")
             expected = " → ".join(solution.get("answer_sequence") or []) or expected
         elif (solution.get("answer_value") is None
-              and (model.get("os_kind") in ("tlb", "file_dir", "file_alloc", "device_mgmt")
+              and (model.get("os_kind") in (
+                  "os_basics", "process_thread", "sync", "deadlock", "memory_alloc",
+                  "tlb", "file_dir", "file_alloc", "device_mgmt",
+              )
                    or (model.get("os_kind") == "page_replace" and not model.get("reference")))):
             return {
-                "correct": False, "expected": expected_text, "actual": actual[:600],
-                "field": field or "draft", "kind": kind,
+                "correct": False, "expected": expected, "actual": actual[:600],
+                "field": field or ("text" if kind != "draft" else "draft"), "kind": kind,
                 "feedback": ("判断：该题型为文字结论或存在多种教材口径，系统不自动判分；"
                              "请对照完整讲解中的条件、公式与结论逐条自评。"),
                 "detail": "文字结论不自动判分，按完整讲解逐条核对。",
@@ -1247,8 +1315,8 @@ def check_attempt(
         text_ok = bool(compact_actual) and (compact_actual in compact_expected or matched_order)
         if value is None and not order:
             return {
-                "correct": False, "expected": expected_text, "actual": actual[:600],
-                "field": field or "draft", "kind": kind,
+                "correct": False, "expected": expected, "actual": actual[:600],
+                "field": field or ("text" if kind != "draft" else "draft"), "kind": kind,
                 "feedback": ("判断：该网络题为文字结论或含多种口径，系统不自动判分；"
                              "请对照完整讲解中的公式、单位与结论逐条自评。"),
                 "detail": "文字结论不自动判分，按完整讲解逐条核对。",

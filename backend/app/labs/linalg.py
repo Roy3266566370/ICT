@@ -1,15 +1,16 @@
 """线性代数题目的识别与确定性求解。
 
-覆盖四类题型，全部产出可逐步回放的执行轨迹：
+覆盖五类题型，全部产出可逐步回放的执行轨迹：
 
 - ``linear_system``：Ax=b，高斯消元（可选部分主元 / 高斯-若尔当）；
 - ``determinant``：|A|，初等行变换化为上三角后取主元乘积；
 - ``inverse``：A⁻¹，对增广矩阵 [A|I] 做消元；
-- ``matmul``：A·B、A±B、数乘 kA，逐元素展示计算。
+- ``matmul``：A·B、A±B、数乘 kA，逐元素展示计算；
+- ``eigen``：精确特征根、特征空间基与 Av=λv 校验。
 
 输入支持两种形式：矩阵字面量 ``A=[[1,2],[3,4]]`` / ``A=[1 2;3 4]``，
 以及中文/普通写法的线性方程组（``x+y=3`` 这类等式直接解析成系数矩阵）。
-轨迹只使用确定性浮点运算；矩阵数据缺失时生成明确阻塞问题，不编造条件。
+特征问题使用精确符号运算，其余轨迹使用确定性浮点运算；缺失数据明确阻塞。
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ import ast
 import math
 import re
 from typing import Any, Mapping, Sequence
+
+import sympy as sp
 
 EPS = 1e-9
 MAX_DIM = 5
@@ -31,11 +34,20 @@ PSEUDOCODE = [
     "用代回 / 乘积核对结果",
 ]
 
+EIGEN_PSEUDOCODE = [
+    "按原始整数、分数或小数字面量构造精确矩阵 A",
+    "展开特征多项式 p(λ)=det(λI−A)",
+    "精确求解 p(λ)=0，并记录每个根的代数重数",
+    "求 ker(A−λI) 的一组基；基的个数为几何重数",
+    "逐个基向量精确校验 Av=λv，并核对代数重数之和",
+]
+
 _KIND_LABELS = {
     "linear_system": "线性方程组",
     "determinant": "行列式",
     "inverse": "逆矩阵",
     "matmul": "矩阵运算",
+    "eigen": "特征值与特征向量",
 }
 
 _OP_LABELS = {"mul": "A·B", "add": "A+B", "sub": "A−B", "scalar": "kA"}
@@ -137,6 +149,27 @@ def _semicolon_matrix(raw: str) -> list[list[float]] | None:
 
 _NESTED = re.compile(r"\[\s*\[(?:[^\[\]]*)\](?:\s*,\s*\[(?:[^\[\]]*)\])*\s*\]")
 _SEMICOLON = re.compile(r"\[\s*[^\[\];；]+?\s*(?:[;；]\s*[^\[\];]+?)+\s*\]")
+# `|1 2;3 4|` 行列式竖线记法：要求至少一个分号，避免误吃 |x| 绝对值。
+# 开闭定界允许 `|`/`[`/`]` 混搭——OCR 常把 `|` 误读成 `[`（如 `[2 1 0;…|`）。
+_BARS = re.compile(r"[|\[]\s*[^|;；\[\]]+?\s*(?:[;；]\s*[^|;；\[\]]+?)+\s*[|\]]")
+
+
+def _split_digit_rows(matrix: list[list[float]]) -> list[list[float]] | None:
+    """``|12;34|``：OCR 吃掉竖线内空格后每行只剩一个多位整数。
+    行数与每行位数一致且均为非负整数时拆成单位数字方阵。"""
+    n = len(matrix)
+    if n < 2 or any(len(row) != 1 for row in matrix):
+        return None
+    rows: list[list[float]] = []
+    for row in matrix:
+        value = row[0]
+        if value is None or value != int(value) or value < 0:
+            return None
+        digits = str(int(value))
+        if len(digits) != n:
+            return None
+        rows.append([float(d) for d in digits])
+    return rows
 
 
 def _matrices_from_text(text: str) -> tuple[dict[str, list[list[float]]], list[list[list[float]]]]:
@@ -168,7 +201,113 @@ def _matrices_from_text(text: str) -> tuple[dict[str, list[list[float]]], list[l
             named[name.group(1)] = matrix
         else:
             anonymous.append(matrix)
+        taken.append(match.span())
+    for match in _BARS.finditer(text):
+        if any(start <= match.start() < end or start < match.end() <= end for start, end in taken):
+            continue
+        body = match.group(0).strip().strip('|[]')
+        matrix = _semicolon_matrix('[' + body + ']')
+        if matrix is not None and not _square(matrix):
+            matrix = _split_digit_rows(matrix) or matrix
+        if matrix is None:
+            continue
+        anonymous.append(matrix)
     return named, anonymous
+
+
+_EXACT_LITERAL = re.compile(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?")
+
+
+def _exact_number(value: Any) -> sp.Rational:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError("矩阵元素仅支持有限整数、分数或小数字面量。")
+    if isinstance(value, float) and not math.isfinite(value):
+        raise ValueError("矩阵元素必须有限，不能包含 NaN 或 Infinity。")
+    token = str(value).strip()
+    if len(token) > 256:
+        raise ValueError("矩阵元素字面量过长，无法进行小规模精确求解。")
+    parts = [part.strip() for part in token.split("/")]
+    if len(parts) > 2 or any(not _EXACT_LITERAL.fullmatch(part) for part in parts):
+        raise ValueError("矩阵元素仅支持有限整数、分数或小数字面量，不接受符号或可执行表达式。")
+    for part in parts:
+        exponent = re.search(r"[eE]([+-]?\d+)$", part)
+        if exponent and abs(int(exponent.group(1))) > 100:
+            raise ValueError("科学计数法的指数绝对值不能超过 100。")
+    numbers = [sp.Rational(part) for part in parts]
+    if len(numbers) == 2 and numbers[1] == 0:
+        raise ValueError("矩阵分数字面量的分母不能为 0。")
+    result = numbers[0] if len(numbers) == 1 else numbers[0] / numbers[1]
+    if len(str(result)) > 256:
+        raise ValueError("矩阵元素的精确分数过长，无法进行小规模精确求解。")
+    return result
+
+
+def _exact_matrix(value: Any) -> sp.Matrix:
+    if isinstance(value, str):
+        raw = value.strip().replace("，", ",").replace("；", ";")
+        if len(raw) > 10000:
+            raise ValueError("矩阵文本过长，无法进行小规模精确求解。")
+        if ";" in raw and raw[:1] in "[(|" and raw[-1:] in "])|":
+            body = re.sub(r"\s*/\s*", "/", raw[1:-1])
+            value = [piece.split(",") if "," in piece else piece.split() for piece in body.split(";")]
+        else:
+            try:
+                tree = ast.parse(raw, mode="eval").body
+            except (ValueError, SyntaxError, RecursionError) as exc:
+                raise ValueError("无法解析精确矩阵，请使用 [[1/3,0],[0,2]] 或 [1/3 0;0 2]。") from exc
+            if not isinstance(tree, (ast.List, ast.Tuple)):
+                raise ValueError("精确矩阵必须是嵌套列表或分号分行字面量。")
+            value = []
+            for row in tree.elts:
+                if not isinstance(row, (ast.List, ast.Tuple)):
+                    raise ValueError("矩阵每一行必须是列表。")
+                value.append([
+                    item.value if isinstance(item, ast.Constant) and isinstance(item.value, str)
+                    else ast.get_source_segment(raw, item)
+                    for item in row.elts
+                ])
+    if not isinstance(value, (list, tuple)) or not value:
+        raise ValueError("缺少有效矩阵 A，请补充精确矩阵数据。")
+    if any(not isinstance(row, (list, tuple)) or not row for row in value):
+        raise ValueError("矩阵每一行必须是非空列表。")
+    if len(value) > MAX_DIM or any(len(row) > MAX_DIM for row in value):
+        raise ValueError(f"精确特征求解仅支持 {MAX_DIM} 阶以内的矩阵。")
+    if any(len(row) != len(value) for row in value):
+        raise ValueError("特征值与特征向量需要 n×n 方阵，请核对矩阵 A 的行数与列数。")
+    return sp.Matrix([[_exact_number(item) for item in row] for row in value])
+
+
+def _exact_matrix_a_text(text: str) -> str | None:
+    named: dict[str, str] = {}
+    anonymous: list[str] = []
+    taken: list[tuple[int, int]] = []
+    text = text.replace("，", ",")
+    depth, start = 0, 0
+    for index, char in enumerate(text):
+        if char == "[":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "]" and depth:
+            depth -= 1
+            if depth == 0:
+                taken.append((start, index + 1))
+    if depth:
+        taken.append((start, len(text)))
+    for match in _BARS.finditer(text):
+        if not any(start < match.end() and match.start() < end for start, end in taken):
+            taken.append(match.span())
+    for start, end in sorted(taken):
+        name = re.search(r"([A-Za-z])\s*=\s*$", text[max(0, start - 8):start])
+        if name:
+            named[name.group(1).lower()] = text[start:end]
+        else:
+            anonymous.append(text[start:end])
+    return named.get("a") or (anonymous[0] if anonymous else None)
+
+
+def _exact_rows(matrix: sp.Matrix) -> list[list[str]]:
+    return [[str(item) for item in row] for row in matrix.tolist()]
 
 
 def _vectors_from_text(text: str) -> dict[str, list[float]]:
@@ -289,17 +428,36 @@ def _equation_system(text: str) -> tuple[list[list[float]], list[float], list[st
 # ---------------------------------------------------------------------------
 
 
+def _unsupported_goal(text: str) -> str | None:
+    if re.search(r"对角化|diagonali[sz]", text, re.I):
+        return "diagonalization"
+    if re.search(r"若尔当标准形|约当标准形|jordan\s+(?:(?:normal|canonical)\s+)?form", text, re.I):
+        return "jordan_form"
+    if re.search(r"广义特征|generalized\s+eigen", text, re.I):
+        return "generalized_eigen"
+    if re.search(r"谱分解|特征分解|spectral\s+decomposition|eigendecomposition", text, re.I):
+        return "spectral_decomposition"
+    if re.search(r"奇异值分解|\bsvd\b", text, re.I):
+        return "svd"
+    return None
+
+
 def _detect_kind(text: str, has_equations: bool) -> str | None:
     lowered = text.lower()
+    unsupported = _unsupported_goal(text)
+    if unsupported:
+        return unsupported
+    if re.search(r"特征值|特征向量|特征根|特征空间|eigen", lowered):
+        return "eigen"
     if re.search(r"逆矩阵|逆阵|inverse|a\s*\^\s*\{?\s*-\s*1\s*\}?|a⁻¹|a\b\s*的逆", lowered):
         return "inverse"
-    if re.search(r"行列式|determinant|\bdet\b|\|\s*a\s*\||\bdet\s*\(", lowered):
+    if re.search(r"行列式|determinant|\bdet\b|\|\s*a\s*\||\bdet\s*\(|可逆|奇异", lowered):
         return "determinant"
     if re.search(r"方程组|线性方程|消元|gauss|a\s*x\s*=\s*b", lowered):
         return "linear_system"
     if has_equations and re.search(r"解|求|solve", lowered):
         return "linear_system"
-    if re.search(r"数乘|k\s*a\b|λ|lambda", lowered):
+    if re.search(r"数乘|k\s*a\b|λ|lambda|[-+]?\d+(?:\.\d+)?\s*[·×*]?\s*a\b", lowered):
         return "matmul"
     if re.search(r"a\s*[+＋]\s*b\b|矩阵.*?(相加|求和|的和)", lowered):
         return "matmul"
@@ -375,21 +533,35 @@ def build_linalg(text: str, source: Mapping[str, Any], overrides: Mapping[str, A
               **dict(overrides or {})}
     ambiguities: list[dict[str, Any]] = []
     conditions: list[dict[str, Any]] = []
-    named, anonymous = _matrices_from_text(text)
-    vectors = _vectors_from_text(text)
     equations = _equation_system(text)
-
-    # 具名/匿名矩阵归位：A、B 优先按名字，其次按出现顺序。
-    matrix_a = _coerce_matrix(merged.get("matrix_a")) or named.get("A") or named.get("a")
-    matrix_b = _coerce_matrix(merged.get("matrix_b")) or named.get("B") or named.get("b")
-    if matrix_a is None and anonymous:
-        matrix_a = anonymous[0]
-        if len(anonymous) > 1 and matrix_b is None:
-            matrix_b = anonymous[1]
-    vector_b = _coerce_vector(merged.get("vector_b")) or vectors.get("b") or vectors.get("B")
-
-    kind = str(merged.get("la_kind") or "").strip() or _detect_kind(text, equations is not None)
+    kind = (_unsupported_goal(text) or str(merged.get("la_kind") or "").strip()
+            or _detect_kind(text, equations is not None))
+    exact_a = None
+    eigen_input_error = ""
+    if kind == "eigen":
+        matrix_a, matrix_b, vector_b = None, None, None
+        try:
+            raw_a = merged["matrix_a"] if "matrix_a" in merged else _exact_matrix_a_text(text)
+            exact_matrix = _exact_matrix(raw_a)
+            exact_a = _exact_rows(exact_matrix)
+            matrix_a = [[float(item) for item in row] for row in exact_matrix.tolist()]
+        except ValueError as exc:
+            eigen_input_error = str(exc)
+    else:
+        named, anonymous = _matrices_from_text(text)
+        vectors = _vectors_from_text(text)
+        matrix_a = _coerce_matrix(merged.get("matrix_a")) or named.get("A") or named.get("a")
+        matrix_b = _coerce_matrix(merged.get("matrix_b")) or named.get("B") or named.get("b")
+        if matrix_a is None and anonymous:
+            matrix_a = anonymous[0]
+            if len(anonymous) > 1 and matrix_b is None:
+                matrix_b = anonymous[1]
+        vector_b = _coerce_vector(merged.get("vector_b")) or vectors.get("b") or vectors.get("B")
     op = str(merged.get("op") or "").strip() or _detect_op(text)
+    # 只有一个矩阵且有 kA 写法时按数乘：_detect_op 要求"数乘/倍"字样，"求3A"会误判为乘法。
+    if (kind == "matmul" and op == "mul" and matrix_b is None
+            and re.search(r"[-+]?\d+(?:\.\d+)?\s*[·×*]?\s*a\b", text.lower())):
+        op = "scalar"
     scalar = merged.get("scalar")
     try:
         scalar = float(scalar) if scalar is not None and str(scalar).strip() != "" else None
@@ -426,6 +598,14 @@ def build_linalg(text: str, source: Mapping[str, Any], overrides: Mapping[str, A
             options=[{"value": key, "label": label} for key, label in _KIND_LABELS.items()],
         ))
 
+    if kind not in _KIND_LABELS:
+        ambiguities.append(_ambiguity(
+            "la_unsupported", "la_kind",
+            f"任务 {kind} 暂无本地确定内核；对角化、标准形等目标不能用特征值结果冒充完成。",
+        ))
+    if eigen_input_error:
+        ambiguities.append(_ambiguity("matrix_a", "matrix_a", eigen_input_error))
+
     if kind == "matmul":
         if op == "mul" and (matrix_a is None or matrix_b is None):
             ambiguities.append(_ambiguity(
@@ -446,7 +626,7 @@ def build_linalg(text: str, source: Mapping[str, Any], overrides: Mapping[str, A
                          {"value": "-1", "label": "k=-1"}, {"value": "0.5", "label": "k=0.5"}],
             ))
     else:
-        if matrix_a is None:
+        if matrix_a is None and not eigen_input_error:
             ambiguities.append(_ambiguity(
                 "matrix_a", "matrix_a",
                 "没有识别到矩阵数据。请按 A=[[1,2],[3,4]] 或逐行写方程组的形式补全题目。",
@@ -475,6 +655,9 @@ def build_linalg(text: str, source: Mapping[str, Any], overrides: Mapping[str, A
             params.append(_param("scalar", "数乘系数 k", "number", min_value=-9, max_value=9, step=0.5))
         defaults: dict[str, Any] = {"order": "ab", "scalar": scalar if scalar is not None else 2.0}
         engine = "matmul_v1"
+    elif kind == "eigen":
+        defaults = {}
+        engine = "gauss_v1"
     else:
         if kind in ("linear_system", "inverse"):
             params.append(_param("method", "消元方式", "enum", options=["gauss", "jordan"],
@@ -498,8 +681,11 @@ def build_linalg(text: str, source: Mapping[str, Any], overrides: Mapping[str, A
         "teaching": False,
     }
 
+    if kind == "eigen":
+        model.update(matrix_a_exact=exact_a, eigen_input_error=eigen_input_error)
     if matrix_a is not None:
-        conditions.append(_condition("matrix_a", "系数矩阵 A", _mat_text(matrix_a), source=source,
+        matrix_text = ("[[" + "], [".join(", ".join(row) for row in exact_a) + "]]") if exact_a else _mat_text(matrix_a)
+        conditions.append(_condition("matrix_a", "系数矩阵 A", matrix_text, source=source,
                                      note="写法 A=[[1,2],[3,4]] 或 A=[1 2;3 4]；修正后重新求解。"))
     if matrix_b is not None:
         conditions.append(_condition("matrix_b", "矩阵 B", _mat_text(matrix_b), source=source))
@@ -515,6 +701,12 @@ def build_linalg(text: str, source: Mapping[str, Any], overrides: Mapping[str, A
         "plain": "高斯消元：换行记一次变号，主元乘积给出行列式；回代得到解向量。",
         "role": "消元规则",
     }]
+    if kind == "eigen":
+        formulas = [{
+            "id": "eigen_rule", "tex": r"p(\lambda)=\det(\lambda I-A)=0,\quad E_\lambda=\ker(A-\lambda I),\quad Av=\lambda v",
+            "plain": "求特征多项式的根，再求对应齐次方程组的零空间基，并精确代回核对。",
+            "role": "特征值与特征空间",
+        }]
 
     return {
         "model": model,
@@ -530,7 +722,7 @@ def build_linalg(text: str, source: Mapping[str, Any], overrides: Mapping[str, A
 # ---------------------------------------------------------------------------
 
 
-def _record(frames: list[dict[str, Any]], w: list[list[float]], *, action: str,
+def _record(frames: list[dict[str, Any]], w: list[list[Any]], *, action: str,
             label: str, detail: str, line: int, **values: Any) -> None:
     snapshot = [row[:] for row in w]
     payload = {"matrix": snapshot, **values}
@@ -592,6 +784,8 @@ def _eval_gauss(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str
     variables = [str(v) for v in (model.get("variables") or [])]
 
     reason = ""
+    if kind not in ("linear_system", "determinant", "inverse"):
+        reason = f"{_KIND_LABELS.get(kind, kind)}暂无本地确定内核；已识别的矩阵保留供核对。"
     if kind in ("determinant", "inverse") and not _square(a):
         reason = f"{_KIND_LABELS[kind]}需要 n×n 方阵，请核对矩阵 A 的行数与列数。"
     if kind == "linear_system":
@@ -633,12 +827,23 @@ def _eval_gauss(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str
     answer_vector: list[float] | None = None
 
     if singular:
-        _record(frames, w, action="result", label="无法继续",
-                detail="矩阵在该主元策略下奇异；结论与轨迹均保留供核对。",
-                line=5, aug=aug, det=det_value, solution=solution)
-        headline = "矩阵奇异，无唯一解"
-        checks = [{"id": "singular", "label": "主元检查", "status": "fail",
-                   "detail": "某列在主行及以下全为 0；可换主元策略或核对原题数据。"}]
+        if kind == "determinant":
+            # 奇异即 det=0——行列式题的合法确定答案（"是否可逆"也由此判定）。
+            det_value = 0.0
+            answer = "det(A) = 0"
+            headline = "det(A) = 0（矩阵奇异）"
+            _record(frames, w, action="result", label="结果",
+                    detail="存在全零主元列：det(A)=0，矩阵不可逆。",
+                    line=5, aug=aug, det=0.0, solution=solution)
+            checks = [{"id": "singular", "label": "主元检查", "status": "pass",
+                       "detail": "某列在主行及以下全为 0，行列式确定为零。"}]
+        else:
+            _record(frames, w, action="result", label="无法继续",
+                    detail="矩阵在该主元策略下奇异；结论与轨迹均保留供核对。",
+                    line=5, aug=aug, det=det_value, solution=solution)
+            headline = "矩阵奇异，无唯一解"
+            checks = [{"id": "singular", "label": "主元检查", "status": "fail",
+                       "detail": "某列在主行及以下全为 0；可换主元策略或核对原题数据。"}]
     else:
         if kind == "determinant":
             _record(frames, w, action="eliminated", label="已化为上三角矩阵",
@@ -848,9 +1053,123 @@ def _eval_matop(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str
     }
 
 
+def _eigen_residual_zero(expression: sp.Expr, root: sp.Expr) -> sp.Expr:
+    expression = sp.simplify(expression)
+    if expression == 0 or not isinstance(root, sp.CRootOf):
+        return expression
+    variable = sp.Dummy("root")
+    numerator, denominator = sp.fraction(sp.cancel(expression.xreplace({root: variable})))
+    minimal = sp.Poly(root.poly.as_expr().subs(root.poly.gen, variable), variable, domain=sp.QQ)
+    numerator = sp.Poly(numerator, variable, domain=sp.QQ).rem(minimal)
+    denominator = sp.Poly(denominator, variable, domain=sp.QQ).rem(minimal)
+    return sp.S.Zero if numerator.is_zero and not denominator.is_zero else expression
+
+
+def _eval_eigen(model: Mapping[str, Any]) -> dict[str, Any]:
+    frames: list[dict[str, Any]] = []
+    checks: list[dict[str, Any]] = []
+    result: dict[str, Any] = {
+        "subject": "linear_algebra", "engine": "gauss_v1", "la_kind": "eigen",
+        "status": "blocked", "matrix_a": None, "matrix_a_exact": None,
+        "frames": frames, "trace": frames, "checks": checks, "metrics": [],
+        "pseudocode": EIGEN_PSEUDOCODE, "eigenvalues": [],
+    }
+    try:
+        if model.get("eigen_input_error"):
+            raise ValueError(str(model["eigen_input_error"]))
+        raw = model["matrix_a_exact"] if "matrix_a_exact" in model else model.get("matrix_a")
+        a = _exact_matrix(raw)
+        n = a.rows
+        exact_a = _exact_rows(a)
+        result.update(matrix_a_exact=exact_a, matrix_a=[[float(v) for v in row] for row in a.tolist()])
+        _record(frames, exact_a, action="initial", label="写出精确矩阵 A",
+                detail="直接按原始字面量构造有理数，不从浮点近似反推分数。", line=1)
+        lam = sp.Symbol("lambda")
+        polynomial = a.charpoly(lam)
+        charpoly = {
+            "expression": str(polynomial.as_expr()), "latex": sp.latex(polynomial.as_expr()),
+            "variable": "lambda", "coefficients": [str(v) for v in polynomial.all_coeffs()],
+            "convention": "det(lambda*I - A)",
+        }
+        result["charpoly"] = charpoly
+        _record(frames, exact_a, action="charpoly", label="展开特征多项式",
+                detail=f"p(λ)=det(λI−A)={charpoly['expression']}。", line=2, charpoly=charpoly)
+        eigenspaces = a.eigenvects(error_when_incomplete=True)
+        if sum(int(multiplicity) for _, multiplicity, _ in eigenspaces) != n:
+            raise ValueError("精确特征根未求全；不能把部分结果作为完整答案。")
+        roots = [{"value": str(value), "latex": sp.latex(value), "algebraic_multiplicity": int(multiplicity)}
+                 for value, multiplicity, _ in eigenspaces]
+        _record(frames, exact_a, action="eigenvalues", label="精确求根并记录代数重数",
+                detail="；".join(f"λ={root['value']}，代数重数 {root['algebraic_multiplicity']}" for root in roots),
+                line=3, eigenvalues=roots)
+        eigenvalues = []
+        for root_index, (value, multiplicity, basis) in enumerate(eigenspaces):
+            if not basis or len(basis) > multiplicity:
+                raise ValueError("未能求得完整有效的特征空间基。")
+            basis = [vector.applyfunc(sp.simplify) for vector in basis]
+            basis_text = [[str(v) for v in vector] for vector in basis]
+            space = {
+                **roots[root_index], "geometric_multiplicity": len(basis), "basis": basis_text,
+                "basis_latex": [sp.latex(vector) for vector in basis], "verification": [],
+            }
+            basis_description = ", ".join("(" + ", ".join(vector) + ")" for vector in basis_text)
+            _record(frames, _exact_rows(a - value * sp.eye(n)), action="eigenspace",
+                    label=f"求 λ={value} 的特征空间",
+                    detail=f"求解 (A−λI)v=0：E_λ=span{{{basis_description}}}；几何重数 {len(basis)}。",
+                    line=4, eigenvalue=str(value), basis=basis_text,
+                    algebraic_multiplicity=int(multiplicity), geometric_multiplicity=len(basis))
+            for vector_index, vector in enumerate(basis):
+                av = (a * vector).applyfunc(sp.simplify)
+                lv = (value * vector).applyfunc(sp.simplify)
+                residual = (av - lv).applyfunc(lambda v: _eigen_residual_zero(v, value))
+                exact = all(v == 0 for v in residual) and any(v != 0 for v in vector)
+                verification = {
+                    "vector": basis_text[vector_index], "av": [str(v) for v in av],
+                    "lambda_v": [str(v) for v in lv], "residual": [str(v) for v in residual], "exact": exact,
+                }
+                space["verification"].append(verification)
+                check = {
+                    "id": f"eigen_{root_index}_{vector_index}", "label": f"λ={value}，基向量 {vector_index + 1}：Av=λv",
+                    "status": "pass" if exact else "fail",
+                    "detail": f"Av={verification['av']}，λv={verification['lambda_v']}；精确残差 {verification['residual']}。",
+                }
+                checks.append(check)
+                _record(frames, exact_a, action="verify_eigenvector", label=check["label"],
+                        detail=check["detail"], line=5, eigenvalue=str(value), **verification)
+                if not exact:
+                    raise ValueError("无法确认 Av=λv 的精确零残差，特征结果暂不作为已完成答案。")
+            eigenvalues.append(space)
+        checks.append({"id": "multiplicity", "label": "代数重数之和", "status": "pass",
+                       "detail": f"全部特征根的代数重数之和为 {n}，等于矩阵阶数。"})
+        answer = "；".join(
+            f"λ={space['value']}（代数重数 {space['algebraic_multiplicity']}，几何重数 {space['geometric_multiplicity']}），"
+            + "特征空间基：" + ", ".join("(" + ", ".join(vector) + ")" for vector in space["basis"])
+            for space in eigenvalues
+        )
+        _record(frames, exact_a, action="result", label="特征值与特征空间基", detail=answer, line=5,
+                eigenvalues=eigenvalues)
+        result.update(
+            status="ok", eigenvalues=eigenvalues, answer=answer, answer_vector=None,
+            headline=f"已精确求得 {len(eigenvalues)} 个不同特征值及其特征空间基", stop_reason="done",
+            metrics=[{"id": "size", "label": "规模", "value": f"{n}×{n}"},
+                     {"id": "roots", "label": "不同特征值", "value": str(len(eigenvalues))},
+                     {"id": "method", "label": "方法", "value": "精确特征多项式与零空间"}],
+            notes=["在复数域上给出特征空间基；基的非零线性组合即对应的全部特征向量。",
+                   "小数按输入的十进制字面量精确解释；需要 1/3 时应直接输入分数。",
+                   "本分支不求对角化变换矩阵、Jordan 标准形或广义特征向量。"],
+        )
+    except (ValueError, NotImplementedError, ArithmeticError, sp.polys.polyerrors.BasePolynomialError,
+            sp.matrices.exceptions.MatrixError) as exc:
+        reason = f"精确特征求解阻塞：{exc}"
+        result.update(reason=reason, headline=reason, stop_reason="blocked")
+    return result
+
+
 def evaluate_linalg(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
     if str(model.get("la_kind") or "") == "matmul":
         return _eval_matop(model, params)
+    if str(model.get("la_kind") or "") == "eigen":
+        return _eval_eigen(model)
     return _eval_gauss(model, params)
 
 
@@ -864,10 +1183,23 @@ def solve_linalg(model: Mapping[str, Any]) -> dict[str, Any]:
     result = evaluate_linalg(model, model.get("defaults") or {})
     if result.get("status") != "ok":
         raise ValueError(result.get("reason") or "暂不能求解该线性代数题")
-    if result.get("stop_reason") == "singular":
+    # 行列式题奇异是合法结论（det=0/不可逆）；方程组与逆矩阵才需要报错。
+    if result.get("stop_reason") == "singular" and kind != "determinant":
         raise ValueError("矩阵奇异：该题无唯一解或逆；可在实验室中查看消元轨迹定位奇异列。")
 
     frames = result["trace"]
+    if kind == "eigen":
+        return {
+            "summary": "精确构造特征多项式 → 求全部特征根及代数重数 → 求各特征空间基及几何重数 → 精确核对 Av=λv。",
+            "answer": result["answer"], "answer_vector": None, "answer_value": None,
+            "solution_complete": True, "solution_status": "complete",
+            "steps": [{"id": f"la_{frame['index']}", "title": frame["label"], "detail": frame["detail"]}
+                      for frame in frames],
+            "conditions": ["矩阵按整数、分数及十进制小数字面量精确解析。"],
+            "limitations": result["notes"], "eigenvalues": result["eigenvalues"], "charpoly": result["charpoly"],
+            "matrix_a_exact": result["matrix_a_exact"], "trace": frames,
+            "checks": result["checks"], "pseudocode": result["pseudocode"],
+        }
     index_of = {frame["action"]: frame["index"] for frame in frames}
     last = len(frames) - 1
     steps: list[dict[str, Any]] = []

@@ -130,6 +130,7 @@ export async function createTextLab(input: {
   title: string;
   text: string;
   orchestrate?: boolean;
+  single_problem?: boolean;
   subject?: LabSubject | null;
 }): Promise<LabDocument> {
   const data = await requestJson<LabDocument>(`${P}/labs/text`, {
@@ -138,6 +139,7 @@ export async function createTextLab(input: {
       title: input.title,
       text: input.text,
       orchestrate: input.orchestrate ?? false,
+      ...(input.single_problem ? { single_problem: true } : {}),
       ...(input.subject ? { subject: input.subject } : {}),
     }),
   });
@@ -178,6 +180,7 @@ export async function saveLabState(input: {
   labId: string;
   revision: number;
   selectedProblemId?: string;
+  title?: string;
   state: Record<string, unknown>;
 }): Promise<LabSaveResponse> {
   const data = await requestJson<LabSaveResponse>(`${P}/labs/${encodeURIComponent(input.labId)}`, {
@@ -185,6 +188,7 @@ export async function saveLabState(input: {
     body: JSON.stringify({
       expected_revision: input.revision,
       selected_problem_id: input.selectedProblemId,
+      ...(input.title !== undefined ? { title: input.title } : {}),
       state: input.state,
     }),
   });

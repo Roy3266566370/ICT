@@ -743,7 +743,7 @@ def _polar_from_region_text(region_text: str) -> dict[str, Any] | None:
 
 
 def build_double_integral(text: str, source: Mapping, overrides: Mapping) -> dict | None:
-    if not re.search(r'二重积分|∬|\\iint|double\s+integral', text, re.I):
+    if not re.search(r'二重积分|∬|\\iint|∫\s*∫|double\s+integral', text, re.I):
         return None
     from .exam_math import _condition, _ambiguity
     raw = text.replace('−', '-').replace('≤', '<=').replace('≥', '>=')
@@ -753,15 +753,28 @@ def build_double_integral(text: str, source: Mapping, overrides: Mapping) -> dic
     raw = raw.replace('\\left','').replace('\\right','').replace('\\{','{').replace('\\}','}')
     raw = re.sub(r'\^\s*\{([^{}]+)\}',r'^(\1)',raw)
     raw = raw.replace('\\iint', '∬').replace('\\,', '').replace('\\;', '')
+    # OCR 常把 ∬ 拆成两个 ∫ 或误读为「」括号；面积微元 dσ/do 与 dxdy 等价。
+    raw = re.sub(r'∫\s*∫', '∬', raw)
+    raw = re.sub(r'[「」]\s*\{', '∬', raw)
+    raw = re.sub(r'd\s*[σo]\b', 'dx dy', raw)
     plan = dict(overrides.get('condition_values') or {})
     plan.update({k:v for k,v in overrides.items() if k in (
         'integrand','outer_variable','outer_bounds','inner_bounds','pieces','polar','swap_order')})
-    start = r'∬\s*(?:_\s*\{?D\}?)?' if '∬' in raw else r'二重积分\s*[:：]?'
+    start = r'∬\s*(?:_?\s*\{?\s*D\s*\}?)?' if '∬' in raw else r'二重积分\s*[:：]?'
     match = re.search(start+r'\s*(.*?)\s*d\s*[xy]\s*d\s*[xy]', raw, re.S)
     if match:
-        plan.setdefault('integrand', match.group(1).strip())
+        # OCR 常丢乘号写成 "xy"、"x siny"；在 x/y/数字/右括号与 x/y/左括号之间补回。
+        integrand = match.group(1).strip()
+        integrand = re.sub(r'(?<=[xy0-9)])\s*(?=[xy(])', '*', integrand)
+        plan.setdefault('integrand', integrand)
     # Only extract inequalities inside D, so unrelated conditions are never discarded.
     region = re.search(r'D\s*=\s*\{(.*?)\}', raw, re.S)
+    if not region:
+        # “D由y=x，y=0与x=1围成”——边界枚举形式（先匹配，再由边界合成链式区间）。
+        region = re.search(r'D\s*由\s*([^。；;\n]+)', raw)
+    if not region:
+        # “其中D为0≤x≤1，0≤y≤1”/“D：…”/“D={(x,y)|…”等常见表述。
+        region = re.search(r'D\s*(?:为|是|：|:|=)\s*(?:\{\s*(?:\([^)]*\)\s*\|)?\s*)?([^。；;}\n]+)', raw)
     region_text = region.group(1).split('|')[-1] if region else ''
     if 'polar' not in plan and 'pieces' not in plan and region_text:
         polar = _polar_from_region_text(region_text)
@@ -791,6 +804,40 @@ def build_double_integral(text: str, source: Mapping, overrides: Mapping) -> dic
                 plan.setdefault('outer_bounds', [outer_part[0].strip(), outer_part[2].strip()])
                 plan.setdefault('inner_bounds', [inner_part[0].strip(), inner_part[2].strip()])
                 break
+    # “D由两条 y 曲线与竖直边 x=c 围成”：交点横坐标与 x=c 合成外层界，
+    # 中点取值比大小决定内层上下界；合不出交给歧义通道，绝不猜补。
+    if 'polar' not in plan and 'pieces' not in plan and 'inner_bounds' not in plan:
+        enclosed = re.search(r'由\s*(.+?)\s*围成', region_text) or re.search(r'由\s*(.+?)\s*围成', raw)
+        if enclosed:
+            edges = [v.strip() for v in re.split(r'[,，、]|\s*与\s*|\s*和\s*', enclosed.group(1)) if v.strip()]
+            y_edges, x_edges = [], []
+            edges_ok = True
+            for edge in edges:
+                ym = re.fullmatch(r'y\s*=\s*(.+)', edge)
+                xm = re.fullmatch(r'x\s*=\s*(.+)', edge)
+                if ym:
+                    y_edges.append(ym.group(1))
+                elif xm:
+                    try:
+                        x_edges.append(float(_expression(xm.group(1), ())))
+                    except Exception:  # noqa: BLE001
+                        edges_ok = False
+            if edges_ok and len(y_edges) == 2 and x_edges:
+                try:
+                    f = _expression(y_edges[0], ('x',))
+                    g = _expression(y_edges[1], ('x',))
+                    x_sym = (f.free_symbols | g.free_symbols).pop()
+                    meets = [float(r) for r in sp.solve(sp.Eq(f, g), x_sym) if r.is_real]
+                    if meets:
+                        a = min(meets + x_edges)
+                        b = max(meets + x_edges)
+                        mid = (a + b) / 2
+                        lo, hi = (g, f) if float(g.subs(x_sym, mid)) < float(f.subs(x_sym, mid)) else (f, g)
+                        plan.update(outer_variable='x',
+                                    outer_bounds=[expression_text(a), expression_text(b)],
+                                    inner_bounds=[expression_text(lo), expression_text(hi)])
+                except Exception:  # noqa: BLE001
+                    pass
     # Both even powers force x,y >= 0. Intersections then bound the entire region by 0 and 1.
     if 'polar' not in plan and 'pieces' not in plan and len(parts) == 2 and 'inner_bounds' not in plan:
         powers = {}

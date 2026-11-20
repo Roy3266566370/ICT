@@ -19,7 +19,7 @@ T = sp.Symbol('t', real=True)
 
 def _plain(expression: str) -> str:
     text = expression.replace('（', '(').replace('）', ')').replace('²', '^2').replace('³', '^3')
-    text = text.replace('·', '*').replace('×', '*').strip()
+    text = text.replace('~', '^').replace('·', '*').replace('×', '*').strip()
     text = re.sub(r'\b(ln|log|sin|cos|tan|exp|sqrt)\s+([A-Za-z0-9]+)', r'\1(\2)', text)
     text = re.sub(r'(\d)\s*([A-Za-z(])', r'\1*\2', text)
     return text
@@ -39,28 +39,36 @@ def build_line_integral_from_text(text: str, source: Mapping[str, Any],
     compact = re.sub(r'\s+', '', text)
     if 'dx' not in compact.lower() or 'dy' not in compact.lower():
         return None
-    # The differential form may keep the integral sign or lose it to OCR.
-    start = max(text.rfind('曲线积分'), text.rfind('\n')) + 1
-    segment = text[start:]
+    # OCR 的全角括号与幂号误读统一归一后再匹配。
+    scan = text.replace('（', '(').replace('）', ')').replace('~', '^')
+    # 微分式位于“曲线积分”之后、“其中/标点”之前——不能按最后换行截取（选项行会顶替）。
+    seg_match = re.search(r'曲线积分\s*(.+?)(?=其中|，|,|。|；|;|\n|$)', scan)
+    segment = seg_match.group(1) if seg_match else ''
     segment = re.split(r'[=。；;]', segment, maxsplit=1)[0]
     segment = re.sub(r'^[^()A-Za-z0-9]*', '', segment)
+    # P/Q 可以带括号也可以不带（`x dy - y dx`），且 dx、dy 次序不限。
+    _TERM = r'(?:\([^()]*(?:\([^()]*\)[^()]*)*\)|[A-Za-z0-9.+*/^\-]+?)'
     form = re.search(
-        r'\((?P<p>[^()]*(?:\([^()]*\)[^()]*)*)\)\s*d\s*x\s*'
-        r'(?P<sign>[+-])\s*\((?P<q>[^()]*(?:\([^()]*\)[^()]*)*)\)\s*d\s*y',
+        rf'(?P<first>{_TERM})\s*d\s*(?P<v1>[xy])\s*'
+        rf'(?P<sign>[+-])\s*(?P<second>{_TERM})\s*d\s*(?P<v2>[xy])',
         segment, re.I,
     )
-    if not form:
+    if not form or form.group('v1').lower() == form.group('v2').lower():
         return None
-    p_raw = _plain(form.group('p'))
-    q_raw = _plain(form.group('q'))
+    first_raw = _plain(form.group('first'))
+    second_raw = _plain(form.group('second'))
     if form.group('sign') == '-':
-        q_raw = f'-({q_raw})'
+        second_raw = f'-({second_raw})'
+    if form.group('v1').lower() == 'x':
+        p_raw, q_raw = first_raw, second_raw
+    else:
+        p_raw, q_raw = second_raw, first_raw
     try:
         p_expr = _parse_xy(p_raw, 'P')
         q_expr = _parse_xy(q_raw, 'Q')
     except Exception:
         return None
-    curve = re.search(r'y\s*=\s*([^\n，,。；;]+?)(?=\s*(?:从|上|在|的|，|,|。|；|;|$))', text)
+    curve = re.search(r'y\s*=\s*([^\n，,。；;]+?)(?=\s*(?:从|上|在|的|，|,|。|；|;|$))', scan)
     if not curve:
         return None
     curve_raw = _plain(curve.group(1))
@@ -73,7 +81,7 @@ def build_line_integral_from_text(text: str, source: Mapping[str, Any],
     points = re.search(
         r'从\s*(?:点)?\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)'
         r'\s*(?:到|至)\s*(?:点)?\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)',
-        text,
+        scan,
     )
     if not points:
         return None

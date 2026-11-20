@@ -203,7 +203,7 @@ def _ambiguity(cid: str, question: str, options: list[dict[str, str]]) -> dict[s
             "severity": "blocking", "options": options, "resolved": False, "answer": None}
 
 
-_NUM = r"([0-9]+(?:\.[0-9]+)?(?:\s*[×xX*]\s*10\s*\^?\s*-?\s*\d+|[eE]\s*-?\s*\d+)?)"
+_NUM = r"([0-9]+(?:[ \xa0][0-9]{3})*(?:\.[0-9]+)?(?:\s*[×xX*]\s*10\s*\^?\s*-?\s*\d+|[eE]\s*-?\s*\d+)?)"
 
 
 def _number(token: str) -> float:
@@ -530,8 +530,8 @@ def _eval_performance(text: str) -> dict[str, Any]:
     delay_block = (not modes or bool(re.search(r"发送时延|时延带宽积", text)))
     ignore_propagation = bool(re.search(r"忽略[^\n。；]{0,8}传播|传播时延忽略|传播时延不计|不计传播时延", text))
     if delay_block and transmission is not None:
-        if re.search(r"总时延|端到端时延", text) and propagation is None and not ignore_propagation:
-            raise ValueError("计算总时延还需要传播时延（或链路长度与传播速率）；若传播时延可忽略请注明")
+        if re.search(r"总时延|端到端时延|传播时延", text) and propagation is None and not ignore_propagation:
+            raise ValueError("计算传播时延/总时延还需要链路长度与传播速率；若传播时延可忽略请注明")
         total_delay = (transmission or 0.0) + (propagation or 0.0) + (process_delay or 0.0)
         detail = (f"发送时延 = {_fmt_size_bits(data_bits)} / {_fmt_rate(rate)} = {_fmt_time(transmission)}；"
                   f"传播时延 = {_fmt_time(propagation)}。")
@@ -702,6 +702,12 @@ def _eval_performance(text: str) -> dict[str, Any]:
         answer_bits.append("电路交换先建立连接；报文交换整报文存储转发；分组交换按分组存储转发并可流水线")
 
     if not frames:
+        if (
+            re.search(r"求|计算|多少|多久|多大|为几", text)
+            and not re.search(r"说明|简述|原理|如何|作用|特点|区别|过程|是什么|含义|定义|公式", text)
+            and re.search(r"发送时延|传输时延|传播时延|总时延|时延带宽积|吞吐量|带宽|速率|利用率", text)
+        ):
+            raise ValueError("计算时延、吞吐量或时延带宽积需要给出数据量、链路带宽、距离与传播速率等参数")
         detail = ("带宽是链路最高传输速率；吞吐量是实际端到端速率；"
                   "发送时延 = 数据位数/速率，传播时延 = 距离/传播速率；"
                   "时延带宽积 = 传播时延 × 带宽，表示链路中容纳的比特数。")
@@ -735,6 +741,9 @@ def _eval_performance(text: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def _parse_levels(text: str) -> int | None:
+    composite = re.search(r"(\d+)\s*个?相位[^。；]{0,20}?(\d+)\s*种?振幅", text)
+    if composite:
+        return int(composite.group(1)) * int(composite.group(2))
     match = re.search(r"(\d+)\s*种(?:不同)?(?:码元|电平|相位|状态|信号)", text)
     if match:
         return int(match.group(1))
@@ -925,17 +934,24 @@ def _parity_type(text: str) -> str | None:
     return None
 
 
-def _data_bits(text: str) -> str | None:
-    data = _bits_after(text, r"数据(?:位|比特|码|序列)?|信息位|信息码|信息序列|原始数据|"
+def _explicit_data_bits(text: str) -> str | None:
+    return _bits_after(text, r"数据(?:位|比特|码|序列)?|信息位|信息码|信息序列|原始数据|"
                              r"待发送(?:数据|序列)?|发送(?:数据|比特|序列)")
+
+
+def _data_bits(text: str) -> str | None:
+    data = _explicit_data_bits(text)
     if data:
         return data
     return _bits_token(text)
 
 
 def _received_bits(text: str) -> str | None:
-    return _bits_after(text, r"接收(?:到)?(?:的)?(?:码字|数据|比特流)|收到(?:的)?(?:码字|数据)|"
-                             r"接收码字|接收端收到")
+    return _bits_after(
+        text,
+        r"接收(?:端|到)?(?:的)?(?:海明码|汉明码|码字|校验码|数据|比特流)|"
+        r"收到(?:的)?(?:海明码|汉明码|码字|数据|比特流)|接收码字|接收端收到",
+    )
 
 
 def _parse_polynomial(text: str) -> str | None:
@@ -962,11 +978,13 @@ def _parse_polynomial(text: str) -> str | None:
                    for degree in range(max_degree, -1, -1))
 
 
-def _crc_divide(data: str, generator: str) -> tuple[str, list[dict[str, Any]]]:
+def _crc_divide(data: str, generator: str, *, append_zeros: bool = True) -> tuple[str, list[dict[str, Any]]]:
     width = len(generator) - 1
-    work = list(data + "0" * width)
+    dividend = (data + "0" * width) if append_zeros else data
+    work = list(dividend)
     steps: list[dict[str, Any]] = []
-    for index in range(len(data)):
+    limit = len(data) if append_zeros else max(0, len(dividend) - width)
+    for index in range(limit):
         if work[index] != "1":
             continue
         before = "".join(work)
@@ -1031,8 +1049,55 @@ def _eval_error_control(text: str) -> dict[str, Any]:
     concept_question = bool(re.search(r"说明|简述|原理|如何|作用|特点|区别|过程|是什么", text))
     if re.search(r"海明|汉明|Hamming", text, re.I):
         parity = _parity_type(text) or "even"
-        data = _data_bits(text)
+        explicit_data = _explicit_data_bits(text)
+        received = _received_bits(text)
         distance_match = re.search(r"(?:海明|汉明)距离\s*(?:为|是|=|:)?\s*(\d+)|最小(?:海明|汉明)距离\s*(\d+)", text)
+        distance = int(next(group for group in distance_match.groups() if group)) if distance_match else None
+        decode_only_cw = None
+        if explicit_data is None and (
+            received is not None or re.search(r"纠错|检错|检出|综合因子|校正|校验是否|是否出错|出错", text)
+        ):
+            decode_only_cw = received or _bits_token(text)
+        if decode_only_cw is not None:
+            total = len(decode_only_cw)
+            if total > MAX_BITS:
+                raise ValueError(f"海明码长度超过 {MAX_BITS} 位，首版仅支持较短码字")
+            parity_positions = [1 << index for index in range(total.bit_length()) if (1 << index) <= total]
+            data_positions = [pos for pos in range(1, total + 1) if pos not in parity_positions]
+            syndrome = _hamming_syndrome(decode_only_cw, parity, parity_positions)
+            corrected = decode_only_cw
+            verdict = "无单比特错误"
+            if syndrome:
+                if syndrome <= total:
+                    corrected = "".join(
+                        str(1 - int(bit)) if index + 1 == syndrome else bit
+                        for index, bit in enumerate(decode_only_cw))
+                    verdict = f"检测到错误，第 {syndrome} 位出错并已纠正"
+                else:
+                    verdict = f"综合因子 {syndrome} 超出码长 {total}，属于不可纠正的多位错误"
+            extracted_data = "".join(corrected[pos - 1] for pos in data_positions)
+            _frame(frames, "layout", "识别码长与校验位",
+                   f"接收 {total} 位海明码 {decode_only_cw}（{'偶' if parity == 'even' else '奇'}校验），"
+                   f"校验位在位置 {', '.join(map(str, parity_positions))}，数据位在 {', '.join(map(str, data_positions))}。",
+                   1, 接收码字=decode_only_cw, 校验位位置=", ".join(map(str, parity_positions)),
+                   校验方式="偶校验" if parity == "even" else "奇校验")
+            _frame(frames, "syndrome", "计算综合因子",
+                   f"按 2 的幂位置分组异或得综合因子 S={syndrome}；结论：{verdict}。", 2,
+                   综合因子=str(syndrome), 判断=verdict)
+            _frame(frames, "correct", "纠错与提取数据",
+                   f"纠正后码字 {corrected}，提取数据位 {extracted_data}。", 3,
+                   纠正结果=corrected, 数据位=extracted_data)
+            answer_bits.append(f"接收 {decode_only_cw}，综合因子 {syndrome}：{verdict}；纠正后码字 {corrected}（数据位 {extracted_data}）")
+            stats["hamming"] = {"received": decode_only_cw, "syndrome": syndrome, "corrected": corrected,
+                                "data": extracted_data, "r": len(parity_positions), "total": total, "parity": parity}
+            answer = "；".join(answer_bits)
+            return _ok("error_control", answer, frames, PSEUDOCODES["error_control"],
+                       checks=[_check("syndrome", "综合因子定位", True,
+                                      "偶/奇校验下的综合因子按覆盖位置异或得到；非零单比特错误对应出错位号。")],
+                       notes=["海明码校验位在 2 的幂位置（1, 2, 4, 8…），其余位置为数据位。",
+                              "简单海明码可检 2 位错（无法定位）或纠 1 位错。"],
+                       answer_order=[corrected, extracted_data], answer_value=float(syndrome), stats=stats)
+        data = explicit_data or _bits_token(text)
         distance = int(next(group for group in distance_match.groups() if group)) if distance_match else None
         if not data:
             if distance is not None:
@@ -1124,9 +1189,16 @@ def _eval_error_control(text: str) -> dict[str, Any]:
                    answer_order=answer_order, answer_value=answer_value, stats=stats)
 
     if re.search(r"CRC|循环冗余|生成多项式|模2除法|模 2 除法", text, re.I):
-        data = _data_bits(text)
+        received = _received_bits(text)
+        explicit_data = _explicit_data_bits(text)
+        # 若只有“接收端收到数据 …”而无独立发送数据/构造要求，则直接按接收码字做模2验余。
+        receive_only_cw = None
+        if received and (explicit_data is None or explicit_data == received) and re.search(r"检验|检错|是否出错|余数", text):
+            if not re.search(r"发送码字|待发送|原始数据|信息码|构造", text):
+                receive_only_cw = received
+        data = None if receive_only_cw else (explicit_data or _bits_token(text))
         generator = _parse_polynomial(text)
-        if not data or not generator or len(generator) < 2:
+        if not generator or len(generator) < 2 or (not data and not receive_only_cw):
             if concept_question:
                 _frame(frames, "concept", "CRC 生成与校验",
                        "CRC 把数据看作多项式，左移 r 位（r 为生成多项式阶数）后按模 2 除以生成多项式；"
@@ -1136,9 +1208,34 @@ def _eval_error_control(text: str) -> dict[str, Any]:
                 return _ok("error_control", answer, frames, PSEUDOCODES["error_control"],
                            notes=["构造 CRC 需要给出数据位和生成多项式。"],
                            stats={"concept": True})
-            if not data:
+            if not data and not receive_only_cw:
                 raise ValueError("CRC 题需要给出数据位，例如“数据 1011001，生成多项式 x^4+x+1”")
             raise ValueError("CRC 题需要给出生成多项式，例如 G(x)=x^4+x+1 或 10011")
+        if receive_only_cw:
+            if len(receive_only_cw) < len(generator):
+                raise ValueError("接收码字长度应不小于生成多项式位长")
+            check_remainder, check_steps = _crc_divide(receive_only_cw, generator, append_zeros=False)
+            ok = set(check_remainder) <= {"0"} or check_remainder == ""
+            _frame(frames, "params", "CRC 校验参数",
+                   f"接收码字 {receive_only_cw}，生成多项式 {generator}（阶 r={len(generator) - 1}），"
+                   f"直接按模 2 除以生成多项式检验余数。", 1,
+                   接收码字=receive_only_cw, 生成多项式=generator)
+            for offset, step in enumerate(check_steps[:12], 1):
+                _frame(frames, "divide", f"第 {offset} 次异或",
+                       f"当前被除数 {step['before']}，用 {generator} 对齐最高位 1 做异或，得到 {step['after']}。", 2,
+                       被除数=step["before"], 生成多项式=generator, 异或结果=step["after"])
+            _frame(frames, "check", "CRC 校验结果",
+                   f"余数为 {check_remainder or '0'}；{'余数为 0，未检出错' if ok else '余数非 0，检出传输差错'}。", 5,
+                   接收码字=receive_only_cw, 校验余数=check_remainder or "0", 判断="未检出错" if ok else "检出错")
+            stats["crc"] = {"generator": generator, "received": receive_only_cw,
+                            "check_remainder": check_remainder, "ok": ok}
+            answer = (f"接收码字 {receive_only_cw} 除以 {generator} 得余数 {check_remainder or '0'}："
+                      f"{'未检出错' if ok else '检出错'}")
+            return _ok("error_control", answer, frames, PSEUDOCODES["error_control"],
+                       checks=[_check("crc_check", "接收端余数检验", True, "直接以接收码字模 2 除生成多项式，余数全 0 表示无检出差错。")],
+                       notes=["接收端验余不再额外补 r 个 0；直接除以 G(x) 看 r 位余数。"],
+                       answer_value=float(int(check_remainder or "0", 2)),
+                       answer_order=[check_remainder or "0"], stats=stats)
         remainder, steps = _crc_divide(data, generator)
         _frame(frames, "params", "CRC 参数",
                f"数据 {data}，生成多项式对应位串 {generator}，阶 r={len(generator) - 1}；"
@@ -1156,11 +1253,10 @@ def _eval_error_control(text: str) -> dict[str, Any]:
         answer_order = [codeword]
         stats["crc"] = {"data": data, "generator": generator, "remainder": remainder,
                         "codeword": codeword}
-        received = _received_bits(text)
         if received is None and re.search(r"接收码字|收到", text):
             received = _bits_token(text)
         if received and len(received) >= len(generator):
-            check_remainder, check_steps = _crc_divide(received, generator)
+            check_remainder, check_steps = _crc_divide(received, generator, append_zeros=False)
             ok = set(check_remainder) <= {"0"} or check_remainder == ""
             _frame(frames, "check", "CRC 校验",
                    f"接收码字 {received} 模 2 除以 {generator}，余数为 {check_remainder or '0'}；"
@@ -1440,6 +1536,23 @@ def _eval_sliding_window(text: str) -> dict[str, Any]:
                 stats["utilization"] = utilization
                 answer_value = utilization * 100
 
+    sent_range = re.search(r"编号\s*为\s*(\d+)\s*[~～\-–—到至]\s*(\d+)\s*的?帧", text)
+    ack_run = re.search(r"收到\s*((?:\d+\s*[,，、和及与]?\s*)+)\s*号?帧?的?确\s*认", text)
+    if sent_range and ack_run and protocol == "gbn":
+        first_sent, last_sent = int(sent_range.group(1)), int(sent_range.group(2))
+        acks = [int(v) for v in re.findall(r"\d+", ack_run.group(1))]
+        covered = max(acks)
+        resent = [f for f in range(first_sent, last_sent + 1) if f > covered]
+        if resent:
+            detail = (f"GBN 采用累积确认：收到 {covered} 号帧的确认即表示 {first_sent}–{covered} 号帧均已到达；"
+                      f"发送端已发 {first_sent}–{last_sent}，超时后需从 {covered + 1} 号帧起重传 "
+                      f"{resent[0]}…{resent[-1]}，共 {len(resent)} 帧。")
+            _frame(frames, "gbn_resend", "GBN 累积确认与重传", detail, 4,
+                   已发帧=f"{first_sent}–{last_sent}", 已确认=str(sorted(set(acks))),
+                   累积确认至=str(covered), 重传帧=",".join(str(f) for f in resent))
+            answer_bits.append(detail)
+            stats["retransmissions"] = resent
+            answer_value = float(len(resent))
     total_frames_match = re.search(r"共\s*(\d+)\s*(?:个)?帧|发送\s*(\d+)\s*帧", text)
     total_frames = int(next(group for group in total_frames_match.groups() if group)) if total_frames_match else None
     lost_match = re.search(r"第\s*(\d+)\s*帧(?:丢失|出错|损坏)|(\d+)\s*号帧(?:丢失|出错|损坏)", text)
@@ -1521,12 +1634,31 @@ def _eval_mac(text: str) -> dict[str, Any]:
 
     if re.search(r"CSMA\s*/\s*CD|CSMA/CD|冲突检测|以太网|最小帧", text, re.I):
         rate = _rate_bps(text, r"链路带宽|链路速率|数据率|传输速率|速率") or _any_rate_bps(text)
+        speed = _speed_mps(text, r"信号传播速率|传播速率|传播速度|电磁波速度|信号传播速度")
         one_way = _time_seconds(text, r"单程传播时延|传播时延")
         if one_way is None:
             distance = _meters(text, r"总线长度|电缆长度|链路长度|距离")
-            speed = _speed_mps(text, r"信号传播速率|传播速率|电磁波速度")
             if distance and speed:
                 one_way = distance / speed
+        frame_delta = re.search(
+            rf"最小(?:数据)?帧长(?:度)?\s*(减少|减小|缩短|增加|增大|变长|变短)\s*{_NUM}\s*"
+            r"(Kbit|Mbit|Gbit|Kb|Mb|Gb|KB|MB|GB|bytes?|bits?|bit|B|b|字节|比特|位)", text, re.I)
+        if frame_delta and rate and speed and "csma_cd" not in stats:
+            shrink = frame_delta.group(1) in ("减少", "减小", "缩短", "变短")
+            delta_bits = _rate_value(_number(frame_delta.group(2)), frame_delta.group(3))
+            delta_d = speed * delta_bits / (2 * rate)
+            direction = "减少" if shrink else "增加"
+            detail = (f"最小帧长变化 ΔL = {direction} {_fmt(delta_bits)} bit；由 Lmin = 2τR = 2dR/v 得 "
+                      f"Δd = ΔL·v/(2R) = {_fmt(delta_bits)}×{_fmt(speed)}/(2×{_fmt(rate)}) "
+                      f"= {_fmt(delta_d)} m；最远站点距离至少{direction} {_fmt(delta_d)} m。")
+            _frame(frames, "frame_delta", "最小帧长变化对最大距离的影响", detail, 2,
+                   速率=_fmt_rate(rate), 传播速度=f"{_fmt(speed)} m/s",
+                   帧长变化=f"{direction} {_fmt(delta_bits)} bit",
+                   距离变化=f"{direction} {_fmt(delta_d)} m")
+            answer_bits.append(f"最远站点距离至少{direction} {_fmt(delta_d)} m")
+            stats["csma_cd"] = {"delta_m": delta_d if not shrink else -delta_d,
+                                "rate_bps": rate, "speed_mps": speed, "delta_bits": delta_bits}
+            answer_value = delta_d
         contention = _time_seconds(text, r"争用期|冲突窗口|冲突检测时间")
         given_frame = _size_bits(text, r"最小帧长")
         if rate and given_frame and contention is None and one_way is None and re.search(r"争用期|冲突窗口|争用时间", text):
@@ -1613,8 +1745,13 @@ def _eval_mac(text: str) -> dict[str, Any]:
     answer = "；".join(dict.fromkeys(answer_bits))
     metrics = []
     if "csma_cd" in stats:
-        metrics.append({"id": "min_frame", "label": "最小帧长",
-                        "value": f"{_fmt(stats['csma_cd']['min_bits'])} bit"})
+        csma = stats["csma_cd"]
+        if "min_bits" in csma:
+            metrics.append({"id": "min_frame", "label": "最小帧长",
+                            "value": f"{_fmt(csma['min_bits'])} bit"})
+        elif "delta_m" in csma:
+            metrics.append({"id": "distance_delta", "label": "距离变化",
+                            "value": f"{_fmt(csma['delta_m'])} m"})
     return _ok("mac", answer, frames, PSEUDOCODES["mac"],
                checks=[_check("window", "最小帧长条件", True,
                               "Lmin=2τR 保证发送时间覆盖冲突窗口 2τ。")],
@@ -2078,6 +2215,14 @@ def _eval_ip(text: str) -> dict[str, Any]:
             host_bits = int(math.ceil(math.log2(requested_hosts + 2)))
             new_prefix = 32 - host_bits
             subnet_count = 1 << (new_prefix - prefix) if new_prefix >= prefix else 0
+        mask_match = re.search(r"子网掩码\s*(?:为|是|=|:|：)?\s*"
+                               r"((?:\d{1,3}\.){3}\d{1,3}|/\s*\d{1,2})", text)
+        if (mask_match and subnet_match is None and host_match is None
+                and re.search(r"子网|划分", text)):
+            mask_prefix = _prefix_from_mask(mask_match.group(1).lstrip("/").strip())
+            if mask_prefix is not None and mask_prefix > prefix:
+                new_prefix = mask_prefix
+                subnet_count = 1 << (new_prefix - prefix)
         if new_prefix > 32 or new_prefix < prefix:
             raise ValueError("子网划分后的前缀长度不合法")
 
@@ -2106,9 +2251,9 @@ def _eval_ip(text: str) -> dict[str, Any]:
             answer_bits.append(f"划分为 {subnet_count} 个 /{new_prefix} 子网，"
                                f"每子网 {_subnet_hosts(new_prefix)} 台可用主机")
             stats["subnets"] = rows
-            if re.search(r"几个子网|子网数", text):
+            if re.search(r"几个子网|子网数|子网个数", text):
                 answer_value = float(subnet_count or 0)
-            elif re.search(r"每个子网.*主机|每子网.*主机", text):
+            elif re.search(r"每个子网.*主机|每子网.*主机|可分配.*地址.*个数|地址个数", text):
                 answer_value = float(_subnet_hosts(new_prefix))
             elif re.search(r"子网掩码|掩码|前缀", text) and not re.search(r"主机|可用地址", text):
                 answer_value = float(new_prefix)
@@ -2336,6 +2481,22 @@ def _eval_transport(text: str) -> dict[str, Any]:
         answer_bits.append("四次挥手：FIN→ACK→FIN→ACK；主动关闭方进入 TIME_WAIT 并等待 2MSL")
         stats["release"] = True
 
+    seg_ctx = re.search(r"[^。\n]*(?:TCP\s*段|报文段|数据段)[^。\n]*", text)
+    first_seq = re.search(r"序列号为?\s*(\d+)", text)
+    if seg_ctx and first_seq and re.search(r"确认|ACK|ack", text, re.I):
+        payloads = [int(v) for v in re.findall(r"(\d+)\s*(?:个)?字节", seg_ctx.group(0))]
+        if payloads:
+            base_seq = int(first_seq.group(1))
+            ack = base_seq + sum(payloads)
+            detail = (f"首段序列号 {base_seq}，各段载荷 {'+'.join(str(v) for v in payloads)} 字节；"
+                      f"序号按字节推进，接收方累积确认号 = {base_seq} + {sum(payloads)} = {ack}。")
+            _frame(frames, "seg_ack", "TCP 累积确认号", detail, 2,
+                   首段序号=str(base_seq), 载荷字节="+".join(str(v) for v in payloads),
+                   确认号=str(ack))
+            answer_bits.append(f"接收方的确认号为 {ack}")
+            answer_value = float(ack)
+            stats["segments"] = {"first_seq": base_seq, "payloads": payloads, "ack": ack}
+
     sequence = _int_after(text, r"初始序号|ISN|序号(?:为|是)?")
     data_length = _int_after(text, r"(?:发送|携带|数据长度|数据)[^\n。；]{0,6}(\d+)\s*字节|数据长度")
     if sequence is None:
@@ -2433,13 +2594,18 @@ def _eval_tcp_control(text: str) -> dict[str, Any]:
     stats: dict[str, Any] = {}
     answer_value: float | None = None
 
-    mss_bytes = _size_bits(text, r"MSS|最大报文段长度")
+    mss_bytes = _size_bits(text, r"MSS|最大报文段长度|最大段(?:长度|长)?|报文段长度")
+    if mss_bytes is None:
+        rev = re.search(rf"{_NUM}\s*(KB|kB|B|字节)\s*的?\s*(?:最大段|最大报文段|MSS|报文段)", text, re.I)
+        if rev:
+            mss_bytes = _number(rev.group(1)) * (1024.0 * 8 if rev.group(2).upper() == "KB" else 8.0)
     mss_bytes = mss_bytes / 8 if mss_bytes else None
     initial_raw = _mss_number(text, r"初始拥塞窗口|cwnd\s*初值|初始\s*cwnd|拥塞窗口初值")
     if initial_raw is None:
         initial_raw = _mss_number(text, r"当前拥塞窗口|拥塞窗口|cwnd")
     ssthresh_raw = _mss_number(text, r"ssthresh|慢启动门限|慢开始门限")
     rwnd_raw = _mss_number(text, r"接收窗口|rwnd|通告窗口")
+    timeout_now = re.search(r"拥塞窗口[^。\n]{0,16}时?发生?了?超时|cwnd[^。\n]{0,16}时?发生?了?超时", text)
 
     def to_mss(raw: tuple[float, str] | None) -> float | None:
         if raw is None:
@@ -2468,13 +2634,22 @@ def _eval_tcp_control(text: str) -> dict[str, Any]:
         rounds = loss_round
 
     if initial is not None and rounds:
-        cwnd = initial
-        limit = ssthresh if ssthresh is not None else math.inf
         timeline = []
-        _frame(frames, "initial", "初始拥塞窗口",
-               f"cwnd={_fmt(cwnd)} MSS" + (f"，ssthresh={_fmt(limit)} MSS" if ssthresh is not None else "，未给出 ssthresh") + "。", 1,
-               轮次="0", cwnd=_fmt(cwnd), ssthresh=_fmt(limit) if ssthresh is not None else "未给出",
-               阶段="初始")
+        if timeout_now:
+            limit = max(math.floor(initial / 2), 2)
+            cwnd = 1.0
+            _frame(frames, "timeout0", "超时事件",
+                   f"cwnd={_fmt(initial)} MSS 时发生超时：ssthresh=cwnd/2={_fmt(limit)} MSS，"
+                   f"cwnd 重置为 1 MSS，重新慢启动。", 1,
+                   事件="超时", 原cwnd=_fmt(initial), ssthresh=_fmt(limit), 新cwnd="1",
+                   阶段="超时恢复")
+        else:
+            cwnd = initial
+            limit = ssthresh if ssthresh is not None else math.inf
+            _frame(frames, "initial", "初始拥塞窗口",
+                   f"cwnd={_fmt(cwnd)} MSS" + (f"，ssthresh={_fmt(limit)} MSS" if ssthresh is not None else "，未给出 ssthresh") + "。", 1,
+                   轮次="0", cwnd=_fmt(cwnd), ssthresh=_fmt(limit) if ssthresh is not None else "未给出",
+                   阶段="初始")
         for round_index in range(1, rounds + 1):
             phase = "慢启动" if cwnd < limit else "拥塞避免"
             if loss_round == round_index and loss_type:
@@ -2506,7 +2681,9 @@ def _eval_tcp_control(text: str) -> dict[str, Any]:
                        ssthresh=_fmt(limit) if ssthresh is not None else "未给出", 阶段=stage)
             timeline.append({"round": round_index, "cwnd": cwnd, "ssthresh": limit if ssthresh is not None else None})
         answer_bits.append(f"第 {rounds} 个 RTT 后 cwnd={_fmt(cwnd)} MSS"
-                           + (f"，ssthresh={_fmt(limit)} MSS" if ssthresh is not None else ""))
+                           + (f"（{_fmt(cwnd * mss_bytes / 1024)} KB）" if mss_bytes else "")
+                           + (f"，ssthresh={_fmt(limit)} MSS"
+                              if (ssthresh is not None or (timeout_now and limit != math.inf)) else ""))
         stats["timeline"] = timeline
         stats["final_cwnd"] = cwnd
         if re.search(r"cwnd|拥塞窗口", text):
@@ -2651,6 +2828,10 @@ def _eval_application(text: str) -> dict[str, Any]:
 
 def _detect_kind(text: str) -> str | None:
     low = text.lower()
+    if re.search(r"封装|解封装|首部|体系结构|osi|tcp\s*/\s*ip|各层|哪一层", low, re.I) and not re.search(
+            r"mac\s*帧|mac\s*表|mac\s*地址|自学习|转发表|vlan|802\.1q|泛洪|端口\s*\d+|分片|片偏移|子网|tcp\s*首部|udp\s*首部", low, re.I):
+        if re.search(r"应用层|传输层|网络层|数据链路层|物理层|封装|osi|tcp/ip|体系结构", low, re.I):
+            return "architecture"
     if re.search(r"dns|http|ftp|smtp|pop3|imap|url|网址|网页|页面显示|浏览器|域名|电子邮件|邮件|"
                  r"非持久连接|持久连接", low, re.I):
         return "application"

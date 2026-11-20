@@ -20,6 +20,7 @@ import { errorMessage } from '@/api/client';
 import type { LivingPageSummary, PageBlock } from '@/living/types';
 import { defaultManual408Text } from '@/labs/manual408';
 import { compileExpression } from '@/labs/expr';
+import { fitFreehandCurve, curveFamilyLabel, type CurveFitResult } from '@/labs/curveFit';
 import styles from './CanvasPage.module.css';
 
 interface InkReviewState {
@@ -29,6 +30,16 @@ interface InkReviewState {
   expression: string;
   matrix?: { a: number; b: number; c: number; d: number };
   note?: string;
+}
+
+interface FitReviewEntry {
+  stroke: InkStroke;
+  fit?: CurveFitResult;
+  reason?: string;
+}
+
+interface FitReviewState {
+  entries: FitReviewEntry[];
 }
 
 function InkThumbnail({ strokes }: { strokes: InkStroke[] }): JSX.Element | null {
@@ -54,6 +65,20 @@ function InkThumbnail({ strokes }: { strokes: InkStroke[] }): JSX.Element | null
       strokeLinecap="round"
       strokeLinejoin="round"
     />)}
+  </svg>;
+}
+
+/** 拟合对照：在归一化拟合空间叠画笔迹重采样（灰）与拟合曲线（蓝）。 */
+function FitOverlay({ fit }: { fit: CurveFitResult }): JSX.Element {
+  const ys = fit.samples.flatMap((sample) => [sample.drawn, sample.fitted]);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const sx = (x: number) => 10 + ((x - fit.domain[0]) / Math.max(1e-6, fit.domain[1] - fit.domain[0])) * 200;
+  const sy = (v: number) => 110 - ((v - yMin) / Math.max(1e-6, yMax - yMin)) * 100;
+  const pathFor = (key: 'drawn' | 'fitted') => fit.samples.map((sample, index) => `${index === 0 ? 'M' : 'L'}${sx(sample.x).toFixed(1)},${sy(sample[key]).toFixed(1)}`).join(' ');
+  return <svg className={styles.fitOverlay} viewBox="0 0 220 120" role="img" aria-label="手绘曲线与拟合曲线对照">
+    <line x1="10" x2="210" y1={sy(0)} y2={sy(0)} stroke="#e2e8f0" strokeWidth="0.8" />
+    <path d={pathFor('drawn')} fill="none" stroke="#94a3b8" strokeWidth="1.4" />
+    <path d={pathFor('fitted')} fill="none" stroke="#4f46e5" strokeWidth="1.8" />
   </svg>;
 }
 
@@ -157,6 +182,10 @@ export function CanvasPage(): JSX.Element {
   const [inkExpression, setInkExpression] = useState('');
   const [inkError, setInkError] = useState<string | null>(null);
   const inkResolve = useRef<((ok: boolean) => void) | null>(null);
+  const [fitReview, setFitReview] = useState<FitReviewState | null>(null);
+  const [fitExpressions, setFitExpressions] = useState<string[]>([]);
+  const [fitError, setFitError] = useState<string | null>(null);
+  const fitResolve = useRef<((ok: boolean) => void) | null>(null);
   const [histInfo, setHistInfo] = useState({ undo: 0, redo: 0 });
   const spawn = useRef(0);
   const saveTimer = useRef<number | null>(null);
@@ -450,6 +479,73 @@ export function CanvasPage(): JSX.Element {
     inkResolve.current = null;
   }, [inkExpression, inkReview, setDoc]);
 
+  /** 手绘曲线 → 表达式：纯前端最小二乘拟合，不发请求、不调模型；失败的笔迹保留并说明原因。 */
+  const recognizeCurves = useCallback(async (strokes: InkStroke[]): Promise<boolean> => {
+    const entries = strokes.map((stroke) => {
+      const outcome = fitFreehandCurve({ points: stroke.points });
+      return outcome.fit ? { stroke, fit: outcome.fit } : { stroke, reason: outcome.reason ?? '无法拟合为表达式。' };
+    });
+    if (!entries.some((entry) => entry.fit)) {
+      window.alert(entries.map((entry) => entry.reason).filter(Boolean).join('\n') || '没有可拟合的曲线。');
+      return false;
+    }
+    fitResolve.current?.(false);
+    setFitReview({ entries });
+    setFitExpressions(entries.map((entry) => entry.fit?.source ?? ''));
+    setFitError(null);
+    return await new Promise<boolean>((resolve) => { fitResolve.current = resolve; });
+  }, []);
+
+  const cancelFitReview = useCallback(() => {
+    setFitReview(null);
+    setFitError(null);
+    fitResolve.current?.(false);
+    fitResolve.current = null;
+  }, []);
+
+  const materializeFit = useCallback(() => {
+    if (!fitReview) return;
+    const accepted = fitReview.entries.map((entry, index) => ({
+      entry,
+      expression: (fitExpressions[index] ?? '').trim(),
+    })).filter((item) => item.entry.fit && item.expression);
+    if (!accepted.length) {
+      setFitError('没有可采纳的拟合结果。');
+      return;
+    }
+    for (const { expression } of accepted) {
+      try {
+        compileExpression(expression, ['x']);
+      } catch (cause) {
+        setFitError(`表达式「${expression}」无法解析：${cause instanceof Error ? cause.message : String(cause)}`);
+        return;
+      }
+    }
+    const consumed = new Set(accepted.map((item) => item.entry.stroke.id));
+    setDoc((previous) => {
+      const nodes = [...previous.nodes];
+      const wires = [...previous.wires];
+      let row = 0;
+      for (const { entry, expression } of accepted) {
+        const pts = entry.stroke.points;
+        const x = clamp(Math.min(...pts.map((p) => p[0])), 20, 2000);
+        const y = clamp(Math.max(...pts.map((p) => p[1])) + 40 + row * 230, 20, 1200);
+        row += 1;
+        const sourceId = nextId('n');
+        nodes.push({ id: sourceId, type: 'functionSource', x, y, params: { a: 1, b: 0, c: 0 }, text: expression });
+        const plotId = nextId('n');
+        const [d0, d1] = entry.fit!.domain;
+        nodes.push({ id: plotId, type: 'functionPlot', x: x + 320, y, params: { min: d0, max: d1, x: 0 } });
+        wires.push({ id: nextId('w'), from: sourceId, to: plotId });
+      }
+      return { ...previous, nodes, wires, strokes: previous.strokes.filter((stroke) => !consumed.has(stroke.id)) };
+    });
+    setFitReview(null);
+    setFitError(null);
+    fitResolve.current?.(true);
+    fitResolve.current = null;
+  }, [fitExpressions, fitReview, setDoc]);
+
   const openLivingPanel = useCallback(async () => {
     setLivingOpen(true);
     setLivingMessage(null);
@@ -665,7 +761,47 @@ export function CanvasPage(): JSX.Element {
         </div>
       ) : null}
 
-      <CanvasBoard doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor} onAddNode={addNode} onInkExtract={recognizeInk} />
+      {fitReview ? (
+        <div className={styles.inkReview} role="dialog" aria-modal="true" aria-label="核对曲线拟合结果">
+          <div className={styles.inkReviewCard}>
+            <h3>核对曲线拟合结果</h3>
+            <p className={styles.fitHint}>纯本地最小二乘拟合，不识别笔迹内容；笔迹纵向中心对齐 y=0，拟合域归一到 [-4,4]。</p>
+            {fitReview.entries.map((entry, index) => (
+              <div key={entry.stroke.id} className={styles.inkReviewBody}>
+                <InkThumbnail strokes={[entry.stroke]} />
+                <div className={styles.inkReviewMeta}>
+                  {entry.fit ? (
+                    <>
+                      <span>{curveFamilyLabel(entry.fit.family)} · RMSE {(entry.fit.rmse * 100).toFixed(1)}% · 峰值误差 {(entry.fit.maxError * 100).toFixed(1)}%</span>
+                      <FitOverlay fit={entry.fit} />
+                      <label>函数表达式 f(x)
+                        <input
+                          value={fitExpressions[index] ?? ''}
+                          spellCheck={false}
+                          onChange={(event) => {
+                            setFitExpressions((previous) => previous.map((value, i) => (i === index ? event.target.value : value)));
+                            setFitError(null);
+                          }}
+                          aria-label={`第 ${index + 1} 条曲线的拟合表达式`}
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <span className={styles.inkReviewError}>{entry.reason}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+            {fitError ? <p className={styles.inkReviewError} role="alert">{fitError}</p> : null}
+            <div className={styles.inkReviewActions}>
+              <button type="button" className={styles.tbtn} onClick={cancelFitReview}>取消（保留笔迹）</button>
+              <button type="button" className={`${styles.tbtn} ${styles.primary}`} onClick={materializeFit}>生成函数积木</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <CanvasBoard doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor} onAddNode={addNode} onInkExtract={recognizeInk} onInkFit={recognizeCurves} />
     </div>
   );
 }

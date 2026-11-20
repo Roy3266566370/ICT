@@ -35,7 +35,7 @@ import type {
 } from './types.ts';
 import { readNumber } from './types.ts';
 import { evaluateHeap } from './heap.ts';
-import { evaluateLinAlg } from './linalg.ts';
+import { evaluateLinAlg, replayEigen } from './linalg.ts';
 import { evaluateOs } from './opsys.ts';
 import { replayCompOrg } from './compOrg.ts';
 import { replayNetwork } from './network.ts';
@@ -1504,14 +1504,14 @@ function computeModel(problem: LabProblem, params: Record<string, unknown>): Lab
       if (String(problem.model.engine ?? '').startsWith('ds_')) {
         return replayDs(problem);
       }
-      if (problem.model.engine === 'dfs_v1') {
+      if (problem.model.engine === 'dfs_v1' || problem.model.algorithm === 'dfs') {
         return computeDfs(problem, params);
       }
       return computeBfs(problem, params);
     case 'deep_learning':
       return computeDeepLearning(problem, params);
     case 'linear_algebra': {
-      const result = evaluateLinAlg(problem.model, params);
+      const result = problem.model.la_kind === 'eigen' ? replayEigen(problem) : evaluateLinAlg(problem.model, params);
       if (result.status !== 'ok') throw new Error(result.reason ?? '请核对线性代数题目的条件');
       return result;
     }

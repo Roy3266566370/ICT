@@ -116,7 +116,7 @@ export function LabAISolvePanel({ problem, configured, autoReady = true, onSolve
       {solution ? <details className={styles.panel} open={!hasKernel}>
       <summary>{hasKernel ? '查看计算结果与步骤' : hasReference ? '查看已识别题意与参考解答' : '查看已识别题意与条件'}</summary>
       {!hasKernel ? <>
-        <p className={styles.notice}>{hasReference ? '以下为 AI 参考解答，未经内核核验，不用于自动判分。' : '当前仅完成题目转写与条件提取；本地模型未生成参考解答。'}</p>
+        <p className={styles.notice}>{hasReference ? '以下为 AI 参考解答，未经内核核验，不用于自动判分。' : '当前仅完成题目转写与条件提取；AI 未生成参考解答。'}</p>
         {solution.question ? <p><MathText text={solution.question} /></p> : null}
         {solution.interpretation && solution.interpretation !== solution.question ? <p><MathText text={solution.interpretation} /></p> : null}
         {solution.conditions.length ? <ul>{solution.conditions.map((condition, i) => <li key={i}><MathText text={condition} /></li>)}</ul> : null}

@@ -194,10 +194,7 @@ class Settings(BaseSettings):
 
     # --- 题目实验室（与课件转换分离；默认不产生任何模型调用）---
     lab_max_files: int = Field(default=6, ge=1, le=12)
-    lab_understanding_provider: str = 'maas'
-    lab_ollama_url: str = 'http://127.0.0.1:11434'
     lab_understanding_pipeline: str = 'staged'
-    lab_ollama_model: str = 'qwen3-vl:2b-instruct-q4_K_M'
     lab_max_pages: int = Field(default=20, ge=1, le=60)
     lab_max_text_chars: int = Field(default=30000, ge=100, le=200000)
     lab_ai_enabled: bool = Field(

@@ -558,16 +558,13 @@ def _kernel_with_repair(result, original, provider, budget, *, lab_id=None, ques
 
 def solve_with_ai(problem: Mapping[str, Any], *, mode: str = "auto", client=None, lab_id: str | None = None) -> dict:
     from ..settings import get_settings
-    if client is None and get_settings().lab_understanding_provider == 'ollama':
-        from .local_agent import understand
-        return understand(dict(problem), lab_id=lab_id)
     from ..ppt_ai.client import PPTAIClient, PPTAIError
     from ..ppt_ai.types import CallBudget
     from ..ppt_ai.util import hash_json, now_iso
+    from .ai_contract import source_images
     from .kernel_models import task_catalog, TASKS, FIELD_LABELS
     from .generic_model import OPS as GENERIC_OPS
     provider = client or PPTAIClient()
-    from .local_agent import source_images
     images = source_images(lab_id, dict(problem), cloud=True)
     text = str(problem.get("text") or "").strip()
     if len(text) < 3 and not images:
@@ -854,7 +851,7 @@ def restore_ai_understanding(problem: dict) -> bool:
 
 def review_ai_conditions(problem, values, answers):
     import copy
-    from .local_agent import finish_understanding
+    from .ai_contract import finish_understanding
     rebuilt = copy.deepcopy(problem)
     if not restore_ai_understanding(rebuilt):
         raise ValueError('没有可复核的 AI 解答')
@@ -1097,14 +1094,14 @@ def attach_interactive_model(problem: dict, result: Mapping) -> bool:
                 return False
         elif isinstance(result.get('limitations'), list) or result.get('verification') == 'needs_review':
             problem['status'] = 'needs_review'
-            problem['solution'] = {'answer': '', 'summary': '尚未建立可核验的计算模型，本地模型未生成参考解答。',
+            problem['solution'] = {'answer': '', 'summary': '尚未建立可核验的计算模型，AI 未生成参考解答。',
                                    'steps': [], 'limitations': list(result.get('limitations') or [])}
             if problem.get('subject') in (None, 'unknown'):
                 problem['subject'] = 'general'
                 from .recognize import SUBJECT_LABELS
                 problem['subject_label'] = SUBJECT_LABELS.get('general', '通用')
             _append_trace(result, trace_entry('attach', 'warn',
-                                              detail='未建立可执行模型，且本地模型未生成参考解答。'))
+                                              detail='未建立可执行模型，且 AI 未生成参考解答。'))
         if changed_ready_source:
             from .recognize import _ambiguity
             ambiguities = problem['recognition'].setdefault('ambiguities', [])

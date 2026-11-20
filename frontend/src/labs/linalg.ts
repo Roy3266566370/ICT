@@ -1,7 +1,7 @@
-import type { LabCheck, LabModel, LabResultBase, LabResultFrame, LabResultMetric } from './types.ts';
+import type { LabCheck, LabModel, LabProblem, LabResultBase, LabResultFrame, LabResultMetric } from './types.ts';
 import { readArrayNumbers, readNumber, readString } from './types.ts';
 
-export type LinAlgKind = 'linear_system' | 'determinant' | 'inverse' | 'matmul';
+export type LinAlgKind = 'linear_system' | 'determinant' | 'inverse' | 'matmul' | 'eigen';
 
 export interface LinAlgFrame extends LabResultFrame {
   action: 'initial' | 'swap' | 'pivot' | 'scale' | 'eliminate' | 'eliminated' | 'back_sub' | 'rref' | 'singular' | 'result' | 'element';
@@ -20,6 +20,7 @@ export interface LinAlgResult extends LabResultBase {
   order: string;
   scalar: number;
   matrixA: number[][] | null;
+  matrixAExact?: string[][] | null;
   matrixB: number[][] | null;
   vectorB: number[] | null;
   variables: string[];
@@ -180,6 +181,9 @@ function evalGauss(model: LabModel, params: Record<string, unknown>): LinAlgResu
   const variables = Array.isArray(model.variables) ? model.variables.map(String) : [];
 
   let reason = '';
+  if (!['linear_system', 'determinant', 'inverse'].includes(kind)) {
+    return blocked(model, 'gauss_v1', '该任务不能使用高斯消元；特征值须读取已核验的精确内核结果。');
+  }
   if ((kind === 'determinant' || kind === 'inverse') && !isSquare(a)) {
     reason = `${kind === 'determinant' ? '行列式' : '逆矩阵'}需要 n×n 方阵，请核对矩阵 A 的行数与列数。`;
   }
@@ -437,7 +441,25 @@ function evalMatop(model: LabModel, params: Record<string, unknown>): LinAlgResu
   };
 }
 
-/** 前端权威计算：与后端 app.labs.linalg 逐帧镜像。 */
+export function replayEigen(problem: LabProblem): LinAlgResult {
+  const solution = problem.solution;
+  const base = blocked(problem.model, 'gauss_v1', '请先核对公式与条件，再运行精确特征值内核。');
+  if (problem.status !== 'ready' || !solution.answer || solution.solution_complete !== true
+      || problem.recognition.ambiguities.some((item) => item.severity === 'blocking' && !item.resolved)) return base;
+  const frames: LinAlgFrame[] = solution.steps.map((step, index) => ({
+    index, action: 'result', label: step.title, detail: step.detail,
+    values: {}, pseudocodeLine: index + 1,
+  }));
+  return {
+    ...base, status: 'ok', reason: undefined, method: 'exact',
+    matrixAExact: problem.model.matrix_a_exact,
+    headline: solution.summary, answer: solution.answer, stopReason: 'done',
+    pseudocode: solution.steps.map((step) => step.title), frames, trace: frames,
+    checks: solution.checks ?? [], notes: solution.limitations ?? [],
+    metrics: [{ id: 'method', label: '方法', value: '精确特征多项式与零空间' }],
+  };
+}
+
 export function evaluateLinAlg(model: LabModel, params: Record<string, unknown>): LinAlgResult {
   if (model.la_kind === 'matmul') return evalMatop(model, params);
   return evalGauss(model, params);

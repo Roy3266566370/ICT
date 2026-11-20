@@ -8,7 +8,7 @@ from PIL import Image
 
 from app.labs import extract
 from app.labs.expr import parse_expression
-from app.labs.recognize import build_problem, rebuild_problem
+from app.labs.recognize import build_problem, rebuild_problem, _attach_solution
 from app.labs.solvers import solve_problem
 
 
@@ -97,3 +97,29 @@ def test_actual_ocr_candidate_can_be_confirmed_without_transcribing_the_integran
     reviewed = rebuild_problem(p,files=[],ambiguity_answers={'source_formula_confirmation':'confirmed'})
     assert reviewed['status'] == 'ready'
     assert reviewed['model']['kind'] == 'antiderivative'
+def test_ocr_brace_integral_and_swallowed_bounds():
+    """OCR 常把 ∫ 读成 `{`；无空格时上限会吞进被积函数（`^1x^2dx`→`1x^`）。"""
+    p = build_problem('6.计算定积分{_0^1x^2dx（）。')
+    _attach_solution(p)
+    assert p['model']['engine'] == 'riemann_v1'
+    assert p['status'] == 'ready'
+    assert p['model']['expression'] == 'x^2'
+    assert p['model']['defaults']['lower'] == 0.0
+    assert p['model']['defaults']['upper'] == 1.0
+    assert float(p['solution']['answer']) == pytest.approx(1/3)
+
+
+def test_ocr_doubled_infinity_upper_bound():
+    """`+∞∞` 是 OCR 重影；应还原为 +∞ 而不是把整个 `+∞∞1/x^` 当上限。"""
+    p = build_problem('12.计算广义积分∫_1^+∞∞1/x^2dx（）。')
+    _attach_solution(p)
+    assert p['model']['engine'] == 'riemann_v1'
+    assert p['status'] == 'ready'
+    assert p['model']['expression'] == 'x^(-2)'
+    assert float(p['solution']['answer']) == pytest.approx(1.0)
+
+
+def test_brace_integral_glyph_is_not_unbalanced_bracket():
+    from app.labs.source_recovery import assess_text_quality
+    assert not assess_text_quality('6.计算定积分{_0^1x^2dx（）。', [])['untrusted']
+    assert not assess_text_quality('10.计算二重积分」{D xy do（）。', [])['untrusted']

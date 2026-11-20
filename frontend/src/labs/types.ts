@@ -258,13 +258,15 @@ export interface LabModel {
   weight_source?: string;
   activation?: string;
   seed?: number;
-  algorithm?: 'bfs' | 'heap';
+  algorithm?: 'bfs' | 'dfs' | 'heap' | 'binary_search' | 'data_structure';
+  ds_kind?: string;
   heap_type?: 'max' | 'min';
   initial_heap?: number[];
   // linear algebra
-  la_kind?: 'linear_system' | 'determinant' | 'inverse' | 'matmul';
+  la_kind?: 'linear_system' | 'determinant' | 'inverse' | 'matmul' | 'eigen';
   op?: 'mul' | 'add' | 'sub' | 'scalar' | null;
   matrix_a?: number[][] | null;
+  matrix_a_exact?: string[][] | null;
   matrix_b?: number[][] | null;
   vector_b?: number[] | null;
   // operating system
@@ -462,6 +464,9 @@ export interface LabState {
   active_scenario_id: string;
   attempts: LabAttemptRecord[];
   evaluated: LabEvaluated | null;
+  /** 「我来 ✋」手动接管的选择轨迹，按画布键索引（sched/page/disk/banker/graph/heap）。
+   *  可选字段：老数据没有它也能读；分享快照会携带它用于只读回放。 */
+  manual?: Record<string, unknown>;
 }
 
 export interface MultivariableDetails {

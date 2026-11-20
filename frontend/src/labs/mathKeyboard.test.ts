@@ -43,6 +43,11 @@ test('不完整和未知函数提示错误，合法函数在定义域外仍可�
   assert.ok(inspectMath('unknown(x)').error);
   assert.ok(inspectMath('').error);
   assert.equal(inspectMath('ln(x)').error, null);
+  assert.equal(inspectMath('lnx').error, null);
+  assert.match(inspectMath('lnx').tex!, /\\ln/);
+  assert.equal(inspectMath('(x^x-1)/(lnx*ln(1-x))').error, null);
+  assert.match(inspectMath('(x^x-1)/(lnx*ln(1-x))').tex!, /\\ln/);
+  assert.ok(Math.abs(compileExpression('(x^x-1)/(lnx*ln(1-x))').eval({ x: 0.5 }) - ((0.5 ** 0.5 - 1) / (Math.log(0.5) * Math.log(0.5)))) < 1e-12);
   assert.equal(inspectMath('x*y', ['x', 'y']).error, null);
   assert.equal(inspectMath('2').tex, '2');
 });

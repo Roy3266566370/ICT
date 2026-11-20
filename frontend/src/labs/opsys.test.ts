@@ -1,6 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { auditManualSchedule, evaluateOs, firstScheduleDivergence, referenceScheduleGantt } from './opsys.ts';
+import {
+  auditManualBanker,
+  auditManualDiskOrder,
+  auditManualPageReplace,
+  auditManualSchedule,
+  evaluateOs,
+  firstDiskDivergence,
+  firstPageDivergence,
+  firstScheduleDivergence,
+  referenceScheduleGantt,
+} from './opsys.ts';
 import type { OsBankerResult, OsDiskResult, OsPageResult, OsSchedResult } from './opsys.ts';
 import type { LabModel } from './types.ts';
 
@@ -214,4 +224,117 @@ test('banker reports an unsafe state without a sequence', () => {
   assert.equal(result.stats.safe, false);
   assert.equal(result.answerOrder, null);
   assert.equal(result.stopReason, 'unsafe');
+});
+
+/* ------------------------------------------------------------------ */
+/* 手动接管审计                                                          */
+/* ------------------------------------------------------------------ */
+
+const CLASSIC_REFERENCE = '7,0,1,2,0,3,0,4,2,3,0,3,2,1,2,0,1,7,0,1'.split(',');
+
+function kernelSlots(model: LabModel, algorithm: string): number[] {
+  const result = evaluateOs(model, { algorithm }) as OsPageResult;
+  return result.frames.slice(1).map((frame) => Number(frame.values.slot));
+}
+
+test('手动置换审计：照抄 LRU 逐列选择得到与内核相同的缺页数', () => {
+  const model = pageModel(CLASSIC_REFERENCE.join(','));
+  const lru = evaluateOs(model, { algorithm: 'lru' }) as OsPageResult;
+  const audit = auditManualPageReplace(3, [], CLASSIC_REFERENCE, kernelSlots(model, 'lru'));
+  assert.equal(audit.complete, true);
+  assert.equal(audit.errors.length, 0);
+  assert.equal(audit.faults, lru.stats.faults);
+  assert.equal(audit.hits, lru.stats.hits);
+});
+
+test('手动置换审计：命中页重复装入标非法而不是静默修正', () => {
+  // 访问 '1,2,1'：第三次 '1' 已在块 0 中，选块 1 属于重复装入。
+  const audit = auditManualPageReplace(2, [], ['1', '2', '1'], [0, 1, 1]);
+  assert.equal(audit.hits, 1);
+  assert.equal(audit.faults, 2);
+  assert.equal(audit.errors.length, 1);
+  assert.ok(audit.errors[0]!.reason.includes('装了两份'));
+  // 非法选择不污染状态：页 1 仍在块 0，页 2 仍在块 1。
+  assert.deepEqual(audit.frames, ['1', '2']);
+  // 块号越界同样标错且页面不装入。
+  const out = auditManualPageReplace(2, [], ['1', '5'], [0, 9]);
+  assert.equal(out.errors.length, 1);
+  assert.equal(out.frames[1], null);
+});
+
+test('手动置换审计：初始驻留页的首次访问按命中计', () => {
+  const audit = auditManualPageReplace(2, ['7'], ['7', '1'], [0, 1]);
+  assert.equal(audit.hits, 1);
+  assert.equal(audit.faults, 1);
+  assert.equal(audit.errors.length, 0);
+});
+
+test('手动置换提示：定位第一次与 OPT 不同的访问', () => {
+  const model = pageModel(CLASSIC_REFERENCE.join(','));
+  const optChoices = kernelSlots(model, 'opt');
+  const lruChoices = kernelSlots(model, 'lru');
+  assert.equal(firstPageDivergence(optChoices, CLASSIC_REFERENCE, 3, [], 'opt'), null);
+  const divergence = firstPageDivergence(lruChoices, CLASSIC_REFERENCE, 3, [], 'opt');
+  assert.ok(divergence, 'LRU 与 OPT 在经典序列上必然产生分歧');
+  assert.equal(divergence!.index < CLASSIC_REFERENCE.length, true);
+  // 未完成序列在已处理前缀内没有分歧时返回 null。
+  assert.equal(firstPageDivergence(optChoices.slice(0, 5), CLASSIC_REFERENCE, 3, [], 'opt'), null);
+});
+
+test('手动磁盘审计：照抄 SSTF 服务顺序得到相同总移动', () => {
+  const model = diskModel();
+  const requests = model.requests as number[];
+  const sstf = evaluateOs(model, { algorithm: 'sstf' }) as OsDiskResult;
+  const picks = sstf.stats.served.map((track) => requests.indexOf(track));
+  const audit = auditManualDiskOrder(53, requests, picks);
+  assert.equal(audit.complete, true);
+  assert.equal(audit.errors.length, 0);
+  assert.equal(audit.total, sstf.stats.total);
+  assert.equal(firstDiskDivergence(picks, requests, 53), null);
+  // 反序必然增加距离，且第一次分歧位置靠前。
+  const reversed = auditManualDiskOrder(53, requests, [...picks].reverse());
+  assert.ok(reversed.total > audit.total);
+  const divergence = firstDiskDivergence([...picks].reverse(), requests, 53);
+  assert.equal(divergence?.index, 0);
+});
+
+test('手动磁盘审计：重复点选与越界下标被标错跳过', () => {
+  const requests = [98, 183, 37];
+  const audit = auditManualDiskOrder(53, requests, [0, 0, 9, 1, 2]);
+  assert.equal(audit.complete, true);
+  assert.deepEqual(audit.picks, [0, 1, 2]);
+  assert.equal(audit.errors.length, 2);
+  assert.ok(audit.errors[0]!.includes('重复'));
+  // 总移动只累计合法三次服务。
+  assert.equal(audit.total, Math.abs(98 - 53) + Math.abs(183 - 98) + Math.abs(37 - 183));
+});
+
+test('手动银行家审计：合法序列判安全，Need>Work 指出缺口并中断', () => {
+  const model = bankerModel(null);
+  const available = model.available as number[];
+  const allocation = model.allocation as number[][];
+  const need = model.need as number[][];
+  const names = model.names as string[];
+  // 与内核序列不同的另一条合法序列也判对（安全序列不唯一）。
+  const legal = auditManualBanker(available, allocation, need, [1, 3, 0, 2, 4], names);
+  assert.equal(legal.complete, true);
+  assert.equal(legal.safe, true);
+  assert.equal(legal.violation, null);
+  assert.deepEqual(legal.rows.map((row) => row.name), ['P1', 'P3', 'P0', 'P2', 'P4']);
+  assert.deepEqual(legal.work, [10, 5, 7]);
+  // P0 的 Need (7,4,3) 超过 Work (3,3,2)：第 1 轮就中断并给出缺口。
+  const blocked = auditManualBanker(available, allocation, need, [0], names);
+  assert.equal(blocked.safe, false);
+  assert.equal(blocked.complete, false);
+  assert.equal(blocked.violation?.step, 0);
+  assert.equal(blocked.violation?.name, 'P0');
+  assert.deepEqual(blocked.violation?.deficient, [4, 1, 1]);
+  assert.deepEqual(blocked.work, [3, 3, 2]);
+  // 排不完不算安全；重复选入标错但可继续。
+  const partial = auditManualBanker(available, allocation, need, [1, 3], names);
+  assert.equal(partial.complete, false);
+  assert.equal(partial.safe, false);
+  const dup = auditManualBanker(available, allocation, need, [1, 1], names);
+  assert.equal(dup.duplicate?.name, 'P1');
+  assert.ok(dup.errors.some((error) => error.includes('重复')));
 });

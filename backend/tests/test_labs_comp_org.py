@@ -262,3 +262,59 @@ def test_text_lab_persists_computer_organization_result(owner):
     assert problem["model"]["co_result"]["co_kind"] == "performance"
     assert problem["solution"]["answer_value"] == pytest.approx(0.002)
     assert "orchestration" not in document
+
+
+def test_real_408_co_exam_questions_ocr_and_modeling():
+    """回归：4 道考研 408 组成原理真题（含 OCR 常见残缺括号、科学计数法、混合题干）均应本地准确求解。"""
+
+    # 1. 2023-12 CPU 性能（OCR 漏掉末尾右括号、上标压平为 5×105）
+    q1_ocr = (
+        "12．若机器 M 的主频为1.5GHz，在 M上执行程序 P的指令条数为 5×105，P\n"
+        "的平均CPI为1.2，则P在 M上的指令执行速度和用户CPU时间分别为（\n"
+        "A. 0.8 GIPS, 0.4 ms  B. 0.8 GIPS, 0.4 μs  C. 1.25 GIPS, 0.4 ms  D. 1.25 GIPS, 0.4 μs"
+    )
+    p1 = _solve(q1_ocr)
+    assert p1["recognition"]["quality"]["untrusted"] is False
+    assert p1["status"] == "ready"
+    assert p1["model"]["co_kind"] == "performance"
+    assert p1["solution"]["answer_value"] == pytest.approx(0.0004)
+    assert "1.25 GIPS" in p1["solution"]["answer"] and "0.4 ms" in p1["solution"]["answer"]
+
+    # 2. 2016-45 Cache 组相联与块号映射（含虚存、TLB 全相联干扰项及 OCR 跨行断词“组\n相联”）
+    q2_ocr = (
+        "45．某计算机采用页式虚拟存储管理方式，虚拟地址为32位，物理地址为24位，页大小为8KB；"
+        "TLB采用全相联映射；Cache数据区大小为64KB，按2路组\n相联方式组织，主存块大小为64B。\n"
+        "（1）求物理地址中标记（Tag）、组号（Index）、块内偏移（Offset）的位数各是多少？\n"
+        "（2）将块号为 4099 的主存块装入到 Cache 中时，所映射的 Cache 组号是多少？"
+    )
+    p2 = _solve(q2_ocr)
+    assert p2["status"] == "ready"
+    assert p2["model"]["co_kind"] == "cache"
+    ans2 = p2["solution"]["answer"]
+    assert "tag 9 位" in ans2 and "index 9 位" in ans2 and "offset 6 位" in ans2
+    assert "组号 3" in ans2
+
+    # 3. 2018-18 流水线最短时钟周期（各功能部件耗时 + 流水段寄存器延时）
+    q3_ocr = (
+        "18．若某计算机最复杂指令的执行需要完成5个子功能，分别由功能部件 A~E 实现，"
+        "各功能部件所需时间分别为 80ps、50ps、50ps、70ps 和 50ps，采用流水线方式执行指令，"
+        "流水段寄存器延时为 20ps，则 CPU 时钟周期至少为（）。\n"
+        "A. 60ps  B. 70ps  C. 80ps  D. 100ps"
+    )
+    p3 = _solve(q3_ocr)
+    assert p3["status"] == "ready"
+    assert p3["model"]["co_kind"] == "pipeline"
+    assert p3["solution"]["answer_value"] == pytest.approx(100.0)
+    assert "100 ps" in p3["solution"]["answer"]
+
+    # 4. 2009-21 总线带宽（并行传输 4 字节 + 1 总线周期占 2 时钟周期 + 10MHz）
+    q4_ocr = (
+        "21．假设某系统总线在一个总线周期中并行传输 4 字节信息，一个总线周期占用 2 个时钟周期，"
+        "总线时钟频率为 10MHz，则总线带宽是（）。\n"
+        "A. 10MB/s  B. 20MB/s  C. 40MB/s  D. 80MB/s"
+    )
+    p4 = _solve(q4_ocr)
+    assert p4["status"] == "ready"
+    assert p4["model"]["co_kind"] == "bus_io"
+    assert p4["solution"]["answer_value"] == pytest.approx(20e6)
+    assert "20 MB/s" in p4["solution"]["answer"]

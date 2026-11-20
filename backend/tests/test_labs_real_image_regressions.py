@@ -11,7 +11,7 @@ def test_one_sided_limit_from_formula_ocr_builds_and_solves():
     problem = build_problem(text, number='11')
     assert problem['model']['task'] == 'limit'
     assert problem['model']['side'] == 'right'
-    assert problem['model']['expression'] == '(x^x - 1)/(log(x)*log(1 - x))'
+    assert problem['model']['expression'] == '(x^x - 1)/(ln(x)*ln(1 - x))'
     assert not problem['recognition']['ambiguities']
     _attach_solution(problem)
     assert problem['status'] == 'ready'
@@ -213,3 +213,23 @@ def test_reference_attach_is_idempotent_and_clears_unsolved_local_model():
     assert problem['model']['engine'] == 'unsupported_v1'
     attach_interactive_model(problem, result)
     assert len([t for t in result['trace'] if t.get('stage') == 'attach']) == 1
+
+
+def test_juxtaposed_lnx_and_latex_display_use_ln_notation():
+    from app.labs.expr import expression_text, parse_expression, to_latex
+    for raw in [
+        '(x^x-1)/(lnx*ln(1-x))',
+        '(x^x-1)/(ln x * ln(1-x))',
+        '(x^x-1)/( ln x ln (1-x))',
+    ]:
+        parsed = parse_expression(raw, ('x',))
+        assert expression_text(parsed) == '(x^x - 1)/(ln(x)*ln(1 - x))'
+        tex = to_latex(parsed)
+        assert r'\ln' in tex and r'\log' not in tex
+
+    problem = build_problem(r'\lim_{x\to 0^+} \frac{x^x-1}{\lnx\cdot\ln(1-x)}=')
+    assert problem['model']['expression'] == '(x^x - 1)/(ln(x)*ln(1 - x))'
+    assert r'\ln' in problem['model']['formula_tex']
+    assert r'\log' not in problem['model']['formula_tex']
+    _attach_solution(problem)
+    assert problem['solution']['exact'] == '-1'

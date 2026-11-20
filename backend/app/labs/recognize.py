@@ -39,17 +39,17 @@ SUBJECT_LABELS = {
 
 SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
     "physics": (
-        ("质点", 8), ("运动学", 10), ("匀变速", 10), ("自由落体", 10), ("平抛", 10), ("斜抛", 10),
+        ("质点", 8), ("运动学", 10), ("匀变速", 10), ("自由落体", 10), ("自由落下", 10), ("平抛", 10), ("斜抛", 10),
         ("抛体", 9), ("相对运动", 9), ("牛顿", 9), ("受力", 8), ("斜面", 8), ("摩擦", 7),
         ("连接体", 9), ("滑轮", 8), ("圆周运动", 9), ("向心", 9), ("动能", 8), ("势能", 8),
-        ("机械能", 9), ("弹簧", 7), ("劲度系数", 9), ("动量", 9), ("冲量", 9), ("碰撞", 9),
+        ("机械能", 9), ("弹簧", 7), ("劲度系数", 9), ("动量", 9), ("冲量", 9), ("冲力", 8), ("碰撞", 9),
         ("弹性碰撞", 10), ("非弹性碰撞", 10), ("振动", 8), ("单摆", 9), ("弹簧振子", 10),
         ("简谐", 9), ("振幅", 8), ("重力加速度", 9), ("加速度", 6), ("速度", 5),
         ("位移", 5), ("质量", 4), ("功", 4), ("仰角", 8), ("抛射角", 8), ("相对地面", 8),
-        ("合力", 5), ("光滑", 4), ("高度", 5), ("重力势能", 8), ("弹性势能", 8),
+        ("合力", 5), ("光滑", 4), ("高度", 5), ("重力势能", 8), ("弹性势能", 8), ("相对", 3),
         ("刚体", 10), ("转动惯量", 10), ("力矩", 8), ("角动量", 9), ("纯滚动", 10), ("定轴转动", 10),
         ("机械波", 10), ("行波", 9), ("波长", 8), ("驻波", 10), ("波节", 9), ("波腹", 9), ("波速", 8), ("相位差", 8),
-        ("库仑", 10), ("点电荷", 9), ("电场", 7), ("电势", 8), ("高斯", 10), ("球壳", 9), ("带电球", 9),
+        ("库仑", 10), ("点电荷", 9), ("电场", 7), ("电势", 8), ("高斯定理", 10), ("高斯面", 10), ("高斯定律", 10), ("球壳", 9), ("带电球", 9),
         ("电容", 8), ("电容器", 10), ("串联", 6), ("并联", 6), ("基尔霍夫", 10), ("双回路", 9), ("支路电流", 9), ("回路", 5), ("时间常数", 8), ("充电", 7), ("放电", 7),
         ("洛伦兹", 10), ("安培力", 10), ("带电粒子", 9), ("轨道半径", 8), ("磁感应强度", 9), ("磁场", 6),
         ("磁通量", 10), ("法拉第", 10), ("楞次", 9), ("感应电动势", 10), ("切割磁感线", 10), ("导体棒", 9),
@@ -100,7 +100,24 @@ SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
         ("泰勒", 7), ("麦克劳林", 7), ("高阶导数", 7), ("单调区间", 8), ("单调", 5), ("微分方程", 9),
         ("级数", 9), ("幂级数", 9), ("傅里叶", 9), ("罗尔定理", 9), ("拉格朗日", 7),
         ("介值定理", 9), ("零点", 6), ("有根", 6),
+        ("三重积分", 9), ("二重积分", 9), ("曲线积分", 9), ("曲面积分", 9),
+        ("空间解析几何", 9), ("平面方程", 8), ("直线方程", 8), ("法向量", 7),
+        ("偏导", 8), ("方向导数", 8), ("条件极值", 8), ("变限积分", 9),
+        ("f(x,y)", 8), ("f(x, y)", 8), ("约束", 4),
+        ("∬", 8), ("∭", 8), ("∂", 6),
+        ("高斯公式", 9), ("奥高公式", 9), ("斯托克斯", 9), ("格林公式", 9),
+        ("∯", 8), ("∮", 8), ("中值定理", 8), ("实根", 7),
+        ("圆柱面", 9), ("柱坐标", 9),
         ("凹凸", 6), ("拐点", 6), ("渐近线", 6), ("函数研究", 8),
+        ("弧长", 8), ("曲率", 8), ("参数方程", 8), ("极坐标", 8),
+        ("心形线", 7), ("摆线", 7), ("球面", 6), ("球体", 6), ("通量", 7),
+        ("切平面", 8), ("法平面", 8), ("二次曲面", 9), ("曲面", 5),
+        ("椭球", 8), ("双曲面", 8), ("抛物面", 8), ("锥面", 7),
+        ("点到平面", 9), ("点到直线", 9), ("到平面", 8), ("到直线", 8),
+        ("两平面", 7), ("两直线", 7),
+        ("位置关系", 6), ("投影", 4), ("方向向量", 7), ("数量积", 8),
+        ("向量积", 8), ("混合积", 8), ("平行六面体", 8), ("向量", 4),
+        ("夹角", 4), ("点法式", 7), ("对称式", 5),
         ("integral", 8), ("derivative", 7), ("differentiate", 6),
         ("limit", 5), ("tangent", 5), ("antiderivative", 6),
     ),
@@ -226,7 +243,8 @@ SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
 }
 
 NUMBER_MARKER = re.compile(
-    r"(?m)^\s*(?:第\s*)?([0-9]{1,2}|[一二三四五六七八九十]{1,3})\s*[.、．:：)）]\s*"
+    # 分隔符后紧跟数字的是小数（OCR 断行后 "0.2T" 位于行首），不是题号。
+    r"(?m)^\s*(?:第\s*)?([0-9]{1,2}|[一二三四五六七八九十]{1,3})\s*[.、．:：)）](?!\d)\s*"
 )
 NUMBER_WORDS = {
     "一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
@@ -306,21 +324,93 @@ def _split_page(text: str) -> list[tuple[str | None, str]]:
     return parts
 
 
+_SUBQUESTION_MARKER = re.compile(
+    r'(?<![^\s。；;:：])(?:[（(]\s*([1-9]\d?)\s*[）)]|([①②③④⑤⑥⑦⑧⑨⑩]))\s*(?=[\u4e00-\u9fff])'
+)
+
+
+def _subquestion_parts(text: str) -> list[dict[str, Any]]:
+    matches = list(_SUBQUESTION_MARKER.finditer(text))
+    numbers = [int(m.group(1)) if m.group(1) else '①②③④⑤⑥⑦⑧⑨⑩'.index(m.group(2)) + 1 for m in matches]
+    if len(matches) >= 2 and numbers == list(range(1, len(matches) + 1)):
+        shared = text[:matches[0].start()].strip()
+        bodies = [text[m.end():matches[i + 1].start() if i + 1 < len(matches) else len(text)].strip()
+                  for i, m in enumerate(matches)]
+        if all(re.search(r'求|计算|判断|证明|讨论|分析|写出|说明|确定|画|设计', body) for body in bodies):
+            shared_tail = bool(re.search(r'(?:以上|上述|各|所有|全部|这|两).{0,8}(?:问|小题).{0,8}(?:均|都|统一|研究|考虑)', bodies[-1]))
+            return [dict(number=n, shared_text=shared, body=body, shared_tail=shared_tail)
+                    for n, body in zip(numbers, bodies)]
+    joined = re.search(r'(求[^。；\n]*?单调[^。；\n]*?)[，,]?\s*(?:并|且|同时|以及)\s*(求[^。；\n]*?极值[^\n]*)$', text)
+    if joined and text[:joined.start()].strip():
+        return [dict(number=i + 1, shared_text=text[:joined.start()].strip(), body=body.strip())
+                for i, body in enumerate(joined.groups())]
+    return []
+
+
+def _expand_subquestions(problems: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    expanded = []
+    for parent_index, problem in enumerate(problems, 1):
+        parts = _subquestion_parts(problem['text'])
+        if not parts:
+            expanded.append(problem)
+            continue
+        for part in parts:
+            label = f"{problem['number']}({part['number']})" if problem['number'] else f"({part['number']})"
+            expanded.append({**problem, 'number': label,
+                             'text': '\n'.join(filter(None, (part['shared_text'], part['body']))),
+                             'subquestion': {**part, 'parent_index': parent_index,
+                                             'parent_number': problem['number'], 'parent_text': problem['text']}})
+    return expanded
+
+
+def _subquestion_context_issues(text: str, shared_text: str) -> list[str]:
+    body = text[len(shared_text):] if shared_text and text.startswith(shared_text) else text
+    issues = []
+    if re.search(r'第\s*[一二三四五六七八九十1-9]+\s*问|(?:上|前)一?问|上述(?:结果|结论|条件)|(?<![A-Za-z0-9_])[（(]\s*[1-9]\d?\s*[）)]\s*(?:的|中|所得|结果|结论)|改为|改成|另设|重新定义|同上', body):
+        issues.append('本小问依赖其他小问或改写条件，请补全独立条件后求解')
+    if shared_text and body != text:
+        definitions = re.findall(r'(?:f|g|h)\s*\([^()]+\)\s*=', shared_text)
+        if len(definitions) > 1:
+            issues.append('公共题干包含多个函数，请为本小问保留所需函数与完整条件，避免绑定到另一函数')
+        shared_function, _ = _extract_function_expression(shared_text)
+        own_function, _ = _extract_function_expression(body)
+        if shared_function and own_function and shared_function != own_function:
+            issues.append('本小问与公共题干给出了不同函数，请明确本问使用的函数')
+        interval = r'[∈]|(?:<=?|≤)\s*[xy]\s*(?:<=?|≤)|[\[(]\s*-?\d+(?:\.\d+)?\s*[,，]\s*-?\d+(?:\.\d+)?\s*[\])]'
+        if re.search(interval, shared_text) and re.search(interval, body):
+            issues.append('公共题干和本小问均指定了区间，请确认本问区间，避免沿用其他条件')
+    return issues
+
+
+def _apply_subquestion_context(problem: dict[str, Any], context: Mapping[str, Any]) -> None:
+    problem['subquestion'] = dict(context)
+    issues = _subquestion_context_issues(problem['text'], str(context.get('shared_text') or ''))
+    original_child = '\n'.join(filter(None, (context.get('shared_text'), context.get('body'))))
+    if context.get('shared_tail') and problem['text'].strip() == original_child.strip():
+        issues.append('题尾包含适用于多个小问的条件，请明确本问完整条件后求解')
+    if issues:
+        problem['status'] = 'pending_ai'
+        problem['recognition']['ambiguities'].append(_ambiguity(
+            'subquestion_context', 'text', '；'.join(issues), options=[]))
+
+
 def split_problems(
     pages: Sequence[Mapping[str, Any]],
     files: Sequence[Mapping[str, Any]],
+    *,
+    single_problem: bool = False,
 ) -> list[dict[str, Any]]:
     """按题号拆分，并把后续无题号页面合并到上一题（跨页题干/图示）。"""
 
     relevant = _problem_pages(pages, files)
     if not relevant:
         raise RecognitionError("没有读到可用于识别的题目文字")
-    marked = any(NUMBER_MARKER.search(str(page.get("text") or "")) for page in relevant)
+    marked = False if single_problem else any(NUMBER_MARKER.search(str(page.get("text") or "")) for page in relevant)
     if not marked:
         text = "\n".join(str(page.get("text") or "").strip() for page in relevant).strip()
         first = relevant[0]
         last = relevant[-1]
-        return [
+        return _expand_subquestions([
             {
                 "number": None,
                 "text": text,
@@ -328,7 +418,7 @@ def split_problems(
                 "page_from": int(first.get("page") or 1),
                 "page_to": int(last.get("page") or 1),
             }
-        ]
+        ])
 
     problems: list[dict[str, Any]] = []
     by_number: dict[str, dict[str, Any]] = {}
@@ -373,7 +463,7 @@ def split_problems(
                 seen.add(key)
                 unique.append(page)
         item["pages"] = unique
-    return problems
+    return _expand_subquestions(problems)
 
 
 # ---------------------------------------------------------------------------
@@ -381,13 +471,13 @@ def split_problems(
 # ---------------------------------------------------------------------------
 
 _PHYSICS_STRONG = (
-    "质点运动", "匀变速", "自由落体", "平抛", "斜抛", "抛体", "相对运动", "牛顿",
+    "质点运动", "匀变速", "自由落体", "自由落下", "平抛", "斜抛", "抛体", "相对运动", "牛顿",
     "受力分析", "斜面", "连接体", "滑轮", "圆周运动", "向心", "动能定理",
-    "机械能守恒", "弹簧振子", "弹簧势能", "劲度系数", "动量", "冲量", "碰撞",
+    "机械能守恒", "弹簧振子", "弹簧势能", "劲度系数", "动量", "冲量", "冲力", "碰撞", "相对",
     "单摆", "简谐", "振动", "重力加速度", "初速度", "加速度", "位移",
     "仰角", "抛射角", "相对地面", "合力", "光滑", "抛出", "重力势能", "弹性势能",
     "刚体", "转动惯量", "纯滚动", "机械波", "行波", "波长", "波速", "驻波", "波节", "波腹",
-    "库仑", "高斯", "点电荷", "电势", "球壳", "电容器", "基尔霍夫", "双回路", "支路电流", "时间常数", "充电", "放电",
+    "库仑", "高斯定理", "高斯面", "点电荷", "电荷", "电场", "电场强度", "场强", "电势", "球壳", "球面", "带电", "电容器", "基尔霍夫", "双回路", "支路电流", "时间常数", "充电", "放电",
     "洛伦兹", "安培力", "带电粒子", "磁通量", "法拉第", "感应电动势", "切割磁感线", "导体棒",
     "理想气体", "等温", "等压", "等容", "绝热", "卡诺", "热机", "热力学", "串联", "并联",
     "力矩", "角动量",
@@ -426,7 +516,9 @@ def normalize_latex_prose(text: str) -> str:
                            ('\\div', '/'), ('\\pi', 'pi'), ('\\to', '→'), ('\\infty', 'oo')):
         value = value.replace(command, plain)
     value = re.sub(r'\\(?:longrightarrow|rightarrow)', '→', value)
-    value = re.sub(r'\\(sin|cos|tan|cot|sec|csc|log|ln|exp|sqrt|abs|max|min)\b', r'\1', value)
+    _fn_names = 'arcsin|arccos|arctan|arccot|arcsec|arccsc|sinh|cosh|tanh|sin|cos|tan|cot|sec|csc|log|ln|exp|sqrt|abs|max|min'
+    value = re.sub(rf'\\({_fn_names})\b', r'\1', value)
+    value = re.sub(rf'\\({_fn_names})(?=[xyztuvn](?![A-Za-z]))', r'\1 ', value)
     value = re.sub(r'\\mathrm\s*\{\s*d\s*\}', 'd', value)
     for _ in range(6):
         updated = re.sub(r'\\(?:dfrac|tfrac|frac)\s*\{([^{}]*)\}\s*\{([^{}]*)\}', r'((\1)/(\2))', value)
@@ -474,13 +566,31 @@ def classify_subject(text: str) -> tuple[str, float]:
     # “梯度下降 + f(x)”更像最优化；“神经网络 + 学习率”才归深度学习。
     if "梯度下降" in text and "神经网络" not in text and "损失" not in text:
         scores["optimization"] += 4
+    # 裸“极值/驻点/最值”（无约束词）归最优化引擎；带“约束/条件”的留给 calculus
+    # 的拉格朗日条件极值——`f(x,y)` 关键词权重不足以承担该消歧。
+    if re.search(r'极值|驻点|最[大小]值', text) and not re.search(r'约束|满足|(?<!无)条件', text):
+        scores["optimization"] += 9
+    # 「单调/凹凸/拐点 + 极值」是函数性态综合大题，function_study 覆盖全部小问。
+    if re.search(r'单调|凹凸|拐点|函数性态', text) and re.search(r'极值|驻点|渐近线', text):
+        scores["calculus"] += 9
+    if (re.search(r'极值|驻点', text) and re.search(r'(?:f|g|h)\s*\(\s*x\s*\)', text)
+            and not re.search(r'梯度|学习率|迭代|约束', text)):
+        scores['calculus'] = max(scores['calculus'], scores['optimization'] + 1)
+    if (re.search(r'最[大小]值', text) and re.search(r'f\s*\(\s*x\s*,\s*y\s*\)', text)
+            and re.search(r'-?\d+(?:\.\d+)?\s*(?:<=|≤)\s*[xy]\s*(?:<=|≤)', text)
+            and not re.search(r'拉格朗日|等式约束', text)):
+        scores['optimization'] = max(scores['optimization'], scores['calculus'] + 1)
     if re.search(
         r"(?:\\?lim|极限)\s*[_^]?\s*[({]?\s*[A-Za-z]\s*(?:\\to|->|→|to|趋于|趋近于)",
         text,
         flags=re.I,
     ):
         scores["calculus"] += 6
-    if any(term in text for term in _PHYSICS_STRONG) and scores.get("physics", 0) >= 8:
+    # `[[1,2],[3,4]]` 嵌套字面量几乎只在线性代数题出现；无"矩阵"字样时靠它进科目。
+    if re.search(r"\[\s*\[", text):
+        scores["linear_algebra"] += 6
+    # OCR 断行会把强关键词拆散（"安\n培力"），强词探测用折叠文本。
+    if any(re.sub(r"\s+", "", term) in compact for term in _PHYSICS_STRONG) and scores.get("physics", 0) >= 8:
         chosen = "physics"
     elif scores["operating_system"] >= max(scores.values() or [0]) and scores["operating_system"] >= 8:
         chosen = "operating_system"
@@ -495,7 +605,8 @@ def classify_subject(text: str) -> tuple[str, float]:
         scores["algorithm"], scores["calculus"], scores["optimization"]
     ):
         chosen = "linear_algebra"
-    elif scores["algorithm"] > 0 and scores["algorithm"] >= scores["optimization"]:
+    elif (scores["algorithm"] > 0 and scores["algorithm"] >= scores["optimization"]
+          and scores["algorithm"] >= scores["calculus"]):
         chosen = "algorithm"
     elif scores["calculus"] > 0 and scores["calculus"] >= scores["optimization"]:
         chosen = "calculus"
@@ -517,7 +628,13 @@ def model_coverage_issues(text: str, model: Mapping[str, Any]) -> list[str]:
     """Cheap source-to-model coverage check; only flags clear under-modelling."""
     issues: list[str] = []
     numbers = list(dict.fromkeys(re.findall(r'(?<![\w.])-?\d+(?:\.\d+)?', text)))
-    if len(numbers) >= 3:
+    # 已捕获结构化序列（栈/堆/调度等模型的元素列表）时，题面剩余的裸数字多为
+    # 题号、年份、选项标号与计数词（"7 个元素"），不应用"数值全部缺失"判欠建模。
+    sequence_keys = ("push_seq", "pop_seq", "ops", "initial_heap", "reference",
+                     "processes", "nodes", "edges", "requests", "allocation",
+                     "max", "available", "names")
+    has_sequence = any(isinstance(model.get(key), list) and model.get(key) for key in sequence_keys)
+    if len(numbers) >= 3 and not has_sequence:
         rendered = json.dumps(model, ensure_ascii=False)
         present = 0
         for number in numbers:
@@ -534,7 +651,8 @@ def model_coverage_issues(text: str, model: Mapping[str, Any]) -> list[str]:
         longest_model = max((len(value) for value in expressions), default=0)
         if longest >= 24 and longest_model < max(6, longest // 4):
             issues.append('本地模型只使用了题干公式的一小部分')
-    subquestions = len(re.findall(r'(?:^|[\n。；;])\s*[（(]\s*[1-9]\s*[）)]|^[①②③④⑤]', text, flags=re.M))
+    subquestions = max(len(_subquestion_parts(text)), len(re.findall(
+        r'(?:^|[\n。；;])\s*[（(]\s*[1-9]\s*[）)]|^[①②③④⑤]', text, flags=re.M)))
     if subquestions >= 2 and not model.get('requested_quantities') and not model.get('target_kind') and not model.get('tasks'):
         issues.append('题目包含多个小问，但只建立了一个模型')
     return issues
@@ -544,6 +662,8 @@ def _clean_expr(text: str) -> str:
     value = text.strip()
     value = re.sub(r"^[=＝]\s*", "", value)
     value = value.strip(" ：:，,。；;")
+    # “函数 y=x^2”“设 f(x)=sinx”里的左侧函数名不属于表达式本身。
+    value = re.sub(r"^[fghy]\s*(?:\(\s*[xy](?:\s*,\s*[xy])?\s*\))?\s*[=＝]\s*", "", value)
     value = re.sub(r"(的最小值|的最大值|的最小|的最大|的极值|的值)$", "", value).strip()
     return value
 
@@ -551,7 +671,8 @@ def _clean_expr(text: str) -> str:
 def _extract_function_expression(text: str) -> tuple[str | None, str | None]:
     patterns = [
         re.compile(r"(?:f|g|h|y)\s*\(\s*([xy](?:\s*,\s*[xy])?)\s*\)\s*=\s*([^\n]+)"),
-        re.compile(r"(?:目标函数|函数)\s*[:：]?\s*(?:f\s*\(\s*[xy](?:\s*,\s*[xy])?\s*\)\s*=\s*)?([^\n]+)"),
+        re.compile(r"(?:目标函数|函数|曲线|抛物线)\s*[:：]?\s*(?:f\s*\(\s*[xy](?:\s*,\s*[xy])?\s*\)\s*=\s*)?([^\n]+)"),
+        re.compile(r"(?:f|g|h|y)\s*=\s*([^\n]+)"),
     ]
     for pattern in patterns:
         match = pattern.search(text)
@@ -563,7 +684,7 @@ def _extract_function_expression(text: str) -> tuple[str | None, str | None]:
             variables, raw = "x", match.group(1)
         # 截断到中文条件词，但保留括号内的逗号。
         stop = re.search(
-            r"(?:的|，|,|。|；|;|\n|求|其中|初始|起点|学习率|迭代|约束|满足|在点|在\s*[xyzt]\s*=|目标|已知|$)",
+            r"(?:的|，|,|。|；|;|\n|求|其中|初始|起点|学习率|迭代|约束|满足|在点|在\s*[xyzt]\s*=|目标|已知|\s+[A-E]\s*[.、]|$)",
             raw,
         )
         if stop:
@@ -721,6 +842,7 @@ def _parse_limit(raw: str) -> float | None:
     """解析积分上下限；支持 ``+∞`` / ``\\infty`` / ``inf``，普通值返回浮点数。"""
 
     text = raw.strip().strip("{}").replace(" ", "").replace("\\infty", "∞").replace("\\inf", "∞")
+    text = re.sub(r"∞+", "∞", text)
     lowered = text.lower()
     if lowered in ("∞", "+∞", "inf", "+inf", "oo", "+oo"):
         return math.inf
@@ -776,6 +898,8 @@ def _parse_integral(text: str) -> dict[str, Any] | None:
     compact = text.replace("\n", " ")
     compact = re.sub(r"\\,|\\!|\\;|\\ ", " ", compact)
     compact = re.sub(r"\\mathrm\{d\}|\\text\{d\}|\\operatorname\{d\}", "d", compact)
+    # OCR 把 ∫ 读成 “{”：后接上下标符号的 { 按积分号处理。
+    compact = re.sub(r"\{\s*(?=[_^])", "∫", compact)
 
     says_indefinite = bool(re.search(r"不定积分|原函数|antiderivative", text, flags=re.I))
     says_definite = bool(
@@ -819,6 +943,22 @@ def _parse_integral(text: str) -> dict[str, Any] | None:
             continue
         lower = _parse_limit(lower_text)
         upper = _parse_limit(upper_text)
+        # 上限与被积函数无空格时贪婪上限会吞进被积函数（`^1x^2dx`→`1x^`、
+        # `^+∞∞1/x^2dx`→`+∞∞1/x^`）：找最长可解析为限的前缀，剩余并回被积函数。
+        if upper is None:
+            for cut in range(len(upper_text) - 1, 0, -1):
+                head = _parse_limit(upper_text[:cut])
+                if head is not None:
+                    upper, body = head, upper_text[cut:] + body
+                    upper_text = upper_text[:cut]
+                    break
+        if lower is None:
+            for cut in range(len(lower_text) - 1, 0, -1):
+                head = _parse_limit(lower_text[:cut])
+                if head is not None:
+                    lower, body = head, lower_text[cut:] + body
+                    lower_text = lower_text[:cut]
+                    break
         payload = {
             "expression": _clean_expr(body),
             "lower": lower,
@@ -904,6 +1044,10 @@ def _calculus_model(
     line_integral = build_line_integral_from_text(text, source, overrides)
     if line_integral is not None:
         return line_integral
+    from .advanced_calc_text import build_advanced_calc_from_text
+    advanced = build_advanced_calc_from_text(text, source, overrides)
+    if advanced is not None:
+        return advanced
     from .calculus_analysis import build_analysis_problem
     analysis = build_analysis_problem(text, source, overrides)
     if analysis is not None:
@@ -933,6 +1077,7 @@ def _calculus_model(
     upper_tex: str | None = None
     lower: float | None = 0.0
     upper: float | None = 1.0
+    ask = ""
     ambiguities: list[dict[str, Any]] = []
     conditions: list[dict[str, Any]] = []
 
@@ -1149,6 +1294,13 @@ def _calculus_model(
         point_supplied = point is not None
         point = 0.0 if point is None else point
         defaults = {"point": float(point), "h": 0.1}
+        # 求切线方程 → 答案给直线方程；笼统求导（无研究点）→ 答案给导函数表达式。
+        if "切线" in text:
+            ask = "tangent_line"
+        elif not point_supplied and re.search(r"导数|求导|d\s*y\s*/\s*d\s*x|f\s*'\s*\(?\s*x", text):
+            ask = "derivative_expr"
+        else:
+            ask = ""
         params = [
             _param("point", "研究点 x", "number", step=0.1),
             _param("h", "差商步长 h", "number", min_value=0.001, max_value=2, step=0.001),
@@ -1208,6 +1360,7 @@ def _calculus_model(
         ),
         "subject": "calculus",
         "kind": kind,
+        "ask": ask,
         "variable": variable,
         "expression": raw_expr,
         "formula_tex": (
@@ -2062,6 +2215,12 @@ def build_problem(
     model_text = normalize_latex_prose(text)
     from .source_recovery import assess_text_quality
     quality = assess_text_quality(model_text, source_pages)
+    if (override_values.get('ambiguity_answers') or {}).get('source_formula_confirmation') == 'confirmed':
+        source_quality = quality
+        quality = assess_text_quality(model_text, [
+            {key: page.get(key) for key in ('file_id', 'page', 'image_key')} for page in source_pages
+        ])
+        quality.update(human_confirmed=True, source_quality=source_quality)
     has_images = any(page.get('image_key') for page in source_pages)
     if quality['untrusted'] and has_images:
         classified, confidence = 'unknown', 0.2
@@ -2092,7 +2251,7 @@ def build_problem(
                     subject, built = normalized_subject, normalized
     model = built["model"]
 
-    if ocr_empty or any(page.get("requires_formula_confirmation") for page in source_pages):
+    if ocr_empty or any(page.get("requires_formula_confirmation") or page.get('requires_source_review') for page in source_pages):
         built["ambiguities"].append(_ambiguity(
             "source_formula_confirmation", "source_formula",
             "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
@@ -2105,9 +2264,19 @@ def build_problem(
         if item["id"] in answers and str(answers[item["id"]]).strip():
             # New semantic builders consume corrections themselves. If a blocking
             # condition remains, arbitrary text must never turn it into a proof.
-            if item["id"].startswith("exam_") or item["id"] in ("heap_conditions", "subject", "solution"):
+            if (
+                item["id"].startswith("exam_")
+                or item["id"] in (
+                    "ds_blocked", "co_kind", "os_kind", "net_kind",
+                    "heap_conditions", "subject", "solution", "solution_incomplete",
+                )
+            ):
                 continue
             if item["id"] == "source_formula_confirmation" and answers[item["id"]] != "confirmed":
+                continue
+            if item['severity'] == 'blocking' and str(answers[item['id']]) not in {
+                str(option['value']) for option in item.get('options') or []
+            }:
                 continue
             item["resolved"] = True
             item["answer"] = str(answers[item["id"]])
@@ -2125,14 +2294,20 @@ def build_problem(
         action = classify_goal_action(text)
         boundary = unsupported_reason(text, subject=subject, model=model)
         proof_allowed = action == "proof" and model.get("engine") == "proof_v1"
+        # 二次曲面识别等"指出/说明"题：space_v1 内核直接给出分类结论，
+        # 属于确定任务而非概念辨析，不走 pending_ai。
+        concept_answered = (
+            model.get("engine") == "space_v1"
+            and (model.get("conditions") or {}).get("geometry_kind") == "quadric_surface")
         explains_only = not re.search(
             r'求|计算|解|多少|次数|执行|遍历|调度|置换|出栈|入队|画|模拟|判断|运行', text)
         if boundary and (action in ("concept", "property") and explains_only
-                         or action == "proof" and not proof_allowed and explains_only):
+                         or action == "proof" and not proof_allowed and explains_only) and not concept_answered:
             status = "pending_ai"
             built["ambiguities"].append(_ambiguity(
                 "intent", "intent", boundary, severity="info",
             ))
+    if status == 'ready' and not model.get('teaching'):
         coverage = model_coverage_issues(text, model)
         if coverage:
             status = "pending_ai"
@@ -2175,6 +2350,10 @@ def build_problem(
                 "image_key": page.get("image_key"),
                 "method": page.get("method"),
                 "requires_formula_confirmation": bool(page.get("requires_formula_confirmation")),
+                **{key: page[key] for key in (
+                    'ocr_text', 'math_text', 'native_text', 'ocr_confidence', 'ocr_quality',
+                    'requires_source_review', 'math_repaired_text', 'math_display_text',
+                ) if key in page},
             }
             for page in source_pages
         ],
@@ -2210,9 +2389,15 @@ def build_lab_document(
 ) -> dict[str, Any]:
     """拆分、识别并装配完整实验室文档（不含持久化）。"""
 
-    split = split_problems(source.get("pages") or [], files)[:max_problems]
+    split = split_problems(
+        source.get("pages") or [],
+        files,
+        single_problem=bool(source.get("single_problem")),
+    )
     if not split:
         raise RecognitionError("没有可识别的题目")
+    if len(split) > max_problems:
+        raise RecognitionError(f"拆分后共 {len(split)} 道题/小问，超过 {max_problems} 道上限，请分批提交，避免遗漏小问")
     problems = [
         build_problem(
             item["text"],
@@ -2224,7 +2409,9 @@ def build_lab_document(
         )
         for index, item in enumerate(split)
     ]
-    for problem in problems:
+    for problem, item in zip(problems, split):
+        if item.get('subquestion'):
+            _apply_subquestion_context(problem, item['subquestion'])
         _attach_solution(problem)
         problem["states"] = _default_state(problem)
     selected = problems[0]
@@ -2306,7 +2493,7 @@ def rebuild_problem(
     """按学生修正重新编译题目；保留原题文本与学生记录。"""
 
     overrides = {
-        "subject": subject or problem.get("subject"),
+        "subject": (subject or problem.get("subject")) if (subject or problem.get("subject")) != 'unknown' else None,
         "condition_values": dict(condition_values or {}),
         "ambiguity_answers": dict(ambiguity_answers or {}),
     }
@@ -2321,6 +2508,10 @@ def rebuild_problem(
                 "image_key": item.get("image_key"),
                 "method": item.get("method"),
                 "requires_formula_confirmation": bool(item.get("requires_formula_confirmation")),
+                **{key: item[key] for key in (
+                    'ocr_text', 'math_text', 'native_text', 'ocr_confidence', 'ocr_quality',
+                    'requires_source_review', 'math_repaired_text', 'math_display_text',
+                ) if key in item},
             }
             for item in problem.get("source_pages") or []
         ],
@@ -2350,6 +2541,8 @@ def rebuild_problem(
     }
     state["scenarios"] = [baseline, *[item for item in state.get("scenarios") or [] if item.get("id") != "baseline"]]
     state["active_scenario_id"] = "baseline"
+    if problem.get('subquestion'):
+        _apply_subquestion_context(rebuilt, problem['subquestion'])
     _attach_solution(rebuilt)
     return rebuilt
 
@@ -2360,9 +2553,9 @@ def _attach_solution(problem: dict[str, Any]) -> None:
     if problem.get('status') == 'pending_ai' or problem.get('model', {}).get('engine') == 'unsupported_v1':
         problem['solution'] = {'answer': '', 'summary': '等待 AI 理解题目并建立可执行模型。', 'steps': [], 'limitations': []}
         return
-    if (problem['model'].get('task') or problem['model'].get('engine') == 'heap_v1') and any(
-        item['severity'] == 'blocking' and not item['resolved'] for item in problem['recognition']['ambiguities']
-    ):
+    if any(item.get('severity') == 'blocking' and not item.get('resolved')
+           for item in problem['recognition']['ambiguities']):
+        problem['status'] = 'needs_review'
         problem['solution'] = {'answer': '', 'summary': '先核对原题公式与条件，再计算答案。', 'steps': [], 'limitations': []}
         return
     try:

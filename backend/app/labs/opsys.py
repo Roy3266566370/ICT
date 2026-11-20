@@ -289,7 +289,7 @@ def _fmt_time_ms(value: float) -> str:
 
 def _detect_kind(text: str) -> str | None:
     low = text.lower()
-    if re.search(r"银行家|安全序列|安全状态|banker|allocation|available", low):
+    if re.search(r"银行家|安全序列|安全状态|安全性(?:检测|算法|检查)|banker|allocation|available", low):
         return "banker"
     if re.search(r"死锁|资源分配图|必要条件|死锁预防|死锁检测|死锁解除|循环等待|占有并等待|非抢占", low):
         return "deadlock"
@@ -439,15 +439,45 @@ def _coerce_processes(value: Any) -> list[dict[str, Any]] | None:
     return None
 
 
+_SCHED_PATTERNS = {
+    "hrrn": r"高响应比|响应比|hrrn|highest\s+response",
+    "srtf": r"srtf|srt(?![a-z])|最短剩余|剩余时间最短|抢占式短作业|抢占式短进程|抢占式sjf|可抢占的短",
+    "rr": r"时间片|轮转|round[\s-]?robin|" + _word("rr"),
+    "sjf": r"短作业|短进程|最短作业|最短进程|sjf|sjn|spn",
+    "priority": r"优先级|优先权|priority",
+    "fcfs": r"先来先服务|fcfs|fifo",
+}
+
+
 def _detect_sched_algorithm(text: str) -> str | None:
-    return _earliest(text, {
-        "hrrn": r"高响应比|响应比|hrrn|highest\s+response",
-        "srtf": r"srtf|srt(?![a-z])|最短剩余|剩余时间最短|抢占式短作业|抢占式短进程|抢占式sjf|可抢占的短",
-        "rr": r"时间片|轮转|round[\s-]?robin|" + _word("rr"),
-        "sjf": r"短作业|短进程|最短作业|最短进程|sjf|sjn|spn",
-        "priority": r"优先级|优先权|priority",
-        "fcfs": r"先来先服务|fcfs|fifo",
-    })
+    return _earliest(text, _SCHED_PATTERNS)
+
+
+def _flatten_lines(text: str) -> str:
+    """OCR 会把“短作业”“分别为”这类词从中间断行；关键词探测在折叠文本上做。"""
+    return re.sub(r"\s*\n\s*", "", text)
+
+
+def _sched_algorithms_asked(text: str) -> list[str]:
+    """“分别采用先来先服务和短作业优先调度算法”——按文中顺序收集被问到的算法。"""
+    flat = _flatten_lines(text)
+    found: list[tuple[int, str]] = []
+    for name, pattern in _SCHED_PATTERNS.items():
+        match = re.search(pattern, flat, re.I)
+        if match:
+            found.append((match.start(), name))
+    return [name for _, name in sorted(found)]
+
+
+def _sched_start_from_text(text: str) -> tuple[float, bool]:
+    """“系统在 t=2 时开始作业调度”——调度开始时刻；未说明则按最早到达。"""
+    flat = _flatten_lines(text)
+    for pattern in (r"t\s*=\s*(\d+(?:\.\d+)?)\s*时开始", r"(\d+(?:\.\d+)?)\s*时开始(?:作业|进程)?调度",
+                    r"从\s*t?\s*=?\s*(\d+(?:\.\d+)?)\s*(?:时刻?|时间)\s*开始"):
+        match = re.search(pattern, flat)
+        if match:
+            return float(match.group(1)), True
+    return 0.0, False
 
 
 def _processes_text(processes: Sequence[Mapping[str, Any]], with_priority: bool) -> str:
@@ -479,7 +509,7 @@ def _build_schedule(text: str, source: Mapping[str, Any], merged: Mapping[str, A
         if match:
             quantum = float(next(group for group in match.groups() if group))
             quantum_found = True
-    algorithm = str(merged.get("algorithm") or "").strip() or _detect_sched_algorithm(text)
+    algorithm = str(merged.get("algorithm") or "").strip() or _detect_sched_algorithm(_flatten_lines(text))
     if algorithm not in SCHED_LABELS or (algorithm == "priority" and not has_priority):
         algorithm = None
     if algorithm is None:
@@ -507,11 +537,20 @@ def _build_schedule(text: str, source: Mapping[str, Any], merged: Mapping[str, A
         _param("algorithm", "调度算法", "enum", options=options, note="同一组进程可切换算法，对照平均等待与周转时间。"),
         _param("quantum", "时间片 q", "number", min_value=1, max_value=10, step=1, note="仅时间片轮转使用。"),
     ]
+    asked = _sched_algorithms_asked(text)
+    flat = _flatten_lines(text)
+    ask_first_pick = (len(asked) >= 2 and re.search(r"分别(?:采用|使用|按|用)|依次(?:采用|使用)", flat)
+                      and re.search(r"选中|选择|调度|执行|运行", flat))
+    sched_start, sched_start_found = _sched_start_from_text(text)
     model = {
         "engine": "os_sched_v1", "subject": "operating_system", "os_kind": "cpu_schedule",
         "processes": processes, "has_priority": has_priority,
         "defaults": {"algorithm": algorithm, "quantum": quantum}, "params": params, "teaching": False,
     }
+    if ask_first_pick:
+        model["ask"] = "first_pick"
+        model["ask_algorithms"] = asked
+        model["sched_start"] = sched_start
     conditions = []
     if processes:
         conditions.append(_condition(
@@ -521,6 +560,11 @@ def _build_schedule(text: str, source: Mapping[str, Any], merged: Mapping[str, A
         "quantum", "时间片 q（仅 RR）", quantum, kind="number", source=source,
         provenance="original" if quantum_found else "supplement",
         note=None if quantum_found else "题目未给出时间片，默认 q=2，可在条件中修正。"))
+    if ask_first_pick:
+        conditions.append(_condition(
+            "sched_start", "开始调度的时刻 t", sched_start, kind="number", source=source,
+            provenance="original" if sched_start_found else "supplement",
+            note="题目按“t 时刻开始调度”提问：只有此时已到达的作业参与首个选择。"))
     formulas = [{
         "id": "sched_rule", "tex": r"T_{周转}=T_{完成}-T_{到达},\quad T_{等待}=T_{周转}-T_{服务}",
         "plain": "周转时间 = 完成时间 − 到达时间；等待时间 = 周转时间 − 服务时间；带权周转 = 周转 / 服务。", "role": "评价指标",
@@ -674,6 +718,27 @@ def _simulate_schedule(processes: Sequence[Mapping[str, Any]], algorithm: str, q
             "switches": switches}
 
 
+def _first_pick(processes: Sequence[Mapping[str, Any]], algorithm: str, start: float) -> int | None:
+    """t 时刻开始调度时第一个被选中的进程：只看已到达（arrival ≤ t）的候选。"""
+    cand = [i for i, p in enumerate(processes) if float(p["arrival"]) <= start + EPS]
+    if not cand:
+        return None
+
+    def key(i: int) -> tuple[float, ...]:
+        p = processes[i]
+        arrival, burst = float(p["arrival"]), float(p["burst"])
+        if algorithm in ("fcfs", "rr"):
+            return (arrival, i)
+        if algorithm in ("sjf", "srtf"):
+            return (burst, arrival, i)
+        if algorithm == "hrrn":
+            waiting = max(0.0, start - arrival)
+            return (-(waiting + burst) / burst, arrival, i)
+        return (float(p["priority"] if p["priority"] is not None else math.inf), arrival, i)
+
+    return min(cand, key=key)
+
+
 def _eval_schedule(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
     kind, engine = "cpu_schedule", "os_sched_v1"
     processes = _coerce_processes(model.get("processes")) or []
@@ -760,6 +825,24 @@ def _eval_schedule(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[
                segment=number - 1)
     answer = (f"平均等待时间 = {_fmt(sim['avg_waiting'])}，平均周转时间 = {_fmt(sim['avg_turnaround'])}，"
               f"平均带权周转时间 = {_fmt(sim['avg_weighted'])}")
+    picks: list[tuple[str, str]] = []
+    if model.get("ask") == "first_pick":
+        try:
+            sched_start = float(model.get("sched_start") or sim["start"])
+        except (TypeError, ValueError):
+            sched_start = sim["start"]
+        arrived = [names[i] for i in range(n) if processes[i]["arrival"] <= sched_start + EPS]
+        for other in (model.get("ask_algorithms") or []):
+            if other not in SCHED_LABELS or (other == "priority" and not has_priority):
+                continue
+            pick = _first_pick(processes, other, sched_start)
+            if pick is not None:
+                picks.append((SCHED_LABELS[other], names[pick]))
+        if picks:
+            answer = ("t=" + _fmt(sched_start) + " 时已到达 " + "、".join(arrived) + "；"
+                      + "，".join(f"{label}选中 {name}" for label, name in picks)
+                      + f"。（{SCHED_LABELS[algorithm]} 全程：平均等待 {_fmt(sim['avg_waiting'])}，"
+                        f"平均周转 {_fmt(sim['avg_turnaround'])}）")
     _frame(frames, "result", "结果", answer, 5, time=sim["makespan"], gantt=gantt(len(segments)), ready=[],
            running=None, rows=table(sim["makespan"], None, [0.0] * n), finished=list(names), algorithm=algorithm)
 
@@ -786,10 +869,12 @@ def _eval_schedule(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[
     stats = {"processes": rows_final, "avg_waiting": sim["avg_waiting"], "avg_turnaround": sim["avg_turnaround"],
              "avg_weighted": sim["avg_weighted"], "makespan": sim["makespan"], "switches": sim["switches"],
              "gantt": gantt(len(segments)), "compare": compare, "quantum": quantum}
+    if picks:
+        stats["first_picks"] = [{"algorithm_label": label, "process": name} for label, name in picks]
     return {
         "subject": "operating_system", "engine": engine, "os_kind": kind, "status": "ok", "algorithm": algorithm,
         "frames": frames, "trace": frames, "pseudocode": SCHED_PSEUDOCODE, "answer": answer,
-        "answer_value": sim["avg_waiting"], "answer_order": None,
+        "answer_value": sim["avg_waiting"], "answer_order": [name for _, name in picks] or None,
         "headline": f"{SCHED_LABELS[algorithm]}：平均等待 {_fmt(sim['avg_waiting'])}，平均周转 {_fmt(sim['avg_turnaround'])}",
         "metrics": metrics, "checks": checks, "stats": stats, "stop_reason": "done",
         "notes": ["同一时刻到达的进程按输入顺序入队；RR 中新到达的进程排在被抢占进程之前。",
@@ -802,7 +887,7 @@ def _eval_schedule(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[
 # 页面置换
 # ---------------------------------------------------------------------------
 
-_REFERENCE_LABEL = (r"访问序列|引用序列|引用串|页面走向|页面号?序列|页面访问串|访问顺序|页号序列|页面请求序列|"
+_REFERENCE_LABEL = (r"访问序列|引用序列|引用串|页面走向|页面?号?的?序列|页面访问串|访问顺序|页面请求序列|"
                     r"reference\s*string|reference\s*sequence|page\s*reference|走向")
 _FRAME_STOP = r"物理块|页框|页帧|内存块|块数|分配|frames?|驻留集"
 _REFERENCE_STOP = r"其中|初始|已(?:经)?调入|调入内存|已在内存|驻留"
@@ -872,7 +957,7 @@ def _detect_page_algorithm(text: str) -> str | None:
 def _page_concept_only(text: str) -> bool:
     """没有访问序列时，只有概念题允许继续；问缺页次数仍必须阻塞。"""
     if re.search(r"缺页次数|缺页率\s*(?:为|是|多少|约)|访问序列|引用串|(?<!请)求[^\n。；]{0,16}缺页|"
-                 r"计算[^\n。；]{0,16}缺页|多少次", text):
+                 r"计算[^\n。；]{0,16}缺页|多少次|总次数|置换[^\n。；]{0,6}次数", text):
         return False
     return bool(re.search(r"请求分页|缺页|工作集|抖动|belady|置换算法|页面置换|时钟置换|clock",
                           text, re.I))
@@ -1122,6 +1207,8 @@ def _eval_page(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str,
     steps = _simulate_pages(reference, frames_count, algorithm, initial_frames)
     total = len(reference)
     faults = steps[-1]["faults"]
+    replacements = sum(1 for step in steps if step.get("evicted") is not None)
+    asks_replace = bool(re.search(r"页置换(?:的)?总?次数", str(model.get("raw") or "")))
     ws_sets = _working_set(reference, window)
     ws_final = ws_sets[-1]
     ws_max = max(len(item) for item in ws_sets)
@@ -1169,7 +1256,9 @@ def _eval_page(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str,
                algorithm=algorithm, refs=step["refs"], hand=step["hand"], window=window,
                working_set=ws, ws_max=ws_max)
     rate = faults / total
-    answer = f"缺页 {faults} 次，命中 {total - faults} 次，缺页率 {rate * 100:.1f}%"
+    answer = (f"页置换 {replacements} 次；缺页 {faults} 次，命中 {total - faults} 次，缺页率 {rate * 100:.1f}%"
+              if asks_replace else
+              f"缺页 {faults} 次，命中 {total - faults} 次，缺页率 {rate * 100:.1f}%（其中发生置换 {replacements} 次）")
     ws_note = (f"工作集 Δ={window}：最大 {ws_max} 页，{'超过' if thrash else '不超过'}物理块数 {frames_count}"
                + ("，可能发生抖动" if thrash else "，无明显抖动"))
     answer += f"；{ws_note}"
@@ -1213,15 +1302,16 @@ def _eval_page(model: Mapping[str, Any], params: Mapping[str, Any]) -> dict[str,
     metrics = [
         {"id": "algorithm", "label": "算法", "value": PAGE_LABELS[algorithm]},
         {"id": "faults", "label": "缺页次数", "value": str(faults)},
+        {"id": "replacements", "label": "页置换次数", "value": str(replacements)},
         {"id": "hits", "label": "命中次数", "value": str(total - faults)},
         {"id": "rate", "label": "缺页率", "value": f"{rate * 100:.1f}%"},
         {"id": "working_set", "label": f"工作集 Δ={window}", "value": ",".join(ws_final) + f"（最大 {ws_max}）"},
     ]
     return _ok(kind, engine, answer, frames, PAGE_PSEUDOCODE,
                metrics=metrics, checks=checks,
-               answer_value=float(faults), algorithm=algorithm,
+               answer_value=float(replacements if asks_replace else faults), algorithm=algorithm,
                headline=f"{PAGE_LABELS[algorithm]}（{frames_count} 块）：缺页 {faults} 次 / 访问 {total} 次",
-               stats={"faults": faults, "hits": total - faults, "total": total, "rate": rate,
+               stats={"faults": faults, "replacements": replacements, "hits": total - faults, "total": total, "rate": rate,
                       "frames_count": frames_count, "initial_frames": list(initial_frames),
                       "compare": compare, "series": series, "window": window,
                       "working_set": ws_final, "max_working_set": ws_max,
@@ -1586,6 +1676,32 @@ def _matrix_text(matrix: Sequence[Sequence[float]]) -> str:
     return "[" + ",".join("[" + ",".join(_fmt(v) for v in row) + "]" for row in matrix) + "]"
 
 
+_BANKER_LIST = r"(\d+(?:\s*[,，、]\s*\d+)*(?:\s*和\s*\d+)?)"
+
+
+def _banker_prose(text: str) -> dict[str, Any] | None:
+    """“有 4 个同类资源，P1..P3 需要的资源数分别为 4、3 和 1，已申请到的分别为 2、1 和 0”
+    这类单资源散文表述；Available = 同类资源总数 − 各进程已申请数之和。"""
+    flat = _flatten_lines(text)
+    total = re.search(r"(\d+)\s*个同类资源", flat)
+    maximum = re.search(rf"(?:最大)?(?:需求|需要)(?:的)?资源(?:数|量|总量)?分别为\s*{_BANKER_LIST}", flat)
+    allocated = re.search(
+        rf"(?:已申请到|已分配|已占有|已获得|当前占有|当前持有|持有|占有)(?:的)?资源(?:数|量)?分别为\s*{_BANKER_LIST}", flat)
+    if not (total and maximum and allocated):
+        return None
+    needs = [float(v) for v in re.findall(r"\d+", maximum.group(1))]
+    held = [float(v) for v in re.findall(r"\d+", allocated.group(1))]
+    if len(needs) != len(held) or not needs:
+        return None
+    names: list[str] = []
+    for item in re.findall(r"[Pp](\d+)", flat):
+        name = f"P{item}"
+        if name not in names:
+            names.append(name)
+    return {"names": names[:len(needs)], "allocation": [[v] for v in held], "max": [[v] for v in needs],
+            "available": [float(total.group(1)) - sum(held)]}
+
+
 def _build_banker(text: str, source: Mapping[str, Any], merged: Mapping[str, Any]) -> dict[str, Any]:
     ambiguities: list[dict[str, Any]] = []
     table = _table_banker(text)
@@ -1595,6 +1711,15 @@ def _build_banker(text: str, source: Mapping[str, Any], merged: Mapping[str, Any
     available = (_coerce_vector(merged.get("available")) or _labelled_vector(text, "available")
                  or (table or {}).get("available"))
     request = _coerce_request(merged.get("request")) or _request_from_text(text)
+
+    prose = None
+    if allocation is None or (maximum is None and need_given is None) or available is None:
+        prose = _banker_prose(text)
+        if prose:
+            allocation = allocation or prose["allocation"]
+            if maximum is None and need_given is None:
+                maximum = prose["max"]
+            available = available or prose["available"]
 
     if allocation is None:
         ambiguities.append(_ambiguity(
@@ -1624,7 +1749,9 @@ def _build_banker(text: str, source: Mapping[str, Any], merged: Mapping[str, Any
     if allocation is not None and (n > MAX_BANKER_N or m > MAX_BANKER_M):
         ambiguities.append(_ambiguity(
             "banker_size", "allocation", f"首版仅支持 {MAX_BANKER_N} 个进程、{MAX_BANKER_M} 类资源以内。"))
-    names = (table or {}).get("names") if table and len((table or {}).get("names") or []) == n else [f"P{i}" for i in range(n)]
+    names = ((table or {}).get("names") if table and len((table or {}).get("names") or []) == n
+             else (prose or {}).get("names") if prose and len(prose.get("names") or []) == n
+             else [f"P{i}" for i in range(n)])
     if request and (request["process"] not in names or len(request["vector"]) != m):
         ambiguities.append(_ambiguity("request", "request", "资源请求的进程名或分量数与矩阵不一致，请写成 “P1: 1,0,2”。"))
     resources = [chr(ord("A") + j) for j in range(m)] if m <= 26 else [f"R{j + 1}" for j in range(m)]
@@ -3103,7 +3230,7 @@ def _build_generic(kind: str):
         engine = _GENERIC_ENGINES[kind]
         model = {"engine": engine, "subject": "operating_system", "os_kind": kind,
                  "raw": text, "defaults": {}, "params": [], "teaching": False}
-        conditions = [_condition("os_kind", "题型", KIND_LABELS[kind], source=source)]
+        conditions = [_condition("os_kind", "题型", KIND_LABELS[kind], source=source, editable=False)]
         formulas = _GENERIC_FORMULAS.get(kind) or [
             {"id": "os_rule", "tex": r"\text{按操作系统定义与题面条件推导}",
              "plain": "概念题给出确定性知识点；计算题按题面数据执行并留痕。", "role": "口径"}]
@@ -3133,7 +3260,7 @@ def _infer_kind(text: str, merged: Mapping[str, Any]) -> tuple[str | None, bool]
     explicit = str(merged.get("os_kind") or "").strip()
     if explicit in KIND_LABELS:
         return explicit, True
-    detected = _detect_kind(text)
+    detected = _detect_kind(text) or _detect_kind(_flatten_lines(text))
     if detected:
         return detected, True
     if _table_processes(text) or _inline_processes(text):
@@ -3143,9 +3270,15 @@ def _infer_kind(text: str, merged: Mapping[str, Any]) -> tuple[str | None, bool]
     return None, False
 
 
+def _join_list_continuations(text: str) -> str:
+    """OCR 会把长序列断成两行：行尾是列表分隔符时与下一行合并。"""
+    return re.sub(r"([,，、;；])\s*\n\s*", r"\1", text)
+
+
 def build_os(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any]:
     """识别操作系统题目并生成可执行模型；数据缺失时给出阻塞问题，不编造条件。"""
 
+    text = _join_list_continuations(text)
     merged = {**dict(overrides.get("condition_values") or {}),
               **dict(overrides.get("ambiguity_answers") or {}),
               **dict(overrides or {})}

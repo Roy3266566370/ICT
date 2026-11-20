@@ -81,7 +81,7 @@ MODE_LIMITS = {
     "carnot": "卡诺热机为可逆循环，效率 η=1−Tc/Th；热量与温度取开尔文。",
 }
 
-PROCESS_LABELS = {0: "等温", 1: "等压", 2: "等容", 3: "绝热"}
+PROCESS_LABELS = {0: "等温", 1: "等压", 2: "等容", 3: "绝热", 4: "一般状态变化"}
 R_GAS = 8.314
 K_COULOMB = 8.99e9
 EPS0 = 8.8541878128e-12
@@ -93,9 +93,10 @@ def _param(cid: str, label: str, min_value: float | None, max_value: float | Non
             "step": step, "options": [], "note": None}
 
 
-def _condition(cid: str, label: str, value: Any, *, unit: str = "", source: Mapping[str, Any] | None = None) -> dict[str, Any]:
+def _condition(cid: str, label: str, value: Any, *, unit: str = "", source: Mapping[str, Any] | None = None,
+               editable: bool = True, provenance: str = "original") -> dict[str, Any]:
     return {"id": cid, "label": label, "value": value, "kind": "number", "unit": unit,
-            "provenance": "original", "source": dict(source or {}), "editable": True,
+            "provenance": provenance, "source": dict(source or {}), "editable": editable,
             "options": [], "min": None, "max": None, "step": None, "note": None}
 
 
@@ -111,11 +112,13 @@ def _built(mode: str, model: dict[str, Any], conditions: list[dict[str, Any]],
 
 
 def detect_second_mode(text: str) -> str | None:
+    # OCR 断行会拆散关键词（"安\n培力"），探测用折叠文本。
+    text = re.sub(r"\s+", "", text or "")
     if "纯滚动" in text or ("滚动" in text and "斜面" in text):
         return "rolling"
     if any(word in text for word in ("转动惯量", "定轴转动", "角动量", "力矩", "刚体")):
         return "rigid_rotation"
-    if "驻波" in text or "波节" in text or "波腹" in text:
+    if "驻波" in text or "波节" in text or "波腹" in text or "两端固定" in text or "基频" in text or "泛音" in text:
         return "standing_wave"
     if any(word in text for word in ("机械波", "行波", "波长", "波速", "简谐波", "相位差")):
         return "wave_travel"
@@ -123,7 +126,7 @@ def detect_second_mode(text: str) -> str | None:
         return "rail" if ("导体棒" in text or "切割磁感线" in text) else "faraday"
     if any(word in text for word in ("洛伦兹", "安培力", "带电粒子", "轨道半径")):
         return "lorentz" if ("洛伦兹" in text or "带电粒子" in text or "轨道" in text) else "ampere"
-    if any(word in text for word in ("基尔霍夫", "支路电流", "回路电流")):
+    if any(word in text for word in ("基尔霍夫", "支路电流", "回路电流", "双回路", "两回路", "多个回路")):
         return "kirchhoff"
     if "RC" in text.upper() or "充放电" in text or ("时间常数" in text and "电容" in text):
         return "rc"
@@ -158,12 +161,23 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
         return _found(text, patterns)
 
     if mode == "rigid_rotation":
-        need("m", _mass(text), "质量 m")
-        need("r", first([rf"(?:半径|r)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "半径/长度 r")
+        # 直接给转动惯量 J/I 时绕开 m·r·c 推导；只求角加速度不需要时间 t。
+        i_direct = first([rf"(?:转动惯量|(?-i:J)|(?-i:I))\s*(?:为|是|=|：|:)?\s*({_NUM})\s*(?:kg·m|kg m)?"])
+        if i_direct is not None:
+            values["I_direct"] = float(i_direct)
+        else:
+            need("m", _mass(text), "质量 m")
+            need("r", first([rf"(?:半径|r)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "半径/长度 r")
         values["c"] = first([rf"(?:转动惯量系数|c)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or 0.5
-        need("torque", first([rf"(?:力矩|τ)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "力矩 τ")
+        need("torque", first([rf"(?:力矩|合外力矩|外力矩|(?-i:M)|τ)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "力矩 τ")
         values["omega0"] = first([rf"(?:初始角速度|ω0|ω₀)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or 0.0
-        need("t", _time(text), "时间 t")
+        t_val = _time(text)
+        if t_val is not None:
+            values["t"] = float(t_val)
+        elif re.search(r"角速度|末态|转速|弧度", text):
+            need("t", None, "时间 t")
+        else:
+            values["alpha_only"] = 1.0
     elif mode == "rolling":
         need("m", _mass(text), "质量 m")
         need("r", first([rf"(?:半径|r)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "半径 r")
@@ -173,17 +187,34 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
         values["g"] = _g_value(text)
     elif mode == "wave_travel":
         need("A", first([rf"(?:振幅|A)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "振幅 A")
-        need("lam", first([rf"(?:波长|λ)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "波长 λ")
+        need("lam", first([rf"(?:波长|λ|入)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "波长 λ")
         need("f", first([rf"(?:频率|f)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "频率 f")
         values["phi"] = first([rf"(?:初相|相位|φ)\s*(?:为|是|=|：|:)?\s*({_NUM})\s*°?"]) or 0.0
         values["x1"] = first([rf"(?:x1|x₁|第一点|点1)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or 0.0
-        values["x2"] = first([rf"(?:x2|x₂|第二点|点2)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or values["lam"] / 2
+        lam_parsed = values.get("lam")
+        values["x2"] = first([rf"(?:x2|x₂|第二点|点2)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or (lam_parsed / 2 if lam_parsed else 0.0)
         values["t"] = first([rf"(?:时刻|时间|t)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or 0.0
     elif mode == "standing_wave":
-        need("A", first([rf"(?:振幅|A)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "振幅 A")
-        need("lam", first([rf"(?:波长|λ)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "波长 λ")
-        need("L", first([rf"(?:弦长|长度|L)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "弦长 L")
-        need("v", first([rf"(?:波速|v)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "波速 v")
+        l_val = first([rf"(?:弦长|长度|L)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                       rf"长\s*({_NUM})\s*(?:m|米)\s*的?(?:弦|绳)"])
+        v_val = first([rf"(?:波速|v)\s*(?:为|是|=|：|:)?\s*({_NUM})"])
+        a_val = first([rf"(?:振幅|A)\s*(?:为|是|=|：|:)?\s*({_NUM})"])
+        lam_val = first([rf"(?:波长|λ|入)\s*(?:为|是|=|：|:)?\s*({_NUM})"])
+        # 求基频只需 L、v（λ1=2L）；给了完整驻波条件的题仍按完整模型要求。
+        asks_fundamental = ("基频" in text or "最低频率" in text or "基波" in text)
+        if asks_fundamental:
+            need("L", l_val, "弦长 L")
+            need("v", v_val, "波速 v")
+            values["A"] = float(a_val) if a_val is not None else 0.05
+            lam_eff = lam_val if lam_val is not None else (2.0 * l_val if l_val else None)
+            if lam_eff is not None:
+                values["lam"] = float(lam_eff)
+            values["fundamental_only"] = 1.0
+        else:
+            need("A", a_val, "振幅 A")
+            need("lam", lam_val, "波长 λ")
+            need("L", l_val, "弦长 L")
+            need("v", v_val, "波速 v")
     elif mode == "coulomb":
         need("q1", first([rf"(?:q1|q₁|电荷1|点电荷1)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "电荷 q1")
         need("q2", first([rf"(?:q2|q₂|电荷2|点电荷2)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "电荷 q2")
@@ -195,9 +226,16 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
             elif positions:
                 d_value = abs(positions[0])
         need("d", d_value, "间距 d")
-        need("xP", first([rf"P\s*点[^。；;]{{0,16}}?x\s*=\s*({_NUM})",
-                           rf"(?:点P|观测点)[^。；;]{{0,16}}?x\s*=\s*({_NUM})",
-                           rf"(?:xP|x_P)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "P 点位置 xP")
+        xp_value = first([rf"P\s*点[^。；;]{{0,16}}?x\s*=\s*({_NUM})",
+                          rf"(?:点P|观测点)[^。；;]{{0,16}}?x\s*=\s*({_NUM})",
+                          rf"(?:xP|x_P)\s*(?:为|是|=|：|:)?\s*({_NUM})"])
+        # 只求库仑力的题不需要 P 点；只有问到场强/电势时才必须定位 P。
+        asks_point = ("电势" in text or "场强" in text or "电场强度" in text
+                      or re.search(r"[Pp]\s*点", text) is not None)
+        if asks_point:
+            need("xP", xp_value, "P 点位置 xP")
+        elif xp_value is not None:
+            values["xP"] = float(xp_value)
     elif mode == "gauss":
         need("Q", first([rf"(?:总电荷|电荷量|Q)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "总电荷 Q")
         need("R", first([rf"(?:半径|R)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "半径 R")
@@ -226,21 +264,38 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
         need("E", first([rf"(?:电源|电动势|电压|E)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "电源电压 E")
         need("t", _time(text), "时间 t")
         values["discharge"] = 1.0 if "放电" in text else 0.0
+        if re.search(r"电容[^。；;]{0,8}电压|电容上的电压|Uc|uc\b", text, re.I):
+            values["ask"] = 2.0
+        elif "电流" in text:
+            values["ask"] = 3.0
+        elif re.search(r"电荷量|电荷", text):
+            values["ask"] = 4.0
     elif mode == "lorentz":
         need("m", _mass(text), "质量 m")
-        need("q", first([rf"(?:电荷|q)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "电荷 q")
+        need("q", first([rf"(?:电荷量|电荷|电量|q)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "电荷 q")
         need("B", first([rf"(?:磁感应强度|磁场|B)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "磁感应强度 B")
-        need("v", first([rf"(?:速度|v)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "速度 v")
+        need("v", first([rf"(?:速度|v)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                          rf"({_NUM})\s*(?:m/s|米每秒)\s*的?速度"]), "速度 v")
     elif mode == "ampere":
         need("I", first([rf"(?:电流|I)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "电流 I")
-        need("L", first([rf"(?:导线长度|长度|L)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "导线长度 L")
+        need("L", first([rf"(?:导线长度|导线长|长度|棒长|L|长)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                         rf"长\s*({_NUM})\s*(?:m|米)\s*的?(?:直)?导线"]), "导线长度 L")
         need("B", first([rf"(?:磁感应强度|磁场|B)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "磁感应强度 B")
-        need("angle", _angle(text, ("夹角", "角度", "θ")), "夹角 θ")
+        angle = _angle(text, ("夹角", "角度", "θ"))
+        if angle is None:
+            angle = first([rf"成\s*({_NUM})\s*°\s*(?:的)?角",
+                           rf"与磁场[^。；;]{{0,8}}?成?\s*({_NUM})\s*°"])
+        if angle is None:
+            if "垂直" in text or "正交" in text:
+                angle = 90.0
+            elif "平行" in text:
+                angle = 0.0
+        need("angle", angle, "夹角 θ")
     elif mode == "faraday":
         need("A", first([rf"(?:面积|A)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "线圈面积 A")
         need("B1", first([rf"(?:B1|B₁|初始磁感应强度)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "初始磁感应强度 B1")
         need("B2", first([rf"(?:B2|B₂|末磁感应强度)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "末磁感应强度 B2")
-        need("dt", first([rf"(?:Δt|时间间隔|经过)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "时间间隔 Δt")
+        need("dt", first([rf"(?:Δt|△t|⊿t|时间间隔|所用时间|经过)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "时间间隔 Δt")
         values["N"] = first([rf"(?:匝数|N)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or 1.0
         values["R"] = first([rf"(?:电阻|R)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or 1.0
     elif mode == "rail":
@@ -249,21 +304,48 @@ def _parse_mode(mode: str, text: str) -> tuple[dict[str, float], list[str]]:
         need("v", first([rf"(?:速度|v)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "速度 v")
         need("R", first([rf"(?:电阻|R)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "电阻 R")
     elif mode == "thermo_process":
-        need("n", first([rf"(?:物质的量|n)\s*(?:为|是|=|：|:)?\s*({_NUM})",
-                           rf"({_NUM})\s*mol"]), "物质的量 n")
-        need("T1", first([rf"(?:初温|T1|起始温度)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "初温 T1")
+        asks_ratio = bool(re.search(r"之比|比值|倍数|几分之几|百分之|比例|p2\s*/\s*p1", text, re.I))
+        n_value = first([rf"(?:物质的量|n)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                         rf"({_NUM})\s*mol"])
+        if n_value is None and asks_ratio:
+            # 求 p2/p1、T2/T1 等比值时物质的量相消，按 1 mol 归一。
+            values["n"] = 1.0
+            values["n_assumed"] = 1.0
+        else:
+            need("n", n_value, "物质的量 n")
+        need("T1", first([rf"(?:初温|T1|起始温度)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                          rf"T1\s*[=＝]\s*({_NUM})"]), "初温 T1")
         need("V1", first([rf"(?:初体积|V1|起始体积)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "初体积 V1")
         if "等容" in text:
-            need("T2", first([rf"(?:末温|T2|最终温度)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "末温 T2")
+            need("T2", first([rf"(?:末温|T2|最终温度)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                              rf"T2\s*[=＝]\s*({_NUM})"]), "末温 T2")
             values["process"] = 2.0
         else:
-            need("V2", first([rf"(?:末体积|V2|最终体积)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "末体积 V2")
-            values["process"] = 3.0 if "绝热" in text else (1.0 if "等压" in text else 0.0)
+            t2_val = first([rf"(?:末温|T2|最终温度)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                            rf"T2\s*[=＝]\s*({_NUM})"])
+            v2_val = first([rf"(?:末体积|V2|最终体积)\s*(?:为|是|=|：|:)?\s*({_NUM})"])
+            if t2_val is not None and not any(k in text for k in ("等温", "等压", "绝热")):
+                # T、V 同时变化的"一般状态变化"：PV/T 守恒，不能套等温/等压/绝热。
+                values["T2"] = float(t2_val)
+                need("V2", v2_val, "末体积 V2")
+                values["process"] = 4.0
+                values["ask_ratio"] = 1.0 if asks_ratio else 0.0
+            else:
+                need("V2", v2_val, "末体积 V2")
+                values["process"] = 3.0 if "绝热" in text else (1.0 if "等压" in text else 0.0)
         values["gamma"] = first([rf"(?:γ|绝热指数|比热比)\s*(?:为|是|=|：|:)?\s*({_NUM})"]) or 1.4
     elif mode == "carnot":
-        need("Th", first([rf"(?:高温热源|热源温度|Th|T高)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "高温热源 Th")
-        need("Tc", first([rf"(?:低温热源|冷源温度|Tc|T低)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "低温热源 Tc")
-        need("Qh", first([rf"(?:吸热|Qh|Q高)\s*(?:为|是|=|：|:)?\s*({_NUM})"]), "每循环吸热 Qh")
+        def kelvin(labels: str) -> float | None:
+            match = re.search(rf"(?:{labels})\s*(?:为|是|=|：|:)?\s*({_NUM})\s*(°C|℃|K|开|开尔文)?", text, re.I)
+            if not match:
+                return None
+            value = float(match.group(1))
+            unit = match.group(2) or "K"
+            return value + 273.15 if unit in ("°C", "℃") else value
+        need("Th", kelvin(r"高温热源|热源温度|Th|T高"), "高温热源 Th")
+        need("Tc", kelvin(r"低温热源|冷源温度|Tc|T低"), "低温热源 Tc")
+        need("Qh", first([rf"(?:吸热|吸收热量|吸收的热|Qh|Q高)\s*(?:为|是|=|：|:)?\s*({_NUM})",
+                          rf"从高温热源吸收[^。；;]{{0,8}}?({_NUM})\s*J"]), "每循环吸热 Qh")
     return values, missing
 
 
@@ -329,6 +411,8 @@ def build_physics_second(text: str, source: Mapping[str, Any], overrides: Mappin
     if mode is None:
         return None
     values, missing = _parse_mode(mode, _normalize_units(text))
+    from .physics import _apply_overrides
+    overridden = _apply_overrides(values, overrides)
     model = {"engine": "physics_v1", "subject": "physics", "physics_kind": MODE_KIND[mode],
              "physics_mode": mode, "raw": text, "defaults": values, "params": _params_for(mode),
              "teaching": False}
@@ -352,7 +436,10 @@ def build_physics_second(text: str, source: Mapping[str, Any], overrides: Mappin
                    "kind": "text", "unit": "", "provenance": "original", "source": dict(source),
                    "editable": False, "options": [], "min": None, "max": None, "step": None, "note": None}]
     for key, value in values.items():
-        conditions.append(_condition(f"phy_{key}", labels.get(key, key), value, source=source))
+        conditions.append(_condition(
+            f"phy_{key}", labels.get(key, key), value, source=source,
+            editable=key not in {"shell", "series", "discharge", "process"},
+            provenance="student_confirmed" if key in overridden else "original"))
     plain = {
         "rigid_rotation": "I = c m r²；α = τ/I；ω = ω0 + αt；L = Iω；Ek = ½Iω²",
         "rolling": "a = g sinθ/(1+c)；v² = 2as；E平 = ½mv²；E转 = ½cmv²",
@@ -402,12 +489,35 @@ def _frame(index: int, label: str, detail: str, values: Mapping[str, Any]) -> di
 def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
     g = _v(p, "g", 9.8)
     if mode == "rigid_rotation":
-        m, r, c = _v(p, "m"), _v(p, "r"), _v(p, "c", 0.5)
-        torque, omega0, t = _v(p, "torque"), _v(p, "omega0"), _v(p, "t")
-        if m <= 0 or r <= 0 or c <= 0 or t <= 0:
-            raise ValueError("质量、半径、形状系数和时间必须为正数")
-        inertia = c * m * r * r
+        i_direct = _v(p, "I_direct", None)
+        c = _v(p, "c", 0.5)
+        torque, omega0 = _v(p, "torque"), _v(p, "omega0")
+        t = _v(p, "t", None)
+        if i_direct is not None:
+            inertia = i_direct
+            m = r = 0.0
+        else:
+            m, r = _v(p, "m"), _v(p, "r")
+            if m <= 0 or r <= 0 or c <= 0:
+                raise ValueError("质量、半径、形状系数和时间必须为正数")
+            inertia = c * m * r * r
+        if inertia <= 0:
+            raise ValueError("转动惯量必须为正数")
         alpha = torque / inertia
+        if t is None:
+            return {
+                "kind": "rigid_body", "mode": mode,
+                "answer": f"I={_fmt(inertia)} kg·m²，角加速度 α={_fmt(alpha)} rad/s²。",
+                "answer_value": alpha,
+                "metrics": [_metric("I", "转动惯量", f"{_fmt(inertia)} kg·m²", "accent"),
+                            _metric("alpha", "角加速度", f"{_fmt(alpha)} rad/s²")],
+                "checks": [_check("torque", "转动定律", abs(alpha - torque / inertia) < 1e-9, "α = τ/I")],
+                "notes": [MODE_LIMITS[mode], "未给转动时间，未求末态角速度与能量。"],
+                "frames": [_frame(0, "转动惯量", f"I={_fmt(inertia)} kg·m²", {"I": inertia}),
+                           _frame(1, "角加速度", f"α={_fmt(alpha)} rad/s²", {"alpha": alpha})],
+                "scene": {"type": "rotation", "m": m, "r": r, "c": c, "torque": torque,
+                          "I": inertia, "alpha": alpha},
+            }
         omega = omega0 + alpha * t
         angular = inertia * omega
         energy = 0.5 * inertia * omega * omega
@@ -420,7 +530,7 @@ def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
                         _metric("omega", "末角速度", f"{_fmt(omega)} rad/s"),
                         _metric("L", "角动量", f"{_fmt(angular)} kg·m²/s"),
                         _metric("E", "转动动能", f"{_fmt(energy)} J")],
-            "checks": [_check("inertia", "转动惯量公式", abs(inertia - c * m * r * r) < 1e-9, "I = c m r²"),
+            "checks": [_check("inertia", "转动惯量公式", i_direct is not None or abs(inertia - c * m * r * r) < 1e-9, "I = c m r²（或直接给定）"),
                        _check("torque", "转动定律", abs(alpha - torque / inertia) < 1e-9, "α = τ/I"),
                        _check("angular", "角动量定义", abs(angular - inertia * omega) < 1e-9, "L = Iω")],
             "notes": [MODE_LIMITS[mode]],
@@ -496,10 +606,14 @@ def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
         antinodes = [item for item in antinodes if item <= length + 1e-9]
         fundamental = speed / (2 * length)
         consistency = abs(length / half - round(length / half)) < 1e-9
+        fundamental_only = _v(p, "fundamental_only") > 0.5
         return {
             "kind": "wave", "mode": mode,
-            "answer": f"波节间距 {_fmt(half)} m，波节 {len(nodes)} 个，波腹 {len(antinodes)} 个，基频 {_fmt(fundamental)} Hz。",
-            "answer_value": half,
+            "answer": (f"基频 f1={_fmt(fundamental)} Hz（基波波长 λ1=2L={_fmt(2 * length)} m），"
+                       f"波节间距 {_fmt(half)} m，波节 {len(nodes)} 个，波腹 {len(antinodes)} 个。"
+                       if fundamental_only else
+                       f"波节间距 {_fmt(half)} m，波节 {len(nodes)} 个，波腹 {len(antinodes)} 个，基频 {_fmt(fundamental)} Hz。"),
+            "answer_value": fundamental if fundamental_only else half,
             "metrics": [_metric("half", "波节间距", f"{_fmt(half)} m", "accent"),
                         _metric("nodes", "波节数", str(len(nodes))),
                         _metric("anti", "波腹数", str(len(antinodes))),
@@ -513,17 +627,30 @@ def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
                       "nodes": nodes, "antinodes": antinodes, "f1": fundamental},
         }
     if mode == "coulomb":
-        q1, q2, d, xp = _v(p, "q1"), _v(p, "q2"), _v(p, "d"), _v(p, "xP")
+        q1, q2, d = _v(p, "q1"), _v(p, "q2"), _v(p, "d")
+        xp = _v(p, "xP", None)
         if d <= 0:
             raise ValueError("电荷间距必须为正数")
+        force = K_COULOMB * abs(q1 * q2) / (d * d)
+        attraction = q1 * q2 < 0
+        if xp is None:
+            return {
+                "kind": "electrostatics", "mode": mode,
+                "answer": f"库仑力 F={_fmt(force)} N（{'吸引' if attraction else '排斥'}）。",
+                "answer_value": force,
+                "metrics": [_metric("F", "库仑力", f"{_fmt(force)} N", "accent")],
+                "checks": [_check("force", "库仑定律", abs(force - K_COULOMB * abs(q1 * q2) / (d * d)) < 1e-9, "F = k|q1q2|/d²")],
+                "notes": [MODE_LIMITS[mode]],
+                "frames": [_frame(0, "两电荷作用", f"F={_fmt(force)} N", {"F": force})],
+                "scene": {"type": "electric", "q1": q1, "q2": q2, "d": d, "F": force,
+                          "attraction": attraction},
+            }
         if abs(xp) < 1e-12 or abs(xp - d) < 1e-12:
             raise ValueError("P 点不能与点电荷重合")
-        force = K_COULOMB * abs(q1 * q2) / (d * d)
         e1 = K_COULOMB * q1 / (xp * xp) * (1 if xp > 0 else -1)
         e2 = K_COULOMB * q2 / ((xp - d) ** 2) * (1 if xp > d else -1)
         field = e1 + e2
         potential = K_COULOMB * (q1 / abs(xp) + q2 / abs(xp - d))
-        attraction = q1 * q2 < 0
         return {
             "kind": "electrostatics", "mode": mode,
             "answer": f"库仑力 F={_fmt(force)} N（{'吸引' if attraction else '排斥'}），P 点电场 E={_fmt(field)} N/C，电势 V={_fmt(potential)} V。",
@@ -653,8 +780,10 @@ def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
             current = emf / resistance * math.exp(-time_s / tau)
             voltage = emf * (1 - math.exp(-time_s / tau))
             answer = f"充电：τ={_fmt(tau)} s，t={_fmt(time_s)} s 时 q={_fmt(charge)} μC，i={_fmt(current)} A，Uc={_fmt(voltage)} V。"
+        ask = int(_v(p, "ask"))
+        answer_value = {2: voltage, 3: current, 4: charge}.get(ask, voltage)
         return {
-            "kind": "circuit", "mode": mode, "answer": answer, "answer_value": tau,
+            "kind": "circuit", "mode": mode, "answer": answer, "answer_value": answer_value,
             "metrics": [_metric("tau", "时间常数", f"{_fmt(tau)} s", "accent"),
                         _metric("q", "电荷", f"{_fmt(charge)} μC"), _metric("i", "电流", f"{_fmt(current)} A"),
                         _metric("Uc", "电容电压", f"{_fmt(voltage)} V")],
@@ -760,6 +889,33 @@ def _evaluate(mode: str, p: Mapping[str, Any]) -> dict[str, Any]:
             raise ValueError("物质的量、温度、体积和绝热指数需满足范围")
         p1 = n_mol * R_GAS * t1 / v1
         cv = R_GAS / (gamma - 1)
+        if process == 4:
+            v2 = _v(p, "V2", v1)
+            t2 = _v(p, "T2", t1)
+            if v2 <= 0:
+                raise ValueError("末体积必须为正数")
+            p2 = p1 * (v1 / v2) * (t2 / t1)
+            delta_u = n_mol * cv * (t2 - t1)
+            ratio = p2 / p1
+            ask_ratio = _v(p, "ask_ratio") > 0.5
+            assumed = "（未给物质的量，按 1 mol 计，比值不受影响）" if _v(p, "n_assumed") > 0.5 else ""
+            return {
+                "kind": "thermodynamics", "mode": mode,
+                "answer": (f"一般状态变化：P1={_fmt(p1)} Pa，P2={_fmt(p2)} Pa，p2/p1={_fmt(ratio)}，"
+                           f"ΔU={_fmt(delta_u)} J{assumed}；做功与传热取决于具体过程路径，仅凭初末态不能确定。"),
+                "answer_value": ratio if ask_ratio else p2,
+                "metrics": [_metric("P1", "初压", f"{_fmt(p1)} Pa"), _metric("P2", "末压", f"{_fmt(p2)} Pa"),
+                            _metric("ratio", "p2/p1", f"{_fmt(ratio)}", "accent"),
+                            _metric("dU", "内能变化", f"{_fmt(delta_u)} J")],
+                "checks": [_check("state_eq", "状态方程守恒",
+                                  abs(p1 * v1 / t1 - p2 * v2 / t2) < 1e-6 * max(1.0, p1 * v1 / t1),
+                                  "PV/T 在初末态之间守恒")],
+                "notes": [MODE_LIMITS[mode]],
+                "frames": [_frame(0, "初态", f"P1={_fmt(p1)} Pa，V1={_fmt(v1)}，T1={_fmt(t1)} K", {"P1": p1}),
+                           _frame(1, "末态", f"P2={_fmt(p2)} Pa，V2={_fmt(v2)}，T2={_fmt(t2)} K", {"P2": p2})],
+                "scene": {"type": "thermo", "process": process, "n": n_mol, "T1": t1, "T2": t2,
+                          "V1": v1, "V2": v2, "P1": p1, "P2": p2, "dU": delta_u, "gamma": gamma},
+            }
         if process == 2:
             t2 = _v(p, "T2", t1)
             v2 = v1

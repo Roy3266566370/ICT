@@ -34,6 +34,19 @@ function Provenance({ value }: { value: LabCondition['provenance'] }): ReactNode
   );
 }
 
+const SIDE_LABELS: Record<string, string> = {
+  both: '双侧极限 (x → x₀)',
+  left: '左极限 (x → x₀⁻)',
+  right: '右极限 (x → x₀⁺)',
+};
+
+function inlineSourceExcerpt(text: string): string {
+  return text
+    .replace(/\$\$([\s\S]*?)\$\$/g, (_, inner: string) => `$${inner.trim()}$`)
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_, inner: string) => `$${inner.trim()}$`)
+    .replace(/\s*\n+\s*/g, ' ');
+}
+
 function ConditionCard({
   condition,
   activeValue,
@@ -45,6 +58,10 @@ function ConditionCard({
   selected: boolean;
   onSelect: (selection: LabSelection) => void;
 }): ReactNode {
+  const displayValue =
+    condition.id === 'side' && typeof activeValue === 'string' && SIDE_LABELS[activeValue]
+      ? SIDE_LABELS[activeValue]
+      : conditionValueText(activeValue);
   return (
     <button
       type="button"
@@ -57,14 +74,14 @@ function ConditionCard({
         <Provenance value={condition.provenance} />
       </span>
       <span className={styles.conditionValue}>
-        <MathText text={conditionValueText(activeValue)} />
+        <MathText text={displayValue} />
         {condition.unit ? <small>{condition.unit}</small> : null}
       </span>
       {condition.note ? <small className={styles.conditionNote}><MathText text={condition.note} /></small> : null}
       {condition.source.excerpt ? (
         <span className={styles.conditionSource} title={condition.source.excerpt}>
           {condition.source.page ? `第 ${condition.source.page} 页 · ` : ''}
-          “<MathText text={condition.source.excerpt} />”
+          “<MathText text={inlineSourceExcerpt(condition.source.excerpt)} />”
         </span>
       ) : null}
     </button>
@@ -140,7 +157,7 @@ export function LabSourcePanel({
               <span>{problem.number ? `第 ${problem.number} 题` : '完整题目'}</span>
               <span>{problem.source.label}</span>
             </div>
-            {problem.recognition.quality?.untrusted ? (
+            {problem.recognition.quality?.untrusted && (problem.recognition.local_build_skipped || pages.some(page => page.image_key)) ? (
               <div className={styles.blockingNotice} role="alert">
                 <strong>识别文字质量不可信，已跳过本地建模</strong>
                 <p>{problem.recognition.quality.issues.join('；')}。请以原图和 AI 转写为准核对。</p>

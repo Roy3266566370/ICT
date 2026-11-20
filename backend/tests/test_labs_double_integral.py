@@ -107,3 +107,23 @@ def test_bare_y_outer_region_and_removable_singularity_numerical_check():
     assert problem['solution']['answer_value'] == pytest.approx(2 * 3.141592653589793 - 2, abs=1e-6)
     result = evaluate_problem(problem['model'], problem['model']['defaults'])
     assert all(c['status'] == 'pass' for c in result['checks'])
+
+def test_ocr_double_integral_glyphs_split_as_iint_and_dsigma():
+    """OCR 把 ∬ 拆成 ∫∫ 或读成 `」{`；dσ/do 等价于 dxdy。"""
+    p = compiled('区域D={0<=x<=1,0<=y<=1}，计算二重积分 ∫∫_D x*y dσ。')
+    assert p['status'] == 'ready'
+    assert p['model'].get('task') == 'double_integral'
+    assert p['solution']['answer_value'] == pytest.approx(0.25)
+
+    p2 = compiled('10.计算二重积分」{D xy do，其中D为0<=x<=1，0<=y<=1。')
+    assert p2['status'] == 'ready'
+    assert p2['model'].get('task') == 'double_integral'
+    assert p2['solution']['answer_value'] == pytest.approx(0.25)
+
+
+def test_ocr_dropped_region_bound_stays_needs_review():
+    """`0≤y≤（` 边界被 OCR 吃掉时保持核对面板，不猜补边界。"""
+    p = compiled('10.计算二重积分」{D xy do，其中D为0≤x≤1，0≤y≤（）。')
+    assert p['model'].get('task') == 'double_integral'
+    assert p['status'] == 'needs_review'
+    assert not p['solution']['answer']

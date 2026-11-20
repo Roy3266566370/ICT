@@ -39,8 +39,8 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
-  padding: 26px 0 18px;
-  margin-bottom: 18px;
+  padding: 14px 0 10px;
+  margin-bottom: 12px;
   border-bottom: 1px solid var(--hairline);
 }
 
@@ -89,6 +89,63 @@
 /* 标题里的公式不要继承标题的负字距，否则根号/分式会挤在一起。 */
 .titleRow h1 :global(.katex) {
   letter-spacing: normal;
+}
+
+.editableTitle {
+  cursor: pointer;
+  border-bottom: 1px dashed transparent;
+  transition: border-color var(--motion-duration-fast) var(--motion-easing-standard),
+    color var(--motion-duration-fast) var(--motion-easing-standard);
+}
+
+.editableTitle:hover {
+  color: var(--color-indigo-strong);
+  border-bottom-color: var(--color-indigo);
+}
+
+.titleEditBox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+.titleInput {
+  min-width: 200px;
+  max-width: min(420px, 65vw);
+  height: 36px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-indigo);
+  border-radius: var(--radius-sm);
+  background: var(--paper-0);
+  color: var(--ink-900);
+  font: inherit;
+  font-size: clamp(1.15rem, 1.8vw, 1.55rem);
+  font-weight: var(--font-weight-black);
+  letter-spacing: -0.02em;
+}
+
+.titleInput:focus {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.titleEditButton {
+  padding: 4px 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-pill);
+  background: var(--paper-0);
+  color: var(--ink-500);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.titleEditButton:hover {
+  border-color: var(--color-indigo);
+  color: var(--color-indigo-strong);
 }
 
 .subjectPill,
@@ -316,8 +373,8 @@
 .modelCard {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px 20px 20px;
+  gap: 7px;
+  padding: 10px 12px 12px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
   background: var(--paper-0);
@@ -326,10 +383,10 @@
 
 .modelHead {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-end;
   gap: 18px;
-  padding-bottom: 14px;
+  padding-bottom: 10px;
   border-bottom: 1px solid var(--hairline);
 }
 
@@ -428,10 +485,49 @@
 }
 
 .canvasWrap {
+  position: relative;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
   background: var(--paper-0);
   overflow: hidden;
+}
+
+.canvasToolbar {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.canvasToolbar span {
+  padding: 3px 9px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink-500);
+  font-family: var(--font-family-mono);
+  font-size: 9.5px;
+}
+
+.canvasToolbar button {
+  padding: 4px 10px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  color: var(--ink-600);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.canvasToolbar button:hover {
+  border-color: var(--color-coral);
+  color: var(--color-coral-ink);
 }
 
 .computeError {
@@ -454,10 +550,10 @@
 
 .commandBar {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
-  gap: 8px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 4px 6px;
   align-items: center;
-  padding: 9px 11px;
+  padding: 5px 9px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-md);
   background: var(--paper-1);
@@ -472,14 +568,14 @@
 
 .commandBar input {
   min-width: 0;
-  height: 32px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: var(--paper-0);
   color: var(--ink-900);
   font: inherit;
-  font-size: 11.5px;
+  font-size: 10.5px;
 }
 
 .commandBar input:focus {
@@ -490,14 +586,14 @@
 }
 
 .commandBar button {
-  height: 32px;
-  padding: 0 14px;
+  height: 24px;
+  padding: 0 10px;
   border: 1px solid var(--hairline-strong);
   border-radius: var(--radius-pill);
   background: var(--paper-0);
   color: var(--ink-700);
   font: inherit;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -525,8 +621,8 @@
 .scenarioStrip {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  padding: 12px 13px;
+  gap: 5px;
+  padding: 6px 10px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
   background: var(--paper-1);
@@ -566,11 +662,11 @@
 }
 
 .scenarioChip {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 7px 10px;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-md);
   background: var(--paper-0);

@@ -69,6 +69,92 @@ const CONSTANTS: Record<string, number> = {
   e: Math.E,
 };
 
+const FUNCTION_NAMES = Object.keys(FUNCTIONS).sort((a, b) => b.length - a.length);
+const FUNCTION_NAME_PATTERN = FUNCTION_NAMES.join('|');
+
+function splitJuxtapositionToken(token: string, followedByParen: boolean): string {
+  const lowered = token.toLowerCase();
+  if (!FUNCTION_NAMES.some((name) => lowered.includes(name))) return token;
+  let out = '';
+  let cursor = 0;
+  while (cursor < token.length) {
+    const hit = FUNCTION_NAMES.find((name) => lowered.startsWith(name, cursor));
+    if (hit !== undefined) {
+      if (out && /[A-Za-z0-9)]$/.test(out)) out += '*';
+      out += token.slice(cursor, cursor + hit.length);
+      cursor += hit.length;
+      if (cursor === token.length) break;
+      let nxt = token.length;
+      for (let idx = cursor; idx < token.length; idx += 1) {
+        if (FUNCTION_NAMES.some((name) => lowered.startsWith(name, idx))) {
+          nxt = idx;
+          break;
+        }
+      }
+      if (nxt > cursor) {
+        out += `(${token.slice(cursor, nxt)})`;
+        cursor = nxt;
+      } else if (!followedByParen) {
+        out += `(${splitJuxtapositionToken(token.slice(cursor), false)})`;
+        cursor = token.length;
+      } else {
+        out += ' ';
+      }
+      continue;
+    }
+    out += token[cursor]!;
+    cursor += 1;
+  }
+  return out;
+}
+
+/** 规范化输入文本中的 Unicode 符号、空格分隔函数参数及无空格粘连函数（如 lnx -> ln(x)）。 */
+export function normalizeExpressionInput(
+  source: string,
+  variables: readonly string[] = ['x'],
+): string {
+  const names = new Set(variables.map((item) => item.toLowerCase()));
+  let normalized = source
+    .replace(/\u2212/g, '-')
+    .replace(/\u00d7/g, '*')
+    .replace(/\u00f7/g, '/')
+    .replace(/\u00b7/g, '*')
+    .replace(/π/g, 'pi')
+    .replace(/²/g, '^2')
+    .replace(/³/g, '^3')
+    .trim();
+  if (!normalized) return '';
+  normalized = normalized.replace(
+    new RegExp(`(${FUNCTION_NAME_PATTERN})\\s+\\(`, 'gi'),
+    '$1(',
+  );
+  normalized = normalized.replace(
+    new RegExp(
+      `([A-Za-z0-9_]*?(?:${FUNCTION_NAME_PATTERN}))\\s+([A-Za-z0-9]+)(?=$|[\\s+\\-*/^),])`,
+      'gi',
+    ),
+    (full, fnPart: string, argPart: string) =>
+      FUNCTION_NAMES.includes(argPart.toLowerCase()) ? full : `${fnPart}(${argPart})`,
+  );
+  let out = '';
+  let lastIndex = 0;
+  const idRegex = /[A-Za-z_][A-Za-z_0-9]*/g;
+  let match: RegExpExecArray | null;
+  while ((match = idRegex.exec(normalized)) !== null) {
+    const token = match[0];
+    const start = match.index;
+    const end = start + token.length;
+    out += normalized.slice(lastIndex, start);
+    if (names.has(token.toLowerCase()) || token.toLowerCase() in CONSTANTS) {
+      out += token;
+    } else {
+      out += splitJuxtapositionToken(token, normalized[end] === '(');
+    }
+    lastIndex = end;
+  }
+  return out + normalized.slice(lastIndex);
+}
+
 function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
   let index = 0;
@@ -291,14 +377,7 @@ export function compileExpression(
   source: string,
   variables: readonly string[] = ['x'],
 ): CompiledExpression {
-  const normalized = source
-    .replace(/\u2212/g, '-')
-    .replace(/\u00d7/g, '*')
-    .replace(/\u00f7/g, '/')
-    .replace(/π/g, 'pi')
-    .replace(/²/g, '^2')
-    .replace(/³/g, '^3')
-    .trim();
+  const normalized = normalizeExpressionInput(source, variables);
   if (!normalized) throw new ExpressionError('表达式为空');
   const names = new Set(variables.map((item) => item.toLowerCase()));
   const node = new Parser(tokenize(normalized), names).parse();

@@ -18,6 +18,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 6px 14px;
+  padding-right: 84px;
 }
 
 .heading strong {
@@ -262,6 +263,37 @@
   transform: translateX(-50%);
 }
 
+/* 手动调度：可拖动填充的时间格条（与甘特图共用同一百分比刻度） */
+.slotStrip {
+  position: relative;
+  height: 16px;
+  margin-top: 5px;
+  border-radius: 3px;
+  background: repeating-linear-gradient(90deg, rgba(15, 23, 42, 0.05) 0 1px, transparent 1px 12px);
+  touch-action: none;
+  user-select: none;
+}
+
+.slotCell {
+  --seg: var(--color-indigo);
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 1px dashed rgba(15, 23, 42, 0.16);
+  border-radius: 2px;
+  cursor: crosshair;
+}
+
+.slotCell[data-filled] {
+  border: 1px solid var(--seg);
+  background: color-mix(in srgb, var(--seg) 55%, white);
+}
+
+.queueCell[data-brush] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--seg) 70%, transparent);
+  border-color: var(--seg);
+}
+
 /* 表格 */
 .tableWrap,
 .pageScroll {
@@ -315,6 +347,11 @@
 
 .table tbody tr[data-state='done'] {
   color: var(--color-pass);
+}
+
+.table tbody tr[data-state='invalid'] {
+  background: repeating-linear-gradient(135deg, #fee2e2 0 6px, #fecaca 6px 12px);
+  color: #991b1b;
 }
 
 .table tbody tr[data-selected] {
@@ -393,6 +430,21 @@
 
 .pageResult td[data-ok] {
   color: var(--color-pass);
+}
+
+.pageTable td[data-error] {
+  background: repeating-linear-gradient(135deg, #fee2e2 0 6px, #fecaca 6px 12px);
+  color: #991b1b;
+  font-weight: 700;
+}
+
+.pageResult td[data-error] {
+  color: #b42318;
+}
+
+.pageTable thead th[data-pending] {
+  color: var(--color-coral-ink);
+  box-shadow: inset 0 0 0 1.5px var(--color-coral);
 }
 
 .series {
@@ -517,6 +569,13 @@
 .pathNow {
   fill: none;
   stroke: var(--color-indigo);
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+
+.pathManual {
+  fill: none;
+  stroke: var(--color-coral);
   stroke-width: 2.4;
   stroke-linejoin: round;
 }

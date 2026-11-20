@@ -131,3 +131,30 @@ test('内核返回的反三角函数和绝对值写法也按公式显示', () =>
   assert.equal(mathSpanToLatex('asin(x)'), '\\arcsin\\left(x\\right)');
   assert.equal(mathSpanToLatex('Abs(x)'), '\\left|x\\right|');
 });
+
+test('408 计网 CIDR/IPv4、I/O 与斜杠分隔序列不误转成数学分式，科学计数法保留乘点', () => {
+  for (const text of [
+    '将 192.168.1.0/24 划分为 4 个子网，求网络地址。',
+    'I/O 设备采用 DMA 方式传数。',
+    '邻接矩阵：A: 0 1 1 0 / B: 1 0 0 1',
+  ]) {
+    assert.equal(mathOf(segmentProblemText(text)).length, 0, text);
+  }
+  const sci = mathOf(segmentProblemText('传播速率 2×10^8 m/s，距离 100 km。'));
+  assert.equal(sci.length, 1);
+  assert.match(sci[0]!, /2\\cdot 10\^\{8\}/);
+});
+
+test('大学物理科学计数法、希腊字母角度与单位不误拼成分式或减法', () => {
+  const eSci = mathOf(segmentProblemText('电场强度 E=2.023e6 N/C，电荷 q1=2e-6 C，加速度 a=-1.209e-16 m/s²。'));
+  assert.deepEqual(eSci, [
+    'E=2.023\\cdot 10^{6}',
+    'q_{1}=2\\cdot 10^{-6}',
+    'a=-1.209\\cdot 10^{-16}',
+  ]);
+  const angle = mathOf(segmentProblemText('入射角 θ1=45°，初角速度 ω0=0。'));
+  assert.deepEqual(angle, ['\\theta_{1}=45^{\\circ}', '\\omega_{0}=0']);
+  const speed = segmentProblemText('初速度 v0=2 m/s，平均速度 8 m/s。');
+  assert.deepEqual(mathOf(speed), ['v_{0}=2']);
+  assert.equal(mathOf(segmentProblemText('初速度 v0 (m/s)')).length, 0);
+});

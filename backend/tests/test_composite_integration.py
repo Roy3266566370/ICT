@@ -1,5 +1,5 @@
 """The pasted multi-question workflow persists the compiled kernel models."""
-from test_labs_api import app, owner, _cleanup, legacy_model_provider, _headers, _session
+from test_labs_api import app, owner, _cleanup, _headers, _session
 import pytest
 
 TEXT = "在0≤x≤2内，求曲线y=x²−x与x轴之间的面积，以及该区域绕x轴旋转所得旋转体的体积。"

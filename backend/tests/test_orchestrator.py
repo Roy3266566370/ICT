@@ -190,7 +190,7 @@ def test_ai_failure_falls_back_to_deterministic(monkeypatch):
     import app.labs.orchestrator as orch
 
     def boom(*args, **kwargs):
-        raise RuntimeError("ollama offline")
+        raise RuntimeError("maas offline")
 
     monkeypatch.setattr(orch, "_ai_available", lambda: True)
     monkeypatch.setattr("app.labs.staged_understanding.request_json", boom)

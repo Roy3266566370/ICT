@@ -63,6 +63,7 @@ _AI_SOLVING: set[str] = set()
 
 class TextLabRequest(BaseModel):
     orchestrate: bool = False
+    single_problem: bool = False
     title: str = Field(default="", max_length=120)
     text: str = Field(min_length=1, max_length=200000)
     subject: str | None = None
@@ -83,6 +84,7 @@ class Lab408EvaluateRequest(BaseModel):
 class LabStatePatch(BaseModel):
     expected_revision: int = Field(ge=1)
     selected_problem_id: str | None = None
+    title: str | None = Field(default=None, max_length=120)
     state: dict[str, Any] | None = None
 
 
@@ -141,10 +143,62 @@ class AISolveRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _lab_payload(record: LabRecord) -> dict[str, Any]:
+def _next_question_title(db: Any, session_id: str) -> str:
+    rows = list(
+        db.scalars(
+            select(LabRecord)
+            .where(LabRecord.session_id == session_id)
+            .order_by(LabRecord.created_at.asc(), LabRecord.id.asc())
+        ).all()
+    )
+    max_num = 0
+    for row in rows:
+        for candidate in (row.title, (row.document or {}).get("title")):
+            match = re.fullmatch(r"question_(\d+)", str(candidate or "").strip())
+            if match:
+                max_num = max(max_num, int(match.group(1)))
+    return f"question_{max(len(rows) + 1, max_num + 1)}"
+
+
+def _ensure_default_title(db: Any, record: LabRecord, document: dict[str, Any]) -> None:
+    raw = str(document.get("title") or "").strip()
+    if re.fullmatch(r"question_\d+", raw):
+        return
+    file_stems = {
+        Path(str(f.get("filename") or "")).stem
+        for f in (document.get("source") or {}).get("files") or []
+        if isinstance(f, dict) and f.get("filename")
+    }
+    auto_titles = (
+        {"", "题目实验室"}
+        | file_stems
+        | {str(p.get("title") or "").strip() for p in (document.get("problems") or []) if isinstance(p, dict)}
+        | {
+            str(p.get("text") or "").strip().splitlines()[0][:120]
+            for p in (document.get("problems") or [])
+            if isinstance(p, dict) and str(p.get("text") or "").strip()
+        }
+    )
+    if raw not in auto_titles:
+        return
+    ordered_ids = [
+        r.id
+        for r in db.scalars(
+            select(LabRecord)
+            .where(LabRecord.session_id == record.session_id)
+            .order_by(LabRecord.created_at.asc(), LabRecord.id.asc())
+        ).all()
+    ]
+    idx = (ordered_ids.index(record.id) + 1) if record.id in ordered_ids else max(1, len(ordered_ids))
+    document["title"] = f"question_{idx}"
+
+
+def _lab_payload(record: LabRecord, db: Any = None) -> dict[str, Any]:
     from ..ppt_ai.client import PPTAIClient
     from ..labs.ai_solve import restore_ai_understanding, attach_interactive_model
     document = copy.deepcopy(record.document)
+    if db is not None:
+        _ensure_default_title(db, record, document)
     for problem in document.get('problems') or []:
         restored = restore_ai_understanding(problem)
         solution = problem.get('ai_solution') or {}
@@ -153,7 +207,7 @@ def _lab_payload(record: LabRecord) -> dict[str, Any]:
         elif restored and solution.get('verification') == 'ai_reference' and solution.get('answer') and (
                 solution.get('proposed_model') or {}).get('kind') in (None, 'none') and problem.get('status') != 'reference':
             attach_interactive_model(problem, solution)
-    document.setdefault("capabilities", {})["ai_solver_configured"] = (get_settings().lab_understanding_provider == 'ollama' or PPTAIClient().available())
+    document.setdefault("capabilities", {})["ai_solver_configured"] = PPTAIClient().available()
     return document
 
 
@@ -284,7 +338,7 @@ def _build_and_store(
         else "本地识别与本地导师；模型增强未开启。"
     )
     from ..ppt_ai.client import PPTAIClient
-    document["capabilities"]["ai_solver_configured"] = (get_settings().lab_understanding_provider == 'ollama' or PPTAIClient().available())
+    document["capabilities"]["ai_solver_configured"] = PPTAIClient().available()
     record = _new_lab_record(db=db, ctx=ctx, document=document, title=title)
     return ok(request, record.document, status_code=201)
 
@@ -439,8 +493,9 @@ def create_manual_lab(request: Request, ctx: WriteDep, db: DBDep, body: ManualLa
     from ..labs.manual import build_manual_document
     if not body.confirmed:
         raise missing_field('请先确认公式、积分变量和条件，再开始计算')
+    resolved_title = body.title.strip()[:120] or _next_question_title(db, ctx.session_id)
     try:
-        document = build_manual_document(lab_id=f'lab_{uuid4().hex}', title=body.title,
+        document = build_manual_document(lab_id=f'lab_{uuid4().hex}', title=resolved_title,
             task=body.task, conditions=body.conditions, now_iso=to_iso(utc_now()))
     except (ValueError, TypeError, ArithmeticError) as exc:
         raise missing_field('当前输入未能完成计算：' + str(exc)) from exc
@@ -498,12 +553,14 @@ def create_text_lab(request: Request, ctx: WriteDep, db: DBDep, body: TextLabReq
     from ..labs.extract import text_source
 
     source = text_source(text, lab_id=lab_id)
+    if body.single_problem:
+        source["single_problem"] = True
     if body.orchestrate:
         from ..labs.recognize import classify_subject
         classified, _ = classify_subject(text)
         if body.subject == "calculus" or (body.subject is None and classified == "calculus"):
             source.update(orchestrate=True, original_text=text)
-    title = (body.title or text.splitlines()[0] or "题目实验室")[:120]
+    title = body.title.strip()[:120] or _next_question_title(db, ctx.session_id)
     subject = body.subject if body.subject in SUBJECTS else None
     return _build_and_store(
         request=request,
@@ -552,7 +609,7 @@ def create_lab_from_files(
 
         source = extract_files(uploads, lab_id=lab_id)
         files_meta = source["files"]
-        resolved_title = (title or Path(files[0].filename or "题目实验室").stem)[:120]
+        resolved_title = title.strip()[:120] or _next_question_title(db, ctx.session_id)
         return _build_and_store(
             request=request,
             db=db,
@@ -580,13 +637,18 @@ def list_labs(request: Request, ctx: SessionDep, db: DBDep) -> JSONResponse:
     )
     from ..labs.store import summary
 
-    return ok(request, {"items": [summary(row.document) for row in rows]})
+    items = []
+    for row in rows:
+        doc = copy.deepcopy(row.document)
+        _ensure_default_title(db, row, doc)
+        items.append(summary(doc))
+    return ok(request, {"items": items})
 
 
 @router.get("/labs/{lab_id}", summary="读取实验室完整文档")
 def get_lab(lab_id: str, request: Request, ctx: SessionDep, db: DBDep) -> JSONResponse:
     record = _owned_lab(db, ctx, lab_id)
-    return ok(request, _lab_payload(record))
+    return ok(request, _lab_payload(record, db=db))
 
 
 @router.patch("/labs/{lab_id}", summary="保存参数、步骤、情景、笔记与尝试")
@@ -595,6 +657,11 @@ def update_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: La
     document = dict(record.document)
     if body.expected_revision != int(document.get("revision") or 1):
         raise version_conflict("实验室内容已更新，请重新载入后再保存", current_revision=document.get("revision"))
+    if body.title is not None:
+        cleaned_title = body.title.strip()[:120]
+        if cleaned_title:
+            document["title"] = cleaned_title
+            record.title = cleaned_title
     if body.selected_problem_id:
         target = next(
             (item for item in document.get("problems") or [] if item.get("problem_id") == body.selected_problem_id),
@@ -616,7 +683,7 @@ def update_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: La
         raise missing_field(str(exc)) from exc
     _touch(record, document)
     db.commit()
-    return ok(request, {"revision": document["revision"], "document": record.document, "state": state})
+    return ok(request, {"revision": document["revision"], "document": _lab_payload(record, db=db), "state": state})
 
 
 @router.post("/labs/{lab_id}/review", summary="核对或修正条件后重新编译题目")
@@ -674,7 +741,7 @@ def review_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: Re
     save_state(document, body.problem_id, rebuilt.get("states") or {})
     _touch(record, document)
     db.commit()
-    return ok(request, record.document)
+    return ok(request, _lab_payload(record, db=db))
 
 
 @router.post("/labs/{lab_id}/preview-swap", summary="二重积分边界拖拽的只读换序预览")
@@ -811,7 +878,7 @@ def lab_attempt(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: A
     save_state(document, problem.get("problem_id"), state)
     _touch(record, document)
     db.commit()
-    return ok(request, {"attempt": attempt, "checked": checked, "document": record.document})
+    return ok(request, {"attempt": attempt, "checked": checked, "document": _lab_payload(record, db=db)})
 
 
 @router.post("/labs/{lab_id}/ai-solve", summary="AI 理解题意、内核计算或直接参考解答")
@@ -826,10 +893,10 @@ def solve_lab_with_ai(lab_id: str, body: AISolveRequest, request: Request, ctx: 
     target = next((p for p in document["problems"] if p["problem_id"] == body.problem_id), None)
     if target is None:
         raise missing_field("题目不存在")
-    from ..labs.local_agent import input_hash as local_input_hash
-    input_hash = local_input_hash(target, lab_id, body.mode)
+    from ..labs.ai_contract import input_hash as ai_input_hash
+    input_hash = ai_input_hash(target, lab_id, body.mode)
     if not body.force and (target.get("ai_solution") or {}).get("input_hash") == input_hash:
-        return ok(request, {"document": _lab_payload(record), "cached": True})
+        return ok(request, {"document": _lab_payload(record, db=db), "cached": True})
     with _AI_SOLVE_LOCK:
         if lab_id in _AI_SOLVING:
             raise ApiError(ErrorCode.RATE_LIMITED, "当前实验室正在进行 AI 求解，请稍候")
@@ -839,28 +906,14 @@ def solve_lab_with_ai(lab_id: str, body: AISolveRequest, request: Request, ctx: 
         try:
             result = solve_with_ai(target, mode=body.mode, lab_id=lab_id)
         except (PPTAIError, ValueError) as exc:
-            from ..labs.local_agent import ollama_available, understand as understand_local
-            from ..settings import get_settings
-
-            if (isinstance(exc, PPTAIError) and exc.kind in ('transport', 'timeout')
-                    and get_settings().lab_understanding_provider != 'ollama'
-                    and ollama_available()):
-                try:
-                    result = understand_local(target, lab_id=lab_id)
-                    result.setdefault('limitations', []).insert(
-                        0, '云端模型暂不可达，已使用本机视觉模型完成题意理解；请对照原图核对公式与条件。')
-                    result['fallback'] = {'from': 'cloud', 'to': 'ollama', 'reason': str(exc)}
-                except Exception as fallback_exc:  # noqa: BLE001 - keep the original failure visible
-                    raise model_unavailable(str(exc)) from fallback_exc
-            else:
-                raise model_unavailable(str(exc)) from exc
+            raise model_unavailable(str(exc)) from exc
         result["input_hash"] = input_hash
         target["ai_solution"] = result
         target["recognition"]["ai_used"] = True
         attach_interactive_model(target, result)
         if document.get('selected_problem_id') == target['problem_id']:
             document.update(subject=target['subject'], status=target['status'])
-        result['input_hash'] = local_input_hash(target, lab_id, body.mode)
+        result['input_hash'] = ai_input_hash(target, lab_id, body.mode)
         document["revision"] += 1
         document["updated_at"] = to_iso(utc_now())
         written = db.execute(update(LabRecord).where(LabRecord.id == lab_id, LabRecord.session_id == ctx.session_id,
@@ -870,7 +923,7 @@ def solve_lab_with_ai(lab_id: str, body: AISolveRequest, request: Request, ctx: 
             db.rollback()
             raise version_conflict("AI 求解期间题目或学习记录已修改，已保留原有内容，请重新载入")
         db.commit()
-        return ok(request, {"document": _lab_payload(_owned_lab(db, ctx, lab_id)), "cached": False})
+        return ok(request, {"document": _lab_payload(_owned_lab(db, ctx, lab_id), db=db), "cached": False})
     finally:
         with _AI_SOLVE_LOCK:
             _AI_SOLVING.discard(lab_id)

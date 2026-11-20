@@ -276,3 +276,92 @@ def test_attempt_checks_for_os_problems():
     banker_eval = evaluate_problem(banker["model"], {})
     assert check_attempt(banker, banker_eval, answer="P1 → P3 → P4 → P0 → P2", field="order")["correct"]
     assert not check_attempt(banker, banker_eval, answer="P0 P1 P2 P3 P4", field="order")["correct"]
+
+
+# ---------------------------------------------------------------------------
+# 408 图片题回归：OCR 断行、散文表述与首选中调度
+# ---------------------------------------------------------------------------
+
+
+def test_page_reference_label_and_crossline_sequence():
+    """“页号的序列”也要识别；序列跨行换行时不能被截断。"""
+    text = ("某系统采用LRU页置换算法和局部置换策略，若系统为进程P预分配了4个页框，"
+            "进程P访问页号的序列为0,1,2,7,0,5,3,5,\n0,2,7,6，则进程访问上述页的过程中，"
+            "产生页置换的总次数是（ ）。")
+    built = build(text)
+    assert built["model"]["os_kind"] == "page_replace"
+    assert built["model"]["reference"] == "0,1,2,7,0,5,3,5,0,2,7,6".split(",")
+    result = run(built["model"])
+    assert result["stats"]["faults"] == 9
+    assert result["stats"]["replacements"] == 5
+    assert result["answer_value"] == 5.0
+    assert "页置换 5 次" in result["answer"]
+
+
+def test_page_fault_count_still_defaults_to_faults():
+    """问“缺页次数”时 answer_value 仍是缺页次数，不受“置换算法”字样干扰。"""
+    model = build(PAGE_TEXT)["model"]
+    result = run(model, algorithm="fifo")
+    assert result["answer_value"] == 15
+    assert result["stats"]["replacements"] == 12
+
+
+def test_disk_request_sequence_crossline_continuation():
+    """磁道请求序列在行尾逗号处断行时续接到下一行。"""
+    text = ("假设磁头当前位于第105道，正在向磁道序号增加的方向移动。现有一个磁道访问请求"
+            "序列为35,45,12,68,110,180,170,\n195，采用SCAN调度（电梯调度）算法得到的磁道访问序列是（ ）。")
+    built = build(text)
+    model = built["model"]
+    assert model["os_kind"] == "disk_schedule"
+    assert model["requests"] == [35.0, 45.0, 12.0, 68.0, 110.0, 180.0, 170.0, 195.0]
+    result = run(model)
+    assert result["answer_order"] == ["110", "170", "180", "195", "68", "45", "35", "12"]
+
+
+def test_banker_prose_single_resource():
+    """“4个同类资源…分别为…已申请到…分别为”单资源散文表述。"""
+    text = ("假设系统中有4个同类资源，进程P1、P2和P3需要的资源数\n分别为4、3和1，"
+            "P1、P2和P3已申请到的资源数分别为2、1\n和0，则执行安全性检测算法的结果是（ ）。")
+    built = build(text)
+    assert built["recognized"]
+    model = built["model"]
+    assert model["names"] == ["P1", "P2", "P3"]
+    assert model["allocation"] == [[2.0], [1.0], [0.0]]
+    assert model["max"] == [[4.0], [3.0], [1.0]]
+    assert model["available"] == [1.0]
+    assert "不安全" in run(model)["answer"]
+
+
+def test_banker_prose_safe_sequence():
+    """散文表述下也能给出安全序列（资源充足时）。"""
+    text = ("假设系统中有6个同类资源，进程P1、P2和P3需要的资源数分别为3、2和1，"
+            "P1、P2和P3已申请到的资源数分别为1、0和0，则执行安全性检测算法的结果是（ ）。")
+    built = build(text)
+    assert built["recognized"]
+    result = run(built["model"])
+    assert "安全" in result["answer"] and result["answer_order"] == ["P1", "P2", "P3"]
+
+
+def test_schedule_first_pick_dual_algorithm_and_midword_break():
+    """“分别采用先来先服务和短作业优先”被问首个选中作业；算法名被断行也要识别。"""
+    text = ("假设4个作业到达系统的时刻和运行时间如下表所示。\n作业 到达时刻t 运行时间\n"
+            "J1 0 3\nJ2 1 3\nJ3 1 2\nJ4 3 1\n系统在t=2时开始作业调度。若分别采用先来先服务和短作\n"
+            "业优先调度算法，则选中的作业分别是（ ）。")
+    built = build(text)
+    model = built["model"]
+    assert model["ask"] == "first_pick"
+    assert model["ask_algorithms"] == ["fcfs", "sjf"]
+    assert model["sched_start"] == 2.0
+    result = run(model)
+    assert result["answer_order"] == ["J1", "J3"]
+    assert "J1、J2、J3" in result["answer"] and "选中 J3" in result["answer"]
+
+
+def test_schedule_first_pick_late_arrival_excluded():
+    """t 时刻之后才到达的作业不参与首个选择。"""
+    text = ("作业调度。P1 0 5\nP2 1 2\nP3 9 1\n系统在t=1时开始作业调度。"
+            "若分别采用先来先服务和短作业优先调度算法，则选中的作业分别是（ ）。")
+    built = build(text)
+    assert built["model"]["ask"] == "first_pick"
+    result = run(built["model"])
+    assert result["answer_order"] == ["P1", "P2"]

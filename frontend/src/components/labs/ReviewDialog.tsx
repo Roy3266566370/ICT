@@ -27,9 +27,41 @@ interface Props {
   previewUrl?: (key: string) => string;
 }
 
-const EDITABLE_SPECIAL = new Set(['expression', 'implicit_expression', 'lower', 'upper', 'start', 'x0', 'y0', 'learning_rate', 'iterations', 'point', 'point_y', 'h', 'n', 'epochs', 'initial_heap', 'heap_type', 'deletion_count', 'scalar', 'processes', 'quantum', 'reference', 'frames', 'requests', 'head', 'max_track', 'allocation', 'max', 'available', 'request']);
+const EDITABLE_SPECIAL = new Set(['expression', 'implicit_expression', 'lower', 'upper', 'start', 'x0', 'y0', 'learning_rate', 'iterations', 'point', 'point_y', 'side', 'h', 'n', 'epochs', 'initial_heap', 'heap_type', 'deletion_count', 'scalar', 'capacity', 'expr', 'base', 'size', 's', 't', 'window', 'initial_frames', 'processes', 'quantum', 'reference', 'frames', 'requests', 'head', 'max_track', 'allocation', 'max', 'available', 'request']);
 
-const TEXT_CONDITION_KEYS = ['point_x', 'point_value', 'value_mode', 'expression', 'implicit_expression', 'lower', 'upper', 'point_y', 'heap_type', 'graph_edges', 'layers', 'matrix_a', 'matrix_b', 'vector_b', 'processes', 'reference', 'requests', 'allocation', 'max', 'available', 'request'];
+const TEXT_CONDITION_KEYS = ['point_x', 'point_value', 'value_mode', 'side', 'expression', 'implicit_expression', 'lower', 'upper', 'point_y', 'heap_type', 'graph_edges', 'layers', 'matrix_a', 'matrix_b', 'vector_b', 'expr', 's', 't', 'initial_frames', 'processes', 'reference', 'requests', 'allocation', 'max', 'available', 'request'];
+
+function readableConditionLabel(problem: LabProblem, condition: LabProblem['recognition']['conditions'][number]): string {
+  const rawLabel = String(condition.label ?? '');
+  const task = String(problem.manual_input?.task ?? problem.model.modeling_task ?? problem.model.task ?? problem.model.kind ?? '');
+  if (task === 'limit' || task === 'parameter_limit') {
+    if (condition.id === 'point' && rawLabel === '求导点') return '极限点（趋近点）';
+    if (condition.id === 'variable' && rawLabel === '积分或求导变量') return '自变量';
+  }
+  if (task === 'taylor') {
+    if (condition.id === 'point' && rawLabel === '求导点') return '展开点';
+    if (condition.id === 'variable' && rawLabel === '积分或求导变量') return '自变量';
+  }
+  if (task === 'continuity') {
+    if (condition.id === 'point' && rawLabel === '求导点') return '研究点';
+    if (condition.id === 'variable' && rawLabel === '积分或求导变量') return '自变量';
+  }
+  return rawLabel;
+}
+
+function inlineExcerpt(problemText: string, excerpt?: string | null): string | null {
+  if (!excerpt || !excerpt.trim()) return null;
+  const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
+  const cleanExcerpt = normalize(excerpt);
+  const cleanProblem = normalize(problemText);
+  if (!cleanExcerpt || cleanExcerpt === cleanProblem || (cleanProblem && cleanProblem.startsWith(cleanExcerpt))) {
+    return null;
+  }
+  return excerpt
+    .replace(/\$\$([\s\S]*?)\$\$/g, (_, inner: string) => `$${inner.trim()}$`)
+    .replace(/\\\[([\s\S]*?)\\\]/g, (_, inner: string) => `$${inner.trim()}$`)
+    .replace(/\s*\n+\s*/g, ' ');
+}
 
 function asText(value: unknown): string {
   if (value === null || value === undefined) return '';
@@ -63,9 +95,9 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
       initial.layers = (problem.model.layers ?? []).map((layer) => layer.size).join('-');
     }
     if (problem.subject === 'linear_algebra') {
-      const asMatrixText = (matrix?: number[][] | null) =>
+      const asMatrixText = (matrix?: (number | string)[][] | null) =>
         (matrix ?? []).map((row) => `[${row.join(', ')}]`).join(', ');
-      if (problem.model.matrix_a) initial.matrix_a = `[${asMatrixText(problem.model.matrix_a)}]`;
+      if (problem.model.matrix_a) initial.matrix_a = `[${asMatrixText(problem.model.matrix_a_exact ?? problem.model.matrix_a)}]`;
       if (problem.model.matrix_b) initial.matrix_b = `[${asMatrixText(problem.model.matrix_b)}]`;
       if (problem.model.vector_b) initial.vector_b = problem.model.vector_b.join(', ');
     }
@@ -200,7 +232,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
             <h3>条件与数据</h3>
             <div className={styles.reviewGrid}>
               {problem.recognition.conditions
-                .filter((condition) => (!!problem.ai_solution?.agent_understanding || EDITABLE_SPECIAL.has(condition.id) || !!problem.manual_input && condition.id in problem.manual_input.conditions) && condition.editable !== false && !(condition.id === 'point_value' && values.value_mode !== 'value'))
+                .filter((condition) => (!!problem.ai_solution?.agent_understanding || EDITABLE_SPECIAL.has(condition.id) || (problem.subject === 'physics' && condition.id.startsWith('phy_')) || !!problem.manual_input && condition.id in problem.manual_input.conditions) && condition.editable !== false && !(condition.id === 'point_value' && values.value_mode !== 'value'))
                 .map((condition) => condition.id === 'direction_limit' && problem.manual_input?.task === 'multivariable' ? (<label key={condition.id} className={styles.formField}>方向导数约定<select aria-label="方向导数约定" value={values.direction_limit ?? 'forward'} onChange={e=>setValues(current=>({...current,direction_limit:e.target.value}))}><option value="forward">正向单侧 h→0+</option><option value="two_sided">双侧 h→0</option></select></label>) : condition.id === 'independent_variable' && problem.manual_input?.task === 'ode' ? (<label key={condition.id} className={styles.formField}>自变量<select aria-label="自变量" value={values.independent_variable ?? 'x'} onChange={e=>setValues(current=>({...current,independent_variable:e.target.value}))}><option value="x">x</option><option value="t">t</option></select></label>) : condition.id === 'pieces_text' ? (<label key={condition.id} className={styles.formFieldWide}><MathText text={String(condition.label ?? '')} /><textarea aria-label={condition.label} rows={5} value={values.pieces_text ?? ''} onChange={e=>setValues(current=>({...current,pieces_text:e.target.value}))} /></label>) : condition.id === 'initial_conditions' && (problem.manual_input?.task === 'ode' || problem.model.modeling_task === 'ode') ? (<label key={condition.id} className={styles.formFieldWide}>初值条件（每行一条，留空求解族）<textarea aria-label="初值条件" rows={3} value={values.initial_conditions ?? ''} onChange={e=>setValues(current=>({...current,initial_conditions:e.target.value}))} /></label>) : condition.id === 'region_kind' ? (<label key={condition.id} className={styles.formField}>区域定义<select aria-label="区域定义" value={values.region_kind ?? ''} onChange={e=>setValues(current=>({...current,region_kind:e.target.value}))}><option value="between_axis">曲线与x轴之间（包含负函数区域）</option><option value="vertical_inequality">0≤y≤f(x)（负值处为空）</option><option value="between_curves">两条曲线之间（上下边界）</option></select></label>) : condition.id === 'rotation_axis' ? (<label key={condition.id} className={styles.formField}>旋转轴<select aria-label="旋转轴" value={values.rotation_axis ?? ''} onChange={e=>setValues(current=>({...current,rotation_axis:e.target.value}))}><option value="x">x轴（圆盘/圆环法）</option><option value="y">y轴（壳层法）</option></select></label>) : condition.id === 'interval_type' ? (<label key={condition.id} className={styles.formField}>区间端点<select aria-label="区间端点" value={values.interval_type ?? 'closed'} onChange={e => setValues(current => ({...current,interval_type:e.target.value}))}><option value="closed">闭区间 [a,b]</option><option value="open">开区间 (a,b)</option><option value="left_open">左开右闭 (a,b]</option><option value="right_open">左闭右开 [a,b)</option></select></label>) : condition.id === 'value_mode' ? (
                   <label key={condition.id} className={styles.formField}>该点函数值的定义
                     <select aria-label="该点函数值的定义" value={values.value_mode ?? 'expression'} onChange={e => setValues(current => ({ ...current, value_mode: e.target.value }))}>
@@ -228,10 +260,28 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
                       {(problem.manual_input.conditions.proof_kind === 'counterexample') ? <><option value=">">&gt;</option><option value="<">&lt;</option><option value="=">=</option></> : null}
                     </select>
                   </label>
+                ) : condition.id === 'side' ? (
+                  <label key={condition.id} className={styles.formField}>
+                    <span>
+                      <MathText text={readableConditionLabel(problem, condition)} />
+                      <small>{PROVENANCE_LABELS[condition.provenance]}</small>
+                    </span>
+                    <select
+                      aria-label={condition.label}
+                      value={values.side ?? 'both'}
+                      onChange={(event) =>
+                        setValues((current) => ({ ...current, side: event.target.value }))
+                      }
+                    >
+                      <option value="both">双侧极限 (x → x₀)</option>
+                      <option value="left">左极限 (x → x₀⁻)</option>
+                      <option value="right">右极限 (x → x₀⁺)</option>
+                    </select>
+                  </label>
                 ) : ['expression', 'lower_expression', 'implicit_expression', 'integrand', 'surface'].includes(condition.id) ? (
                   <div key={condition.id} className={styles.formFieldWide}>
                     <MathExpressionInput
-                      label={condition.label}
+                      label={readableConditionLabel(problem, condition)}
                       value={values[condition.id] ?? ''}
                       variables={variables}
                       answerMode={(problem.model.task === 'space_geometry' && (condition.id === 'expression' || condition.id === 'surface')) || (problem.manual_input?.task === 'implicit_normal' && condition.id === 'implicit_expression')}
@@ -240,12 +290,12 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
                       describedBy={problem.subject === 'calculus' ? 'lab-expression-help' : undefined}
                       onChange={(value) => setValues((current) => ({ ...current, [condition.id]: value }))}
                     />
-                    {condition.source.excerpt ? <em><MathText text={condition.source.excerpt} /></em> : null}
+                    {inlineExcerpt(text, condition.source.excerpt) ? <em><MathText text={inlineExcerpt(text, condition.source.excerpt)!} /></em> : null}
                   </div>
                 ) : (
                   <label key={condition.id} className={styles.formField}>
                     <span>
-                      <MathText text={String(condition.label ?? '')} />
+                      <MathText text={readableConditionLabel(problem, condition)} />
                       <small>{PROVENANCE_LABELS[condition.provenance]}</small>
                     </span>
                     <input
@@ -261,7 +311,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
                           : undefined
                       }
                     />
-                    {condition.source.excerpt ? <em><MathText text={condition.source.excerpt} /></em> : null}
+                    {inlineExcerpt(text, condition.source.excerpt) ? <em><MathText text={inlineExcerpt(text, condition.source.excerpt)!} /></em> : null}
                   </label>
                 ))}
               {problem.manual_input?.task === 'multivariable' && !('point' in problem.manual_input.conditions) ? <label className={styles.formField}>求值点（可选）<input aria-label="求值点" value={values.point ?? ''} onChange={e=>setValues(current=>({...current,point:e.target.value}))} placeholder="按已确认的变量顺序，如1,2" /></label> : null}

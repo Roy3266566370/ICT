@@ -81,7 +81,9 @@ function Control({
       <span className={styles.controlHead}>
         <span><MathText text={label} /></span>
         <output htmlFor={id}>
-          {formatNumber(value, decimals)}
+          {value !== 0 && Math.abs(value) < 1e-12
+            ? value.toExponential(3).replace('e+', 'e')
+            : formatNumber(value, decimals)}
           {unit ? <small>{unit}</small> : null}
         </output>
       </span>
@@ -180,6 +182,7 @@ export function LabControls({
                 </span>
                 <select
                   className={styles.select}
+                  aria-label={parameter.label}
                   value={value}
                   disabled={readOnly}
                   onChange={(event) => onChange(parameter.id, event.target.value)}

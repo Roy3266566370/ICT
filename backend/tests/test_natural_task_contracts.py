@@ -83,7 +83,7 @@ def test_null_optional_missing_field_always_has_a_blocking_form_item(task,field)
 
 def test_ode_review_accepts_human_initial_condition_text():
     from app.labs.ai_solve import review_ai_conditions
-    from app.labs.local_agent import finish_understanding
+    from app.labs.ai_contract import finish_understanding
     from app.labs.recognize import build_problem
     p=build_problem("求微分方程y'=y的特解，初值待补充")
     u=dict(question=p['text'],conditions=[],uncertainties=['初值条件'],unsupported_reason='',model=dict(kind='kernel',task='ode',conditions=dict(equation="y'=y",initial_conditions=None)))

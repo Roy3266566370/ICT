@@ -44,6 +44,7 @@ function stateOf(problem: LabProblem): LabState {
     active_scenario_id: raw.active_scenario_id ?? 'baseline',
     attempts: raw.attempts ?? [],
     evaluated: raw.evaluated ?? null,
+    manual: raw.manual && typeof raw.manual === 'object' ? raw.manual : {},
   };
 }
 
@@ -243,6 +244,7 @@ export function LabSharePage(): JSX.Element {
                     selected={selected}
                     onSelect={setSelected}
                     readOnly
+                    manual={state.manual}
                   />
                 </div>
                 <LabTimeline

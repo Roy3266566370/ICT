@@ -27,14 +27,13 @@ def test_separate_endpoints_create_executable_plan():
 
 
 def test_missing_ai_condition_is_editable_and_recomputed(monkeypatch):
-    from app.labs import local_agent
-    from app.labs.kernel_models import compile_kernel_problem
+    from app.labs import ai_contract, ai_solve
     from app.labs.ai_solve import run_kernel
-    monkeypatch.setattr(local_agent, 'run_kernel', run_kernel, raising=False)
+    monkeypatch.setattr(ai_solve, 'run_kernel', run_kernel)
     p = build_problem('自然语言积分题')
     data = dict(question='积分', conditions=[], uncertainties=['缺上限'],
                 model=dict(kind='kernel', task='integral', conditions=dict(expression='x^2', variable='x', lower=0)), unsupported_reason='')
-    p['ai_solution'] = local_agent.finish_understanding(data, p)
+    p['ai_solution'] = ai_contract.finish_understanding(data, p)
     assert not attach_interactive_model(p, p['ai_solution'])
     assert any(c['id'] == 'upper' for c in p['recognition']['conditions'])
     rebuilt = review_ai_conditions(p, {'upper': '2'}, {})

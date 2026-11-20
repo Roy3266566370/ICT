@@ -323,8 +323,7 @@ class PPTAIClient:
 
     def available(self) -> bool:
         return bool(
-            self.settings.llm_provider
-            and str(self.settings.llm_provider).lower() not in ("none", "")
+            str(self.settings.llm_provider or "").strip().lower() == "maas"
             and self.settings.llm_api_key
             and self.settings.llm_model
             and _endpoint(self.settings.llm_base_url)

@@ -662,7 +662,6 @@ export function HomePage(): JSX.Element {
             <Link to="/workshop">万象工坊</Link>
             <Link to="/labs">题目实验室</Link>
             <Link to="/living">万象活页</Link>
-            <Link to="/examples">交互示例</Link>
             <Link to="/space">个人主页</Link>
           </nav>
           <div className="site-foot__meta"><span>万象 WANXIANG · 2026</span><span>纸 / 墨 / 计算内核</span></div>

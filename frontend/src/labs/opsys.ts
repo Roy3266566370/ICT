@@ -1190,6 +1190,269 @@ function evalBanker(model: LabModel, params: Record<string, unknown>): OsResult 
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* 手动接管审计（页面置换 / 磁盘调度 / 银行家）                              */
+/* ------------------------------------------------------------------ */
+
+export interface ManualPageRow {
+  index: number;
+  page: string;
+  /** 学生选择的物理块（0 基）；非法块号原样保留供 UI 展示。 */
+  slot: number | null;
+  hit: boolean;
+  evicted: string | null;
+  /** 本次访问处理后的物理块快照。 */
+  frames: (string | null)[];
+  error: string | null;
+}
+export interface ManualPageAudit {
+  rows: ManualPageRow[];
+  /** 处理完学生的全部选择后的物理块状态。 */
+  frames: (string | null)[];
+  faults: number;
+  hits: number;
+  errors: { index: number; page: string; reason: string }[];
+  warnings: string[];
+  /** 每次访问都已给出选择（错误不阻止完成判定，但会在 errors 中列出）。 */
+  complete: boolean;
+}
+
+/**
+ * 审计学生手工填入的页面置换表。
+ * choices[i] 表示第 i 次访问把页面装入的物理块（0 基）。
+ * 命中是客观事实：页面已在内存时选错块不会变成合法装入，而是记录错误。
+ * 只读：不修改内核结果，也不把非法选择静默修正成合法。
+ */
+export function auditManualPageReplace(
+  framesCount: number,
+  initialFrames: string[],
+  reference: string[],
+  choices: number[],
+): ManualPageAudit {
+  const slots: (string | null)[] = [
+    ...initialFrames.slice(0, framesCount),
+    ...new Array<string | null>(Math.max(0, framesCount - initialFrames.length)).fill(null),
+  ];
+  const rows: ManualPageRow[] = [];
+  const errors: ManualPageAudit['errors'] = [];
+  const warnings: string[] = [];
+  let faults = 0;
+  let hits = 0;
+  const limit = Math.min(choices.length, reference.length);
+  for (let index = 0; index < limit; index += 1) {
+    const page = reference[index]!;
+    const pick = choices[index]!;
+    if (!Number.isInteger(pick) || pick < 0 || pick >= framesCount) {
+      // 块号越界：页面没有装入，访问仍按缺页计。
+      faults += 1;
+      const reason = `第 ${index + 1} 次访问 ${page}：块 ${pick + 1} 不存在（本题只有 ${framesCount} 个物理块），页面没有装入。`;
+      errors.push({ index, page, reason });
+      rows.push({ index, page, slot: pick, hit: false, evicted: null, frames: [...slots], error: reason });
+      continue;
+    }
+    if (slots.includes(page)) {
+      hits += 1;
+      const own = slots.indexOf(page);
+      if (pick === own) {
+        rows.push({ index, page, slot: pick, hit: true, evicted: null, frames: [...slots], error: null });
+      } else {
+        const reason = `第 ${index + 1} 次访问 ${page}：页面已在块 ${own + 1} 中，属于命中；`
+          + `你又把它装入块 ${pick + 1}，同一页面被装了两份，物理块状态不合法。`;
+        errors.push({ index, page, reason });
+        rows.push({ index, page, slot: pick, hit: true, evicted: null, frames: [...slots], error: reason });
+      }
+      continue;
+    }
+    faults += 1;
+    const evicted = slots[pick] ?? null;
+    if (evicted !== null && reference[index + 1] === evicted) {
+      warnings.push(`第 ${index + 1} 次访问换出了 ${evicted}，而下一次访问马上又是它——这一页刚换出去就要换回来。`);
+    }
+    slots[pick] = page;
+    rows.push({ index, page, slot: pick, hit: false, evicted, frames: [...slots], error: null });
+  }
+  if (choices.length < reference.length) {
+    warnings.push('还没有处理完整个访问序列；每次访问都指定物理块后才能对照缺页次数。');
+  }
+  return { rows, frames: slots, faults, hits, errors, warnings, complete: choices.length >= reference.length };
+}
+
+/**
+ * 找到学生的置换表与参考算法（默认 OPT，即理论最优）第一次不同的访问。
+ * 只要之前的选择一致，命中/缺页状态必然一致，所以只需比较缺页时选的块；
+ * 学生的非法选择本身也算作分歧点并直接返回原因。
+ */
+export function firstPageDivergence(
+  choices: number[],
+  reference: string[],
+  framesCount: number,
+  initialFrames: string[] = [],
+  algorithm = 'opt',
+): { index: number; page: string; manual: string; reference: string } | null {
+  if (!(algorithm in PAGE_LABELS)) return null;
+  const steps = simulatePages(reference, framesCount, algorithm, initialFrames);
+  const audit = auditManualPageReplace(framesCount, initialFrames, reference, choices);
+  const limit = Math.min(audit.rows.length, steps.length);
+  for (let index = 0; index < limit; index += 1) {
+    const mine = audit.rows[index]!;
+    const theirs = steps[index]!;
+    const page = reference[index]!;
+    if (mine.error) {
+      return { index, page, manual: mine.error, reference: theirs.hit ? '命中（页已在内存）' : `缺页，装入块 ${theirs.slot + 1}` };
+    }
+    const describe = (hit: boolean, slot: number, evicted: string | null): string => hit
+      ? '命中'
+      : `缺页，装入块 ${slot + 1}${evicted ? `（换出 ${evicted}）` : '（空闲块）'}`;
+    if (mine.hit !== theirs.hit) {
+      return {
+        index, page,
+        manual: describe(mine.hit, mine.slot ?? -1, mine.evicted),
+        reference: describe(theirs.hit, theirs.slot, theirs.evicted),
+      };
+    }
+    if (!mine.hit && mine.slot !== theirs.slot) {
+      return {
+        index, page,
+        manual: describe(false, mine.slot!, mine.evicted),
+        reference: describe(false, theirs.slot, theirs.evicted),
+      };
+    }
+  }
+  return null;
+}
+
+export interface ManualDiskAudit {
+  /** 磁头走过的完整位置序列（含起点）。 */
+  path: number[];
+  /** 已服务磁道顺序。 */
+  served: number[];
+  /** 合法（未重复、未越界）的请求下标。 */
+  picks: number[];
+  total: number;
+  errors: string[];
+  complete: boolean;
+}
+
+/**
+ * 审计学生手工点选的磁盘服务顺序。
+ * picks 是请求下标序列；重复点选与越界下标记为错误并跳过，不替学生改顺序。
+ */
+export function auditManualDiskOrder(
+  head: number,
+  requests: number[],
+  picks: number[],
+): ManualDiskAudit {
+  const used = new Set<number>();
+  const path = [head];
+  const served: number[] = [];
+  const errors: string[] = [];
+  let position = head;
+  let total = 0;
+  for (const pick of picks) {
+    if (!Number.isInteger(pick) || pick < 0 || pick >= requests.length) {
+      errors.push(`请求编号 ${pick + 1} 不在请求表里，跳过。`);
+      continue;
+    }
+    if (used.has(pick)) {
+      errors.push(`磁道 ${requests[pick]} 已经服务过一次，重复点选不移动磁头，按忽略处理。`);
+      continue;
+    }
+    used.add(pick);
+    const pos = requests[pick]!;
+    total += Math.abs(pos - position);
+    position = pos;
+    path.push(pos);
+    served.push(pos);
+  }
+  return { path, served, picks: [...used], total: clean(total), errors, complete: used.size === requests.length };
+}
+
+/** 找到学生的服务顺序与参考算法（默认 SSTF）第一个不同的请求。 */
+export function firstDiskDivergence(
+  picks: number[],
+  requests: number[],
+  head: number,
+  algorithm = 'sstf',
+): { index: number; manual: number; reference: number } | null {
+  if (!(algorithm in DISK_LABELS) || !requests.length) return null;
+  const maxTrack = Math.max(...requests, head);
+  const expected = simulateDisk(requests, head, maxTrack, algorithm, 'up', 'count').served;
+  const limit = Math.min(picks.length, expected.length);
+  for (let index = 0; index < limit; index += 1) {
+    const manual = requests[picks[index]!];
+    if (manual === undefined) continue;
+    if (manual !== expected[index]!) return { index, manual, reference: expected[index]! };
+  }
+  return null;
+}
+
+export interface ManualBankerRow {
+  index: number;
+  name: string;
+  workBefore: number[];
+  workAfter: number[];
+}
+export interface ManualBankerAudit {
+  rows: ManualBankerRow[];
+  /** 当前 Work（学生最后一次成功选择之后）。 */
+  work: number[];
+  finished: boolean[];
+  /** 第一次 Need > Work 的选择；序列在此无法继续。 */
+  violation: { step: number; name: string; need: number[]; deficient: number[]; work: number[] } | null;
+  duplicate: { step: number; name: string } | null;
+  errors: string[];
+  complete: boolean;
+  safe: boolean;
+}
+
+/**
+ * 审计学生手工排出的安全序列。
+ * picks 是进程下标序列；每一步检查 Need ≤ Work，不满足则标出缺口并停止，
+ * 已完成的进程不能重复选入。任何合法的完成顺序都判对，不要求与内核序列一致。
+ */
+export function auditManualBanker(
+  available: number[],
+  allocation: number[][],
+  need: number[][],
+  picks: number[],
+  names: string[],
+): ManualBankerAudit {
+  const n = names.length;
+  const work = [...available];
+  const finished = new Array<boolean>(n).fill(false);
+  const rows: ManualBankerRow[] = [];
+  const errors: string[] = [];
+  let violation: ManualBankerAudit['violation'] = null;
+  let duplicate: ManualBankerAudit['duplicate'] = null;
+  for (let step = 0; step < picks.length; step += 1) {
+    const index = picks[step]!;
+    if (!Number.isInteger(index) || index < 0 || index >= n) {
+      errors.push(`第 ${step + 1} 个选择不是合法进程，跳过。`);
+      continue;
+    }
+    const name = names[index]!;
+    if (finished[index]) {
+      if (!duplicate) duplicate = { step, name };
+      errors.push(`${name} 已经排在序列中并完成过，不能重复选入。`);
+      continue;
+    }
+    const needRow = need[index]!;
+    const deficient = needRow.map((value, j) => clean(Math.max(0, value - work[j]!)));
+    if (deficient.some((value) => value > EPS)) {
+      violation = { step, name, need: [...needRow], deficient, work: [...work] };
+      errors.push(`${name} 的 Need 超过了当前 Work：假定它先完成会导致死锁，序列在此中断。`);
+      break;
+    }
+    rows.push({
+      index, name, workBefore: [...work], workAfter: work.map((value, j) => clean(value + allocation[index]![j]!)),
+    });
+    for (let j = 0; j < work.length; j += 1) work[j] = clean(work[j]! + allocation[index]![j]!);
+    finished[index] = true;
+  }
+  const complete = finished.every(Boolean);
+  return { rows, work, finished, violation, duplicate, errors, complete, safe: complete && violation === null };
+}
+
 /** 前端权威计算：与后端 app.labs.opsys 逐帧镜像。 */
 export function evaluateOs(model: LabModel, params: Record<string, unknown>): OsResult {
   const kind = String(model.os_kind ?? 'cpu_schedule') as OsKind;

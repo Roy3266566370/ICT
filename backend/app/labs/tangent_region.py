@@ -1,7 +1,7 @@
 """Exact tangent-plane projection and polynomial extrema on its closed triangle."""
 import sympy as sp
 
-from .expr import parse_expression, safe_float
+from .expr import parse_expression, safe_float, to_latex
 from .extrema import X, Y, _finite_points, _polynomial
 
 
@@ -83,8 +83,8 @@ def solve_tangent_region(model):
          'minimum': extreme(minimum), 'maximum': extreme(maximum)}
     answer = f'切平面：{plane}=0；D：{d["region"]}；最小值 {minimum}，取于 {d["minimum"]["points"]}；最大值 {maximum}，取于 {d["maximum"]["points"]}'
     steps = [
-        {'id': 'tangent-plane', 'title': '（1）计算切平面', 'detail': f'切点代回原曲面成立；偏导数为 fx={a}，fy={b}。', 'latex': sp.latex(plane)+'=0'},
-        {'id': 'projection', 'title': '（2）确定闭三角形投影区域', 'detail': d['region'], 'latex': rf'x\geq0,\ y\geq0,\ \frac{{x}}{{{sp.latex(u)}}}+\frac{{y}}{{{sp.latex(v)}}}\leq1'},
+        {'id': 'tangent-plane', 'title': '（1）计算切平面', 'detail': f'切点代回原曲面成立；偏导数为 fx={a}，fy={b}。', 'latex': to_latex(plane)+'=0'},
+        {'id': 'projection', 'title': '（2）确定闭三角形投影区域', 'detail': d['region'], 'latex': rf'x\geq0,\ y\geq0,\ \frac{{x}}{{{to_latex(u)}}}+\frac{{y}}{{{to_latex(v)}}}\leq1'},
         {'id': 'interior', 'title': '枚举内部驻点', 'detail': '使用零维多项式方程组完整求根，并按三角形不等式筛选。'},
         {'id': 'boundary', 'title': '检查三条边及顶点', 'detail': str(edge_details)},
         {'id': 'compare', 'title': '比较所有候选值得到全局最值', 'detail': answer},

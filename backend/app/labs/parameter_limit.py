@@ -2,14 +2,14 @@
 import math
 import re
 import sympy as sp
-from .expr import expression_text, number_text, parse_expression, safe_float
+from .expr import expression_text, number_text, parse_expression, safe_float, to_latex
 
 _LIMIT_PATTERN = re.compile(
-    r"(?:\\?lim|极限)\s*[_^]?\s*\{?\s*([A-Za-z])\s*"
-    r"(?:\\to|->|→|to|趋于|趋近于)\s*([^\s,，})\]}]+)\s*\}?\s*(.+)",
+    r"(?:\\?lim|极限)\s*(?:[_^]\s*\{?|\()?\s*([A-Za-z])\s*"
+    r"(?:\\to|->|→|to|趋于|趋近于)\s*([^\s,，})\]}]+)\s*[\)\}]?\s*(.+)",
     re.IGNORECASE | re.DOTALL,
 )
-_LEADING_NUMBER = re.compile(r"^\s*([-+]?(?:\d+(?:\.\d+)?|\.\d+))")
+_LEADING_NUMBER = re.compile(r"^\s*([-+]?(?:\d+(?:\.\d+)?|\.\d+)(?:\s*/\s*\d+(?:\.\d+)?)?)")
 _PARAM_ASK = re.compile(
     r"(?:求|则|确定|试确定|计算)\s*(?:常数|参数|实数)?\s*([A-Za-z])\s*(?:=|的|值为|$|[\n，,。；;])"
 )
@@ -33,6 +33,8 @@ def _normalize_products(expression: str) -> str:
         text,
     )
     text = re.sub(r"(?<=[A-Za-z0-9)])\s+(?=[A-Za-z0-9(])", "*", text)
+    # 连写的单字母参数 ax→a*x；以函数名开头的 token（如 sinx、ln）保持原样交给解析器。
+    text = re.sub(rf"\b(?!{functions}\b)([A-Za-z])([A-Za-z])\b", r"\1*\2", text)
     return text
 
 
@@ -67,8 +69,8 @@ def _parse_limit(text: str) -> tuple[str, str, str, float] | None:
     if target is None:
         return None
     try:
-        value = float(target.group(1))
-    except ValueError:
+        value = float(sp.sympify(target.group(1)))
+    except (ValueError, TypeError, sp.SympifyError):
         return None
     if not math.isfinite(value):
         return None
@@ -155,7 +157,7 @@ def build_parameter_limit_from_text(text: str, source: dict, overrides: dict) ->
         "conditions": conditions,
         "formulas": [{
             "id": "parameter_limit",
-            "tex": sp.latex(original),
+            "tex": to_latex(original),
             "plain": expression,
             "role": "原题含参极限",
         }],
@@ -193,10 +195,10 @@ def compile_parameter_limit(c):
         'variable':variable,'point':float(point),'side':'both'}})
     p['model'].update(modeling_task='parameter_limit',parameter=parameter,parameter_value=str(value),
         parameter_limit_expression=c['expression'],parameter_limit_left=str(left),target_value=str(target))
-    p['solution'].update(exact=str(value),answer=f'{parameter}={value}',summary='先计算含参双侧极限，再解参数方程，并代回原式核验。',
+    p['solution'].update(exact=expression_text(value),answer=f'{parameter}={expression_text(value)}',summary='先计算含参双侧极限，再解参数方程，并代回原式核验。',
         steps=[{'id':'symbolic-limit','title':'计算含参双侧极限','detail':'左右极限一致。',
-            'latex':rf'\lim_{{{variable}\to {sp.latex(point)}}}{sp.latex(expression)}={sp.latex(left)}'},
-            {'id':'solve-parameter','title':'解参数方程','detail':f'由给定极限值求出 {parameter}={value}。',
-             'latex':rf'{sp.latex(left)}={sp.latex(target)}\quad\Longrightarrow\quad {parameter}={sp.latex(value)}'},
+            'latex':rf'\lim_{{{variable}\to {to_latex(point)}}}{to_latex(expression)}={to_latex(left)}'},
+            {'id':'solve-parameter','title':'解参数方程','detail':f'由给定极限值求出 {parameter}={expression_text(value)}。',
+             'latex':rf'{to_latex(left)}={to_latex(target)}\quad\Longrightarrow\quad {parameter}={to_latex(value)}'},
             {'id':'verify-parameter','title':'代回原式复核','detail':'将参数解代回完整原式，左右极限均等于给定值。'}])
     return p

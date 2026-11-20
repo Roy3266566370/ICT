@@ -188,10 +188,10 @@ def solve_sequence_limit(model: Mapping[str, Any]) -> dict[str, Any]:
     steps = [
         dict(id='sequence_term', title='确认通项', latex=rf'a_n={to_latex(term)}',
              detail='数列极限只对整数指标 n→∞ 计算，不与函数极限混用。'),
-        dict(id='sequence_limit', title='计算符号极限', latex=rf'\lim_{{n\to\infty}}{to_latex(term)}={sp.latex(limit)}',
+        dict(id='sequence_limit', title='计算符号极限', latex=rf'\lim_{{n\to\infty}}{to_latex(term)}={to_latex(limit)}',
              detail=label + '；发散与不存在分别标注，不输出部分和冒充极限。'),
     ]
-    details = dict(term=str(term), limit=expression_text(limit) if status == 'convergent' else None,
+    details = dict(term=expression_text(term), limit=expression_text(limit) if status == 'convergent' else None,
                    status=status, status_label=label, observations=observations,
                    verification_level=level)
     return {
@@ -199,7 +199,7 @@ def solve_sequence_limit(model: Mapping[str, Any]) -> dict[str, Any]:
         'answer': answer,
         'answer_value': safe_float(limit) if status == 'convergent' else None,
         'exact': expression_text(limit) if status == 'convergent' else label,
-        'exact_latex': sp.latex(limit) if status == 'convergent' else '',
+        'exact_latex': to_latex(limit) if status == 'convergent' else '',
         'sequence_details': details,
         'verification': {'level': level, 'label': '数列极限核验', 'detail': detail},
         'steps': steps,

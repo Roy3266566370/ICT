@@ -1,5 +1,8 @@
-"""线性代数识别与确定性消元轨迹：Ax=b、行列式、逆矩阵、矩阵运算。"""
+"""线性代数识别与确定性轨迹：消元、矩阵运算与精确特征空间。"""
+import json
+
 import pytest
+import sympy as sp
 
 from app.labs import linalg
 from app.labs.recognize import build_problem
@@ -143,3 +146,243 @@ def test_subject_classification_and_document_pipeline():
     from app.labs.solvers import solve_problem
     assert solve_problem(problem["model"])["answer"] == "x = 2，y = 1"
     assert problem["status"] == "ready"
+
+
+def eigen_result(text="求矩阵 A 的特征值与特征向量", **overrides):
+    built = build(text, **overrides)
+    assert built["recognized"], built["ambiguities"]
+    assert built["model"]["la_kind"] == "eigen"
+    result = linalg.evaluate_linalg(built["model"], {})
+    assert result["status"] == "ok", result.get("reason")
+    assert all(check["status"] == "pass" for check in result["checks"])
+    for space in result["eigenvalues"]:
+        assert space["geometric_multiplicity"] == len(space["basis"])
+        for check in space["verification"]:
+            assert check["exact"] is True
+            assert check["residual"] == ["0"] * len(result["matrix_a_exact"])
+    json.dumps({"built": built, "result": result}, allow_nan=False)
+    return result
+
+
+def test_eigen_symmetric_matrix_exact_roots_and_trace():
+    text = "求 A=[[2,1],[1,2]] 的特征值和特征向量"
+    result = eigen_result(text)
+    spaces = {space["value"]: space for space in result["eigenvalues"]}
+    assert set(spaces) == {"1", "3"}
+    assert spaces["1"]["basis"] == [["-1", "1"]]
+    assert spaces["3"]["basis"] == [["1", "1"]]
+    assert all(space["algebraic_multiplicity"] == 1 for space in spaces.values())
+    assert result["charpoly"]["coefficients"] == ["1", "-4", "3"]
+    assert result["charpoly"]["convention"] == "det(lambda*I - A)"
+    assert result["pseudocode"] == linalg.EIGEN_PSEUDOCODE
+    assert result["pseudocode"] != linalg.PSEUDOCODE
+    assert {frame["action"] for frame in result["trace"]} == {
+        "initial", "charpoly", "eigenvalues", "eigenspace", "verify_eigenvector", "result",
+    }
+    assert [frame["index"] for frame in result["trace"]] == list(range(len(result["trace"])))
+    assert all(1 <= frame["pseudocodeLine"] <= len(result["pseudocode"]) for frame in result["trace"])
+    built = build(text)
+    assert built["model"]["engine"] == "gauss_v1"
+    assert built["model"]["params"] == []
+    assert built["formulas"][0]["id"] == "eigen_rule"
+
+
+@pytest.mark.parametrize("value", [0, 2])
+@pytest.mark.parametrize("size", [1, 3, linalg.MAX_DIM])
+def test_eigen_repeated_root_has_full_eigenspace(value, size):
+    matrix = [[value if i == j else 0 for j in range(size)] for i in range(size)]
+    result = eigen_result(matrix_a=matrix)
+    assert len(result["eigenvalues"]) == 1
+    space = result["eigenvalues"][0]
+    assert space["value"] == str(value)
+    assert space["algebraic_multiplicity"] == size
+    assert space["geometric_multiplicity"] == size
+    assert sp.Matrix(space["basis"]).rank() == size
+
+
+def test_eigen_jordan_defect_is_not_mistaken_for_missing_roots():
+    result = eigen_result("求 A=[[2,1],[0,2]] 的特征值与特征向量")
+    space = result["eigenvalues"][0]
+    assert space["value"] == "2"
+    assert space["algebraic_multiplicity"] == 2
+    assert space["geometric_multiplicity"] == 1
+    assert space["basis"] == [["1", "0"]]
+    assert result["stop_reason"] == "done"
+    assert "diagonalization" not in result
+
+
+def test_eigen_complex_roots_and_radical_roots():
+    rotation = eigen_result("求 A=[[0,-1],[1,0]] 的特征向量")
+    assert {space["value"] for space in rotation["eigenvalues"]} == {"-I", "I"}
+    assert rotation["charpoly"]["coefficients"] == ["1", "0", "1"]
+    radical = eigen_result(matrix_a=[[0, 2], [1, 0]])
+    assert {space["value"] for space in radical["eigenvalues"]} == {"-sqrt(2)", "sqrt(2)"}
+    assert all("sqrt" in space["latex"] for space in radical["eigenvalues"])
+
+
+@pytest.mark.parametrize("raw", [
+    "[[1/3,0],[0,2/3]]", "[1/3 0;0 2/3]", "[[1 / 3,0],[0,2 / 3]]",
+    "[[0.333333333333333333333333333333,0],[0,.1]]",
+    "[[0.1,0],[0,2.50]]", "[[1e-2,0],[0,2E+1]]",
+])
+def test_eigen_text_literals_keep_exact_precision(raw):
+    result = eigen_result(f"A={raw}，求特征根")
+    expected = {
+        "[[1/3,0],[0,2/3]]": {"1/3", "2/3"},
+        "[1/3 0;0 2/3]": {"1/3", "2/3"},
+        "[[1 / 3,0],[0,2 / 3]]": {"1/3", "2/3"},
+        "[[0.333333333333333333333333333333,0],[0,.1]]": {
+            "333333333333333333333333333333/1000000000000000000000000000000", "1/10",
+        },
+        "[[0.1,0],[0,2.50]]": {"1/10", "5/2"},
+        "[[1e-2,0],[0,2E+1]]": {"1/100", "20"},
+    }[raw]
+    assert {space["value"] for space in result["eigenvalues"]} == expected
+
+
+@pytest.mark.parametrize("matrix", [
+    [["1/3", 0], [0, "2/3"]], "[[1/3,0],[0,2/3]]", "[1/3 0;0 2/3]",
+    '[["1/3",0],[0,"2/3"]]', (("1/3", 0), (0, "2/3")),
+])
+def test_eigen_override_preserves_fraction_and_condition_roundtrip(matrix):
+    built = build("A=[[9,0],[0,9]]，求特征值", condition_values={"matrix_a": matrix})
+    assert built["recognized"]
+    assert built["model"]["matrix_a_exact"] == [["1/3", "0"], ["0", "2/3"]]
+    condition = next(item for item in built["conditions"] if item["id"] == "matrix_a")
+    assert "1/3" in condition["value"]
+    rebuilt = build("求特征值", matrix_a=condition["value"])
+    assert rebuilt["model"]["matrix_a_exact"] == built["model"]["matrix_a_exact"]
+    assert {space["value"] for space in eigen_result(matrix_a=matrix)["eigenvalues"]} == {"1/3", "2/3"}
+
+
+def test_eigen_numeric_decimal_input_and_exact_model_authority():
+    result = eigen_result(matrix_a=[[0.1, 0], [0, 0.2]])
+    assert {space["value"] for space in result["eigenvalues"]} == {"1/10", "1/5"}
+    model = build("A=[[1/3,0],[0,2/3]]，求特征值")["model"]
+    model["matrix_a"] = [[0.33333, 0], [0, 0.66667]]
+    result = linalg.evaluate_linalg(model, {})
+    assert {space["value"] for space in result["eigenvalues"]} == {"1/3", "2/3"}
+    legacy = linalg.evaluate_linalg({"la_kind": "eigen", "matrix_a": [[0.1, 0], [0, 2]]}, {})
+    assert legacy["status"] == "ok"
+    assert legacy["matrix_a_exact"][0][0] == "1/10"
+
+
+@pytest.mark.parametrize("matrix", [
+    None, [], [[]], [1, 2], [[1, 2, 3], [4, 5, 6]], [[1, 2], [3]],
+    [[1] * 6 for _ in range(6)], [[float("nan")]], [[float("inf")]], [[float("-inf")]],
+    [[True]], [[1j]], [["nan"]], [["oo"]], [["1/0"]], [["1e309"]], [["x"]],
+    "[[1,,2],[3,4]]", "[[1/0,0],[0,2]]", "[[float('inf'),0],[0,2]]",
+    "[[__import__('os').getcwd(),0],[0,2]]", "[[2**3,0],[0,2]]", "[[1+2,0],[0,2]]",
+])
+def test_eigen_invalid_input_blocks_without_fallback(matrix):
+    built = build("A=[[2,1],[1,2]]，求特征值", matrix_a=matrix)
+    assert not built["recognized"]
+    assert any(item["severity"] == "blocking" for item in built["ambiguities"])
+    result = linalg.evaluate_linalg(built["model"], {})
+    assert result["status"] == "blocked"
+    assert result["eigenvalues"] == []
+    assert "answer" not in result
+    with pytest.raises(ValueError):
+        linalg.solve_linalg(built["model"])
+    direct = linalg.evaluate_linalg({"la_kind": "eigen", "matrix_a": matrix}, {})
+    assert direct["status"] == "blocked"
+    json.dumps({"built": built, "result": result, "direct": direct}, allow_nan=False)
+
+
+@pytest.mark.parametrize("text", [
+    "求特征值", "A=[[1,2,3],[4,5,6]]，求特征值", "A=[[1/0,0],[0,2]]，求特征值",
+    "A=[[nan,0],[0,2]]，求特征值", "A=[[1e309,0],[0,2]]，求特征值",
+    "A=[[bad,0],[0,2]]，B=[[3,0],[0,4]]，求特征值",
+    "A=[[1,2],[3,[[4]]]]，求特征值", "A=[[1,2],[3,4]，求特征值",
+])
+def test_eigen_invalid_text_or_missing_matrix_blocks(text):
+    built = build(text)
+    assert not built["recognized"]
+    assert linalg.evaluate_linalg(built["model"], {})["status"] == "blocked"
+
+
+@pytest.mark.parametrize("kind", ["unknown", "diagonalization", "jordan_form", "svd"])
+def test_unknown_or_unsupported_kind_remains_blocked(kind):
+    built = build("A=[[2,1],[1,2]]", la_kind=kind)
+    assert not built["recognized"]
+    assert any(item["id"] == "la_unsupported" for item in built["ambiguities"])
+    assert linalg.evaluate_linalg(built["model"], {})["status"] == "blocked"
+    with pytest.raises(ValueError):
+        linalg.solve_linalg(built["model"])
+
+
+@pytest.mark.parametrize("goal", [
+    "求对角化", "求特征值并对角化", "判断是否可对角化", "diagonalize A", "diagonalise A",
+    "求若尔当标准形", "求广义特征向量", "Jordan form", "求谱分解", "求奇异值分解",
+])
+def test_unsupported_goals_cannot_be_silently_reduced_to_eigen(goal):
+    for overrides in ({}, {"la_kind": "eigen"}):
+        built = build(f"A=[[2,1],[1,2]]，{goal}", **overrides)
+        assert not built["recognized"]
+        assert built["model"]["la_kind"] != "eigen"
+        assert linalg.evaluate_linalg(built["model"], {})["status"] == "blocked"
+
+
+def test_eigen_build_solve_json_roundtrip_and_document_pipeline():
+    text = "求矩阵 A=[[2,1],[1,2]] 的特征值及特征向量"
+    built = json.loads(json.dumps(build(text), allow_nan=False))
+    solution = linalg.solve_linalg(built["model"])
+    decoded = json.loads(json.dumps(solution, allow_nan=False))
+    assert decoded == solution
+    assert {space["value"] for space in solution["eigenvalues"]} == {"1", "3"}
+    assert len(solution["steps"]) == len(solution["trace"])
+    assert all(step["id"] == f"la_{frame['index']}" for step, frame in zip(solution["steps"], solution["trace"]))
+    assert "特征" in solution["summary"] and "回代" not in solution["summary"]
+    from app.labs.recognize import _attach_solution
+    problem = build_problem(text)
+    _attach_solution(problem)
+    assert problem["status"] == "ready"
+    assert "λ=1" in problem["solution"]["answer"]
+    assert "λ=3" in problem["solution"]["answer"]
+    json.dumps(problem, allow_nan=False)
+
+
+def test_eigen_incomplete_symbolic_solver_is_honestly_blocked(monkeypatch):
+    monkeypatch.setattr(sp.MutableDenseMatrix, "eigenvects", lambda *args, **kwargs: [(sp.Integer(2), 1, [sp.Matrix([1, 0])])])
+    model = build("A=[[2,0],[0,2]]，求特征值")["model"]
+    result = linalg.evaluate_linalg(model, {})
+    assert result["status"] == "blocked"
+    assert "未求全" in result["reason"]
+    with pytest.raises(ValueError):
+        linalg.solve_linalg(model)
+
+
+def test_eigen_algebraic_quintic_roots_have_exact_zero_residuals():
+    result = eigen_result(matrix_a=[
+        [0, 0, 0, 0, 1], [1, 0, 0, 0, 1], [0, 1, 0, 0, 0],
+        [0, 0, 1, 0, 0], [0, 0, 0, 1, 0],
+    ])
+    assert result["charpoly"]["coefficients"] == ["1", "0", "0", "0", "-1", "-1"]
+    assert len(result["eigenvalues"]) == 5
+    assert all(space["value"].startswith("CRootOf(") for space in result["eigenvalues"])
+
+
+def test_eigen_singleton_fraction_condition_roundtrip():
+    built = build("A=[[-1 / 3]]，求特征空间")
+    condition = next(item for item in built["conditions"] if item["id"] == "matrix_a")
+    result = eigen_result(matrix_a=condition["value"])
+    assert result["eigenvalues"][0]["value"] == "-1/3"
+    assert result["eigenvalues"][0]["basis"] == [["1"]]
+
+
+def test_eigen_input_never_executes_user_expression(monkeypatch):
+    calls = []
+    monkeypatch.setattr("os.system", lambda command: calls.append(command) or 1)
+    built = build("求特征值 A=[[__import__('os').system('eigen-test'),0],[0,2]]")
+    assert not built["recognized"]
+    assert linalg.evaluate_linalg(built["model"], {})["status"] == "blocked"
+    assert calls == []
+
+
+def test_eigen_failed_exact_verification_does_not_report_success(monkeypatch):
+    monkeypatch.setattr(sp.MutableDenseMatrix, "eigenvects", lambda *args, **kwargs: [(sp.Integer(3), 2, [sp.Matrix([1, 0])])])
+    result = linalg.evaluate_linalg({"la_kind": "eigen", "matrix_a": [[2, 0], [0, 2]]}, {})
+    assert result["status"] == "blocked"
+    assert result["checks"][0]["status"] == "fail"
+    assert result["eigenvalues"] == []
+    assert "answer" not in result

@@ -69,6 +69,54 @@ function attemptField(problem: LabProblem): { field: string; label: string; plac
     return { field: 'area', label: '图形的几何面积', placeholder: '例如 37/12' };
   }
   if (problem.subject === 'algorithm') {
+    const alg = problem.model.algorithm;
+    const dsKind = problem.model.ds_kind;
+    const hasValue = problem.solution.answer_value !== null && problem.solution.answer_value !== undefined;
+    const hasOrder = (problem.solution.answer_order?.length ?? 0) > 0;
+    if (alg === 'dfs') {
+      return { field: 'order', label: '写出 DFS 访问顺序', placeholder: '例如 A → B → D' };
+    }
+    if (alg === 'binary_search') {
+      return { field: 'numeric', label: '查找比较次数或目标下标', placeholder: '例如 3' };
+    }
+    if (dsKind === 'list_ops') {
+      return hasOrder
+        ? { field: 'order', label: '最终线性表元素序列', placeholder: '例如 1 → 9 → 2 → 3 → 4 → 5' }
+        : { field: 'numeric', label: '移动或比较次数', placeholder: '例如 4' };
+    }
+    if (dsKind === 'stack_ops') return { field: 'order', label: '写出出栈序列', placeholder: '例如 4 → 3 → 5 → 2 → 1' };
+    if (dsKind === 'queue_ops') return { field: 'order', label: '写出出队序列或队列状态', placeholder: '例如 1 → 2' };
+    if (dsKind === 'brackets' || dsKind === 'deque' || dsKind === 'stack_queue_sim') {
+      return hasOrder
+        ? { field: 'order', label: '写出输出序列', placeholder: '例如 A → B → C' }
+        : { field: 'text', label: '匹配或序列合法性结论', placeholder: '对照执行记录核对括号匹配或出入序列' };
+    }
+    if (dsKind === 'expression') {
+      return hasValue
+        ? { field: 'numeric', label: '表达式求值结果', placeholder: '例如 9' }
+        : { field: 'text', label: '后缀表达式结果', placeholder: '对照完整讲解核对后缀序列' };
+    }
+    if (dsKind === 'recursion') return { field: 'numeric', label: '递归调用次数', placeholder: '例如 4' };
+    if (dsKind === 'array_address') return { field: 'numeric', label: '元素存储地址', placeholder: '例如 1076' };
+    if (dsKind === 'matrix_storage') return { field: 'numeric', label: '压缩数组下标 k', placeholder: '例如 5' };
+    if (dsKind === 'sparse') return { field: 'numeric', label: '非零元个数或三元组结果', placeholder: '例如 3' };
+    if (dsKind === 'string_match') {
+      return hasOrder
+        ? { field: 'order', label: '写出 next 数组序列', placeholder: '例如 0 1 1 2 2 3 1' }
+        : { field: 'numeric', label: '模式匹配比较次数', placeholder: '例如 16' };
+    }
+    if (dsKind === 'btree_ops') return { field: 'order', label: '写出二叉树遍历序列', placeholder: '例如 D → E → B → F → C → A' };
+    if (dsKind === 'tree_forest') return { field: 'numeric', label: 'WPL 或结点数结果', placeholder: '例如 23' };
+    if (dsKind === 'graph_repr') return { field: 'text', label: '邻接矩阵或顶点度结论', placeholder: '对照完整讲解核对矩阵或邻接表' };
+    if (dsKind === 'graph_apply') {
+      return hasValue
+        ? { field: 'numeric', label: '最小生成树权值或关键工期', placeholder: '例如 7' }
+        : { field: 'text', label: '最短路径或拓扑序列结论', placeholder: '对照完整讲解核对各顶点距离与路径' };
+    }
+    if (dsKind === 'search_ops') return { field: 'numeric', label: 'ASL 或散列平均查找长度', placeholder: '例如 3' };
+    if (dsKind === 'sort_ops') return { field: 'order', label: '写出本趟或最终排序序列', placeholder: '例如 27 → 38 → 13 → 49' };
+    if (dsKind === 'analysis') return { field: 'numeric', label: '语句执行频度', placeholder: '例如 10' };
+    if (dsKind === 'algo_design') return { field: 'draft', label: '算法基本思想或伪代码要点', placeholder: '简述思路、关键变量或复杂度' };
     return { field: 'order', label: '写出 BFS 出队顺序', placeholder: '例如 A → B → C' };
   }
   if (problem.subject === 'deep_learning') {
@@ -423,111 +471,6 @@ export function AssistantPanel({
         </div>
       ) : (
         <>
-          <div className={styles.chatBox}>
-            {messages.length === 0 ? (
-              <div className={styles.greeting}>
-                <p>
-                  {mode === 'guided'
-                    ? '我会根据你当前停下的这一步给提示，不直接替你完成。'
-                    : '自己操作模型；需要时再问我图形、公式或当前数值的含义。'}
-                </p>
-                <div className={styles.suggestions}>
-                  {(problem.model.engine === 'generic_v1'
-                    ? ['原题结果是什么？', '每一步用到了哪些条件？', '结果如何核验？']
-                    : result.subject === 'optimization'
-                    ? ['为什么往这个方向移动？', '下一步是什么？', '当前结果说明了什么？']
-                    : problem.model.task === 'implicit_normal'
-                      ? ['法线斜率如何求得？', '原题结果是什么？', '研究点为何需要核对？']
-                    : result.subject === 'calculus'
-                      ? problem.model.kind === 'derivative'
-                        ? ['切线为什么在这个位置？', '差商怎样趋近导数？', '下一步是什么？']
-                        : problem.model.modeling_task === 'parameter_limit'
-                          ? [`参数 ${problem.model.parameter ?? 'a'}=${problem.model.parameter_value ?? ''} 是怎么解出的？`, '左右极限为什么都要看？', '下一步是什么？']
-                        : problem.model.kind === 'limit'
-                          ? ['左右极限为什么都要看？', '数值逼近和符号极限差在哪？', '下一步是什么？']
-                        : problem.model.kind === 'antiderivative'
-                          ? ['为什么答案要加 C？', '原函数求导怎么核对？', '下一步是什么？']
-                          : problem.model.kind === 'ode'
-                            ? ['解曲线为什么这样变化？', '如何代回原方程核验？', '下一步是什么？']
-                            : problem.model.kind === 'multivariable_extrema'
-                              ? ['为什么这个点是极小值？', '鞍点与极小值怎么区分？', '下一步是什么？']
-                          : ['为什么误差随 n 变化？', '黎曼和与解析值差在哪？', '下一步是什么？']
-                      : result.subject === 'algorithm' && result.algorithm === 'heap'
-                        ? ['为什么需要向下筛选？', '下一步是什么？', '当前结果说明了什么？']
-                      : result.subject === 'algorithm'
-                        ? ['下一个出队的是谁？', '为什么跳过这个节点？', '当前结果说明了什么？']
-                      : result.subject === 'operating_system'
-                        ? result.osKind === 'page_replace'
-                          ? ('concept' in result.stats
-                            ? ['缺页处理要经过哪些步骤？', '工作集为什么会导致抖动？', 'Clock 如何给第二次机会？']
-                            : ['为什么这次缺页？', '被置换的是哪个页面？', '为什么 FIFO 会有 Belady 异常？'])
-                          : result.osKind === 'disk_schedule'
-                            ? ['磁头下一步去哪？', '为什么 SCAN 要走到末端？', '当前结果说明了什么？']
-                            : result.osKind === 'banker'
-                              ? ['为什么这个进程可以先完成？', '下一步是什么？', '什么情况下是不安全状态？']
-                              : result.osKind === 'tlb'
-                                ? ['为什么 TLB 命中不用查页表？', '页表访问次数怎么数？', '有效访问时间怎么算？']
-                                : result.osKind === 'file_dir'
-                                  ? ['权限位怎么读？', '为什么要逐级查目录？', 'inode 和 FCB 有什么区别？']
-                                  : result.osKind === 'file_alloc'
-                                    ? ['最大文件长度怎么算？', '为什么索引分配支持随机访问？', '位示图 0 和 1 各表示什么？']
-                                    : result.osKind === 'device_mgmt'
-                                      ? ['旋转延迟为什么取半圈？', '单缓冲和双缓冲差在哪？', '假脱机怎么共享打印机？']
-                                      : ['为什么选这个进程？', '下一步是什么？', '当前结果说明了什么？']
-                      : result.subject === 'linear_algebra'
-                        ? result.laKind === 'matmul'
-                          ? ['为什么 A·B 和 B·A 不一样？', '下一步是什么？', '当前结果说明了什么？']
-                          : ['为什么要交换这两行？', '下一步是什么？', '当前结果说明了什么？']
-                        : result.subject === 'physics'
-                          ? ['参数变化如何影响结果？', '这一步用了什么公式？', '当前结果说明了什么？']
-                        : result.subject === 'computer_organization'
-                          ? ['这一步用了什么公式？', '位宽/码制是怎样约定的？', '下一步是什么？']
-                        : result.subject === 'computer_network'
-                          ? result.netKind === 'ethernet'
-                            ? ['交换机为什么要泛洪？', '转发表什么时候更新？', '冲突域和广播域怎么分？']
-                            : result.netKind === 'ip'
-                              ? ['网络地址怎么算？', '为什么按 8 字节对齐？', 'IPv6 的 :: 怎么压缩？']
-                              : result.netKind === 'transport'
-                                ? ['SYN 为什么消耗序号？', 'TIME_WAIT 为什么要等待？', '端口怎么分类？']
-                                : result.netKind === 'tcp_control'
-                                  ? ['这一轮是慢启动还是拥塞避免？', '超时后 cwnd 怎么变？', '发送窗口取哪个值？']
-                                  : result.netKind === 'application'
-                                    ? ['为什么要几次 RTT？', '持久连接省在哪？', 'DNS 和 HTTP 谁先？']
-                                    : ['这一步用了什么公式？', '单位是怎么换算的？', '窗口/校验位为什么这样变？']
-                        : ['损失为什么下降？', '梯度是怎么算的？', '下一步是什么？']
-                  ).map((suggestion) => (
-                    <button key={suggestion} type="button" onClick={() => void send(suggestion)} disabled={busy}>
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {messages.slice(-8).map((message) => (
-              <div key={message.id} className={styles.message} data-role={message.role}>
-                <span>{message.role === 'user' ? '你' : '导师'}</span>
-                <p><MathText text={message.text} /></p>
-                <small>{message.local ? '本地导师 · 由计算记录生成' : message.notice ? '模型增强回答 · 数值以执行记录为准' : ''}</small>
-              </div>
-            ))}
-            {busy ? <p className={styles.thinking}>正在读取当前参数与执行记录…</p> : null}
-          </div>
-
-          <div className={styles.askRow}>
-            <input
-              value={question}
-              placeholder={selected ? `追问“${selected.label}”的含义` : '问当前这一步，或输入操作指令'}
-              onChange={(event) => setQuestion(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) void send(question);
-              }}
-              disabled={readOnly}
-            />
-            <button type="button" onClick={() => void send(question)} disabled={busy || !question.trim() || readOnly}>
-              发送
-            </button>
-          </div>
-
           {mode === 'guided' ? (
             <div className={styles.hints}>
               <span className={styles.stateTitle}>分层提示</span>
@@ -539,6 +482,18 @@ export function AssistantPanel({
                 ))}
               </div>
               <p>从观察开始；只有在需要时才展开具体步骤。</p>
+              {messages.length > 0 || busy ? (
+                <div className={styles.chatBox}>
+                  {messages.slice(-8).map((message) => (
+                    <div key={message.id} className={styles.message} data-role={message.role}>
+                      <span>{message.role === 'user' ? '你' : '导师'}</span>
+                      <p><MathText text={message.text} /></p>
+                      <small>{message.local ? '本地导师 · 由计算记录生成' : message.notice ? '模型增强回答 · 数值以执行记录为准' : ''}</small>
+                    </div>
+                  ))}
+                  {busy ? <p className={styles.thinking}>正在读取当前参数与执行记录…</p> : null}
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -580,6 +535,7 @@ export function AssistantPanel({
                 value={attempt}
                 placeholder={field.placeholder}
                 aria-label={field.label}
+                disabled={attemptBusy || readOnly}
                 onChange={(event) => setAttempt(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.nativeEvent.isComposing) void submitAttempt();

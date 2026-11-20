@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 from PIL import Image
 
-from app.labs import ai_solve, local_agent, extract
+from app.labs import ai_contract, ai_solve, extract
 from app.labs.recognize import split_problems, build_problem
 from app.ppt_ai.client import PPTAIClient
 from app.settings import Settings
@@ -43,7 +43,7 @@ def test_cloud_receives_original_image_when_ocr_is_empty(monkeypatch):
     buffer = io.BytesIO()
     Image.new('RGB', (20, 20), 'white').save(buffer, format='PNG')
     encoded = base64.b64encode(buffer.getvalue()).decode('ascii')
-    monkeypatch.setattr(local_agent, 'source_images', lambda *args, **kwargs: [
+    monkeypatch.setattr(ai_contract, 'source_images', lambda *args, **kwargs: [
         {'key': 'p1', 'page': 1, 'image': encoded, 'sha256': 'test'}])
     captured = {}
 
@@ -114,7 +114,7 @@ def test_cloud_kernel_missing_fields_use_existing_condition_editor():
 
 
 def test_cloud_image_formula_can_compute_candidate_without_automatic_grading(monkeypatch):
-    monkeypatch.setattr(local_agent, 'source_images', lambda *args, **kwargs: [
+    monkeypatch.setattr(ai_contract, 'source_images', lambda *args, **kwargs: [
         {'key': 'p1', 'page': 1, 'image': 'test', 'sha256': 'test'}])
     p = problem('计算2+2')
     p['recognition']['ambiguities'] = [{'id': 'source_formula_confirmation', 'resolved': False}]
@@ -149,8 +149,7 @@ def test_maas_defaults_work_with_only_api_key_and_normalize_display_name(monkeyp
 
 def test_three_noisy_phone_images_fit_real_cloud_request_budget(tmp_path, monkeypatch):
     import numpy as np
-    monkeypatch.setattr(local_agent, 'LABS_DIR', tmp_path)
-    monkeypatch.setattr(local_agent.get_settings(), 'lab_understanding_provider', 'maas')
+    monkeypatch.setattr(ai_contract, 'LABS_DIR', tmp_path)
     previews = tmp_path / 'lab_phone' / 'previews'
     previews.mkdir(parents=True)
     rng = np.random.default_rng(42)
@@ -158,7 +157,7 @@ def test_three_noisy_phone_images_fit_real_cloud_request_budget(tmp_path, monkey
     for i in range(3):
         original.save(previews / f'p{i}.png')
     p = {'text': '', 'source_pages': [{'image_key': f'p{i}', 'page': i+1} for i in range(3)]}
-    images = local_agent.source_images('lab_phone', p)
+    images = ai_contract.source_images('lab_phone', p)
     urls = []
     for page in images:
         assert page['mime_type'] == 'image/jpeg'
@@ -222,7 +221,7 @@ def test_reference_transcription_cannot_present_stale_local_answer_as_verified()
      'outer_bounds': ['0', '1'], 'inner_bounds': ['0', '1']},
 ])
 def test_non_kernel_plan_survives_source_confirmation(plan, legacy, monkeypatch):
-    monkeypatch.setattr(local_agent, 'source_images', lambda *a, **k: [
+    monkeypatch.setattr(ai_contract, 'source_images', lambda *a, **k: [
         {'key': 'p1', 'page': 1, 'image': 'test'}])
     p = build_problem('', pages=[{'image_key': 'p1', 'page': 1}])
     p['ai_solution'] = ai_solve.solve_with_ai(p, client=Client(plan, question='已完整转写的应用题'))

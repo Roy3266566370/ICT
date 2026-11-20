@@ -43,6 +43,8 @@ interface BoardProps {
   readOnly?: boolean;
   /** 把手写圈选交给页面做本地 OCR；返回 true 表示已消费，可清除选择。 */
   onInkExtract?: (strokes: InkStroke[]) => Promise<boolean>;
+  /** 把手写圈选曲线交给页面做表达式拟合；返回 true 表示已消费，可清除选择。 */
+  onInkFit?: (strokes: InkStroke[]) => Promise<boolean>;
 }
 
 interface Pt { x: number; y: number }
@@ -74,7 +76,7 @@ function portKindOf(ctx: ReturnType<typeof makeCtx>, nodeId: string, isOut: bool
   return spec?.kind;
 }
 
-export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, focusContent, readOnly, onInkExtract }: BoardProps): JSX.Element {
+export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, focusContent, readOnly, onInkExtract, onInkFit }: BoardProps): JSX.Element {
   const innerRef = useRef<HTMLDivElement>(null);
   const vpRef = useRef<HTMLDivElement>(null);
   const portRefs = useRef(new Map<string, HTMLElement>());
@@ -601,6 +603,19 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     }
   }, [doc.strokes, inkBusy, onInkExtract, selStrokes]);
 
+  const fitInk = useCallback(async (): Promise<void> => {
+    if (!onInkFit || inkBusy) return;
+    const strokes = doc.strokes.filter((stroke) => selStrokes.has(stroke.id));
+    if (!strokes.length) return;
+    setInkBusy(true);
+    try {
+      const consumed = await onInkFit(strokes);
+      if (consumed) setSelStrokes(new Set());
+    } finally {
+      setInkBusy(false);
+    }
+  }, [doc.strokes, inkBusy, onInkFit, selStrokes]);
+
   const clearSelection = (): void => {
     setSelSet(new Set());
     setSelStrokes(new Set());
@@ -768,6 +783,11 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
           {selStrokes.size > 0 ? (
             <button type="button" className={styles.selBarBtn} disabled={!onInkExtract || inkBusy} onClick={() => void recognizeInk()}>
               {inkBusy ? '识别中…' : '✒️ 识别为公式积木'}
+            </button>
+          ) : null}
+          {selStrokes.size > 0 ? (
+            <button type="button" className={styles.selBarBtn} disabled={!onInkFit || inkBusy} onClick={() => void fitInk()}>
+              {inkBusy ? '拟合中…' : '📈 拟合为函数'}
             </button>
           ) : null}
           <button type="button" className={styles.selBarBtn} onClick={clearSelection}>

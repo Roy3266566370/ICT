@@ -1,9 +1,9 @@
-"""Regressions from the calculus/408 browser and real Ollama audit."""
-import json
+"""Regressions from the calculus/408 orchestrator and MaaS dispatch checks."""
+from types import SimpleNamespace
 
 import pytest
 
-from app.labs import local_agent, orchestrator
+from app.labs import ai_solve, orchestrator
 from app.labs.recognize import _attach_solution, build_problem
 
 
@@ -67,78 +67,31 @@ def test_single_task_shortcut_never_drops_extra_questions(text):
     assert result['status'] != '完成'
 
 
-def mock_dispatch(monkeypatch, response):
-    calls = []
-
-    class Response:
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return {'done_reason': 'stop', 'message': {'content': json.dumps(response)}}
-
-    class Client:
-        def __init__(self, **kwargs):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *args):
-            pass
-
-        def post(self, url, **kwargs):
-            calls.append(kwargs['json'])
-            return Response()
-
-    monkeypatch.setattr(local_agent.httpx, 'Client', Client)
-    return calls
-
-
 @pytest.mark.parametrize('text,answer', [
     ('系统初始内存为空，物理块数为3，访问序列1,2,3,1,4,2,5，采用LRU算法，求缺页次数。', '缺页 6 次'),
     ('将192.168.1.0/24划分为8个子网，每个子网多少台可用主机？', '30'),
     ('主存地址32位，Cache容量32KB，块大小64B，4路组相联，求tag、index、offset位数。', 'tag 19'),
 ])
-def test_ready_408_task_dispatches_unchanged_source(monkeypatch, text, answer):
-    calls = mock_dispatch(monkeypatch, {'tool': 'existing', 'uncertainties': []})
-    result = local_agent.understand(build_problem(text))
+def test_ready_408_task_dispatches_via_maas_client(text, answer):
+    class MaaSClient:
+        settings = SimpleNamespace(llm_model='deepseek-v4.1-flash-1017')
+
+        def generate_json(self, *args, **kwargs):
+            return SimpleNamespace(
+                data={
+                    'question': text,
+                    'model': {'kind': 'existing', 'canonical_text': text},
+                    'missing_conditions': [],
+                    'steps': [],
+                }
+            )
+
+    problem = build_problem(text)
+    result = ai_solve.solve_with_ai(problem, client=MaaSClient())
     assert result['verification'] == 'kernel'
     assert result['checkable']
     assert answer in result['answer']
     assert result['proposed_model']['canonical_text'] == text
-    assert result['dispatch']['mode'] == 'ai'
-    assert calls[0]['format']['properties']['tool']['enum'] == ['existing', 'none']
-    assert len(json.dumps(calls[0], ensure_ascii=False)) < 6000
-
-
-def test_ready_dispatch_does_not_ignore_model_uncertainty(monkeypatch):
-    mock_dispatch(monkeypatch, {'tool': 'none', 'uncertainties': ['原图初态不清']})
-    result = local_agent.understand(build_problem('将192.168.1.0/24划分为8个子网，每个子网多少台可用主机？'))
-    assert result['verification'] == 'needs_review'
-    assert not result['checkable']
-    assert result['computation'] is None
-
-
-def test_ready_dispatch_never_uses_model_rewritten_text(monkeypatch):
-    text = '将192.168.1.0/24划分为8个子网，每个子网多少台可用主机？'
-    mock_dispatch(monkeypatch, {'tool': 'existing', 'canonical_text': '计算1+999', 'answer': '999'})
-    result = local_agent.understand(build_problem(text))
-    assert result['verification'] == 'kernel'
-    assert result['proposed_model']['canonical_text'] == text
-    assert '每子网 30' in result['answer']
-
-
-def test_missing_408_conditions_do_not_enter_ready_dispatch(monkeypatch):
-    problem = build_problem('采用LRU页面置换算法，求缺页次数。')
-    assert problem['status'] != 'ready'
-    monkeypatch.setattr(local_agent, '_dispatch_recognized', lambda *a: pytest.fail('缺少条件不得执行'))
-    # Stop at the general understanding transport, before any kernel can run.
-    class StopTransport(Exception):
-        pass
-    monkeypatch.setattr(local_agent.httpx, 'Client', lambda **kw: (_ for _ in ()).throw(StopTransport()))
-    with pytest.raises(StopTransport):
-        local_agent.understand(problem)
 
 
 def test_compact_calculus_plan_still_validates_input_bindings():
@@ -146,29 +99,3 @@ def test_compact_calculus_plan_still_validates_input_bindings():
     plan = orchestrator.deterministic_plan(DERIVATIVE, understanding)
     plan['steps'][0]['inputs']['point'] = {'source': 'plan', 'value': 99}
     assert not orchestrator.validate_plan(plan, understanding)['ok']
-
-
-@pytest.mark.parametrize('extra', ['并证明该算法最优。', '再用FIFO计算。',
-    '并计算物理块数为4时的缺页次数。', '并解释LRU算法的含义。'])
-def test_ready_408_dispatch_cannot_claim_uncovered_goals(monkeypatch, extra):
-    text = '系统初始内存为空，物理块数为3，访问序列1,2,3,1,4,2,5，采用LRU算法，求缺页次数' + extra
-    mock_dispatch(monkeypatch, {'tool': 'existing'})
-    result = local_agent.understand(build_problem(text))
-    assert result['verification'] == 'needs_review'
-    assert not result['checkable']
-    assert result['computation'] is None
-
-
-def test_ready_page_dispatch_rejects_multiple_algorithms(monkeypatch):
-    text = '系统初始内存为空，物理块数为3，访问序列1,2,3,1,4,2,5，采用FIFO和LRU算法分别计算缺页次数。'
-    mock_dispatch(monkeypatch, {'tool': 'existing'})
-    result = local_agent.understand(build_problem(text))
-    assert result['verification'] == 'needs_review'
-    assert not result['checkable']
-
-
-@pytest.mark.parametrize('response', [[], None])
-def test_ready_dispatch_rejects_non_object_response(monkeypatch, response):
-    mock_dispatch(monkeypatch, response)
-    with pytest.raises(ValueError, match='响应无效'):
-        local_agent.understand(build_problem('将192.168.1.0/24划分为8个子网，每个子网多少台可用主机？'))

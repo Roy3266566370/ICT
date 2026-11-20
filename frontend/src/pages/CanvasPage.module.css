@@ -427,6 +427,21 @@
   font-size: 12px;
 }
 
+.fitOverlay {
+  width: 220px;
+  height: 120px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.fitHint {
+  margin: 0 0 10px;
+  color: var(--ink-400);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .inkReviewActions {
   display: flex;
   justify-content: flex-end;

@@ -7,16 +7,10 @@ from __future__ import annotations
 
 import copy
 import json
-import time
-import base64
-import io
-import math
 import re
+import time
+from typing import Any
 
-import httpx
-from PIL import Image
-
-from ..settings import get_settings
 from .kernel_models import TASKS, task_catalog, _validate
 
 VERSION = 'staged-understanding.5'
@@ -220,7 +214,7 @@ def account_facts(reading: dict, task: str) -> dict[str, str]:
 
 
 def task_schema(task: str) -> dict:
-    from .local_agent import understanding_schema
+    from .ai_contract import understanding_schema
     spec = TASKS[task]
     fields = understanding_schema()['properties']['model']['properties']['conditions']['properties']
     names = spec['required'] + spec['optional']
@@ -611,35 +605,45 @@ def explicit_missing_fields(text, task):
         for clause in clauses)]
 
 
-def request_json(messages: list, schema: dict, deadline: float) -> dict:
-    settings = get_settings()
+def request_json(messages: list, schema: dict, deadline: float, *, client: Any | None = None) -> dict:
+    """统一经由 MaaS API（PPTAIClient）执行结构化 JSON 请求。"""
+    from ..ppt_ai.client import PPTAIClient
+    from ..ppt_ai.types import CallBudget
+
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise ValueError('分阶段理解超过总时间预算')
     if len(json.dumps(messages, ensure_ascii=False).encode('utf-8')) > 12000000:
         raise ValueError('理解输入超过预算，请拆分')
-    budget = len(json.dumps(schema, ensure_ascii=False).encode('utf-8'))
-    for message in messages:
-        budget += len(message.get('content', '').encode('utf-8'))
-        for encoded in message.get('images', []):
-            with Image.open(io.BytesIO(base64.b64decode(encoded))) as image:
-                budget += math.ceil(image.width/14)*math.ceil(image.height/14)+256
-    if budget + 3000 + 2048 > 32768:
-        raise ValueError('题文、图片与任务结构超过上下文预算，请裁剪或拆分')
-    with httpx.Client(timeout=remaining, trust_env=False) as client:
-        response = client.post(settings.lab_ollama_url.rstrip('/') + '/api/chat', json={
-            'model': settings.lab_ollama_model, 'messages': messages, 'format': schema,
-            'stream': False, 'options': {'num_ctx':8192 if not any(m.get('images') for m in messages) and budget < 24000 else 32768, 'num_predict':3000, 'temperature':0,
-                                        'repeat_penalty':1.1}})
-        response.raise_for_status()
-        body = response.json()
-    if body.get('done_reason') == 'length':
-        raise ValueError('模型输出截断，请拆分题目')
-    return json.loads(body['message']['content'])
+    provider = client or PPTAIClient()
+    system_parts = [str(m.get('content') or '') for m in messages if m.get('role') == 'system']
+    non_system = [{k: v for k, v in m.items() if k != 'images'} for m in messages if m.get('role') != 'system']
+    image_urls: list[str] = []
+    for msg in messages:
+        for encoded in msg.get('images') or []:
+            if isinstance(encoded, str) and encoded:
+                mime = 'image/png' if encoded.startswith('iVBOR') else 'image/jpeg'
+                image_urls.append(f'data:{mime};base64,{encoded}')
+    payload: dict[str, Any] = {
+        'messages': non_system,
+        'response_schema': schema,
+    }
+    response = provider.generate_json(
+        'lab_staged_understanding',
+        payload,
+        VERSION,
+        CallBudget(max_calls=1, output_tokens_limit=3000),
+        instructions='\n'.join(system_parts),
+        max_output_tokens=3000,
+        timeout_s=min(120.0, max(5.0, remaining)),
+        image_urls=image_urls or None,
+        thinking=False,
+    )
+    return dict(response.data)
 
 
 def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
-    from .local_agent import Understanding, source_images, validate_understanding, finish_understanding
+    from .ai_contract import Understanding, finish_understanding, source_images, validate_understanding
     deadline = time.monotonic() + 180
     text = problem.get('text', '')
     if len(text) > 12000:
@@ -681,7 +685,7 @@ def understand_staged(problem: dict, *, lab_id: str | None = None) -> dict:
             payload['source_recovery'] = recovery
             messages[-1]['content'] = json.dumps(payload, ensure_ascii=False)
         return request_json(messages, schema, deadline)
-    reading = read_with_source_retry(problem, images, read, lab_id=lab_id, cloud=False)
+    reading = read_with_source_retry(problem, images, read, lab_id=lab_id, cloud=True)
     recovery = reading.pop('_source_recovery', None)
     for i,fact in enumerate(reading['conditions']):
         fact.setdefault('id',f'c{i+1}')

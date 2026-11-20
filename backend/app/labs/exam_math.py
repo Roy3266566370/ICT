@@ -134,14 +134,15 @@ def build_exam_math(text: str, source: Mapping[str, Any] | None = None,
         return None
     if re.search(r'\by\s*\(\s*x\s*\)|y\s*[\'\u2032]|微分方程|面积最[大小]|最小面积|最大面积|三角形面积', normalized):
         return None
-    if not re.search(r'\by\s*(?:<=|=)', normalized):
+    # \b 对中日韩字符也视为词内，`曲线y=x^2` 里 y 前没有边界；只需排除紧跟在拉丁字母后的 y。
+    if not re.search(r'(?<![A-Za-z])y\s*(?:<=|=)', normalized):
         return None
     conditions, ambiguities = [], []
     volume = '体积' in normalized or bool(re.search(r'\bvolume\b', normalized, re.I))
     area = '面积' in normalized or bool(re.search(r'\barea\b', normalized, re.I))
     task = 'area_volume' if volume else 'geometric_area'
     expression = str(overrides.get('expression') or '')
-    match = re.search(r'\by\s*(?:<=|=)\s*', normalized)
+    match = re.search(r'(?<![A-Za-z])y\s*(?:<=|=)\s*', normalized)
     if not expression and match:
         expression = _prefix(normalized[match.end():])
     model = _base(task, expression)
@@ -221,6 +222,13 @@ def build_exam_math(text: str, source: Mapping[str, Any] | None = None,
             lower = _prefix(chained.group(1))
         if upper is None:
             upper = _prefix(chained.group(2))
+    # “在[0,1]上 / 区间[0,1] / x∈[0,1]” 的闭区间记法。
+    bracket = re.search(r'\[\s*([^,\[\]{};；\n]+?)\s*[,，]\s*([^\[\]{};；\n]+?)\s*\]', normalized)
+    if bracket:
+        if lower is None:
+            lower = _prefix(bracket.group(1))
+        if upper is None:
+            upper = _prefix(bracket.group(2))
     if lower is None and upper is None and ('围成' in normalized or 'enclosed' in normalized.lower()):
         roots = _real_roots(function, X)
         if roots is not None and len(roots) >= 2:

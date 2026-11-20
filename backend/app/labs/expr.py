@@ -108,19 +108,30 @@ def normalize_function_notation(text: str) -> str:
     text = re.sub(r'\\(?:mathrm|mathit|mathbf|mathsf|textrm|text)\s*\{([^{}]*)\}', font, text)
     # Preserve names before the display layer removes unknown LaTeX commands.
     for name in FUNCTION_NAMES:
-        text = re.sub(r'\\' + name + r'(?![A-Za-z])', ' ' + FUNCTION_ALIASES.get(name, name) + ' ', text)
+        canonical = FUNCTION_ALIASES.get(name, name)
+        text = re.sub(
+            r'\\' + name + r'(?![A-Za-z])',
+            ' ' + canonical + ' ',
+            text,
+        )
+        text = re.sub(
+            r'\\' + name + r'(?=[xyztuvn](?![A-Za-z]))',
+            ' ' + canonical + ' ',
+            text,
+        )
     return text
 
 
 def expression_text(expression: sp.Expr) -> str:
     """A shared executable spelling for the browser and backend, not OCR prose."""
-    text = str(expression).replace('**', '^')
-    text = re.sub(r'\bE\b', 'e', text)
-    return re.sub(r'\bAbs\(', 'abs(', text)
+    text = str(expression).replace("**", "^")
+    text = re.sub(r"\bE\b", "e", text)
+    text = re.sub(r"\bAbs\(", "abs(", text)
+    return re.sub(r"\blog\(", "ln(", text)
 
 
-def _split_juxtaposition(text: str) -> str:
-    """拆开与函数名粘连的字母，便于 sympy 解析隐式乘法与隐式调用。"""
+def _split_juxtaposition(text: str, *, followed_by_paren: bool = False) -> str:
+    """拆开与函数名粘连的变量与参数，并用括号锁定紧邻的函数参数。"""
 
     if not any(name in text.lower() for name in FUNCTION_NAMES):
         return text
@@ -129,19 +140,31 @@ def _split_juxtaposition(text: str) -> str:
     cursor = 0
     length = len(text)
     while cursor < length:
-        hit = None
-        for name in FUNCTION_NAMES:
-            if lowered.startswith(name, cursor):
-                hit = name
-                break
+        hit = next((name for name in FUNCTION_NAMES if lowered.startswith(name, cursor)), None)
         if hit is not None:
-            previous = text[cursor - 1] if cursor > 0 else ""
-            if previous and (previous.isalpha() or previous.isdigit()) and out and out[-1] != " ":
+            previous = out[-1] if out else ""
+            if previous and (previous[-1].isalnum() or previous[-1] == ")"):
                 out.append(" ")
             out.append(text[cursor : cursor + len(hit)])
             cursor += len(hit)
-            following = text[cursor] if cursor < length else ""
-            if following and (following.isalpha() or following.isdigit()):
+            if cursor == length:
+                break
+            nxt = min(
+                (
+                    idx
+                    for idx in range(cursor, length)
+                    if any(lowered.startswith(name, idx) for name in FUNCTION_NAMES)
+                ),
+                default=length,
+            )
+            if nxt > cursor:
+                out.append(f"({text[cursor:nxt]})")
+                cursor = nxt
+            elif not followed_by_paren:
+                inner = _split_juxtaposition(text[cursor:], followed_by_paren=False)
+                out.append(f"({inner})")
+                cursor = length
+            else:
                 out.append(" ")
             continue
         out.append(text[cursor])
@@ -276,6 +299,28 @@ def _latex_to_plain(raw: str) -> str:
     text = re.sub(r"\bd\s*([xyzt])\b", r"\1", text)
     text = text.replace("{", "(").replace("}", ")")
     text = text.replace("[", "(").replace("]", ")")
+    # 先锁定空格分隔的单参数函数调用（如 ln x -> ln(x)），再在相邻项间补隐式乘号，
+    # 防止 "a sin(x)" 去空格后误拼成 "asin(x)" 或 "ln x * ln(1-x)" 吞掉乘数。
+    fn_pattern = "|".join(FUNCTION_NAMES)
+    text = re.sub(rf"({fn_pattern})\s+\(", r"\1(", text, flags=re.I)
+    text = re.sub(
+        rf"((?:[A-Za-z0-9_]*?)(?:{fn_pattern}))\s+([A-Za-z0-9]+)(?=$|[\s+\-*/^),])",
+        lambda m: f"{m.group(1)}({m.group(2)})"
+        if m.group(2).lower() not in FUNCTION_NAMES
+        else f"{m.group(1)} {m.group(2)}",
+        text,
+        flags=re.I,
+    )
+    text = re.sub(
+        r"([A-Za-z0-9_]+|\))\s+(?=[A-Za-z(])",
+        lambda m: (
+            m.group(0)
+            if m.group(1) != ")"
+            and any(m.group(1).lower().endswith(name) for name in FUNCTION_NAMES)
+            else f"{m.group(1)}*"
+        ),
+        text,
+    )
     text = text.replace(" ", "")
     # 希腊字母/花体命令无法安全求值，保留标记让调用方提问，而不是猜测。
     return text
@@ -384,8 +429,12 @@ def parse_expression(raw: str, variables: Iterable[str] = ("x",), *, preserve_st
         raise ExprError("变量名不合法")
     text = normalize_math(raw)
     # Declared identifiers take precedence over OCR's implicit function notation.
-    text = _IDENTIFIER.sub(lambda match: match.group() if match.group() in names
-                           else _split_juxtaposition(match.group()), text)
+    text = _IDENTIFIER.sub(
+        lambda match: match.group()
+        if match.group() in names
+        else _split_juxtaposition(match.group(), followed_by_paren=text[match.end() : match.end() + 1] == "("),
+        text,
+    )
     allowed = set(names) | set(FUNCTIONS) | set(CONSTANTS)
     for token in _IDENTIFIER.findall(text):
         if token not in allowed:
@@ -424,7 +473,7 @@ def parse_expression(raw: str, variables: Iterable[str] = ("x",), *, preserve_st
 
 def to_latex(expression: object) -> str:
     try:
-        return sp.latex(expression)
+        return sp.latex(expression, ln_notation=True)
     except Exception:  # noqa: BLE001 - 展示层降级
         return str(expression)
 

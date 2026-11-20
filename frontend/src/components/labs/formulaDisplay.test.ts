@@ -51,7 +51,7 @@ test('lab reading surfaces render formulas in titles, conditions, answers and ex
         observations: [], attempts: [], draftText: '', selected: null, onSelect: noop,
       }));
       assert.ok(html.includes('原题条件下的完整答案'));
-      assert.ok(html.includes('结果如何核验？'));
+      assert.ok(html.includes('请按原题条件填写全部结果'));
       assert.ok(!html.includes('定积分的值') && !html.includes('黎曼和'));
     });
     for (const [name, props] of cases) {

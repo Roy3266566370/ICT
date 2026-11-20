@@ -85,12 +85,22 @@ const COMPARISONS: Record<string, string> = {
 const FORMULA_CUE =
   /[=<>≤≥≠≈∞π∫√∑^*/]|\b(?:sqrt|abs|exp|log|ln|sin|cos|tan|arcsin|arccos|arctan|asin|acos|atan|acot|asec|acsc|sinh|cosh|tanh|max|min|lim)\s*\(/i;
 
+const GREEK_SYMBOLS: Record<string, string> = {
+  'θ': '\\theta', 'ω': '\\omega', 'φ': '\\varphi', 'λ': '\\lambda', 'μ': '\\mu',
+  'α': '\\alpha', 'β': '\\beta', 'γ': '\\gamma', 'η': '\\eta', 'τ': '\\tau',
+  'Δ': '\\Delta', 'Φ': '\\Phi', 'Ω': '\\Omega', 'ε': '\\varepsilon',
+};
+
+const TRAILING_PHYSICS_UNIT = /\s+(?:kg·m\/s|m\/s\^2|m\/s²|m\/s|rad\/s|W\/m\^2|W\/m²|N\/m|N\/C|N·s|N·m|m\^2|m\^3|m²|m³|kJ|eV|Hz|cm|mm|nm|μF|μC|kg|J|N|V|A|T|K|W|C|s|m|Ω)$/;
+const PAREN_PHYSICS_UNIT = /\s*\((?:kg·m\/s|m\/s\^2|m\/s²|m\/s|rad\/s|W\/m\^2|W\/m²|N\/m|N\/C|N·s|N·m|m\^2|m\^3|m²|m³|kJ|eV|Hz|cm|mm|nm|μF|μC|kg|J|N|V|A|T|K|W|C|s|m|Ω|°)\)$/;
+
 /** 展示层允许出现在公式片段里的字符；中文和中文标点会切断片段。 */
 function isMathChar(char: string): boolean {
   if (char === '\\') return true;
   if (/[A-Za-z0-9+\-*/^=<>()_.[\]{}'!%|,]/.test(char)) return true;
   if (char === ' ' || char === '\t') return true;
   if (SUP_DIGITS[char] !== undefined || SUB_DIGITS[char] !== undefined) return true;
+  if (GREEK_SYMBOLS[char] !== undefined || char === '°') return true;
   return '≤≥≠≈∞π∫√∑×÷−·–′″'.includes(char);
 }
 
@@ -132,6 +142,9 @@ function looksLikeFormula(source: string): boolean {
   if (source.length < 2 || source.length > 160) return false;
   if (!/[0-9A-Za-z]/.test(source)) return false;
   if (!FORMULA_CUE.test(source)) return false;
+  if (/\d+\.\d+\.\d+/.test(source)) return false;
+  if (/\s\/\s/.test(source)) return false;
+  if (/^[A-Z]{1,4}\/[A-Z]{1,4}$/.test(source.trim())) return false;
   if (endsWithOperator(source)) return false;
   if (!bracketsBalanced(source)) return false;
   return true;
@@ -181,7 +194,44 @@ function tokenize(source: string): Token[] {
         index += 1;
         while (isDigit(source[index])) index += 1;
       }
-      tokens.push({ kind: 'number', value: source.slice(start, index), position: start });
+      const mantissa = source.slice(start, index);
+      // 识别科学计数法（如 `2e-6`、`2.023e6`、`1.25e+19`），避免把 `e-6` 误拆成 `e - 6` 或 `e_6`。
+      const expMatch = /^[eE]([+-]?\d+)(?![A-Za-z])/.exec(source.slice(index));
+      if (expMatch) {
+        const expText = expMatch[1]!.replace(/^\+/, '');
+        index += expMatch[0].length;
+        tokens.push({ kind: 'number', value: mantissa, position: start });
+        tokens.push({ kind: 'op', value: '*', position: start });
+        tokens.push({ kind: 'number', value: '10', position: start });
+        tokens.push({ kind: 'op', value: '^', position: start });
+        if (expText.startsWith('-')) {
+          tokens.push({ kind: 'delimiter', value: '{', position: start });
+          tokens.push({ kind: 'op', value: '-', position: start });
+          tokens.push({ kind: 'number', value: expText.slice(1), position: start });
+          tokens.push({ kind: 'delimiter', value: '}', position: start });
+        } else {
+          tokens.push({ kind: 'number', value: expText, position: start });
+        }
+        continue;
+      }
+      tokens.push({ kind: 'number', value: mantissa, position: start });
+      continue;
+    }
+    if (GREEK_SYMBOLS[char] !== undefined) {
+      const start = index;
+      index += 1;
+      let digits = '';
+      while (isDigit(source[index])) {
+        digits += source[index]!;
+        index += 1;
+      }
+      tokens.push({ kind: 'identifier', value: digits ? `${char}${digits}` : char, position: start });
+      continue;
+    }
+    if (char === '°') {
+      tokens.push({ kind: 'op', value: '^', position: index });
+      tokens.push({ kind: 'identifier', value: 'circ', position: index });
+      index += 1;
       continue;
     }
     if (isLetter(char)) {
@@ -350,7 +400,8 @@ function other(tex: string): Expression {
 }
 
 function product(left: Expression, right: Expression): Expression {
-  const separator = right.number ? '\\cdot ' : '';
+  // 科学计数法或带幂底数（如 `2×10^8`）右边以数字开头，必须保留 `\cdot` 避免粘连成 `210^8`。
+  const separator = right.number || /^[0-9]/.test(right.tex) ? '\\cdot ' : '';
   return other(`${left.tex}${separator}${right.tex}`);
 }
 
@@ -590,6 +641,12 @@ class Parser {
 
   private parseIdentifier(token: Token): Expression {
     const name = token.value === 'Abs' ? 'abs' : token.value;
+    if (name === 'circ') return other('\\circ');
+    const greekLead = name.slice(0, 1);
+    if (GREEK_SYMBOLS[greekLead] !== undefined && /^[0-9]*$/.test(name.slice(1))) {
+      const digits = name.slice(1);
+      return other(digits === '' ? GREEK_SYMBOLS[greekLead]! : `${GREEK_SYMBOLS[greekLead]}_{${digits}}`);
+    }
     if (/^[A-Za-z][0-9]*$/.test(name)) {
       const letter = name.slice(0, 1);
       const digits = name.slice(1);
@@ -654,7 +711,20 @@ function segmentPlainText(text: string): ProblemTextPart[] {
     let end = index;
     while (end < text.length && isMathChar(text[end]!)) end += 1;
     const run = text.slice(index, end);
-    const { lead, core, trail } = trimEdge(run);
+    const { lead, core: rawCore, trail: rawTrail } = trimEdge(run);
+    let core = rawCore;
+    let trail = rawTrail;
+    const parenUnit = PAREN_PHYSICS_UNIT.exec(core);
+    if (parenUnit) {
+      core = core.slice(0, parenUnit.index);
+      trail = parenUnit[0] + trail;
+    } else {
+      const unitMatch = TRAILING_PHYSICS_UNIT.exec(core);
+      if (unitMatch && /[0-9°]$/.test(core.slice(0, unitMatch.index))) {
+        core = core.slice(0, unitMatch.index);
+        trail = unitMatch[0] + trail;
+      }
+    }
     textBuffer += lead;
     const latex = core === '' ? null : mathSpanToLatex(core);
     if (latex !== null) {

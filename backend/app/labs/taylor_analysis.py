@@ -9,7 +9,7 @@ def taylor_report(model):
     v=sp.Symbol(str(model.get('variable') or 'x'),real=True)
     original=parse_expression(model['expression'],(str(v),),preserve_structure=True)
     expression=sp.simplify(original)
-    point=parse_expression(str(model.get('taylor_point',0)))
+    point=sp.Rational(str(parse_expression(str(model.get('taylor_point',0)))))
     order=int(model.get('order',3))
     base=dict(expression=expression,variable=v,point=point,order=order)
     try:

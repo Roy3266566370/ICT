@@ -87,6 +87,22 @@ def _seq(raw: str) -> list[int]:
     return [int(v) for v in re.findall(token, stripped)]
 
 
+def _item_seq(raw: str) -> list[Any]:
+    """元素级序列：兼容数字与字母/标识符（408 真题常用 a,b,c,… 作栈元素）。"""
+    stripped = raw.strip().strip("[]（）(){} ")
+    items: list[Any] = []
+    for part in re.split(r"[,，、;；\s]+", stripped):
+        if not part:
+            continue
+        if re.fullmatch(r"-?\d+", part):
+            items.append(int(part))
+        elif re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part):
+            items.append(part)
+        else:
+            return []
+    return items
+
+
 def _fmt(items: list[Any]) -> str:
     return ", ".join(str(item) for item in items) if items else "空"
 
@@ -773,19 +789,33 @@ def build_stack_ops(text: str, source: Mapping[str, Any], overrides: Mapping[str
     push_match = re.search(r"(?:入栈|进栈|压栈)序列(?:为|是|[:：])?\s*([\[（(]?\s*-?\d+(?:\s*[,，、]\s*-?\d+)+\s*[\]）)]?)", text)
     pop_match = re.search(r"出栈序列(?:为|是|[:：])?\s*([\[（(]?\s*-?\d+(?:\s*[,，、]\s*-?\d+)+\s*[\]）)]?)", text)
     if not push_match and not pop_match:
-        ops = _parse_io_ops(text, "入栈|压栈", "出栈|弹栈")
-        if not ops:
-            return None
-        push_seq, pop_seq, mode = [], [], "ops"
+        # 408 经典表述："元素 a,b,… 依次进入栈S；…出队的顺序是 x,y,…"
+        # （出栈经队列中转，出队序即出栈序）；元素可为字母或数字。
+        item = r"(?:[A-Za-z_][A-Za-z0-9_]*|-?\d+)"
+        seq_tail = rf"({item}(?:\s*[,，、;；]\s*{item})+)"
+        push_items = re.search(seq_tail + r"\s*依次进", text)
+        pop_items = (re.search(r"出队(?:的)?顺序(?:是|为|[:：])?\s*" + seq_tail, text)
+                     or re.search(r"出栈(?:的)?顺序(?:是|为|[:：])?\s*" + seq_tail, text))
+        if push_items and pop_items:
+            push_seq, pop_seq, mode = _item_seq(push_items.group(1)), _item_seq(pop_items.group(1)), "check"
+            if not push_seq or not pop_seq:
+                return None
+            ops = []
+        else:
+            ops = _parse_io_ops(text, "入栈|压栈", "出栈|弹栈")
+            if not ops:
+                return None
+            push_seq, pop_seq, mode = [], [], "ops"
     else:
         if not push_match or not pop_match:
             raise ValueError("请同时给出入栈序列与出栈序列（例如：入栈序列为 1,2,3，出栈序列为 3,2,1）")
         push_seq, pop_seq, mode = _seq(push_match.group(1)), _seq(pop_match.group(1)), "check"
         if not push_seq or not pop_seq:
             raise ValueError("入栈/出栈序列解析失败，请检查数字写法")
+    goal = "capacity" if re.search(r"容量至少|至少.{0,6}容量|最小.{0,4}容量|栈深|最大深度|栈.{0,8}容量", text) else "order"
     model = {"engine": "ds_stack_v1", "subject": "algorithm", "ds_kind": "stack_ops",
              "mode": mode, "push_seq": push_seq, "pop_seq": pop_seq, "ops": ops,
-             "defaults": {}, "params": [], "teaching": False}
+             "goal": goal, "defaults": {}, "params": [], "teaching": False}
     conditions = [
         _condition("push_seq", "入栈序列", _fmt(push_seq) if push_seq else "见操作序列", source=source, editable=False),
         _condition("pop_seq", "出栈序列", _fmt(pop_seq) if pop_seq else "见操作序列", source=source, editable=False),
@@ -813,10 +843,12 @@ def eval_stack_ops(model: Mapping[str, Any]) -> dict[str, Any]:
         record("初始化", f"入栈序列 {_fmt(pushed)}，目标出栈序列 {_fmt(expected)}。", 1)
         legal = True
         pi = 0
+        max_depth = 0
         for want in expected:
             while pi < len(pushed) and (not stack or stack[-1] != want):
                 stack.append(pushed[pi])
-                record(f"入栈 {pushed[pi]}", f"栈顶不是 {want}，继续入栈 {pushed[pi]}。", 2, {"待出栈": str(want)})
+                max_depth = max(max_depth, len(stack))
+                record(f"入栈 {pushed[pi]}", f"栈顶不是 {want}，继续入栈 {pushed[pi]}（栈深 {len(stack)}）。", 2, {"待出栈": str(want), "栈深": str(len(stack))})
                 pi += 1
             if not stack or stack[-1] != want:
                 legal = False
@@ -827,13 +859,23 @@ def eval_stack_ops(model: Mapping[str, Any]) -> dict[str, Any]:
             record(f"出栈 {want}", f"栈顶恰为 {want}，弹出。", 3, {"待出栈": "—"})
         if legal:
             record("完成", "全部出栈成功。", 5)
-        headline = (f"出栈序列 {' → '.join(str(v) for v in outputs)} 合法" if legal
-                    else "该出栈序列不合法（中途无法取出所需元素）")
-        answer = headline if legal else headline + f"；已得到 {' → '.join(str(v) for v in outputs) or '无'}"
+        if model.get("goal") == "capacity" and legal:
+            headline = f"出栈过程可达；栈内最多同时 {max_depth} 个元素，栈的容量至少为 {max_depth}"
+            answer = headline
+        else:
+            headline = (f"出栈序列 {' → '.join(str(v) for v in outputs)} 合法" if legal
+                        else "该出栈序列不合法（中途无法取出所需元素）")
+            answer = headline if legal else headline + f"；已得到 {' → '.join(str(v) for v in outputs) or '无'}"
         checks = [
             _check("stack_rule", "栈规则", True, "只能操作栈顶；出栈时栈空即非法。"),
             _check("sequence", "出栈记录", legal is True, f"已按序得到 {len(outputs)} 个元素。"),
         ]
+        if model.get("goal") == "capacity" and legal:
+            checks.append(_check("capacity", "最小容量", True,
+                                 f"模拟过程中的最大栈深为 {max_depth}，即所需栈容量。"))
+            return _ok_result("stack_ops", headline, answer, _truncate(frames, notes),
+                              PSEUDOCODES["stack_ops"], checks, notes,
+                              answer_order=[str(v) for v in outputs], answer_value=float(max_depth))
     else:
         record("初始化", "空栈。", 1)
         for op in model.get("ops") or []:
@@ -861,7 +903,7 @@ def eval_stack_ops(model: Mapping[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def build_brackets(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any] | None:
-    if not re.search(r"括号.{0,6}(?:匹配|配对)|匹配.{0,6}括号", text):
+    if not re.search(r"括号[^\n。；]{0,40}(?:匹配|配对)|匹配[^\n。；]{0,40}括号", text):
         return None
     cv = overrides.get("condition_values") or {}
     candidate = _clause_values(cv, "expr", None)
@@ -1040,7 +1082,8 @@ def build_expression(text: str, source: Mapping[str, Any], overrides: Mapping[st
     if not expr:
         raise ValueError("未识别到表达式，请用“表达式为 …”的写法给出")
     expr = " ".join(str(expr).split())
-    mode = "postfix_eval" if (re.search(r"后缀", text) and re.search(r"求值|的值|结果", text)) else "convert"
+    is_infix_convert = bool(re.search(r"中缀|前缀|转换|转成|转为", text))
+    mode = "postfix_eval" if (not is_infix_convert and re.search(r"后缀", text) and re.search(r"求值|的值|结果", text)) else "convert"
     model = {"engine": "ds_expression_v1", "subject": "algorithm", "ds_kind": "expression",
              "expr": expr, "mode": mode, "defaults": {}, "params": [], "teaching": False}
     conditions = [_condition("expr", "表达式", expr, source=source, note="支持数字、字母、+ - * / ^ 与括号。")]
@@ -1198,6 +1241,9 @@ def eval_recursion(model: Mapping[str, Any]) -> dict[str, Any]:
 
 def build_queue_ops(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any] | None:
     if "双端队列" in text:
+        return None
+    # 队列仅作栈输出的中转（"出栈后立即进入队列"）：这是栈容量/出栈序列题，归 stack_ops。
+    if re.search(r"(?:出栈|弹栈)[^。；]{0,15}(?:进入|入)\s*队列", text):
         return None
     ops = _parse_io_ops(text, "入队", "出队")
     capacity = None
@@ -1778,7 +1824,7 @@ def build_sparse(text: str, source: Mapping[str, Any], overrides: Mapping[str, A
     if not re.search(r"三元组|稀疏矩阵", text):
         return None
     rows: list[list[int]] = []
-    for group in re.findall(r"[（(]([0-9\s,，、\-]+)[)）]", text):
+    for group in re.findall(r"[（(\[]([0-9\s,，、\-]+)[)）\]]", text):
         values = [int(v) for v in re.findall(r"-?\d+", group)]
         if values:
             rows.append(values)
@@ -1909,28 +1955,51 @@ def _kmp_match(s: str, t: str, nxt: list[int]) -> tuple[int, int, list[dict[str,
 
 
 def build_string_match(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any] | None:
-    if not re.search(r"KMP|next数组|nextval|模式匹配|朴素匹配|主串|模式串", text, re.I):
+    if not re.search(r"KMP|next数组|next\s*数组|nextval|模式匹配|朴素匹配|主串|模式串", text, re.I):
         return None
     cv = overrides.get("condition_values") or {}
     s = _clause_values(cv, "s", None)
     t = _clause_values(cv, "t", None)
-    if not s or not t:
-        s_match = re.search(r"主串\s*S\s*[=是为:：]\s*[\"'“”]?([A-Za-z0-9]{2,60})[\"'“”]?", text, re.I)
-        t_match = re.search(r"模式串\s*T\s*[=是为:：]\s*[\"'“”]?([A-Za-z0-9]{1,30})[\"'“”]?", text, re.I)
-        s = s or (s_match.group(1) if s_match else None)
-        t = t or (t_match.group(1) if t_match else None)
-    if not s or not t:
+    if not s:
+        for pattern in (
+            r"(?:主串\s*)?S\s*(?:为|是|=|:|：)\s*[\"'“”‘’]?([A-Za-z0-9]{2,60})[\"'“”‘’]?",
+            r"主串\s*(?:为|是|:|：)?\s*[\"'“”‘’]([A-Za-z0-9]{2,60})[\"'“”‘’]",
+            r"主串\s*(?:为|是|:|：)?\s*([A-Za-z0-9]{2,60})(?=[\s，。,；;的]|$)",
+        ):
+            s_match = re.search(pattern, text, re.I)
+            if s_match:
+                s = s_match.group(1)
+                break
+    if not t:
+        for pattern in (
+            r"(?:模式串\s*)?T\s*(?:为|是|=|:|：)\s*[\"'“”‘’]?([A-Za-z0-9]{1,30})[\"'“”‘’]?",
+            r"模式串\s*(?:为|是|:|：)?\s*[\"'“”‘’]([A-Za-z0-9]{1,30})[\"'“”‘’]",
+            r"模式串\s*(?:为|是|:|：)?\s*([A-Za-z0-9]{1,30})(?=[\s，。,；;的]|$)",
+        ):
+            t_match = re.search(pattern, text, re.I)
+            if t_match:
+                t = t_match.group(1)
+                break
+    pattern_only = bool(
+        t and not s
+        and re.search(r"nextval|next\s*(?:数组|值|函数)?", text, re.I)
+        and not re.search(r"主串|朴素|比较次数|匹配位置|定位", text)
+    )
+    if pattern_only:
+        s = ""
+    elif not s or not t:
         raise ValueError("未识别到主串 S 与模式串 T，请用“主串S=…，模式串T=…”的写法")
-    s, t = str(s), str(t)
+    s, t = str(s or ""), str(t)
     if len(s) > 60 or len(t) > 30:
         raise ValueError("串长过长：主串 ≤ 60、模式串 ≤ 30")
     model = {"engine": "ds_string_v1", "subject": "algorithm", "ds_kind": "string_match",
              "s": s, "t": t, "use_kmp": bool(re.search(r"KMP|next|模式匹配", text, re.I)),
              "defaults": {}, "params": [], "teaching": False}
-    conditions = [
-        _condition("s", "主串 S", s, source=source),
-        _condition("t", "模式串 T", t, source=source),
-    ]
+    conditions = (
+        [_condition("t", "模式串 T", t, source=source)]
+        if not s else
+        [_condition("s", "主串 S", s, source=source), _condition("t", "模式串 T", t, source=source)]
+    )
     formulas = [{"id": "next_def", "tex": r"next[j]=\text{max}\{k\}+1,\ \text{T[1..k-1]=T[j-k+1..j-1]},\ next[1]=0",
                  "plain": "next[j] = T[1..j-1] 最长相等前后缀长度 + 1，next[1]=0；nextval 消除等同失配。", "role": "KMP 口径（1 起）"}]
     return _built("string_match", model, conditions, formulas)
@@ -1941,19 +2010,28 @@ def eval_string_match(model: Mapping[str, Any]) -> dict[str, Any]:
     t = str(model.get("t") or "")
     notes = ["next 数组采用教材 1 起口径：next[1]=0，next[j] 为最长相等前后缀长度 + 1。"]
     frames: list[dict[str, Any]] = []
-    naive_total, naive_pos, naive_frames = _naive_match(s, t)
-    frames.extend(naive_frames)
     nxt, nxtval = _kmp_tables(t)
     table = {"j": " ".join(str(k) for k in range(1, len(t) + 1)),
              "T[j]": " ".join(t),
              "next": " ".join(str(nxt[k]) for k in range(1, len(t) + 1)),
              "nextval": " ".join(str(nxtval[k]) for k in range(1, len(t) + 1))}
+    if not s:
+        frames.append(_frame(1, "next / nextval 数组", "按 1 起教材口径计算得到：" +
+                             f"next = {table['next']}；nextval = {table['nextval']}。", table, 3))
+        headline = f"模式串 {t}（1 起口径）：next = {table['next']}；nextval = {table['nextval']}"
+        checks = [_check("kmp_table", "next / nextval 计算", True,
+                         f"next[1..{len(t)}] = {table['next']}；nextval = {table['nextval']}。")]
+        return _ok_result("string_match", headline, headline, _truncate(frames, notes), PSEUDOCODES["string_match"],
+                          checks, notes, answer_order=[str(nxt[k]) for k in range(1, len(t) + 1)])
+    naive_total, naive_pos, naive_frames = _naive_match(s, t)
+    frames.extend(naive_frames)
     frames.append(_frame(len(frames) + 1, "next / nextval 数组", "按 1 起教材口径计算得到：" +
                          f"next = {table['next']}；nextval = {table['nextval']}。", table, 3))
     kmp_total, kmp_pos, kmp_frames = _kmp_match(s, t, nxt)
     frames.extend(kmp_frames)
     headline = (f"朴素匹配：比较 {naive_total} 次，匹配位置 {naive_pos or '无'}；"
-                f"KMP：比较 {kmp_total} 次，匹配位置 {kmp_pos or '无'}")
+                f"KMP：比较 {kmp_total} 次，匹配位置 {kmp_pos or '无'}"
+                f"；next = {table['next']}；nextval = {table['nextval']}")
     checks = [
         _check("naive", "朴素匹配", True, f"主串指针回溯逐起点比较，共 {naive_total} 次。"),
         _check("kmp", "KMP 匹配", True, f"主串指针不回溯，共 {kmp_total} 次比较" +
@@ -1970,8 +2048,8 @@ def eval_string_match(model: Mapping[str, Any]) -> dict[str, Any]:
 _DETECT: dict[str, str] = {
     "stack_queue_sim": r"两个栈|两个队列",
     "deque": r"双端队列",
-    "brackets": r"括号.{0,6}(?:匹配|配对)|匹配.{0,6}括号",
-    "string_match": r"KMP|next数组|nextval|模式匹配|朴素匹配|主串|模式串",
+    "brackets": r"括号[^\n。；]{0,40}(?:匹配|配对)|匹配[^\n。；]{0,40}括号",
+    "string_match": r"KMP|next数组|next\s*数组|nextval|模式匹配|朴素匹配|主串|模式串",
     "analysis": r"时间复杂度|空间复杂度|执行次数|执行频度|语句频度|执行\s*(?:多少|几)\s*次",
     "expression": r"(?:中缀|后缀|前缀)表达式|表达式.{0,8}(?:转换|求值|计算)|求.{0,4}表达式的值",
     "recursion": r"递归调用|调用栈|递归计算|递归过程|递归算法",
@@ -1987,7 +2065,7 @@ _STRONG: dict[str, str] = {
     "analysis": r"时间复杂度|空间复杂度|执行次数|语句频度|执行\s*(?:多少|几)\s*次",
     "list_ops": r"逆置|去重|有序表.{0,4}合并|顺序表|单链表",
     "stack_ops": r"合法出栈|入栈序列|出栈序列",
-    "brackets": r"括号.{0,6}(?:匹配|配对)",
+    "brackets": r"括号[^\n。；]{0,40}(?:匹配|配对)|匹配[^\n。；]{0,40}括号",
     "expression": r"(?:中缀|后缀)表达式",
     "recursion": r"递归调用|调用栈",
     "queue_ops": r"循环队列|顺序队列",

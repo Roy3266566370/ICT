@@ -248,7 +248,7 @@ def test_two_stage_transport(monkeypatch):
     assert result['computation'] is not None
     assert 'kernel_tasks' not in calls[0][-1]['content']
     assert not result['checkable']  # source-to-model semantics still need review
-    from app.labs.local_agent import finish_understanding
+    from app.labs.ai_contract import finish_understanding
     confirmed = finish_understanding(result['agent_understanding'], {'text':reading['question']})
     assert not confirmed['checkable']
 

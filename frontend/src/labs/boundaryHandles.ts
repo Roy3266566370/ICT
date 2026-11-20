@@ -1,6 +1,6 @@
 import { compileExpression } from './expr.ts';
 
-export type BoundaryKind = 'affine' | 'quadratic' | 'sqrt';
+export type BoundaryKind = 'affine' | 'quadratic' | 'sqrt' | 'sinusoid';
 
 export interface BoundaryCurve {
   kind: BoundaryKind;
@@ -49,12 +49,12 @@ function formatPolynomial(variable: string, quadratic: number, linear: number, c
 }
 
 /**
- * 只接受线性和二次边界：任意像素曲线反推初等函数是病态问题，
- * 因此对三次及以上或无法用二次曲线解释的边界明确返回 null。
+ * 只接受可判定族的边界：线性/二次/根式/正弦族（A·cos+B·sin+C，覆盖 r=a·cosθ 圆）。
+ * 任意像素曲线反推初等函数是病态问题，对无法解释的边界明确返回 null。
  */
 export function analyzeBoundary(
   source: string,
-  variable: 'x' | 'y',
+  variable: string,
   a: number,
   b: number,
 ): BoundaryCurve | null {
@@ -105,6 +105,21 @@ export function analyzeBoundary(
     };
   }
 
+  // 正弦族 r = A·cos + B·sin + C：极坐标圆的 r=a·cosθ、心形线族都可由它解释。
+  const sinusoid = solveSinusoid(a, (a + b) / 2, b, v0, vm, v4);
+  if (sinusoid) {
+    const [A, B, C] = sinusoid;
+    const wave = (point: number): number => A * Math.cos(point) + B * Math.sin(point) + C;
+    if ([v1, v3].every((value, index) => Math.abs(value - wave(points[index === 0 ? 1 : 3]!)) <= tolerance)) {
+      return {
+        kind: 'sinusoid',
+        source,
+        samples: [v0, vm, v4],
+        handles: [0, 1, 2],
+      };
+    }
+  }
+
   // 根式边界 y = c·sqrt(x-a₀)+d：招牌题 D={y²≤x, x²≤y} 的上边界就是 sqrt(x)。
   const baseMatch = new RegExp(`sqrt\\s*\\(\\s*${variable}\\s*(?:-\\s*([+-]?\\d+(?:\\.\\d+)?))?\\s*\\)`).exec(source);
   const base = baseMatch?.[1] !== undefined ? Number(baseMatch[1]) : 0;
@@ -128,10 +143,31 @@ export function analyzeBoundary(
   return null;
 }
 
+/** 解 r = A·cos t + B·sin t + C 过三点的 3×3 系统；奇异时返回 null。 */
+function solveSinusoid(t0: number, t1: number, t2: number, v0: number, v1: number, v2: number): [number, number, number] | null {
+  const rows = [t0, t1, t2].map((t) => [Math.cos(t), Math.sin(t), 1]);
+  const rhs = [v0, v1, v2];
+  const det =
+    rows[0]![0]! * (rows[1]![1]! * rows[2]![2]! - rows[1]![2]! * rows[2]![1]!) -
+    rows[0]![1]! * (rows[1]![0]! * rows[2]![2]! - rows[1]![2]! * rows[2]![0]!) +
+    rows[0]![2]! * (rows[1]![0]! * rows[2]![1]! - rows[1]![1]! * rows[2]![0]!);
+  if (Math.abs(det) < 1e-12) return null;
+  // Cramer 法则：替换第 col 列为 rhs 后的行列式 / det。
+  const replaceDet = (col: number): number => {
+    const m = rows.map((row, ri) => row.map((value, ci) => (ci === col ? rhs[ri]! : value)));
+    return (
+      m[0]![0]! * (m[1]![1]! * m[2]![2]! - m[1]![2]! * m[2]![1]!) -
+      m[0]![1]! * (m[1]![0]! * m[2]![2]! - m[1]![2]! * m[2]![0]!) +
+      m[0]![2]! * (m[1]![0]! * m[2]![1]! - m[1]![1]! * m[2]![0]!)
+    );
+  };
+  return [replaceDet(0) / det, replaceDet(1) / det, replaceDet(2) / det];
+}
+
 /** 用三个采样值重建边界表达式；调用方保证采样下标顺序为 a、中点、b。 */
 export function buildBoundarySource(
   kind: BoundaryKind,
-  variable: 'x' | 'y',
+  variable: string,
   a: number,
   b: number,
   values: [number, number, number],
@@ -139,6 +175,22 @@ export function buildBoundarySource(
 ): string {
   const span = b - a;
   const [v0, vm, v4] = values;
+  if (kind === 'sinusoid') {
+    const solved = solveSinusoid(a, (a + b) / 2, b, v0, vm, v4);
+    if (!solved) return rational(v0);
+    const [A, B, C] = solved;
+    let source = '';
+    const push = (coefficient: number, symbol: string): void => {
+      if (Math.abs(coefficient) < 1e-10) return;
+      const absolute = Math.abs(coefficient);
+      const body = symbol ? (absolute === 1 ? symbol : `${rational(absolute)}*${symbol}`) : rational(absolute);
+      source += source ? (coefficient < 0 ? ' - ' : ' + ') + body : (coefficient < 0 ? '-' : '') + body;
+    };
+    push(A, `cos(${variable})`);
+    push(B, `sin(${variable})`);
+    push(C, '');
+    return source || '0';
+  }
   if (kind === 'sqrt') {
     if (!Number.isFinite(base) || a < base - 1e-12) return '0';
     const denominator = Math.sqrt(b - base) - Math.sqrt(a - base);

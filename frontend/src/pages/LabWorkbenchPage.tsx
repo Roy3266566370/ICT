@@ -27,7 +27,7 @@ import { LabCanvas, type LabSelection } from '@/components/labs/LabCanvas';
 import { LabControls } from '@/components/labs/LabControls';
 import { LabTimeline } from '@/components/labs/LabTimeline';
 import { LabSourcePanel, type SourceTab } from '@/components/labs/LabSourcePanel';
-import { MathText, ProblemTitle } from '@/components/labs/ProblemText';
+import { MathText } from '@/components/labs/ProblemText';
 import { AssistantPanel } from '@/components/labs/AssistantPanel';
 import { ReviewDialog, type ReviewPayload } from '@/components/labs/ReviewDialog';
 import { OriginalCompare } from '@/components/labs/OriginalCompare';
@@ -69,29 +69,6 @@ import {
   type CalculusResult,
 } from '@/labs/types';
 import styles from './LabWorkbenchPage.module.css';
-
-const ENGINE_LABELS: Record<string, string> = {
-  antiderivative_v1: '不定积分 · 原函数族',
-  riemann_v1: '定积分 · 黎曼和',
-  tangent_v1: '导数 · 切线',
-  physics_v1: '大学物理 · 交互实验',
-  series_v1: '数项级数 · 部分和',
-  power_series_v1: '幂级数 · 收敛域',
-  fourier_v1: '傅里叶级数 · 系数',
-  gradient_descent_v1: '梯度下降',
-  bfs_v1: '广度优先搜索',
-  dfs_v1: '深度优先搜索',
-  mlp_v1: '小型全连接网络',
-  heap_v1: '堆顶删除 · 向下筛选',
-  gauss_v1: '高斯消元 · 线性代数',
-  matmul_v1: '矩阵运算',
-  space_v1: '空间对象 · 曲线、曲面与几何',
-  proof_v1: '证明与存在性 · 证书核对',
-  unsupported_v1: '待核对的题目',
-  generic_v1: '通用符号实验',
-  reference_v1: '参考解答',
-  sympy: '数学模型',
-};
 
 interface Draft {
   revision: number;
@@ -177,6 +154,7 @@ function stateFromProblem(problem: LabProblem): LabState {
     active_scenario_id: raw.active_scenario_id ?? 'baseline',
     attempts: raw.attempts ?? [],
     evaluated: raw.evaluated ?? null,
+    manual: raw.manual && typeof raw.manual === 'object' ? raw.manual : {},
   };
 }
 
@@ -201,6 +179,7 @@ function scenarioName(problem: LabProblem, params: Record<string, unknown>): str
       ? `删除 ${String(params.deletion_count ?? '')} 次` : `起点 ${String(params.start ?? problem.model.start ?? '')}`;
   }
   if (subject === 'linear_algebra') {
+    if (problem.model.la_kind === 'eigen') return '精确特征值与特征空间';
     if (problem.model.la_kind === 'matmul') {
       const op = problem.model.op;
       if (op === 'scalar') return `数乘 k=${formatNumber(Number(params.scalar ?? problem.model.defaults.scalar ?? 2), 2)}`;
@@ -368,6 +347,7 @@ export function LabWorkbenchPage(): JSX.Element {
   const [attempts, setAttempts] = useState<LabState['attempts']>([]);
   const [observations, setObservations] = useState<LabState['observations']>([]);
   const [events, setEvents] = useState<LabState['events']>([]);
+  const [manual, setManual] = useState<NonNullable<LabState['manual']>>({});
   const [evaluated, setEvaluated] = useState<LabEvaluated | null>(null);
   const [, setRevision] = useState(1);
   const [saveStatus, setSaveStatus] = useState('saved');
@@ -396,8 +376,11 @@ export function LabWorkbenchPage(): JSX.Element {
   const [commandMessage, setCommandMessage] = useState<string | null>(null);
   const [compareEnabled, setCompareEnabled] = useState(true);
   const [compareScenarioId, setCompareScenarioId] = useState('baseline');
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
 
   const dirtyRef = useRef(false);
+  const pendingTitleRef = useRef<string | undefined>(undefined);
   const savingRef = useRef(false);
   const queuedRef = useRef(false);
   const revisionRef = useRef(1);
@@ -439,6 +422,7 @@ export function LabWorkbenchPage(): JSX.Element {
     setObservations(state.observations);
     setEvents(state.events);
     setEvaluated(state.evaluated);
+    setManual(state.manual ?? {});
     setProblemId(nextProblem.problem_id);
     problemIdRef.current = nextProblem.problem_id;
     const nextHistory = createHistory(state.params);
@@ -495,6 +479,7 @@ export function LabWorkbenchPage(): JSX.Element {
           setObservations(draft.state.observations ?? serverState.observations);
           setEvents(draft.state.events ?? serverState.events);
           setEvaluated(serverState.evaluated);
+          setManual(draft.state.manual ?? serverState.manual ?? {});
           setProblemId(selectedProblem.problem_id);
           problemIdRef.current = selectedProblem.problem_id;
           const nextHistory = createHistory({ ...serverState.params, ...draft.state.params });
@@ -531,8 +516,9 @@ export function LabWorkbenchPage(): JSX.Element {
       active_scenario_id: compareScenarioId,
       attempts,
       evaluated,
+      manual,
     };
-  }, [attempts, compareScenarioId, evaluated, events, mode, notes, observations, params, problem, scenarios, step]);
+  }, [attempts, compareScenarioId, evaluated, events, manual, mode, notes, observations, params, problem, scenarios, step]);
 
   useEffect(() => {
     stateRef.current = stateSnapshot;
@@ -575,14 +561,17 @@ export function LabWorkbenchPage(): JSX.Element {
     }
     savingRef.current = true;
     setSaveStatus('saving');
+    const titleToSave = pendingTitleRef.current;
     try {
       const response = await saveLabState({
         labId,
         revision: revisionRef.current,
         selectedProblemId: problemIdRef.current,
+        title: titleToSave,
         state: stateRef.current as unknown as Record<string, unknown>,
       });
       if (activeLabIdRef.current !== labId) return false;
+      if (pendingTitleRef.current === titleToSave) pendingTitleRef.current = undefined;
       revisionRef.current = response.revision;
       setRevision(response.revision);
       dirtyRef.current = false;
@@ -727,6 +716,16 @@ export function LabWorkbenchPage(): JSX.Element {
     [problem, touch],
   );
 
+  // 「我来 ✋」手动接管轨迹：不进入参数撤销历史，但随 stateSnapshot 落库与分享。
+  const onManualChange = useCallback(
+    (key: string, value: unknown) => {
+      if (aiBusyRef.current || !problem) return;
+      setManual((current) => ({ ...current, [key]: value }));
+      touch();
+    },
+    [problem, touch],
+  );
+
   const compileIntoCanvas = useCallback(async () => {
     if (!canvasCompiled || canvasBusy) return;
     setCanvasBusy(true);
@@ -811,6 +810,22 @@ export function LabWorkbenchPage(): JSX.Element {
     }
     return saved;
   };
+
+  const commitTitleEdit = useCallback(() => {
+    setEditingTitle(false);
+    if (!lab) return;
+    const currentTitle = (lab.title || '').trim() || 'question_1';
+    const nextTitle = titleDraft.trim();
+    if (!nextTitle || nextTitle === currentTitle) {
+      setTitleDraft(currentTitle);
+      return;
+    }
+    setLab((current) => (current ? { ...current, title: nextTitle } : current));
+    pendingTitleRef.current = nextTitle;
+    dirtyRef.current = true;
+    setSaveStatus('dirty');
+    void persistRef.current?.();
+  }, [lab, titleDraft]);
 
   const saveScenario = useCallback(() => {
     if (!problem || !result) return;
@@ -1171,9 +1186,63 @@ export function LabWorkbenchPage(): JSX.Element {
               <span>{lab.source.citation}</span>
             </div>
             <div className={styles.titleRow}>
-              <h1>
-                <ProblemTitle problem={problem} />
-              </h1>
+              {editingTitle ? (
+                <div className={styles.titleEditBox}>
+                  <input
+                    className={styles.titleInput}
+                    aria-label="题目名称"
+                    value={titleDraft}
+                    autoFocus
+                    maxLength={120}
+                    placeholder="例如：作业1"
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                        event.preventDefault();
+                        commitTitleEdit();
+                      } else if (event.key === 'Escape') {
+                        event.preventDefault();
+                        setEditingTitle(false);
+                        setTitleDraft((lab.title || '').trim() || 'question_1');
+                      }
+                    }}
+                    onBlur={commitTitleEdit}
+                  />
+                  <button
+                    type="button"
+                    className={styles.titleEditButton}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      commitTitleEdit();
+                    }}
+                  >
+                    确认
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <h1
+                    className={styles.editableTitle}
+                    title="点击可修改题目名称"
+                    onClick={() => {
+                      setTitleDraft((lab.title || '').trim() || 'question_1');
+                      setEditingTitle(true);
+                    }}
+                  >
+                    {(lab.title || '').trim() || 'question_1'}
+                  </h1>
+                  <button
+                    type="button"
+                    className={styles.titleEditButton}
+                    onClick={() => {
+                      setTitleDraft((lab.title || '').trim() || 'question_1');
+                      setEditingTitle(true);
+                    }}
+                  >
+                    改名
+                  </button>
+                </>
+              )}
               <span className={styles.subjectPill}>{subjectLabel}</span>
               <span className={styles.statusPill} data-status={problem.status}>
                 {aiBusy ? '正在准备实验' : problem.status === 'reference' ? '参考解答 · 不自动判分'
@@ -1257,55 +1326,6 @@ export function LabWorkbenchPage(): JSX.Element {
 
           <section className={styles.mainColumn} aria-label="可操作模型">
             <div className={styles.modelCard}>
-              <div className={styles.modelHead}>
-                <div>
-                  <h2>{problem.model.engine === 'generic_v1' ? '通用符号实验 · 步骤与曲线'
-                    : problem.model.modeling_task === 'parameter_limit' ? '已知极限求参数 · 代回与逼近'
-                    : problem.model.task === 'triple_integral' ? '三重积分 · 区域与坐标变换'
-                    : problem.model.task === 'double_integral' ? '二重积分 · 区域与切片'
-                    : problem.model.task === 'series_convergence' ? '数项级数 · 部分和观察'
-                    : problem.model.task === 'power_series' ? '幂级数 · 收敛域与和函数'
-                    : problem.model.task === 'fourier_series' ? '傅里叶级数 · 系数与部分和'
-                    : problem.model.task === 'taylor' ? '泰勒展开 · 系数与余项'
-                    : problem.model.task === 'area_volume' ? '区域面积与旋转体积'
-                    : problem.model.task === 'geometric_area' ? '几何面积 · 分段积分'
-                    : problem.model.task === 'implicit_normal' ? '隐函数 · 法线'
-                    : problem.model.kind === 'inverse_derivative' ? '反函数导数 · 切线'
-                    : problem.subject === 'operating_system'
-                      ? `${OS_KIND_LABELS[String(problem.model.os_kind)] ?? '操作系统'} · 实验`
-                    : problem.subject === 'computer_network'
-                      ? `${NET_KIND_LABELS[String(problem.model.net_kind)] ?? '计算机网络'} · 实验`
-                    : problem.subject === 'physics'
-                      ? `${PHYSICS_MODE_LABELS[String(problem.model.physics_mode)] ?? '大学物理'} · 交互实验`
-                    : ENGINE_LABELS[problem.model.engine] ?? problem.model.engine}</h2>
-                  <p>
-                    {problem.model.teaching
-                      ? '教学示例：题目未提供完整可计算数据，图形与结论已明确标注。'
-                      : problem.model.engine === 'generic_v1'
-                        ? 'AI 只声明变量、关系与运算步骤；滑杆变化后由本地符号内核重新执行并核验。'
-                      : problem.model.modeling_task === 'parameter_limit'
-                        ? '内核先算含参极限再解参数方程；图像使用代回参数后的函数，用于核对极限值。'
-                        : problem.model.engine === 'space_v1'
-                        ? '空间对象由符号计算给出；图形为有限范围采样，用于辅助观察。'
-                        : problem.model.engine === 'proof_v1'
-                          ? '证明义务与证书由本地内核核验；图形与抽样仅辅助观察，不替代证明。'
-                          : problem.subject === 'operating_system' || problem.subject === 'computer_network'
-                            ? '由本地内核按题面条件执行；单步观察状态、指标与关键动作。'
-                            : problem.subject === 'physics'
-                              ? '按题面条件建立物理方程；拖动参数观察运动、光强、光路、能级或衰变曲线变化。'
-                              : problem.model.kind === 'inverse_derivative'
-                              ? '输入反函数在该点的取值；内核先求原像 x0，再按 1/f′(x0) 计算。'
-                              : '拖动参数或播放切片，观察区域与积分过程。'}
-                  </p>
-                </div>
-                <div className={styles.modelMeta}>
-                  {problem.model.modeling_task === 'parameter_limit' && problem.solution.answer ? (
-                    <span title="由参数极限内核解出">{problem.solution.answer}</span>
-                  ) : null}
-                  <button type="button" onClick={() => setCompareOpen(true)}>原稿对照</button>
-                </div>
-              </div>
-
               <ManualIntegralResult problem={problem} params={params} />
 
               {noticeTeaching ? (
@@ -1350,7 +1370,14 @@ export function LabWorkbenchPage(): JSX.Element {
                     </div>
                   ) : result ? (
                     <div className={styles.canvasWrap}>
+                      <div className={styles.canvasToolbar}>
+                        {problem.model.modeling_task === 'parameter_limit' && problem.solution.answer ? (
+                          <span title="由参数极限内核解出">{problem.solution.answer}</span>
+                        ) : null}
+                        <button type="button" onClick={() => setCompareOpen(true)}>原稿对照</button>
+                      </div>
                       <LabCanvas
+                        key={problem.problem_id}
                         problem={problem}
                         result={result}
                         step={timelineIndex}
@@ -1361,6 +1388,8 @@ export function LabWorkbenchPage(): JSX.Element {
                         onStepChange={goToStep}
                         labId={labId}
                         onParamDrag={changeParams}
+                        manual={manual}
+                        onManualChange={onManualChange}
                       />
                     </div>
                   ) : null}

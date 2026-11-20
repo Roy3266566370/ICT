@@ -281,3 +281,312 @@ def test_third_batch_attempt_accepts_key_results() -> None:
     double = _problem('双缝干涉实验中，双缝间距 d=0.2 mm，双缝到屏的距离 D=1.0 m，入射光波长 λ=600 nm，求相邻明条纹间距。')
     assert check_attempt(double, {}, answer='0.003')['correct']
     assert not check_attempt(double, {}, answer='123')['correct']
+
+
+def test_physics_review_overrides_recompute_and_flags_hidden() -> None:
+    from app.labs.recognize import rebuild_problem
+    problem = _problem('一物体做匀变速直线运动，初速度 v0=2 m/s，加速度 a=3 m/s^2，经过 t=4 s，求末速度和位移。')
+    rebuilt = rebuild_problem(problem, files=[], condition_values={'phy_a': 5})
+    _attach_solution(rebuilt)
+    assert rebuilt['solution']['answer_value'] == pytest.approx(22.0)
+    assert next(c for c in rebuilt['recognition']['conditions'] if c['id'] == 'phy_a')['provenance'] == 'student_confirmed'
+    cap = _problem('电容 C1=2 μF、C2=3 μF 串联接在 U=12 V 电源上，求等效电容、每个电容器的电荷和电压。')
+    flags = {c['id']: c['editable'] for c in cap['recognition']['conditions']}
+    assert flags['phy_series'] is False and flags['phy_C1'] is True
+
+
+def test_free_fall_colloquial_phrasing_and_velocity_answer() -> None:
+    """真题常用"自由落下"而非"自由下落"；问速度时 answer_value 应取 v 而非 t。"""
+    problem = _problem('一个物体从高度h=10m处自由落下，忽略空气阻力，取g=9.8m/s²，求落地时的速度大小。')
+    assert problem['model']['physics_mode'] == 'free_fall'
+    assert problem['solution']['answer_value'] == pytest.approx(14.0)
+    timed = _problem('一个物体从高度h=10m处自由落下，忽略空气阻力，取g=9.8m/s²，求落地时间。')
+    assert timed['solution']['answer_value'] == pytest.approx(math.sqrt(20 / 9.8))
+
+
+def test_lorentz_scientific_notation_and_reversed_speed_label() -> None:
+    """"1.6×10^-19C"科学计数、"电荷量"标签与"以N的速度"反序写法均可解析。"""
+    problem = _problem(
+        '一电荷量为1.6×10^-19C、质量为9.1×10^-31kg的带电粒子，'
+        '以1.0×10^7m/s的速度垂直射入磁感应强度为1.0×10^-3T的匀强磁场中，求轨道半径。')
+    assert problem['model']['physics_mode'] == 'lorentz'
+    defaults = problem['model']['defaults']
+    assert defaults['m'] == pytest.approx(9.1e-31) and defaults['q'] == pytest.approx(1.6e-19)
+    assert defaults['B'] == pytest.approx(1e-3) and defaults['v'] == pytest.approx(1e7)
+    assert problem['solution']['answer_value'] == pytest.approx(9.1e-31 * 1e7 / (1.6e-19 * 1e-3), rel=1e-6)
+
+
+def test_double_slit_screen_gap_label() -> None:
+    """"缝屏间距"是缝到屏距离的常见表述。"""
+    problem = _problem('在杨氏双缝干涉实验中，入射光波长为500nm，双缝间距为0.2mm，'
+                       '缝屏间距为1.0m，求屏上相邻明条纹的间距。')
+    assert problem['model']['physics_mode'] == 'double_slit'
+    assert problem['model']['defaults']['D'] == pytest.approx(1.0)
+    assert problem['solution']['answer_value'] == pytest.approx(2.5e-3)
+
+
+def test_glued_option_letters_and_ev_unit_not_garbage() -> None:
+    """"1.88eVB."这类黏连选项与 eV 单位不应触发大小写混杂误判。"""
+    from app.labs.source_recovery import assess_text_quality
+    text = ('已知金属铯的逸出功为1.88eV，现用波长为300nm的紫外光照射铯表面。'
+            '求逸出光电子的最大初动能。\nA.1.88eVB.2.26eVC.4.14eVD.0.38eV')
+    quality = assess_text_quality(text, [{'image_key': 'x'}])
+    assert '存在较多无意义的大小写混杂片段' not in quality['issues']
+    assert quality['untrusted'] is False
+
+
+def test_incline_smooth_surface_sets_zero_friction() -> None:
+    """"光滑斜面"应使 mu=0 而不再缺参阻塞。"""
+    problem = _problem('质量为2.0kg的物体沿倾角30°的光滑斜面由静止下滑，取g=9.8m/s²，求加速度。')
+    assert problem['model']['physics_mode'] == 'incline'
+    assert problem['model']['defaults']['mu'] == 0.0
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(9.8 * 0.5)
+
+
+def test_ampere_length_phrasing_and_perpendicular_angle() -> None:
+    """"长0.5m的直导线"提供 L，"与磁场垂直"映射为 90°。"""
+    problem = _problem('一根长0.5m的直导线通有电流10A，置于磁感应强度为0.2T的匀强磁场中，'
+                       '导线与磁场方向垂直，求导线所受安培力。')
+    assert problem['model']['physics_mode'] == 'ampere'
+    defaults = problem['model']['defaults']
+    assert defaults['L'] == pytest.approx(0.5) and defaults['angle'] == pytest.approx(90.0)
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(0.2 * 10 * 0.5)
+
+
+def test_carnot_celsius_converted_to_kelvin() -> None:
+    """727°C/27°C 必须换算为开尔文，否则落入 η=96% 陷阱；"吸收热量"应提供 Qh。"""
+    problem = _problem('一卡诺热机工作在高温热源727°C和低温热源27°C之间，'
+                       '每循环从高温热源吸收热量2000J，求效率。')
+    assert problem['model']['physics_mode'] == 'carnot'
+    defaults = problem['model']['defaults']
+    assert defaults['Th'] == pytest.approx(1000.15) and defaults['Tc'] == pytest.approx(300.15)
+    assert defaults['Qh'] == pytest.approx(2000.0)
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(1 - 300.15 / 1000.15, rel=1e-6)
+
+
+def test_capacitor_series_microfarad() -> None:
+    """μF 标注电容串联：Ceq=C1*C2/(C1+C2)。"""
+    problem = _problem('两个电容器C1=2μF和C2=4μF串联后接在电压U=12V的电源两端，求等效电容。')
+    assert problem['model']['physics_mode'] == 'capacitor'
+    assert problem['solution']['answer_value'] == pytest.approx(8.0 / 6.0)
+
+
+def test_mode_detection_survives_ocr_line_breaks() -> None:
+    """OCR 把"安\n培力"断行时，学科分类与题型检测仍应命中。"""
+    text = ('一根长0.5m的直导线通有电流10A，置于磁感应强度为0.2T的匀强磁场中，'
+            '导线与磁场方向垂直。求导线所受安\n培力的大小。')
+    assert classify_subject(text)[0] == 'physics'
+    problem = _problem(text)
+    assert problem['model']['physics_mode'] == 'ampere'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(1.0)
+
+
+def test_uf_microfarad_tokens_not_garbage() -> None:
+    """OCR 常把 μF 识别成 uF——不应触发大小写混杂误判。"""
+    from app.labs.source_recovery import assess_text_quality
+    text = ('两个电容器C1=2uF和C2=4uF串联后接在电压U=12V的电源两端。'
+            '求串联后的等效电容。\nA.6uF B.3uF C.1.33uF D.0.75uF')
+    quality = assess_text_quality(text, [{'image_key': 'x'}])
+    assert '存在较多无意义的大小写混杂片段' not in quality['issues']
+    assert quality['untrusted'] is False
+
+
+def test_coulomb_force_only_question_needs_no_point() -> None:
+    """只求库仑力不应强制要求 P 点位置（xP 只用于场强/电势叠加问）。"""
+    problem = _problem('两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m，求它们之间的库仑力大小。')
+    assert problem['model']['physics_mode'] == 'coulomb'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(8.99e9 * 6e-12 / 0.09, rel=1e-6)
+    field_q = _problem('两点电荷q1=2×10^-6C、q2=3×10^-6C相距d=0.3m，求中点电场强度。')
+    assert field_q['status'] == 'needs_review'
+
+
+def test_gauss_charged_sphere_classifies_physics() -> None:
+    """"均匀带电球面""求电场强度"应识别为物理 gauss。"""
+    problem = _problem('半径R=0.2m的均匀带电球面总电荷Q=1×10^-8C，求距球心r=0.4m处的电场强度。')
+    assert problem['subject'] == 'physics'
+    assert problem['model']['physics_mode'] == 'gauss'
+    assert problem['solution']['answer_value'] == pytest.approx(8.99e9 * 1e-8 / 0.16, rel=1e-6)
+
+
+def test_thermo_general_state_change_ratio_no_moles() -> None:
+    """"T1,V1→T2,V2"一般状态变化：PV/T 守恒，比值题 n 相消。"""
+    problem = _problem('一定量理想气体从状态T1=300K、V1=2L变化到T2=600K、V2=4L，求p2/p1。')
+    assert problem['model']['physics_mode'] == 'thermo_process'
+    assert problem['model']['defaults']['process'] == 4.0
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(1.0)
+
+
+def test_thin_film_with_index() -> None:
+    problem = _problem('空气中折射率n=1.33的肥皂膜厚度d=500nm，波长λ=600nm的光垂直入射，求干涉情况。')
+    assert problem['model']['physics_mode'] == 'thin_film'
+    assert problem['status'] == 'ready'
+
+
+def test_single_slit_angular_only_no_screen_distance() -> None:
+    """问半角宽度不需要屏距；"宽度a="提供缝宽。"""
+    problem = _problem('波长λ=500nm的光垂直入射到宽度a=0.1mm的单缝上，求中央明纹的半角宽度。')
+    assert problem['model']['physics_mode'] == 'single_slit'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(
+        math.degrees(math.asin(500e-9 / 1e-4)), rel=1e-6)
+
+
+def test_grating_order_parsed_from_text() -> None:
+    """"第2级主极大"应把 k 解析为 2，而不是默认 1。"""
+    problem = _problem('波长λ=600nm的光正入射到光栅常数d=2×10^-6m的光栅上，求第2级主极大的衍射角。')
+    assert problem['model']['defaults']['k'] == 2.0
+    assert problem['solution']['answer_value'] == pytest.approx(math.degrees(math.asin(0.6)), rel=1e-6)
+
+
+def test_rc_answer_value_tracks_asked_quantity() -> None:
+    """问电容电压时 answer_value 应取 Uc，不是 τ。"""
+    problem = _problem('RC串联电路中电阻R=1000Ω、电容C=10μF、电源电压E=9V，求充电t=0.01s时电容上的电压。')
+    assert problem['model']['physics_mode'] == 'rc'
+    tau = 1000 * 10 * 1e-6
+    assert problem['solution']['answer_value'] == pytest.approx(9 * (1 - math.exp(-0.01 / tau)), rel=1e-6)
+
+
+def test_atwood_answer_value_is_magnitude() -> None:
+    """问"加速度大小"时 answer_value 应取绝对值。"""
+    problem = _problem('阿特伍德机两物体质量m1=3kg、m2=1kg，取g=10m/s²，求系统加速度大小。')
+    assert problem['model']['physics_mode'] == 'atwood'
+    assert problem['solution']['answer_value'] == pytest.approx(5.0)
+
+
+def test_decay_fraction_question_needs_no_n0() -> None:
+    """求剩余百分比时 N0 相消，按 1 归一，不应缺参阻塞。"""
+    problem = _problem('某放射性元素半衰期T=5天，经过t=15天后，求剩余质量占初始质量的百分比。')
+    assert problem['model']['physics_mode'] == 'decay'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(0.125)
+
+
+def test_answer_blank_after_identifier_not_isolated() -> None:
+    """"求…电流I3（）。"里的（ ）是答题空——判据看括号后是否仍在表达式内。"""
+    from app.labs.source_recovery import assess_text_quality
+    benign = assess_text_quality('双回路电路中E1=6V，求通过R3的电流I3（）。', [{'image_key': 'x'}])
+    assert '存在孤立括号' not in benign['issues']
+    garbage = assess_text_quality('由图可得 E=()·p + ()2 其中各项…', [{'image_key': 'x'}])
+    assert '存在孤立括号' in garbage['issues']
+
+
+def test_faraday_delta_triangle_variant() -> None:
+    """OCR 把 Δ 读成空三角 △ 时"所用时间△t=0.1s"仍应解析。"""
+    problem = _problem('穿过线圈面积A=0.01m²的磁感应强度由B1=0.2T均匀增加到B2=0.8T，'
+                       '所用时间△t=0.1s，求感应电动势大小。')
+    assert problem['model']['physics_mode'] == 'faraday'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(0.06)
+
+
+def test_wavelength_ru_glyph_variant() -> None:
+    """OCR 把 λ 读成 "入"（"波长入=600nm"）仍应解析。"""
+    problem = _problem('波长入=600nm的光正入射到光栅常数d=2×10^-6m的光栅上，求第2级主极大的衍射角。')
+    assert problem['model']['physics_mode'] == 'grating'
+    assert problem['model']['defaults']['lam'] == pytest.approx(600e-9)
+
+
+def test_pendulum_theta0_garbled_glyph() -> None:
+    """"初始摆角00=5°"（θ0 被读成 00）仍应解析。"""
+    problem = _problem('摆长L=1.0m的单摆以初始摆角00=5°摆动，取g=9.8m/s²，求周期。')
+    assert problem['model']['physics_mode'] == 'pendulum'
+    assert problem['model']['defaults']['theta0'] == pytest.approx(5.0)
+    assert problem['status'] == 'ready'
+
+
+def test_kirchhoff_double_loop_phrasing() -> None:
+    """"双回路电路"表述应识别 kirchhoff。"""
+    problem = _problem('双回路电路中E1=6V、E2=3V，R1=1Ω、R2=2Ω、R3=3Ω，求通过R3的电流I3。')
+    assert problem['model']['physics_mode'] == 'kirchhoff'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(15 / 11, rel=1e-3)
+
+
+def test_wave_travel_ru_glyph_variant() -> None:
+    """批二行波同样要兼容 λ→入 字形（"波长入=2m"）。"""
+    problem = _problem('一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz，求波速。')
+    assert problem['model']['physics_mode'] == 'wave_travel'
+    assert problem['model']['defaults']['lam'] == pytest.approx(2.0)
+    assert problem['solution']['answer_value'] == pytest.approx(10.0)
+
+
+def test_wave_travel_missing_lam_reviewable_not_crash() -> None:
+    """缺 λ 时 x2 回退不得 KeyError——应转成可复核的缺参状态。"""
+    problem = _problem('一列简谐行波振幅A=0.02m，频率f=5Hz，求波速。')
+    assert problem['model']['physics_mode'] == 'wave_travel'
+    assert problem['status'] == 'needs_review'
+
+
+def test_standing_wave_fundamental_only_needs_l_and_v() -> None:
+    """"两端固定求基频"只需 L、v（λ1=2L），answer_value 取基频。"""
+    problem = _problem('长L=1m的弦两端固定，波速v=100m/s，求基频。')
+    assert problem['model']['physics_mode'] == 'standing_wave'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(50.0)
+
+
+def test_rigid_rotation_direct_inertia_case_sensitive_m_label() -> None:
+    """"kg·m2"的小写 m 不得抢占力矩 M 标签（re.I 副作用）。"""
+    problem = _problem('转动惯量J=2kg·m2的刚体在力矩M=6N·m作用下由静止开始转动，求角加速度。')
+    assert problem['model']['physics_mode'] == 'rigid_rotation'
+    assert problem['status'] == 'ready'
+    assert problem['model']['defaults']['torque'] == pytest.approx(6.0)
+    assert problem['solution']['answer_value'] == pytest.approx(3.0)
+
+
+def test_rigid_rotation_alpha_only_needs_no_time() -> None:
+    """只求角加速度时 t 不是必填。"""
+    problem = _problem('质量m=4kg、半径r=0.5m的圆盘受力矩τ=10N·m，求角加速度。')
+    assert problem['model']['physics_mode'] == 'rigid_rotation'
+    assert problem['status'] == 'ready'
+
+
+def test_brewster_only_needs_no_theta() -> None:
+    """只问布儒斯特角不需要偏振片夹角。"""
+    problem = _problem('求光从空气射向折射率n=1.5的玻璃时的布儒斯特角。')
+    assert problem['model']['physics_mode'] == 'polarization'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(math.degrees(math.atan(1.5)), rel=1e-3)
+
+
+def test_impulse_force_phrasing_and_answer_value() -> None:
+    """"求平均冲力"应识别 impulse 且 answer_value 取平均力。"""
+    problem = _problem('质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s，作用时间t=0.2s，求平均冲力。')
+    assert problem['model']['physics_mode'] == 'impulse'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(10.0)
+
+
+def test_relative_two_vessels_phrasing() -> None:
+    """"甲船相对乙船的速度"应识别 relative 一维相对运动。"""
+    problem = _problem('甲船以vA=5m/s向东行驶，乙船以vB=3m/s向东行驶，求甲船相对乙船的速度。')
+    assert problem['model']['physics_mode'] == 'relative'
+    assert problem['solution']['answer_value'] == pytest.approx(2.0)
+
+
+def test_energy_level_group_lines_answer_value() -> None:
+    """"一群 n=4 氢原子最多几种谱线"——answer_value 取谱线数 6。"""
+    problem = _problem('一群处于n=4激发态的氢原子向低能级跃迁，最多能发出几种不同频率的光。')
+    assert problem['model']['physics_mode'] == 'energy_level'
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer_value'] == pytest.approx(6.0)
+
+
+def test_rc_discharge_branch() -> None:
+    """RC 放电分支：Uc=E·exp(-t/τ)。"""
+    problem = _problem('RC放电电路中电阻R=1000Ω、电容C=10μF、电源电压E=9V，求放电t=0.01s时电容上的电压。')
+    assert problem['model']['physics_mode'] == 'rc'
+    assert problem['solution']['answer_value'] == pytest.approx(9 * math.exp(-1.0), rel=1e-6)
+
+
+def test_concave_lens_virtual_image() -> None:
+    """凹透镜 f<0 成虚像：v = uf/(u−f) 为负。"""
+    problem = _problem('凹透镜焦距f=-10cm，物距u=20cm处放一物体，求像距。')
+    assert problem['model']['physics_mode'] == 'lens'
+    assert problem['solution']['answer_value'] == pytest.approx(-1/15, rel=1e-3)

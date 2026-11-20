@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { calculusCatalog } from '@/labs/calculusCatalog';
 import { MANUAL_408_SUBJECTS, manual408Subject, type Manual408SubjectId } from '@/labs/manual408';
 import { MANUAL_PHYSICS_SUBJECT } from '@/labs/manualPhysics';
+import { manualTextTypeCount } from '@/labs/manualText';
 import { doubleIntegralExamples, doubleIntegralExample } from '@/labs/doubleIntegralExamples';
 import { tripleIntegralExamples, tripleIntegralExample } from '@/labs/tripleIntegralExamples';
 import { useNavigate } from 'react-router-dom';
@@ -189,7 +190,7 @@ export function ManualLabComposer(): JSX.Element {
   const [busy, setBusy] = useState<'preview' | 'compute' | null>(null);
   const [error, setError] = useState('');
   const [activeField, setActiveField] = useState<FieldKey>('expression');
-  const [keyboardOpen, setKeyboardOpen] = useState(true);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
   const requestId = useRef(0);
   const confirmation = useRef<HTMLHeadingElement>(null);
   const confirmationSection = useRef<HTMLElement>(null);
@@ -271,44 +272,57 @@ export function ManualLabComposer(): JSX.Element {
     finally { setBusy(null); }
   };
   return <section className={styles.panel} aria-labelledby="manual-lab-title">
-    <header className={styles.header}>
-      <span className={styles.kicker}>SOLVE YOUR PROBLEM</span>
-      <h2 id="manual-lab-title">输入我的题目</h2>
-      <p>先选择科目与题型，再填写完整条件。核对题目后，由本地内核计算并展示过程。</p>
-    </header>
-    <ol className={styles.steps} aria-label="解题流程">
-      {['选择科目与题型', '填写条件', '确认题目', '计算与展示'].map((step, i) => <li key={step} data-active={preview ? i === 2 : i < 2}>{i + 1} · {step}</li>)}
-    </ol>
-    <div className={styles.classification}>
-      <label>科目<select aria-label="科目" value={subject} onChange={event => setSubject(event.target.value as ManualSubjectChoice)}>
-        <optgroup label="高等数学"><option value="calculus">高等数学</option></optgroup>
-        <optgroup label="大学物理"><option value="physics">大学物理</option></optgroup>
-        <optgroup label="408 统考">
-          {MANUAL_408_SUBJECTS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-        </optgroup>
-      </select></label>
-      <p>{subject === 'calculus' ? '高数按题型填写公式、区间与限制条件；408 科目在下方按题型填写题目原文。' : subjectDefinition?.summary}</p>
+    <div className={styles.topBar}>
+      <header className={styles.header}>
+        <span className={styles.kicker}><span className={styles.cross}>+</span> STRUCTURED COMPOSER · 结构化题型台</span>
+        <div className={styles.titleRow}>
+          <h2 id="manual-lab-title">输入我的题目</h2>
+          <p>选定学科与题型，补齐条件并核对后交由本地内核推演。</p>
+        </div>
+      </header>
+      <ol className={styles.steps} aria-label="解题流程">
+        {['01 选题型', '02 填条件', '03 核对', '04 推演'].map((step, i) => <li key={step} data-active={preview ? i === 2 : i < 2}>{step}</li>)}
+      </ol>
+    </div>
+    <div className={styles.subjectBar}>
+      <label className={styles.subjectSelect}>
+        <span>所属学科</span>
+        <select aria-label="科目" value={subject} onChange={event => setSubject(event.target.value as ManualSubjectChoice)}>
+          <optgroup label="高等数学"><option value="calculus">高等数学（7 模块 · 33 类）</option></optgroup>
+          <optgroup label="大学物理"><option value="physics">大学物理（{MANUAL_PHYSICS_SUBJECT.groups.length} 模块 · {manualTextTypeCount(MANUAL_PHYSICS_SUBJECT)} 类）</option></optgroup>
+          <optgroup label="408 统考">
+            {MANUAL_408_SUBJECTS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+          </optgroup>
+        </select>
+      </label>
+      <p className={styles.subjectHint}>{subject === 'calculus' ? '高数支持符号公式与上下限结构化录入；408 与大物支持标准题型模板录入。' : subjectDefinition?.summary}</p>
+      {subject === 'calculus' ? (
+        <details className={styles.catalogDrawer}>
+          <summary>高数题型目录与支持范围</summary>
+          <div className={styles.catalogPopover}>
+            <p>以下“已有内核”表示已实现确定性符号/数值核验，未列入的子题型会在核对阶段明确提示。</p>
+            <ul>{calculusCatalog.map(item => <li key={item.module}><strong>{item.module}</strong>：{item.manual ? `已支持：${item.manual}。` : ''}{item.pending}</li>)}</ul>
+          </div>
+        </details>
+      ) : null}
     </div>
     {subject === 'calculus' ? <>
-    <details><summary>高数题型目录与支持范围</summary>
-      <p>以下“已有内核”表示已实现部分计算能力，尚不等于该模块所有题目均可求解。</p>
-      <ul>{calculusCatalog.map(item => <li key={item.module}><strong>{item.module}</strong>：{item.manual ? `可手动求解：${item.manual}。` : ''}{item.pending}</li>)}</ul>
-    </details>
     <fieldset className={styles.fields} disabled={busy !== null}>
-      <div className={styles.classification}>
-        <span>当前题型<strong>{currentCalculusTask?.label ?? draft.task}</strong></span>
-        <p>先选择知识模块，再选择题型；未填条件不会自动补全。</p>
-      </div>
-      <div className={styles.moduleBar} role="group" aria-label="高数知识模块">
-        {CALCULUS_MODULES.map(module => <button key={module.id} type="button" aria-pressed={activeCalculusModule.id === module.id} onClick={() => setCalculusModule(module.id)}>
-          <strong>{module.label}</strong><span>{module.cards.length} 个题型</span>
-        </button>)}
-      </div>
-      <p className={styles.moduleHint}>{activeCalculusModule.hint}</p>
-      <div className={styles.tasks} role="group" aria-label={`${activeCalculusModule.label}题型`}>
-        {activeCalculusModule.cards.map(card => <button key={card.id} type="button" aria-pressed={draft.task === card.id && (card.id !== 'integral' || draft.integralMode !== 'improper')} onClick={() => update(card.patch)}>
-          <strong>{card.label}</strong><span>{card.description}</span>
-        </button>)}
+      <div className={styles.moduleSection}>
+        <div className={styles.moduleHeader}>
+          <span className={styles.stepTag}>STEP 01 · 知识模块与具体题型</span>
+          <span className={styles.currentBadge}>当前选中：<strong>{activeCalculusModule.label} / {currentCalculusTask?.label ?? draft.task}</strong></span>
+        </div>
+        <div className={styles.moduleBar} role="group" aria-label="高数知识模块">
+          {CALCULUS_MODULES.map(module => <button key={module.id} type="button" aria-pressed={activeCalculusModule.id === module.id} onClick={() => setCalculusModule(module.id)}>
+            <strong>{module.label}</strong><span>{module.cards.length} 类</span>
+          </button>)}
+        </div>
+        <div className={styles.tasks} role="group" aria-label={`${activeCalculusModule.label}题型`}>
+          {activeCalculusModule.cards.map(card => <button key={card.id} type="button" aria-pressed={draft.task === card.id && (card.id !== 'integral' || draft.integralMode !== 'improper')} onClick={() => update(card.patch)}>
+            <strong>{card.label}</strong><span>{card.description}</span>
+          </button>)}
+        </div>
       </div>
       {draft.task === 'integral' ? <label className={styles.modeField}>积分类型<select aria-label="积分类型" value={draft.integralMode ?? 'proper'} onChange={e=>update({integralMode:e.target.value as 'proper'|'improper'})}><option value="proper">有限定积分</option><option value="improper">反常积分（无穷限或瑕点）</option></select>{draft.integralMode === 'improper' ? <small>上下限可输入 oo、-oo 或 ±∞。逐个瑕点分别检查两侧收敛；不使用柯西主值，不计算有限截断黎曼和。</small> : null}</label> : null}
       <div className={styles.inputHeading}>
@@ -488,12 +502,7 @@ export function ManualLabComposer(): JSX.Element {
           <MathExpressionInput label={tripleInnerVariable === 'z' ? 'z 上界' : '径向 rho 上界'} value={draft.tripleInnerUpper ?? ''} variables={tripleInnerVariables} onChange={tripleInnerUpper=>update({tripleInnerUpper})} placeholder={tripleInnerVariables.length ? `可含 ${tripleInnerVariables.join('、')}` : '必须是常数'} keyboard={false} apiRef={tripleInnerUpperHandle} onActivate={()=>setActiveField('tripleInnerUpper')} />
         </div>
       </> : null}
-      <p className={styles.note}>{draft.task === 'proof' ? '证明结果区分已认证、已否定、局部步骤通过、无效与未认证；图形与抽样只辅助观察，不代替证明。' : draft.task === 'curve_surface_integral' ? '积分值由符号积分与独立数值复核给出；曲线、曲面与边界图形为有限采样，不代替原题条件。' : draft.task === 'space_geometry' ? '空间几何结果由符号向量运算与方程求解给出；图形只做有限范围采样，距离、夹角、交线与位置关系不以像素判定。' : draft.task === 'integral' ? '有限定积分与反常积分分别选择输入类型；原式定义域、瑕点和收敛性单独检查，不会自动补条件。' : draft.task === 'triple_integral' ? '三重积分检查完整区域、偏序关系与连续实定义；柱坐标和球坐标自动乘雅可比。数值积分只作独立复核，不能代替全域证明。' : draft.task === 'double_integral' ? '普通二重积分检查连续实定义；反常模式单独检查原式定义域和绝对收敛，区域条件必须完整。' : draft.task === 'multivariable_extrema' ? '完整约束必须保留；二阶判别不足不等于无极值，局部极值不等于全局最值。' : draft.task === 'multivariable' ? '区分偏导、可微充分条件和方向定义；不能把形式梯度内积当作所有点的方向导数。' : draft.task === 'ode' ? '代回原方程和条件核验；多个分支不默认选第一支，不将已核验的一个解当作唯一性证明。' : ['geometric_area','rotation_volume'].includes(draft.task) ? '几何面积不作正负抵消；旋转轴与区域定义按已确认条件计算，不能互相替代。' : draft.task === 'taylor' ? '余项阶只说明展开点附近的性质；观察区间不等于保证精度的范围，数值抽查不是误差上界。' : draft.task === 'series_convergence' ? '符号判别与部分和观察分开；未判定时保存原题与原因，不猜测敛散性。' : draft.task === 'power_series' ? '收敛半径、收敛域、端点与和函数分别核验；端点不自动并入收敛域。' : draft.task === 'fourier_series' ? '系数按给定区间计算；周期延拓、间断点与端点跳跃单独说明。' : draft.task === 'function_study' ? '先按原式定义域分段，再检查端点、驻点与不可导点；未取到的上下确界不会显示成最值。' : draft.task === 'implicit_normal' ? '确认完整研究点和分支；图形用于局部观察，直线方程由内核计算。' : draft.task === 'continuity' ? '先确认该点定义；图像仅辅助观察，不替代单点值与极限的核对。' : draft.task === 'limit' ? '输入趋近点和方向；数值图像用于辅助观察，结论由极限内核给出。' : draft.task === 'derivative' ? '输入单变量实函数和求导点，展示求导、代入与切线；差商仅作辅助观察。' : '当前输入单变量实函数；图形用于观察原函数族，符号求导用于核对。'}</p>
-      <p className={styles.note}>{draft.task === 'proof' ? '证明条件与综合题步骤直接键入；变量固定为 x，步骤每行一个等式。' : draft.task === 'curve_surface_integral' ? '参数、边界与场分量直接键入；曲线用 t，显式曲面用 x、y，参数曲面用 u、v。' : draft.task === 'space_geometry' && !spaceSurface
-        ? '点、向量与平面系数直接键入，用逗号分隔；切换到曲面类型后可使用数学键盘编辑方程。'
-        : draft.task === 'integral'
-        ? '三个输入框共用一个数学键盘：点到哪个框，键盘就作用于哪个框。'
-        : '输入框与下方数学键盘联动：点进输入框后，键盘即作用于该字段。'}</p>
+      <p className={styles.note}>{draft.task === 'proof' ? '证明结果区分已认证、已否定、局部步骤通过与未认证；图形仅作辅助观察。' : draft.task === 'curve_surface_integral' ? '积分值由符号积分与独立数值复核给出；参数与边界直接键入（曲线用 t，显式曲面用 x、y，参数曲面用 u、v）。' : draft.task === 'space_geometry' ? '空间几何由符号向量与方程求解给出；点、向量与系数用逗号分隔。' : '所有输入框共用下方数学键盘（点入字段即可联动输入）；未填条件不会自动补全，先核对公式再启动内核求解。'}</p>
     </fieldset>
     <div className={styles.actions}>
       <button type="button" className={styles.primary} disabled={busy !== null} onClick={() => void prepare()}>{busy === 'preview' ? '正在检查条件…' : '预览并确认题目'}</button>

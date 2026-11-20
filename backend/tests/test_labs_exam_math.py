@@ -174,3 +174,21 @@ def test_missing_lower_inequality_boundary_is_not_assumed_to_be_axis():
     item = built('D={y<=x^2,0<=x<=1}，求绕 x 轴旋转体积。')
     assert not item['recognized']
     assert any(a['field']=='region' for a in item['ambiguities'])
+
+def test_rotation_volume_chinese_boundary_and_bracket_interval():
+    """`曲线y=` 中 y 紧贴汉字无词边界、[0,1] 区间记法，旋转体必须接住。"""
+    from app.labs.recognize import build_problem, _attach_solution
+    p = build_problem('12.求曲线y=x^2在[0,1]上绕x轴旋转所得旋转体体积（）。')
+    _attach_solution(p)
+    assert p['model']['task'] == 'area_volume'
+    assert p['status'] == 'ready'
+    assert 'pi/5' in p['solution']['answer']
+
+
+def test_implicit_derivative_with_point_routes_to_kernel():
+    from app.labs.recognize import build_problem, _attach_solution
+    p = build_problem('11.设y由方程x^2+y^2=4确定，则在点(sqrt(2),sqrt(2))处dy/dx=（）。')
+    _attach_solution(p)
+    assert p['model']['task'] == 'implicit_derivative'
+    assert p['status'] == 'ready'
+    assert 'dy/dx=-1' in p['solution']['answer']

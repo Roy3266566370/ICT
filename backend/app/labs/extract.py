@@ -8,6 +8,7 @@ RapidOCR，文字版 PDF 优先读取文字层。每个预览都是落盘 PNG，
 from __future__ import annotations
 
 import io
+import math
 import re
 import threading
 import time
@@ -21,6 +22,7 @@ from PIL import Image, ImageOps
 
 from ..settings import LABS_DIR, get_settings
 from .expr import normalize_function_notation
+from .source_recovery import OCR_CONFIDENCE_THRESHOLD
 
 ROLES = {"problem", "data", "attempt", "reference", "courseware"}
 ROLE_LABELS = {
@@ -115,7 +117,9 @@ def _ocr(image: Image.Image) -> tuple[str, float | None]:
         if not text:
             continue
         try:
-            scores.append(float(item[2]))
+            score = float(item[2])
+            if math.isfinite(score) and 0 <= score <= 1:
+                scores.append(score)
         except (TypeError, ValueError):
             pass
         box = item[0]
@@ -373,7 +377,8 @@ def _formula_sensitive(text: str) -> bool:
             r"[∫√²³⁰¹⁴⁵⁶⁷⁸⁹^≤≥∞]|\\(?:int|frac|sqrt)|"
             r"\b(?:d[xyzt]|sqrt|integral|formula)\b|"
             r"[A-Za-z]\s*[=<>]|"
-            r"积分|微分|导数|函数|曲线|方程|不等式|平面区域|旋转体",
+            r"积分|微分|导数|函数|曲线|方程|不等式|平面区域|旋转体|矩阵|行列式|"
+            r"[A-Za-z]\s*~\s*\d|\\begin\{(?:[pbvBV]?matrix|array)\}",
             text or "",
             re.I,
         )
@@ -394,6 +399,24 @@ def _formula_review(text: str, *, visual_formula: bool = False) -> dict[str, Any
             }
         ] if required else [],
     }
+
+
+def _attach_ocr_quality(page: dict[str, Any]) -> dict[str, Any]:
+    from .source_recovery import assess_text_quality
+
+    quality = assess_text_quality(page['text'], [page])
+    if any(item['code'] in ('candidate_disagreement', 'ambiguous_exponent', 'matrix_layout_ambiguity')
+           for item in quality['evidence']):
+        page['text'] = page.get('ocr_text') or page.get('math_text') or page['text']
+        quality = assess_text_quality(page['text'], [page])
+    page['ocr_quality'] = quality
+    page['requires_source_review'] = quality['requires_review']
+    if quality['untrusted']:
+        page['extraction_issues'].append({
+            'id': 'source_ocr_quality', 'severity': 'blocking',
+            'message': '；'.join(quality['issues']),
+        })
+    return page
 
 
 def _pdf_has_visible_images(page: Any) -> bool:
@@ -669,6 +692,8 @@ def _pdf_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int, *, pres
             image_key = f"{file_id}_p{index + 1}"
             ocr_text: str | None = None
             math_text: str | None = None
+            repaired_text: str | None = None
+            display_text: str | None = None
             confidence: float | None = None
             # 公式可能作为图片夹在正常的文字层里，字数不能证明页面已完整读取。
             mixed_content = _pdf_has_visible_images(page)
@@ -694,12 +719,13 @@ def _pdf_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int, *, pres
                     ):
                         text = ocr_text.strip()
                         method = "pdf_ocr"
-                        if confidence is not None and confidence < 0.72:
+                        if confidence is not None and confidence < OCR_CONFIDENCE_THRESHOLD:
                             method = "pdf_ocr_low_confidence"
                     if _should_try_math_ocr(text) and image is not None:
                         math_text = _math_ocr(image)
                         if math_text is not None:
-                            display_text = _latex_display(_repair_math_formula(math_text, text))
+                            repaired_text = _repair_math_formula(math_text, text)
+                            display_text = _latex_display(repaired_text)
                             noise = _is_ocr_noise(text)
                             text = display_text if noise else f"{text}\n{display_text}".strip()
                             method = "pdf_math_ocr" if noise else "pdf_ocr+math_ocr"
@@ -714,6 +740,7 @@ def _pdf_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int, *, pres
             methods.add(method)
             pages.append(
                 {
+                    "file_id": file_id,
                     "page": index + 1,
                     "text": text,
                     "method": method,
@@ -723,11 +750,15 @@ def _pdf_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int, *, pres
                     "ocr_text": ocr_text,
                     "math_text": math_text,
                     "native_text": native_text,
+                    "math_repaired_text": repaired_text,
+                    "math_display_text": display_text,
                     "preserve_layout": preserve_layout,
                     "ocr_confidence": confidence,
                     **review,
                 }
             )
+            if needs_ocr:
+                _attach_ocr_quality(pages[-1])
     finally:
         document.close()
     if not pages:
@@ -745,9 +776,10 @@ def _image_pages(data: bytes, file_id: str, lab_dir: Path) -> tuple[list[dict[st
     preview = _save_preview(image, lab_dir, f"{file_id}_p1")
     ocr_text, confidence = _ocr(image)
     math_text = _math_ocr(image) if _should_try_math_ocr(ocr_text) else None
+    repaired_text = _repair_math_formula(math_text, ocr_text) if math_text is not None else None
+    display_text = _latex_display(repaired_text) if repaired_text is not None else None
     if math_text is not None:
         # 通用 OCR 只剩公式碎片时直接用可读公式；否则保留其文字并追加公式。
-        display_text = _latex_display(_repair_math_formula(math_text, ocr_text))
         if _is_ocr_noise(ocr_text):
             text = display_text
             method = "image_math_ocr"
@@ -757,20 +789,23 @@ def _image_pages(data: bytes, file_id: str, lab_dir: Path) -> tuple[list[dict[st
     else:
         text = ocr_text
         method = "image_ocr"
-        if confidence is not None and confidence < 0.72:
+        if confidence is not None and confidence < OCR_CONFIDENCE_THRESHOLD:
             method = "image_ocr_low_confidence"
     return (
         [
-            {
+            _attach_ocr_quality({
+                "file_id": file_id,
                 "page": 1,
                 "text": text,
                 "method": method,
                 "image_key": preview,
                 "ocr_text": ocr_text,
                 "math_text": math_text,
+                "math_repaired_text": repaired_text,
+                "math_display_text": display_text,
                 "ocr_confidence": confidence,
-                **_formula_review(text, visual_formula=math_text is not None),
-            }
+                **_formula_review(f"{ocr_text}\n{text}", visual_formula=math_text is not None),
+            })
         ],
         method,
     )

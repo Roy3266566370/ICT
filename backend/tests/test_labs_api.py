@@ -55,11 +55,6 @@ def guest(app: Any) -> Iterator[TestClient]:
         yield client
 
 
-@pytest.fixture(autouse=True)
-def legacy_model_provider(monkeypatch):
-    # Existing API fixtures exercise the legacy transport without contacting local Ollama.
-    monkeypatch.setattr(get_settings(), 'lab_understanding_provider', 'legacy')
-
 
 def test_empty_ocr_image_upload_cloud_solve_and_condition_review(owner, monkeypatch):
     import io
@@ -203,11 +198,25 @@ def test_non_kernel_confirmation_keeps_equation_plan(owner, monkeypatch, legacy,
 
 
 def test_visual_model_survives_unchanged_subject_confirmation(owner, monkeypatch):
-    from app.labs import local_agent
-    from test_local_agent import candidate
-    monkeypatch.setattr(get_settings(), 'lab_understanding_provider', 'ollama')
-    monkeypatch.setattr(local_agent, 'understand', lambda problem, **kw:
-        local_agent.finish_understanding(local_agent.validate_understanding(candidate(), []), problem))
+    from types import SimpleNamespace
+    from app.ppt_ai.client import PPTAIClient
+    from test_ai_contract import candidate
+
+    c = candidate()
+    monkeypatch.setattr(
+        PPTAIClient,
+        'generate_json',
+        lambda self, *args, **kwargs: SimpleNamespace(
+            data={
+                'question': c['question'],
+                'conditions': ['y^2<=x, x^2<=y'],
+                'missing_conditions': [],
+                'model': c['model'],
+                'answer': '71/210',
+                'steps': [],
+            }
+        ),
+    )
     session, document = _create_lab(owner, '计算二重积分，区域D={(x,y)|y^2<=x,x^2<=y}。')
     lab_id=document['lab_id'];p=document['problems'][0]
     r=owner.post(f'/api/v1/labs/{lab_id}/ai-solve', headers=_headers(session),
@@ -241,8 +250,10 @@ def _create_lab(client: TestClient, text: str) -> tuple[dict[str, Any], dict[str
 
 
 def test_manual_integral_preview_confirm_save_review_and_share(owner, guest, monkeypatch):
-    from app.labs import local_agent
-    monkeypatch.setattr(local_agent, 'understand', lambda *_a, **_k: pytest.fail('手动输入不得调用模型'))
+    from app.labs import staged_understanding
+    from app.ppt_ai.client import PPTAIClient
+    monkeypatch.setattr(PPTAIClient, 'generate_json', lambda *_a, **_k: pytest.fail('手动输入不得调用模型'))
+    monkeypatch.setattr(staged_understanding, 'request_json', lambda *_a, **_k: pytest.fail('手动输入不得调用模型'))
     session = _session(owner)
     headers = _headers(session)
     body = {'task':'integral', 'conditions':{'expression':'sin(x)','variable':'x','lower':'0','upper':'pi'}}
@@ -687,28 +698,18 @@ def test_physics_third_batch_text_lab_is_created(owner: TestClient) -> None:
     assert '0.003' in problem['solution']['answer']
 
 
-def test_cloud_transport_failure_falls_back_to_local_vision(owner, monkeypatch):
-    from app.labs import local_agent
+def test_cloud_transport_failure_returns_503_without_local_fallback(owner, monkeypatch):
     from app.ppt_ai.client import PPTAIClient, PPTAIError
 
     def fail(*_args, **_kwargs):
         raise PPTAIError('transport', '模型调用失败：ConnectError', retryable=True)
 
-    def local_understand(problem, *, lab_id=None):
-        return {'verification': 'needs_review', 'question': '求极限 lim(x→0) sin(x)/x',
-                'interpretation': '求极限', 'conditions': [], 'missing_conditions': [],
-                'proposed_model': {'kind': 'none'}, 'answer': '', 'steps': [],
-                'reference_answer': '', 'reference_steps': [], 'computation': None,
-                'limitations': ['本地视觉模型也未能建模。'], 'trace': []}
-
     monkeypatch.setattr(PPTAIClient, 'generate_json', fail)
-    monkeypatch.setattr(local_agent, 'ollama_available', lambda timeout=1.5: True)
-    monkeypatch.setattr(local_agent, 'understand', local_understand)
     session, document = _create_lab(owner, '求极限 lim(x→0) sin(x)/x')
-    response = owner.post(f"/api/v1/labs/{document['lab_id']}/ai-solve", headers=_headers(session),
-                          json={'problem_id': document['problems'][0]['problem_id'],
-                                'expected_revision': document['revision']})
-    assert response.status_code == 200, response.text
-    problem = response.json()['data']['document']['problems'][0]
-    assert problem['ai_solution']['fallback']['to'] == 'ollama'
-    assert '本机视觉模型' in problem['ai_solution']['limitations'][0]
+    response = owner.post(
+        f"/api/v1/labs/{document['lab_id']}/ai-solve",
+        headers=_headers(session),
+        json={'problem_id': document['problems'][0]['problem_id'], 'expected_revision': document['revision']},
+    )
+    assert response.status_code == 503, response.text
+    assert response.json()['error']['code'] == 'MODEL_UNAVAILABLE'

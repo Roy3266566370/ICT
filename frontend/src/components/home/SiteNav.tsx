@@ -23,7 +23,6 @@ const NAV_ITEMS: readonly NavItem[] = [
   { section: 'canvas', label: '万象工坊', to: '/workshop' },
   { section: 'labs', label: '题目实验室', to: '/labs' },
   { section: 'living', label: '万象活页', to: '/living' },
-  { section: 'examples', label: '交互示例', to: '/examples' },
   { section: 'workspace', label: '个人主页', to: '/space' },
 ];
 

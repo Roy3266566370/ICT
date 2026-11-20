@@ -132,6 +132,14 @@ def build_heap(text: str, source: Mapping[str, Any], overrides: Mapping[str, Any
             sequence_match = re.search(r"(?:依次|逐个|按顺序)\s*(?:插入|加入)\s*([\[（(]?[-+]?\d+(?:\s*[,，、]\s*[-+]?\d+)+[\]）)]?)", stem)
         if sequence_match is not None:
             initial = _parse_array(sequence_match.group(1))
+    elif isinstance(initial, list) and initial:
+        # 已给合法堆中插入单个元素（408 常见考法）：合法堆按层序逐项重插是
+        # 不动点，故把被插元素追加到初始序列即可复用"依次插入"内核。
+        single_insert = re.search(r"(?:插入|加入|放入)\s*(?:关键字|元素|值|结点|节点|数据)?\s*([-+]?\d+(?:\.\d+)?)", stem)
+        if single_insert:
+            value: int | float = float(single_insert.group(1)) if "." in single_insert.group(1) else int(single_insert.group(1))
+            insert_hint = True
+            initial = [*initial, value]
     operation = str(overrides.get("operation", "insert" if insert_hint else "delete"))
     counted = bool(overrides.get("count_comparisons", False))
     initial = overrides.get("initial_heap", initial)
