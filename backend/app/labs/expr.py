@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from fractions import Fraction
 from typing import Iterable
 
@@ -173,7 +174,41 @@ def _split_juxtaposition(text: str, *, followed_by_paren: bool = False) -> str:
 
 
 class ExprError(ValueError):
-    """表达式不合法或不在白名单内。"""
+    """表达式不合法；坐标仅在能映射到 raw 时提供（Unicode 字符索引）。"""
+
+    def __init__(self, message: str, *, raw: str | None = None,
+                 start: int | None = None, end: int | None = None,
+                 code: str | None = None):
+        super().__init__(message)
+        self.raw, self.start, self.end, self.code = raw, start, end, code
+
+
+def _is_cjk(char: str) -> bool:
+    return unicodedata.name(char, '').startswith(('CJK UNIFIED IDEOGRAPH', 'CJK COMPATIBILITY IDEOGRAPH'))
+
+
+def _annotation_positions(raw: str) -> set[int]:
+    """Exclude textual LaTeX groups and Chinese subscripts, not math operands."""
+    positions = set()
+    for match in re.finditer(r'\\(?:text|textrm|mathrm)\s*\{|_\s*\{', raw):
+        group = _read_braced(raw, match.end() - 1)
+        if group and (not match[0].startswith('_') or any(_is_cjk(c) for c in group[0])):
+            positions.update(range(match.start(), group[1]))
+    for match in re.finditer(r'_\s*([^\W\d_])', raw):
+        if _is_cjk(match[1]):
+            positions.update(range(match.start(), match.end()))
+    return positions
+
+
+def _raw_character_error(raw: str) -> ExprError | None:
+    protected = _annotation_positions(raw)
+    for index, char in enumerate(raw):
+        if index in protected:
+            continue
+        if _is_cjk(char) or char in '@#$&?!;=\'"' or unicodedata.category(char) == 'So':
+            return ExprError('表达式包含不允许的字符', raw=raw, start=index,
+                             end=index + 1, code='illegal_character')
+    return None
 
 
 def _read_braced(text: str, start: int) -> tuple[str, int] | None:
@@ -249,11 +284,30 @@ def _replace_braced_power(text: str) -> str:
         text = f"{text[:match.start()]}**({content}){text[end:]}"
 
 
+def normalize_power_notation(raw: str, variables: Iterable[str] = ()) -> str:
+    """Normalize superscripts and undeclared single-letter x2–x9 shorthand, not indexed variables."""
+    if not isinstance(raw, str):
+        raise ExprError("表达式必须是文本")
+    names = set(variables)
+    text = re.sub(
+        r"(?<=[A-Za-z0-9)}\]])([⁺⁻]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+)",
+        lambda match: "^(" + match.group().translate(SUPERSCRIPTS) + ")",
+        raw,
+    )
+
+    def compact_power(match: re.Match[str]) -> str:
+        token = match.group()
+        if token not in names and re.fullmatch(r"[A-Za-z][2-9]", token) and token[0] in names:
+            return token[0] + "^" + token[1]
+        return token
+
+    return _IDENTIFIER.sub(compact_power, text)
+
+
 def _latex_to_plain(raw: str) -> str:
-    text = normalize_function_notation(raw.strip())
+    text = normalize_power_notation(normalize_function_notation(raw.strip()))
     text = text.replace("\u2212", "-").replace("\u00d7", "*").replace("\u00f7", "/")
     text = text.replace("\u00b7", "*").replace("\u03c0", "pi").replace("\u221a", "sqrt")
-    text = text.translate(SUPERSCRIPTS)
     for command in (
         "\\textstyle",
         "\\displaystyle",
@@ -427,7 +481,11 @@ def parse_expression(raw: str, variables: Iterable[str] = ("x",), *, preserve_st
     names = tuple(dict.fromkeys(str(item) for item in variables))
     if not names or any(not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name) for name in names):
         raise ExprError("变量名不合法")
-    text = normalize_math(raw)
+    if isinstance(raw, str):
+        diagnostic = _raw_character_error(raw)
+        if diagnostic:
+            raise diagnostic
+    text = normalize_math(normalize_power_notation(raw, names))
     # Declared identifiers take precedence over OCR's implicit function notation.
     text = _IDENTIFIER.sub(
         lambda match: match.group()
@@ -436,11 +494,15 @@ def parse_expression(raw: str, variables: Iterable[str] = ("x",), *, preserve_st
         text,
     )
     allowed = set(names) | set(FUNCTIONS) | set(CONSTANTS)
-    for token in _IDENTIFIER.findall(text):
+    for match in _IDENTIFIER.finditer(text):
+        token = match[0]
         if token not in allowed:
-            raise ExprError(f"包含暂不支持的符号：{token}")
+            # Never reuse offsets after length-changing LaTeX/power normalization.
+            raise ExprError(f"包含暂不支持的符号：{token}", raw=raw,
+                            start=match.start() if text == raw else None,
+                            end=match.end() if text == raw else None, code='unknown_symbol')
     if any(bad in text for bad in ("=", ";", ":", "'", '"', "[", "]", "{", "}")):
-        raise ExprError("表达式包含不允许的字符")
+        raise ExprError("表达式包含不允许的字符", raw=raw, code='illegal_character')
     local_dict: dict[str, object] = {name: sp.Symbol(name, real=True) for name in names}
     local_dict.update(FUNCTIONS)
     local_dict.update(CONSTANTS)
@@ -461,7 +523,7 @@ def parse_expression(raw: str, variables: Iterable[str] = ("x",), *, preserve_st
     except ExprError:
         raise
     except Exception as exc:  # noqa: BLE001 - 转成可展示的识别错误
-        raise ExprError(f"无法解析表达式：{type(exc).__name__}") from exc
+        raise ExprError(f"无法解析表达式：{type(exc).__name__}", raw=raw, code='syntax_error') from exc
     if not isinstance(expression, sp.Expr):
         raise ExprError("解析结果不是数学表达式")
     symbols = {str(symbol) for symbol in expression.free_symbols}

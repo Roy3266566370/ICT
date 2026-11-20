@@ -154,24 +154,6 @@ _SEMICOLON = re.compile(r"\[\s*[^\[\];；]+?\s*(?:[;；]\s*[^\[\];]+?)+\s*\]")
 _BARS = re.compile(r"[|\[]\s*[^|;；\[\]]+?\s*(?:[;；]\s*[^|;；\[\]]+?)+\s*[|\]]")
 
 
-def _split_digit_rows(matrix: list[list[float]]) -> list[list[float]] | None:
-    """``|12;34|``：OCR 吃掉竖线内空格后每行只剩一个多位整数。
-    行数与每行位数一致且均为非负整数时拆成单位数字方阵。"""
-    n = len(matrix)
-    if n < 2 or any(len(row) != 1 for row in matrix):
-        return None
-    rows: list[list[float]] = []
-    for row in matrix:
-        value = row[0]
-        if value is None or value != int(value) or value < 0:
-            return None
-        digits = str(int(value))
-        if len(digits) != n:
-            return None
-        rows.append([float(d) for d in digits])
-    return rows
-
-
 def _matrices_from_text(text: str) -> tuple[dict[str, list[list[float]]], list[list[list[float]]]]:
     """返回 (具名矩阵 {字母:矩阵}, 匿名矩阵按出现顺序)。"""
 
@@ -207,8 +189,6 @@ def _matrices_from_text(text: str) -> tuple[dict[str, list[list[float]]], list[l
             continue
         body = match.group(0).strip().strip('|[]')
         matrix = _semicolon_matrix('[' + body + ']')
-        if matrix is not None and not _square(matrix):
-            matrix = _split_digit_rows(matrix) or matrix
         if matrix is None:
             continue
         anonymous.append(matrix)
@@ -636,6 +616,12 @@ def build_linalg(text: str, source: Mapping[str, Any], overrides: Mapping[str, A
                 "vector_b", "vector_b",
                 "方程组缺少右端向量 b。可写成 b=[3,1]，或直接用 n×(n+1) 增广矩阵。",
             ))
+
+    if kind in ("determinant", "inverse") and matrix_a is not None and not _square(matrix_a):
+        ambiguities.append(_ambiguity(
+            "matrix_layout_ambiguity", "matrix_a",
+            "行列式或逆矩阵需要方阵；当前行列数不一致。请核对每个元素并补全列分隔符，不会自动将多位数拆成多个元素。",
+        ))
 
     for matrix, name in ((matrix_a, "A"), (matrix_b, "B")):
         if matrix is not None and (

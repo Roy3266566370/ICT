@@ -1,11 +1,12 @@
 """Parse simple second-kind plane line integrals from OCR text.
 
 Only the common exam shape is accepted: a vector field P dx + Q dy along a
-graph y=f(x) with two explicit endpoints. Anything less clear stays with the
-normal AI/source-review path instead of guessing a parameterization.
+graph y=f(x) with two explicit endpoints. Once P dx + Q dy is recognized,
+invalid or incomplete conditions stay blocked instead of falling through.
 """
 from __future__ import annotations
 
+import math
 import re
 from typing import Any, Mapping
 
@@ -63,34 +64,58 @@ def build_line_integral_from_text(text: str, source: Mapping[str, Any],
         p_raw, q_raw = first_raw, second_raw
     else:
         p_raw, q_raw = second_raw, first_raw
-    try:
-        p_expr = _parse_xy(p_raw, 'P')
-        q_expr = _parse_xy(q_raw, 'Q')
-    except Exception:
-        return None
+    # Preserve curve and endpoints even when field parsing fails.
     curve = re.search(r'y\s*=\s*([^\n，,。；;]+?)(?=\s*(?:从|上|在|的|，|,|。|；|;|$))', scan)
-    if not curve:
-        return None
-    curve_raw = _plain(curve.group(1))
-    try:
-        curve_expr = parse_expression(curve_raw, ('x',), preserve_structure=True)
-    except Exception:
-        return None
-    if curve_expr.has(Y):
-        return None
+    curve_raw = _plain(curve.group(1)) if curve else None
     points = re.search(
         r'从\s*(?:点)?\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)'
         r'\s*(?:到|至)\s*(?:点)?\s*\(\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*\)',
         scan,
     )
+    raw_conditions = {
+        'field': [p_raw, q_raw, '0'],
+        'curve': curve_raw,
+        'source_text': text,
+        'endpoints': [[points.group(1), points.group(2)],
+                      [points.group(3), points.group(4)]] if points else None,
+    }
+
+    def blocked(reason: str) -> dict[str, Any]:
+        from .kernel_models import blocked_recognized_problem
+        return blocked_recognized_problem(
+            'line_integral', raw_conditions,
+            f'已识别为曲线积分，但{reason}。请核对或修正原题。',
+        )
+
+    try:
+        p_expr = _parse_xy(p_raw, 'P')
+        q_expr = _parse_xy(q_raw, 'Q')
+    except Exception as exc:
+        return blocked(f'向量场 P/Q 无法解析：{exc}')
+    if not curve:
+        return blocked('缺少可识别的曲线 y=f(x)')
+    try:
+        curve_expr = parse_expression(curve_raw, ('x',), preserve_structure=True)
+    except Exception as exc:
+        return blocked(f'曲线表达式无法解析：{exc}')
+    if curve_expr.has(Y):
+        return blocked('曲线 y=f(x) 的右侧不能含 y')
     if not points:
-        return None
-    x0, y0, x1, y1 = (float(points.group(i)) for i in range(1, 5))
-    for x_value, y_value in ((x0, y0), (x1, y1)):
-        if abs(float(curve_expr.subs(X, x_value)) - y_value) > 1e-8:
-            return None
+        return blocked('缺少明确的起点和终点，暂不支持仅用区间和方向描述曲线')
+    try:
+        x0, y0, x1, y1 = (float(points.group(i)) for i in range(1, 5))
+        if not all(math.isfinite(value) for value in (x0, y0, x1, y1)):
+            return blocked('端点坐标必须是有限实数')
+        for x_value, y_value in ((x0, y0), (x1, y1)):
+            curve_value = float(curve_expr.subs(X, x_value))
+            if not math.isfinite(curve_value):
+                return blocked('曲线在端点处的值不是有限实数')
+            if abs(curve_value - y_value) > 1e-8:
+                return blocked('端点不在给定曲线上')
+    except Exception as exc:
+        return blocked(f'端点代入曲线无法得到有限实数：{exc}')
     if x0 == x1:
-        return None
+        return blocked('起点和终点的 x 坐标相同，无法确定非退化参数区间')
     lower, upper = sorted((x0, x1))
     orientation = 'forward' if x0 < x1 else 'reverse'
     curve_t = curve_expr.subs(X, T)

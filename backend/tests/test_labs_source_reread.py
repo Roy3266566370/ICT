@@ -361,3 +361,109 @@ def test_second_reading_checks_both_uncertainty_fields(monkeypatch):
         lab_id='lab_reread', cloud=False)
     assert result['_source_recovery']['status'] == 'unresolved'
     assert '公式仍看不清' in result['_source_recovery']['remaining']
+
+
+@pytest.mark.parametrize('text, originals', [
+    ('极坐标 r=cos3胃，胃E[-T/6,蟺/6]', ['胃', '胃', 'E', 'T', '蟺']),
+    ('极坐标 r=cos3θ，θE[-T/6,π/6]', ['E', 'T']),
+    ('😀求 r=cos3胃，r=cos3胃。', ['胃', '胃']),
+    ('求 $x+龘$。', ['龘']),
+    ('求 x=龘。', ['龘']),
+    ('求 x龘+1。', ['龘']),
+    ('求 $x+𠀀$。', ['𠀀']),
+])
+def test_source_repairs_are_local_stable_and_unselected(text, originals):
+    import hashlib
+    from app.labs.source_recovery import source_repair_proposals
+    before = text
+    result = source_repair_proposals(text)
+    assert [p['repair']['original'] for p in result] == originals
+    assert result == source_repair_proposals(text)
+    assert text == before
+    assert len({p['id'] for p in result}) == len(result)
+    previous = 0
+    for p in result:
+        r = p['repair']
+        assert r['start'] >= previous
+        previous = r['end']
+        assert text[r['start']:r['end']] == r['original']
+        assert r['text_hash'] == hashlib.sha256(text.encode('utf-8')).hexdigest()
+        assert p['answer'] is None and p['resolved'] is False
+        assert p['severity'] == 'blocking' and p['field'] == 'source_text'
+        assert [o['value'] for o in p['options']][-2:] == ['keep', 'manual']
+        assert all(isinstance(o['replacement'], str) for o in p['options'][:-2])
+        if r['original'] == '龘':
+            assert len(p['options']) == 2
+    assert [p['id'] for p in result] != [p['id'] for p in source_repair_proposals(text + '。')]
+
+
+@pytest.mark.parametrize('text', [
+    '物体运动3米，历时5秒，求平均速度。',
+    '距离 s=3米，时间 t=5秒。',
+    r'求 $x+1\text{其中变量为实数}$。',
+    r'求 $x_{最大}+1$。', '求 $x_中+1$。',
+    '时间 T=3，y=T/6。', '极坐标 r=cos(θ)，时间 T=3，y=T/6。',
+    '求 $cos(θ)$。', '求 $α+β$。', r'求 $\alpha+1$。',
+    '将 f(x)=|x| 在[-π,π]上展开为傅里叶级数。',
+    '已知参数方程x=t^2,y=t^3，求t=1处d^2y/dx^2。',
+    '求矩阵A=[[2,1],[1,2]]的特征值和特征向量。',
+    '求微分方程 y\'\'+y=0 的通解。',
+])
+def test_source_repairs_do_not_flag_prose_annotations_units_or_legal_theta(text):
+    from app.labs.source_recovery import source_repair_proposals
+    assert source_repair_proposals(text) == []
+
+
+def test_expr_errors_keep_original_offsets_before_expanding_notation():
+    from app.labs.expr import ExprError, parse_expression
+    for raw in [r'\frac{1}{x}+龘', 'π+x²+胃', '  x+胃', 'x+😀']:
+        with pytest.raises(ExprError) as raised:
+            parse_expression(raw)
+        error = raised.value
+        assert error.raw == raw and error.start == len(raw) - 1 and error.end == len(raw)
+        assert error.code == 'illegal_character'
+        assert str(error) == '表达式包含不允许的字符'
+    for raw in [r'\frac{1}{x}+unknown', 'π+unknown', 'x²+unknown', 'x+(']:
+        with pytest.raises(ExprError) as raised:
+            parse_expression(raw)
+        assert raised.value.raw == raw
+        assert raised.value.start is None and raised.value.end is None
+    with pytest.raises(ExprError) as raised:
+        parse_expression('x+unknown')
+    assert (raised.value.start, raised.value.end) == (2, 9)
+
+
+def test_source_parser_diagnostics_are_global_without_invented_offsets():
+    from app.labs.source_recovery import source_repair_proposals, assess_text_quality
+    text = r'😀求 $\frac{1}{x}+unknown$。'
+    result = source_repair_proposals(text)
+    assert len(result) == 1 and len(result[0]['options']) == 2
+    assert 'start' not in result[0]['repair']['diagnostic']
+    text = r'😀求 $\frac{1}{x}+龘$。'
+    p = source_repair_proposals(text)[0]
+    assert p['repair']['diagnostic']['start'] == text.index('龘')
+    quality = assess_text_quality(text)
+    assert quality['requires_review'] and not quality['untrusted']
+    assert all(not e['blocking'] for e in quality['evidence'])
+
+
+def test_local_integral_candidate_and_keep_have_no_solver_side_effects(monkeypatch):
+    from app.labs import source_recovery
+    text = '计算 {(1,+∞) dx/x^2。'
+    proposals = source_recovery.source_repair_proposals(text)
+    assert proposals[0]['repair']['original'] == '{'
+    assert proposals[0]['options'][0]['replacement'] == '∫'
+    assert proposals[0]['answer'] is None
+
+
+def test_formula_confirmation_does_not_clear_remaining_repair_review(monkeypatch):
+    from app.labs.source_recovery import read_with_source_retry
+    views = _fake_reread_views(monkeypatch)
+    text = '极坐标 r=cos3胃，胃E[-T/6,蟺/6]'
+    problem = dict(text=text, source_pages=[dict(image_key='f1_p1')], recognition={
+        'ambiguities': [dict(id='source_formula_confirmation', resolved=True)]})
+    result = read_with_source_retry(problem, views,
+        lambda *args: dict(question=text, uncertainties=[]), lab_id='lab_reread', cloud=False)
+    report = result['_source_recovery']
+    assert report['requires_review']
+    assert any(e.get('repair') for e in report['initial_quality']['evidence'])

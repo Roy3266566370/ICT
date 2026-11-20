@@ -175,3 +175,30 @@ def test_delete_work(owner: TestClient) -> None:
     wid = _create(owner, session)["work_id"]
     assert owner.delete(f"/api/v1/works/{wid}", headers=_h(session)).status_code == 204
     assert owner.get(f"/api/v1/works/{wid}").status_code == 404
+
+
+def test_panel_contract_validation(owner: TestClient) -> None:
+    session = _session(owner)
+    doc = dict(
+        DOC,
+        panel={
+            "title": "抛体面板",
+            "view_node_ids": ["n2"],
+            "exposed_params": [
+                {"node_id": "n1", "param_key": "v0", "label": "初速度", "min": 1, "max": 30, "step": 1},
+                {"node_id": "n1", "param_key": "bad", "label": "非法范围", "min": 10, "max": 5},
+            ],
+            "read_only_layout": True,
+        },
+    )
+    created = _create(owner, session, doc)
+    panel = created["document"]["panel"]
+    assert panel["title"] == "抛体面板"
+    assert panel["view_node_ids"] == ["n2"]
+    assert len(panel["exposed_params"]) == 1
+    assert panel["exposed_params"][0]["max"] == 30
+    assert panel["read_only_layout"] is True
+
+    # 显式传入 panel=None 不报错，且不持久化空字段
+    cleared = _create(owner, session, dict(DOC, panel=None))
+    assert "panel" not in cleared["document"]

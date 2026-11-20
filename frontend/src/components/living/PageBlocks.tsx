@@ -5,20 +5,29 @@
  * - `onProgress` 只由播放器传入：上报学生端进度（访问/竞猜/判分）。
  */
 
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LabCanvas } from '@/components/labs/LabCanvas';
 import { Formula } from '@/components/showcase/Formula';
 import { computeLab } from '@/labs/compute';
+import { formatNumber } from '@/labs/expr';
 import type { LabProblem, LabResult, LabState } from '@/labs/types';
-import type { ActivationSuggestion, PageBlock } from '@/living/types';
+import type { ActivationSuggestion, CalloutKind, PageBlock } from '@/living/types';
 import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
 import type { CanvasDoc } from '@/canvas/types.ts';
 import { worksApi } from '@/api/works';
 import { errorMessage } from '@/api/client';
+import { gradeLivingAnswer } from '@/api/living';
+import { interpolate, useBlockState, useLiveVars } from '@/living/liveVars';
+import { panelParamRange } from '@/living/sim';
 import styles from './LivingBlocks.module.css';
 import { AttentionDemo } from './AttentionDemo';
 import { LivingAIModel } from './LivingAIModel';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import { prepareLivingMarkdown } from '@/living/markdown';
 
 export interface ProgressPatch {
   quiz_guess?: number;
@@ -33,6 +42,28 @@ export interface BlockViewProps {
   onProgress?: (patch: ProgressPatch) => void;
   /** 编辑器注入的块级操作条（移动/编辑/删除） */
   controls?: ReactNode;
+  /** 页面全部块 id（门控目标悬挂检测：缺失→解锁+警告） */
+  peerIds?: ReadonlySet<string>;
+}
+
+/** 块完成度（门控用）：submitted < correct；写入时取更高一级。 */
+function useCompletionMark(blockId: string): (level: 'submitted' | 'correct') => void {
+  const [, setDone] = useBlockState<'submitted' | 'correct' | null>(blockId, 'completed', null);
+  return useCallback(
+    (level: 'submitted' | 'correct') => {
+      setDone((prev) => (prev === 'correct' || level === 'correct' ? 'correct' : 'submitted'));
+    },
+    [setDone],
+  );
+}
+
+function useDebouncedValue<T>(value: T, ms: number): T {
+  const [current, setCurrent] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setCurrent(value), ms);
+    return () => window.clearTimeout(timer);
+  }, [value, ms]);
+  return current;
 }
 
 const EMPTY_STATE: LabState = {
@@ -74,9 +105,83 @@ function PageImageBlock({ block, assetUrl }: BlockViewProps): ReactNode {
   );
 }
 
+const INLINE_VAR = /\[v:([A-Za-z][A-Za-z0-9_]*)\]/g;
+
+/** ``[v:名字]`` 行内参数胶囊：数字变量是迷你滑杆，select 变量是下拉，未定义变量原样显示。 */
+function InlineVar({ name }: { name: string }): ReactNode {
+  const { defs, values, setValue } = useLiveVars();
+  const spec = defs[name];
+  if (!spec) return <code className={styles.inlineVarMissing}>[{name}?]</code>;
+  const value = values[name] ?? spec.value;
+  if (spec.type === 'select') {
+    return (
+      <select className={styles.inlineVarSelect} value={String(value)} onChange={(e) => setValue(name, e.target.value)} aria-label={spec.label || name}>
+        {spec.options.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    );
+  }
+  const min = spec.min ?? 0;
+  const max = spec.max ?? 1;
+  const step = spec.step ?? ((max - min) / 100 || 0.01);
+  const numeric = typeof value === 'number' ? value : spec.value;
+  return (
+    <span className={styles.inlineVar} title={`${spec.label || name} = ${formatNumber(numeric)}${spec.unit ?? ''}`}>
+      <input type="range" min={min} max={max} step={step} value={numeric} onChange={(e) => setValue(name, Number(e.target.value))} aria-label={spec.label || name} />
+      <span className={styles.inlineVarValue}>{formatNumber(numeric)}{spec.unit ?? ''}</span>
+    </span>
+  );
+}
+
+function transformInlineVars(child: ReactNode): ReactNode {
+  if (typeof child === 'string') {
+    if (!child.includes('[v:')) return child;
+    const parts = child.split(INLINE_VAR);
+    if (parts.length === 1) return child;
+    return parts.map((part, index) => (index % 2 === 1 ? <InlineVar key={index} name={part} /> : part));
+  }
+  if (React.isValidElement<{ children?: ReactNode; className?: string }>(child)) {
+    const className = String(child.props.className ?? '');
+    if (className.includes('math')) return child;
+    const kids = child.props.children;
+    if (kids !== undefined && kids !== null) {
+      return React.cloneElement(child, undefined, React.Children.map(kids, transformInlineVars));
+    }
+  }
+  return child;
+}
+
+const withInlineVars = (Tag: 'p' | 'li' | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' | 'td' | 'th') =>
+  function InlineVarsContainer(props: { children?: ReactNode }): ReactNode {
+    return <Tag>{React.Children.map(props.children, transformInlineVars)}</Tag>;
+  };
+
+const MD_COMPONENTS = {
+  p: withInlineVars('p'),
+  li: withInlineVars('li'),
+  h1: withInlineVars('h1'),
+  h2: withInlineVars('h2'),
+  h3: withInlineVars('h3'),
+  h4: withInlineVars('h4'),
+  h5: withInlineVars('h5'),
+  h6: withInlineVars('h6'),
+  td: withInlineVars('td'),
+  th: withInlineVars('th'),
+};
+
+function LivingMarkdown({ markdown }: { markdown: string }): ReactNode {
+  return (
+    <ReactMarkdown skipHtml components={MD_COMPONENTS} remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[[rehypeKatex, { trust: false, strict: 'ignore', maxExpand: 1000, maxSize: 20 }]]}>
+      {markdown}
+    </ReactMarkdown>
+  );
+}
+
 function TextBlock({ block }: BlockViewProps): ReactNode {
   const data = block.data as Extract<PageBlock, { type: 'text' }>['data'];
-  const body = <div className={styles.textBlock}>{data.md}</div>;
+  const { values } = useLiveVars();
+  const markdown = useMemo(() => prepareLivingMarkdown(interpolate(data.md, values)), [data.md, values]);
+  const body = <div className={styles.textBlock}><LivingMarkdown markdown={markdown} /></div>;
   return data.collapsed ? <details><summary>查看本页文字层（公式与图示以原页为准）</summary>{body}</details> : body;
 }
 
@@ -92,9 +197,11 @@ function FigureBlock({ block, assetUrl }: BlockViewProps): ReactNode {
 
 function FormulaBlock({ block }: BlockViewProps): ReactNode {
   const data = block.data as Extract<PageBlock, { type: 'formula' }>['data'];
+  const { values } = useLiveVars();
+  const tex = useMemo(() => interpolate(data.latex, values), [data.latex, values]);
   return (
     <div className={styles.formulaBlock}>
-      <Formula tex={data.latex} block />
+      <Formula tex={tex} block />
     </div>
   );
 }
@@ -109,26 +216,56 @@ function SectionBlock({ block }: BlockViewProps): ReactNode {
 /* 激活层                                                              */
 /* ------------------------------------------------------------------ */
 
-/** 嵌入实验块：冻结 problem + 前端确定性引擎 = 学生端可交互的解题过程。 */
+/** 嵌入实验块：冻结 problem + 前端确定性引擎 = 学生端可交互的解题过程。
+ *  支持 ``bindings``（块内 engine_params 键 ← 页面变量），滑杆拖拽经 150ms
+ *  防抖后才整题重算；折叠/步进/答案状态提升到页级 Map，收起再展开不丢。 */
 function LabBlockView({ block }: BlockViewProps): ReactNode {
   const data = block.data as Extract<PageBlock, { type: 'lab' }>['data'];
+  const { defs, values } = useLiveVars();
   const problem = useMemo<LabProblem>(
     () => ({ ...data.problem, states: EMPTY_STATE }),
     [data.problem],
   );
-  const [open, setOpen] = useState(false);
-  const [step, setStep] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
+  const [open, setOpen] = useBlockState(block.id, 'open', false);
+  const [step, setStep] = useBlockState(block.id, 'step', 0);
+  const [showAnswer, setShowAnswer] = useBlockState(block.id, 'answer', false);
+  const [cache, setCache] = useBlockState<{ key: string; result: LabResult | null } | null>(block.id, 'result', null);
+
+  const boundParams = useMemo<Record<string, number | string>>(() => {
+    const out: Record<string, number | string> = {};
+    for (const [paramKey, varName] of Object.entries(block.bindings ?? {})) {
+      const value = values[varName];
+      if ((typeof value === 'number' && Number.isFinite(value)) || typeof value === 'string') {
+        out[paramKey] = value;
+      }
+    }
+    return out;
+  }, [block.bindings, values]);
+  const debounced = useDebouncedValue(boundParams, 150);
+  const missingVars = useMemo(
+    () => [...new Set(Object.values(block.bindings ?? {}).filter((name) => !defs[name]))],
+    [block.bindings, defs],
+  );
+
+  const params = useMemo(
+    () => ({ ...(problem.model?.defaults ?? {}), ...data.engine_params, ...debounced }),
+    [problem, data.engine_params, debounced],
+  );
+  const paramsKey = useMemo(() => JSON.stringify(params), [params]);
 
   const result = useMemo<LabResult | null>(() => {
     if (!open) return null;
-    const params = { ...(problem.model?.defaults ?? {}), ...data.engine_params };
+    if (cache && cache.key === paramsKey) return cache.result;
     try {
       return computeLab(problem, params);
     } catch {
       return null;
     }
-  }, [open, problem, data.engine_params]);
+  }, [open, cache, paramsKey, problem, params]);
+
+  useEffect(() => {
+    if (open && (!cache || cache.key !== paramsKey)) setCache({ key: paramsKey, result });
+  }, [open, cache, paramsKey, result, setCache]);
 
   const frameCount = result?.trace?.length ?? 0;
   const clamped = Math.min(step, Math.max(0, frameCount - 1));
@@ -138,6 +275,11 @@ function LabBlockView({ block }: BlockViewProps): ReactNode {
       <header className={styles.labHead}>
         <span className={styles.labBadge}>实验</span>
         <span className={styles.labTitle}>{problem.title || problem.text?.slice(0, 60)}</span>
+        {missingVars.length ? (
+          <span className={styles.bindWarn} title="以下页面变量已不存在，绑定降级为静态参数">
+            变量失效：{missingVars.join('、')}
+          </span>
+        ) : null}
         <button type="button" className={styles.labToggle} onClick={() => setOpen((v) => !v)}>
           {open ? '收起' : '开始探究'}
         </button>
@@ -204,6 +346,7 @@ function QuizBlockView({ block, readOnly, onProgress }: BlockViewProps): ReactNo
   const data = block.data as Extract<PageBlock, { type: 'quiz' }>['data'];
   const [guess, setGuess] = useState<number>((data.min + data.max) / 2);
   const [submitted, setSubmitted] = useState<number | null>(null);
+  const markDone = useCompletionMark(block.id);
 
   const ratio = submitted === null ? null : data.value === 0 ? null : submitted / data.value;
   const verdict =
@@ -239,6 +382,9 @@ function QuizBlockView({ block, readOnly, onProgress }: BlockViewProps): ReactNo
             type="button"
             onClick={() => {
               setSubmitted(guess);
+              // 门控打点：猜值落在实际值 ±2% 量程内算 correct，否则 submitted
+              const tolerance = (data.max - data.min) * 0.02;
+              markDone(Math.abs(guess - data.value) <= tolerance ? 'correct' : 'submitted');
               onProgress?.({ quiz_guess: guess });
             }}
           >
@@ -261,21 +407,40 @@ function QuizBlockView({ block, readOnly, onProgress }: BlockViewProps): ReactNo
   );
 }
 
-/** 判分作答点：提交后与参考答案比对（宽松字符串匹配）。 */
+/** 判分作答点：提交后调 ``/living/grade`` 判分。
+ *  ``grading`` 模式：``exact`` 宽松文本比对（默认，兼容旧文档）、``expr``
+ *  数学等价（``1/2``≡``0.5``、``x^2+C``≡``C+x^2``）、``numeric`` 纯数值。 */
 function CheckpointBlockView({ block, onProgress }: BlockViewProps): ReactNode {
   const data = block.data as Extract<PageBlock, { type: 'checkpoint' }>['data'];
-  const [answer, setAnswer] = useState('');
-  const [attempts, setAttempts] = useState<{ answer: string; correct: boolean }[]>([]);
+  const mode = data.grading ?? 'exact';
+  const [answer, setAnswer] = useBlockState(block.id, 'draft', '');
+  const [busy, setBusy] = useState(false);
+  const markDone = useCompletionMark(block.id);
+  const [attempts, setAttempts] = useBlockState<{ answer: string; correct: boolean; reason?: string }[]>(
+    block.id, 'attempts', [],
+  );
   const last = attempts[attempts.length - 1];
 
-  const submit = (): void => {
+  const submit = async (): Promise<void> => {
     const trimmed = answer.trim();
-    if (!trimmed) return;
-    const norm = (s: string): string => s.replace(/[\s，。,.;；]/g, '').toLowerCase();
-    const correct = data.expected ? norm(trimmed) === norm(data.expected) : false;
-    const next = [...attempts, { answer: trimmed, correct }];
-    setAttempts(next);
-    onProgress?.({ checkpoint_attempts: [{ answer: trimmed, correct }] });
+    if (!trimmed || busy) return;
+    setBusy(true);
+    let record: { answer: string; correct: boolean; reason?: string };
+    try {
+      const graded = await gradeLivingAnswer({ answer: trimmed, expected: data.expected, mode });
+      record = { answer: trimmed, correct: graded.correct, reason: graded.reason ?? undefined };
+    } catch (cause) {
+      if (mode === 'exact') {
+        const norm = (s: string): string => s.replace(/[\s，。,.;；]/g, '').toLowerCase();
+        record = { answer: trimmed, correct: !!data.expected && norm(trimmed) === norm(data.expected) };
+      } else {
+        record = { answer: trimmed, correct: false, reason: `判分服务暂不可用：${errorMessage(cause)}` };
+      }
+    }
+    setBusy(false);
+    setAttempts([...attempts, record]);
+    markDone(record.correct ? 'correct' : 'submitted');
+    onProgress?.({ checkpoint_attempts: [{ answer: trimmed, correct: record.correct }] });
     setAnswer('');
   };
 
@@ -289,28 +454,36 @@ function CheckpointBlockView({ block, onProgress }: BlockViewProps): ReactNode {
           placeholder={data.placeholder || '写下你的答案'}
           onChange={(e) => setAnswer(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') submit();
+            if (e.key === 'Enter') void submit();
           }}
         />
-        <button type="button" onClick={submit} disabled={!answer.trim()}>
-          提交
+        <button type="button" onClick={() => void submit()} disabled={!answer.trim() || busy}>
+          {busy ? '判分中…' : '提交'}
         </button>
       </div>
       {last ? (
         <p className={last.correct ? styles.checkpointGood : styles.checkpointBad} role="status">
-          {last.correct ? '回答正确' : data.expected ? `再想想（参考：${data.expected}）` : '已记录'}
+          {last.correct
+            ? '回答正确'
+            : last.reason ?? (data.expected ? `再想想（参考：${data.expected}）` : '已记录')}
         </p>
       ) : null}
     </section>
   );
 }
 
-function EmbedBlockView({ block }: BlockViewProps): ReactNode {
+function EmbedBlockView({ block, readOnly }: BlockViewProps): ReactNode {
   const data = block.data as Extract<PageBlock, { type: 'embed' }>['data'];
-  if (!data.url) return null;
+  if (!data.url) return readOnly ? null : <div className={styles.placeholder}>尚未配置嵌入网页，请点击“编辑”填写地址和高度。</div>;
+  let safe = false;
+  try {
+    const url = new URL(data.url);
+    safe = ['http:', 'https:'].includes(url.protocol) && !!url.hostname && !url.username && !url.password;
+  } catch { /* 旧文档中的非法地址不加载到 iframe。 */ }
+  if (!safe) return <div className={styles.placeholder}>嵌入地址无效，请使用 http/https 网页地址。</div>;
   return (
     <div className={styles.embedBlock}>
-      <iframe src={data.url} height={data.height} title="嵌入内容" loading="lazy" sandbox="allow-scripts allow-same-origin" />
+      <iframe src={data.url} height={data.height} title="嵌入内容" loading="lazy" sandbox="allow-scripts" referrerPolicy="no-referrer" />
     </div>
   );
 }
@@ -323,9 +496,42 @@ function parseCanvasDoc(value: Record<string, unknown>): CanvasDoc | null {
   return candidate as CanvasDoc;
 }
 
-/** 活页内嵌工坊画布：读者可在讲义里直接操作，改动只存在本地沙盒中。 */
-function EmbeddedCanvasBlock({ doc, readOnly }: { doc: Record<string, unknown>; readOnly?: boolean }): ReactNode {
+interface PanelView {
+  title?: string;
+  viewIds: ReadonlySet<string>;
+  exposed: { node_id: string; param_key: string; label: string; min?: number; max?: number; step?: number }[];
+}
+
+/** 解析 ``doc.panel`` 仪器面板契约；无有效内容返回 null。 */
+function parsePanel(raw: unknown): PanelView | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const p = raw as { view_node_ids?: unknown; exposed_params?: unknown; title?: unknown };
+  const viewIds = new Set(
+    (Array.isArray(p.view_node_ids) ? p.view_node_ids : []).filter((v): v is string => typeof v === 'string' && !!v),
+  );
+  const exposed = (Array.isArray(p.exposed_params) ? p.exposed_params : [])
+    .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object')
+    .map((e) => ({
+      node_id: String(e.node_id ?? ''),
+      param_key: String(e.param_key ?? ''),
+      label: String(e.label ?? ''),
+      ...(typeof e.min === 'number' ? { min: e.min } : {}),
+      ...(typeof e.max === 'number' ? { max: e.max } : {}),
+      ...(typeof e.step === 'number' ? { step: e.step } : {}),
+    }))
+    .filter((e) => e.node_id && e.param_key);
+  if (!viewIds.size && !exposed.length) return null;
+  return { title: typeof p.title === 'string' ? p.title : undefined, viewIds, exposed };
+}
+
+/** 活页内嵌工坊画布：读者可在讲义里直接操作，改动只存在本地沙盒中。
+ *  ``bindings`` 的键是精确坐标 ``node_id.param_key``，值是页面变量名；
+ *  变量更新经 150ms 防抖后写入沙盒对应节点 params，由画布引擎自动重算。
+ *  目标变量或节点缺失 → 该绑定降级为静态值并给出警告，不静默丢弃。 */
+function EmbeddedCanvasBlock({ block, readOnly }: { block: Extract<PageBlock, { type: 'canvas' }>; readOnly?: boolean }): ReactNode {
   const navigate = useNavigate();
+  const { defs, values } = useLiveVars();
+  const doc = block.data.doc;
   const initial = useMemo(() => parseCanvasDoc(doc), [doc]);
   const [sandbox, setSandboxState] = useState<CanvasDoc | null>(() => initial ? JSON.parse(JSON.stringify(initial)) as CanvasDoc : null);
   const [busy, setBusy] = useState(false);
@@ -336,6 +542,75 @@ function EmbeddedCanvasBlock({ doc, readOnly }: { doc: Record<string, unknown>; 
       return typeof update === 'function' ? (update as (doc: CanvasDoc) => CanvasDoc)(previous) : update;
     });
   }, []);
+
+  const boundEntries = useMemo(() => {
+    const out: { nodeId: string; paramKey: string; value: number }[] = [];
+    for (const [key, varName] of Object.entries(block.bindings ?? {})) {
+      const dot = key.indexOf('.');
+      if (dot <= 0) continue;
+      const value = values[varName];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        out.push({ nodeId: key.slice(0, dot), paramKey: key.slice(dot + 1), value });
+      }
+    }
+    return out;
+  }, [block.bindings, values]);
+  const debounced = useDebouncedValue(boundEntries, 150);
+  const panel = useMemo(() => parsePanel(block.data.doc.panel), [block.data.doc]);
+  const [instrument, setInstrument] = useState(() => panel !== null);
+  const boundSig = JSON.stringify(debounced);
+
+  useEffect(() => {
+    if (!debounced.length) return;
+    setSandboxState((previous) => {
+      if (!previous) return previous;
+      let changed = false;
+      const nodes = previous.nodes.map((node) => {
+        const patches = debounced.filter((entry) => entry.nodeId === node.id);
+        if (!patches.length) return node;
+        const params = { ...node.params };
+        let dirty = false;
+        for (const patch of patches) {
+          if (params[patch.paramKey] !== patch.value) {
+            params[patch.paramKey] = patch.value;
+            dirty = true;
+          }
+        }
+        if (dirty) changed = true;
+        return dirty ? { ...node, params } : node;
+      });
+      return changed ? { ...previous, nodes } : previous;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- boundSig 携带全部信息
+  }, [boundSig]);
+
+  const bindWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    const missingVars = [...new Set(Object.values(block.bindings ?? {}).filter((name) => !defs[name]))];
+    if (missingVars.length) warnings.push(`变量失效：${missingVars.join('、')}`);
+    const nonNumericVars = [...new Set(
+      Object.values(block.bindings ?? {}).filter((name) => defs[name] && defs[name]!.type !== 'number'),
+    )];
+    if (nonNumericVars.length) warnings.push(`画布节点仅支持数值变量：${nonNumericVars.join('、')}`);
+    if (sandbox) {
+      const nodeIds = new Set(sandbox.nodes.map((node) => node.id));
+      const missingNodes = [...new Set(
+        Object.keys(block.bindings ?? {})
+          .map((key) => key.split('.')[0])
+          .filter((id) => id && !nodeIds.has(id)),
+      )];
+      if (missingNodes.length) warnings.push(`画布节点不存在：${missingNodes.join('、')}`);
+      if (panel) {
+        const missingViews = [...panel.viewIds].filter((id) => !nodeIds.has(id));
+        if (missingViews.length) warnings.push(`面板视图节点不存在：${missingViews.join('、')}`);
+        const missingExposed = panel.exposed
+          .filter((entry) => !nodeIds.has(entry.node_id))
+          .map((entry) => `${entry.node_id}.${entry.param_key}`);
+        if (missingExposed.length) warnings.push(`面板外露参数目标不存在：${missingExposed.join('、')}`);
+      }
+    }
+    return warnings;
+  }, [block.bindings, defs, sandbox, panel]);
 
   if (!sandbox) return <p className={styles.unsupported}>暂不支持此画布内容。</p>;
   const clone = async (): Promise<void> => {
@@ -350,19 +625,106 @@ function EmbeddedCanvasBlock({ doc, readOnly }: { doc: Record<string, unknown>; 
       setBusy(false);
     }
   };
+  const panelActive = instrument && panel !== null;
+  const patchExposed = (nodeId: string, paramKey: string, value: number): void => {
+    setSandboxState((previous) => previous ? {
+      ...previous,
+      nodes: previous.nodes.map((node) =>
+        node.id === nodeId ? { ...node, params: { ...node.params, [paramKey]: value } } : node,
+      ),
+    } : previous);
+  };
   return (
     <section className={styles.canvasEmbed} aria-label="内嵌工坊画布">
       <header className={styles.canvasEmbedHead}>
-        <span><b>工坊积木</b> · {sandbox.title || '未命名画布'}</span>
+        <span><b>{panelActive ? '仪器面板' : '工坊积木'}</b> · {(panelActive && panel.title) || sandbox.title || '未命名画布'}</span>
+        {panel ? (
+          <button type="button" className={styles.canvasEmbedBtn} onClick={() => setInstrument((v) => !v)}>
+            {panelActive ? '全图浏览' : '仪器面板'}
+          </button>
+        ) : null}
         <button type="button" className={styles.canvasEmbedBtn} disabled={busy} onClick={() => void clone()}>
           {busy ? '克隆中…' : '克隆到我的工坊编辑 ↗'}
         </button>
       </header>
+      {panelActive && panel.exposed.length ? (
+        <div className={styles.panelStrip} role="group" aria-label="面板外露参数">
+          {panel.exposed.map((entry) => {
+            const target = sandbox.nodes.find((node) => node.id === entry.node_id);
+            const raw = target?.params[entry.param_key];
+            const fallbackRange = panelParamRange(entry, typeof raw === 'number' ? raw : 0);
+            const value = typeof raw === 'number' ? raw : fallbackRange.min;
+            const range = panelParamRange(entry, value);
+            return (
+              <label key={`${entry.node_id}.${entry.param_key}`} className={styles.panelControl}>
+                <span>{entry.label || `${entry.node_id}.${entry.param_key}`}</span>
+                <input
+                  type="range"
+                  min={range.min}
+                  max={range.max}
+                  step={range.step}
+                  value={value}
+                  disabled={!target}
+                  onChange={(e) => patchExposed(entry.node_id, entry.param_key, Number(e.target.value))}
+                />
+                <output>{formatNumber(value)}</output>
+              </label>
+            );
+          })}
+        </div>
+      ) : null}
       <div className={styles.canvasEmbedViewport}>
-        <CanvasBoard doc={sandbox} setDoc={setSandbox} tool="select" inkColor="#2F3A49" embedded focusContent readOnly={readOnly} />
+        <CanvasBoard
+          doc={sandbox}
+          setDoc={setSandbox}
+          tool="select"
+          inkColor="#2F3A49"
+          embedded
+          focusContent
+          readOnly={panelActive ? true : readOnly}
+          visibleNodeIds={panelActive && panel.viewIds.size ? panel.viewIds : undefined}
+        />
       </div>
       <p className={styles.canvasEmbedHint}>讲义内操作的是本地沙盒，不会改动原作者文档；需要保存请克隆到自己的工坊。</p>
+      {bindWarnings.length ? (
+        <p className={styles.bindWarn} role="status">{bindWarnings.join('；')}（相关绑定降级为静态值）</p>
+      ) : null}
       {error ? <p className={styles.canvasEmbedError} role="alert">{error}</p> : null}
+    </section>
+  );
+}
+
+const CALLOUT_META: Record<CalloutKind, { label: string; icon: string }> = {
+  theorem: { label: '定理', icon: '∴' },
+  proof: { label: '证明', icon: '□' },
+  example: { label: '例题', icon: '✎' },
+  warning: { label: '易错提示', icon: '⚠' },
+};
+
+/** 语义化知识卡片：定理/证明/例题/易错提示，支持折叠，正文走同一套 md+KaTeX。 */
+function CalloutBlockView({ block }: BlockViewProps): ReactNode {
+  const data = block.data as Extract<PageBlock, { type: 'callout' }>['data'];
+  const { values } = useLiveVars();
+  const markdown = useMemo(() => prepareLivingMarkdown(interpolate(data.md, values)), [data.md, values]);
+  const meta = CALLOUT_META[data.kind] ?? CALLOUT_META.example;
+  const head = (
+    <span className={styles.calloutHead}>
+      <span className={styles.calloutKind}>{meta.icon} {meta.label}</span>
+      {data.title ? <span className={styles.calloutTitle}>{data.title}</span> : null}
+    </span>
+  );
+  if (data.collapsible) {
+    return (
+      <details className={`${styles.callout} ${styles[`callout_${data.kind}`]}`}>
+        <summary>{head}</summary>
+        <div className={styles.calloutBody}><LivingMarkdown markdown={markdown} /></div>
+      </details>
+    );
+  }
+  return (
+    <section className={`${styles.callout} ${styles[`callout_${data.kind}`]}`}>
+      {head}
+      <div className={styles.calloutBody}><LivingMarkdown markdown={markdown} /></div>
     </section>
   );
 }
@@ -373,6 +735,14 @@ function EmbeddedCanvasBlock({ doc, readOnly }: { doc: Record<string, unknown>; 
 
 export function BlockView(props: BlockViewProps): ReactNode {
   const { block, controls } = props;
+  const { states } = useLiveVars();
+  // 门控：locked_until 指向的兄弟块需先完成（submitted/correct）；
+  // 目标悬挂（块已删）按统一规则降级为解锁+编辑器警告。
+  const gate = block.locked_until;
+  const gateTargetMissing = !!(gate && props.peerIds && !props.peerIds.has(gate.block_id));
+  const gateLevel = gate ? states[gate.block_id]?.completed : undefined;
+  const gateSatisfied = !gate || gateTargetMissing
+    || gateLevel === 'correct' || (gate.rule !== 'correct' && gateLevel === 'submitted');
   let body: ReactNode = null;
   switch (block.type) {
     case 'page':
@@ -394,25 +764,53 @@ export function BlockView(props: BlockViewProps): ReactNode {
       body = <LabBlockView {...props} />;
       break;
     case 'quiz':
-      body = <QuizBlockView {...props} />;
+      body = <QuizBlockView key={JSON.stringify(block.data)} {...props} />;
       break;
     case 'checkpoint':
-      body = <CheckpointBlockView {...props} />;
+      body = <CheckpointBlockView key={JSON.stringify(block.data)} {...props} />;
       break;
     case 'embed':
       body = <EmbedBlockView {...props} />;
       break;
+    case 'callout':
+      body = <CalloutBlockView {...props} />;
+      break;
     case 'canvas':
-      body = block.data.doc.version === 1 ? <EmbeddedCanvasBlock doc={block.data.doc} readOnly={props.readOnly} />
+      body = block.data.doc.version === 1 ? <EmbeddedCanvasBlock block={block} readOnly={props.readOnly} />
         : block.data.doc.template === 'ai_model' ? <LivingAIModel key={String(block.data.doc.model && (block.data.doc.model as { content_hash?: string }).content_hash)} doc={block.data.doc} />
           : block.data.doc.template === 'attention' ? <AttentionDemo /> : <p className={styles.unsupported}>暂不支持此画布内容。</p>;
       break;
-    default:
-      body = null;
+    default: {
+      const unknown = block as { type: string; data: Record<string, unknown> };
+      body = <section className={styles.placeholder} aria-label="不支持的块">
+        <strong>暂不支持的块类型：{unknown.type}</strong>
+        <p>{props.readOnly ? '当前版本无法展示此内容，原始数据仍保留在文档中。' : '原始数据已保留，可移动或删除；更新到支持此类型的版本后可继续使用。'}</p>
+        {!props.readOnly ? <details><summary>查看原始数据</summary><pre>{JSON.stringify(unknown.data, null, 2)}</pre></details> : null}
+      </section>;
+    }
   }
   if (body === null && !controls) return null;
+  if (gate && props.readOnly && !gateSatisfied) {
+    return (
+      <div className={styles.blockShell} data-block-type={block.type}>
+        <div className={styles.gated}>
+          <div className={styles.gatedBody} aria-hidden="true">{body}</div>
+          <div className={styles.gateMask} role="status">
+            <span className={styles.gateIcon} aria-hidden="true">🔒</span>
+            {gate.rule === 'correct' ? '先答对上面的题目再解锁' : '完成上面的探索后解锁'}
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className={styles.blockShell} data-block-type={block.type}>
+      {gate && !props.readOnly ? (
+        <p className={styles.gateBadge} role="status">
+          🔒 门控{gate.rule === 'correct' ? '（答对解锁）' : '（完成解锁）'}：目标块 {gate.block_id}
+          {gateTargetMissing ? ' —— 目标已删除，自动解锁' : ''}
+        </p>
+      ) : null}
       {body}
       {controls}
     </div>
@@ -438,10 +836,12 @@ export function SuggestionCard(props: {
   onDismiss: () => void;
 }): ReactNode {
   const { suggestion, busy, onAccept, onDismiss } = props;
+  const label = suggestion.kind === 'canvas_object' && suggestion.proposal?.template === 'page_lab'
+    ? 'AI 交互模型' : KIND_LABELS[suggestion.kind];
   return (
     <aside className={styles.suggestionCard}>
       <div className={styles.suggestionMeta}>
-        <span className={styles.suggestionKind}>{KIND_LABELS[suggestion.kind]}</span>
+        <span className={styles.suggestionKind}>{label}</span>
         <span className={styles.suggestionReason}>{suggestion.reason}</span>
       </div>
       <div className={styles.suggestionActions}>

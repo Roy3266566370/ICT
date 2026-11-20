@@ -249,6 +249,372 @@ def _create_lab(client: TestClient, text: str) -> tuple[dict[str, Any], dict[str
     return session, response.json()["data"]
 
 
+@pytest.fixture
+def round8_ocr_stub_upload(owner, monkeypatch):
+    """Real PNG upload and review with stubbed OCR, not real OCR acceptance."""
+    import io
+
+    import httpx
+    from PIL import Image, ImageDraw
+    from app.labs import extract
+
+    def forbid_external_http(*args, **kwargs):
+        pytest.fail('OCR-stub 接口测试不得调用外部模型或网络')
+
+    # TestClient 使用 ASGI transport，不经过这两个真实网络 transport。
+    monkeypatch.setattr(httpx.HTTPTransport, 'handle_request', forbid_external_http)
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, 'handle_async_request', forbid_external_http)
+    assert get_settings().lab_ai_enabled is False
+
+    def upload(ocr_text, *, confidence=0.99, math_text=None):
+        calls = []
+
+        def ocr(image):
+            assert isinstance(image, Image.Image)
+            assert image.size == (640, 120)
+            calls.append('ocr')
+            return ocr_text, confidence
+
+        def math_ocr(image, **kwargs):
+            assert isinstance(image, Image.Image)
+            calls.append('math_ocr')
+            return math_text
+
+        monkeypatch.setattr(extract, '_ocr', ocr)
+        monkeypatch.setattr(extract, '_math_ocr', math_ocr)
+        image = Image.new('RGB', (640, 120), 'white')
+        ImageDraw.Draw(image).text((20, 40), 'Round 8: OCR-stub upload fixture', fill='black')
+        buffer = io.BytesIO()
+        image.save(buffer, format='PNG')
+        png = buffer.getvalue()
+        assert png.startswith(b'\x89PNG\r\n\x1a\n')
+        session = _session(owner)
+        response = owner.post(
+            '/api/v1/labs', headers=_headers(session),
+            files=[('files', ('round8-ocr-stub.png', png, 'image/png'))],
+            data={'roles': 'problem', 'subject': 'calculus'},
+        )
+        assert response.status_code == 201, response.text
+        document = response.json()['data']
+        assert calls.count('ocr') == 1
+        if math_text is not None:
+            assert calls.count('math_ocr') == 1
+        assert len(document['problems']) == 1
+        source = document['source']
+        assert source['files'][0]['kind'] == 'image'
+        assert source['pages'][0]['ocr_text'] == ocr_text
+        assert source['pages'][0]['math_text'] == math_text
+        assert source['pages'][0]['ocr_confidence'] == confidence
+        stored = extract.LABS_DIR / document['lab_id'] / 'files' / source['files'][0]['stored_name']
+        assert stored.read_bytes() == png
+        preview = owner.get(
+            f'/api/v1/labs/{document["lab_id"]}/preview/{source["pages"][0]["image_key"]}'
+        )
+        assert preview.status_code == 200, preview.text
+        assert preview.headers['content-type'].startswith('image/png')
+        with Image.open(io.BytesIO(preview.content)) as decoded:
+            assert decoded.size == image.size
+        return session, document
+
+    return upload
+
+
+def _round8_review(owner, session, document, answers, *, text=None):
+    problem = document['problems'][0]
+    response = owner.post(
+        f'/api/v1/labs/{document["lab_id"]}/review', headers=_headers(session),
+        json={
+            'problem_id': problem['problem_id'],
+            'text': problem['text'] if text is None else text,
+            'subject': 'calculus', 'condition_values': {},
+            'ambiguity_answers': answers,
+        },
+    )
+    assert response.status_code == 200, response.text
+    reviewed = response.json()['data']
+    assert reviewed['lab_id'] == document['lab_id']
+    assert reviewed['problems'][0]['problem_id'] == problem['problem_id']
+    return reviewed
+
+
+_API_REPAIR_GOLDEN = '求极坐标曲线 r=cos3θ 的一瓣面积，θE[-T/6,π/6]。'
+_API_REPAIR_DRIFT = '求极坐标曲线 r=cos3胃 的一瓣面积，胃E[-T/6,蟺/6]。'
+_API_REPAIR_CORRECT = '求极坐标曲线 r=cos3θ 的一瓣面积，θ∈[-π/6,π/6]。'
+
+
+def _api_repair_choices(problem):
+    # Fixed source-image transcription, not candidate selection by solvability.
+    expected = {'T': 'π', '胃': 'θ', '蟺': 'π', 'E': '∈'}
+    repairs = [a for a in problem['recognition']['ambiguities']
+               if a['id'].startswith('source_repair_')]
+    assert repairs
+    return {a['id']: next(o['value'] for o in a['options']
+                         if o.get('replacement') == expected[a['repair']['original']])
+            for a in repairs}
+
+
+@pytest.mark.parametrize('original', [_API_REPAIR_GOLDEN, _API_REPAIR_DRIFT])
+def test_source_repair_api_upload_review_history_and_original_evidence(
+    owner, round8_ocr_stub_upload, monkeypatch, original,
+):
+    import copy
+    from app.labs import ai_solve
+
+    def unexpected_ai_review(*args, **kwargs):
+        pytest.fail('manual source repairs must use rebuild_problem, not AI condition review')
+
+    monkeypatch.setattr(ai_solve, 'review_ai_conditions', unexpected_ai_review)
+    session, document = round8_ocr_stub_upload(original)
+    original_source = copy.deepcopy(document['source'])
+    original_problem = copy.deepcopy(document['problems'][0])
+    _round8_assert_no_answer(original_problem)
+    choices = _api_repair_choices(original_problem)
+    document = _round8_review(owner, session, document, {'source_formula_confirmation': 'confirmed'})
+    _round8_assert_no_answer(document['problems'][0])
+    assert document['problems'][0]['text'] == original
+    _round8_assert_persisted(owner, document)
+    # Explicitly withhold full-image confirmation on the replacement request.
+    document = _round8_review(owner, session, document, {
+        **choices, 'source_formula_confirmation': 'pending',
+    })
+    problem = document['problems'][0]
+    assert problem['text'] == _API_REPAIR_CORRECT
+    _round8_assert_no_answer(problem)
+    assert problem['source_pages'] == original_problem['source_pages']
+    assert document['source'] == original_source
+    history = copy.deepcopy(problem['recognition']['source_repair_history'])
+    assert len(history) == 1
+    assert history[0]['original_text'] == original
+    assert history[0]['revised_text'] == _API_REPAIR_CORRECT
+    assert {d['id'] for d in history[0]['decisions']} == set(choices)
+    for decision in history[0]['decisions']:
+        assert {'id', 'code', 'start', 'end', 'original', 'replacement', 'action',
+                'label', 'text_hash'} <= decision.keys()
+        assert original[decision['start']:decision['end']] == decision['original']
+    _round8_assert_persisted(owner, document)
+    document = _round8_review(owner, session, document, {'source_formula_confirmation': 'confirmed'})
+    problem = document['problems'][0]
+    assert problem['status'] == 'ready'
+    assert problem['solution']['exact'] == 'pi/12'
+    assert problem['recognition']['source_repair_history'] == history
+    assert problem['source_pages'] == original_problem['source_pages']
+    assert document['source'] == original_source
+    _round8_assert_persisted(owner, document)
+
+
+@pytest.mark.parametrize('invalid', [
+    'changed-text', 'forged-id', 'forged-option', 'other-problem', 'conditions', 'replay',
+])
+def test_source_repair_api_invalid_request_does_not_change_stored_revision(
+    owner, round8_ocr_stub_upload, invalid,
+):
+    session, document = round8_ocr_stub_upload(_API_REPAIR_GOLDEN)
+    choices = _api_repair_choices(document['problems'][0])
+    if invalid == 'other-problem':
+        original_cookies = dict(owner.cookies)
+        _, other = round8_ocr_stub_upload(_API_REPAIR_DRIFT)
+        choices = _api_repair_choices(other['problems'][0])
+        owner.cookies.clear()
+        owner.cookies.update(original_cookies)
+    if invalid == 'replay':
+        document = _round8_review(owner, session, document, choices)
+    problem = document['problems'][0]
+    body = {'problem_id': problem['problem_id'], 'text': problem['text'],
+            'subject': 'calculus', 'condition_values': {}, 'ambiguity_answers': choices}
+    if invalid == 'changed-text':
+        body['text'] = problem['text'].replace('cos3', 'cos2')
+    elif invalid == 'forged-id':
+        choices['source_repair_forged'] = 'replace:0'
+    elif invalid == 'forged-option':
+        choices[next(iter(choices))] = 'replace:9999'
+    elif invalid == 'conditions':
+        body['condition_values'] = {'expression': '1'}
+    response = owner.post(f'/api/v1/labs/{document["lab_id"]}/review',
+                          headers=_headers(session), json=body)
+    _round8_assert_persisted(owner, document)
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.parametrize('action', ['keep', 'manual'])
+def test_source_repair_api_keep_manual_still_block(owner, round8_ocr_stub_upload, action):
+    session, document = round8_ocr_stub_upload(_API_REPAIR_DRIFT)
+    answers = {key: action for key in _api_repair_choices(document['problems'][0])}
+    answers.update(source_formula_confirmation='confirmed', kernel_reject='confirmed')
+    document = _round8_review(owner, session, document, answers)
+    assert document['problems'][0]['text'] == _API_REPAIR_DRIFT
+    _round8_assert_no_answer(document['problems'][0])
+    _round8_assert_persisted(owner, document)
+
+
+def _round8_assert_no_answer(problem):
+    assert problem['status'] != 'ready'
+    assert problem['solution']['answer'] == ''
+    assert not problem['solution'].get('exact')
+    assert problem['solution'].get('answer_value') is None
+    assert not (problem.get('ai_solution') or {}).get('answer')
+
+
+def _round8_source_gate(problem):
+    return next(a for a in problem['recognition']['ambiguities']
+                if a['id'] == 'source_formula_confirmation')
+
+
+def _round8_assert_persisted(owner, document):
+    response = owner.get(f'/api/v1/labs/{document["lab_id"]}')
+    assert response.status_code == 200, response.text
+    saved = response.json()['data']
+    for key in ('lab_id', 'revision', 'status', 'source'):
+        assert saved[key] == document[key], key
+    for key in ('problem_id', 'text', 'status', 'model', 'solution', 'source_pages', 'recognition'):
+        assert saved['problems'][0][key] == document['problems'][0][key], key
+
+
+@pytest.mark.parametrize('ocr_text,result_kind,expected', [
+    pytest.param('计算反常积分∫(1,+∞) dx/x^2。', 'integral', '1', id='improper-infinity'),
+    pytest.param('计算反常积分∫(0,1) dx/√(1-x)。', 'integral', '2', id='improper-root-denominator'),
+    pytest.param('设x=t^2,y=t^3，求d²y/dx²在t=1处的值。', 'parametric', '3/4', id='parametric-unicode-second'),
+    pytest.param('设x=t^2,y=t^3，求d^2y/dx^2在t=1处的值。', 'parametric', '3/4', id='parametric-caret-second'),
+    pytest.param('设f(x)=x^3+x，求其反函数在y=2处的导数。', 'inverse_derivative', '1/4', id='inverse-at-y2'),
+    pytest.param('将函数f(x)=|x|在[-π,π]上展开为傅里叶级数。', 'fourier', 'pi', id='fourier-abs-a0'),
+])
+def test_round8_ocr_stub_upload_review_exact_answer(owner, round8_ocr_stub_upload, ocr_text, result_kind, expected):
+    session, document = round8_ocr_stub_upload(ocr_text)
+    original_source = document['source']
+    problem = document['problems'][0]
+    _round8_assert_no_answer(problem)
+    assert _round8_source_gate(problem)['resolved'] is False
+    _round8_assert_persisted(owner, document)
+
+    document = _round8_review(owner, session, document, {'source_formula_confirmation': 'yes'})
+    _round8_assert_no_answer(document['problems'][0])
+    assert _round8_source_gate(document['problems'][0])['resolved'] is False
+    _round8_assert_persisted(owner, document)
+
+    document = _round8_review(owner, session, document, {'source_formula_confirmation': 'confirmed'})
+    problem = document['problems'][0]
+    assert document['status'] == problem['status'] == 'ready'
+    assert _round8_source_gate(problem)['resolved'] is True
+    assert not any(a['severity'] == 'blocking' and not a['resolved']
+                   for a in problem['recognition']['ambiguities'])
+    assert problem['recognition']['ai_used'] is False
+    assert not problem['model'].get('teaching')
+    solution = problem['solution']
+    assert solution['answer']
+    if result_kind == 'parametric':
+        assert problem['model']['task'] == 'parametric_derivative'
+        assert problem['model']['order'] == 2
+        # 此内核 exact 是导函数；定点二阶精确值在 parametric_details 中。
+        assert solution['parametric_details']['second_value'] == expected
+        assert expected in solution['answer']
+    elif result_kind == 'fourier':
+        assert problem['model']['task'] == 'fourier_series'
+        assert solution['fourier_details']['a0'] == expected
+        assert solution['fourier']['a0'] == expected
+    else:
+        from fractions import Fraction
+
+        assert problem['model']['kind'] == result_kind
+        # 0.250000000000000 与 1/4 精确相等；不用浮点近似容差掩盖错误。
+        assert Fraction(solution['exact']) == Fraction(expected)
+        assert Fraction(solution['answer']) == Fraction(expected)
+        if expected == '2':
+            assert solution['answer'] == '2'
+            assert solution['exact'] != '2/3'
+    assert document['source'] == original_source
+    assert problem['source_pages'][0]['ocr_text'] == ocr_text
+    _round8_assert_persisted(owner, document)
+
+
+def test_round8_ocr_stub_missing_parametric_point_stays_blocked_then_corrects(owner, round8_ocr_stub_upload):
+    original = '设x=a(t-sint),y=a(1-cost)，求dy/dx。'
+    session, document = round8_ocr_stub_upload(original)
+    source = document['source']
+    _round8_assert_no_answer(document['problems'][0])
+    assert _round8_source_gate(document['problems'][0])['resolved'] is False
+    document = _round8_review(owner, session, document, {'source_formula_confirmation': 'confirmed'})
+    problem = document['problems'][0]
+    _round8_assert_no_answer(problem)
+    assert _round8_source_gate(problem)['resolved'] is True
+    assert not problem['model'].get('teaching')
+    blocked_problem = problem
+    blockers = [a for a in problem['recognition']['ambiguities']
+                if a['severity'] == 'blocking' and not a['resolved']]
+    assert blockers
+    _round8_assert_persisted(owner, document)
+
+    # 给缺失条件的歧义项任意填 confirmed，也不能凭空补出研究点。
+    document = _round8_review(owner, session, document, {
+        'source_formula_confirmation': 'confirmed', **{a['id']: 'confirmed' for a in blockers},
+    })
+    _round8_assert_no_answer(document['problems'][0])
+    assert not document['problems'][0]['model'].get('teaching')
+    _round8_assert_persisted(owner, document)
+
+    corrected = '设x=t^2,y=t^3，求t=1处dy/dx的值。'
+    document = _round8_review(owner, session, document,
+                              {'source_formula_confirmation': 'confirmed'}, text=corrected)
+    problem = document['problems'][0]
+    assert document['status'] == problem['status'] == 'ready'
+    assert problem['text'] == corrected
+    assert problem['model']['task'] == 'parametric_derivative'
+    assert not problem['model'].get('teaching')
+    assert problem['solution']['parametric_details']['slope_value'] == '3/2'
+    assert problem['solution']['answer']
+    assert document['source'] == source
+    assert problem['source_pages'][0]['ocr_text'] == original
+    _round8_assert_persisted(owner, document)
+    # 最后检查阻塞原因，让同 lab 纠正/持久化路径也实际执行，而非被早期分类断言截断。
+    assert blocked_problem['model']['task'] == 'parametric_derivative'
+    assert any('t=t0' in a['question'] for a in blockers)
+
+
+@pytest.mark.parametrize('confidence,math_text,evidence_code', [
+    pytest.param(0.3, None, 'ocr_low_confidence', id='low-confidence'),
+    pytest.param(0.99, r'\int_{0}^{1}\sqrt{1-x}\,dx', 'candidate_disagreement', id='conflicting-denominator'),
+])
+def test_round8_ocr_stub_quality_requires_review_and_retains_evidence(
+    owner, round8_ocr_stub_upload, confidence, math_text, evidence_code,
+):
+    original = '计算反常积分∫(0,1) dx/√(1-x)。'
+    session, document = round8_ocr_stub_upload(original, confidence=confidence, math_text=math_text)
+    source = document['source']
+    problem = document['problems'][0]
+    source_pages = problem['source_pages']
+    quality = problem['recognition']['quality']
+    assert quality['untrusted'] is True
+    assert any(e['code'] == evidence_code for e in quality['evidence'])
+    assert problem['recognition']['local_build_skipped'] is True
+    _round8_assert_no_answer(problem)
+    assert _round8_source_gate(problem)['resolved'] is False
+    _round8_assert_persisted(owner, document)
+
+    document = _round8_review(owner, session, document, {'source_formula_confirmation': 'true'})
+    _round8_assert_no_answer(document['problems'][0])
+    assert _round8_source_gate(document['problems'][0])['resolved'] is False
+    _round8_assert_persisted(owner, document)
+
+    # 低置信度题干可人工原样确认；冲突候选必须以核对后的分母为准，而非求成 2/3。
+    corrected = '计算反常积分∫(0,1) 1/sqrt(1-x) dx。' if math_text else original
+    document = _round8_review(owner, session, document,
+                              {'source_formula_confirmation': 'confirmed'}, text=corrected)
+    problem = document['problems'][0]
+    assert document['status'] == problem['status'] == 'ready'
+    assert problem['text'] == corrected
+    assert problem['solution']['answer'] == problem['solution']['exact'] == '2'
+    assert _round8_source_gate(problem)['resolved'] is True
+    reviewed_quality = problem['recognition']['quality']
+    assert reviewed_quality['human_confirmed'] is True
+    assert reviewed_quality['untrusted'] is False
+    assert reviewed_quality['source_quality']['untrusted'] is True
+    assert any(e['code'] == evidence_code for e in reviewed_quality['source_quality']['evidence'])
+    assert document['source'] == source
+    assert problem['source_pages'] == source_pages
+    assert source_pages[0]['ocr_text'] == original
+    assert source_pages[0]['math_text'] == math_text
+    assert source_pages[0]['ocr_confidence'] == confidence
+    _round8_assert_persisted(owner, document)
+
+
 def test_manual_integral_preview_confirm_save_review_and_share(owner, guest, monkeypatch):
     from app.labs import staged_understanding
     from app.ppt_ai.client import PPTAIClient

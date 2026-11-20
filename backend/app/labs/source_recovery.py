@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import math
 import re
 import unicodedata
@@ -44,8 +45,9 @@ def transcription_issues(text: str) -> list[str]:
         issues.append('题干转写为空')
     if '\ufffd' in text:
         issues.append('识别文字含损坏字符')
-    # OCR 常把定积分号 ∫ 读成 “{”（如 {_0^1 x^2 dx）、∬ 读成 “」{”；这类 { 不算括号缺失。
-    brace_text = re.sub(r'\{\s*(?=[_^])', '', text)
+    # OCR 常把定积分号 ∫ 读成 “{”（如 {_0^1 x^2 dx、{(1,+∞) dx/x^2）、
+    # ∬ 读成 “」{”；这类 { 不算括号缺失。
+    brace_text = re.sub(r'\{\s*(?=[_^(（])', '', text)
     brace_text = re.sub(r'[「」]\s*\{', '', brace_text)
     if brace_text.count('{') != brace_text.count('}'):
         issues.append('公式括号不完整')
@@ -168,8 +170,132 @@ def compare_formula_candidates(ocr_text: str | None, math_text: str | None) -> d
     return {'status': status, 'pairs': pairs}
 
 
+def _repair_formula_spans(text: str) -> list[tuple[int, int]]:
+    """Conservative formula islands; all offsets refer to the untouched source."""
+    from .expr import _annotation_positions, _is_cjk
+    spans = []
+    masked = list(text)
+    delimiter = re.compile(r'\$\$([\s\S]*?)\$\$|(?<!\\)\$([^$\n]+)\$|\\\(([\s\S]*?)\\\)|\\\[([\s\S]*?)\\\]')
+    for match in delimiter.finditer(text):
+        group = next(i for i in range(1, 5) if match[i] is not None)
+        spans.append(match.span(group))
+        masked[match.start():match.end()] = ' ' * len(match[0])
+    protected = _annotation_positions(text)
+    # Locate isolated ideographs by math context, not by a list of OCR mistakes.
+    index = 0
+    while index < len(text):
+        if not _is_cjk(text[index]) or index in protected:
+            index += 1
+            continue
+        end = index + 1
+        while end < len(text) and _is_cjk(text[end]) and end not in protected:
+            end += 1
+        left = text[index - 1:index] if index else ''
+        right = text[end:end + 2]
+        embedded = (end == index + 1 and text[index] not in '的为在与和求设则由是处时上下内外到从且或及'
+                    and (bool(re.search(r'[A-Za-zθπ=+*/^0-9)(\[,\-]', left)) or bool(re.match(r'E[\[(]', right))))
+        if not embedded:
+            masked[index:end] = '\n' * (end - index)
+        index = end
+    outside = ''.join(masked)
+    for match in re.finditer(r'[^\s。；，：？！$]+(?:[ \t]+[^\s。；，：？！$]+)*', outside):
+        raw = match[0]
+        # Emoji/prose prefixes are not part of a formula.
+        lead = re.search(r'[A-Za-z0-9\\{θπ]|[^\x00-\x7f](?=E[\[(])', raw)
+        if lead is None:
+            continue
+        start, end = match.start() + lead.start(), match.end()
+        if re.search(r'[=+*/^∫]|E\s*[\[(]|∈', text[start:end]):
+            spans.append((start, end))
+    return sorted(spans)
+
+
+def source_repair_proposals(text: str) -> list[dict]:
+    """Unselected, local human-review candidates. Never mutate or solve the source."""
+    from .expr import ExprError, _annotation_positions, _is_cjk, parse_expression
+    digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
+    proposals = []
+
+    def add(start, end, code, replacements=(), diagnostic=None):
+        if any(start < p['repair']['end'] and end > p['repair']['start'] for p in proposals):
+            return
+        original = text[start:end]
+        identity = hashlib.sha256(f'{digest}:{code}:{start}:{end}'.encode('utf-8')).hexdigest()
+        repair = dict(start=start, end=end, original=original, text_hash=digest,
+                      code=code, context=text[max(0, start - 24):min(len(text), end + 24)])
+        if diagnostic is not None:
+            repair['diagnostic'] = diagnostic
+        options = [dict(value=f'replace:{i}', label=f'按原图将 {original} 改为 {replacement}',
+                        replacement=replacement) for i, replacement in enumerate(replacements)]
+        options.extend([dict(value='keep', label='保留原符号（仍需内核支持）'),
+                        dict(value='manual', label='手动修正题目文字')])
+        proposals.append(dict(id='source_repair_' + identity, field='source_text',
+            question=f'公式中的“{original}”需要对照原图核对，请选择或手动修正。',
+            severity='blocking', resolved=False, answer=None, options=options, repair=repair))
+
+    for start, end in _repair_formula_spans(text):
+        raw = text[start:end]
+        protected = _annotation_positions(raw)
+        units = set()
+        for unit in re.finditer(r'\d\s*(?:千米|厘米|毫米|米|秒|分钟|小时|千克|克|牛顿|焦耳|赫兹|度)', raw):
+            units.update(range(unit.start() + 1, unit.end()))
+        angle = bool(re.search(r'θ|theta|极坐标|角度|极角', raw) or
+                     re.search(r'极坐标|极角|角度', re.split(r'[，。；\n]', text[:start])[-1]) or
+                     (re.search(r'胃E\s*[\[(]', raw) and
+                      re.search(r'(?:sin|cos|tan)\s*\d*胃', text[max(0, start - 30):start])) or
+                     re.search(r'(?:sin|cos|tan)\s*\d*胃', raw))
+        for i, char in enumerate(raw):
+            if i in protected or i in units:
+                continue
+            if _is_cjk(char):
+                replacement = {'胃': 'θ', '蟺': 'π', '兀': 'π'}.get(char) if angle else None
+                add(start + i, start + i + 1, 'formula_cjk', [replacement] if replacement else [])
+        for match in re.finditer(r'(?<=[θ胃])\s*(E)\s*(?=[\[(][^\]\n]*[,，])|(?<=theta)\s*(E)\s*(?=[\[(][^\]\n]*[,，])', raw):
+            group = 1 if match[1] is not None else 2
+            add(start + match.start(group), start + match.end(group), 'interval_membership', ['∈'])
+        if angle:
+            for match in re.finditer(r'(?<![A-Za-z])T(?=\s*[/×])', raw):
+                add(start + match.start(), start + match.end(), 'ambiguous_constant', ['π'])
+        for match in re.finditer(r'\{(?=\s*(?:[_^]|[（(][^,，\n]+[,，][^\n]+[）)]\s*d[xyzt]))', raw):
+            add(start + match.start(), start + match.end(), 'integral_glyph', ['∫'])
+        # Unsupported notation alone is not evidence of a corrupted scalar expression.
+        greek = any('GREEK' in unicodedata.name(c, '') and c != 'π' for c in raw)
+        if protected or units or greek or re.search(
+                r'[∈∫∬]|E\s*[\[(]|\\(?:alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|rho|sigma|tau|upsilon|phi|chi|psi|omega|int|sum)', raw, re.I):
+            continue
+        if raw.count('=') > 1 or re.search(r"[,;\[\]|<>≤≥∑Σ∏∮'′]", raw):
+            continue
+        if '=' in raw and not re.fullmatch(r'\s*[A-Za-z](?:\(\s*[A-Za-z]\s*\))?\s*', raw.split('=', 1)[0]):
+            continue
+        offset = raw.find('=') + 1 if raw.count('=') == 1 else 0
+        expression = raw[offset:]
+        try:
+            parse_expression(expression, variables=tuple('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'), preserve_structure=True)
+        except ExprError as exc:
+            diagnostic = {'message': str(exc)}
+            if exc.start is not None and exc.end is not None:
+                diagnostic.update(start=start + offset + exc.start, end=start + offset + exc.end)
+            existing = [p for p in proposals if start <= p['repair']['start'] < end]
+            if existing:
+                for p in existing:
+                    p['repair']['diagnostic'] = diagnostic.copy()
+            else:
+                a = diagnostic.get('start', start + offset)
+                b = diagnostic.get('end', end)
+                if a < b:
+                    add(a, b, exc.code or 'formula_parse_error', diagnostic=diagnostic)
+    return sorted(proposals, key=lambda p: p['repair']['start'])
+
+
 def _notation_evidence(text: str) -> list[dict]:
     evidence = []
+    for proposal in source_repair_proposals(text):
+        repair = proposal['repair']
+        item = dict(code=repair['code'], text=repair['original'], repair=copy.deepcopy(repair),
+                    blocking=False, requires_review=True, message=proposal['question'])
+        if repair['code'] in ('interval_membership', 'integral_glyph'):
+            item.update(code='notation_repair_proposal', proposed=proposal['options'][0]['replacement'])
+        evidence.append(item)
     for match in re.finditer(r'(?:[A-Za-z0-9)}]\s*~\s*[-+]?\d+|\^\s*\{?\s*~)', text):
         evidence.append(dict(code='ambiguous_exponent', text=match[0],
                              message='疑似指数含 ~，需对照原图确认，不自动改写'))
@@ -237,7 +363,9 @@ def assess_text_quality(text: str, pages: list[dict] | None = None) -> dict:
     quality_text = re.sub(r'(?<=[^\sA-D])(?=[A-D][.、．])', ' ', text or '')
     tokens = re.findall(r'[A-Za-z]{1,12}', quality_text)
     garbage = [token for token in tokens if
-               not re.search(
+               # `ln`→`In` 是 OCR 常见 I/l 同形误读（nInn、sInx 等），可恢复，不算垃圾。
+               'ln' not in token.replace('I', 'l')
+               and not re.search(
                    r'^(?:sin|cos|tan|cot|sec|csc|log|ln|exp|sqrt|abs|lim|max|min|dx|dy|dz|dt|oo|pi|inf|'
                    r'khz|mhz|ghz|kbps|mbps|gbps|kb|mb|gb|tb|dbm|ms|us|ns|ps|ev|kev|mev|gev|'
                    r'uf|pf|nf|ma|mv|kv|mw|kw|mh|kpa|mpa|gpa)$',
@@ -272,8 +400,8 @@ def assess_text_quality(text: str, pages: list[dict] | None = None) -> dict:
         saved_visual |= bool(saved.get('needs_visual_verification'))
         saved_untrusted |= bool(saved.get('untrusted'))
     visual_source = any(page.get('image_key') for page in source_pages)
-    if visual_source:
-        evidence.extend(dict(item, source='text') for item in _notation_evidence(text or ''))
+    evidence.extend(dict(item, source='text') for item in _notation_evidence(text or '')
+                    if visual_source or item.get('repair'))
     issues.extend(item['message'] for item in evidence if item.get('blocking', True))
     issues = list(dict.fromkeys(issues))
     visual_formula = saved_visual or visual_source and (_formula_sensitive(text or '') or any(
@@ -336,7 +464,7 @@ def read_with_source_retry(problem: dict, images: list[dict], read, *, lab_id: s
     report = dict(version=VERSION, attempted=False, status='not_needed', issues=issues,
                   page_keys=list(dict.fromkeys(p['key'] for p in images)),
                   source_quality=source_quality, initial_quality=initial_quality, initial_question=question,
-                  untrusted=bool(issues), requires_review=bool(issues or source_quality['requires_review']),
+                  untrusted=bool(issues), requires_review=bool(issues or source_quality['requires_review'] or initial_quality['requires_review']),
                   needs_visual_verification=bool(visual_review))
     if issues:
         from .ai_contract import source_images

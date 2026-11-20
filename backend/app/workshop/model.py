@@ -14,6 +14,11 @@ MAX_WIRES = 600
 MAX_STROKES = 400
 MAX_STROKE_POINTS = 4000
 MAX_TITLE = 120
+MAX_TEXT = 8000
+MAX_PAYLOAD = 32768
+MAX_PAYLOAD_TOTAL = 131072
+MAX_PANEL_PARAMS = 20
+MAX_PANEL_VIEWS = 60
 _ID_RE = re.compile(r"^[\w\-]{1,48}$")
 
 
@@ -55,6 +60,8 @@ def _nodes(raw_list: Any, *, depth: int) -> list[dict[str, Any]]:
     ids = [n["id"] for n in nodes]
     if len(set(ids)) != len(ids):
         raise ValueError("节点 id 重复")
+    if sum(len(n.get("payload") or "") for n in nodes) > MAX_PAYLOAD_TOTAL:
+        raise ValueError(f"节点 payload 总量超过上限 {MAX_PAYLOAD_TOTAL}")
     return nodes
 
 
@@ -79,7 +86,12 @@ def _node(raw: Any, *, depth: int) -> dict[str, Any]:
     }
     text = raw.get("text")
     if isinstance(text, str):
-        node["text"] = text[:8000]
+        node["text"] = text[:MAX_TEXT]
+    # ``payload`` 承载自包含仿真节点的数据载荷（AI 交互程序的 JSON 等），
+    # 与 text 分离：text 是用户便签，payload 是物化产物，不参与连线求值。
+    payload = raw.get("payload")
+    if isinstance(payload, str) and payload:
+        node["payload"] = payload[:MAX_PAYLOAD]
 
     # composite 自制积木：递归校验子图（限深防恶意嵌套）
     sub = raw.get("sub")
@@ -105,6 +117,50 @@ def _node(raw: Any, *, depth: int) -> dict[str, Any]:
             "ports": ports,
         }
     return node
+
+
+def _panel(raw: Any) -> dict[str, Any]:
+    """``panel`` 仪器面板契约：嵌入活页时以精简模式呈现。
+
+    ``view_node_ids`` 是主观察节点集合；``exposed_params`` 把内部节点的
+    参数外露为面板控件（``{node_id, param_key, label?, min?, max?, step?}``）。
+    引用缺失节点由前端降级为警告（宁可漏不锁死），校验层只保证形态。
+    """
+    if not isinstance(raw, Mapping):
+        raise ValueError("panel 必须是对象")
+    out: dict[str, Any] = {}
+    title = raw.get("title")
+    if isinstance(title, str) and title.strip():
+        out["title"] = title.strip()[:MAX_TITLE]
+    exposed: list[dict[str, Any]] = []
+    for item in (raw.get("exposed_params") or [])[:MAX_PANEL_PARAMS]:
+        if not isinstance(item, Mapping):
+            continue
+        node_id = str(item.get("node_id") or "")[:48]
+        param_key = str(item.get("param_key") or "")[:48]
+        if not node_id or not param_key:
+            continue
+        entry: dict[str, Any] = {
+            "node_id": node_id,
+            "param_key": param_key,
+            "label": str(item.get("label") or "")[:48],
+        }
+        for key in ("min", "max", "step"):
+            bound = _num(item.get(key), -1e6, 1e6)
+            if bound is not None:
+                entry[key] = bound
+        if entry.get("min") is not None and entry.get("max") is not None and not entry["min"] < entry["max"]:
+            continue  # 非法范围的外露参数直接丢弃
+        exposed.append(entry)
+    out["exposed_params"] = exposed
+    view = raw.get("view_node_ids")
+    out["view_node_ids"] = (
+        [str(v)[:48] for v in view[:MAX_PANEL_VIEWS] if isinstance(v, str) and v.strip()]
+        if isinstance(view, list) else []
+    )
+    if raw.get("read_only_layout"):
+        out["read_only_layout"] = True
+    return out
 
 
 def validate_canvas_doc(raw: Any) -> dict[str, Any]:
@@ -148,7 +204,7 @@ def validate_canvas_doc(raw: Any) -> dict[str, Any]:
         })
 
     zoom = _num(raw.get("zoom"), 0.2, 3.0)
-    return {
+    doc: dict[str, Any] = {
         "version": 1,
         "title": str(raw.get("title") or "")[:MAX_TITLE],
         "nodes": nodes,
@@ -156,6 +212,9 @@ def validate_canvas_doc(raw: Any) -> dict[str, Any]:
         "strokes": strokes,
         "zoom": zoom if zoom is not None else 1.0,
     }
+    if raw.get("panel") is not None:
+        doc["panel"] = _panel(raw.get("panel"))
+    return doc
 
 
 __all__ = ["validate_canvas_doc"]

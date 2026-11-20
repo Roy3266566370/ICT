@@ -3,7 +3,29 @@ import type { LabProblem } from '@/labs/types';
 
 export type PageBlockType =
   | 'page' | 'text' | 'figure' | 'formula' | 'section'
-  | 'lab' | 'canvas' | 'quiz' | 'checkpoint' | 'embed';
+  | 'lab' | 'canvas' | 'quiz' | 'checkpoint' | 'embed' | 'callout';
+
+/** 页面级活变量（Phase 1：只做 number/select 标量）。 */
+export interface PageVariableNumber {
+  label: string;
+  type: 'number';
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  unit?: string;
+}
+
+export interface PageVariableSelect {
+  label: string;
+  type: 'select';
+  value: string;
+  options: string[];
+  unit?: string;
+}
+
+export type PageVariable = PageVariableNumber | PageVariableSelect;
+export type PageVariables = Record<string, PageVariable>;
 
 export type SuggestionKind = 'formula' | 'lab' | 'canvas_object' | 'quiz' | 'section';
 export type SuggestionStatus = 'pending' | 'accepted' | 'dismissed';
@@ -21,6 +43,12 @@ interface BlockBase<T extends PageBlockType, D> {
   data: D;
   source?: PageBlockSource;
   floor?: boolean;
+  /** 块内参数键 ← 页面变量名的单向绑定（canvas 为 `node_id.param_key`）。 */
+  bindings?: Record<string, string>;
+  /** Phase 3 预留位：派生输出映射。当前只允许空对象透传。 */
+  outputs?: Record<string, string>;
+  /** 门控：指向需先完成的兄弟块（通常 quiz/checkpoint）。目标缺失自动解锁+警告。 */
+  locked_until?: { block_id: string; rule?: 'submitted' | 'correct' };
 }
 
 export type PageBlock =
@@ -32,8 +60,12 @@ export type PageBlock =
   | BlockBase<'lab', { problem: LabProblem; engine_params: Record<string, unknown>; collapsed: boolean }>
   | BlockBase<'canvas', { doc: Record<string, unknown> }>
   | BlockBase<'quiz', { question: string; answer: string; explain: string; min: number; max: number; value: number }>
-  | BlockBase<'checkpoint', { prompt: string; expected: string; placeholder: string }>
+  | BlockBase<'checkpoint', { prompt: string; expected: string; placeholder: string; grading?: CheckpointGrading }>
+  | BlockBase<'callout', { kind: CalloutKind; title: string; md: string; collapsible?: boolean }>
   | BlockBase<'embed', { url: string; height: number }>;
+
+export type CalloutKind = 'theorem' | 'proof' | 'example' | 'warning';
+export type CheckpointGrading = 'exact' | 'expr' | 'numeric';
 
 export interface ActivationSuggestion {
   id: string;
@@ -60,6 +92,7 @@ export interface LivingPageDoc {
   revision: number;
   blocks: PageBlock[];
   suggestions: ActivationSuggestion[];
+  variables?: PageVariables;
   source: {
     files: { file_id?: string; name?: string; kind?: string; pages?: number }[];
     pages: { file_id?: string; page?: number; image_key?: string | null; method?: string }[];

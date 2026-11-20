@@ -1,13 +1,19 @@
-"""活页文字 → AI 自主设计的交互模型，复用经过校验的 page-lab 运行契约。"""
+"""活页文字 → AI 自主设计的交互模型（Phase 2：产出 pending 建议，不直接写块）。
+
+AI 生成的 page_lab 载荷封装成 ``canvas_object`` 建议（proposal.template
+= ``"page_lab"``），老师点击激活后才由 ``materialize`` 落成标准画布块
+（``pageLabSim`` 节点）——不再直接插入不可编辑的 ``ai_model`` 黑盒块。
+"""
 from __future__ import annotations
 
+import json
 from typing import Any, Mapping
 
 from ..ppt_ai.client import PPTAIClient
 from ..ppt_ai import page_lab
 from ..ppt_ai.util import hash_json
 from ..ppt_ai.types import CallBudget
-from .model import new_block_id, validate_block
+from .model import make_suggestion
 
 RECOMMENDATION_VERSION = "living-selection.2"
 
@@ -43,30 +49,85 @@ def model_context(document: Mapping[str, Any], block_id: str, instruction: str) 
     return context, hash_json({"version": "living-ai.1", "block_id": block_id, "context": context})
 
 
-def existing_model(document: Mapping[str, Any], block_id: str) -> dict | None:
-    return next((b for b in document.get("blocks") or []
-                 if b["type"] == "canvas" and b["data"].get("doc", {}).get("template") == "ai_model"
-                 and b["data"]["doc"].get("anchor_id") == block_id), None)
+def ai_anchor_of(block: Mapping[str, Any]) -> str | None:
+    """canvas 块关联的文字锚块 id：旧 ``ai_model`` 黑盒块与 ``pageLabSim`` 节点都认。"""
+    if block.get("type") != "canvas":
+        return None
+    doc = (block.get("data") or {}).get("doc") or {}
+    if doc.get("template") == "ai_model":
+        anchor = doc.get("anchor_id")
+        return str(anchor) if isinstance(anchor, str) and anchor else None
+    if doc.get("version") == 1:
+        for node in doc.get("nodes") or []:
+            if not isinstance(node, Mapping) or node.get("type") != "pageLabSim":
+                continue
+            payload = node.get("payload")
+            if not isinstance(payload, str):
+                continue
+            try:
+                anchor = json.loads(payload).get("anchor_id")
+            except ValueError:
+                continue
+            if isinstance(anchor, str) and anchor:
+                return anchor
+    return None
 
 
-def generate_model(document: Mapping[str, Any], block_id: str, instruction: str,
-                   context: dict, input_hash: str) -> dict:
+def existing_ai_block(document: Mapping[str, Any], block_id: str) -> dict | None:
+    """锚块上已物化的 AI 交互块（新旧两态都算），供"重新设计"检测。"""
+    return next(
+        (b for b in document.get("blocks") or [] if ai_anchor_of(b) == block_id),
+        None,
+    )
+
+
+def pending_ai_suggestion(document: Mapping[str, Any], block_id: str) -> dict | None:
+    return next(
+        (s for s in document.get("suggestions") or []
+         if s.get("status") == "pending" and s.get("block_id") == block_id
+         and s.get("kind") == "canvas_object"
+         and (s.get("proposal") or {}).get("template") == "page_lab"),
+        None,
+    )
+
+
+def propose_model(document: Mapping[str, Any], block_id: str, instruction: str,
+                  context: dict, input_hash: str) -> dict:
+    """AI 只产出 pending 建议：老师激活后才物化为可编辑的 pageLabSim 画布块。
+
+    已物化的旧模型（ai_model 黑盒或 pageLabSim）记进 ``proposal.replaces``——
+    激活新版本时由 ``apply_suggestion`` 移除，实现"重新设计"等价迁移。
+    """
     lab = page_lab.generate_page_lab(context, client=PPTAIClient())
-    anchor = next(b for b in document["blocks"] if b["id"] == block_id)
-    old = existing_model(document, block_id)
-    return validate_block({
-        "id": old["id"] if old else new_block_id(), "type": "canvas", "source": anchor.get("source"),
-        "data": {"doc": {"nodes": [], "template": "ai_model", "model": lab,
-                         "anchor_id": block_id, "input_hash": input_hash,
-                         "instruction": instruction.strip()[:1000]}},
-    })
+    proposal: dict[str, Any] = {
+        "template": "page_lab",
+        "lab": lab,
+        "anchor_id": block_id,
+        "input_hash": input_hash,
+        "instruction": instruction.strip()[:1000],
+    }
+    old = existing_ai_block(document, block_id)
+    if old:
+        proposal["replaces"] = old["id"]
+    title = str(lab.get("title") or "AI 交互实验")[:80]
+    summary = str(lab.get("summary") or "")[:120]
+    return make_suggestion(
+        "canvas_object", block_id, proposal,
+        f"AI 设计的交互模型《{title}》：{summary or '点击激活嵌入为可编辑画布积木'}",
+        confidence=0.9,
+    )
 
 
 def recommend_models(document: Mapping[str, Any], *, client: PPTAIClient | None = None) -> dict:
     """全篇筛选而非按页强塞交互；只接受指向现存文字块的建议。"""
     blocks = document.get("blocks") or []
-    models = [b for b in blocks if b["type"] == "canvas" and b["data"].get("doc", {}).get("template") == "ai_model"]
-    covered = {b["data"]["doc"].get("anchor_id") for b in models}
+    models = [b for b in blocks if ai_anchor_of(b)]
+    covered = {ai_anchor_of(b) for b in models}
+    covered |= {
+        s.get("block_id") for s in document.get("suggestions") or []
+        if s.get("status") == "pending" and s.get("kind") == "canvas_object"
+        and (s.get("proposal") or {}).get("template") == "page_lab"
+    }
     candidates = []
     heading = ""
     for b in blocks:
@@ -92,7 +153,8 @@ def recommend_models(document: Mapping[str, Any], *, client: PPTAIClient | None 
     response = (client or PPTAIClient()).generate_json(
         "living_interaction_selection",
         {"document_title": str(document.get("title") or "")[:120], "candidates": candidates,
-         "existing_topics": [str(b["data"]["doc"].get("model", {}).get("title") or "")[:120] for b in models],
+         "existing_topics": [str((b["data"]["doc"].get("model") or {}).get("title")
+                                or b["data"]["doc"].get("title") or "")[:120] for b in models],
          "output_contract": {"summary": "简短说明挑选策略", "recommendations": [{
              "block_id": "必须逐字来自 candidates", "title": "知识点或实验名称", "reason": "为什么适合交互",
              "interaction": "具体可调参数和操作", "observation": "随操作变化的图形、数值或过程"}]}},

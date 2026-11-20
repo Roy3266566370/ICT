@@ -21,7 +21,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import sympy as sp
 
-from .expr import ExprError, expression_text, parse_expression, safe_float, to_latex
+from .expr import ExprError, expression_text, normalize_power_notation, parse_expression, safe_float, to_latex
 
 SUBJECT_LABELS = {
     "calculus": "微积分",
@@ -97,7 +97,7 @@ SUBJECT_KEYWORDS: dict[str, tuple[tuple[str, int], ...]] = {
         ("定积分", 8), ("不定积分", 7), ("积分", 6), ("导数", 7), ("微分", 6),
         ("极限", 6), ("切线", 5), ("∫", 8), ("\\int", 8), ("曲边", 4),
         ("原函数", 6), ("d x", 3), ("dx", 3), ("连续", 2), ("间断点", 5),
-        ("泰勒", 7), ("麦克劳林", 7), ("高阶导数", 7), ("单调区间", 8), ("单调", 5), ("微分方程", 9),
+        ("泰勒", 7), ("麦克劳林", 7), ("高阶导数", 7), ("单调区间", 8), ("单调", 5), ("微分方程", 9), ("欧拉方程", 9),
         ("级数", 9), ("幂级数", 9), ("傅里叶", 9), ("罗尔定理", 9), ("拉格朗日", 7),
         ("介值定理", 9), ("零点", 6), ("有根", 6),
         ("三重积分", 9), ("二重积分", 9), ("曲线积分", 9), ("曲面积分", 9),
@@ -898,8 +898,8 @@ def _parse_integral(text: str) -> dict[str, Any] | None:
     compact = text.replace("\n", " ")
     compact = re.sub(r"\\,|\\!|\\;|\\ ", " ", compact)
     compact = re.sub(r"\\mathrm\{d\}|\\text\{d\}|\\operatorname\{d\}", "d", compact)
-    # OCR 把 ∫ 读成 “{”：后接上下标符号的 { 按积分号处理。
-    compact = re.sub(r"\{\s*(?=[_^])", "∫", compact)
+    # OCR 把 ∫ 读成 “{”：后接上下标符号或括号区间的 { 按积分号处理（{(1,+∞) dx）。
+    compact = re.sub(r"\{\s*(?=[_^(（])", "∫", compact)
 
     says_indefinite = bool(re.search(r"不定积分|原函数|antiderivative", text, flags=re.I))
     says_definite = bool(
@@ -937,8 +937,25 @@ def _parse_integral(text: str) -> dict[str, Any] | None:
             flags=re.I,
         )
     )
-    for match in matches:
-        lower_text, upper_text, body, variable = match.groups()
+    # 5) ∫(a,b) f dx 与 ∫(a,b) dx/f：括号区间记法（教材与 OCR 常见）。
+    bound = r"([-+]?(?:\d+(?:\.\d+)?|\.\d+|∞|\+∞|-∞|oo|\+oo|-oo|inf|\+inf|-inf)(?:\s*(?:pi|π))?)"
+    matches += list(
+        re.finditer(
+            rf"(?:\\int|∫)\s*[（(]\s*{bound}\s*[,，]\s*{bound}\s*[）)]\s*(.+?)\s*d\s*([xyzt])(?![A-Za-z])",
+            compact,
+        )
+    )
+    dx_first = list(
+        re.finditer(
+            rf"(?:\\int|∫)\s*[（(]\s*{bound}\s*[,，]\s*{bound}\s*[）)]\s*d\s*([xyzt])\s*[/·]\s*(.+?)\s*(?:[,，。；]|(?=[一-鿿])|$)",
+            compact,
+        )
+    )
+    groups = [match.groups() + (match.group(0),) for match in matches]
+    # `∫(a,b) dx/f` 记法中被积函数是 1/f（微分前置），不是 f。
+    groups += [(m.group(1), m.group(2), '1/(' + m.group(4) + ')', m.group(3), m.group(0)) for m in dx_first]
+    for match in groups:
+        lower_text, upper_text, body, variable, matched_text = match
         if not body.strip():
             continue
         lower = _parse_limit(lower_text)
@@ -967,7 +984,7 @@ def _parse_integral(text: str) -> dict[str, Any] | None:
             "upper_text": upper_text,
             "variable": variable,
             "indefinite": False,
-            "matched": match.group(0),
+            "matched": matched_text,
         }
         if lower is None or upper is None:
             # 上下限是符号/公式时不能擅自代入，交给核对面板处理。
@@ -1024,6 +1041,11 @@ def _calculus_model(
     source: Mapping[str, Any],
     overrides: Mapping[str, Any],
 ) -> dict[str, Any]:
+    if overrides.get('region_kind'):
+        from .exam_math import build_exam_math
+        exam = build_exam_math(text, source, overrides)
+        if exam is not None:
+            return exam
     from .proof import build_proof_from_text
     proof = build_proof_from_text(text, source, overrides)
     if proof is not None:
@@ -1155,21 +1177,14 @@ def _calculus_model(
     try:
         parsed = parse_expression(raw_expr, (variable,))
     except ExprError as exc:
-        teaching = True
-        ambiguities.append(
-            _ambiguity(
-                "expression_parse",
-                "expression",
-                f"表达式“{raw_expr[:60]}”暂时无法解析（{exc}）。请核对符号或改写为 x^2、sin(x) 这样的形式。",
-                options=[{"value": "use_example", "label": "使用教学示例"}],
-            )
-        )
-        raw_expr = f"{variable}**2"
-        parsed = parse_expression(raw_expr, (variable,))
-        lower, upper = 0.0, 1.0
-        if kind == "antiderivative":
-            # 不定积分表达式无法解析时退回教学示例，明确要求学生核对原题。
-            kind = "integral"
+        from .kernel_models import blocked_recognized_problem
+        extracted = {'expression': raw_expr, 'variable': variable, 'source_text': text}
+        if integral and not indefinite:
+            for key in ('lower', 'upper'):
+                value = overrides.get(key) if overrides.get(key) is not None else integral.get(key)
+                extracted[key] = str(value) if value is not None else None
+        return blocked_recognized_problem(
+            kind, extracted, f'表达式“{raw_expr[:60]}”暂时无法解析（{exc}）。请核对原题，不自动替换为教学示例。')
     else:
         # Original OCR stays in the source dossier; the executable model must
         # never send split function letters or implicit calls to the browser.
@@ -1284,14 +1299,29 @@ def _calculus_model(
             ]
         )
     else:
-        point = _extract_number(
-            text,
-            (
-                r"(?:在|于)\s*[xX]\s*=?\s*(-?\d+(?:\.\d+)?)",
-                r"[xX]\s*_?0?\s*=\s*(-?\d+(?:\.\d+)?)",
-            ),
-        )
+        var_name = re.escape(str(variable or "x"))
+        point_patterns = [
+            rf"(?:在|于)\s*{var_name}\s*=?\s*(-?\d+(?:\.\d+)?)",
+            rf"{var_name}\s*_?0?\s*=\s*(-?\d+(?:\.\d+)?)",
+        ]
+        if kind == "inverse_derivative":
+            # 反函数输入约定写在 y 上（"反函数在 y=2 处的导数"）。
+            point_patterns.append(r"(?:在|于)\s*y\s*_?0?\s*=\s*(-?\d+(?:\.\d+)?)")
+        point = _extract_number(text, tuple(point_patterns))
+        if point is None and overrides.get("point") not in (None, ""):
+            try:
+                point = float(overrides["point"])
+            except (TypeError, ValueError):
+                point = None
         point_supplied = point is not None
+        if kind == "inverse_derivative" and not point_supplied:
+            if re.search(r'(?:利用|用|根据)反函数求导(?:法则|公式)', text) and not re.search(r'其反函数|的反函数', text):
+                kind = "derivative"
+            else:
+                from .kernel_models import blocked_recognized_problem
+                return blocked_recognized_problem('inverse_derivative', {
+                    'expression': raw_expr, 'variable': variable,
+                }, '已识别反函数导数请求，但缺少反函数的研究点；当前内核不支持无点的反函数导数通式。')
         point = 0.0 if point is None else point
         defaults = {"point": float(point), "h": 0.1}
         # 求切线方程 → 答案给直线方程；笼统求导（无研究点）→ 答案给导函数表达式。
@@ -1449,6 +1479,7 @@ def _optimization_model(
         variables = ["x"]
 
     try:
+        raw_expr = normalize_power_notation(raw_expr, variables)
         parsed = parse_expression(raw_expr, variables)
     except ExprError as exc:
         teaching = True
@@ -2250,6 +2281,9 @@ def build_problem(
                     classified, confidence = normalized_classified, normalized_confidence
                     subject, built = normalized_subject, normalized
     model = built["model"]
+    if has_images:
+        from .source_recovery import source_repair_proposals
+        built['ambiguities'].extend(source_repair_proposals(text.strip()))
 
     if ocr_empty or any(page.get("requires_formula_confirmation") or page.get('requires_source_review') for page in source_pages):
         built["ambiguities"].append(_ambiguity(
@@ -2271,6 +2305,8 @@ def build_problem(
                     "heap_conditions", "subject", "solution", "solution_incomplete",
                 )
             ):
+                continue
+            if item['id'].startswith('source_repair_'):
                 continue
             if item["id"] == "source_formula_confirmation" and answers[item["id"]] != "confirmed":
                 continue
@@ -2317,6 +2353,8 @@ def build_problem(
                 severity="info",
             ))
 
+    if any(item.get('repair') and not item.get('resolved') for item in built['ambiguities']):
+        status = 'needs_review'
     answer_override = str(override_values.get("student_answer") or "").strip()
     if ocr_empty:
         status = 'needs_review'
@@ -2481,6 +2519,44 @@ def select_problem(document: dict[str, Any], problem_id: str) -> dict[str, Any] 
     return None
 
 
+def _apply_source_repairs(problem: Mapping[str, Any], text: str, answers: Mapping[str, Any]):
+    selected = {key: value for key, value in answers.items() if key.startswith('source_repair_')}
+    if not selected:
+        return text, None
+    original = str(problem.get('text') or '').strip()
+    if text != original:
+        raise ValueError('题目文字已变化，请重新核对候选；不能把旧位置的修正应用到新文字')
+    from .source_recovery import source_repair_proposals
+    offered = {item['id'] for item in (problem.get('recognition') or {}).get('ambiguities') or []
+               if item.get('repair')}
+    proposals = {item['id']: item for item in source_repair_proposals(original)}
+    decisions = []
+    for key, choice in selected.items():
+        proposal = proposals.get(key)
+        if key not in offered or proposal is None:
+            raise ValueError('修正候选已过期或不属于当前题目，请重新打开核对面板')
+        option = next((item for item in proposal['options'] if item['value'] == choice), None)
+        if option is None:
+            raise ValueError('修正选择无效，请使用当前题目的候选或手动修改原文')
+        repair = proposal['repair']
+        start, end = repair['start'], repair['end']
+        if original[start:end] != repair['original']:
+            raise ValueError('修正片段与原文不一致，请重新核对')
+        action = 'replace' if 'replacement' in option else choice
+        decisions.append({
+            'id': key, 'code': repair['code'], 'start': start, 'end': end,
+            'original': repair['original'], 'replacement': option.get('replacement', repair['original']),
+            'action': action, 'label': option['label'], 'text_hash': repair['text_hash'],
+        })
+    replacements = sorted((item for item in decisions if item['action'] == 'replace'), key=lambda item: item['start'])
+    if any(left['end'] > right['start'] for left, right in zip(replacements, replacements[1:])):
+        raise ValueError('修正片段重叠，请逐处核对后再提交')
+    revised = original
+    for item in reversed(replacements):
+        revised = revised[:item['start']] + item['replacement'] + revised[item['end']:]
+    return revised, {'original_text': original, 'revised_text': revised, 'decisions': decisions}
+
+
 def rebuild_problem(
     problem: dict[str, Any],
     *,
@@ -2492,14 +2568,19 @@ def rebuild_problem(
 ) -> dict[str, Any]:
     """按学生修正重新编译题目；保留原题文本与学生记录。"""
 
+    revised_text = (text if text is not None else problem.get('text') or '').strip()
+    answers = dict(ambiguity_answers or {})
+    revised_text, repair_record = _apply_source_repairs(problem, revised_text, answers)
+    if repair_record and any(item['action'] == 'replace' for item in repair_record['decisions']) and condition_values:
+        raise ValueError('请先应用原文候选修正，再单独编辑条件，避免旧条件覆盖修正后的题目')
     overrides = {
         "subject": (subject or problem.get("subject")) if (subject or problem.get("subject")) != 'unknown' else None,
         "condition_values": dict(condition_values or {}),
-        "ambiguity_answers": dict(ambiguity_answers or {}),
+        "ambiguity_answers": {key: value for key, value in answers.items() if not key.startswith('source_repair_')},
     }
-    text_changed = text is not None and text.strip() != str(problem.get('text') or '').strip()
+    text_changed = revised_text != str(problem.get('text') or '').strip()
     rebuilt = build_problem(
-        (text if text is not None else problem.get("text") or "").strip(),
+        revised_text,
         number=problem.get("number"),
         pages=[
             {
@@ -2523,6 +2604,11 @@ def rebuild_problem(
         if str(problem.get("problem_id") or "").split("_")[-1].isdigit()
         else 1,
     )
+    history = list((problem.get('recognition') or {}).get('source_repair_history') or [])
+    if repair_record:
+        history.append(repair_record)
+    if history:
+        rebuilt['recognition']['source_repair_history'] = history
     rebuilt["problem_id"] = problem["problem_id"]
     if not text_changed:
         rebuilt["title"] = problem.get("title") or rebuilt["title"]

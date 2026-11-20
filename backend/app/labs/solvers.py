@@ -563,7 +563,7 @@ def _calculus_solution(model: Mapping[str, Any]) -> dict[str, Any]:
             answer_text = f"切线方程 {line_eq}（斜率 {_fmt(slope)}，过点 ({_fmt(point)}, {_fmt(value)})）"
             summary_text = "切线方程题：斜率取 f'(x0)，方程 y−y0=f'(x0)(x−x0)。"
         elif ask == "derivative_expr":
-            answer_text = f"f'(x)={expression_text(derivative)}"
+            answer_text = f"f'({variable})={expression_text(derivative)}"
             answer_value = None
             summary_text = "求导题：给出导函数表达式；定点导数值见 exact 与斜率指标。"
         else:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -120,6 +121,51 @@ def test_text_page_lifecycle(owner: TestClient) -> None:
     updated = patched.json()["data"]
     assert updated["title"] == "活页A"
     assert updated["revision"] == document["revision"] + 1
+
+
+def test_unknown_blocks_save_move_read_publish(owner: TestClient, guest: TestClient) -> None:
+    session, document = _create_text_page(owner, "旧版普通文档")
+    url = f"/api/v1/pages/{document['page_id']}"
+    unknown = {"id": "future_block", "type": "vendor.future", "data": {
+        "html": '<script>alert(1)</script><img src=x onerror="alert(2)">',
+        "nested": {"items": [None, True, 42, 1.25, "中文"]},
+        "problem": {"source_pages": [{"stored_name": "opaque-data"}]},
+        "url": "javascript:alert(3)", "type": "lab"}}
+    blocks = [unknown, *document["blocks"]]
+    for ordered in (blocks, blocks[1:] + blocks[:1]):
+        response = owner.patch(url, headers=_headers(session), json={
+            "expected_revision": document["revision"], "title": "多字段保存", "blocks": ordered})
+        assert response.status_code == 200, response.text
+        document = response.json()["data"]
+        assert document["blocks"] == ordered
+        fetched = owner.get(url)
+        assert fetched.status_code == 200
+        assert fetched.headers["content-type"].startswith("application/json")
+        assert fetched.json()["data"] == document
+        assert document["schema_version"] == "page.1"
+    published = owner.post(url + "/publish", headers=_headers(session))
+    assert published.status_code == 201, published.text
+    public = guest.get(f"/api/v1/page-shares/{published.json()['data']['share_id']}")
+    assert public.status_code == 200
+    assert public.headers["content-type"].startswith("application/json")
+    snap = public.json()["data"]
+    assert snap["schema_version"] == "page.1"
+    assert snap["blocks"] == document["blocks"]
+    assert snap["blocks"][-1] == unknown
+
+
+@pytest.mark.parametrize("kind,data", [("lab", {}), ("canvas", {}),
+    ("quiz", {"value": "NaN"}), ("quiz", {"min": 4, "max": 2, "value": 3}),
+    ("embed", {"url": "https://"}), ("embed", {"url": "javascript:alert(1)"}),
+    ("future", {"payload": "x" * 65536})])
+def test_invalid_block_edit_is_atomic(owner: TestClient, kind, data) -> None:
+    session, document = _create_text_page(owner, "旧版普通文档")
+    url = f"/api/v1/pages/{document['page_id']}"
+    response = owner.patch(url, headers=_headers(session), json={
+        "expected_revision": document["revision"], "title": "不应保存",
+        "blocks": [{"id": "bad", "type": kind, "data": data}]})
+    assert response.status_code == 422, response.text
+    assert owner.get(url).json()["data"] == document
 
 
 def test_suggestion_accept_and_dismiss(owner: TestClient) -> None:
@@ -289,27 +335,59 @@ def test_ai_model_generation_cache_replace_and_publish(owner: TestClient, guest:
     assert response.status_code == 200, response.text
     result = response.json()["data"]
     assert result["cached"] is False
-    assert result["document"]["blocks"][1] == anchor
-    model = result["block"]
-    assert model["type"] == "canvas" and model["data"]["doc"]["template"] == "ai_model"
+    # 新契约：AI 只产 pending 建议，文档块不变
+    assert result["document"]["blocks"] == doc["blocks"]
+    sug = result["suggestion"]
+    assert sug["status"] == "pending" and sug["kind"] == "canvas_object"
+    assert sug["proposal"]["template"] == "page_lab"
+    assert sug["proposal"]["anchor_id"] == anchor["id"]
+    assert sug["proposal"]["lab"]["program"]
     assert calls[0]["design_goal"] == body["instruction"]
     assert "自注意力" in calls[0]["page_text"]
 
+    # 相同输入再调命中缓存，不再调 AI
     body["expected_revision"] = result["document"]["revision"]
     cached = owner.post(url, headers=_headers(session), json=body).json()["data"]
     assert cached["cached"] is True and len(calls) == 1
-    assert cached["document"]["revision"] == body["expected_revision"]
+    assert cached["suggestion"]["id"] == sug["id"]
+
+    # force 重新设计：新建议替换同块旧 pending 建议
     body["force"] = True
     regenerated = owner.post(url, headers=_headers(session), json=body)
     assert regenerated.status_code == 200, regenerated.text
     fresh = regenerated.json()["data"]
     assert len(calls) == 2
-    assert fresh["block"]["id"] == model["id"]
-    assert sum(b["type"] == "canvas" for b in fresh["document"]["blocks"]) == 1
+    pending_lab = [s for s in fresh["document"]["suggestions"]
+                   if s["status"] == "pending" and s["kind"] == "canvas_object"
+                   and s["proposal"]["template"] == "page_lab"]
+    assert len(pending_lab) == 1
+    sug2 = pending_lab[0]
+
+    # 激活建议 → 物化为真实可编辑的 pageLabSim 画布块
+    accepted = owner.post(
+        f"/api/v1/pages/{doc['page_id']}/suggestions/{sug2['id']}/accept",
+        headers=_headers(session))
+    assert accepted.status_code == 200, accepted.text
+    blocks = accepted.json()["data"]["document"]["blocks"]
+    canvas = next(b for b in blocks if b["type"] == "canvas")
+    cdoc = canvas["data"]["doc"]
+    assert cdoc["version"] == 1
+    node = next(n for n in cdoc["nodes"] if n["type"] == "pageLabSim")
+    payload = json.loads(node["payload"])
+    assert payload["anchor_id"] == anchor["id"]
+    assert payload["kind"] == "page_lab"
+    assert payload["program"]
+    # 可调参数落进 node.params → 页面级 bindings 可驱动
+    assert node["params"]["t"] == pytest.approx(1.0)
+    sug2_state = next(s for s in accepted.json()["data"]["document"]["suggestions"]
+                      if s["id"] == sug2["id"])
+    assert sug2_state["status"] == "accepted"
 
     published = owner.post(f"/api/v1/pages/{doc['page_id']}/publish", headers=_headers(session)).json()["data"]
     public = guest.get(f"/api/v1/page-shares/{published['share_id']}").json()["data"]
-    assert any(b["type"] == "canvas" and b["data"]["doc"]["model"]["program"] for b in public["blocks"])
+    assert any(b["type"] == "canvas" and b["data"]["doc"]["version"] == 1
+               and any(n["type"] == "pageLabSim" for n in b["data"]["doc"]["nodes"])
+               for b in public["blocks"])
 
 
 def test_canvas_block_uses_workshop_validation(owner: TestClient) -> None:
@@ -446,3 +524,47 @@ def test_ai_recommendations_discard_result_after_concurrent_edit(owner: TestClie
     response = owner.post(f"/api/v1/pages/{doc['page_id']}/ai-recommendations", headers=_headers(session),
                           json={"expected_revision": doc["revision"]})
     assert response.status_code == 409, response.text
+
+
+def test_grade_endpoint(owner: TestClient) -> None:
+    session = _session(owner)
+    grade = lambda body: owner.post("/api/v1/living/grade", headers=_headers(session), json=body)
+    assert grade({"answer": "1/2", "expected": "0.5", "mode": "expr"}).json()["data"]["correct"] is True
+    assert grade({"answer": "x^2+C", "expected": "C+x^2", "mode": "expr"}).json()["data"]["correct"] is True
+    assert grade({"answer": "x+1", "expected": "x^2", "mode": "expr"}).json()["data"]["correct"] is False
+    assert grade({"answer": "1/2", "expected": "0.5", "mode": "exact"}).json()["data"]["correct"] is False
+    assert grade({"answer": "x+1", "expected": "2", "mode": "numeric"}).json()["data"]["correct"] is False
+    result = grade({"answer": "0.5", "expected": "1/2", "mode": "numeric"})
+    assert result.status_code == 200 and result.json()["data"]["correct"] is True
+
+
+def test_variables_patch_roundtrip_and_publish(owner: TestClient, guest: TestClient) -> None:
+    session, doc = _create_text_page(owner)
+    assert doc.get("variables") == {}
+    variables = {"eta": {"label": "学习率", "type": "number", "value": 0.05, "min": 0, "max": 1, "step": 0.01}}
+    patched = owner.patch(f"/api/v1/pages/{doc['page_id']}", headers=_headers(session),
+                          json={"expected_revision": doc["revision"], "variables": variables})
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["data"]["variables"]["eta"]["label"] == "学习率"
+    # 非法变量被拒且文档不变
+    bad = owner.patch(f"/api/v1/pages/{doc['page_id']}", headers=_headers(session),
+                      json={"expected_revision": patched.json()["data"]["revision"],
+                            "variables": {"1bad": {"type": "number", "value": 0}}})
+    assert bad.status_code == 422, bad.text
+    # 变量+绑定块一起发布，分享快照冻结
+    latest = patched.json()["data"]
+    blocks = latest["blocks"] + [{"id": "blk_v1", "type": "text",
+                                  "data": {"md": "当前学习率 ${eta}"},
+                                  "bindings": None}]
+    saved = owner.patch(f"/api/v1/pages/{doc['page_id']}", headers=_headers(session),
+                        json={"expected_revision": latest["revision"], "blocks": [
+                            {k: v for k, v in b.items() if v is not None} for b in blocks]})
+    assert saved.status_code == 200, saved.text
+    published = owner.post(f"/api/v1/pages/{doc['page_id']}/publish", headers=_headers(session))
+    assert published.status_code == 201, published.text
+    share_url = published.json()["data"]["share_url"]
+    share_id = share_url.rstrip("/").split("/")[-1]
+    other = _session(guest)
+    shared = guest.get(f"/api/v1/page-shares/{share_id}", headers=_headers(other))
+    assert shared.status_code == 200, shared.text
+    assert shared.json()["data"]["variables"]["eta"]["value"] == pytest.approx(0.05)

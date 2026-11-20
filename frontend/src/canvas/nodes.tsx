@@ -17,6 +17,7 @@ import { det, tr, eigen, rankOf, fmt, clamp, paramsM, type M2 } from './math.ts'
 import { physCycle, samplePath } from './physics.ts';
 import { FunctionSourceBody, FunctionPlotBody, DerivativeBody, LimitBody, IntegralBody, TaylorBody } from './CalculusNodes';
 import { CacheSplitBody, DsTraversalBody, IpSubnetBody, Lab408WorkbenchBody, PageReplaceBody } from './Lab408Nodes';
+import { AttentionSimBody, PageLabSimBody } from './SimNodes';
 import styles from './canvas.module.css';
 
 export interface NodeBodyProps {
@@ -821,6 +822,8 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   pageReplace: { title: '页面置换', badge: '实验', width: 370, Body: PageReplaceBody },
   ipSubnet: { title: 'IPv4 子网划分', badge: '实验', width: 310, Body: IpSubnetBody },
   lab408Workbench: { title: '408 全题型工作台', badge: '实验', width: 460, Body: Lab408WorkbenchBody },
+  attentionSim: { title: '注意力实验', badge: '实验', width: 340, Body: AttentionSimBody },
+  pageLabSim: { title: 'AI 交互模型', badge: '实验', width: 400, Body: PageLabSimBody },
   composite: { title: '自制积木', badge: '实验', width: 230, Body: CompositeBody },
   // 边界节点只存在于 sub 子图内部（不渲染、不进调色板），注册仅为类型完备
   portIn: { title: '入口', badge: '源', width: 0, Body: HiddenPortBody },
@@ -834,7 +837,7 @@ export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[
   { label: '源', types: ['matrixSource', 'slider', 'ticker'] },
   { label: '变换', types: ['rotor', 'matmul'] },
   { label: '视图', types: ['transformView', 'fieldView', 'detGauge', 'eigRead', 'squareView', 'cobweb'] },
-  { label: '学习', types: ['quiz', 'spark'] },
+  { label: '学习', types: ['quiz', 'spark', 'attentionSim'] },
   { label: '力学', types: ['projectile', 'springOsc', 'pendulum', 'trailView', 'energyMeter'] },
   { label: '文字', types: ['textNote', 'latexNote'] },
 ];
@@ -861,6 +864,7 @@ export function defaultParams(type: NodeType): Record<string, number> {
     case 'pageReplace': return { algorithm: 0, capacity: 3 };
     case 'ipSubnet': return { prefix: 26, index: 0 };
     case 'lab408Workbench': return { subjectIndex: 0, typeIndex: 0 };
+    case 'attentionSim': return { query: 1, temperature: 1, causal: 0 };
     default: return {};
   }
 }

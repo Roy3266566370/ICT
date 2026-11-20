@@ -26,18 +26,26 @@ import type {
   LivingInsights,
   LivingPageDoc,
   PageBlock,
+  PageVariable,
+  PageVariables,
 } from '@/living/types';
+import { blockDraft, blockRegistry, parseBlockDraft } from '@/living/blockRegistry';
+import { aiAnchorOf, aiInstructionOf } from '@/living/sim';
+import { LiveVarsProvider, useLiveVars } from '@/living/liveVars';
+import { VariablesBar } from '@/components/living/VariablesBar';
 import styles from './LivingPage.module.css';
 
 function newId(): string {
   return `blk_${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16)}`;
 }
 
-type InsertKind = 'text' | 'formula' | 'quiz' | 'checkpoint' | 'embed' | 'lab' | 'canvas_work';
+type InsertKind = 'text' | 'formula' | 'section' | 'callout' | 'quiz' | 'checkpoint' | 'embed' | 'lab' | 'canvas_work';
 
 const INSERT_ITEMS: { kind: InsertKind; label: string; hint: string }[] = [
   { kind: 'text', label: '文字', hint: '一段说明文字' },
   { kind: 'formula', label: '公式', hint: 'LaTeX 公式' },
+  { kind: 'callout', label: '知识卡片', hint: '定理/证明/例题/易错' },
+  { kind: 'section', label: '小节', hint: '标题与层级' },
   { kind: 'lab', label: '实验块', hint: '粘贴一道题，自动求解' },
   { kind: 'canvas_work', label: '工坊积木', hint: '嵌入连线实验台' },
   { kind: 'quiz', label: '先猜再看', hint: '预测闸门' },
@@ -52,13 +60,17 @@ function makeBlock(kind: InsertKind): PageBlock | null {
       return { id, type: 'text', data: { md: '在这里写说明…' } };
     case 'formula':
       return { id, type: 'formula', data: { latex: 'E = mc^2' } };
+    case 'section':
+      return { id, type: 'section', data: { heading: '新小节', level: 1 } };
     case 'quiz':
       return {
         id, type: 'quiz',
         data: { question: '先猜：结果是多少？', answer: '', explain: '', min: 0, max: 10, value: 1 },
       };
+    case 'callout':
+      return { id, type: 'callout', data: { kind: 'theorem', title: '', md: '在这里写卡片内容…', collapsible: false } };
     case 'checkpoint':
-      return { id, type: 'checkpoint', data: { prompt: '写下你的答案', expected: '', placeholder: '' } };
+      return { id, type: 'checkpoint', data: { prompt: '写下你的答案', expected: '', placeholder: '', grading: 'exact' } };
     case 'embed':
       return { id, type: 'embed', data: { url: '', height: 360 } };
     default:
@@ -73,13 +85,16 @@ export default function LivingPageEditor(): ReactNode {
   const [dirty, setDirty] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [title, setTitle] = useState('');
-  const [editing, setEditing] = useState<{ id: string; field: string; value: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: string; values: Record<string, string> } | null>(null);
+  const editingBlock = blocks.find((block) => block.id === editing?.id);
+  const editResult = editing && editingBlock ? parseBlockDraft(editingBlock, editing.values) : null;
   const [insertAt, setInsertAt] = useState<number | null>(null);
   const [labText, setLabText] = useState('');
   const [canvasPicks, setCanvasPicks] = useState<WorkSummary[] | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [insights, setInsights] = useState<LivingInsights | null>(null);
   const [showInsights, setShowInsights] = useState(false);
+  const [showVars, setShowVars] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -117,6 +132,9 @@ export default function LivingPageEditor(): ReactNode {
     }
     return map;
   }, [doc]);
+
+  /** 页面块 id 集：门控目标悬挂检测（BlockView.peerIds）。 */
+  const peerIds = useMemo(() => new Set(blocks.map((block) => block.id)), [blocks]);
 
   const save = useCallback(
     async (next: PageBlock[], revision: number): Promise<LivingPageDoc | null> => {
@@ -165,17 +183,14 @@ export default function LivingPageEditor(): ReactNode {
   };
 
   const remove = (index: number): void => {
+    if (blocks[index]?.id === editing?.id) setEditing(null);
     mutate(blocks.filter((_, i) => i !== index));
   };
 
   const commitEdit = (): void => {
-    if (!editing) return;
-    const next = blocks.map((b) => {
-      if (b.id !== editing.id) return b;
-      const data = { ...b.data } as Record<string, unknown>;
-      data[editing.field] = editing.value;
-      return { ...b, data } as PageBlock;
-    });
+    if (!editing || !editResult?.block) return;
+    const updated = editResult.block;
+    const next = blocks.map((b) => b.id === editing.id ? updated : b);
     setEditing(null);
     mutate(next);
   };
@@ -221,9 +236,7 @@ export default function LivingPageEditor(): ReactNode {
     const next = [...blocks];
     next.splice(at, 0, block);
     mutate(next);
-    if (kind === 'text' || kind === 'formula') {
-      setEditing({ id: block.id, field: kind === 'text' ? 'md' : 'latex', value: '' });
-    }
+    if (blockRegistry[block.type]) setEditing({ id: block.id, values: blockDraft(block) });
   };
 
   const insertCanvasWork = async (workId: string): Promise<void> => {
@@ -316,7 +329,9 @@ export default function LivingPageEditor(): ReactNode {
         current = result.document;
         setDoc(current); setBlocks(current.blocks); setDirty(false);
         setSavedAt(new Date().toLocaleTimeString());
-        progress(`已保存 ${index + 1}/${ids.length} 个模型${result.cached ? '（复用已有结果）' : ''}`);
+        progress(result.cached
+          ? `第 ${index + 1}/${ids.length} 个内容已有相同设计（复用缓存）`
+          : `已生成 ${index + 1}/${ids.length} 个交互建议——在正文下方点「激活」落成可编辑积木`);
       }
     } finally {
       aiRunning.current = false;
@@ -340,6 +355,18 @@ export default function LivingPageEditor(): ReactNode {
       return await recommendLivingModels({ pageId: current.page_id, expectedRevision: current.revision, force });
     } finally {
       aiRunning.current = false;
+    }
+  };
+
+  /** 页面变量定义是文档结构的一部分，改定义走 PATCH；运行时值只是预览态。 */
+  const saveVariables = async (next: PageVariables): Promise<void> => {
+    if (!doc) return;
+    try {
+      const updated = await patchLivingPage({ pageId: doc.page_id, expectedRevision: doc.revision, variables: next });
+      setDoc(updated);
+      setSavedAt(new Date().toLocaleTimeString());
+    } catch (e) {
+      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，请刷新' : errorMessage(e));
     }
   };
 
@@ -404,6 +431,9 @@ export default function LivingPageEditor(): ReactNode {
         <div className={styles.toolbarRight}>
           <button type="button" className={styles.primaryBtn} disabled={aiBusy || busy !== null} onClick={() => setAiPanel({})}>AI 设计交互</button>
           {dirty ? <span className={styles.dirty}>未保存…</span> : savedAt ? <span className={styles.saved}>已保存 {savedAt}</span> : null}
+          <button type="button" className={styles.ghostBtn} aria-expanded={showVars} onClick={() => setShowVars((v) => !v)}>
+            变量{Object.keys(doc.variables ?? {}).length ? `（${Object.keys(doc.variables ?? {}).length}）` : ''}
+          </button>
           <button type="button" className={styles.ghostBtn} onClick={() => void loadInsights()}>
             学情
           </button>
@@ -429,6 +459,15 @@ export default function LivingPageEditor(): ReactNode {
       ) : null}
       {conversion.notes.length > 0 ? (
         <p className={styles.noteBar}>转换提示：{conversion.notes.join('；')}</p>
+      ) : null}
+
+      {showVars ? (
+        <VarsPanel
+          key={doc.revision}
+          vars={doc.variables ?? {}}
+          onSave={saveVariables}
+          onClose={() => setShowVars(false)}
+        />
       ) : null}
 
       {showInsights && insights ? (
@@ -461,6 +500,8 @@ export default function LivingPageEditor(): ReactNode {
       <main className={styles.blockList}>
         {aiPanel ? <LivingAIPanel key={aiPanel.blockId ?? 'all'} document={{ ...doc, blocks }} initialBlockId={aiPanel.blockId}
           onGenerate={generateModels} onRecommend={recommendModels} onClose={() => setAiPanel(null)} onBusy={setAiBusy} /> : null}
+        <LiveVarsProvider variables={doc.variables}>
+        <VariablesBar hint="页面变量 · 拖动可联动插值与绑定块（预览态，不改文档默认值）" />
         <PageOutline blocks={blocks} />
         <fieldset disabled={aiBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <InsertRow index={0} open={insertAt === 0} onOpen={() => setInsertAt(0)} />
@@ -470,19 +511,20 @@ export default function LivingPageEditor(): ReactNode {
               <BlockView
                 block={block}
                 assetUrl={(key) => livingAssetUrl(doc.page_id, key)}
+                peerIds={peerIds}
                 controls={
                   <div className={styles.blockControls}>
                     {block.type === 'text' && block.data.md.trim().length >= 8 ? <button type="button" onClick={() => {
                       setAiPanel({ blockId: block.id }); window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}>AI 交互</button> : null}
-                    {block.type === 'canvas' && block.data.doc.template === 'ai_model' ? <button type="button" onClick={() => {
-                      setAiPanel({ blockId: String(block.data.doc.anchor_id) }); window.scrollTo({ top: 0, behavior: 'smooth' });
+                    {block.type === 'canvas' && aiAnchorOf(block) ? <button type="button" onClick={() => {
+                      setAiPanel({ blockId: aiAnchorOf(block)! }); window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}>重新设计</button> : null}
-                    {canEdit(block) ? (
+                    {blockRegistry[block.type] ? (
                       <button
                         type="button"
                         onClick={() =>
-                          setEditing({ id: block.id, field: editField(block), value: editValue(block) })
+                          setEditing({ id: block.id, values: blockDraft(block) })
                         }
                       >
                         编辑
@@ -495,27 +537,69 @@ export default function LivingPageEditor(): ReactNode {
                 }
               />
               {editing?.id === block.id ? (
-                <div className={styles.editBox}>
-                  {editing.field === 'md' ? (
-                    <textarea
-                      value={editing.value}
-                      rows={4}
-                      autoFocus
-                      onChange={(e) => setEditing({ ...editing, value: e.target.value })}
-                    />
-                  ) : (
-                    <input
-                      value={editing.value}
-                      autoFocus
-                      onChange={(e) => setEditing({ ...editing, value: e.target.value })}
-                      onKeyDown={(e) => e.key === 'Enter' && commitEdit()}
-                    />
-                  )}
+                <form className={styles.editBox} aria-label={`编辑${blockRegistry[block.type]?.label ?? '块'}`} noValidate onSubmit={(event) => { event.preventDefault(); commitEdit(); }}>
+                  {blockRegistry[block.type]?.fields.map((field, fieldIndex) => {
+                    const id = `edit-${block.id}-${field.key}`;
+                    const fieldError = editResult?.errors[field.key];
+                    const props = {
+                      id,
+                      value: editing.values[field.key] ?? '',
+                      autoFocus: fieldIndex === 0,
+                      'aria-invalid': !!fieldError,
+                      'aria-describedby': fieldError ? `${id}-error` : undefined,
+                      onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+                        setEditing({ ...editing, values: { ...editing.values, [field.key]: event.target.value } }),
+                    };
+                    return (
+                      <div className={styles.editField} key={field.key}>
+                        <label htmlFor={id}>{field.label}</label>
+                        {field.kind === 'textarea' ? (
+                          <textarea {...props} rows={4} />
+                        ) : field.kind === 'select' ? (
+                          <select {...props}>{field.options?.map((option) => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}</select>
+                        ) : field.kind === 'checkbox' ? (
+                          <input
+                            id={id}
+                            type="checkbox"
+                            checked={editing.values[field.key] === 'true'}
+                            autoFocus={fieldIndex === 0}
+                            onChange={(event) =>
+                              setEditing({ ...editing, values: { ...editing.values, [field.key]: event.target.checked ? 'true' : 'false' } })
+                            }
+                          />
+                        ) : field.kind === 'bindings' ? (
+                          <BindingsEditor
+                            id={id}
+                            value={editing.values[field.key] ?? '{}'}
+                            hint={field.hint}
+                            onChange={(json) =>
+                              setEditing({ ...editing, values: { ...editing.values, [field.key]: json } })
+                            }
+                          />
+                        ) : field.kind === 'gate' ? (
+                          <GateEditor
+                            id={id}
+                            value={editing.values[field.key] ?? ''}
+                            peers={blocks.filter((b) => (b.type === 'quiz' || b.type === 'checkpoint') && b.id !== block.id)}
+                            hint={field.hint}
+                            onChange={(json) =>
+                              setEditing({ ...editing, values: { ...editing.values, [field.key]: json } })
+                            }
+                          />
+                        ) : (
+                          <input {...props} type={field.kind} step={field.kind === 'number' ? 'any' : undefined} />
+                        )}
+                        {fieldError ? <p id={`${id}-error`} className={styles.fieldError} role="alert">{fieldError}</p> : null}
+                      </div>
+                    );
+                  })}
                   <div className={styles.editActions}>
-                    <button type="button" className={styles.primaryBtn} onClick={commitEdit}>完成</button>
+                    <button type="submit" className={styles.primaryBtn} disabled={!editResult?.block}>完成</button>
                     <button type="button" className={styles.ghostBtn} onClick={() => setEditing(null)}>取消</button>
                   </div>
-                </div>
+                </form>
               ) : null}
             </div>
             {(pendingByBlock.get(block.id) ?? []).map((s) => (
@@ -531,6 +615,7 @@ export default function LivingPageEditor(): ReactNode {
           </div>
         ))}
         </fieldset>
+        </LiveVarsProvider>
       </main>
 
       {insertAt !== null && !aiBusy ? (
@@ -580,22 +665,6 @@ function InsertRow(props: { index: number; open: boolean; onOpen: () => void }):
   );
 }
 
-function canEdit(block: PageBlock): boolean {
-  return block.type === 'text' || block.type === 'formula' || block.type === 'section' || block.type === 'quiz' || block.type === 'checkpoint';
-}
-
-function editField(block: PageBlock): string {
-  const fields: Partial<Record<PageBlock['type'], string>> = {
-    text: 'md', formula: 'latex', section: 'heading', quiz: 'question', checkpoint: 'prompt',
-  };
-  return fields[block.type] ?? 'md';
-}
-
-function editValue(block: PageBlock): string {
-  const data = block.data as Record<string, unknown>;
-  return String(data[editField(block)] ?? '');
-}
-
 function blockLabel(block: PageBlock): string {
   const data = block.data as Record<string, unknown>;
   switch (block.type) {
@@ -606,6 +675,205 @@ function blockLabel(block: PageBlock): string {
     case 'lab': return '实验';
     case 'quiz': return `先猜再看 · ${String(data.question ?? '').slice(0, 24)}`;
     case 'checkpoint': return `判分点 · ${String(data.prompt ?? '').slice(0, 24)}`;
+    case 'callout': return `知识卡片 · ${String(data.title ?? data.kind ?? '')}`;
     default: return block.type;
   }
+}
+
+/** 页面变量管理面板：编辑 definitions（持久化进文档），与运行时预览值分离。 */
+function VarsPanel(props: {
+  vars: PageVariables;
+  onSave: (next: PageVariables) => Promise<void>;
+  onClose: () => void;
+}): ReactNode {
+  const [draft, setDraft] = useState<PageVariables>(() => JSON.parse(JSON.stringify(props.vars)) as PageVariables);
+  const [newName, setNewName] = useState('');
+  const [newType, setNewType] = useState<'number' | 'select'>('number');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const names = Object.keys(draft);
+
+  const patchVar = (name: string, patch: Partial<PageVariable>): void => {
+    const spec = draft[name];
+    if (!spec) return;
+    setDraft({ ...draft, [name]: { ...spec, ...patch } as PageVariable });
+  };
+
+  const addVar = (): void => {
+    const name = newName.trim();
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
+      setError('变量名须以字母开头，仅含字母/数字/下划线。');
+      return;
+    }
+    if (draft[name]) {
+      setError('同名变量已存在。');
+      return;
+    }
+    const spec: PageVariable = newType === 'select'
+      ? { label: name, type: 'select', value: '选项1', options: ['选项1', '选项2'] }
+      : { label: name, type: 'number', value: 0, min: 0, max: 1, step: 0.01 };
+    setDraft({ ...draft, [name]: spec });
+    setNewName('');
+    setError(null);
+  };
+
+  const submit = async (): Promise<void> => {
+    for (const [name, spec] of Object.entries(draft)) {
+      if (spec.type === 'number') {
+        if (!Number.isFinite(spec.value)) {
+          setError(`变量 ${name} 的默认值必须是有限数值。`);
+          return;
+        }
+        if (spec.min !== undefined && spec.max !== undefined && !(spec.min < spec.max)) {
+          setError(`变量 ${name} 必须满足 min < max。`);
+          return;
+        }
+        if (spec.step !== undefined && !(spec.step > 0)) {
+          setError(`变量 ${name} 的步长 step 必须大于 0。`);
+          return;
+        }
+        if ((spec.min !== undefined && spec.value < spec.min) || (spec.max !== undefined && spec.value > spec.max)) {
+          setError(`变量 ${name} 的默认值超出 min/max 范围。`);
+          return;
+        }
+      } else if (!spec.options.length) {
+        setError(`选择型变量 ${name} 至少需要填写一个选项（用逗号分隔）。`);
+        return;
+      }
+    }
+    setError(null);
+    setBusy(true);
+    await props.onSave(draft);
+    setBusy(false);
+  };
+
+  return (
+    <aside className={styles.varsPanel} aria-label="页面变量管理">
+      <header className={styles.varsPanelHead}>
+        <strong>页面变量</strong>
+        <span className={styles.varsPanelHint}>变量在正文中用 ${'{名字}'} 插值、用 [v:名字] 插入滑杆，并可绑定到实验/画布参数</span>
+        <button type="button" onClick={props.onClose}>×</button>
+      </header>
+      {names.length ? names.map((name) => {
+        const spec = draft[name]!;
+        return (
+          <div className={styles.varsRow} key={name}>
+            <code className={styles.varsName}>{name}</code>
+            <input className={styles.varsLabel} value={spec.label} placeholder="显示名" title="显示名"
+              onChange={(e) => patchVar(name, { label: e.target.value })} />
+            {spec.type === 'number' ? (
+              <>
+                <input className={styles.varsNum} type="number" step="any" value={spec.value} title="默认值"
+                  onChange={(e) => patchVar(name, { value: Number(e.target.value) })} />
+                <input className={styles.varsNum} type="number" step="any" value={spec.min ?? ''} placeholder="min" title="最小值"
+                  onChange={(e) => patchVar(name, { min: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                <input className={styles.varsNum} type="number" step="any" value={spec.max ?? ''} placeholder="max" title="最大值"
+                  onChange={(e) => patchVar(name, { max: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                <input className={styles.varsNum} type="number" step="any" value={spec.step ?? ''} placeholder="step" title="步长"
+                  onChange={(e) => patchVar(name, { step: e.target.value === '' ? undefined : Number(e.target.value) })} />
+              </>
+            ) : (
+              <>
+                <input className={styles.varsLabel} value={spec.value} placeholder="默认值" title="默认值"
+                  onChange={(e) => patchVar(name, { value: e.target.value })} />
+                <input className={styles.varsOptions} value={spec.options.join(',')} placeholder="选项（逗号分隔）" title="选项（逗号分隔）"
+                  onChange={(e) => patchVar(name, { options: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
+              </>
+            )}
+            <input className={styles.varsUnit} value={spec.unit ?? ''} placeholder="单位" title="单位"
+              onChange={(e) => patchVar(name, { unit: e.target.value || undefined })} />
+            <button type="button" title="删除变量" onClick={() => {
+              const next = { ...draft };
+              delete next[name];
+              setDraft(next);
+            }}>×</button>
+          </div>
+        );
+      }) : <p className={styles.varsEmpty}>还没有变量。先添加一个，再在正文或绑定里引用它。</p>}
+      <div className={styles.varsAdd}>
+        <input value={newName} placeholder="新变量名（如 eta）" onChange={(e) => setNewName(e.target.value)} />
+        <select value={newType} onChange={(e) => setNewType(e.target.value as 'number' | 'select')}>
+          <option value="number">数值滑杆</option>
+          <option value="select">选择项</option>
+        </select>
+        <button type="button" onClick={addVar}>添加</button>
+        <button type="button" className={styles.primaryBtn} disabled={busy} onClick={() => void submit()}>
+          {busy ? '保存中…' : '保存变量'}
+        </button>
+      </div>
+      {error ? <p className={styles.fieldError} role="alert">{error}</p> : null}
+    </aside>
+  );
+}
+
+/** 绑定行编辑器：每行 ``块内参数键 ← 页面变量名``，canvas 键为 ``node_id.param_key``。 */
+function BindingsEditor(props: { id: string; value: string; hint?: string; onChange: (json: string) => void }): ReactNode {
+  const { defs } = useLiveVars();
+  let rows: [string, string][] = [];
+  try {
+    const parsed = JSON.parse(props.value || '{}') as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      rows = Object.entries(parsed as Record<string, unknown>).filter(
+        (entry): entry is [string, string] => typeof entry[0] === 'string' && typeof entry[1] === 'string',
+      );
+    }
+  } catch { /* 草稿非法 JSON 时退回空行，保存校验会给出提示 */ }
+  const emit = (next: [string, string][]): void => props.onChange(JSON.stringify(Object.fromEntries(next)));
+  const names = Object.keys(defs);
+  return (
+    <div className={styles.bindingsEditor} id={props.id}>
+      {rows.map(([param, varName], index) => (
+        <div className={styles.bindRow} key={index}>
+          <input value={param} placeholder="块内参数键" aria-label="块内参数键"
+            onChange={(e) => { const next = [...rows]; next[index] = [e.target.value, varName]; emit(next); }} />
+          <span aria-hidden>←</span>
+          <input value={varName} placeholder="变量名" list={`${props.id}-vars`} aria-label="页面变量名"
+            onChange={(e) => { const next = [...rows]; next[index] = [param, e.target.value]; emit(next); }} />
+          <button type="button" title="删除绑定" onClick={() => emit(rows.filter((_, i) => i !== index))}>×</button>
+        </div>
+      ))}
+      <datalist id={`${props.id}-vars`}>{names.map((name) => <option key={name} value={name} />)}</datalist>
+      <button type="button" className={styles.ghostBtn} onClick={() => emit([...rows, ['', '']])}>＋ 添加绑定</button>
+      {props.hint ? <p className={styles.bindHint}>{props.hint}</p> : null}
+      {!names.length ? <p className={styles.bindHint}>还没有页面变量——先在工具栏「变量」里创建。</p> : null}
+    </div>
+  );
+}
+
+/** 门控配置：下拉挑一个 quiz/checkpoint 块 + 解锁规则；序列化为 JSON 存回草稿。 */
+function GateEditor(props: { id: string; value: string; peers: PageBlock[]; hint?: string; onChange: (json: string) => void }): ReactNode {
+  let gate: { block_id?: string; rule?: string } = {};
+  try {
+    const parsed = JSON.parse(props.value || '{}') as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) gate = parsed as { block_id?: string; rule?: string };
+  } catch { /* 非法草稿按无门控处理，保存校验给提示 */ }
+  const emit = (next: { block_id?: string; rule?: string }): void => {
+    props.onChange(next.block_id ? JSON.stringify({ block_id: next.block_id, rule: next.rule === 'correct' ? 'correct' : 'submitted' }) : '');
+  };
+  return (
+    <div className={styles.bindingsEditor} id={props.id}>
+      <div className={styles.bindRow}>
+        <select
+          value={gate.block_id && props.peers.some((b) => b.id === gate.block_id) ? gate.block_id : ''}
+          aria-label="门控目标块"
+          onChange={(e) => emit({ block_id: e.target.value || undefined, rule: gate.rule })}
+        >
+          <option value="">不门控（始终可见）</option>
+          {props.peers.map((b) => <option key={b.id} value={b.id}>{blockLabel(b)}</option>)}
+        </select>
+        <span aria-hidden>→</span>
+        <select
+          value={gate.rule === 'correct' ? 'correct' : 'submitted'}
+          disabled={!gate.block_id}
+          aria-label="解锁规则"
+          onChange={(e) => emit({ block_id: gate.block_id, rule: e.target.value })}
+        >
+          <option value="submitted">作答后解锁</option>
+          <option value="correct">答对后解锁</option>
+        </select>
+      </div>
+      {props.hint ? <p className={styles.bindHint}>{props.hint}</p> : null}
+      {!props.peers.length ? <p className={styles.bindHint}>还没有可用的先猜再看/判分点块——先插入一个再来设置门控。</p> : null}
+    </div>
+  );
 }

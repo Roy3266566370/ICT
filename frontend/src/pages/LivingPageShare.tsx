@@ -6,6 +6,8 @@ import { getSharedLivingPage, livingShareAssetUrl, reportLivingProgress } from '
 import { errorMessage } from '@/api/client';
 import { BlockView, type ProgressPatch } from '@/components/living/PageBlocks';
 import { PageOutline } from '@/components/living/PageOutline';
+import { VariablesBar } from '@/components/living/VariablesBar';
+import { LiveVarsProvider } from '@/living/liveVars';
 import type { LivingPageDoc } from '@/living/types';
 import styles from './LivingPage.module.css';
 
@@ -62,6 +64,8 @@ export default function LivingPageShare(): ReactNode {
   }
   if (!doc) return <div className={styles.center}>载入活页…</div>;
 
+  const peerIds = new Set(doc.blocks.map((block) => block.id));
+
   return (
     <div className={styles.sharePage}>
       <header className={styles.shareHead}>
@@ -69,17 +73,21 @@ export default function LivingPageShare(): ReactNode {
         <p className={styles.shareMeta}>万象活页 · {doc.blocks.length} 块</p>
       </header>
       <main className={styles.shareBlocks}>
-        <PageOutline blocks={doc.blocks} />
-        {doc.blocks.map((block) => (
-          <div key={block.id} id={block.id} style={{ scrollMarginTop: '5rem' }} ref={(node) => observe(node, block.id)}>
-            <BlockView
-              block={block}
-              assetUrl={(key) => livingShareAssetUrl(shareId, key)}
-              readOnly
-              onProgress={(patch) => report(block.id, patch)}
-            />
-          </div>
-        ))}
+        <LiveVarsProvider variables={doc.variables}>
+          <VariablesBar />
+          <PageOutline blocks={doc.blocks} />
+          {doc.blocks.map((block) => (
+            <div key={block.id} id={block.id} style={{ scrollMarginTop: '5rem' }} ref={(node) => observe(node, block.id)}>
+              <BlockView
+                block={block}
+                assetUrl={(key) => livingShareAssetUrl(shareId, key)}
+                readOnly
+                peerIds={peerIds}
+                onProgress={(patch) => report(block.id, patch)}
+              />
+            </div>
+          ))}
+        </LiveVarsProvider>
       </main>
       <footer className={styles.shareFoot}>由 万象 活页引擎生成 · 确定性计算</footer>
     </div>

@@ -755,3 +755,12 @@
   background: #FDEDE6;
   color: var(--color-coral-ink, #b8431f);
 }
+
+/* 自包含仿真节点（attentionSim / pageLabSim） ------------------------ */
+
+.simTable { border-collapse: collapse; width: 100%; font-size: 0.78rem; margin: 6px 0; }
+.simTable th, .simTable td { border: 1px solid #E4DCC8; padding: 2px 6px; text-align: left; }
+.simTable th { background: #F7F2E5; font-weight: 600; }
+.simTable meter { width: 64px; vertical-align: middle; }
+.simSummary { font-size: 0.82rem; color: #5b6b7d; margin: 0 0 6px; }
+.simExplain { font-size: 0.78rem; color: #5b6b7d; margin: 6px 0 0; padding-left: 18px; }

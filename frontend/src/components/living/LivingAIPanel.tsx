@@ -3,6 +3,7 @@ import { getLivingAIStatus, type LivingAIRecommendations } from '@/api/living';
 import { errorMessage } from '@/api/client';
 import type { LivingPageDoc } from '@/living/types';
 import { recommendationContentKey } from '@/living/recommendations';
+import { aiAnchorOf, aiInstructionOf } from '@/living/sim';
 import styles from './LivingBlocks.module.css';
 
 interface Props {
@@ -21,13 +22,13 @@ export function LivingAIPanel({ document, initialBlockId, onGenerate, onRecommen
     return document.blocks.flatMap((b) => {
       if (b.type === 'section') heading = b.data.heading;
       if (b.type !== 'text' || b.data.md.trim().length < 8) return [];
-      const existing = document.blocks.find((model) => model.type === 'canvas' && model.data.doc.anchor_id === b.id);
+      const existing = document.blocks.find((model) => aiAnchorOf(model) === b.id);
       return [{ id: b.id, title: heading || b.data.md.slice(0, 40), text: b.data.md, existing }];
     });
   }, [document.blocks]);
   const [selected, setSelected] = useState<string[]>(initialBlockId ? [initialBlockId] : []);
   const existing = candidates.find((c) => c.id === initialBlockId)?.existing;
-  const [instruction, setInstruction] = useState(String(existing?.type === 'canvas' ? existing.data.doc.instruction ?? '' : ''));
+  const [instruction, setInstruction] = useState(existing ? aiInstructionOf(existing) : '');
   const [search, setSearch] = useState('');
   const [force, setForce] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,7 +82,7 @@ export function LivingAIPanel({ document, initialBlockId, onGenerate, onRecommen
       {analysis ? <button type="button" disabled={busy} onClick={() => void recommend(true)}>重新分析</button> : null}</div>
     {analysis ? <div className={styles.aiRecommendations} aria-label="AI 推荐的交互内容">
       <p>{analysis.summary}</p>
-      <p className={styles.aiMeta}>已有 {document.blocks.filter((b) => b.type === 'canvas' && b.data.doc.template === 'ai_model').length} 个 AI 模型 · {analysis.truncated_blocks ? `${analysis.truncated_blocks} 个长段按首尾摘要分析` : '已浏览全部候选文字段落'}</p>
+      <p className={styles.aiMeta}>已有 {document.blocks.filter((b) => aiAnchorOf(b)).length} 个 AI 交互 · {analysis.truncated_blocks ? `${analysis.truncated_blocks} 个长段按首尾摘要分析` : '已浏览全部候选文字段落'}</p>
       {analysis.recommendations.map((r, index) => <label key={r.block_id} className={styles.aiRecommendation}>
         <input type="checkbox" checked={selected.includes(r.block_id)} disabled={busy || (!selected.includes(r.block_id) && selected.length >= 3)}
           onChange={(e) => toggle(r.block_id, e.target.checked)} />
@@ -105,11 +106,11 @@ export function LivingAIPanel({ document, initialBlockId, onGenerate, onRecommen
     </details>
     <label>希望怎样交互（可选）<textarea maxLength={1000} rows={3} disabled={busy} value={instruction}
       onChange={(e) => setInstruction(e.target.value)} placeholder="例如：用三个词的小例子，拖动温度比较注意力权重；或设计位置编码的频率对比实验。留空由 AI 决定。" /></label>
-    <label className={styles.aiInline}><input type="checkbox" checked={force} disabled={busy} onChange={(e) => setForce(e.target.checked)} />重新设计已有模型</label>
+    <label className={styles.aiInline}><input type="checkbox" checked={force} disabled={busy} onChange={(e) => setForce(e.target.checked)} />重新设计已有交互</label>
     <div className={styles.aiActions}><button type="button" disabled={busy || !selected.length || !status?.available} onClick={() => void run()}>
-      {busy ? 'AI 正在设计…' : selected.length ? `生成 ${selected.length} 个交互模型` : '选择内容后生成交互'}</button><span>已选 {selected.length}/3 · {status?.model || '正在检查模型服务…'}</span></div>
+      {busy ? 'AI 正在设计…' : selected.length ? `生成 ${selected.length} 个交互建议` : '选择内容后生成交互'}</button><span>已选 {selected.length}/3 · {status?.model || '正在检查模型服务…'}</span></div>
     {progress ? <p role="status">{progress}</p> : null}
     {error ? <p className={styles.aiError} role="alert">{error}</p> : null}
-    <p className={styles.aiMeta}>筛选时发送各段文字摘要，生成时发送所选文字及相邻内容给已配置的模型服务。模型逐个保存，生成时请保持页面打开。</p>
+    <p className={styles.aiMeta}>筛选时发送各段文字摘要，生成时发送所选文字及相邻内容给已配置的模型服务。AI 产出为待激活建议，逐个点「激活」后落成可编辑的画布积木。</p>
   </section>;
 }

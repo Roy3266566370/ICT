@@ -708,13 +708,17 @@ def review_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: Re
     ai_has_kernel = ai_solution.get('verification') == 'kernel'
     ai_has_reference = (bool(str(ai_solution.get('reference_answer') or '').strip())
                         or ai_solution.get('verification') == 'ai_reference')
+    has_source_repairs = (any(item.get('repair') for item in (target.get('recognition') or {}).get('ambiguities') or [])
+                          or any(key.startswith('source_repair_') for key in body.ambiguity_answers))
     try:
         if target.get('manual_input'):
+            if has_source_repairs:
+                raise ValueError('手动模型不接受 OCR 原文候选，请直接编辑已确认的条件')
             if (body.text is not None and body.text.strip() != target['text'].strip()) or body.subject not in (None, 'calculus'):
                 raise ValueError('手动积分题请通过公式和条件字段修正，不重新识别题干')
             from ..labs.manual import revise_manual_document
             rebuilt = revise_manual_document(document, target, body.condition_values)
-        elif (target.get('ai_solution')
+        elif (target.get('ai_solution') and not has_source_repairs
               and not (local_executable and not ai_has_kernel and not ai_has_reference)
               and (not body.subject or body.subject == target['subject'])
               and (body.text is None or body.text.strip() == target['text'].strip())):

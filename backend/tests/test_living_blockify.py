@@ -125,7 +125,10 @@ class TestModel:
         document = {"blocks": blocks, "suggestions": suggestions}
         inserted = apply_suggestion(document, suggestion["id"])["inserted"]
         assert inserted[0] == anchor
-        assert inserted[1]["data"]["doc"]["template"] == "attention"
+        # attention 建议物化为真实 v1 画布的 attentionSim 节点，不再是黑盒模板标记
+        doc = inserted[1]["data"]["doc"]
+        assert doc["version"] == 1
+        assert any(n["type"] == "attentionSim" for n in doc["nodes"])
         assert inserted[1]["source"] == anchor["source"]
         validate_blocks(document["blocks"])
 
@@ -136,9 +139,86 @@ class TestModel:
                 {"id": "b1", "type": "text", "data": {"md": "b"}},
             ])
 
-    def test_validate_block_rejects_bad_type(self) -> None:
+    @pytest.mark.parametrize("kind", [None, "", "  ", 123, True, [], {}, "x" * 129, "lab ", "x\x00"])
+    def test_validate_block_rejects_bad_type(self, kind) -> None:
         with pytest.raises(ValueError):
-            validate_block({"type": "video", "data": {}})
+            validate_block({"type": kind, "data": {}})
+
+    def test_unknown_block_is_lossless_and_detached(self) -> None:
+        import json
+        raw = {"id": "future", "type": "vendor.future.v2", "floor": True,
+               "source": {"file_id": "f1", "page": 1},
+               "data": {"html": '<script>alert(1)</script><img src=x onerror="alert(2)">',
+                        "nested": [None, False, 2, 1.5, {"中文": "原样"}],
+                        "type": "lab", "problem": {}, "stored_name": "opaque"}}
+        result = validate_block(raw)
+        assert result == raw
+        assert validate_block(json.loads(json.dumps(result))) == raw
+        result["data"]["nested"].append("changed")
+        assert result != raw
+
+    @pytest.mark.parametrize("data", [None, [], "x", {"x": float("nan")},
+        {"x": float("inf")}, {"x": (1, 2)}, {1: "x"}, {"x": object()}])
+    def test_unknown_requires_json_object(self, data) -> None:
+        with pytest.raises(ValueError):
+            validate_block({"type": "future", "data": data})
+
+    def test_unknown_payload_limits(self) -> None:
+        from app.living.model import MAX_OPAQUE_BYTES, MAX_OPAQUE_DEPTH, MAX_OPAQUE_NODES
+        exact = {"x": "a" * (MAX_OPAQUE_BYTES - 8)}
+        assert validate_block({"type": "future", "data": exact})["data"] == exact
+        deep = {}
+        for _ in range(MAX_OPAQUE_DEPTH + 1):
+            deep = {"x": deep}
+        cyclic = {}
+        cyclic["self"] = cyclic
+        for data in ({"x": "a" * (MAX_OPAQUE_BYTES - 7)}, deep, cyclic,
+                     {"x": [0] * MAX_OPAQUE_NODES}):
+            with pytest.raises(ValueError):
+                validate_block({"type": "future", "data": data})
+        blocks = [{"id": str(i), "type": "future", "data": exact} for i in range(16)]
+        assert len(validate_blocks(blocks)) == 16
+        with pytest.raises(ValueError):
+            validate_blocks(blocks + [{"id": "extra", "type": "future", "data": {}}])
+
+    @pytest.mark.parametrize("kind,data", [("lab", {}), ("canvas", {}),
+        ("canvas", {"doc": {"nodes": [], "template": "ai_model"}}),
+        ("embed", {"url": "javascript:alert(1)"})])
+    def test_known_types_cannot_fall_back_to_opaque(self, kind, data) -> None:
+        with pytest.raises(ValueError):
+            validate_block({"type": kind, "data": data})
+
+    @pytest.mark.parametrize("patch", [{"value": "nan"}, {"min": "-inf"},
+        {"max": float("inf")}, {"value": True}, {"value": None},
+        {"value": "bad"}, {"min": 4}, {"min": 5}, {"value": 5}, {"value": -1}])
+    def test_quiz_rejects_invalid_numeric_range(self, patch) -> None:
+        with pytest.raises(ValueError):
+            validate_block({"type": "quiz", "data": patch})
+
+    @pytest.mark.parametrize("url", ["https://", "http:///path", "//example.com", "https://a:99999",
+        "https://a:bad", "https://a:", "https://a:0", "https://user:pass@a", "https://a/\nfoo",
+        "https://a b", "https://[bad]", "https://a\\b", "https://a/" + "x" * 2000, 123])
+    def test_embed_rejects_invalid_url(self, url) -> None:
+        with pytest.raises(ValueError):
+            validate_block({"type": "embed", "data": {"url": url}})
+
+    @pytest.mark.parametrize("url", ["", "https://example.com/a?q=1#f", "http://localhost:8080",
+                                   "https://[::1]:443/path", "HTTPS://example.com"])
+    def test_embed_accepts_valid_url(self, url) -> None:
+        assert validate_block({"type": "embed", "data": {"url": url}})["data"]["url"] == url
+
+    def test_legacy_known_blocks_remain_idempotent(self) -> None:
+        blocks = [{"id": kind, "type": kind, "data": data} for kind, data in [
+            ("page", {"image_key": "p1", "width": 800, "height": 600}),
+            ("text", {"md": "旧文档"}), ("figure", {"asset_id": "f1"}),
+            ("formula", {"latex": "x^2"}), ("section", {"heading": "章节"}),
+            ("lab", {"problem": {"model": {}}}),
+            ("canvas", {"doc": {"nodes": [], "template": "attention"}}),
+            ("quiz", {}), ("checkpoint", {}), ("embed", {})]]
+        normalized = validate_blocks(blocks)
+        assert validate_blocks(normalized) == normalized
+        assert normalized[7]["data"]["value"] == 1.0
+        assert validate_block({"type": "quiz", "data": {"min": 10, "max": 20, "value": 10}})["data"]["value"] == 10
 
     def test_apply_lab_suggestion_inserts_lab_block(self) -> None:
         text = "解方程组：2x+y-z=8，-3x-y+2z=-11，-2x+y+2z=-3"

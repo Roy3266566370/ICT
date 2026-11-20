@@ -54,7 +54,10 @@ export type NodeType =
   // 自制积木（Scratch 自定义积木）：封装子图，边界端口对外接线
   | 'composite'      // 复合节点（内含 sub 子图）
   | 'portIn'         // 积木内部：入口边界节点（仅出现在 sub.nodes）
-  | 'portOut';       // 积木内部：出口边界节点
+  | 'portOut'        // 积木内部：出口边界节点
+  // 自包含仿真（活页建议/AI 设计物化而来）：数据载荷在 payload JSON 中
+  | 'attentionSim'   // 注意力教学实验（query/温度/因果掩码 → 权重表）
+  | 'pageLabSim';    // AI 交互模型（page_lab 程序 + 滑块组）
 
 export interface PortSpec {
   id: string;
@@ -87,6 +90,8 @@ export interface CanvasNode {
   params: Record<string, number>;
   /** 便签 / 公式源文本 / 积木名 */
   text?: string;
+  /** 自包含仿真节点的数据载荷 JSON（pageLabSim 的模型、attentionSim 的教学数据等） */
+  payload?: string;
   /** type === 'composite' 时的封装子图 */
   sub?: CompositeSub;
 }
@@ -110,6 +115,25 @@ export interface InkStroke {
 
 export type CanvasTool = 'select' | 'pen' | 'erase';
 
+/** 仪器面板：嵌入活页时以精简模式呈现的契约。
+ *  view_node_ids 是主观察节点；exposed_params 把内部节点参数外露成面板控件。
+ *  引用缺失的节点/参数键由嵌入端降级为警告，不静默丢弃。 */
+export interface CanvasPanelParam {
+  node_id: string;
+  param_key: string;
+  label?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+export interface CanvasPanel {
+  title?: string;
+  exposed_params: CanvasPanelParam[];
+  view_node_ids: string[];
+  read_only_layout?: boolean;
+}
+
 export interface CanvasDoc {
   version: 1;
   title: string;
@@ -117,4 +141,5 @@ export interface CanvasDoc {
   wires: Wire[];
   strokes: InkStroke[];
   zoom: number;
+  panel?: CanvasPanel;
 }

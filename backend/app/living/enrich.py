@@ -12,12 +12,34 @@ from typing import Any, Mapping
 
 from .model import make_suggestion
 
-#: 题目建议的最低要求：科目可分类 + 含"要求动手做"的动词/问句。
-#: 学科名词（矩阵、积分…）单独出现只是章节标题，不构成题目。
-_SOLVE_CUE = re.compile(
-    r"(求|解|计算|证明|化简|试求|求出|推导|作出|画出|设计|实现|执行|模拟|写出|比较|分析|讨论|？|\?|solve|evaluate|compute|determine|find|prove|derive|implement|simulate)",
+#: 题目建议的最低要求：科目可分类 + 真正的"动手做"任务线索。
+#: 单字"求/解"不能只靠子串匹配——"求逆/分解/理解/解答"都是普通词汇；
+#: 指令动词必须出现在行首（允许 例/题/编号 前缀），或有"已知/设"的题面结构。
+_TASK_START = re.compile(
+    r"(?:^|\n)\s*(?:[（(\[]?\s*(?:例|题|习题|练习|问题|思考题)?\s*\d{0,3}\s*[）)\].、：: ]*|"
+    r"Example\s*\d*\s*[:.]|Problem\s*\d*\s*[:.])?"
+    r"(?:已知|设|若|试求|求出|求解|求|计算|化简|证明|求证|推导|作出|画出|写出|解方程|讨论|比较|分析|"
+    r"solve|evaluate|compute|determine|find|prove|derive|show\s+that|implement|simulate)",
     re.I,
 )
+#: "已知…求/证/解…"结构——题面可以写在同一行，不必以指令开头。
+_GIVEN_THEN_ASK = re.compile(
+    r"(?:已知|设|若|given|let|suppose)[^\n？?]{0,160}?(?:求|计算|证明|证|解\s*[^答]|determine|compute|evaluate|find|show\s+that|prove)",
+    re.I,
+)
+#: 英语问句型题目（"What is the determinant of A=…"）单独放行，收窄到数学动词。
+_ENGLISH_ASK = re.compile(
+    r"(?:what\s+is|what\s+are|determine|compute|evaluate|find|simplify|factorize)\s+[^\n？?]{3,120}\?",
+    re.I,
+)
+#: 行中任务指令——两栏混排/图文混排的题面常把"求/计算"埋进句中。
+#: 要求指令词后 80 字内出现数学实质（等式/矩阵括号/LaTeX/数字+字母），
+#: 防止"求逆是撤销变"这类普通词汇误命中。
+_MATH_NEAR_TASK = re.compile(
+    r"(?:求|计算|证明|化简|解方程)[^\n？?。；;]{0,80}?"
+    r"(?:=|\[\[|\$\$|\\frac|\\int|\\sum|\\sqrt|\d\s*[a-zA-Z]|[a-zA-Z]\s*[=<>^])",
+)
+_SOLVE_CUE = _TASK_START
 #: 章节/小节标题行——即使含学科名词也不是题目（编号题目靠 _SOLVE_CUE 区分）。
 _HEADING_LINE = re.compile(r"^\s*(?:第\s*[0-9一二三四五六七八九十]+\s*[章节篇课部]|§\s*\d+)")
 _LATEX_DISPLAY = re.compile(r"(\$\$[^$]+\$\$|\\\[[^\]]+\\\]|\\begin\{equation\*?\}[^$]+?\\end\{equation\*?\})", re.S)
@@ -57,11 +79,15 @@ def suggest_for_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if len(text) < 8 or _HEADING_LINE.match(text):
             continue
 
-        # 题目建议：科目可分类 + 求解动词/问句 → "可生成解题实验"
+        # 题目建议：科目可分类 + 任务线索（行首指令 / 已知…求…结构 / 英文问句）→ "可生成解题实验"
         is_lecture = bool((block.get("data") or {}).get("collapsed"))
+        has_cue = bool(
+            _TASK_START.search(text) or _GIVEN_THEN_ASK.search(text)
+            or _ENGLISH_ASK.search(text) or _MATH_NEAR_TASK.search(text)
+        )
         if lab_count < _MAX_LAB_SUGGESTIONS and (not is_lecture or _LECTURE_TASK.search(text)):
             subject, confidence = classify_subject(text)
-            if subject != "unknown" and confidence >= 0.25 and _SOLVE_CUE.search(text):
+            if subject != "unknown" and confidence >= 0.25 and has_cue:
                 suggestions.append(make_suggestion(
                     "lab", block["id"],
                     {"text": text[:8000]},

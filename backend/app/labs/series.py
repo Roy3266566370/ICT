@@ -836,56 +836,91 @@ def build_series_from_text(text: str, source: Mapping, overrides: Mapping) -> di
     """Small local recognizer for common series phrasing; AI/declarative remains primary."""
     import re as _re
     compact = (text.replace('−', '-').replace('≤', '<=').replace('≥', '>=')
-               .replace('π', 'pi').replace('∞', 'oo').replace('Σ', '∑'))
+               .replace('π', 'pi').replace('∞', 'oo').replace('Σ', '∑')
+               .replace('（', '(').replace('）', ')'))
+    # OCR 常把 ln 读成 In（大写 I 与小写 l 同形）：`Inn`/`nInn`/`In(` → ln/l。
+    compact = _re.sub(r'I(?=[nx])', 'l', compact)
+    from .kernel_models import blocked_recognized_problem, build_recognized_problem
+
     def finish(problem):
+        if 'recognition' not in problem:
+            return problem
         problem['recognition']['raw_text'] = text
         problem['recognition']['method'] = 'typed_text'
         problem['source']['excerpt'] = text[:220]
         return problem
     if '傅里叶' in compact or 'Fourier' in compact:
         expr_match = _re.search(r'(?:f|y)\s*\(\s*x\s*\)\s*=\s*([^，,。；;]+)', compact)
-        interval = _re.search(r'\[\s*(-?(?:\d+(?:\.\d+)?|pi))\s*,\s*(-?(?:\d+(?:\.\d+)?|pi))\s*\]', compact)
+        # 教材两种写法都常见：[−π,π] 与 (−π,π)。
+        interval = _re.search(r'[\[(]\s*([^,，\[\]()（）\n]+)\s*[,，]\s*([^,，\[\]()（）\n]+)\s*[\])]', compact)
         order_match = _re.search(r'(?:前|展开到|取)\s*(\d+)\s*项', compact) or _re.search(r'n\s*=\s*(\d+)', compact)
         if expr_match:
-            try:
-                expression_text_raw = _re.split(r'\s*(?:在|上|，|,|。|区间)', expr_match.group(1))[0].strip()
-                return finish(build_fourier_problem({
-                    'expression': expression_text_raw,
-                    'lower': interval.group(1) if interval else '-pi',
-                    'upper': interval.group(2) if interval else 'pi',
-                    'order': int(order_match.group(1)) if order_match else 5,
-                }))
-            except Exception:  # noqa: BLE001
-                return None
+            expression_text_raw = _re.split(r'\s*(?:在|上|，|,|。|区间)', expr_match.group(1))[0].strip()
+            expression_text_raw = _re.sub(r'\|([^|]+)\|', r'abs(\1)', expression_text_raw)
+            if not interval:
+                return blocked_recognized_problem('fourier_series', {'expression': expression_text_raw, 'source_text': text},
+                    '傅里叶展开区间未完整识别，请补全区间端点，不自动使用 [-π,π]。')
+            return finish(build_recognized_problem('fourier_series', {
+                'expression': expression_text_raw,
+                'lower': interval.group(1).strip(),
+                'upper': interval.group(2).strip(),
+                'order': order_match.group(1) if order_match else 5,
+            }, build_fourier_problem))
     if '幂级数' in compact:
+        # `将 f(x)=… 展开为 x 的幂级数（到 x^4 项）` → goal=expand
+        expand = _re.search(r'(?:f|y)\s*\(\s*x\s*\)\s*=\s*(.+?)\s*展开\s*为', compact)
+        if expand:
+            order_m = (_re.search(r'(?:到|至)\s*x\s*\^?\s*\{?\s*(\d+)\s*\}?\s*项', compact)
+                       or _re.search(r'(?:前|取|展开到)\s*(\d+)\s*项', compact)
+                       or _re.search(r'阶数?\s*(\d+)', compact))
+            center_m = _re.search(r'x\s*=\s*(-?\d+(?:\.\d+)?)', compact)
+            return finish(build_recognized_problem('power_series', {
+                'goal': 'expand', 'expression': expand.group(1).strip(),
+                'order': order_m.group(1) if order_m else 5,
+                'center': center_m.group(1) if center_m else '0',
+            }, build_power_series_problem))
         body_match = _re.search(r'(?:[∑ΣE]|>=)\s*(.*?)(?:的|，|,|。|求|收敛)', compact) or _re.search(r'幂级数\s*(.*?)(?:的|，|,|。|求|收敛)', compact)
         body = body_match.group(1).strip() if body_match else ''
         body = _re.sub(r'^(?:[∑ΣE]|>=)\s*', '', body)
         if body:
-            try:
-                from .expr import parse_expression as _parse
-                body_expr = _parse(body, ('n', 'x'))
+            center_match = _re.search(r'x\s*=\s*(-?\d+(?:\.\d+)?)', compact)
+            conditions = {'term': body, 'goal': 'sum' if '和函数' in compact else 'radius',
+                          'center': center_match.group(1) if center_match else '0'}
+
+            def build_power_term(values):
+                body_expr = parse_expression(values['term'], ('n', 'x'))
                 body_expr = body_expr.xreplace({sp.Symbol('n', real=True): N, sp.Symbol('x', real=True): X})
                 coefficient = sp.simplify(body_expr / X ** N)
-                if not coefficient.free_symbols - {N}:
-                    center_match = _re.search(r'x\s*=\s*(-?\d+(?:\.\d+)?)', compact)
-                    goal = 'sum' if '和函数' in compact else 'radius'
-                    return finish(build_power_series_problem({
-                        'goal': goal, 'coefficient': expression_text(coefficient),
-                        'center': center_match.group(1) if center_match else '0',
-                    }))
-            except Exception:  # noqa: BLE001
-                return None
+                if coefficient.free_symbols - {N}:
+                    raise ValueError('无法提取仅依赖 n 的幂级数系数')
+                return build_power_series_problem({
+                    'goal': values['goal'], 'coefficient': expression_text(coefficient),
+                    'center': values['center'],
+                })
+
+            return finish(build_recognized_problem('power_series', conditions, build_power_term))
+        return blocked_recognized_problem('power_series', {'source_text': text}, '已识别幂级数题，但未提取到完整通项或展开函数。')
     if '级数' in compact and '敛散' in compact or '级数' in compact and '收敛' in compact:
         body_match = _re.search(r'(?:[∑ΣE]|>=)\s*(.*?)(?:的|，|,|。|敛散|收敛)', compact) or _re.search(r'级数\s*(.*?)(?:的|，|,|。|敛散|收敛)', compact)
         body = body_match.group(1).strip() if body_match else ''
         body = _re.sub(r'^(?:[∑ΣE]|>=)\s*', '', body)
         body = _re.sub(r'^[_^]?\{?n\s*=\s*\d+\}?', '', body).strip()
+        # `（n=2起）`/`n≥2`/`n从2开始`/`n=2到∞` → index_start；log 项的 n=1 起点会奇异。
+        start_match = (_re.search(r'[（(]\s*n\s*=\s*(\d+)\s*起\s*[）)]', body)
+                       or _re.search(r'n\s*=\s*(\d+)\s*起', body)
+                       or _re.search(r'n\s*(?:≥|>=)\s*(\d+)', body)
+                       or _re.search(r'n\s*从\s*(\d+)\s*开始', body)
+                       or _re.search(r'n\s*=\s*(\d+)\s*到\s*(?:oo|∞)', body))
+        index_start = start_match.group(1) if start_match else None
+        if index_start:
+            body = _re.sub(r'[（(]?\s*n\s*(?:=\s*\d+\s*起|(?:≥|>=)\s*\d+|从\s*\d+\s*开始|=\s*\d+\s*到\s*(?:oo|∞))\s*[）)]?', '', body).strip(' ，,')
+        # OCR 常把 `ln n` 黏连为 `lnn`：`ln`+单变量字母 → `ln(字母)`；`ln(1-x)`、`lnxy` 不受影响，
+        # 且不能把分母自带的 `)` 吃进来导致括号失衡。
+        body = _re.sub(r'\bln\s*\(\s*([nx])\s*\)', r'ln(\1)', body)
+        body = _re.sub(r'ln\s*([nx])(?![\w(])', r'ln(\1)', body)
         if body:
-            try:
-                return finish(build_series_problem({'term': body}))
-            except Exception:  # noqa: BLE001
-                return None
+            return finish(build_recognized_problem('series_convergence',
+                {'term': body, 'index_start': index_start}, build_series_problem))
     return None
 
 

@@ -102,9 +102,18 @@ export interface LabAmbiguity {
   field: string;
   question: string;
   severity: 'blocking' | 'notice';
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; replacement?: string }[];
   resolved: boolean;
   answer: string | null;
+  repair?: {
+    start: number;
+    end: number;
+    original: string;
+    text_hash: string;
+    code: string;
+    context: string;
+    diagnostic?: { message: string; start?: number; end?: number };
+  };
 }
 
 export interface LabFormula {
@@ -127,6 +136,21 @@ export interface LabRecognition {
   ai_transcription?: { text: string; confirmed: boolean };
   local_build_skipped?: boolean;
   model_text?: string;
+  source_repair_history?: {
+    original_text: string;
+    revised_text: string;
+    decisions: {
+      id: string;
+      code: string;
+      start: number;
+      end: number;
+      original: string;
+      replacement: string;
+      action: 'replace' | 'keep' | 'manual';
+      label: string;
+      text_hash: string;
+    }[];
+  }[];
 }
 
 export interface LabModelParam {

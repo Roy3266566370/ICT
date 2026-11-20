@@ -27,7 +27,9 @@ def _normalize_equation(raw: Any, independent: str, dependent: str) -> tuple[str
     if not isinstance(raw, str) or not 1 <= len(raw) <= 600:
         raise ValueError('微分方程必须是600字以内的字符串')
     text = raw.replace('′', "'").replace('’', "'").replace('−', '-').replace('＝', '=')
-    # OCR 常把 y'' 读成 y"（双引号/双撇号）——只在字母后替换以免误伤引号文本。
+    # OCR 常把 y'' 读成 y"（双引号/双撇号）、y''' 读成 y‴/y口——只在字母后替换以免误伤。
+    text = re.sub(r"(?<=[A-Za-z])‴", "'''", text)
+    text = re.sub(r"(?<=[A-Za-z])口", "'''", text)
     text = re.sub(r'(?<=[A-Za-z])["”″]', "''", text)
     text = text.replace(f'{dependent}({independent})', dependent)
     text = re.sub(r'\b' + re.escape(dependent) + r'\s*\(\s*' + re.escape(independent) + r'\s*\)', dependent, text)
@@ -46,6 +48,8 @@ def _normalize_equation(raw: Any, independent: str, dependent: str) -> tuple[str
     for order in (3, 2, 1):
         marker = 'D%d' % order
         pattern = re.escape(dependent) + r"\s*'{%d}" % order if order > 1 else re.escape(dependent) + r"\s*'"
+        # 系数紧邻时显式补乘号：`x^2y''` → `x^2*D2`，否则 `xD1` 会被当成一个未知符号。
+        text = re.sub(r'(?<=[\w)}])' + pattern, '*' + marker, text)
         text = re.sub(pattern, marker, text)
     return text, text
 
@@ -618,28 +622,37 @@ def _number_text(value: float | None) -> str:
 
 def build_ode_from_text(text: str, source: Mapping, overrides: Mapping) -> dict | None:
     """Minimal local recognition for equations written as y'...=... in prose."""
-    if not re.search(r"微分方程|dy\s*/\s*dx|y\s*'\s*", text, re.I):
+    # 先归一撇号类字符再抽取：OCR 常把 y' 写成 y′、y″ 写成 y"、y''' 写成 y‴；
+    # 不归一时 `y′(0)=0` 会躲过初值条件正则而静默丢失条件。
+    norm = text.replace('′', "'").replace('’', "'")
+    norm = re.sub(r"(?<=[A-Za-z])‴", "'''", norm)
+    norm = re.sub(r"(?<=[A-Za-z])口", "'''", norm)
+    norm = re.sub(r'(?<=[A-Za-z])["”″]', "''", norm)
+    if not re.search(r"欧拉方程|微分方程|dy\s*/\s*dx|y\s*'\s*", norm, re.I):
         return None
     equation = str(overrides.get('equation') or '').strip()
     if not equation:
-        match = re.search(r"(?:微分方程|方程)\s*[:：]?\s*([^。；;]+?=[^。；;]+)", text)
+        match = re.search(r"(?:微分方程|欧拉方程|方程)\s*[:：]?\s*([^。；;]+?=[^。；;]+)", norm)
         if not match:
-            match = re.search(r"(y\s*'{0,3}[^。；;]*=[^。；;]+)", text)
+            match = re.search(r"(y\s*'{0,3}[^。；;]*=[^。；;]+)", norm)
         if not match:
             return None
         equation = match.group(1).strip().strip('，, ')
         # 标题/题号引导语可能残留在捕获头（"9.求微分方程dy/dx=…"），先剥到数学开头。
-        equation = re.sub(r'^(?:[\d.、\s]*(?:求|解|微分方程|方程|已知|设|若|对于|计算|求证))+\s*', '', equation)
+        equation = re.sub(r'^(?:[\d.、\s]*(?:求|解|微分方程|欧拉方程|方程|已知|设|若|对于|计算|求证))+\s*', '', equation)
         equation = re.split(r"\s*(?:满足|其中|求|的|特解|通解)", equation)[0].strip()
+    if not re.search(r"微分方程|欧拉方程", norm) and not re.search(r"y\s*'|dy\s*/\s*dx", re.split(r'[，,]', equation)[0]):
+        return None
     initial_conditions = overrides.get('initial_conditions')
     if initial_conditions is None:
-        initial_conditions = [item.strip(" ，,。；;") for item in re.findall(r"y\s*'{0,3}\s*\([^)]*\)\s*=\s*[^，,。；;的]+", text)]
+        initial_conditions = [item.strip(" ，,。；;") for item in re.findall(r"y\s*'{0,3}\s*\([^)]*\)\s*=\s*[^，,。；;的]+", norm)]
     if not equation:
         return None
-    try:
-        problem = build_ode_problem({'equation': equation, 'initial_conditions': initial_conditions})
-    except (ValueError, TypeError, NotImplementedError):
-        return None
+    from .kernel_models import build_recognized_problem
+    problem = build_recognized_problem(
+        'ode', {'equation': equation, 'initial_conditions': initial_conditions}, build_ode_problem)
+    if 'recognition' not in problem:
+        return problem
     problem['recognition']['raw_text'] = text
     problem['recognition']['method'] = 'typed_text'
     problem['source']['excerpt'] = text[:220]

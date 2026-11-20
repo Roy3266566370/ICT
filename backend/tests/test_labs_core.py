@@ -434,6 +434,33 @@ def test_all_results_are_json_finite() -> None:
                     assert math.isfinite(value)
 
 
+@pytest.mark.parametrize(('raw', 'expected'), [
+    ('x3-3x', 'x^3-3*x'),
+    ('3x3', '3*x^3'),
+    ('x³-3x', 'x^3-3*x'),
+    ('x¹²', 'x^12'),
+    ('(x+1)³', '(x+1)^3'),
+    ('x⁻²', 'x^(-2)'),
+    ('x⁺³', 'x^3'),
+    ('-2³', '-2^3'),
+])
+def test_power_notation_preserves_exponents(raw, expected):
+    assert parse_expression(raw) == parse_expression(expected)
+    assert parse_expression(raw, preserve_structure=True) == parse_expression(expected, preserve_structure=True)
+
+
+def test_compact_powers_do_not_override_declared_identifiers():
+    from app.labs.expr import ExprError
+
+    assert str(parse_expression('x3', ('x', 'x3'))) == 'x3'
+    assert str(parse_expression('x2+x3', ('x2', 'x3'))) == 'x2 + x3'
+    assert str(parse_expression('x_3', ('x_3',))) == 'x_3'
+    assert str(parse_expression('x3³', ('x3',))) == 'x3**3'
+    for ambiguous in ('x0', 'x1', 'x30', 'x3y', 'x_3', 'x 3', 'a3', '³'):
+        with pytest.raises(ExprError):
+            parse_expression(ambiguous)
+
+
 def test_expression_work_budget_rejects_power_towers() -> None:
     from app.labs.expr import ExprError
 

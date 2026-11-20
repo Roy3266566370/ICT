@@ -1,8 +1,7 @@
 """高数进阶题型的文本识别：只把边界明确、内核可核验的形式接进结构化内核。
 
 覆盖：长方体三重积分、变限积分求导、二元偏导/梯度/全微分、
-单等式约束极值、点法式平面。解析不完整一律返回 None，
-走后续链路与人工核对，绝不猜补缺失条件。
+单等式约束极值、点法式平面。未匹配时返回 None；已提取的条件被内核拒绝时阻塞。
 """
 from __future__ import annotations
 
@@ -10,12 +9,14 @@ import re
 from typing import Any, Mapping
 
 
-def _compile(task: str, conditions: dict) -> dict | None:
-    from .kernel_models import compile_kernel_problem
-    try:
-        problem = compile_kernel_problem({'task': task, 'conditions': conditions})
-    except Exception:
-        return None
+from .kernel_models import blocked_recognized_problem
+
+
+def _compile(task: str, conditions: dict) -> dict:
+    from .kernel_models import build_recognized_problem, compile_kernel_problem
+
+    problem = build_recognized_problem(
+        task, conditions, lambda values: compile_kernel_problem({'task': task, 'conditions': values}))
     recognition = problem.get('recognition') or {}
     return {
         'model': problem['model'],
@@ -74,6 +75,11 @@ def _triple_spherical(text: str, source: Mapping, overrides: Mapping) -> dict | 
     sphere = re.search(r'x\s*[~^]\s*2\s*\+\s*y\s*[~^]\s*2\s*\+\s*z\s*[~^]\s*2\s*[=<≤]=?\s*(\d+(?:\.\d+)?)', text)
     if not sphere:
         return None
+    remaining = text[:sphere.start()] + text[sphere.end():]
+    if re.search(r'[<>≤≥]|[xyz]\s*=|半球|卦限|截', remaining):
+        return blocked_recognized_problem('triple_integral', {
+            'integrand': _triple_integrand(text), 'source_text': text,
+        }, '球域还有附加约束，当前识别器未完整建立截取区域，不能按整球求积。')
     a = sphere.group(1)
     radius = '1' if a == '1' else f'sqrt({a})'
     return _triple_with_region(text, {
@@ -311,8 +317,8 @@ def _interval_bounds(text: str, var: str) -> list[str] | None:
 
 def _parametric_pair(text: str) -> tuple[str, str] | None:
     """`x=φ(t),y=ψ(t)` → (x_expr, y_expr)；只接含参数 t 的形式。"""
-    x_match = re.search(r'(?<![A-Za-z0-9_])x\s*=\s*([^，,。；;\n]+?)\s*(?:[,，。；;\n]|在|上|的|$)', text)
-    y_match = re.search(r'(?<![A-Za-z0-9_])y\s*=\s*([^，,。；;\n]+?)\s*(?:[,，。；;\n]|在|上|的|$)', text)
+    x_match = re.search(r'(?<![A-Za-z0-9_])x\s*=\s*([^，,。；;\n]+?)\s*(?:[,，。；;\n]|(?=[一-鿿])|$)', text)
+    y_match = re.search(r'(?<![A-Za-z0-9_])y\s*=\s*([^，,。；;\n]+?)\s*(?:[,，。；;\n]|(?=[一-鿿])|$)', text)
     if not x_match or not y_match:
         return None
     x_expr, y_expr = x_match.group(1).strip().replace('~', '^'), y_match.group(1).strip().replace('~', '^')
@@ -321,7 +327,10 @@ def _parametric_pair(text: str) -> tuple[str, str] | None:
     func = r'sin|cos|tan|sec|csc|cot|exp|ln|log'
     for target in ('x_expr', 'y_expr'):
         value = locals()[target]
-        value = re.sub(rf'({func})\s+([a-zA-Z])', r'\1(\2)', value)
+        # OCR/排版常把 sin t 黏成 sint：分两条互斥规则——`sin t`（空白分隔）与
+        # `sint`（直接黏连，且后面不是 `(`，避免破坏已带括号的 sin(t)）。
+        value = re.sub(rf'({func})\s+([a-zA-Z])(?!\()', r'\1(\2)', value)
+        value = re.sub(rf'(?<![a-zA-Z])({func})(?=[a-zA-Z])([a-zA-Z])\b', r'\1(\2)', value)
         value = re.sub(r'(\d)(t)', r'\1*\2', value)
         value = re.sub(r't(\d+)', r't^\1', value)
         if target == 'x_expr':
@@ -333,18 +342,21 @@ def _parametric_pair(text: str) -> tuple[str, str] | None:
 
 def _parametric_derivative(text: str, source: Mapping, overrides: Mapping) -> dict | None:
     """`x=φ(t),y=ψ(t)` + `dy/dx`(或二阶) + `t=t0` → parametric_derivative。"""
-    if not re.search(r'd\s*y\s*/\s*d\s*x|参数方程', text):
+    if not re.search(r'd\s*(?:²|\^?\s*2)?\s*y\s*/\s*d\s*x|参数方程.*(?:求导|导数)', text):
         return None
     pair = _parametric_pair(text)
     if not pair:
         return None
-    order = 2 if re.search(r'd\s*2\s*y\s*/\s*d\s*x|二阶', text) else 1
-    point = re.search(r't\s*=\s*([-+]?\d+(?:\.\d+)?)', text)
+    order = 2 if re.search(r'd\s*(?:²|\^?\s*2)\s*y\s*/\s*d\s*x|二阶', text) else 1
+    point = re.search(r'(?<![A-Za-z0-9_])t\s*=\s*([^，,。；;\n\u4e00-\u9fff]+)', text)
     if not point:
-        return None
+        return blocked_recognized_problem('parametric_derivative',
+                        {'x_expression': pair[0], 'y_expression': pair[1], 'order': order},
+                        '已识别为参数方程求导并提取了 x(t)、y(t)，但缺少研究点 t=t0。'
+                        '请补充求值点（如 t=π/2）。')
     conditions = {
         'x_expression': pair[0], 'y_expression': pair[1],
-        'point': point.group(1), 'order': order,
+        'point': _normalize_angle(point.group(1)), 'order': order,
     }
     return _compile('parametric_derivative', conditions)
 
@@ -357,7 +369,9 @@ def _arc_length(text: str, source: Mapping, overrides: Mapping) -> dict | None:
     if pair:
         bounds = _interval_bounds(text, 't')
         if not bounds:
-            return None
+            return blocked_recognized_problem('parametric_arc_length', {
+                'x_expression': pair[0], 'y_expression': pair[1], 'source_text': text,
+            }, '已识别参数曲线，但缺少完整弧段范围，请补充参数区间。')
         return _compile('parametric_arc_length', {
             'x_expression': pair[0], 'y_expression': pair[1],
             'lower': bounds[0], 'upper': bounds[1]})
@@ -366,7 +380,8 @@ def _arc_length(text: str, source: Mapping, overrides: Mapping) -> dict | None:
         return None
     bounds = _interval_bounds(text, 'x')
     if not bounds:
-        return None
+        return blocked_recognized_problem('arc_length', {'expression': expr.group(1).strip(), 'source_text': text},
+            '已识别弧长请求，但缺少区间端点，不以默认求导点代替弧段。')
     return _compile('arc_length', {
         'expression': expr.group(1).strip().replace('~', '^'),
         'lower': bounds[0], 'upper': bounds[1]})
@@ -387,17 +402,28 @@ def _curvature(text: str, source: Mapping, overrides: Mapping) -> dict | None:
 
 
 def _polar_area(text: str, source: Mapping, overrides: Mapping) -> dict | None:
-    """`r=r(θ)`/`ρ=ρ(θ)` + `θ∈[α,β]` + `面积` → polar_area。"""
+    """`r=r(θ)`/`ρ=ρ(θ)` + `θ∈[α,β]` + `面积` → polar_area；
+    心形线/闭合曲线无显式界时按约定区间 [0,2π]。"""
     if '面积' not in text and '围成' not in text and '围' not in text:
         return None
-    expr = re.search(r'[rρ]\s*=\s*([^，,。；;\n]+?)\s*(?:[,，。；;\n]|所|$)', text)
-    if not expr or not re.search(r'θ|theta|极坐标|极径', text):
+    expr = re.search(r'[rρ]\s*=\s*([^，,。；;\n]+?)\s*(?:[,，。；;\n]|所|(?=[一-鿿])|$)', text)
+    if not expr or not re.search(r'θ|theta|极坐标|极径|心形线|心脏线|玫瑰线', text):
         return None
-    bounds = _interval_bounds(text, 'θ') or _interval_bounds(text, 'theta')
+    if re.search(r'(?<![A-Za-z])T(?=\s*[/×])', text):
+        return blocked_recognized_problem('polar_area', {'expression': expr.group(1), 'source_text': text},
+            '区间中出现 T，无法确认是参数还是 π 的误读；请对照原图修正端点，不自动替换。')
+    bounds_text = re.sub(r'([θρ]|theta)\s*E\s*(?=[\[（(])', r'\1∈', text)
+    bounds = _interval_bounds(bounds_text, 'θ') or _interval_bounds(bounds_text, 'theta')
     if not bounds:
-        return None
+        if re.search(r'心形线|心脏线', text):
+            # 心形线 r=a(1±cosθ)/r=a(1±sinθ) 在 [0,2π] 上完整描绘一次——教材约定区间。
+            bounds = ['0', '2*pi']
+        else:
+            return None
     raw = expr.group(1).strip().replace('~', '^').replace('θ', 'theta')
     raw = re.sub(r'(sin|cos|tan)0\b', r'\1(theta)', raw)
+    raw = re.sub(r'(?<![a-zA-Z])(sin|cos|tan)(\d+\s*theta)', r'\1(\2)', raw)
+    raw = re.sub(r'(?<![a-zA-Z])(sin|cos|tan)(theta)\b', r'\1(\2)', raw)
     raw = re.sub(r'(\d)([a-zA-Z(])', r'\1*\2', raw)
     return _compile('polar_area', {
         'expression': raw, 'lower': bounds[0], 'upper': bounds[1]})
@@ -405,7 +431,7 @@ def _polar_area(text: str, source: Mapping, overrides: Mapping) -> dict | None:
 
 def _asymptote(text: str, source: Mapping, overrides: Mapping) -> dict | None:
     """`y=f(x)的渐近线` → asymptote（内核只收有理函数，其余返回 None 走后续链路）。"""
-    if '渐近线' not in text:
+    if '渐近线' not in text or re.search(r'单调|凹凸|拐点|极值', text):
         return None
     expr = re.search(r'y\s*=\s*([^，,。；;\n]+?)\s*(?:[,，。；;\n]|的|$)', text)
     if not expr:
@@ -724,6 +750,11 @@ def _rotation_volume(text: str, source: Mapping, overrides: Mapping) -> dict | N
     if not expr:
         return None
     f_raw = expr.group(1).strip().replace('~', '^').replace('√', 'sqrt')
+    boundaries = re.findall(r'(?<![A-Za-z0-9_])y\s*=\s*([^，,。；;\n]+?)(?=[\u4e00-\u9fff，,。；;\n]|$)', text)
+    nonzero_boundaries = [item.strip() for item in boundaries if not re.fullmatch(r'\s*0(?:\.0+)?\s*', item)]
+    if len(nonzero_boundaries) > 1:
+        return blocked_recognized_problem('rotation_volume', {'boundaries': boundaries, 'source_text': text},
+            '已识别多条区域边界，不能把旋转轴当成第二条边界；请明确上下边界后建模。')
     bounds = _interval_bounds(text, 'x')
     if not bounds:
         xb = re.search(r'x\s*=\s*([-+]?\d+(?:\.\d+)?)', text)

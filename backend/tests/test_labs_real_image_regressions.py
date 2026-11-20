@@ -1,6 +1,8 @@
 """Regressions found while uploading real 2025 kaoyan screenshots."""
+import pytest
+
 from app.labs.extract import _looks_like_formula
-from app.labs.recognize import _attach_solution, build_problem, normalize_latex_prose
+from app.labs.recognize import _attach_solution, build_problem, normalize_latex_prose, rebuild_problem
 from app.labs.source_recovery import assess_text_quality
 from app.labs.staged_understanding import candidate_tasks
 
@@ -37,6 +39,107 @@ def test_line_integral_text_builder_solves_reversed_graph_curve():
     _attach_solution(problem)
     assert problem['status'] == 'ready'
     assert problem['solution']['answer'] == '4/3 - 2*sin(1)'
+
+
+@pytest.mark.parametrize('endpoints,orientation,answer', [
+    ('从(0,0)到(1,1)', 'forward', '1'),
+    ('从(1,1)到(0,0)', 'reverse', '-1'),
+])
+def test_line_integral_graph_endpoints_keep_direction(endpoints, orientation, answer):
+    problem = build_problem(f'计算曲线积分 ∫ x dx+y dy，其中L为y=x^2，{endpoints}。')
+    assert problem['model']['task'] == 'line_integral'
+    assert problem['model']['conditions']['orientation'] == orientation
+    assert problem['model']['conditions']['t_bounds'] == ['0', '1']
+    _attach_solution(problem)
+    assert problem['status'] == 'ready'
+    assert problem['solution']['answer'] == answer
+
+
+@pytest.mark.parametrize('field,curve,endpoints,reason', [
+    ('x dx+y dy', 'x^2', '0<=x<=1，方向为x增大方向', '缺少明确的起点和终点'),
+    ('x dx+y dy', 'x^2', '从(0,0)到(1,2)', '端点不在给定曲线上'),
+    ('x dx+y dy', None, '从(0,0)到(1,1)', '缺少可识别的曲线'),
+    ('x dx+y dy', 'x^2', None, '缺少明确的起点和终点'),
+    ('a dx+y dy', 'x^2', '从(0,0)到(1,1)', '向量场 P/Q 无法解析'),
+    ('x dx+a dy', 'x^2', '从(0,0)到(1,1)', '向量场 P/Q 无法解析'),
+    ('x dx+y dy', 'x+', '从(0,0)到(1,1)', '曲线表达式无法解析'),
+    ('x dx+y dy', 'x+y', '从(0,0)到(1,1)', '曲线表达式无法解析'),
+    ('x dx+y dy', 'sqrt(x)', '从(-1,0)到(1,1)', '端点代入曲线无法得到有限实数'),
+    ('x dx+y dy', '1/x', '从(0,0)到(1,1)', '端点代入曲线无法得到有限实数'),
+    ('x dx+y dy', '0/x', '从(0,0)到(1,0)', '曲线在端点处的值不是有限实数'),
+    ('x dx+y dy', 'x^2', '从(0,0)到(0,0)', 'x 坐标相同'),
+])
+def test_line_integral_invalid_conditions_never_fall_through(field, curve, endpoints, reason):
+    text = f'计算曲线积分 ∫ {field}'
+    if curve is not None:
+        text += f'，其中L为y={curve}'
+    if endpoints is not None:
+        text += f'，{endpoints}'
+    text += '。'
+    problem = build_problem(text)
+    _attach_solution(problem)
+    assert problem['model']['task'] == 'line_integral'
+    assert problem['model']['teaching'] is False
+    assert problem['status'] == 'needs_review'
+    assert problem['solution']['answer'] == ''
+    assert problem['solution']['steps'] == []
+    raw = problem['model']['conditions']
+    p_raw, q_raw = field.replace(' dx', '').replace(' dy', '').split('+')
+    assert raw['field'] == [p_raw, q_raw, '0']
+    assert raw['curve'] == curve
+    assert raw['source_text'] == text
+    if endpoints and endpoints.startswith('从'):
+        assert raw['endpoints'] == [point.strip('()').split(',')
+                                    for point in endpoints[1:].split('到')]
+    else:
+        assert raw['endpoints'] is None
+    panel = {item['id'] for item in problem['recognition']['conditions']}
+    assert {key for key, value in raw.items() if value is not None} <= panel
+    rejection = next(item for item in problem['recognition']['ambiguities']
+                     if item['id'] == 'kernel_reject')
+    assert reason in rejection['question']
+    assert rejection['severity'] == 'blocking'
+    assert not rejection['resolved']
+    for answer in ('arbitrary', 'confirmed'):
+        reviewed = rebuild_problem(problem, files=[], ambiguity_answers={'kernel_reject': answer})
+        assert reviewed['model']['task'] == 'line_integral'
+        assert reviewed['model']['conditions'] == raw
+        assert reviewed['status'] == 'needs_review'
+        assert reviewed['solution']['answer'] == ''
+        assert any(item['id'] == 'kernel_reject' and not item['resolved']
+                   for item in reviewed['recognition']['ambiguities'])
+
+
+def test_line_integral_endpoint_substitution_exception_stays_blocked(monkeypatch):
+    from unittest.mock import Mock
+    from app.labs import line_integral_text
+
+    parse = line_integral_text.parse_expression
+    curve = Mock()
+    curve.has.return_value = False
+    curve.subs.side_effect = RuntimeError('endpoint substitution failed')
+
+    def parse_with_broken_curve(raw, variables, **kwargs):
+        return curve if kwargs.get('preserve_structure') else parse(raw, variables, **kwargs)
+
+    monkeypatch.setattr(line_integral_text, 'parse_expression', parse_with_broken_curve)
+    text = '计算曲线积分 ∫ x dx+y dy，其中L为y=x^2，从(0,0)到(1,1)。'
+    problem = build_problem(text)
+    _attach_solution(problem)
+    assert problem['model']['task'] == 'line_integral'
+    assert problem['status'] == 'needs_review'
+    assert problem['solution']['answer'] == ''
+    assert problem['model']['conditions']['endpoints'] == [['0', '0'], ['1', '1']]
+
+
+@pytest.mark.parametrize('text', [
+    '计算 ∫ x dx+y dy，其中L为y=x^2，从(0,0)到(1,1)。',
+    '计算曲线积分 ∫ x dx，其中L为y=x^2，从(0,0)到(1,1)。',
+    '计算曲线积分 ∫ x dx+y dx，沿曲线dy=0。',
+])
+def test_line_integral_unmatched_text_can_still_return_none(text):
+    from app.labs.line_integral_text import build_line_integral_from_text
+    assert build_line_integral_from_text(text, {}, {}) is None
 
 
 def test_line_and_surface_integral_candidates_use_kernel_task_names():
@@ -157,7 +260,14 @@ def test_q18_ocr_text_does_not_build_bogus_higher_derivative():
     )
     problem = build_problem(text, number='18')
     assert problem['model'].get('task') != 'higher_derivative'
-    assert problem['model']['engine'] == 'unsupported_v1' or problem['model'].get('teaching') is True
+    assert problem['model']['engine'] == 'manual_v1'
+    assert problem['model']['teaching'] is False
+    assert problem['model']['conditions']['source_text'] == text
+    _attach_solution(problem)
+    assert problem['status'] == 'needs_review'
+    assert problem['solution']['answer'] == ''
+    assert any(item['id'] == 'kernel_reject' and not item['resolved']
+               for item in problem['recognition']['ambiguities'])
 
 
 def test_limit_kernel_accepts_finite_string_point_and_rejects_side_suffix():

@@ -18,6 +18,7 @@ import { extractInkFormula, type InkNodeType } from '@/api/labs';
 import { getLivingPage, listLivingPages, patchLivingPage } from '@/api/living';
 import { errorMessage } from '@/api/client';
 import type { LivingPageSummary, PageBlock } from '@/living/types';
+import { simParamMeta } from '@/living/sim';
 import { defaultManual408Text } from '@/labs/manual408';
 import { compileExpression } from '@/labs/expr';
 import { fitFreehandCurve, curveFamilyLabel, type CurveFitResult } from '@/labs/curveFit';
@@ -628,6 +629,75 @@ export function CanvasPage(): JSX.Element {
                 ))}
               </div>
             ))}
+          </div>
+        </details>
+
+        <details className={styles.palette}>
+          <summary className={styles.tbtn} title="设为仪器面板：嵌入活页时只显示选中视图与外露参数">
+            🎛 仪器面板{doc.panel ? ` · ${doc.panel.view_node_ids.length || '全图'}` : ''}
+          </summary>
+          <div className={styles.paletteMenu}>
+            <label className={styles.paletteItem} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+              <input type="checkbox" checked={!!doc.panel} onChange={(e) =>
+                setDoc((d) => ({ ...d, panel: e.target.checked ? { view_node_ids: [], exposed_params: [] } : undefined }))} />
+              设为仪器面板
+            </label>
+            {doc.panel ? <>
+              <div className={styles.paletteLabel}>可见节点（全不选 = 显示全部）</div>
+              {doc.nodes.map((n) => (
+                <label key={n.id} className={styles.paletteItem} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                  <input type="checkbox" checked={doc.panel!.view_node_ids.includes(n.id)} onChange={(e) =>
+                    setDoc((d) => ({ ...d, panel: { ...d.panel!, view_node_ids: e.target.checked
+                      ? [...d.panel!.view_node_ids, n.id]
+                      : d.panel!.view_node_ids.filter((id) => id !== n.id) } }))} />
+                  {n.text || NODE_DEFS[n.type]?.title || n.type}
+                </label>
+              ))}
+              <div className={styles.paletteLabel}>外露参数</div>
+              {doc.nodes.flatMap((n) => Object.keys(n.params ?? {}).map((key) => ({ n, key }))).map(({ n, key }) => {
+                const ref = `${n.id}.${key}`;
+                const entry = doc.panel!.exposed_params.find((p) => p.node_id === n.id && p.param_key === key);
+                const exposed = !!entry;
+                const updateBound = (patch: Partial<{ min: number; max: number; step: number }>) => {
+                  setDoc((d) => ({
+                    ...d,
+                    panel: d.panel ? {
+                      ...d.panel,
+                      exposed_params: d.panel.exposed_params.map((p) =>
+                        p.node_id === n.id && p.param_key === key ? { ...p, ...patch } : p),
+                    } : undefined,
+                  }));
+                };
+                return (
+                  <div key={ref}>
+                    <label className={styles.paletteItem} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+                      <input type="checkbox" checked={exposed} onChange={(e) => {
+                        const meta = simParamMeta(n, key);
+                        setDoc((d) => ({ ...d, panel: { ...d.panel!, exposed_params: e.target.checked
+                          ? [...d.panel!.exposed_params, {
+                              node_id: n.id, param_key: key,
+                              label: meta.label || `${n.text || NODE_DEFS[n.type]?.title || n.type}·${key}`,
+                              min: meta.min, max: meta.max, step: meta.step,
+                            }]
+                          : d.panel!.exposed_params.filter((p) => !(p.node_id === n.id && p.param_key === key)) } }));
+                      }} />
+                      {(n.text || NODE_DEFS[n.type]?.title || n.type)}·{key}
+                    </label>
+                    {entry ? (
+                      <div style={{ display: 'flex', gap: '.3rem', paddingLeft: '1.4rem', marginBottom: '.25rem', fontSize: '.75rem' }}>
+                        <label>min <input type="number" step="any" style={{ width: '3.6rem' }} value={entry.min ?? ''}
+                          onChange={(e) => updateBound({ min: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
+                        <label>max <input type="number" step="any" style={{ width: '3.6rem' }} value={entry.max ?? ''}
+                          onChange={(e) => updateBound({ max: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
+                        <label>step <input type="number" step="any" style={{ width: '3.2rem' }} value={entry.step ?? ''}
+                          onChange={(e) => updateBound({ step: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+              <div className={styles.paletteLabel}>嵌入活页后学生只能调外露参数，原作不受污染</div>
+            </> : null}
           </div>
         </details>
 

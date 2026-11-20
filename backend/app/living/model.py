@@ -14,7 +14,10 @@
 from __future__ import annotations
 
 import copy
+import json
+import math
 import re
+from urllib.parse import urlsplit
 import secrets
 from typing import Any, Mapping, Sequence
 
@@ -22,7 +25,7 @@ SCHEMA_VERSION = "page.1"
 
 BLOCK_TYPES = {
     "page", "text", "figure", "formula", "section",
-    "lab", "canvas", "quiz", "checkpoint", "embed",
+    "lab", "canvas", "quiz", "checkpoint", "embed", "callout",
 }
 FLOOR_TYPES = {"page", "text", "figure", "formula", "section"}
 SUGGESTION_KINDS = {"formula", "lab", "canvas_object", "quiz", "section"}
@@ -32,6 +35,56 @@ MAX_BLOCKS = 400
 MAX_SUGGESTIONS = 60
 MAX_TEXT = 20000
 MAX_URL = 2000
+MAX_BLOCK_TYPE = 128
+MAX_VARIABLES = 40
+MAX_BINDINGS = 32
+CALLOUT_KINDS = {"theorem", "proof", "example", "warning"}
+VARIABLE_TYPES = {"number", "select"}
+_VAR_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,31}")
+MAX_OPAQUE_BYTES = 64 * 1024
+MAX_OPAQUE_TOTAL_BYTES = 1024 * 1024
+MAX_OPAQUE_DEPTH = 16
+MAX_OPAQUE_NODES = 4096
+
+
+def _opaque_data(data: Mapping[str, Any]) -> dict[str, Any]:
+    """未知块仅作为有界 JSON 数据保存，不解释 HTML 或任何内部字段。"""
+    nodes = 0
+    size = 0
+
+    def check(value: Any, depth: int) -> None:
+        nonlocal nodes, size
+        nodes += 1
+        if nodes > MAX_OPAQUE_NODES or depth > MAX_OPAQUE_DEPTH:
+            raise ValueError("未知块 data 超过节点数或深度上限")
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if not isinstance(key, str):
+                    raise ValueError("未知块 data 的 JSON 键必须是字符串")
+                check(key, depth + 1)
+                check(item, depth + 1)
+        elif isinstance(value, list):
+            for item in value:
+                check(item, depth + 1)
+        elif value is None or isinstance(value, (str, bool, int, float)):
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError("未知块 data 数值必须有限")
+            if isinstance(value, str) and len(value) > MAX_OPAQUE_BYTES:
+                raise ValueError("未知块 data 超过尺寸上限")
+            try:
+                size += len(json.dumps(value, ensure_ascii=True, allow_nan=False))
+            except (ValueError, OverflowError) as exc:
+                raise ValueError("未知块 data 必须是合法 JSON") from exc
+            if size > MAX_OPAQUE_BYTES:
+                raise ValueError("未知块 data 超过尺寸上限")
+        else:
+            raise ValueError("未知块 data 必须是合法 JSON")
+
+    payload = dict(data)
+    check(payload, 0)
+    if len(json.dumps(payload, ensure_ascii=True, separators=(",", ":"))) > MAX_OPAQUE_BYTES:
+        raise ValueError("未知块 data 超过尺寸上限")
+    return copy.deepcopy(payload)
 
 
 def new_page_id() -> str:
@@ -74,23 +127,144 @@ def validate_block(raw: Any) -> dict[str, Any]:
     """校验并规范化一个块；非法输入抛 ``ValueError``。"""
     if not isinstance(raw, Mapping):
         raise ValueError("块必须是对象")
-    kind = str(raw.get("type") or "")
-    if kind not in BLOCK_TYPES:
-        raise ValueError(f"不支持的块类型：{kind or '(空)'}")
+    kind = raw.get("type")
+    if (not isinstance(kind, str) or not kind.strip() or len(kind) > MAX_BLOCK_TYPE
+            or kind != kind.strip() or any(ord(c) < 32 or ord(c) == 127 for c in kind)):
+        raise ValueError("块 type 必须是非空、无控制字符且不超过 128 字符的字符串")
     data = raw.get("data")
     if not isinstance(data, Mapping):
         raise ValueError(f"块 {kind} 缺少 data")
     block: dict[str, Any] = {
         "id": str(raw.get("id") or new_block_id())[:40],
         "type": kind,
-        "data": _validate_data(kind, data),
+        "data": _validate_data(kind, data) if kind in BLOCK_TYPES else _opaque_data(data),
     }
     ref = _source_ref(raw.get("source"))
     if ref is not None:
         block["source"] = ref
     if raw.get("floor"):
         block["floor"] = True
+    bindings = raw.get("bindings")
+    if bindings is not None:
+        block["bindings"] = _validate_bindings(bindings)
+    outputs = raw.get("outputs")
+    if outputs is not None:
+        # Phase 1 只预留字段位：允许空对象透传，拒绝任何实际映射。
+        if not isinstance(outputs, Mapping) or outputs:
+            raise ValueError("outputs 派生输出尚未启用，仅允许空对象预留")
+        block["outputs"] = {}
+    locked_until = raw.get("locked_until")
+    if locked_until is not None:
+        gate = _validate_locked_until(locked_until)
+        if gate["block_id"] == block["id"]:
+            raise ValueError("locked_until 不能指向块自身")
+        block["locked_until"] = gate
     return block
+
+
+_LOCKED_RULES = {"submitted", "correct"}
+
+
+def _validate_locked_until(raw: Any) -> dict[str, Any]:
+    """``locked_until`` 门控：``{block_id, rule}``，指向需先完成的兄弟块。
+
+    目标缺失按全局悬挂规则处理——前端降级为解锁+警告，校验层只保证形态。
+    """
+    if not isinstance(raw, Mapping):
+        raise ValueError("locked_until 必须是对象")
+    target = raw.get("block_id")
+    if not isinstance(target, str) or not target.strip():
+        raise ValueError("locked_until.block_id 必须是非空字符串")
+    rule = str(raw.get("rule") or "submitted")
+    if rule not in _LOCKED_RULES:
+        raise ValueError("locked_until.rule 必须是 submitted/correct 之一")
+    return {"block_id": target.strip()[:40], "rule": rule}
+
+
+def _validate_bindings(raw: Any) -> dict[str, str]:
+    """块级 ``bindings``：``{块内参数键: 页面变量名}``。
+
+    键是块内部参数坐标（lab 为引擎参数名，canvas 为 ``node_id.param_key``）；
+    值必须是一个合法页面变量名。指向不存在的变量由前端按"降级为静态值"
+    处理，校验层只保证形态。
+    """
+    if not isinstance(raw, Mapping):
+        raise ValueError("bindings 必须是对象")
+    if len(raw) > MAX_BINDINGS:
+        raise ValueError("bindings 超过上限")
+    out: dict[str, str] = {}
+    for key, value in raw.items():
+        name = str(key)[:120]
+        if not name:
+            raise ValueError("bindings 参数键不能为空")
+        if not isinstance(value, str) or not _VAR_NAME.fullmatch(value):
+            raise ValueError(f"bindings.{name} 必须指向一个合法变量名")
+        out[name] = value
+    return out
+
+
+def validate_variables(raw: Any) -> dict[str, dict[str, Any]]:
+    """页面级 ``variables``：``{名: {label,type,value,min?,max?,step?,options?,unit?}}``。
+
+    Phase 1 只做 number/select 两类标量；数值范围与选项数量收敛，缺失字段
+    按原样回传，便于旧文档直接通过。
+    """
+    if not isinstance(raw, Mapping):
+        raise ValueError("variables 必须是对象")
+    if len(raw) > MAX_VARIABLES:
+        raise ValueError(f"变量数量超过上限 {MAX_VARIABLES}")
+    out: dict[str, dict[str, Any]] = {}
+    for name, spec in raw.items():
+        if not isinstance(name, str) or not _VAR_NAME.fullmatch(name):
+            raise ValueError(f"变量名不合法：{name!r}")
+        if not isinstance(spec, Mapping):
+            raise ValueError(f"变量 {name} 的定义必须是对象")
+        kind = str(spec.get("type") or "number")
+        if kind not in VARIABLE_TYPES:
+            raise ValueError(f"变量 {name} 的类型必须是 {sorted(VARIABLE_TYPES)} 之一")
+        entry: dict[str, Any] = {
+            "label": _clamp_text(spec.get("label") or name, 80),
+            "type": kind,
+        }
+        unit = spec.get("unit")
+        if isinstance(unit, str) and unit.strip():
+            entry["unit"] = _clamp_text(unit, 20)
+        if kind == "number":
+            value = _finite_float(spec.get("value"), f"变量 {name}")
+            entry["value"] = value
+            for key in ("min", "max", "step"):
+                raw_bound = spec.get(key)
+                if raw_bound is None:
+                    continue
+                entry[key] = _finite_float(raw_bound, f"变量 {name} 的 {key}")
+            if "min" in entry and "max" in entry and not entry["min"] < entry["max"]:
+                raise ValueError(f"变量 {name} 必须满足 min < max")
+            if "step" in entry and entry["step"] <= 0:
+                raise ValueError(f"变量 {name} 的 step 必须为正")
+            lo = entry.get("min")
+            hi = entry.get("max")
+            if lo is not None and value < lo or hi is not None and value > hi:
+                raise ValueError(f"变量 {name} 的默认值超出 min/max 范围")
+        else:
+            options = spec.get("options")
+            if (not isinstance(options, list) or not options or len(options) > 20
+                    or any(not isinstance(item, str) or not item.strip() or len(item) > 80 for item in options)):
+                raise ValueError(f"变量 {name} 的 options 必须是 1-20 个非空字符串")
+            entry["options"] = [item.strip()[:80] for item in options]
+            value = str(spec.get("value") or "")
+            entry["value"] = value if value in entry["options"] else entry["options"][0]
+        out[name] = entry
+    return out
+
+
+def _finite_float(value: Any, label: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"{label} 必须是有限数值") from exc
+    if isinstance(value, bool) or not math.isfinite(number):
+        raise ValueError(f"{label} 必须是有限数值")
+    return number
 
 
 def _validate_data(kind: str, data: Mapping[str, Any]) -> dict[str, Any]:
@@ -161,24 +335,56 @@ def _validate_data(kind: str, data: Mapping[str, Any]) -> dict[str, Any]:
             "explain": _clamp_text(data.get("explain"), 600),
         }
         for key in ("min", "max", "value"):
+            value = data.get(key, {"min": 0.0, "max": 4.0, "value": 1.0}[key])
             try:
-                out[key] = float(data.get(key))
-            except (TypeError, ValueError):
-                out[key] = {"min": 0.0, "max": 4.0, "value": 1.0}[key]
+                out[key] = float(value)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError("quiz 数值必须有限") from exc
+            if isinstance(value, bool) or not math.isfinite(out[key]):
+                raise ValueError("quiz 数值必须有限")
+        if not out["min"] < out["max"] or not out["min"] <= out["value"] <= out["max"]:
+            raise ValueError("quiz 必须满足 min < max 且 value 在范围内")
         return out
     if kind == "checkpoint":
-        return {
+        out = {
             "prompt": _clamp_text(data.get("prompt"), 600) or "写下你的答案",
             "expected": _clamp_text(data.get("expected"), 400),
             "placeholder": _clamp_text(data.get("placeholder"), 200),
         }
+        grading = str(data.get("grading") or "exact")
+        if grading not in {"exact", "expr", "numeric"}:
+            raise ValueError("checkpoint 判分模式必须是 exact/expr/numeric 之一")
+        out["grading"] = grading
+        return out
+    if kind == "callout":
+        callout_kind = str(data.get("kind") or "")
+        if callout_kind not in CALLOUT_KINDS:
+            raise ValueError(f"callout 类型必须是 {sorted(CALLOUT_KINDS)} 之一")
+        return {
+            "kind": callout_kind,
+            "title": _clamp_text(data.get("title"), 200),
+            "md": _clamp_text(data.get("md")),
+            "collapsible": bool(data.get("collapsible")),
+        }
     # embed
-    url = _clamp_text(data.get("url"), MAX_URL)
-    if url and not re.match(r"^https?://", url):
-        raise ValueError("embed 块只接受 http/https 链接")
+    url = data.get("url", "")
+    if not isinstance(url, str) or len(url) > MAX_URL:
+        raise ValueError("embed URL 必须是长度不超过 2000 的字符串")
+    if url:
+        try:
+            parsed = urlsplit(url)
+            host = parsed.hostname
+            if (parsed.scheme not in {"http", "https"} or not host
+                    or parsed.username is not None or parsed.password is not None
+                    or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in url)
+                    or "\\" in url or not re.fullmatch(r"[\w.:-]+", host)
+                    or parsed.port == 0 or parsed.netloc.endswith(":")):
+                raise ValueError("invalid URL")
+        except ValueError as exc:
+            raise ValueError("embed 块只接受合法 http/https 链接") from exc
     try:
         height = max(120, min(1200, int(data.get("height") or 360)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         height = 360
     return {"url": url, "height": height}
 
@@ -188,7 +394,15 @@ def validate_blocks(raw: Any) -> list[dict[str, Any]]:
         raise ValueError("blocks 必须是数组")
     if len(raw) > MAX_BLOCKS:
         raise ValueError(f"块数量超过上限 {MAX_BLOCKS}")
-    blocks = [validate_block(item) for item in raw]
+    blocks = []
+    opaque_bytes = 0
+    for item in raw:
+        block = validate_block(item)
+        if block["type"] not in BLOCK_TYPES:
+            opaque_bytes += len(json.dumps(block["data"], ensure_ascii=True, separators=(",", ":")))
+            if opaque_bytes > MAX_OPAQUE_TOTAL_BYTES:
+                raise ValueError("未知块 data 总尺寸超过上限")
+        blocks.append(block)
     ids = [b["id"] for b in blocks]
     if len(set(ids)) != len(ids):
         raise ValueError("块 id 重复")
@@ -283,10 +497,14 @@ def materialize(suggestion: Mapping[str, Any], anchor: Mapping[str, Any]) -> lis
             "data": dict(proposal),
         }]
 
-    if kind == "canvas_object" and proposal.get("template") == "attention":
+    if kind == "canvas_object":
+        template = str(proposal.get("template") or "")
+        from .canvas_templates import build_canvas_doc
+
+        doc = build_canvas_doc(template, proposal)
         return [copy.deepcopy(anchor), {
             "id": new_block_id(), "type": "canvas", "source": source,
-            "data": {"doc": {"nodes": [], "template": "attention"}},
+            "data": {"doc": doc},
         }]
 
     raise ValueError(f"暂不支持激活 {kind} 建议")
@@ -339,6 +557,14 @@ def apply_suggestion(document: dict[str, Any], suggestion_id: str) -> dict[str, 
     anchor = blocks[index]
     fresh = [validate_block(b) for b in materialize(target, anchor)]
     blocks[index:index + 1] = fresh
+    # 重新设计已物化模型：建议 proposal.replaces 指向旧的激活块，激活新
+    # 版本时一并移除（仅允许 canvas 块，防止建议误删保真内容）。
+    replaced_id = str((target.get("proposal") or {}).get("replaces") or "")
+    if replaced_id:
+        stale = next((i for i, b in enumerate(blocks)
+                      if b.get("id") == replaced_id and b.get("type") == "canvas"), None)
+        if stale is not None:
+            blocks.pop(stale)
     target["status"] = "accepted"
     conversion = (document.get("provenance") or {}).get("conversion")
     if isinstance(conversion, dict):
@@ -360,6 +586,7 @@ def dismiss_suggestion(document: dict[str, Any], suggestion_id: str) -> None:
 
 __all__ = [
     "BLOCK_TYPES",
+    "CALLOUT_KINDS",
     "FLOOR_TYPES",
     "SCHEMA_VERSION",
     "SUGGESTION_KINDS",
@@ -374,4 +601,5 @@ __all__ = [
     "validate_block",
     "validate_blocks",
     "validate_suggestion",
+    "validate_variables",
 ]

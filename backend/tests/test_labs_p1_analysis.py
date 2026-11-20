@@ -245,3 +245,144 @@ def test_ocr_parameter_limit_paren_form_fraction_target_and_juxtaposed_param():
     assert p['status'] == 'ready'
     assert p['solution']['answer'] == 'a=2'
     assert p['model'].get('modeling_task') == 'parameter_limit'
+
+
+def test_round7_ocr_series_variants():
+    # OCR 实测变体：全角）混配、ln→In 大写 I 误读、Σ 整吞
+    from app.labs.recognize import build_problem, _attach_solution
+    p = build_problem('18.（8分）判断级数1/(nInn）（n=2起）的敛散性。\n解：')
+    model = p.get('model') or {}
+    assert p.get('subject') == 'calculus', (p.get('subject'), model.get('engine'))
+    assert model.get('engine') == 'series_v1' and model.get('task') == 'series_convergence'
+    _attach_solution(p)
+    assert '发散' in ((p.get('solution') or {}).get('answer') or '')
+
+    p2 = build_problem('17.（6分）判断级数n/(n^2+1）的敛散性。\n解：')
+    _attach_solution(p2)
+    assert (p2.get('model') or {}).get('engine') == 'series_v1'
+    assert '发散' in ((p2.get('solution') or {}).get('answer') or '')
+
+    p3 = build_problem('16．（8分）判断级数E(-1)^n/(nInn）（n=2起）的敛散性，\n是绝对收敛还是条件收敛？\n解：')
+    _attach_solution(p3)
+    assert (p3.get('model') or {}).get('engine') == 'series_v1'
+    assert '条件收敛' in ((p3.get('solution') or {}).get('answer') or '')
+
+    p4 = build_problem('20．（10分）求幂级数x^n/(n+1）的和函数。\n解：')
+    _attach_solution(p4)
+    assert (p4.get('model') or {}).get('engine') == 'power_series_v1'
+    assert 'ln' in ((p4.get('solution') or {}).get('answer') or '')
+
+
+def test_round7_ocr_ode_box_glyph():
+    # OCR 把三阶导 y''' 读成 y口
+    from app.labs.recognize import build_problem, _attach_solution
+    p = build_problem('25．（8分）求微分方程y口-y"=0的通解。\n解：')
+    _attach_solution(p)
+    assert (p.get('model') or {}).get('engine') == 'ode_v1'
+    ans = (p.get('solution') or {}).get('answer') or ''
+    assert 'C3' in ans and 'exp(x)' in ans
+
+
+def test_round7_case_garbage_ln_exemption():
+    from app.labs.source_recovery import assess_text_quality
+    # nInn（ln 的 I 误读）可恢复，不应按大小写混杂判 untrusted
+    quality = assess_text_quality('判断级数1/(nInn）（n=2起）的敛散性',
+                                  pages=[{'image_key': 'k', 'page': 1, 'file_id': 'f'}])
+    assert quality['untrusted'] is False or all('混杂' not in i for i in quality['issues'])
+
+
+def test_round8_parametric_and_polar():
+    from app.labs.recognize import build_problem, _attach_solution
+
+    # 黏连三角 sint/cost + 符号点 t=π/2
+    p = build_problem('设x=t-sint,y=1-cost，求t=π/2处dy/dx的值。')
+    _attach_solution(p)
+    assert (p.get('model') or {}).get('task') == 'parametric_derivative'
+    assert '1' in ((p.get('solution') or {}).get('answer') or '')
+
+    # d^2y/dx^2 二阶 + 数字点
+    p2 = build_problem('设x=t^2,y=t^3，求d^2y/dx^2在t=1处的值。')
+    _attach_solution(p2)
+    assert '3/4' in ((p2.get('solution') or {}).get('answer') or '')
+
+    # 缺研究点 → blocking，不落 tangent fallback
+    p3 = build_problem('设x=a(t-sint),y=a(1-cost)，求dy/dx。')
+    m3 = p3.get('model') or {}
+    assert m3.get('task') == 'parametric_derivative' and m3.get('engine') == 'manual_v1'
+    assert any(a.get('severity') == 'blocking' and 't=t0' in (a.get('question') or '')
+               for a in (p3.get('recognition') or {}).get('ambiguities', []))
+
+    # 心形线无显式界 → 约定 [0,2π]
+    p4 = build_problem('求心形线r=1+cosθ所围图形的面积。')
+    _attach_solution(p4)
+    assert '3*pi/2' in ((p4.get('solution') or {}).get('answer') or '')
+
+    # cos3θ 黏连 + 玫瑰线一瓣显式界
+    p5 = build_problem('求三叶玫瑰线r=cos3θ一瓣(θ∈[-π/6,π/6])的面积。')
+    _attach_solution(p5)
+    assert 'pi/12' in ((p5.get('solution') or {}).get('answer') or '')
+
+
+def test_round8_improper_paren_notation():
+    from app.labs.recognize import build_problem, _attach_solution
+    # ∫(a,∞) f dx 括号区间记法
+    p = build_problem('计算反常积分∫(1,+∞) dx/x^2。')
+    _attach_solution(p)
+    assert (p.get('solution') or {}).get('answer') == '1'
+    # ∫(a,b) dx/f 微分前置记法 → 被积函数 1/f
+    p2 = build_problem('计算反常积分∫(0,1) dx/sqrt(1-x)。')
+    _attach_solution(p2)
+    assert (p2.get('solution') or {}).get('answer') == '2'
+
+
+def test_round8_inverse_derivative_point_and_fallback():
+    from app.labs.recognize import build_problem, _attach_solution
+    # 反函数在 y=y0 处 → 定点反函数导数
+    p = build_problem('设f(x)=x^3+x，求其反函数在y=2处的导数。')
+    _attach_solution(p)
+    assert (p.get('model') or {}).get('kind') == 'inverse_derivative'
+    assert '0.25' in ((p.get('solution') or {}).get('answer') or '') or '1/4' in ((p.get('solution') or {}).get('answer') or '')
+    # 无研究点 + "求导数" → 回退普通求导给通式，不静默发明 y0=0
+    p2 = build_problem('利用反函数求导法则求y=arcsinx的导数。')
+    _attach_solution(p2)
+    m2 = p2.get('model') or {}
+    assert m2.get('kind') == 'derivative'
+    assert 'sqrt' in ((p2.get('solution') or {}).get('answer') or '') or 'asin' in ((p2.get('solution') or {}).get('answer') or '')
+
+
+def test_round8_fourier_abs():
+    from app.labs.recognize import build_problem, _attach_solution
+    p = build_problem('将函数f(x)=|x|在[-π,π]上展开为傅里叶级数。')
+    _attach_solution(p)
+    assert (p.get('model') or {}).get('task') == 'fourier_series'
+    assert 'pi' in ((p.get('solution') or {}).get('answer') or '')
+
+
+def test_round8_ocr_brace_integral_and_theta_bounds():
+    """OCR 实测变体：∫→{( 括号区间、θ∈→θE、π→T。"""
+    from app.labs.recognize import build_problem, _attach_solution
+    from app.labs.source_recovery import assess_text_quality
+
+    # {(1,+∞） 不判括号失衡（{ 是 ∫ 的误读）
+    quality = assess_text_quality('计算反常积分{(1,+∞）dx/x^2。',
+                                  pages=[{'image_key': 'k', 'page': 1, 'file_id': 'f'}])
+    assert all('括号' not in i for i in quality['issues'])
+
+    p = build_problem('计算反常积分{(1,+∞）dx/x^2。')
+    _attach_solution(p)
+    assert (p.get('model') or {}).get('kind') == 'integral'
+    assert (p.get('solution') or {}).get('answer') == '1'
+
+    p2 = build_problem('计算反常积分{(0,1）dx/√(1-x)。')
+    _attach_solution(p2)
+    assert (p2.get('solution') or {}).get('answer') == '2'
+
+    p3 = build_problem('求三叶玫瑰线r=cos3θ一瓣(θE[-T/6,π/6]）的面积')
+    _attach_solution(p3)
+    assert p3['model']['task'] == 'polar_area'
+    assert p3['status'] == 'needs_review'
+    assert not p3['solution']['answer']
+    from app.labs.recognize import rebuild_problem
+    corrected = rebuild_problem(p3, files=[], text=p3['text'].replace('-T/6', '-π/6'))
+    assert corrected['status'] == 'ready'
+    assert 'pi/12' in corrected['solution']['answer']

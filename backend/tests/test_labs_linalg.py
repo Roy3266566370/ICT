@@ -44,6 +44,25 @@ def test_augmented_matrix_literal_splits_last_column():
     assert linalg.evaluate_linalg(model, {})["solution"] == pytest.approx([2, 1])
 
 
+@pytest.mark.parametrize('literal', ['|12;34|', '|123;456;789|', '[12;34]', '|-12;34|'])
+def test_joined_digits_are_not_split_into_a_square_matrix(literal):
+    built = build(f'求行列式 {literal} 的值。')
+    assert not built['recognized']
+    assert all(len(row) == 1 for row in built['model']['matrix_a'])
+    assert any(item['id'] == 'matrix_layout_ambiguity' for item in built['ambiguities'])
+    assert linalg.evaluate_linalg(built['model'], {})['status'] == 'blocked'
+
+
+def test_explicit_multidigit_entries_and_column_matrix_are_preserved():
+    built = build('求行列式 A=[[12]] 的值。')
+    assert built['recognized']
+    assert linalg.solve_linalg(built['model'])['answer_value'] == 12
+    column = build('矩阵 A=[12;34]，求数乘 2A。')
+    assert column['recognized']
+    assert column['model']['matrix_a'] == [[12], [34]]
+    assert linalg.evaluate_linalg(column['model'], {})['status'] == 'ok'
+
+
 def test_determinant_with_swap_sign():
     built = build("计算行列式 |A|，A=[[0,1],[2,3]]")
     assert built["recognized"]

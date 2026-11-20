@@ -755,6 +755,34 @@ def _compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
     return p
 
 
+def blocked_recognized_problem(task: str, conditions: Mapping, reason: str) -> dict:
+    from .exam_math import _condition
+    from .recognize import _ambiguity
+
+    values = copy.deepcopy(dict(conditions))
+    return {
+        'model': {'task': task, 'engine': 'manual_v1', 'conditions': values,
+                  'defaults': {}, 'params': [], 'teaching': False},
+        'conditions': [
+            _condition(key, FIELD_LABELS.get(key, key), value, {},
+                       kind='json' if isinstance(value, (list, dict)) else 'text')
+            for key, value in values.items() if value is not None
+        ],
+        'formulas': [], 'recognized': True,
+        'ambiguities': [_ambiguity('kernel_reject', 'task', reason, severity='blocking')],
+    }
+
+
+def build_recognized_problem(task: str, conditions: Mapping, builder) -> dict:
+    # None is reserved for no match, never for rejected extracted conditions.
+    try:
+        return builder(conditions)
+    except Exception as exc:
+        label = (TASKS.get(task) or {}).get('label') or task
+        return blocked_recognized_problem(
+            task, conditions, f'已识别为{label}，但条件未通过本地内核核验：{exc}。请核对或修正原题。')
+
+
 def compile_kernel_problem(plan: Mapping, *, allow_unfinished: bool = False):
     problem = _compile_kernel_problem(plan, allow_unfinished=allow_unfinished)
     from .exploration import attach_controls

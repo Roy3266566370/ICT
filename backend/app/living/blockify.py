@@ -134,7 +134,7 @@ def blockify(source: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str]
                 "source": src,
                 "data": {
                     "image_key": image_key,
-                    "alt": f"{file_name} 第 {page_no} 页",
+                    "alt": f"{file_name} 第 {page_no} 页" + ("（隐藏页）" if page.get("hidden") else ""),
                     "collapsed": bool(segments) and not preserve_layout,
                     "width": page.get("image_width"),
                     "height": page.get("image_height"),
@@ -159,6 +159,9 @@ def blockify(source: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str]
                 "data": {"md": f"（{file_name} 第 {page_no} 页没有读取到文字）"},
             })
 
+    hidden_pages = [p.get("page") for p in pages if p.get("hidden")]
+    if hidden_pages:
+        notes.append(f"{len(hidden_pages)} 页为隐藏幻灯片，仍按原样保留")
     ocr_pages = [p for p in pages if "ocr" in str(p.get("method") or "")]
     if ocr_pages:
         notes.append(f"{len(ocr_pages)} 页通过 OCR 识别，公式与符号可能存在误差")

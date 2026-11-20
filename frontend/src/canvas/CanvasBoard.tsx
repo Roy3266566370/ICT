@@ -41,6 +41,9 @@ interface BoardProps {
   focusContent?: boolean;
   /** 公开分享等只读场景：保留参数交互，但隐藏删除/结构编辑入口。 */
   readOnly?: boolean;
+  /** 仪器面板模式：仅渲染列出的节点；连线/墨迹/端口隐藏，
+   *  但被隐藏节点仍参与求值与动画（内部接线照常工作）。 */
+  visibleNodeIds?: ReadonlySet<string>;
   /** 把手写圈选交给页面做本地 OCR；返回 true 表示已消费，可清除选择。 */
   onInkExtract?: (strokes: InkStroke[]) => Promise<boolean>;
   /** 把手写圈选曲线交给页面做表达式拟合；返回 true 表示已消费，可清除选择。 */
@@ -76,7 +79,7 @@ function portKindOf(ctx: ReturnType<typeof makeCtx>, nodeId: string, isOut: bool
   return spec?.kind;
 }
 
-export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, focusContent, readOnly, onInkExtract, onInkFit }: BoardProps): JSX.Element {
+export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, focusContent, readOnly, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
   const innerRef = useRef<HTMLDivElement>(null);
   const vpRef = useRef<HTMLDivElement>(null);
   const portRefs = useRef(new Map<string, HTMLElement>());
@@ -183,6 +186,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     if (!vp || vp.clientWidth === 0 || doc.nodes.length === 0) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     walkNodes(doc.nodes, (node) => {
+      if (visibleNodeIds && !visibleNodeIds.has(node.id)) return;
       const width = NODE_DEFS[node.type]?.width ?? 240;
       minX = Math.min(minX, node.x);
       minY = Math.min(minY, node.y);
@@ -198,7 +202,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
       vp.scrollTop = Math.max(0, minY * zoom - 24);
     }));
     focusedOnce.current = true;
-  }, [doc.nodes, doc.zoom, focusContent, setDoc]);
+  }, [doc.nodes, doc.zoom, focusContent, visibleNodeIds, setDoc]);
 
   /* ---------- 空格键状态（+拖拽平移） ---------- */
   useEffect(() => {
@@ -631,9 +635,9 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
         onPointerDown={onInnerPointerDown}
         onDoubleClick={onInnerDoubleClick}
       >
-        {/* 连线层 */}
+        {/* 连线层（仪器面板模式下隐藏内部接线，引擎照常求值） */}
         <svg className={styles.wires} width={INNER_W} height={INNER_H} aria-hidden="true">
-          {doc.wires.map((w: Wire) => {
+          {visibleNodeIds ? null : doc.wires.map((w: Wire) => {
             const d = paths[w.id];
             if (!d) return null;
             return (
@@ -662,6 +666,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
 
         {/* 节点层 */}
         {doc.nodes.map((n) => {
+          if (visibleNodeIds && !visibleNodeIds.has(n.id)) return null;
           const def = NODE_DEFS[n.type];
           if (!def) return null;
           const Body = def.Body;
@@ -720,7 +725,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                   onExplode={n.type === 'composite' ? () => explode(n.id) : undefined}
                 />
               </div>
-              {inPorts.map((p, i) => (
+              {visibleNodeIds ? null : inPorts.map((p, i) => (
                 <div
                   key={p.id}
                   ref={(el) => { if (el) portRefs.current.set(pinKey(n.id, p.id), el); else portRefs.current.delete(pinKey(n.id, p.id)); }}
@@ -732,7 +737,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                   {(nIn > 1 || n.type === 'composite') ? <span className={styles.portLabel}>{p.label}</span> : null}
                 </div>
               ))}
-              {outPorts.map((p, i) => (
+              {visibleNodeIds ? null : outPorts.map((p, i) => (
                 <div
                   key={p.id}
                   ref={(el) => { if (el) portRefs.current.set(poutKey(n.id, p.id), el); else portRefs.current.delete(poutKey(n.id, p.id)); }}
@@ -749,9 +754,9 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
           );
         })}
 
-        {/* 墨迹层（最上层显示，不抢事件） */}
+        {/* 墨迹层（最上层显示，不抢事件；仪器面板模式隐藏） */}
         <svg className={styles.ink} width={INNER_W} height={INNER_H} aria-hidden="true">
-          {doc.strokes.map((s) => (
+          {visibleNodeIds ? null : doc.strokes.map((s) => (
             <path key={s.id} d={strokePath(s.points)} fill="none" stroke={s.color} strokeWidth={s.width} strokeLinecap="round" strokeLinejoin="round" />
           ))}
         </svg>

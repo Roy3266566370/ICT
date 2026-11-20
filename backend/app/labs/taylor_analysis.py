@@ -9,7 +9,9 @@ def taylor_report(model):
     v=sp.Symbol(str(model.get('variable') or 'x'),real=True)
     original=parse_expression(model['expression'],(str(v),),preserve_structure=True)
     expression=sp.simplify(original)
-    point=sp.Rational(str(parse_expression(str(model.get('taylor_point',0)))))
+    # 展开点必须保持符号对象：pi/pi-2 等无理常量不能走 Rational 强转
+    _point_raw=parse_expression(str(model.get('taylor_point',0)))
+    point=sp.Rational(str(_point_raw)) if _point_raw.is_rational else _point_raw
     order=int(model.get('order',3))
     base=dict(expression=expression,variable=v,point=point,order=order)
     try:

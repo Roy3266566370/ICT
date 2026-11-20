@@ -84,7 +84,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
     for (const condition of problem.recognition.conditions) {
       if (problem.manual_input?.task === 'implicit_normal' && condition.id === 'point') continue;
       if (problem.ai_solution?.agent_understanding || EDITABLE_SPECIAL.has(condition.id) || (problem.manual_input && condition.id in problem.manual_input.conditions)) {
-        initial[condition.id] = problem.ai_solution?.agent_understanding && condition.value !== null && typeof condition.value === 'object' ? JSON.stringify(condition.value) : asText(condition.id === 'expression' && !problem.ai_solution?.agent_understanding ? problem.model.expression : condition.value);
+        initial[condition.id] = problem.ai_solution?.agent_understanding && condition.value !== null && typeof condition.value === 'object' ? JSON.stringify(condition.value) : asText(condition.id === 'expression' && !problem.ai_solution?.agent_understanding ? problem.model.expression ?? condition.value : condition.value);
         if (condition.id === 'initial_conditions' && Array.isArray(condition.value)) initial[condition.id] = condition.value.join('\n');
       }
     }
@@ -125,6 +125,9 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
     ? ['x', 'y', 'z'] : problem.model.task === 'implicit_normal' ? ['x', 'y'] : [problem.model.variable ?? 'x']);
   const invalidExpression = ['expression', 'implicit_expression', 'integrand', 'surface'].some((key) => {
     if (!(key in values) || !(text.trim() === problem.text.trim() || values[key] !== initialValues[key])) return false;
+    // Source confirmation may preserve rejected input; the backend still blocks its solver.
+    if (!problem.manual_input && values[key] === initialValues[key]
+      && problem.recognition.ambiguities.some(item => item.severity === 'blocking' && !item.resolved)) return false;
     const raw = values[key] ?? '';
     if ((problem.model.task === 'space_geometry' && (key === 'expression' || key === 'surface'))
       || (problem.manual_input?.task === 'implicit_normal' && key === 'implicit_expression')) {
@@ -138,8 +141,25 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
   const missingManualCondition = missingPointValue || !!problem.manual_input &&
     Object.keys(problem.manual_input.conditions).some(key => key !== 'initial_conditions' && !(key === 'point' && problem.manual_input?.task === 'multivariable' && problem.manual_input.conditions.operation !== 'directional') && !(key === 'point_value' && values.value_mode !== 'value') && key in values && !values[key]?.trim());
 
+  const selectedRepairs = problem.recognition.ambiguities.flatMap(item => {
+    const option = item.options.find(candidate => candidate.value === answers[item.id]);
+    return item.repair && option?.replacement !== undefined
+      ? [{ ...item.repair, replacement: option.replacement }] : [];
+  }).sort((a, b) => b.start - a.start);
+  const previewCharacters = Array.from(text);
+  for (const repair of selectedRepairs) {
+    previewCharacters.splice(repair.start, repair.end - repair.start, ...Array.from(repair.replacement));
+  }
+  const conflictingConditionEdits = selectedRepairs.length > 0
+    && Object.entries(values).some(([key, value]) => value !== initialValues[key]);
+  const changeQuestionText = (value: string): void => {
+    setText(value);
+    setAnswers(current => Object.fromEntries(Object.entries(current)
+      .filter(([key]) => !key.startsWith('source_repair_') && key !== 'source_formula_confirmation')));
+  };
+
   const submit = (): void => {
-    if (invalidExpression || missingManualCondition) return;
+    if (invalidExpression || missingManualCondition || conflictingConditionEdits) return;
     const conditionValues: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(values)) {
       if (problem.manual_input?.task === 'multivariable' && key === 'point') {conditionValues[key]=value.trim();continue;}
@@ -152,8 +172,8 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
       if (problem.manual_input?.task === 'continuity' && key === 'point_value' && values.value_mode !== 'value') continue;
       if (problem.manual_input && key in problem.manual_input.conditions) { conditionValues[key] = value.trim(); continue; }
       if (problem.ai_solution?.agent_understanding && value === initialValues[key]) continue;
-      // A corrected question must not be overwritten by old, unchanged fields.
-      if (text.trim() !== problem.text.trim() && value === initialValues[key]) continue;
+      // Unchanged defaults must not become user-confirmed source conditions.
+      if (value === initialValues[key]) continue;
       if (key === 'initial_heap') {
         const tokens = value.replace(/[\[\]]/g, '').split(/[,，、\s]+/).filter(Boolean);
         conditionValues[key] = tokens.every((token) => Number.isFinite(Number(token))) ? tokens.map(Number) : value;
@@ -210,7 +230,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
             ) : null}
             <label className={styles.formField}>
               <span>题目文字</span>
-              <textarea value={text} rows={7} readOnly={!!problem.manual_input} onChange={(event) => setText(event.target.value)} />
+              <textarea aria-label="题目文字" value={text} rows={7} readOnly={!!problem.manual_input} onChange={(event) => changeQuestionText(event.target.value)} />
               {problem.manual_input ? <small>题目由已确认的字段生成；请修改下方公式与计算条件，再确认并重新求解。</small> : null}
             </label>
             <label className={styles.formField}>
@@ -393,11 +413,30 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
 
           <section className={styles.reviewSection}>
             <h3>需要确认的问题</h3>
+            {problem.recognition.ambiguities.some(item => item.repair) ? (
+              <p className={styles.smallNote}>候选默认不选，也不会自动改字；请逐处对照原稿，核对函数、变量、全部端点和求解目标。保留原符号不代表内核支持，仍有疑点时不会给出答案。</p>
+            ) : null}
+            {selectedRepairs.length > 0 ? (
+              <div className={styles.formulaGuide}>
+                <strong>候选修正后的题目预览（提交后才应用）</strong>
+                <pre aria-label="候选修正后的题目预览" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{previewCharacters.join('')}</pre>
+                <p>仅替换已选择的原文片段，随后重新编译；这不是对原题正确性的自动确认。</p>
+              </div>
+            ) : null}
+            {conflictingConditionEdits ? <p role="alert">请先应用原文候选修正，再单独编辑条件，避免旧条件覆盖修正后的题目。</p> : null}
             {problem.recognition.ambiguities.length ? (
               <div className={styles.ambiguityList}>
                 {problem.recognition.ambiguities.map((item) => (
                   <div key={item.id} className={styles.ambiguityCard} data-severity={item.severity}>
                     <strong><MathText text={String(item.question ?? '')} /></strong>
+                    {item.repair ? (
+                      <div>
+                        <p>原文位置 {item.repair.start + 1}–{item.repair.end}：<code>{item.repair.context}</code></p>
+                        <p>待核对片段：<code>{item.repair.original}</code></p>
+                        {item.repair.diagnostic ? <p>解析提示：{item.repair.diagnostic.message}</p> : null}
+                        {text.trim() !== problem.text.trim() ? <p>文字已手动修改，旧位置候选已停用；提交后会重新检查。</p> : null}
+                      </div>
+                    ) : null}
                     <div className={styles.ambiguityOptions}>
                       {item.options.map((option, optionIndex) => (
                         <label key={`${option.value}-${optionIndex}`}>
@@ -406,20 +445,29 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
                             name={`ambiguity-${item.id}`}
                             value={option.value}
                             checked={answers[item.id] === option.value}
-                            onChange={() => setAnswers((current) => ({ ...current, [item.id]: option.value }))}
+                            disabled={busy || !!item.repair && text.trim() !== problem.text.trim()}
+                            onChange={() => setAnswers((current) => {
+                              const next = { ...current, [item.id]: option.value };
+                              if (item.repair) delete next.source_formula_confirmation;
+                              return next;
+                            })}
                           />
                           <MathText text={option.label} />
                         </label>
                       ))}
                     </div>
-                    <input
-                      className={styles.customAnswer}
-                      placeholder="或输入修正值 / 表达式"
-                      value={answers[`custom:${item.id}`] ?? ''}
-                      onChange={(event) =>
-                        setAnswers((current) => ({ ...current, [`custom:${item.id}`]: event.target.value }))
-                      }
-                    />
+                    {item.repair ? (
+                      <small>如候选不符，请在上方“题目文字”中手动修正；修改文字会清空旧候选选择。</small>
+                    ) : (
+                      <input
+                        className={styles.customAnswer}
+                        placeholder="或输入修正值 / 表达式"
+                        value={answers[`custom:${item.id}`] ?? ''}
+                        onChange={(event) =>
+                          setAnswers((current) => ({ ...current, [`custom:${item.id}`]: event.target.value }))
+                        }
+                      />
+                    )}
                     {item.resolved && item.answer ? <small>当前答案：<MathText text={String(item.answer ?? '')} /></small> : null}
                   </div>
                 ))}
@@ -428,6 +476,20 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
               <p className={styles.smallNote}>没有发现歧义。修改上面的条件后保存即可重新编译。</p>
             )}
           </section>
+          {problem.recognition.source_repair_history?.length ? (
+            <details className={styles.reviewSection}>
+              <summary>已应用的人工符号核对记录</summary>
+              {problem.recognition.source_repair_history.map((record, index) => (
+                <div key={index}>
+                  {record.decisions.map(decision => (
+                    <p key={decision.id}>{decision.label}：<code>{decision.original}</code>
+                      {decision.action === 'replace' ? <> → <code>{decision.replacement}</code></> : '（原文未替换）'}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </details>
+          ) : null}
         </div>
 
         <footer className={styles.modalFooter}>
@@ -436,7 +498,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
             <button type="button" className={styles.textButton} onClick={onClose} disabled={busy}>
               取消
             </button>
-            <button type="button" className={styles.primaryButton} onClick={submit} disabled={busy || invalidExpression || missingManualCondition}>
+            <button type="button" className={styles.primaryButton} onClick={submit} disabled={busy || invalidExpression || missingManualCondition || conflictingConditionEdits}>
               {busy ? '正在重新求解…' : '确认并重新求解'}
             </button>
           </div>

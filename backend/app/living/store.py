@@ -75,6 +75,7 @@ def build_document(
         "revision": 1,
         "blocks": blocks,
         "suggestions": suggestions,
+        "variables": {},
         "source": {
             "files": files,
             "pages": pages,

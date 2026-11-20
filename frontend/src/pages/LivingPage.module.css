@@ -818,6 +818,15 @@
   font-size: 0.92rem;
   box-sizing: border-box;
 }
+.editField { display: grid; gap: 0.35rem; margin-bottom: 0.8rem; }
+.editField label { color: var(--ink-700); font-size: 0.88rem; font-weight: 600; }
+.editField textarea { resize: vertical; }
+.editField [aria-invalid='true'] { border-color: var(--color-coral-ink); }
+.editField input:focus-visible, .editField textarea:focus-visible {
+  outline: 2px solid var(--color-indigo);
+  outline-offset: 2px;
+}
+.fieldError { margin: 0; color: var(--color-coral-ink); font-size: 0.85rem; }
 .editActions { display: flex; gap: 0.5rem; margin-top: 0.55rem; justify-content: flex-end; }
 
 .insertRow {
@@ -928,3 +937,32 @@
   font-size: 0.8rem;
   text-align: center;
 }
+
+/* 变量管理面板 + 绑定编辑器 ------------------------------------------- */
+
+.varsPanel {
+  margin: 0 auto 1rem;
+  max-width: 760px;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: #fff;
+}
+.varsPanelHead { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 0.6rem; }
+.varsPanelHead button { margin-left: auto; }
+.varsPanelHint { color: var(--ink-300); font-size: 0.75rem; }
+.varsRow { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+.varsName { color: var(--color-indigo); font-size: 0.82rem; min-width: 4.5em; }
+.varsLabel { width: 7rem; }
+.varsNum { width: 4.2rem; }
+.varsOptions { flex: 1; min-width: 8rem; }
+.varsUnit { width: 3.5rem; }
+.varsEmpty { color: var(--ink-300); font-size: 0.82rem; }
+.varsAdd { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.6rem; }
+.varsAdd input { width: 10rem; }
+
+.bindingsEditor { display: flex; flex-direction: column; gap: 0.35rem; }
+.bindRow { display: flex; align-items: center; gap: 0.4rem; }
+.bindRow input { flex: 1; min-width: 0; }
+.bindRow span { color: var(--ink-300); }
+.bindHint { margin: 0.15rem 0 0; color: var(--ink-300); font-size: 0.75rem; }

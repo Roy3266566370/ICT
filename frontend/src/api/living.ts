@@ -10,6 +10,7 @@ import {
   type LivingPageSummary,
   type LivingShareResult,
   type PageBlock,
+  type PageVariables,
 } from '@/living/types';
 
 const P = '/api/v1';
@@ -47,8 +48,10 @@ export async function recommendLivingModels(input: { pageId: string; expectedRev
 
 export async function generateLivingModel(input: {
   pageId: string; blockId: string; expectedRevision: number; instruction: string; force?: boolean;
-}): Promise<{ document: LivingPageDoc; block: PageBlock; cached: boolean }> {
-  const result = await requestJson<{ document: LivingPageDoc; block: PageBlock; cached: boolean }>(
+}): Promise<{ document: LivingPageDoc; suggestion?: ActivationSuggestion | null; block?: PageBlock | null; cached: boolean }> {
+  const result = await requestJson<{
+    document: LivingPageDoc; suggestion?: ActivationSuggestion | null; block?: PageBlock | null; cached: boolean;
+  }>(
     `${P}/pages/${encodeURIComponent(input.pageId)}/ai-models`, {
       method: 'POST', body: JSON.stringify({ block_id: input.blockId, expected_revision: input.expectedRevision,
         instruction: input.instruction, force: input.force ?? false }),
@@ -95,6 +98,7 @@ export async function patchLivingPage(input: {
   title?: string;
   blocks?: PageBlock[];
   settings?: Partial<LivingPageSettings>;
+  variables?: PageVariables;
 }): Promise<LivingPageDoc> {
   const data = await requestJson<LivingPageDoc>(`${P}/pages/${encodeURIComponent(input.pageId)}`, {
     method: 'PATCH',
@@ -103,9 +107,22 @@ export async function patchLivingPage(input: {
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.blocks !== undefined ? { blocks: input.blocks } : {}),
       ...(input.settings !== undefined ? { settings: input.settings } : {}),
+      ...(input.variables !== undefined ? { variables: input.variables } : {}),
     }),
   });
   return parseLivingPageDoc(data);
+}
+
+/** checkpoint 判分：走 ``/living/grade``（expr 数学等价 / numeric 纯数值 / exact 宽松文本）。 */
+export async function gradeLivingAnswer(input: {
+  answer: string;
+  expected: string;
+  mode: 'exact' | 'expr' | 'numeric';
+}): Promise<{ correct: boolean; reason?: string | null }> {
+  return requestJson<{ correct: boolean; reason?: string | null }>(`${P}/living/grade`, {
+    method: 'POST',
+    body: JSON.stringify({ answer: input.answer, expected: input.expected, mode: input.mode }),
+  });
 }
 
 export async function acceptSuggestion(input: {

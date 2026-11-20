@@ -65,6 +65,7 @@ class PagePatch(BaseModel):
     title: str | None = Field(default=None, max_length=120)
     blocks: list[dict[str, Any]] | None = None
     settings: dict[str, Any] | None = None
+    variables: dict[str, Any] | None = None
 
 
 class LabBlockRequest(BaseModel):
@@ -86,6 +87,12 @@ class AIRecommendationRequest(BaseModel):
 class ProgressRequest(BaseModel):
     block_id: str = Field(min_length=1, max_length=64)
     patch: dict[str, Any] = Field(default_factory=dict)
+
+
+class GradeRequest(BaseModel):
+    answer: str = Field(default="", max_length=2000)
+    expected: str = Field(default="", max_length=2000)
+    mode: str = Field(default="exact", max_length=16)
 
 
 # ---------------------------------------------------------------------------
@@ -263,6 +270,12 @@ def patch_page(
             if key in payload.settings:
                 current[key] = payload.settings[key]
         document["settings"] = current
+    if payload.variables is not None:
+        from ..living.model import validate_variables
+        try:
+            document["variables"] = validate_variables(payload.variables)
+        except ValueError as exc:
+            raise missing_field(str(exc)) from exc
     record.document = document
     _touch(record)
     db.commit()
@@ -337,6 +350,13 @@ def create_lab_block(
 # ---------------------------------------------------------------------------
 
 
+@router.post("/living/grade", summary="判分点作答核对（表达式等价/数值/文本）")
+def grade_checkpoint(payload: GradeRequest, request: Request, ctx: SessionDep) -> JSONResponse:
+    from ..living.grade import grade_answer
+
+    return ok(request, grade_answer(payload.answer, payload.expected, payload.mode))
+
+
 @router.get("/living/ai-status", summary="活页 AI 生成能力")
 def living_ai_status(request: Request, ctx: SessionDep) -> JSONResponse:
     from ..ppt_ai.client import PPTAIClient
@@ -345,11 +365,17 @@ def living_ai_status(request: Request, ctx: SessionDep) -> JSONResponse:
     return ok(request, {"available": available, "model": client.settings.llm_model if available else ""})
 
 
-@router.post("/pages/{page_id}/ai-models", summary="根据活页内容自主设计交互模型")
+@router.post("/pages/{page_id}/ai-models", summary="根据活页内容自主设计交互模型（产出待激活建议）")
 def create_ai_model(page_id: str, payload: AIModelRequest, request: Request,
                     ctx: WriteDep, db: DBDep) -> JSONResponse:
-    from ..living.ai import model_context, existing_model, generate_model
-    from ..living.model import validate_blocks, MAX_BLOCKS
+    """AI 生成只产出 ``pending`` 的 ``canvas_object`` 建议（template=page_lab），
+
+    老师在前端点击"激活"后由 ``apply_suggestion`` 物化为可编辑的
+    ``pageLabSim`` 画布块——不再直接写入不可编辑的 ``ai_model`` 黑盒块。
+    """
+    from ..living.ai import (existing_ai_block, model_context, pending_ai_suggestion,
+                             propose_model)
+    from ..living.model import MAX_SUGGESTIONS, validate_suggestion
     from ..ppt_ai.client import PPTAIError
     from ..ppt_ai.page_lab import PageLabError
     from ..schemas.errors import ApiError, ErrorCode
@@ -361,11 +387,28 @@ def create_ai_model(page_id: str, payload: AIModelRequest, request: Request,
         context, input_hash = model_context(document, payload.block_id, payload.instruction)
     except ValueError as exc:
         raise missing_field(str(exc)) from exc
-    old = existing_model(document, payload.block_id)
-    if old and old["data"]["doc"].get("input_hash") == input_hash and not payload.force:
-        return ok(request, {"document": document, "block": old, "cached": True})
-    if not old and len(document["blocks"]) >= MAX_BLOCKS:
-        raise limit_exceeded("活页块数量已达上限，请删除部分块后再生成")
+    if not payload.force:
+        pending = pending_ai_suggestion(document, payload.block_id)
+        if pending and (pending.get("proposal") or {}).get("input_hash") == input_hash:
+            return ok(request, {"document": document, "suggestion": pending, "cached": True})
+        old = existing_ai_block(document, payload.block_id)
+        if old is not None:
+            doc = (old.get("data") or {}).get("doc") or {}
+            old_hash = str(doc.get("input_hash") or "")
+            if not old_hash and doc.get("version") == 1:
+                for node in doc.get("nodes") or []:
+                    if not isinstance(node, dict) or node.get("type") != "pageLabSim":
+                        continue
+                    try:
+                        old_hash = str(json.loads(str(node.get("payload") or "")).get("input_hash") or "")
+                    except ValueError:
+                        continue
+                    break
+            if old_hash == input_hash:
+                return ok(request, {"document": document, "block": old, "cached": True})
+    pending_count = sum(1 for s in document.get("suggestions") or [] if s.get("status") == "pending")
+    if pending_count >= MAX_SUGGESTIONS:
+        raise limit_exceeded("待激活建议数量已达上限，请先处理现有建议")
     with _AI_LOCK:
         if page_id in _AI_PAGES:
             raise ApiError(ErrorCode.RATE_LIMITED, "这份活页正在生成交互，请等待当前模型完成")
@@ -374,28 +417,29 @@ def create_ai_model(page_id: str, payload: AIModelRequest, request: Request,
         # 网络等待期间释放数据库事务；写入时用 revision 做原子比较。
         db.rollback()
         try:
-            block = generate_model(document, payload.block_id, payload.instruction, context, input_hash)
+            suggestion = propose_model(document, payload.block_id, payload.instruction, context, input_hash)
         except (PPTAIError, PageLabError, ValueError) as exc:
             raise model_unavailable(str(exc)) from exc
-        blocks = document["blocks"]
-        if old:
-            blocks[blocks.index(old)] = block
-        else:
-            index = next(i for i, b in enumerate(blocks) if b["id"] == payload.block_id)
-            blocks.insert(index + 1, block)
-        document["blocks"] = validate_blocks(blocks)
+        suggestions = [
+            s for s in document.get("suggestions") or []
+            if not (s.get("status") == "pending" and s.get("block_id") == payload.block_id
+                    and s.get("kind") == "canvas_object"
+                    and (s.get("proposal") or {}).get("template") == "page_lab")
+        ]
+        suggestions.append(validate_suggestion(suggestion))
+        document["suggestions"] = suggestions
         document["revision"] += 1
         document["updated_at"] = to_iso(utc_now())
         result = db.execute(update(LivingPageRecord).where(
             LivingPageRecord.id == page_id, LivingPageRecord.session_id == ctx.session_id,
             LivingPageRecord.revision == payload.expected_revision,
-        ).values(document=document, revision=document["revision"], block_count=len(blocks),
+        ).values(document=document, revision=document["revision"], block_count=len(document["blocks"]),
                  updated_at=document["updated_at"]))
         if result.rowcount != 1:
             db.rollback()
             raise version_conflict("生成期间活页已有修改，请刷新后重试；已有内容已保留")
         db.commit()
-        return ok(request, {"document": document, "block": block, "cached": False})
+        return ok(request, {"document": document, "suggestion": document["suggestions"][-1], "cached": False})
     finally:
         with _AI_LOCK:
             _AI_PAGES.discard(page_id)

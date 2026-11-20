@@ -811,7 +811,173 @@ def _image_pages(data: bytes, file_id: str, lab_dir: Path) -> tuple[list[dict[st
     )
 
 
-def _pptx_pages(data: bytes, remaining: int) -> tuple[list[dict[str, Any]], str]:
+#: OMML（Office 公式编辑器对象）——python-pptx 的 text_frame 读不到它，直接走 XML。
+_M = "{http://schemas.openxmlformats.org/officeDocument/2006/math}"
+_A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+_OMML_OPS = {"∑": "\\sum", "∏": "\\prod", "∫": "\\int", "∮": "\\oint", "∩": "\\bigcap", "∪": "\\bigcup", "∧": "\\bigwedge", "∨": "\\bigvee"}
+
+
+def _omml_to_latex(elem: Any) -> str:
+    """OMML 子树 → LaTeX（覆盖分式/根式/上下标/定界符/n-ary/矩阵/多行）。
+
+    未覆盖的结构退化为拼接其子节点——宁可丢样式，不丢内容。
+    """
+    tag = getattr(elem, "tag", "")
+    if not isinstance(tag, str) or not tag.startswith("{"):
+        return ""
+    local = tag.split("}", 1)[1] if "}" in tag else tag
+    if tag in (_M + "oMath", _M + "oMathPara", _M + "e", _M + "num", _M + "den", _M + "sub", _M + "sup", _M + "deg"):
+        return "".join(_omml_to_latex(child) for child in elem)
+    if tag == _M + "r":
+        return "".join((t.text or "") for t in elem.iter(_M + "t"))
+    if tag == _M + "t":
+        return str(elem.text or "")
+    if tag == _M + "f":
+        return "\\frac{%s}{%s}" % (_omml_to_latex(elem.find(_M + "num")), _omml_to_latex(elem.find(_M + "den")))
+    if tag == _M + "rad":
+        deg = _omml_to_latex(elem.find(_M + "deg")).strip() if elem.find(_M + "deg") is not None else ""
+        body = _omml_to_latex(elem.find(_M + "e"))
+        return "\\sqrt[%s]{%s}" % (deg, body) if deg else "\\sqrt{%s}" % body
+    if tag == _M + "sSup":
+        return "{%s}^{%s}" % (_omml_to_latex(elem.find(_M + "e")), _omml_to_latex(elem.find(_M + "sup")))
+    if tag == _M + "sSub":
+        return "{%s}_{%s}" % (_omml_to_latex(elem.find(_M + "e")), _omml_to_latex(elem.find(_M + "sub")))
+    if tag == _M + "sSubSup":
+        return "{%s}_{%s}^{%s}" % (
+            _omml_to_latex(elem.find(_M + "e")), _omml_to_latex(elem.find(_M + "sub")), _omml_to_latex(elem.find(_M + "sup")))
+    if tag == _M + "d":
+        props = elem.find(_M + "dPr")
+        beg = end = ""
+        if props is not None:
+            for tag_name, key in ((_M + "begChr", "beg"), (_M + "endChr", "end")):
+                node = props.find(tag_name)
+                if node is not None:
+                    val = node.get(_M + "val") or ""
+                    if key == "beg":
+                        beg = val
+                    else:
+                        end = val
+        return "\\left%s %s \\right%s" % (beg or "(", _omml_to_latex(elem.find(_M + "e")), end or ")")
+    if tag == _M + "nary":
+        props = elem.find(_M + "naryPr")
+        op = "\\sum"
+        if props is not None:
+            chr_el = props.find(_M + "chr")
+            if chr_el is not None:
+                op = _OMML_OPS.get(chr_el.get(_M + "val") or "", chr_el.get(_M + "val") or op)
+        sub = _omml_to_latex(elem.find(_M + "sub"))
+        sup = _omml_to_latex(elem.find(_M + "sup"))
+        body = _omml_to_latex(elem.find(_M + "e"))
+        return "%s_{%s}^{%s} %s" % (op, sub, sup, body)
+    if tag == _M + "m":
+        rows = ["&".join(_omml_to_latex(cell) for cell in row) for row in elem.findall(_M + "mr")]
+        return "\\begin{pmatrix} " + " \\\\ ".join(rows) + " \\end{pmatrix}"
+    if tag == _M + "mr":
+        return "&".join(_omml_to_latex(cell) for cell in elem)
+    if tag == _M + "eqArr":
+        return " \\\\ ".join(_omml_to_latex(e) for e in elem.findall(_M + "e"))
+    if tag in (_M + "bar", _M + "groupChr", _M + "limLow", _M + "limUpp", _M + "box"):
+        return _omml_to_latex(elem.find(_M + "e"))
+    return "".join(_omml_to_latex(child) for child in elem)
+
+
+def _shape_text(shape: Any) -> str:
+    """文本框段落 + OMML 公式（行内 ``$…$``、独立 ``$$…$$``），按文档顺序。"""
+    frame = getattr(shape, "text_frame", None)
+    tx_body = getattr(frame, "_txBody", None)
+    if tx_body is None:
+        return ""
+    lines: list[str] = []
+    for child in tx_body:
+        if child.tag == _A + "p":
+            parts: list[str] = []
+            for el in child.iter():
+                if el.tag == _A + "t":
+                    parts.append(el.text or "")
+                elif el.tag == _M + "oMath":
+                    latex = _omml_to_latex(el).strip()
+                    if latex:
+                        parts.append(f"${latex}$")
+            line = "".join(parts).strip()
+            if line:
+                lines.append(line)
+        elif child.tag in (_M + "oMathPara", _M + "oMath"):
+            latex = _omml_to_latex(child).strip()
+            if latex:
+                lines.append(f"$${latex}$$")
+    return "\n".join(lines)
+
+
+def _slide_pictures(shapes: Any) -> list[Any]:
+    """递归收集 slide 中的图片形状（含 group 内的子形状）。"""
+    from pptx.enum.shapes import MSO_SHAPE_TYPE
+
+    found: list[Any] = []
+    for shape in shapes:
+        if getattr(shape, "shape_type", None) == MSO_SHAPE_TYPE.GROUP:
+            found.extend(_slide_pictures(getattr(shape, "shapes", [])))
+            continue
+        image = getattr(shape, "image", None)
+        if image is not None and getattr(image, "blob", None):
+            found.append(shape)
+    return found
+
+
+def _pptx_preview(slide: Any, slide_w: int, slide_h: int,
+                  lab_dir: Path, key: str) -> str | None:
+    """把 slide 的内嵌图片按版式坐标拼回一张预览图。
+
+    环境里没有 PowerPoint/LibreOffice，整页渲染不可行；图片按 EMU 坐标
+    贴回白底画布已是可用的"原稿对照"地板。图标/项目符号按"覆盖 <1% 版面
+    或像素 <120×120"剔除。没有可用图片时返回 ``None``——不生成假预览。
+    """
+    from PIL import Image
+
+    pictures = []
+    for shape in _slide_pictures(slide.shapes):
+        try:
+            image = Image.open(io.BytesIO(shape.image.blob))
+            image.load()
+        except Exception:  # noqa: BLE001 - EMF/WMF 等 PIL 不支持的格式跳过
+            continue
+        width, height = getattr(shape, "width", 0) or 0, getattr(shape, "height", 0) or 0
+        if width * height < slide_w * slide_h * 0.01 or min(image.size) < 120:
+            continue
+        pictures.append((shape, image))
+    if not pictures or not slide_w or not slide_h:
+        return None
+    canvas_w = 1280
+    canvas_h = max(1, round(canvas_w * slide_h / slide_w))
+    canvas = Image.new("RGBA", (canvas_w, canvas_h), (255, 255, 255, 255))
+    scale = canvas_w / slide_w
+    for shape, image in pictures:
+        box = (
+            round((getattr(shape, "left", 0) or 0) * scale),
+            round((getattr(shape, "top", 0) or 0) * scale),
+            max(1, round((getattr(shape, "width", 0) or 0) * scale)),
+            max(1, round((getattr(shape, "height", 0) or 0) * scale)),
+        )
+        try:
+            # 先裁剪再旋转：crop_* 是比例，rotation 是顺时针角度（绕框中心）
+            crop = (getattr(shape, "crop_left", 0) or 0, getattr(shape, "crop_top", 0) or 0,
+                    getattr(shape, "crop_right", 0) or 0, getattr(shape, "crop_bottom", 0) or 0)
+            layer_src = image.convert("RGBA")
+            if any(crop):
+                w0, h0 = layer_src.size
+                layer_src = layer_src.crop((round(w0 * crop[0]), round(h0 * crop[1]),
+                                            round(w0 * (1 - crop[2])), round(h0 * (1 - crop[3]))))
+            layer = layer_src.resize((box[2], box[3]), Image.LANCZOS)
+            rotation = getattr(shape, "rotation", 0) or 0
+            if rotation:
+                layer = layer.rotate(-rotation, expand=True, resample=Image.BICUBIC)
+            cx, cy = box[0] + box[2] // 2, box[1] + box[3] // 2
+            canvas.alpha_composite(layer, (cx - layer.width // 2, cy - layer.height // 2))
+        except Exception:  # noqa: BLE001
+            continue
+    return _save_preview(canvas.convert("RGB"), lab_dir, key)
+
+
+def _pptx_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int) -> tuple[list[dict[str, Any]], str]:
     from pptx import Presentation
 
     _validate_pptx(data)
@@ -819,6 +985,8 @@ def _pptx_pages(data: bytes, remaining: int) -> tuple[list[dict[str, Any]], str]
         presentation = Presentation(io.BytesIO(data))
     except Exception as exc:  # noqa: BLE001
         raise ExtractError("PPTX 无法打开") from exc
+    slide_w = getattr(presentation, "slide_width", 0) or 0
+    slide_h = getattr(presentation, "slide_height", 0) or 0
     pages: list[dict[str, Any]] = []
     for index, slide in enumerate(presentation.slides):
         if index >= remaining:
@@ -826,9 +994,7 @@ def _pptx_pages(data: bytes, remaining: int) -> tuple[list[dict[str, Any]], str]
         parts: list[str] = []
         for shape in slide.shapes:
             if getattr(shape, "has_text_frame", False):
-                text = "\n".join(
-                    paragraph.text for paragraph in shape.text_frame.paragraphs if paragraph.text.strip()
-                ).strip()
+                text = _shape_text(shape).strip()
                 if text:
                     parts.append(text)
             if getattr(shape, "has_table", False):
@@ -841,7 +1007,8 @@ def _pptx_pages(data: bytes, remaining: int) -> tuple[list[dict[str, Any]], str]
                 "page": index + 1,
                 "text": "\n".join(parts).strip(),
                 "method": "pptx_text",
-                "image_key": None,
+                "hidden": slide._element.get("show") == "0",
+                "image_key": _pptx_preview(slide, slide_w, slide_h, lab_dir, f"{file_id}_p{index + 1}"),
             }
         )
     if not pages:
@@ -945,7 +1112,7 @@ def extract_files(
             pages, method = _image_pages(data, file_id, lab_dir)
             kind = "image"
         elif suffix == ".pptx":
-            pages, method = _pptx_pages(data, remaining)
+            pages, method = _pptx_pages(data, file_id, lab_dir, remaining)
             kind = "pptx"
         else:
             pages, method = _text_pages(data, file_id, lab_dir, suffix)
