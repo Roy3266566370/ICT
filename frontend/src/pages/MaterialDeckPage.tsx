@@ -31,6 +31,14 @@ export default function MaterialDeckPage() {
   if (query.isError) return <div className="page-container" role="alert"><h1>演示文稿暂时无法打开</h1>
     <p>{errorMessage(query.error)}</p><button onClick={() => void query.refetch()}>重新载入</button> <Link to="/">返回首页</Link></div>;
   const detail = query.data;
+  if (detail.material.status === 'processing') return <div className="page-container" role="status">
+    <h1>正在转换 PPTX</h1>
+    <p>原页和对象准备就绪后会自动打开演示文稿。</p>
+  </div>;
+  if (detail.material.status === 'failed') return <div className="page-container" role="alert">
+    <h1>演示文稿转换失败</h1>
+    <Link to="/living">返回上传</Link>
+  </div>;
   const specs = readEmbeddedSpecs(detail);
   const pages = Array.from({length: detail.material.page_count}, (_, index) => detail.slides.find(p => p.page_no === index + 1) ??
     {page_no: index + 1, title: `第 ${index + 1} 页`, image_url: null});

@@ -1,7 +1,7 @@
 /** 活页编辑器：块序列 + 激活建议 + 插入菜单 + 发布。 */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import {
   acceptSuggestion,
   createLabBlock,
@@ -24,6 +24,7 @@ import { SiteNav } from '@/components/home/SiteNav';
 import { BlockView, SuggestionCard } from '@/components/living/PageBlocks';
 import { PageOutline } from '@/components/living/PageOutline';
 import { LivingAIPanel } from '@/components/living/LivingAIPanel';
+import { BlockSaveQueue } from '@/living/blockSaveQueue';
 import type {
   ActivationSuggestion,
   LivingInsights,
@@ -101,10 +102,11 @@ export default function LivingPageEditor(): ReactNode {
   const [showInsights, setShowInsights] = useState(false);
   const [showVars, setShowVars] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const uploadState = useLocation().state as { diagramError?: string } | null;
-  const [error, setError] = useState<string | null>(uploadState?.diagramError ?? null);
+  const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const saveTimer = useRef<number | null>(null);
+  const saveQueue = useRef(new BlockSaveQueue());
+  const draftVersion = useRef(0);
   const [aiPanel, setAiPanel] = useState<{ blockId?: string } | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
   const aiRunning = useRef(false);
@@ -115,6 +117,7 @@ export default function LivingPageEditor(): ReactNode {
 
   useEffect(() => {
     let cancelled = false;
+    saveQueue.current = new BlockSaveQueue();
     getLivingPage(pageId)
       .then((d) => {
         if (cancelled) return;
@@ -125,6 +128,7 @@ export default function LivingPageEditor(): ReactNode {
       .catch((e) => !cancelled && setError(errorMessage(e)));
     return () => {
       cancelled = true;
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     };
   }, [pageId]);
 
@@ -145,18 +149,21 @@ export default function LivingPageEditor(): ReactNode {
   const save = useCallback(
     async (next: PageBlock[], revision: number): Promise<LivingPageDoc | null> => {
       if (!doc) return null;
+      const queue = saveQueue.current;
+      const version = draftVersion.current;
       try {
-        const updated = await patchLivingPage({
+        const updated = await queue.commit(revision, expectedRevision => patchLivingPage({
           pageId: doc.page_id,
-          expectedRevision: revision,
+          expectedRevision,
           blocks: next,
-        });
-        setDoc(updated);
-        setDirty(false);
+        }), error => isApiError(error, 'VERSION_CONFLICT'));
+        if (queue !== saveQueue.current) return null;
+        setDoc(current => current?.page_id === updated.page_id && current.revision > updated.revision ? current : updated);
+        if (version === draftVersion.current) setDirty(false);
         setSavedAt(new Date().toLocaleTimeString());
         return updated;
       } catch (e) {
-        setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，请刷新' : errorMessage(e));
+        setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，当前草稿仍保留在此页。刷新前请先保留你的修改。' : errorMessage(e));
         return null;
       }
     },
@@ -166,6 +173,7 @@ export default function LivingPageEditor(): ReactNode {
   /** 本地改块 → 防抖 PATCH。 */
   const mutate = useCallback(
     (next: PageBlock[]) => {
+      draftVersion.current += 1;
       setBlocks(next);
       setDirty(true);
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
@@ -434,7 +442,7 @@ export default function LivingPageEditor(): ReactNode {
         }, 60);
       }
     } catch (e) {
-      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，请刷新' : errorMessage(e));
+      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，当前草稿仍保留在此页。刷新前请先保留你的修改。' : errorMessage(e));
     } finally {
       setBusy(null);
     }
@@ -461,7 +469,7 @@ export default function LivingPageEditor(): ReactNode {
       setDirty(false);
       setSavedAt(new Date().toLocaleTimeString());
     } catch (e) {
-      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，请刷新' : errorMessage(e));
+      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，当前草稿仍保留在此页。刷新前请先保留你的修改。' : errorMessage(e));
     } finally {
       setBusy(null);
     }
@@ -492,7 +500,7 @@ export default function LivingPageEditor(): ReactNode {
       if (typeof revision === 'number') {
         setDoc((current) => current && current.revision < revision ? { ...current, revision } : current);
       }
-      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，请刷新' : errorMessage(e));
+      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，当前草稿仍保留在此页。刷新前请先保留你的修改。' : errorMessage(e));
     } finally {
       setBusy(null);
     }
@@ -573,7 +581,7 @@ export default function LivingPageEditor(): ReactNode {
       setDoc(updated);
       setSavedAt(new Date().toLocaleTimeString());
     } catch (e) {
-      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，请刷新' : errorMessage(e));
+      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，当前草稿仍保留在此页。刷新前请先保留你的修改。' : errorMessage(e));
     }
   };
 
@@ -665,7 +673,7 @@ export default function LivingPageEditor(): ReactNode {
           </button>
           <button type="button" className={styles.ghostBtn} disabled={busy !== null}
                   onClick={() => void handleOfflineDownload()}>下载离线活页</button>
-          <button type="button" className={styles.primaryBtn} disabled={aiBusy || busy === 'publish'} onClick={() => void handlePublish()}>
+          <button type="button" className={styles.primaryBtn} disabled={aiBusy || busy !== null} onClick={() => void handlePublish()}>
             {shareUrl ? '重新发布' : '发布'}
           </button>
         </div>

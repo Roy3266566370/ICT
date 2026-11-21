@@ -12,7 +12,7 @@
  * 导航悬停/聚焦时复用它预取，避免重复打包与重复下载。
  */
 import { lazy, Suspense, type ReactElement } from 'react';
-import { createBrowserRouter, Navigate, Outlet, useLocation, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Outlet, useLocation, type RouteObject } from 'react-router-dom';
 import { RouteSkeleton } from './components/navigation/RouteSkeleton';
 import { routeLoaders } from './components/navigation/routePrefetch';
 
@@ -26,6 +26,10 @@ const SharePage = lazy(routeLoaders.share);
 const LabPage = lazy(routeLoaders.labs);
 const LabWorkbenchPage = lazy(routeLoaders.labWorkbench);
 const LabSharePage = lazy(routeLoaders.labShare);
+const PreparePage = lazy(routeLoaders.prepare);
+const MaterialDeckPage = lazy(routeLoaders.workbench);
+const FreeEditPage = lazy(routeLoaders.freeEdit);
+const PptAiPage = lazy(routeLoaders.pptAi);
 const LivingPagesPage = lazy(routeLoaders.living);
 const LivingPageEditor = lazy(routeLoaders.livingEditor);
 const LivingPageShare = lazy(routeLoaders.livingShare);
@@ -93,10 +97,10 @@ export const routes: RouteObject[] = [
       { path: 'page-shares/:shareId', element: <LivingPageShare /> },
       { path: 'workshop', element: <WorkshopPage /> },
       { path: 'work-shares/:shareId', element: <WorkSharePage /> },
-      { path: 'materials/:materialId/prepare', element: <Navigate to="/living" replace /> },
-      { path: 'materials/:materialId/work', element: <Navigate to="/living" replace /> },
-      { path: 'materials/:materialId/edit', element: <Navigate to="/living" replace /> },
-      { path: 'materials/:materialId/ai', element: <Navigate to="/living" replace /> },
+      { path: 'materials/:materialId/prepare', element: <PreparePage /> },
+      { path: 'materials/:materialId/work', element: <MaterialDeckPage /> },
+      { path: 'materials/:materialId/edit', element: <FreeEditPage /> },
+      { path: 'materials/:materialId/ai', element: <PptAiPage /> },
       { path: 'p/:shareId', element: <SharePage /> },
       { path: '*', element: <NotFoundPage /> },
     ],

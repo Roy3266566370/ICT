@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createLivingPage, createLivingPageFromText, deleteLivingPage, listLivingPages, patchLivingPage, recognizeRegionDiagram } from '@/api/living';
-import { errorMessage, isApiError } from '@/api/client';
+import { createLivingPage, createLivingPageFromText, deleteLivingPage, listLivingPages, patchLivingPage } from '@/api/living';
+import { api, errorMessage } from '@/api/client';
 import { SiteNav } from '@/components/home/SiteNav';
 import { DEEP_LESSONS, type DeepLesson } from '@/living/deepLessons';
 import type { LivingPageSummary } from '@/living/types';
@@ -44,7 +44,6 @@ export default function LivingPagesPage(): ReactNode {
   const navigate = useNavigate();
   const [pages, setPages] = useState<LivingPageSummary[] | null>(null);
   const [text, setText] = useState('');
-  const [autoSmartArt, setAutoSmartArt] = useState(false);
   const [busy, setBusy] = useState<'upload' | 'text' | null>(null);
   const [lessonBusy, setLessonBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,28 +67,18 @@ export default function LivingPagesPage(): ReactNode {
     setBusy('upload');
     setError(null);
     try {
-      const doc = await createLivingPage({ files: [...files] });
-      let revision = doc.revision;
-      let diagramError: string | undefined;
-      if (autoSmartArt) {
-        const regions = doc.blocks.flatMap((block) => block.type === 'page'
-          ? (block.data.regions ?? []).filter((region) => region.source === 'pptx_smartart' && !region.diagram)
-          : []);
-        for (const region of regions) {
-          try {
-            const updated = await recognizeRegionDiagram({
-              pageId: doc.page_id, regionId: region.id, expectedRevision: revision,
-            });
-            revision = updated.revision;
-          } catch (e) {
-            diagramError = errorMessage(e);
-            const updatedRevision = isApiError(e) ? e.details?.revision : undefined;
-            if (typeof updatedRevision !== 'number') break;
-            revision = updatedRevision;
-          }
+      const pptx = [...files].find(file => /\.pptx$/i.test(file.name));
+      if (pptx) {
+        if (files.length !== 1) {
+          setError('请单独上传每份 PPTX，进入经典 PPT 工作台。');
+          return;
         }
+        const material = await api.uploadMaterial(pptx);
+        navigate(`/materials/${material.material_id}/work?page=1`);
+        return;
       }
-      navigate(`/living/${doc.page_id}`, { state: { diagramError } });
+      const doc = await createLivingPage({ files: [...files] });
+      navigate(`/living/${doc.page_id}`);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -235,11 +224,6 @@ export default function LivingPagesPage(): ReactNode {
         </section>
 
         {loadError ? <p role="alert">{loadError} <button onClick={loadPages}>重试</button></p> : null}
-        <label>
-          <input type="checkbox" checked={autoSmartArt} disabled={busy !== null}
-                 onChange={(event) => setAutoSmartArt(event.target.checked)} />
-          上传后自动转译 SmartArt（将裁剪图发送给视觉模型）
-        </label>
         {error ? <p className={styles.uploadError} role="alert">{error}</p> : null}
 
         <section className={styles.listSection} aria-labelledby="living-lessons-title">
