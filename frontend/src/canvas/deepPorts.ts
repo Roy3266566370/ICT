@@ -1,6 +1,8 @@
+import { studyStages } from './studyStages.ts';
 import type { PortValue } from './types.ts';
 
 export const DEEP_NODE_TYPES = new Set([
+  ...Object.keys(studyStages),
   'activationProbe', 'optimizerArena', 'attentionAB', 'kvCache',
   'dataset2dSource', 'pixelGridSource', 'tokenSeqSource', 'linearOp', 'activationOp',
   'residualJoin', 'normOp', 'conv2dOp', 'attentionOp', 'mlpTrainer',

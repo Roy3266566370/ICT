@@ -1,7 +1,8 @@
+import { DF_ACTIVATIONS } from './deepFirst';
 import { useEffect, useRef, useState } from 'react';
 import type { NodeBodyProps, NodeDef } from './nodes';
 import type { NodeType, PortSpec, PortValue } from './types';
-import { boundaryModels, clamp, createModel, deepCoreOutput, forward, kernelData, pixelData, traces, trainEpoch, trainingOutputs } from './deepCore';
+import { mlpSetup, boundaryModels, clamp, createModel, deepCoreOutput, forward, kernelData, pixelData, traces, trainEpoch, trainingOutputs } from './deepCore';
 import type { Matrix, Trace } from './deepCore';
 import styles from './deepCore.module.css';
 export function deepCoreDefaults(type: NodeType): Record<string, number> | null {
@@ -26,7 +27,7 @@ function Heatmap({ data }: {
     ]>([0, 0]);
     const max = Math.max(1e-8, ...data.flat().map(Math.abs));
     const trace = traces.get(data)?.[cell[0]!]?.[cell[1]!];
-    return <><div className={styles.matrix} style={{ gridTemplateColumns: `repeat(${data[0]!?.length || 1}, 1fr)` }}>{data.flatMap((row, i) => row.map((v, j) => <button key={`${i}-${j}`} type="button" aria-label={`行 ${i} 列 ${j} 值 ${v.toFixed(5)}`} title={`[${i},${j}] ${v.toFixed(5)}`} style={{ background: `hsl(${v < 0 ? 20 : 195} 65% ${88 - Math.abs(v) / max * 48}%)`, outline: cell[0]! === i || cell[1]! === j ? '1px solid #577580' : undefined }} onMouseEnter={() => setCell([i, j])} onFocus={() => setCell([i, j])} onClick={() => setCell([i, j])}>{data.length <= 4 && row.length <= 4 ? v.toFixed(2) : ''}</button>))}</div><output>[{cell.join(',')}] = {data[cell[0]!]!?.[cell[1]!]?.toFixed(5) ?? '—'}</output>{trace && <><div>原图感受野：{trace.sources.length} 像素（含零权重位置）</div><div className={styles.receptive}>{Array.from({ length: 144 }, (_, i) => <span key={i} style={{ background: trace.sources.includes(`${Math.floor(i / 12)},${i % 12}`) ? '#149cac' : '#e1e7ec' }}/>)}</div><TraceTree trace={trace}/></>}</>;
+    return <><div className={styles.matrix} data-study-matrix style={{ gridTemplateColumns: `repeat(${data[0]!?.length || 1}, 1fr)` }}>{data.flatMap((row, i) => row.map((v, j) => <button key={`${i}-${j}`} type="button" aria-label={`行 ${i} 列 ${j} 值 ${v.toFixed(5)}`} title={`[${i},${j}] ${v.toFixed(5)}`} style={{ background: `hsl(${v < 0 ? 20 : 195} 65% ${88 - Math.abs(v) / max * 48}%)`, outline: cell[0]! === i || cell[1]! === j ? '1px solid #577580' : undefined }} onMouseEnter={() => setCell([i, j])} onFocus={() => setCell([i, j])} onClick={() => setCell([i, j])}>{data.length <= 4 && row.length <= 4 ? v.toFixed(2) : ''}</button>))}</div><output>[{cell.join(',')}] = {data[cell[0]!]!?.[cell[1]!]?.toFixed(5) ?? '—'}</output>{trace && <><div>原图感受野：{trace.sources.length} 像素（含零权重位置）</div><div className={styles.receptive}>{Array.from({ length: 144 }, (_, i) => <span key={i} style={{ background: trace.sources.includes(`${Math.floor(i / 12)},${i % 12}`) ? '#149cac' : '#e1e7ec' }}/>)}</div><TraceTree trace={trace}/></>}</>;
 }
 function Boundary({ value, layer }: {
     value: PortValue | null;
@@ -47,10 +48,11 @@ function Boundary({ value, layer }: {
 }
 function Trainer(props: NodeBodyProps) {
     const { node, values, onParams, onLive } = props;
-    const p = node.params;
-    const data = values.in?.kind === 'dataset2d' ? values.in.points : [];
-    const signature = JSON.stringify([data, p.width, p.seed, p.reset]);
-    const model = useRef(createModel(p.width, p.seed));
+    const config = mlpSetup(node, (port) => values[port] ?? null);
+    const p = config ?? node.params;
+    const data = config && values.in?.kind === 'dataset2d' ? values.in.points : [];
+    const signature = JSON.stringify([data, p.width, p.second, p.act1, p.act2, p.seed, p.lr, p.batch, p.l1, p.l2, p.dropout, p.reset]);
+    const model = useRef(createModel(p.width, p.seed, p.second, p.act1, p.act2));
     const live = useRef(onLive);
     live.current = onLive;
     const [snapshot, setSnapshot] = useState(model.current);
@@ -58,16 +60,26 @@ function Trainer(props: NodeBodyProps) {
     dataRef.current = data;
     const paramsRef = useRef(p);
     paramsRef.current = p;
-    useEffect(() => { model.current = createModel(p.width, p.seed); setSnapshot(model.current); live.current?.(trainingOutputs(model.current, dataRef.current)); }, [signature]); // Parameters reset deliberately; frames never write the document.
-    useEffect(() => { if (!p.play || !data.length)
+    const lastSignature = useRef(signature);
+    const [activeSignature, setActiveSignature] = useState(signature);
+    useEffect(() => {
+        if (lastSignature.current !== signature) {
+            lastSignature.current = signature;
+            if (node.params.play) onParams?.({ play: 0 });
+            setActiveSignature(signature);
+        }
+    }, [signature, node.params.play, onParams]);
+    useEffect(() => { model.current = createModel(p.width, p.seed, p.second, p.act1, p.act2); setSnapshot(model.current); live.current?.(trainingOutputs(model.current, dataRef.current)); }, [signature]); // Parameters reset deliberately; frames never write the document.
+    useEffect(() => { if (!p.play || !data.length || activeSignature !== signature)
         return; const timer = window.setInterval(() => { if (model.current.epoch >= 2000) {
         window.clearInterval(timer);
         return;
-    } model.current = trainEpoch(model.current, dataRef.current, paramsRef.current); setSnapshot(model.current); live.current?.(trainingOutputs(model.current, dataRef.current)); }, 40); return () => window.clearInterval(timer); }, [p.play, signature]);
+    } model.current = trainEpoch(model.current, dataRef.current, paramsRef.current); setSnapshot(model.current); live.current?.(trainingOutputs(model.current, dataRef.current)); }, 40); return () => window.clearInterval(timer); }, [p.play, signature, activeSignature]);
     const out = trainingOutputs(snapshot, data);
     const losses = snapshot.history;
     const max = Math.max(1, ...losses.flat());
-    return <><div className={styles.controls}><button onClick={() => onParams?.({ play: p.play ? 0 : 1 })}>{p.play ? '暂停' : '开始训练'}</button><button onClick={() => onParams?.({ reset: (p.reset ?? 0) + 1, play: 0 })}>重置</button></div><p>2 → {clamp(p.width ?? 6, 1, 8)} → 2 → 1 · Tanh / BCE<br />Epoch {snapshot.epoch}/2000 {snapshot.epoch >= 2000 ? '已达上限，重置后继续' : ''}</p><output>训练 {out.loss.kind === 'scalar' ? out.loss.v.toFixed(4) : ''} / 验证 {out.validationLoss.kind === 'scalar' ? out.validationLoss.v.toFixed(4) : ''}</output><svg viewBox="0 0 300 70" className={styles.loss} role="img" aria-label="最近200轮训练蓝线与验证橙线损失">{[0, 1].map(k => <polyline key={k} fill="none" stroke={k ? '#d26536' : '#1684af'} strokeWidth="2" points={losses.map((v, i) => `${i / Math.max(1, losses.length - 1) * 300},${65 - v[k]! / max * 60}`).join(' ')}/>)}</svg><small>蓝=训练，橙=验证；仅 train 更新权重；无 Dropout 评估。</small><Boundary value={out.boundary} layer={0}/></>;
+    if (!config || !data.length) return <p role="status">请连接有效点云、模型和训练配置。</p>;
+    return <><div className={styles.controls}><button onClick={() => onParams?.({ play: p.play ? 0 : 1 })}>{p.play ? '暂停' : '开始训练'}</button><button onClick={() => onParams?.({ reset: (p.reset ?? 0) + 1, play: 0 })}>重置</button></div><p>2 → {clamp(p.width ?? 6, 1, 8)} → {p.second ?? 2} → 1 · {DF_ACTIVATIONS[p.act1 ?? 3]} / {DF_ACTIVATIONS[p.act2 ?? 3]} / BCE<br />Epoch {snapshot.epoch}/2000 {snapshot.epoch >= 2000 ? '已达上限，重置后继续' : ''}</p><output>训练 {out.loss.kind === 'scalar' ? out.loss.v.toFixed(4) : ''} / 验证 {out.validationLoss.kind === 'scalar' ? out.validationLoss.v.toFixed(4) : ''}</output><svg viewBox="0 0 300 70" className={styles.loss} role="img" aria-label="最近200轮训练蓝线与验证橙线损失">{[0, 1].map(k => <polyline key={k} fill="none" stroke={k ? '#d26536' : '#1684af'} strokeWidth="2" points={losses.map((v, i) => `${i / Math.max(1, losses.length - 1) * 300},${65 - v[k]! / max * 60}`).join(' ')}/>)}</svg><small>蓝=训练，橙=验证；仅 train 更新权重；无 Dropout 评估。</small><Boundary value={out.boundary} layer={0}/></>;
 }
 function DeepBody(props: NodeBodyProps) {
     const { node, values, onParams, onText } = props, p = { ...deepCoreDefaults(node.type), ...node.params };
@@ -101,6 +113,6 @@ const def = (title: string, inputs: PortSpec[], outputs: PortSpec[], badge: Node
 export const DEEP_CORE_DEFS: Partial<Record<NodeType, NodeDef>> = {
     dataset2dSource: def('二维数据集', [], [port('out', 'dataset2d')], '源'), pixelGridSource: def('12×12 像素画板', [], [port('out')], '源'), tokenSeqSource: def('词元嵌入', [], [port('out')], '源'),
     linearOp: def('线性层 Wx+b', [port('in')], [port('out'), port('weights')]), activationOp: def('激活函数', [port('in')], [port('out'), port('derivative')]), residualJoin: def('残差相加', [port('A'), port('B')], [port('out')]), normOp: def('BN / LN', [port('in')], [port('out')]), conv2dOp: def('卷积与感受野', [port('in')], [port('out')]), attentionOp: def('自注意力', [port('in')], [port('out'), port('weights')]),
-    mlpTrainer: def('MLP / 正则化训练器', [port('in', 'dataset2d')], [port('boundary', 'dataset2d'), port('probability', 'dataset2d'), port('loss', 'scalar'), port('validationLoss', 'scalar'), port('grad')], '实验'),
+    mlpTrainer: def('MLP / 正则化训练器', [port('in', 'dataset2d'), port('model'), port('training')], [port('boundary', 'dataset2d'), port('probability', 'dataset2d'), port('loss', 'scalar'), port('validationLoss', 'scalar'), port('grad')], '实验'),
     boundaryView: def('边界与流形折叠', [port('in', 'dataset2d')], [], '视图'), matrixHeatmapView: def('矩阵热力与追踪', [port('in')], [], '视图'), gradFlowMeter: def('梯度幅值', [port('in')], [], '视图'),
 };

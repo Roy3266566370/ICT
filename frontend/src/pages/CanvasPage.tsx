@@ -7,8 +7,9 @@
  * 对象端口协议、多级求值（engine）、命名端口连线、动画源见 `canvas/` 目录。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
+import { DEEP_NODE_TYPES } from '@/canvas/deepPorts';
 import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
 import { PALETTE_GROUPS, NODE_DEFS, defaultParams } from '@/canvas/nodes.tsx';
 import { nextId, clamp } from '@/canvas/math.ts';
@@ -167,8 +168,14 @@ function loadDoc(): CanvasDoc | null {
 
 export function CanvasPage(): JSX.Element {
   const [params] = useSearchParams();
+  const { state: navigationState } = useLocation();
+  const navigate = useNavigate();
   const workIdParam = params.get('work');
-  const [doc, setDocRaw] = useState<CanvasDoc>(() => loadDoc() ?? seedDoc());
+  const [doc, setDocRaw] = useState<CanvasDoc>(() => navigationState?.blank === true
+    ? { version: 1, title: '空白画布', zoom: 1, nodes: [], wires: [], strokes: [] }
+    : loadDoc() ?? seedDoc());
+  const [paletteQuery, setPaletteQuery] = useState('');
+  const useWorkbench = !!doc.panel && doc.nodes.some((node) => DEEP_NODE_TYPES.has(node.type));
   const [tool, setTool] = useState<CanvasTool>('select');
   const [inkColor, setInkColor] = useState('#2F3A49');
   const [savedFlash, setSavedFlash] = useState(false);
@@ -255,6 +262,10 @@ export function CanvasPage(): JSX.Element {
     inkResolve.current?.(false);
     inkResolve.current = null;
   }, []);
+
+  useEffect(() => {
+    if (navigationState?.blank === true) navigate('/canvas', { replace: true, state: null });
+  }, [navigationState, navigate]);
 
   /* 指定作品（?work=wk_id / fork 后跳转）：从后端装载 */
   useEffect(() => {
@@ -614,7 +625,11 @@ export function CanvasPage(): JSX.Element {
         <details className={styles.palette}>
           <summary className={styles.tbtn}>＋ 添加对象</summary>
           <div className={styles.paletteMenu}>
-            {PALETTE_GROUPS.map((g) => (
+            <label>搜索积木 <input type="search" value={paletteQuery} onChange={(event) => setPaletteQuery(event.target.value)} /></label>
+            {PALETTE_GROUPS.map((group) => ({
+              ...group, types: group.types.filter((type) =>
+                `${group.label} ${NODE_DEFS[type].title} ${type}`.toLowerCase().includes(paletteQuery.trim().toLowerCase())),
+            })).filter((group) => group.types.length).map((g) => (
               <div key={g.label} className={styles.paletteGroup}>
                 <div className={styles.paletteLabel}>{g.label}</div>
                 {g.types.map((t) => (
@@ -871,7 +886,7 @@ export function CanvasPage(): JSX.Element {
         </div>
       ) : null}
 
-      <CanvasBoard doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor} onAddNode={addNode} onInkExtract={recognizeInk} onInkFit={recognizeCurves} />
+      <CanvasBoard workbench={useWorkbench} workId={workId} doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor} onAddNode={addNode} onInkExtract={recognizeInk} onInkFit={recognizeCurves} />
     </div>
   );
 }

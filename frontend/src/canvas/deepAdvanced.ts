@@ -126,19 +126,19 @@ export function diffusionForward(t: number, seed = 7, mixture = diffusionMixture
 export function reverseDiffusionStep(x: number[], t: number, dt: number, mixture = diffusionMixture()): number[] { const h = Math.min(bounded(dt, 0.02, 0, 0.05), Math.max(0, t)); const score = mixtureScore(x, t, mixture).score; return x.map((v, j) => v + 1.5 * h * (v + score[j]!)); }
 
 export const CLIFF_START = 30, CLIFF_GOAL = 35;
-export function cliffTransition(state: number, action: number) {
+export function cliffTransition(state: number, action: number, rewards?: Matrix) {
   const row = Math.floor(state / 6), col = state % 6, offsets = [[-1, 0], [0, 1], [1, 0], [0, -1]]; const d = offsets[size(action, 0, 3)]!; const next = Math.max(0, Math.min(5, row + d[0]!)) * 6 + Math.max(0, Math.min(5, col + d[1]!));
-  if (next > 30 && next < 35) return { next: CLIFF_START, reward: -100, done: false };
-  return { next, reward: next === CLIFF_GOAL ? 20 : -1, done: next === CLIFF_GOAL };
+  if (next > 30 && next < 35) return { next: CLIFF_START, reward: rewards?.[5]?.[next % 6] ?? -100, done: false };
+  return { next, reward: rewards?.[Math.floor(next / 6)]?.[next % 6] ?? (next === CLIFF_GOAL ? 20 : -1), done: next === CLIFF_GOAL };
 }
 export function qUpdate(q: number, reward: number, nextMax: number, alpha: number, gamma: number, terminal: boolean) { return q + alpha * (reward + (terminal ? 0 : gamma * nextMax) - q); }
 export function reinforceGradient(probabilities: number[], action: number, discountedReturn: number) { return probabilities.map((p, i) => discountedReturn * (Number(i === action) - p)); }
-export function trainCliff(episodes = 30, seed = 7, alpha = 0.15, gamma = 0.95, epsilon = 0.2, policyGradient = false) {
+export function trainCliff(episodes = 30, seed = 7, alpha = 0.15, gamma = 0.95, epsilon = 0.2, policyGradient = false, rewards?: Matrix) {
   const r = seeded(seed); alpha = bounded(alpha, 0.15, 0.001, 1); gamma = bounded(gamma, 0.95, 0, 1); epsilon = bounded(epsilon, 0.2, 0, 1);
   const table = Array.from({ length: 36 }, () => [0, 0, 0, 0]); const returns: number[] = [], steps: number[] = []; let lastPath = [CLIFF_START];
   const draw = (p: number[]) => { const u = r(); let c = 0; for (let a = 0; a < p.length; a++) { c += p[a]!; if (u < c) return a; } return p.length - 1; };
   for (let ep = 0; ep < size(episodes, 0, 200); ep++) { let state = CLIFF_START, total = 0; const path = [state]; const trajectory: { s: number; a: number; reward: number; p: number[] }[] = [];
-    for (let k = 0; k < 200; k++) { const p = softmax(table[state]!); const max = Math.max(...table[state]!), ties = table[state]!.map((v, a) => v === max ? a : -1).filter(a => a >= 0); const a = policyGradient ? draw(p) : r() < epsilon ? Math.floor(r() * 4) : ties[Math.floor(r() * ties.length)]!; const tr = cliffTransition(state, a);
+    for (let k = 0; k < 200; k++) { const p = softmax(table[state]!); const max = Math.max(...table[state]!), ties = table[state]!.map((v, a) => v === max ? a : -1).filter(a => a >= 0); const a = policyGradient ? draw(p) : r() < epsilon ? Math.floor(r() * 4) : ties[Math.floor(r() * ties.length)]!; const tr = cliffTransition(state, a, rewards);
       trajectory.push({ s: state, a, reward: tr.reward, p }); if (!policyGradient) table[state]![a] = qUpdate(table[state]![a]!, tr.reward, Math.max(...table[tr.next]!), alpha, gamma, tr.done); total += tr.reward; state = tr.next; path.push(state); if (tr.done) break;
     }
     if (policyGradient) { let G = 0; const gradient = table.map(row => row.map(() => 0)); for (let k = trajectory.length - 1; k >= 0; k--) { const tr = trajectory[k]!; G = tr.reward + gamma * G; const g = reinforceGradient(tr.p, tr.a, G); g.forEach((v, a) => { gradient[tr.s]![a] = (gradient[tr.s]![a] ?? 0) + gamma ** k * v; }); } // exact episodic discounted-return score-function gradient, fixed reward scale 1/100
@@ -152,7 +152,19 @@ export interface AdvancedSnapshot { outputs: Record<string, PortValue>; matrices
 const tensor = (data: Matrix): PortValue => ({ kind: 'tensor2d', data: data.slice(0, 16).map(r => r.slice(0, 16)) });
 const scalar = (v: number): PortValue => ({ kind: 'scalar', v: Number.isFinite(v) ? v : 0 });
 export function advancedSnapshot(node: CanvasNode, input: (port: string) => PortValue | null, frame = 0): AdvancedSnapshot | null {
-  const p = node.params, v = input('in'), control = input('control'); const cp = (key: string, fallback: number, lo: number, hi: number) => bounded(key === 'control' && control?.kind === 'scalar' ? control.v : p[key], fallback, lo, hi);
+  const p = { ...node.params };
+  for (const key of ['mode', 'gamma', 'alpha']) {
+    const setting = input(key);
+    if (setting?.kind === 'scalar') p[key] = setting.v;
+  }
+  const environment = input('environment');
+  const rewards = environment?.kind === 'tensor2d' && environment.data.length === 6
+    && environment.data.every((row) => row.length === 6) ? environment.data : undefined;
+  const v = input('in'), control = input('control'); const cp = (key: string, fallback: number, lo: number, hi: number) => bounded(key === 'control' && control?.kind === 'scalar' ? control.v : p[key], fallback, lo, hi);
+  if (p.wired && (node.type === 'qLearningLab'
+    ? !rewards || ['control', 'mode', 'gamma', 'alpha'].some((key) => input(key)?.kind !== 'scalar')
+    : node.type === 'svmLab' ? v?.kind !== 'dataset2d' || control?.kind !== 'scalar' : !v)) return null;
+  if (node.type === 'svmLab' && v?.kind === 'dataset2d' && v.featureMap) p.quadratic = Number(v.featureMap === 'quadratic');
   const data = v?.kind === 'tensor2d' ? safeTensor(v.data) : TOKEN_EMBEDDINGS; const points = v?.kind === 'dataset2d' ? safePoints(v.points) : toyPoints(cp('seed', 7, 0, 10000), !!p.quadratic);
   const empty = { matrices: [], curves: [] }; frame = size(frame, 0, 700);
   switch (node.type) {
@@ -162,7 +174,7 @@ export function advancedSnapshot(node: CanvasNode, input: (port: string) => Port
     case 'multiheadLab': { const m = multihead(data, p.mode !== 0, cp('control', 0, -100, 100)); return { outputs: { out: tensor(m.out), attention: tensor(m.heads[size(p.head ?? 0, 0, 1)]!.weights), relative: tensor(m.relative) }, matrices: [{ label: 'Head 0 权重', data: m.heads[0]!.weights }, { label: 'Head 1 权重', data: m.heads[1]!.weights }, { label: '固定内容的位置内积（未 softmax）', data: m.relative }], curves: [], note: '默认 4 个固定教学向量，非语言语义。头0取维度0/1、头1取2/3；Q=V=该对，K=交换该对；RoPE 在投影后旋转。Sinusoid 在4维输入上相加。输出为两头拼接，无输出投影。位置内积图用同一对内容隔离相对位置。' }; }
     case 'autoencoderLab': { const m = linearAutoencoder(data, cp('angle', 0, -3.14, 3.14)), anchor = [cp('ax', 0.4, -3, 3), cp('ay', 0.3, -3, 3)], candidates = [[1, 0.5], [-1, 0], [0, -1]]; const nce = infoNCE(anchor, candidates, cp('control', 0.5, 0.05, 5)); const field = Array.from({ length: 49 }, (_, k) => { const x = -1.5 + k % 7 * 0.5, y = -1.5 + Math.floor(k / 7) * 0.5; return [x, y, ...infoNCE([x, y], candidates, cp('control', 0.5, 0.05, 5)).gradient.map(v => -v)]; }); return { outputs: { out: tensor(m.latent), reconstruction: tensor(m.reconstruction), loss: scalar(m.loss), contrastive: scalar(nce.loss), gradient: tensor([nce.gradient, ...nce.candidateGradients]) }, matrices: [{ label: '高维输入（行=样本）', data }, { label: '重建', data: m.reconstruction }, { label: '正/负候选概率', data: [nce.probabilities] }], curves: [], points: [...m.latent.map(z => [...z, 0]), [...anchor, 1], ...candidates.map((z, i) => [...z, i === 0 ? 2 : 3])], vectors: field, note: `精确线性教学 AE：固定正交二维子空间投影，非训练网络/PCA；angle 旋转子空间。MSE=${m.loss.toFixed(4)}。InfoNCE=${nce.loss.toFixed(4)}，未归一化点积；橙点 anchor，绿点正样本，其余负样本；箭头是 −∇anchor loss，点击平面移动 anchor。` }; }
     case 'diffusionLab': { const t = cp('control', 0.4, 0, 4), mix = diffusionMixture(!!p.swiss, v?.kind === 'dataset2d' ? points : undefined), forward = diffusionForward(t, cp('seed', 7, 0, 10000), mix), pts = p.reverse ? forward.map(x => reverseDiffusionStep(x, t, 0.02, mix)) : forward; const field = Array.from({ length: 49 }, (_, i) => { const x = -2 + i % 7 * 4 / 6, y = -2 + Math.floor(i / 7) * 4 / 6; return [x, y, ...mixtureScore([x, y], t, mix).score]; }); return { ...empty, outputs: { out: { kind: 'dataset2d', points: pts.map(x => ({ x: x[0]!, y: x[1]!, label: 0, split: 'train' })) }, score: tensor(field.slice(0, 16)), loss: scalar(mean(pts.map(x => -mixtureScore(x, t, mix).logDensity))) }, points: pts, vectors: field, note: `ᾱ=e^(−3t)，固定 seed 闭式加噪。${p.swiss || v?.kind === 'dataset2d' ? '经验 Gaussian mixture' : '双高斯 mixture'} 解析 score（非训练去噪网络）。箭头 ∇log p_t；反向按钮从当前快照做一次 probability-flow ODE Euler 步，dt=min(.02,t)，不是精确还原。` }; }
-    case 'qLearningLab': { const m = trainCliff(cp('episodes', 30, 0, 200) + frame, cp('seed', 7, 0, 10000), cp('alpha', 0.15, 0.001, 1), cp('gamma', 0.95, 0, 1), cp('control', 0.2, 0, 1), !!p.mode); return { outputs: { out: tensor(m.values), policy: tensor(Array.from({ length: 6 }, (_, y) => Array.from({ length: 6 }, (_, x) => m.policy[y * 6 + x]!.indexOf(Math.max(...m.policy[y * 6 + x]!))))), loss: scalar(m.returns.at(-1) ?? 0) }, matrices: [], curves: [{ label: 'Episode return（原始奖励）', data: m.returns }, { label: 'Episode steps', data: m.steps }], grid: m, note: `${p.mode ? 'REINFORCE：softmax 策略，整回合 γ^t G_t∇logπ，奖励固定缩放1/100；ε不参与。logits限幅±30。' : 'Seeded ε-greedy，随机打破并列；真实 Bellman 更新。'} ↑→↓← 编码0/1/2/3。起点左下，终点右下+20；悬崖−100回起点，其余−1。200步截断（按有限回合目标）；颜色=${p.mode ? '最大策略概率' : 'max Q'}。` }; }
+    case 'qLearningLab': { const m = trainCliff(cp('episodes', 30, 0, 200) + frame, cp('seed', 7, 0, 10000), cp('alpha', 0.15, 0.001, 1), cp('gamma', 0.95, 0, 1), cp('control', 0.2, 0, 1), !!p.mode, rewards); return { outputs: { out: tensor(m.values), policy: tensor(Array.from({ length: 6 }, (_, y) => Array.from({ length: 6 }, (_, x) => m.policy[y * 6 + x]!.indexOf(Math.max(...m.policy[y * 6 + x]!))))), loss: scalar(m.returns.at(-1) ?? 0) }, matrices: [], curves: [{ label: 'Episode return（原始奖励）', data: m.returns }, { label: 'Episode steps', data: m.steps }], grid: m, note: `${p.mode ? 'REINFORCE：softmax 策略，整回合 γ^t G_t∇logπ，奖励固定缩放1/100；ε不参与。logits限幅±30。' : 'Seeded ε-greedy，随机打破并列；真实 Bellman 更新。'} ↑→↓← 编码0/1/2/3。起点左下，终点右下 ${rewards?.[5]?.[5] ?? 20}；悬崖回起点 ${rewards?.[5]?.[1] ?? -100}，普通格 ${rewards?.[0]?.[0] ?? -1}。200步截断（按有限回合目标）；颜色=${p.mode ? '最大策略概率' : 'max Q'}。` }; }
     default: return null;
   }
 }

@@ -12,9 +12,11 @@
  * 桌面交互：Ctrl/⌘+滚轮缩放（锚定光标）、空格/中键拖平移、点击选中 + Del 删除、
  * 双击空白快速加便签；Pointer Events 同套代码吃鼠标/触屏/手写笔。
  */
+import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasDoc, CanvasNode, CanvasTool, InkStroke, NodeType, PortValue, Wire } from './types.ts';
 import { nextId, clamp } from './math.ts';
+import { isStudyStage } from './studyStages';
 import { NODE_DEFS, nodePorts } from './nodes.tsx';
 import { makeCtx, evalOutput, inputValues } from './engine.ts';
 import { PHYS_TYPES, physCycle, type PhysNodeType } from './physics.ts';
@@ -37,6 +39,8 @@ interface BoardProps {
   onAddNode?: (type: NodeType, x: number, y: number) => void;
   /** 嵌入活页等固定高度容器时，视口撑满父级而不是占满整屏。 */
   embedded?: boolean;
+  workbench?: boolean;
+  workId?: string | null;
   /** 首次渲染时自动缩放到节点包围盒，避免嵌入视口停在空白区域。 */
   focusContent?: boolean;
   /** 公开分享等只读场景：保留参数交互，但隐藏删除/结构编辑入口。 */
@@ -79,7 +83,7 @@ function portKindOf(ctx: ReturnType<typeof makeCtx>, nodeId: string, isOut: bool
   return spec?.kind;
 }
 
-export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, focusContent, readOnly, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
+export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, workbench, workId, focusContent, readOnly, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
   const innerRef = useRef<HTMLDivElement>(null);
   const vpRef = useRef<HTMLDivElement>(null);
   const portRefs = useRef(new Map<string, HTMLElement>());
@@ -96,8 +100,13 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
   const [selStrokes, setSelStrokes] = useState<ReadonlySet<string>>(new Set());
   const [inkBusy, setInkBusy] = useState(false);
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [resultsOpen, setResultsOpen] = useState(true);
+  const [mobileResults, setMobileResults] = useState(false);
+  const [resultHost, setResultHost] = useState<HTMLDivElement | null>(null);
   const [frame, setFrame] = useState(0);
   const zoom = doc.zoom;
+  const worldWidth = doc.nodes.reduce((size, node) => Math.max(size, node.x + (NODE_DEFS[node.type]?.width ?? 0) + 140), INNER_W);
+  const worldHeight = doc.nodes.reduce((size, node) => Math.max(size, node.y + 700), INNER_H);
 
   const ctx = useMemo(() => makeCtx(doc, live.current), [doc, frame]);
 
@@ -301,13 +310,21 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
   }, [setDoc]);
 
   const connect = useCallback((fromId: string, fromPort: string, toId: string, toPort: string) => {
-    setDoc((d) => ({
-      ...d,
-      wires: [
+    setDoc((d) => {
+      const pending = [toId];
+      const visited = new Set<string>();
+      while (pending.length) {
+        const id = pending.pop()!;
+        if (id === fromId) return d;
+        if (visited.has(id)) continue;
+        visited.add(id);
+        pending.push(...d.wires.filter((edge) => edge.from === id).map((edge) => edge.to));
+      }
+      return { ...d, wires: [
         ...d.wires.filter((w) => !(w.to === toId && (w.toPort ?? 'in') === toPort)),
         { id: nextId('wire'), from: fromId, fromPort, to: toId, toPort },
-      ],
-    }));
+      ] };
+    });
   }, [setDoc]);
 
   const removeWire = useCallback((id: string) => {
@@ -633,17 +650,60 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
   };
 
   /* ---------- 渲染 ---------- */
-  return (
+  useLayoutEffect(() => {
+    const viewport = vpRef.current;
+    if (!workbench || !workId || !viewport) return;
+    const key = `xiangsheng.canvas.viewport.${workId}`;
+    try {
+      const position = JSON.parse(localStorage.getItem(key) ?? 'null') as { x?: number; y?: number } | null;
+      viewport.scrollTo(position?.x ?? 0, position?.y ?? 0);
+    } catch {
+      viewport.scrollTo(0, 0);
+    }
+    let timer: number | undefined;
+    const save = () => {
+      try {
+        localStorage.setItem(key, JSON.stringify({ x: viewport.scrollLeft, y: viewport.scrollTop }));
+      } catch { /* Storage is optional for the viewport. */ }
+    };
+    const onScroll = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(save, 180);
+    };
+    viewport.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      viewport.removeEventListener('scroll', onScroll);
+      window.clearTimeout(timer);
+      save();
+    };
+  }, [workbench, workId]);
+
+  const studyPanel = workbench ? doc.panel : undefined;
+  const fitAll = () => {
+    const viewport = vpRef.current;
+    if (!viewport || !doc.nodes.length) return;
+    const boxes = [...viewport.querySelectorAll<HTMLElement>('[data-node]')];
+    if (!boxes.length) return;
+    const left = Math.min(...boxes.map((box) => box.offsetLeft));
+    const top = Math.min(...boxes.map((box) => box.offsetTop));
+    const right = Math.max(...boxes.map((box) => box.offsetLeft + box.offsetWidth));
+    const bottom = Math.max(...boxes.map((box) => box.offsetTop + box.offsetHeight));
+    const fitted = clamp(Math.min((viewport.clientWidth - 36) / (right - left),
+      (viewport.clientHeight - 36) / (bottom - top)), 0.2, 1);
+    setDoc((prev) => ({ ...prev, zoom: fitted }));
+    requestAnimationFrame(() => viewport.scrollTo(Math.max(0, left * fitted - 18), Math.max(0, top * fitted - 18)));
+  };
+  const canvas = (
     <div className={`${styles.viewport} ${embedded ? styles.viewportEmbedded : ''}`} ref={vpRef}>
       <div
         ref={innerRef}
         className={`${styles.inner} ${tool !== 'select' ? styles.inkmode : ''}`}
-        style={{ width: INNER_W, height: INNER_H, transform: `scale(${zoom})` }}
+        style={{ width: worldWidth, height: worldHeight, transform: `scale(${zoom})` }}
         onPointerDown={onInnerPointerDown}
         onDoubleClick={onInnerDoubleClick}
       >
         {/* 连线层（仪器面板模式下隐藏内部接线，引擎照常求值） */}
-        <svg className={styles.wires} width={INNER_W} height={INNER_H} aria-hidden="true">
+        <svg className={styles.wires} width={worldWidth} height={worldHeight} aria-hidden="true">
           {visibleNodeIds ? null : doc.wires.map((w: Wire) => {
             const d = paths[w.id];
             if (!d) return null;
@@ -681,6 +741,30 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
           const outPorts = nodePorts(n, 'out');
           const nIn = inPorts.length;
           const nOut = outPorts.length;
+          const docked = !!resultHost && !!studyPanel?.view_node_ids.includes(n.id);
+          const body = (
+            <div className={styles.nbody}>
+                  {docked && <h3>{n.text || def.title}</h3>}
+                <Body
+                  node={n}
+                  values={inputValues(ctx, n)}
+                  self={evalOutput(ctx, n.id)}
+                  onParams={(patch) => updateParams(n.id, patch)}
+                  onLive={(outputs) => {
+                    const keys = Object.keys(outputs);
+                    if (!keys.length) return;
+                    // 输出可能序列化相同但内部模型已更新（如训练器的 boundary 快照），
+                    // 所以必须每次替换并触发渲染。
+                    for (const [port, value] of Object.entries(outputs)) {
+                      live.current.set(`${n.id}|${port}`, value);
+                    }
+                    setFrame((f) => f + 1);
+                  }}
+                  onText={(text) => patchNode(n.id, { text })}
+                  onExplode={n.type === 'composite' ? () => explode(n.id) : undefined}
+                />
+              </div>
+          );
           return (
             <div
               key={n.id}
@@ -708,7 +792,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                 tabIndex={readOnly ? undefined : 0}
               >
                 <span className={`${styles.ndot} ${def.badge === '源' ? styles.ndotSrc : ''}`} aria-hidden="true" />
-                {n.type === 'composite' ? (n.text || def.title) : def.title}
+                {(n.type === 'composite' || n.type === 'slider' || n.type === 'matrixHeatmapView' || isStudyStage(n.type)) ? (n.text || def.title) : def.title}
                 <span className={`${styles.nbadge} ${def.badge === '源' ? '' : styles.nbadgeSink}`}>{def.badge}</span>
                 {readOnly ? null : (
                   <button
@@ -722,26 +806,9 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                   </button>
                 )}
               </div>
-              <div className={styles.nbody}>
-                <Body
-                  node={n}
-                  values={inputValues(ctx, n)}
-                  self={evalOutput(ctx, n.id)}
-                  onParams={(patch) => updateParams(n.id, patch)}
-                  onLive={(outputs) => {
-                    const keys = Object.keys(outputs);
-                    if (!keys.length) return;
-                    // 输出可能序列化相同但内部模型已更新（如训练器的 boundary 快照），
-                    // 所以必须每次替换并触发渲染。
-                    for (const [port, value] of Object.entries(outputs)) {
-                      live.current.set(`${n.id}|${port}`, value);
-                    }
-                    setFrame((f) => f + 1);
-                  }}
-                  onText={(text) => patchNode(n.id, { text })}
-                  onExplode={n.type === 'composite' ? () => explode(n.id) : undefined}
-                />
-              </div>
+              {docked
+                ? <><p className={styles.dockedLabel}>结果与参数栏</p>{createPortal(body, resultHost!)}</>
+                : body}
               {visibleNodeIds ? null : inPorts.map((p, i) => (
                 <div
                   key={p.id}
@@ -772,7 +839,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
         })}
 
         {/* 墨迹层（最上层显示，不抢事件；仪器面板模式隐藏） */}
-        <svg className={styles.ink} width={INNER_W} height={INNER_H} aria-hidden="true">
+        <svg className={styles.ink} width={worldWidth} height={worldHeight} aria-hidden="true">
           {visibleNodeIds ? null : doc.strokes.map((s) => (
             <path key={s.id} d={strokePath(s.points)} fill="none" stroke={s.color} strokeWidth={s.width} strokeLinecap="round" strokeLinejoin="round" />
           ))}
@@ -819,4 +886,33 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
       ) : null}
     </div>
   );
+  if (!studyPanel) return canvas;
+  return (
+    <div className={styles.studyWorkspace} data-results={resultsOpen} data-mobile-results={mobileResults}>
+      <div className={styles.studyActions}>
+        <button type="button" onClick={fitAll}>适应全图</button>
+        <button type="button" className={styles.studyDesktopToggle} aria-expanded={resultsOpen}
+          onClick={() => setResultsOpen(!resultsOpen)}>{resultsOpen ? '收起结果栏' : '展开结果栏'}</button>
+        <button type="button" className={styles.studyMobileToggle} aria-pressed={mobileResults}
+          onClick={() => setMobileResults(!mobileResults)}>{mobileResults ? '查看画布' : '结果与参数'}</button>
+      </div>
+      <div className={styles.studyCanvas}>{canvas}</div>
+      <aside className={styles.studyResults} aria-label="结果与参数">
+        <h2>实验结果</h2>
+        <div ref={setResultHost} className={styles.studyPlots} />
+        <h2>常用参数</h2>
+        <div className={styles.studyParams}>{studyPanel.exposed_params.map((param) => {
+          const node = doc.nodes.find((item) => item.id === param.node_id);
+          if (!node) return null;
+          const value = node.params[param.param_key] ?? param.min ?? 0;
+          return <label key={`${param.node_id}:${param.param_key}`}>
+            <span>{param.label}</span><output>{value}</output>
+            <input type="range" aria-label={param.label || param.param_key} min={param.min} max={param.max} step={param.step} value={value}
+              onChange={(event) => updateParams(node.id, { [param.param_key]: Number(event.target.value) })} />
+          </label>;
+        })}</div>
+      </aside>
+    </div>
+  );
+
 }

@@ -1,3 +1,4 @@
+import { deepWorkshopDoc } from '@/canvas/deepWorkshop';
 /**
  * WorkshopPage.tsx —— 万象工坊（/workshop）
  *
@@ -23,7 +24,6 @@ import {
 import {
   DEEP_TEMPLATES,
   DEEP_TOPICS,
-  deepTemplateDoc,
   isDeepTemplateKind,
   type DeepTemplate,
   type DeepTemplateKind,
@@ -37,7 +37,7 @@ function makeNode(type: string, x: number, y: number, params: Record<string, num
 }
 
 function templateDoc(kind: TemplateKind): CanvasDoc {
-  if (isDeepTemplateKind(kind)) return deepTemplateDoc(kind);
+  if (isDeepTemplateKind(kind)) return deepWorkshopDoc(kind);
   if (isLab408Kind(kind) || isLab408WorkbenchKind(kind)) return lab408TemplateDoc(kind);
   if (kind !== 'projectile' && kind !== 'spring' && kind !== 'pendulum') return calculusTemplateDoc(kind);
   if (kind === 'projectile') {
@@ -163,20 +163,6 @@ function PendulumPreview(): JSX.Element {
       <path d="M120 48 A24 24 0 0 0 101 42" fill="none" stroke="var(--color-coral)" strokeWidth="1.2" />
       <text x="106" y="58" fontSize="7" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">θ0</text>
       <text x="150" y="120" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">T = 2π√(L/g)</text>
-    </svg>
-  );
-}
-
-function BlankPreview(): JSX.Element {
-  return (
-    <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
-      <rect x="78" y="28" width="104" height="64" rx="9" fill="rgba(255,255,255,.6)" stroke="var(--hairline-strong)" strokeDasharray="5 5" />
-      <path d="M130 50v20M120 60h20" stroke="var(--ink-300)" strokeWidth="1.6" strokeLinecap="round" />
-      <circle cx="102" cy="116" r="5" fill="var(--color-coral)" opacity=".8" />
-      <rect x="118" y="111" width="10" height="10" rx="2" fill="var(--ink-400)" />
-      <circle cx="142" cy="116" r="5" fill="none" stroke="var(--hairline-strong)" strokeWidth="1.6" />
-      <line x1="158" y1="116" x2="168" y2="116" stroke="var(--hairline-strong)" strokeDasharray="2 3" />
-      <circle cx="172" cy="116" r="2" fill="var(--color-coral)" />
     </svg>
   );
 }
@@ -387,7 +373,7 @@ export function WorkshopPage(): JSX.Element {
   }, [navigate]);
 
   const blank = useCallback(() => {
-    navigate('/canvas');
+    navigate('/canvas', { state: { blank: true } });
   }, [navigate]);
 
   const remove = useCallback(async (wid: string) => {
@@ -427,6 +413,7 @@ export function WorkshopPage(): JSX.Element {
           <aside className={styles.headNote}>
             <span>打开即玩，随时能改</span>
             <p>每个模板都附带探究问题、搭建步骤和观察记录。深度学习实验默认带仪器面板，可直接嵌入活页；四个专题从优化动力学一路到生成模型与强化学习。</p>
+            <button type="button" onClick={blank}>新建空白画布</button>
           </aside>
         </header>
 
@@ -510,15 +497,6 @@ export function WorkshopPage(): JSX.Element {
               ))}
               {category === 'all' ? deepShown.map((template) => <DeepCard key={template.kind} template={template} index={DEEP_TEMPLATES.indexOf(template)}
                 creating={creating !== null} onCreate={() => void fromTemplate(template.kind, template.name)} />) : null}
-              {!normalizedQuery ? <button type="button" className={`${styles.tplCard} ${styles.tplBlank}`} disabled={creating !== null} onClick={blank}>
-                <span className={styles.tplPreview} aria-hidden="true"><BlankPreview /></span>
-                <span className={styles.tplBody}>
-                  <span className={styles.tplMeta}>自由搭建 · Blank Canvas</span>
-                  <span className={styles.tplName}>空白画布</span>
-                  <span className={styles.tplDesc}>从调色板自己搭：对象、连线、笔记，全由你摆。</span>
-                  <span className={styles.tplGo}>新建 →</span>
-                </span>
-              </button> : null}
               {!shownCount ? <p className={styles.emptyLead} role="status">没有匹配“{query.trim()}”的模板；清空搜索或切换分类。</p> : null}
             </div>
           )}

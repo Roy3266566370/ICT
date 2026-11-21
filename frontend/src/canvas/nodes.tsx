@@ -1,3 +1,5 @@
+import { studyNodeDefs } from './StudyStageNodes';
+import { studyStages, type StudyStage } from './studyStages';
 /**
  * nodes.tsx —— 万象画布对象实现
  *
@@ -114,7 +116,7 @@ function SliderBody({ node, onParams }: NodeBodyProps): JSX.Element {
       <input
         type="range"
         className={styles.slider}
-        min={min} max={max} step={0.005}
+        min={min} max={max} step={node.params.step ?? 0.005}
         value={v}
         aria-label="滑杆值"
         onChange={(e) => onParams?.({ v: parseFloat(e.target.value) })}
@@ -783,6 +785,7 @@ export function nodePorts(node: CanvasNode, dir: 'in' | 'out'): readonly PortSpe
 }
 
 export const NODE_DEFS: Record<NodeType, NodeDef> = {
+  ...studyNodeDefs,
   ...DEEP_FIRST_DEFS,
   ...DEEP_CORE_DEFS,
   ...DEEP_ADVANCED_DEFS,
@@ -847,7 +850,13 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
 
 /** 调色板（按类别分组） */
 export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[] }[] = [
-  { label: '深度学习', types: ['dataset2dSource', 'pixelGridSource', 'tokenSeqSource', 'linearOp', 'activationOp', 'residualJoin', 'normOp', 'conv2dOp', 'attentionOp', 'mlpTrainer', 'boundaryView', 'matrixHeatmapView', 'gradFlowMeter', 'activationProbe', 'optimizerArena', 'attentionAB', 'kvCache', 'svmLab', 'resnetLab', 'sequenceMemory', 'multiheadLab', 'autoencoderLab', 'diffusionLab', 'qLearningLab'] },
+  { label: '深度学习 · 输入', types: ['dataset2dSource', 'pixelGridSource', 'tokenSeqSource', 'studyTokens'] },
+  { label: '深度学习 · 算子', types: ['linearOp', 'activationOp', 'residualJoin', 'normOp', 'conv2dOp', 'attentionOp',
+    ...(Object.keys(studyStages) as StudyStage[]).filter((type) => type !== 'studyTokens' && studyStages[type].outputs.length > 0)] },
+  { label: '深度学习 · 训练与更新', types: ['mlpTrainer', 'optimizerArena', 'svmLab', 'qLearningLab'] },
+  { label: '深度学习 · 观察', types: ['boundaryView', 'matrixHeatmapView', 'gradFlowMeter',
+    ...(Object.keys(studyStages) as StudyStage[]).filter((type) => studyStages[type].outputs.length === 0), 'activationProbe', 'attentionAB',
+    'kvCache', 'resnetLab', 'sequenceMemory', 'multiheadLab', 'autoencoderLab', 'diffusionLab'] },
   { label: '高数', types: ['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor'] },
   { label: '408', types: ['lab408Workbench', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet'] },
   { label: '源', types: ['matrixSource', 'slider', 'ticker'] },

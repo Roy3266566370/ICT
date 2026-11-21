@@ -133,6 +133,7 @@ export function convolution(a: Matrix, kernel: Matrix, stride = 1, padding = 0, 
     return pooled;
 }
 export interface Model {
+    activations?: [number, number];
     w: Matrix[];
     b: number[][];
     epoch: number;
@@ -143,10 +144,10 @@ export interface Model {
         number
     ][];
 }
-export function createModel(width = 6, seed = 7): Model { const dims = [2, Math.round(clamp(width, 1, 8)), 2, 1]; return { w: dims.slice(1).map((d, i) => weights(dims[i]!, d, seed + i * 41)), b: dims.slice(1).map(d => Array(d).fill(0)), epoch: 0, seed, grad: [[0, 0, 0]], history: [] }; }
+export function createModel(width = 6, seed = 7, second = 2, firstActivation = 3, secondActivation = 3): Model { const dims = [2, Math.round(clamp(width, 1, 8)), Math.round(clamp(second, 1, 8)), 1]; return { w: dims.slice(1).map((d, i) => weights(dims[i]!, d, seed + i * 41)), b: dims.slice(1).map(d => Array(d).fill(0)), epoch: 0, seed, activations: [firstActivation, secondActivation], grad: [[0, 0, 0]], history: [] }; }
 export function forward(m: Model, x: number[], dropout = 0, random = rng(1)) {
     const acts = [x], raw: number[][] = [], masks: number[][] = [];
-    m.w.forEach((w, l) => { const z = m.b[l]!.map((b, j) => b + acts[l]!.reduce((s, a, i) => s + a * w[i]![j]!, 0)); const mask = z.map(() => l < 2 && dropout ? (random() >= dropout ? 1 / (1 - dropout) : 0) : 1); raw.push(z); masks.push(mask); acts.push(z.map((v, j) => activation(v, l === 2 ? 2 : 3)[0]! * mask[j]!)); });
+    m.w.forEach((w, l) => { const z = m.b[l]!.map((b, j) => b + acts[l]!.reduce((s, a, i) => s + a * w[i]![j]!, 0)); const mask = z.map(() => l < 2 && dropout ? (random() >= dropout ? 1 / (1 - dropout) : 0) : 1); raw.push(z); masks.push(mask); acts.push(z.map((v, j) => activation(v, l === 2 ? 2 : m.activations?.[l] ?? 3)[0]! * mask[j]!)); });
     return { acts, raw, masks, probability: acts[3]![0]! };
 }
 export function gradients(m: Model, points: DatasetPoint[], l1 = 0, l2 = 0, dropout = 0, random = rng(1)) {
@@ -159,7 +160,7 @@ export function gradients(m: Model, points: DatasetPoint[], l1 = 0, l2 = 0, drop
         for (let l = 2; l >= 0; l--) {
             delta.forEach((d, j) => { b[l]![j]! += d / points.length; f.acts[l]!.forEach((a, i) => { w[l]![i]![j]! += a * d / points.length; }); });
             if (l)
-                delta = m.w[l]!.map((r, i) => r.reduce((s, v, j) => s + v * delta[j]!, 0) * activation(f.raw[l - 1]![i]!, 3)[1]! * f.masks[l - 1]![i]!);
+                delta = m.w[l]!.map((r, i) => r.reduce((s, v, j) => s + v * delta[j]!, 0) * activation(f.raw[l - 1]![i]!, m.activations?.[l - 1] ?? 3)[1]! * f.masks[l - 1]![i]!);
         }
     }
     loss /= Math.max(1, points.length);
@@ -198,6 +199,16 @@ export function trainingOutputs(m: Model, points: DatasetPoint[]): Record<'bound
 }
 export function pixelData(p: Record<string, number>): Matrix { return Array.from({ length: 12 }, (_, i) => Array.from({ length: 12 }, (_, j) => clamp(p[`pixel_${i}_${j}`]! ?? (p.preset === 1 ? (Math.hypot(i - 5.5, j - 5.5) < 4 ? 1 : 0) : p.preset === 2 ? (i === j || i + j === 11 ? 1 : 0) : (j >= 5 && j <= 6 ? 1 : 0)), 0, 1))); }
 export function kernelData(p: Record<string, number>): Matrix { const presets = [[0, -1, 0, -1, 4, -1, 0, -1, 0], [0, -1, 0, -1, 5, -1, 0, -1, 0], Array(9).fill(1 / 9)]; return Array.from({ length: 3 }, (_, i) => Array.from({ length: 3 }, (_, j) => clamp(p[`k${i}${j}`]! ?? presets[Math.round(clamp(p.kernel ?? 0, 0, 2))]![i * 3 + j]!, -10, 10))); }
+export function mlpSetup(node: CanvasNode, input: (port: string) => PortValue | null) {
+    const model = matrix(input('model'))?.[0], training = matrix(input('training'))?.[0];
+    if (node.params.wired && ((model?.length !== 4 && model?.length !== 2) || training?.length !== 5))
+        return null;
+    return {
+        ...node.params,
+        ...(model ? { width: model[0], second: model[1], act1: model[2] ?? 3, act2: model[3] ?? 3 } : {}),
+        ...(training ? { lr: training[0], batch: training[1], l1: training[2], l2: training[3], dropout: training[4] } : {}),
+    } as Record<string, number>;
+}
 export function deepCoreOutput(node: CanvasNode, input: (port: string) => PortValue | null, portId: string): PortValue | null {
     const p = node.params, a = matrix(input('in'));
     if (node.type === 'dataset2dSource')
@@ -213,7 +224,8 @@ export function deepCoreOutput(node: CanvasNode, input: (port: string) => PortVa
     }
     if (node.type === 'mlpTrainer') {
         const d = input('in');
-        return d?.kind === 'dataset2d' ? (trainingOutputs(createModel(p.width, p.seed), d.points) as Record<string, PortValue>)[portId] ?? null : null;
+        const cfg = mlpSetup(node, input);
+        return d?.kind === 'dataset2d' && cfg ? (trainingOutputs(createModel(cfg.width, cfg.seed, cfg.second, cfg.act1, cfg.act2), d.points) as Record<string, PortValue>)[portId] ?? null : null;
     }
     if (node.type === 'residualJoin') {
         const x = matrix(input('A')), y = matrix(input('B'));

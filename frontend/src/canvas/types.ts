@@ -1,3 +1,4 @@
+import type { StudyStage } from './studyStages.ts';
 /**
  * types.ts —— 万象画布数据模型
  *
@@ -14,7 +15,7 @@ export interface DatasetPoint { x: number; y: number; label: number; split: 'tra
 
 export type PortValue =
   | { kind: 'tensor2d'; data: number[][] }
-  | { kind: 'dataset2d'; points: DatasetPoint[] }
+  | { kind: 'dataset2d'; points: DatasetPoint[]; featureMap?: 'linear' | 'quadratic' }
   | { kind: 'function'; expression: string; a: number; b: number; c: number }
   | { kind: 'matrix2'; a: number; b: number; c: number; d: number }
   | { kind: 'scalar'; v: number }
@@ -23,6 +24,7 @@ export type PortValue =
 export type ValueKind = PortValue['kind'];
 
 export type NodeType =
+  | StudyStage
   | 'activationProbe' | 'optimizerArena' | 'attentionAB' | 'kvCache'
   | 'dataset2dSource' | 'pixelGridSource' | 'tokenSeqSource'
   | 'linearOp' | 'activationOp' | 'residualJoin' | 'normOp' | 'conv2dOp' | 'attentionOp'

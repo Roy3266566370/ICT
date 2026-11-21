@@ -18,8 +18,9 @@ import { mul2, paramsM, rot2, IDENT } from './math.ts';
 import { PHYS_TYPES, bodyAt, physCycle, type PhysNodeType } from './physics.ts';
 import { functionValue, compileFunction, derivativeAt, integrate, approachLimit, taylorPolynomial } from './calculus.ts';
 import { DEEP_NODE_TYPES, validDeepValue } from './deepPorts.ts';
+import { isStudyStage, studyOutput } from './studyStages.ts';
 import { deepFirstOutput } from './deepFirst.ts';
-import { deepCoreOutput } from './deepCore.ts';
+import { deepCoreOutput, mlpSetup } from './deepCore.ts';
 import { deepAdvancedOutput } from './deepAdvanced.ts';
 
 export interface EvalCtx {
@@ -84,10 +85,29 @@ function subCtxOf(ctx: EvalCtx, node: CanvasNode): EvalCtx | null {
 }
 
 function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | null {
+  if (isStudyStage(node.type)) {
+    const input = (port: string) => evalInput(ctx, node, port);
+    if (node.type === 'studyOptim' && ['地形', '起点 x', '起点 y', '学习率', '步数'].every((id) => input(id)?.kind === 'scalar')) {
+      const live = ctx.live.get(`${node.id}|step`);
+      if (live?.kind === 'scalar' && live.v >= 0) {
+        return studyOutput(node, (id) => id === '步数' ? live : input(id), portId);
+      }
+    }
+    return studyOutput(node, input, portId);
+  }
   if (DEEP_NODE_TYPES.has(node.type)) {
+    const input = (port: string) => evalInput(ctx, node, port);
+    if (node.params.wired) {
+      if (node.type === 'mlpTrainer' && (input('in')?.kind !== 'dataset2d' || !mlpSetup(node, input))) return null;
+      if (node.type === 'svmLab' && (input('in')?.kind !== 'dataset2d' || input('control')?.kind !== 'scalar')) return null;
+      if (node.type === 'qLearningLab') {
+        const env = input('environment');
+        if (env?.kind !== 'tensor2d' || env.data.length !== 6 || !env.data.every((row) => row.length === 6)
+          || ['control', 'mode', 'gamma', 'alpha'].some((id) => input(id)?.kind !== 'scalar')) return null;
+      }
+    }
     const runtime = ctx.live.get(`${node.id}|${portId}`);
     if (runtime && validDeepValue(runtime)) return runtime;
-    const input = (port: string) => evalInput(ctx, node, port);
     try {
       const value = deepFirstOutput(node, input, portId) ?? deepCoreOutput(node, input, portId) ?? deepAdvancedOutput(node, input, portId);
       return validDeepValue(value) ? value : null;
