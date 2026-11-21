@@ -542,6 +542,237 @@ def _pptx_labels(box: Sequence[float], entries: Sequence[dict[str, Any]],
     return _dedupe_labels(labels)
 
 
+_PPTX_AUTO_SHAPES: dict[str, str] = {}
+
+
+def _shape_kind(shape: Any) -> str:
+    """autoshape → 流程图节点形状；非 autoshape → rect。"""
+    if not _PPTX_AUTO_SHAPES:
+        try:
+            from pptx.enum.shapes import MSO_SHAPE
+            _PPTX_AUTO_SHAPES.update({
+                str(MSO_SHAPE.DIAMOND): "diamond",
+                str(MSO_SHAPE.OVAL): "oval",
+                str(MSO_SHAPE.ROUNDED_RECTANGLE): "rounded",
+                str(MSO_SHAPE.SNIP_ROUNDED_RECTANGLE): "rounded",
+            })
+        except Exception:  # noqa: BLE001
+            _PPTX_AUTO_SHAPES[""] = "rect"
+    try:
+        return _PPTX_AUTO_SHAPES.get(str(shape.auto_shape_type), "rect")
+    except Exception:  # noqa: BLE001
+        return "rect"
+
+
+_DRAWING_NS = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+
+
+def _open_arrow_path(element: Any) -> Any:
+    if element is None:
+        return None
+    for end in ("headEnd", "tailEnd"):
+        marker = element.find(".//" + _DRAWING_NS + end)
+        if marker is not None and marker.get("type") not in (None, "none"):
+            break
+    else:
+        return None
+    paths = element.findall(".//" + _DRAWING_NS + "custGeom/" + _DRAWING_NS
+                            + "pathLst/" + _DRAWING_NS + "path")
+    if len(paths) == 1 and paths[0].find(_DRAWING_NS + "close") is None:
+        return paths[0]
+    return None
+
+
+def _connector_ends(entry: dict[str, Any], slide_w: float,
+                    slide_h: float) -> dict[str, Any] | None:
+    """连接线 → 幻灯片级 0..1 端点 + 可选精确连接点（stCxn/endCxn 形状 id）。
+
+    没有连接点时用连接线自身 bbox + ``flipH/flipV`` 近似首尾。
+    """
+    element = entry["shape"].element
+    ends: dict[str, Any] = {}
+    try:
+        from ..parsers.pptx_parser import _A_NS
+        st = element.find(".//" + _A_NS + "stCxn")
+        ed = element.find(".//" + _A_NS + "endCxn")
+        if st is not None:
+            ends["begin_id"] = str(st.get("id") or "")
+        if ed is not None:
+            ends["end_id"] = str(ed.get("id") or "")
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        raw = entry.get("bbox") or []
+        x0, y0 = float(raw[0]), float(raw[1])
+        x1, y1 = x0 + float(raw[2]), y0 + float(raw[3])
+        xfrm = element.find(".//{http://schemas.openxmlformats.org/drawingml/2006/main}xfrm")
+        flip_h = xfrm is not None and str(xfrm.get("flipH") or "") in ("1", "true")
+        flip_v = xfrm is not None and str(xfrm.get("flipV") or "") in ("1", "true")
+        bx, ex = (x1, x0) if flip_h else (x0, x1)
+        by, ey = (y1, y0) if flip_v else (y0, y1)
+        path = _open_arrow_path(element)
+        if path is not None:
+            points = path.findall(".//" + _DRAWING_NS + "pt")
+            pw, ph = float(path.get("w", "0")), float(path.get("h", "0"))
+            if len(points) < 2 or pw <= 0 or ph <= 0:
+                return None
+            start, finish = points[0], points[-1]
+            bx, ex = (bx + (ex - bx) * float(pt.get("x")) / pw for pt in (start, finish))
+            by, ey = (by + (ey - by) * float(pt.get("y")) / ph for pt in (start, finish))
+        head = element.find(".//" + _DRAWING_NS + "headEnd")
+        tail = element.find(".//" + _DRAWING_NS + "tailEnd")
+        if (head is not None and head.get("type") not in (None, "none")
+                and (tail is None or tail.get("type") in (None, "none"))):
+            bx, ex = ex, bx
+            by, ey = ey, by
+            ends["begin_id"], ends["end_id"] = ends.get("end_id"), ends.get("begin_id")
+        ends["begin"] = [round(bx / slide_w, 4), round(by / slide_h, 4)]
+        ends["end"] = [round(ex / slide_w, 4), round(ey / slide_h, 4)]
+    except Exception:  # noqa: BLE001
+        if "begin" not in ends:
+            return None
+    return ends
+
+
+def _rel_box(box: Sequence[float], region_box: Sequence[float]) -> list[float]:
+    w = max(1e-6, region_box[2] - region_box[0])
+    h = max(1e-6, region_box[3] - region_box[1])
+    return [round(max(0.0, min(1.0, (box[0] - region_box[0]) / w)), 4),
+            round(max(0.0, min(1.0, (box[1] - region_box[1]) / h)), 4),
+            round(max(0.0, min(1.0, (box[2] - region_box[0]) / w)), 4),
+            round(max(0.0, min(1.0, (box[3] - region_box[1]) / h)), 4)]
+
+
+def _rel_pt(point: Sequence[float], region_box: Sequence[float]) -> list[float]:
+    w = max(1e-6, region_box[2] - region_box[0])
+    h = max(1e-6, region_box[3] - region_box[1])
+    return [round(max(0.0, min(1.0, (point[0] - region_box[0]) / w)), 4),
+            round(max(0.0, min(1.0, (point[1] - region_box[1]) / h)), 4)]
+
+
+def _is_connector(item: dict[str, Any]) -> bool:
+    tag = str(getattr(getattr(item["shape"], "element", None), "tag", "") or "")
+    return tag.endswith("}cxnSp") or _open_arrow_path(item["shape"].element) is not None
+
+
+def _pptx_diagram(items_in: Sequence[dict[str, Any]],
+                  connectors_in: Sequence[dict[str, Any]],
+                  region_box: Sequence[float], slide_w: float,
+                  slide_h: float) -> dict[str, Any] | None:
+    """带文字形状 + 连接线（幻灯片级坐标）→ 区域相对坐标的确定性 diagram。"""
+    from ..living.diagram import diagram_from_shapes
+
+    items = [{
+        "entry_id": str(getattr(item["shape"], "shape_id", "") or ""),
+        "box": _rel_box(item["box"], region_box),
+        "text": item["text"],
+        "shape_kind": _shape_kind(item["shape"]),
+    } for item in items_in
+        if item.get("text") and isinstance(item.get("box"), Sequence)]
+    connectors: list[dict[str, Any]] = []
+    for item in connectors_in:
+        ends = _connector_ends(item, slide_w, slide_h)
+        if ends is None:
+            continue
+        connectors.append({
+            "begin": _rel_pt(ends["begin"], region_box),
+            "end": _rel_pt(ends["end"], region_box),
+            "begin_id": ends.get("begin_id"),
+            "end_id": ends.get("end_id"),
+        })
+    return diagram_from_shapes(items, connectors)
+
+
+_CONNECT_NEAR = 0.10  # 幻灯片归一化坐标下，连接线端点吸附节点的最大距离
+
+
+def _pptx_connector_clusters(entries: Sequence[dict[str, Any]],
+                             slide_w: float, slide_h: float
+                             ) -> list[tuple[list[dict[str, Any]], list[dict[str, Any]]]]:
+    """顶层「文本框 + 连接线」聚类（无组合的流程图）。
+
+    每条连接线通过 stCxn/endCxn 或端点邻近解析两端节点；共享节点的
+    连接线并查成簇。返回 ``(节点条目, 连接线条目)`` 列表。
+    """
+    connectors = [item for item in entries if _is_connector(item)]
+    if not connectors:
+        return []
+    sid_map = {str(getattr(item["shape"], "shape_id", "") or ""): item
+               for item in entries if not _is_connector(item)}
+    nodes = [item for item in entries
+             if not _is_connector(item) and item.get("text") and item.get("box")]
+
+    def near(point: Sequence[float]) -> dict[str, Any] | None:
+        best: tuple[float, dict[str, Any] | None] = (float("inf"), None)
+        for item in nodes:
+            box = item["box"]
+            cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+            dist = (point[0] - cx) ** 2 + (point[1] - cy) ** 2
+            if dist < best[0]:
+                best = (dist, item)
+        return best[1] if best[0] <= _CONNECT_NEAR ** 2 else None
+
+    # 连接线 → 两端节点；并查集按共享节点聚类
+    parent = list(range(len(connectors)))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(a: int, b: int) -> None:
+        parent[find(a)] = find(b)
+
+    ends_of: list[tuple[dict[str, Any] | None, dict[str, Any] | None]] = []
+    owner_of: dict[int, int] = {}
+    for index, item in enumerate(connectors):
+        ends = _connector_ends(item, slide_w, slide_h)
+        begin = ends.get("begin") if ends else None
+        end = ends.get("end") if ends else None
+        a = sid_map.get(ends.get("begin_id", "")) or (near(begin) if begin else None)
+        b = sid_map.get(ends.get("end_id", "")) or (near(end) if end else None)
+        ends_of.append((a, b))
+        for node in (a, b):
+            if node is None:
+                continue
+            key = id(node)
+            if key in owner_of:
+                union(index, owner_of[key])
+            else:
+                owner_of[key] = index
+
+    clusters: dict[int, tuple[set[int], list[dict[str, Any]]]] = {}
+    for index, (a, b) in enumerate(ends_of):
+        if a is None or b is None or a is b:
+            continue  # 两端都挂不上节点 → 不是流程图边
+        root = find(index)
+        ids, bucket = clusters.setdefault(root, (set(), []))
+        ids.update(id(node) for node in (a, b))
+        bucket.append(connectors[index])
+    out: list[tuple[list[dict[str, Any]], list[dict[str, Any]]]] = []
+    for ids, bucket in clusters.values():
+        member = [item for item in nodes if id(item) in ids]
+        if len(member) >= 2:
+            out.append((member, bucket))
+    return out
+
+
+def _cluster_box(items: Sequence[dict[str, Any]],
+                 connectors: Sequence[dict[str, Any]]) -> list[float] | None:
+    boxes = [item["box"] for item in [*items, *connectors]]
+    boxes = [b for b in boxes if isinstance(b, Sequence) and len(b) == 4]
+    if not boxes:
+        return None
+    x0 = min(b[0] for b in boxes); y0 = min(b[1] for b in boxes)
+    x1 = max(b[2] for b in boxes); y1 = max(b[3] for b in boxes)
+    if x1 - x0 < 0.02 or y1 - y0 < 0.02:
+        return None
+    pad = 0.01
+    return [max(0.0, x0 - pad), max(0.0, y0 - pad),
+            min(1.0, x1 + pad), min(1.0, y1 + pad)]
+
+
 def regions_for_pptx_slide(slide: Any, slide_w: float, slide_h: float,
                            preview: Image.Image, lab_dir: Path, file_id: str,
                            page_no: int) -> list[dict[str, Any]]:
@@ -580,7 +811,8 @@ def regions_for_pptx_slide(slide: Any, slide_w: float, slide_h: float,
     def add(kind: str, box: Sequence[float], *, source: str, text: str = "",
             caption: str = "", label: str = "", confidence: float = 0.5,
             latex: str | None = None,
-            labels: list[dict[str, Any]] | None = None) -> None:
+            labels: list[dict[str, Any]] | None = None,
+            diagram: dict[str, Any] | None = None) -> None:
         nonlocal counter
         if not _accepts(regions, box):
             return
@@ -601,6 +833,7 @@ def regions_for_pptx_slide(slide: Any, slide_w: float, slide_h: float,
             "latex": latex,
             "labels": labels or [],
             "block_id": None,
+            **({"diagram": diagram} if diagram else {}),
         })
 
     # Native groups with several labelled children are the strongest signal
@@ -626,8 +859,60 @@ def regions_for_pptx_slide(slide: Any, slide_w: float, slide_h: float,
                                 slide_w, slide_h)
         add("diagram", entry["box"], source="pptx_group", text=text, caption=caption,
             label=_first_line(caption or text) or "分组图示", confidence=0.64,
-            labels=_pptx_labels(entry["box"], entries, descendants_of=entry["shape_index"]))
+            labels=_pptx_labels(entry["box"], entries, descendants_of=entry["shape_index"]),
+            diagram=_pptx_diagram(
+                [d for d in descendants if not _is_connector(d)],
+                [d for d in descendants if _is_connector(d)],
+                entry["box"], slide_w, slide_h))
         consumed.update(item["element_id"] for item in descendants)
+
+    # 顶层「文本框 + 连接线」簇（没组合起来的流程图）→ 确定性 diagram
+    for member, connectors in _pptx_connector_clusters(entries, slide_w, slide_h):
+        if any(item["element_id"] in consumed for item in member):
+            continue
+        box = _cluster_box(member, connectors)
+        if box is None:
+            continue
+        diagram = _pptx_diagram(member, connectors, box, slide_w, slide_h)
+        if diagram is None:
+            continue
+        text = _join_text([item["text"] for item in member])
+        add("diagram", box, source="pptx_connectors", text=text,
+            label=_first_line(text) or "流程图", confidence=0.7,
+            labels=_pptx_labels(box, member), diagram=diagram)
+        consumed.update(item["element_id"] for item in member)
+        consumed.update(item["element_id"] for item in connectors)
+
+    # Adjacent short text boxes are candidates only; do not infer edges from position.
+    candidates = [
+        item for item in entries
+        if item["group_path"] is None and item["element_id"] not in consumed
+        and item["kind"] in ("text", "shape") and item["box"]
+        and 0.003 <= item["area"] <= 0.08 and 0 < len(item["text"]) <= 40
+        and "\n" not in item["text"]
+    ]
+
+    def adjacent(left, right):
+        a, b = left["box"], right["box"]
+        gap_x = max(0, a[0] - b[2], b[0] - a[2])
+        gap_y = max(0, a[1] - b[3], b[1] - a[3])
+        return (gap_x <= 0.14 and abs(a[1] + a[3] - b[1] - b[3]) <= 0.07
+                or gap_y <= 0.14 and abs(a[0] + a[2] - b[0] - b[2]) <= 0.10)
+
+    while candidates and len(regions) < MAX_REGIONS_PER_PAGE:
+        cluster = [candidates.pop(0)]
+        for item in cluster:
+            neighbors = [candidate for candidate in candidates if adjacent(item, candidate)]
+            cluster.extend(neighbors)
+            for neighbor in neighbors:
+                candidates.remove(neighbor)
+        if not 3 <= len(cluster) <= 12:
+            continue
+        box = _cluster_box(cluster, [])
+        if box is not None:
+            text = _join_text([item["text"] for item in cluster])
+            add("diagram", box, source="pptx_text_cluster", text=text,
+                label=_first_line(text), confidence=0.45, labels=_pptx_labels(box, cluster))
 
     # SmartArt is opaque to python-pptx; keep the exact shape box for the
     # vision pass instead of dropping the diagram.

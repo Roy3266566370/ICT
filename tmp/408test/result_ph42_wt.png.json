@@ -1,0 +1,527 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_52f1ed9f83bc4646b017176873651647",
+    "title": "ph42_wt.png",
+    "created_at": "2026-11-19T11:55:37Z",
+    "updated_at": "2026-11-19T11:55:37Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph42_wt.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 85,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题力学\n48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。\n求波速（）。\nA.2.5m/s B. 5m/s C.10m/sD.20m/s",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题力学\n48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。\n求波速（）。\nA.2.5m/s B. 5m/s C.10m/sD.20m/s",
+          "math_text": null,
+          "ocr_confidence": 0.9892258094377514,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph42_wt.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "48",
+        "title": "第 48 题 · 大学物理期末考试题力学",
+        "text": "大学物理期末考试题力学\n48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。\n求波速（）。\nA.2.5m/s B. 5m/s C.10m/sD.20m/s",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题力学 48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。 求波速（）。 A.2.5m/s B. 5m/s C.10m/sD.20m/s"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题力学\n48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。\n求波速（）。\nA.2.5m/s B. 5m/s C.10m/sD.20m/s",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "行波方程、波速与相位差",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。 求波速（）。 A.2.5m/s B. 5m/s C.10m/sD.20m/s"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_A",
+              "label": "振幅/面积 A",
+              "value": 0.02,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。 求波速（）。 A.2.5m/s B. 5m/s C.10m/sD.20m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_lam",
+              "label": "波长 λ",
+              "value": 2.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。 求波速（）。 A.2.5m/s B. 5m/s C.10m/sD.20m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_f",
+              "label": "频率 f",
+              "value": 5.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。 求波速（）。 A.2.5m/s B. 5m/s C.10m/sD.20m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_phi",
+              "label": "初相 φ",
+              "value": 0.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。 求波速（）。 A.2.5m/s B. 5m/s C.10m/sD.20m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_x1",
+              "label": "第一点 x1",
+              "value": 0.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。 求波速（）。 A.2.5m/s B. 5m/s C.10m/sD.20m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_x2",
+              "label": "第二点 x2",
+              "value": 1.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。 求波速（）。 A.2.5m/s B. 5m/s C.10m/sD.20m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_t",
+              "label": "时间 t",
+              "value": 0.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。 求波速（）。 A.2.5m/s B. 5m/s C.10m/sD.20m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{y = A sin(kx − ωt + φ)；v = λf；Δφ = 2πΔx/λ}",
+              "plain": "y = A sin(kx − ωt + φ)；v = λf；Δφ = 2πΔx/λ",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "wave",
+          "physics_mode": "wave_travel",
+          "raw": "大学物理期末考试题力学\n48.一列简谐行波振幅A=0.02m，波长入=2m，频率f=5Hz。\n求波速（）。\nA.2.5m/s B. 5m/s C.10m/sD.20m/s",
+          "defaults": {
+            "A": 0.02,
+            "lam": 2.0,
+            "f": 5.0,
+            "phi": 0.0,
+            "x1": 0.0,
+            "x2": 1.0,
+            "t": 0.0
+          },
+          "params": [
+            {
+              "id": "A",
+              "label": "振幅 A (m)",
+              "kind": "number",
+              "min": 0.001,
+              "max": 10,
+              "step": 0.001,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "lam",
+              "label": "波长 λ (m)",
+              "kind": "number",
+              "min": 0.01,
+              "max": 100,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "f",
+              "label": "频率 f (Hz)",
+              "kind": "number",
+              "min": 0.01,
+              "max": 10000,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "phi",
+              "label": "初相 φ (°)",
+              "kind": "number",
+              "min": -360,
+              "max": 360,
+              "step": 1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "x1",
+              "label": "第一点 x1 (m)",
+              "kind": "number",
+              "min": 0,
+              "max": 100,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "x2",
+              "label": "第二点 x2 (m)",
+              "kind": "number",
+              "min": 0,
+              "max": 100,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "t",
+              "label": "时刻 t (s)",
+              "kind": "number",
+              "min": 0,
+              "max": 100,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "wave",
+            "mode": "wave_travel",
+            "answer": "波速 v=10 m/s，周期 T=0.2 s，相位差 Δφ=3.142 rad；y1=0 m，y2=2.449e-18 m。",
+            "answer_value": 10.0,
+            "metrics": [
+              {
+                "id": "v",
+                "label": "波速",
+                "value": "10 m/s",
+                "tone": "accent"
+              },
+              {
+                "id": "T",
+                "label": "周期",
+                "value": "0.2 s"
+              },
+              {
+                "id": "dphi",
+                "label": "相位差",
+                "value": "3.142 rad"
+              },
+              {
+                "id": "y1",
+                "label": "x1 处位移",
+                "value": "0 m"
+              },
+              {
+                "id": "y2",
+                "label": "x2 处位移",
+                "value": "2.449e-18 m"
+              }
+            ],
+            "checks": [
+              {
+                "id": "speed",
+                "label": "波速关系",
+                "status": "pass",
+                "detail": "v = λf"
+              },
+              {
+                "id": "phase",
+                "label": "相位差",
+                "status": "pass",
+                "detail": "Δφ = 2πΔx/λ"
+              }
+            ],
+            "notes": [
+              "一维简谐行波，振幅不衰减；相位差按同一时刻两点相位计算。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "波参数",
+                "detail": "v=10 m/s，T=0.2 s",
+                "values": {
+                  "v": 10.0,
+                  "T": 0.2
+                }
+              },
+              {
+                "index": 1,
+                "label": "相位差",
+                "detail": "Δφ=3.142 rad",
+                "values": {
+                  "dphi": 3.141592653589793
+                }
+              }
+            ],
+            "scene": {
+              "type": "wave",
+              "A": 0.02,
+              "lam": 2.0,
+              "f": 5.0,
+              "phi": 0.0,
+              "x1": 0.0,
+              "x2": 1.0,
+              "t": 0.0,
+              "v": 10.0,
+              "T": 0.2,
+              "k": 3.141592653589793,
+              "omega": 31.41592653589793,
+              "phase": 3.141592653589793,
+              "y1": 0.0,
+              "y2": 2.4492935982947064e-18
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "波速 v=10 m/s，周期 T=0.2 s，相位差 Δφ=3.142 rad；y1=0 m，y2=2.449e-18 m。",
+          "answer_value": 10.0,
+          "answer_values": [
+            10.0,
+            0.2,
+            3.142,
+            0.0
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "波参数",
+              "detail": "v=10 m/s，T=0.2 s"
+            },
+            {
+              "id": "phy_1",
+              "title": "相位差",
+              "detail": "Δφ=3.142 rad"
+            }
+          ],
+          "conditions": [
+            "按行波方程、波速与相位差模型计算。"
+          ],
+          "limitations": [
+            "一维简谐行波，振幅不衰减；相位差按同一时刻两点相位计算。",
+            "常见单位会先换算为 SI；未给出的边界条件不会被自动补造。"
+          ]
+        },
+        "states": {
+          "params": {
+            "A": 0.02,
+            "lam": 2.0,
+            "f": 5.0,
+            "phi": 0.0,
+            "x1": 0.0,
+            "x2": 1.0,
+            "t": 0.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "A": 0.02,
+                "lam": 2.0,
+                "f": 5.0,
+                "phi": 0.0,
+                "x1": 0.0,
+                "x2": 1.0,
+                "t": 0.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "5c55949ea0af41b2"
+}

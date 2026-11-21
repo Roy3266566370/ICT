@@ -159,16 +159,28 @@ export function planRegionInsert(
     return { blocks, blockAnchorId, canvasAnchorId, variables };
   }
   const blockId = newId();
-  return {
-    blocks: [{
-      id: blockId,
-      type: 'figure',
-      data: {
-        asset_id: region.asset_id,
-        caption: (region.caption || region.label || '').slice(0, 300),
-      },
-    }],
-    blockAnchorId: blockId,
-    variables,
-  };
+  const blocks: PageBlock[] = [{
+    id: blockId,
+    type: 'figure',
+    data: {
+      asset_id: region.asset_id,
+      caption: (region.caption || region.label || '').slice(0, 300),
+    },
+  }];
+  // P2：已有 diagram 数据 → 同时插可编辑流程图块（figure 保真 + diagram 交互）。
+  if (region.diagram && !region.block_id) {
+    const diagramBlockId = newId();
+    blocks.push({ id: diagramBlockId, type: 'diagram', data: { doc: region.diagram } });
+    return { blocks, blockAnchorId: blockId, canvasAnchorId: diagramBlockId, variables };
+  }
+  if (region.diagram && region.block_id) {
+    // 保真块已存在：只补 diagram 交互块
+    const diagramBlockId = newId();
+    return {
+      blocks: [{ id: diagramBlockId, type: 'diagram', data: { doc: region.diagram } }],
+      canvasAnchorId: diagramBlockId,
+      variables,
+    };
+  }
+  return { blocks, blockAnchorId: blockId, variables };
 }

@@ -1,8 +1,9 @@
 /** 万象活页的前端权威类型（与后端 `page.1` 文档逐字对应）。 */
 import type { LabProblem } from '@/labs/types';
+import type { DiagramDoc } from './diagram';
 
 export type PageBlockType =
-  | 'page' | 'text' | 'figure' | 'formula' | 'section'
+  | 'page' | 'text' | 'figure' | 'formula' | 'section' | 'diagram'
   | 'lab' | 'canvas' | 'quiz' | 'checkpoint' | 'embed' | 'callout';
 
 /** 页面级活变量（Phase 1：只做 number/select 标量）。 */
@@ -69,6 +70,8 @@ export interface PageRegion {
   block_id?: string;
   /** 交互函数图画布块（与 formula 保真块分开，避免重复插入）。 */
   canvas_block_id?: string;
+  /** 流程图结构（PPTX 确定性转译或视觉模型识别结果）。 */
+  diagram?: DiagramDoc;
 }
 
 export const REGION_LABELS: Record<PageRegionKind, string> = {
@@ -104,6 +107,7 @@ export type PageBlock =
   | BlockBase<'text', { md: string; collapsed?: boolean }>
   | BlockBase<'figure', { asset_id: string; caption: string }>
   | BlockBase<'formula', { latex: string }>
+  | BlockBase<'diagram', { doc: DiagramDoc }>
   | BlockBase<'section', { heading: string; level: 1 | 2 | 3 }>
   | BlockBase<'lab', { problem: LabProblem; engine_params: Record<string, unknown>; collapsed: boolean }>
   | BlockBase<'canvas', { doc: Record<string, unknown> }>
@@ -188,6 +192,8 @@ export interface LivingInsights {
       quiz_guesses: number[];
       checkpoint_attempts: number;
       checkpoint_correct: number;
+      diagram_step_max: number;
+      diagram_completed: number;
       last_active: string | null;
     }
   >;

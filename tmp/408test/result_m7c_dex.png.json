@@ -1,0 +1,313 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_b47f24e849874ba18010853ab3a16322",
+    "title": "m7c_dex.png",
+    "created_at": "2026-11-20T04:04:34Z",
+    "updated_at": "2026-11-20T04:04:34Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "m7c_dex.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 48,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "file_id": "f1",
+          "page": 1,
+          "text": "线性代数期末试卷计算题\n3.（8分）求行列式\n[2 1 0;1 2 1;0 1 2|的值。\n解：",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "线性代数期末试卷计算题\n3.（8分）求行列式\n[2 1 0;1 2 1;0 1 2|的值。\n解：",
+          "math_text": null,
+          "math_repaired_text": null,
+          "math_display_text": null,
+          "ocr_confidence": 0.9611312360926108,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "ocr_quality": {
+            "version": "ocr-quality.1",
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "requires_review": true,
+            "candidates": [
+              {
+                "file_id": "f1",
+                "page": 1,
+                "image_key": "f1_p1",
+                "ocr_text": "线性代数期末试卷计算题\n3.（8分）求行列式\n[2 1 0;1 2 1;0 1 2|的值。\n解：",
+                "math_text": null,
+                "native_text": null,
+                "ocr_confidence": 0.9611312360926108,
+                "math_repaired_text": null,
+                "math_display_text": null,
+                "comparison": {
+                  "status": "missing_candidate",
+                  "pairs": []
+                }
+              }
+            ],
+            "evidence": [],
+            "confidence_threshold": 0.72,
+            "score": 1.0
+          },
+          "requires_source_review": true
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "m7c_dex.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "3",
+        "title": "第 3 题 · 线性代数期末试卷计算题",
+        "text": "线性代数期末试卷计算题\n3.（8分）求行列式\n[2 1 0;1 2 1;0 1 2|的值。\n解：",
+        "subject": "linear_algebra",
+        "subject_label": "线性代数",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "线性代数期末试卷计算题 3.（8分）求行列式 [2 1 0;1 2 1;0 1 2|的值。 解："
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true,
+            "ocr_text": "线性代数期末试卷计算题\n3.（8分）求行列式\n[2 1 0;1 2 1;0 1 2|的值。\n解：",
+            "math_text": null,
+            "ocr_confidence": 0.9611312360926108,
+            "ocr_quality": {
+              "version": "ocr-quality.1",
+              "untrusted": false,
+              "issues": [],
+              "needs_visual_verification": true,
+              "requires_review": true,
+              "candidates": [
+                {
+                  "file_id": "f1",
+                  "page": 1,
+                  "image_key": "f1_p1",
+                  "ocr_text": "线性代数期末试卷计算题\n3.（8分）求行列式\n[2 1 0;1 2 1;0 1 2|的值。\n解：",
+                  "math_text": null,
+                  "native_text": null,
+                  "ocr_confidence": 0.9611312360926108,
+                  "math_repaired_text": null,
+                  "math_display_text": null,
+                  "comparison": {
+                    "status": "missing_candidate",
+                    "pairs": []
+                  }
+                }
+              ],
+              "evidence": [],
+              "confidence_threshold": 0.72,
+              "score": 1.0
+            },
+            "requires_source_review": true,
+            "math_repaired_text": null,
+            "math_display_text": null
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "线性代数期末试卷计算题\n3.（8分）求行列式\n[2 1 0;1 2 1;0 1 2|的值。\n解：",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "matrix_a",
+              "label": "系数矩阵 A",
+              "value": "[2, 1, 0; 1, 2, 1; 0, 1, 2]",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "线性代数期末试卷计算题 3.（8分）求行列式 [2 1 0;1 2 1;0 1 2|的值。 解："
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": "写法 A=[[1,2],[3,4]] 或 A=[1 2;3 4]；修正后重新求解。"
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "gauss_rule",
+              "tex": "R_i \\leftarrow R_i - \\dfrac{a_{ij}}{a_{jj}} R_j,\\quad \\det(A)=(-1)^{s}\\prod_j a_{jj}^{(j)}",
+              "plain": "高斯消元：换行记一次变号，主元乘积给出行列式；回代得到解向量。",
+              "role": "消元规则"
+            }
+          ],
+          "recognized_subject": "linear_algebra",
+          "ai_used": false,
+          "quality": {
+            "version": "ocr-quality.1",
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "requires_review": true,
+            "candidates": [
+              {
+                "file_id": "f1",
+                "page": 1,
+                "image_key": "f1_p1",
+                "ocr_text": "线性代数期末试卷计算题\n3.（8分）求行列式\n[2 1 0;1 2 1;0 1 2|的值。\n解：",
+                "math_text": null,
+                "native_text": null,
+                "ocr_confidence": 0.9611312360926108,
+                "math_repaired_text": null,
+                "math_display_text": null,
+                "comparison": {
+                  "status": "missing_candidate",
+                  "pairs": []
+                }
+              }
+            ],
+            "evidence": [],
+            "confidence_threshold": 0.72,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "gauss_v1",
+          "subject": "linear_algebra",
+          "la_kind": "determinant",
+          "op": null,
+          "matrix_a": [
+            [
+              2.0,
+              1.0,
+              0.0
+            ],
+            [
+              1.0,
+              2.0,
+              1.0
+            ],
+            [
+              0.0,
+              1.0,
+              2.0
+            ]
+          ],
+          "matrix_b": null,
+          "vector_b": null,
+          "variables": [],
+          "defaults": {
+            "method": "gauss",
+            "pivoting": "partial"
+          },
+          "params": [
+            {
+              "id": "pivoting",
+              "label": "主元策略",
+              "kind": "enum",
+              "min": null,
+              "max": null,
+              "step": null,
+              "options": [
+                "partial",
+                "none"
+              ],
+              "note": "部分主元每列选绝对值最大者换到主行（更稳定）；不选主元按顺序取第一个非零者。"
+            }
+          ],
+          "teaching": false
+        },
+        "solution": {
+          "answer": "",
+          "summary": "先核对原题公式与条件，再计算答案。",
+          "steps": [],
+          "limitations": []
+        },
+        "states": {
+          "params": {
+            "method": "gauss",
+            "pivoting": "partial"
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "method": "gauss",
+                "pivoting": "partial"
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "linear_algebra",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "37d2e444ec4b45da"
+}

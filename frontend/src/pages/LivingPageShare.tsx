@@ -15,6 +15,7 @@ export default function LivingPageShare(): ReactNode {
   const { shareId = '' } = useParams();
   const [doc, setDoc] = useState<LivingPageDoc | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const pendingProgress = useRef(Promise.resolve());
   const visited = useRef(new Set<string>());
 
   useEffect(() => {
@@ -30,7 +31,9 @@ export default function LivingPageShare(): ReactNode {
   const report = useCallback(
     (blockId: string, patch: ProgressPatch = {}): void => {
       if (!doc?.settings.collect_progress) return;
-      void reportLivingProgress({ shareId, blockId, patch }).catch(() => undefined);
+      pendingProgress.current = pendingProgress.current
+        .then(() => reportLivingProgress({ shareId, blockId, patch }))
+        .then(() => undefined, () => undefined);
     },
     [doc, shareId],
   );

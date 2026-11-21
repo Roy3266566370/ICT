@@ -1,0 +1,333 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_9132bcde5574423c94744b74d2547b06",
+    "title": "ph35_rel.png",
+    "created_at": "2026-11-19T11:51:09Z",
+    "updated_at": "2026-11-19T11:51:09Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph35_rel.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 89,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题力学\n34.甲船以vA=5m/s向东行驶，乙船L以vB=3m/s向东行驶\n求甲船相对乙船的速度（）。\nA.1m/s 5B.2m/s C.4m/s D. 8m/s",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题力学\n34.甲船以vA=5m/s向东行驶，乙船L以vB=3m/s向东行驶\n求甲船相对乙船的速度（）。\nA.1m/s 5B.2m/s C.4m/s D. 8m/s",
+          "math_text": null,
+          "ocr_confidence": 0.9824407635491726,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph35_rel.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "34",
+        "title": "第 34 题 · 大学物理期末考试题力学",
+        "text": "大学物理期末考试题力学\n34.甲船以vA=5m/s向东行驶，乙船L以vB=3m/s向东行驶\n求甲船相对乙船的速度（）。\nA.1m/s 5B.2m/s C.4m/s D. 8m/s",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.75,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题力学 34.甲船以vA=5m/s向东行驶，乙船L以vB=3m/s向东行驶 求甲船相对乙船的速度（）。 A.1m/s 5B.2m/s C.4m/s D. 8m/s"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题力学\n34.甲船以vA=5m/s向东行驶，乙船L以vB=3m/s向东行驶\n求甲船相对乙船的速度（）。\nA.1m/s 5B.2m/s C.4m/s D. 8m/s",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "相对运动",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 34.甲船以vA=5m/s向东行驶，乙船L以vB=3m/s向东行驶 求甲船相对乙船的速度（）。 A.1m/s 5B.2m/s C.4m/s D. 8m/s"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_vA",
+              "label": "甲速度 vA",
+              "value": 5.0,
+              "kind": "number",
+              "unit": "m/s",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 34.甲船以vA=5m/s向东行驶，乙船L以vB=3m/s向东行驶 求甲船相对乙船的速度（）。 A.1m/s 5B.2m/s C.4m/s D. 8m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_vB",
+              "label": "乙速度 vB",
+              "value": 3.0,
+              "kind": "number",
+              "unit": "m/s",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 34.甲船以vA=5m/s向东行驶，乙船L以vB=3m/s向东行驶 求甲船相对乙船的速度（）。 A.1m/s 5B.2m/s C.4m/s D. 8m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{v(A相对B) = vA − vB}",
+              "plain": "v(A相对B) = vA − vB",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "kinematics",
+          "physics_mode": "relative",
+          "raw": "大学物理期末考试题力学\n34.甲船以vA=5m/s向东行驶，乙船L以vB=3m/s向东行驶\n求甲船相对乙船的速度（）。\nA.1m/s 5B.2m/s C.4m/s D. 8m/s",
+          "defaults": {
+            "vA": 5.0,
+            "vB": 3.0
+          },
+          "params": [
+            {
+              "id": "vA",
+              "label": "甲的速度 vA (m/s)",
+              "kind": "number",
+              "min": -50,
+              "max": 50,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "vB",
+              "label": "乙的速度 vB (m/s)",
+              "kind": "number",
+              "min": -50,
+              "max": 50,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "kinematics",
+            "mode": "relative",
+            "answer": "甲相对乙的速度 vAB=2 m/s（甲相对乙向前）。",
+            "answer_value": 2.0,
+            "metrics": [
+              {
+                "id": "rel",
+                "label": "相对速度",
+                "value": "2 m/s",
+                "tone": "accent"
+              },
+              {
+                "id": "speed",
+                "label": "相对速率",
+                "value": "2 m/s"
+              }
+            ],
+            "checks": [
+              {
+                "id": "relative",
+                "label": "相对速度定义",
+                "status": "pass",
+                "detail": "vAB = vA − vB；一维速度带符号。"
+              }
+            ],
+            "notes": [
+              "一维相对运动，速度取同一坐标轴方向。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "已知速度",
+                "detail": "vA=5 m/s，vB=3 m/s",
+                "values": {
+                  "vA": 5.0,
+                  "vB": 3.0
+                }
+              },
+              {
+                "index": 1,
+                "label": "相对速度",
+                "detail": "vAB=2 m/s",
+                "values": {
+                  "rel": 2.0
+                }
+              }
+            ],
+            "scene": {
+              "type": "relative",
+              "vA": 5.0,
+              "vB": 3.0,
+              "rel": 2.0
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "甲相对乙的速度 vAB=2 m/s（甲相对乙向前）。",
+          "answer_value": 2.0,
+          "answer_values": [
+            2.0
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "已知速度",
+              "detail": "vA=5 m/s，vB=3 m/s"
+            },
+            {
+              "id": "phy_1",
+              "title": "相对速度",
+              "detail": "vAB=2 m/s"
+            }
+          ],
+          "conditions": [
+            "按相对运动模型计算。"
+          ],
+          "limitations": [
+            "一维相对运动，速度取同一坐标轴方向。",
+            "未给出的初值或边界条件不会被自动补造。",
+            "常见单位 km/h、cm、mm、km、g、min、h 会先换算为 SI；仍无法识别的单位请以 SI 填写。"
+          ]
+        },
+        "states": {
+          "params": {
+            "vA": 5.0,
+            "vB": 3.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "vA": 5.0,
+                "vB": 3.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "74eb3dd277df469b"
+}

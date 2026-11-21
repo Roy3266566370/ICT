@@ -1,0 +1,379 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_a097282bf6fd45a4bdadc0bdb0a56f18",
+    "title": "ph10_energy.png",
+    "created_at": "2026-11-19T11:13:23Z",
+    "updated_at": "2026-11-19T11:13:23Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph10_energy.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 106,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题力学\n8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下，\n取g=10m/s²。求物体到达轨道底端时的速度大小（）。\nA.5m/s B. 7.1m/s C.10m/s D.14m/s",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题力学\n8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下，\n取g=10m/s²。求物体到达轨道底端时的速度大小（）。\nA.5m/s B. 7.1m/s C.10m/s D.14m/s",
+          "math_text": null,
+          "ocr_confidence": 0.9953031838616004,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph10_energy.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "8",
+        "title": "第 8 题 · 大学物理期末考试题力学",
+        "text": "大学物理期末考试题力学\n8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下，\n取g=10m/s²。求物体到达轨道底端时的速度大小（）。\nA.5m/s B. 7.1m/s C.10m/s D.14m/s",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题力学 8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下， 取g=10m/s²。求物体到达轨道底端时的速度大小（）。 A.5m/s B. 7.1m/s C.10m/s D.14m/s"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题力学\n8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下，\n取g=10m/s²。求物体到达轨道底端时的速度大小（）。\nA.5m/s B. 7.1m/s C.10m/s D.14m/s",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "机械能守恒",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下， 取g=10m/s²。求物体到达轨道底端时的速度大小（）。 A.5m/s B. 7.1m/s C.10m/s D.14m/s"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_g",
+              "label": "重力加速度 g",
+              "value": 10.0,
+              "kind": "number",
+              "unit": "m/s²",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下， 取g=10m/s²。求物体到达轨道底端时的速度大小（）。 A.5m/s B. 7.1m/s C.10m/s D.14m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_m",
+              "label": "质量 m",
+              "value": 1.0,
+              "kind": "number",
+              "unit": "kg",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下， 取g=10m/s²。求物体到达轨道底端时的速度大小（）。 A.5m/s B. 7.1m/s C.10m/s D.14m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_h",
+              "label": "高度 h",
+              "value": 5.0,
+              "kind": "number",
+              "unit": "m",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下， 取g=10m/s²。求物体到达轨道底端时的速度大小（）。 A.5m/s B. 7.1m/s C.10m/s D.14m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{mgh = ½mv^2；v = \\sqrt (2gh)}",
+              "plain": "mgh = ½mv²；v = √(2gh)",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "work_energy",
+          "physics_mode": "energy_conservation",
+          "raw": "大学物理期末考试题力学\n8.质量为1.0kg的物体从光滑轨道上高度h=5m处由静止滑下，\n取g=10m/s²。求物体到达轨道底端时的速度大小（）。\nA.5m/s B. 7.1m/s C.10m/s D.14m/s",
+          "defaults": {
+            "g": 10.0,
+            "m": 1.0,
+            "h": 5.0
+          },
+          "params": [
+            {
+              "id": "m",
+              "label": "质量 m (kg)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 100,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "h",
+              "label": "高度 h (m)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 500,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "g",
+              "label": "重力加速度 g",
+              "kind": "number",
+              "min": 0.1,
+              "max": 30,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "work_energy",
+            "mode": "energy_conservation",
+            "answer": "到达底端速度 v=10 m/s，重力势能减少 50 J，动能增加 50 J。",
+            "answer_value": 10.0,
+            "metrics": [
+              {
+                "id": "v",
+                "label": "底端速度",
+                "value": "10 m/s",
+                "tone": "accent"
+              },
+              {
+                "id": "Ep",
+                "label": "重力势能",
+                "value": "50 J"
+              },
+              {
+                "id": "Ek",
+                "label": "动能",
+                "value": "50 J"
+              }
+            ],
+            "checks": [
+              {
+                "id": "energy",
+                "label": "机械能守恒",
+                "status": "pass",
+                "detail": "mgh = ½mv²"
+              },
+              {
+                "id": "speed",
+                "label": "速度有效",
+                "status": "pass",
+                "detail": "从静止释放且只有重力做功。"
+              }
+            ],
+            "notes": [
+              "光滑轨道，只有重力做功，机械能守恒。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "初始能量",
+                "detail": "Ep=50 J，Ek=0",
+                "values": {
+                  "Ep": 50.0
+                }
+              },
+              {
+                "index": 1,
+                "label": "底端能量",
+                "detail": "v=10 m/s，Ek=50 J",
+                "values": {
+                  "v": 10.0,
+                  "Ek": 50.0
+                }
+              }
+            ],
+            "scene": {
+              "type": "energy",
+              "m": 1.0,
+              "h": 5.0,
+              "g": 10.0,
+              "v": 10.0,
+              "energy": 50.0
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "到达底端速度 v=10 m/s，重力势能减少 50 J，动能增加 50 J。",
+          "answer_value": 10.0,
+          "answer_values": [
+            10.0,
+            50.0
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "初始能量",
+              "detail": "Ep=50 J，Ek=0"
+            },
+            {
+              "id": "phy_1",
+              "title": "底端能量",
+              "detail": "v=10 m/s，Ek=50 J"
+            }
+          ],
+          "conditions": [
+            "按机械能守恒模型计算。"
+          ],
+          "limitations": [
+            "光滑轨道，只有重力做功，机械能守恒。",
+            "未给出的初值或边界条件不会被自动补造。",
+            "常见单位 km/h、cm、mm、km、g、min、h 会先换算为 SI；仍无法识别的单位请以 SI 填写。"
+          ]
+        },
+        "states": {
+          "params": {
+            "g": 10.0,
+            "m": 1.0,
+            "h": 5.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "g": 10.0,
+                "m": 1.0,
+                "h": 5.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "f8c78bd9b4ee4ad7"
+}

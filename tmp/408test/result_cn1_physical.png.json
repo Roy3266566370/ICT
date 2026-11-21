@@ -1,0 +1,315 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_88ef774d8802447cbd73c26942c7f372",
+    "title": "cn1_physical.png",
+    "created_at": "2026-11-19T09:37:16Z",
+    "updated_at": "2026-11-19T09:37:16Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "cn1_physical.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 130,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "2009年408统考真题计算机网络\n34.在无噪声情况下，若某通信链路的带宽为3kHz，采用4个相位，\n每个相位具有4种振幅的QAM调制技术，则该通信链路的最大数\n据传输速率是（）。\nA.12kbps SB. 24kbpsC. 48kbps SD.96kbps",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "2009年408统考真题计算机网络\n34.在无噪声情况下，若某通信链路的带宽为3kHz，采用4个相位，\n每个相位具有4种振幅的QAM调制技术，则该通信链路的最大数\n据传输速率是（）。\nA.12kbps SB. 24kbpsC. 48kbps SD.96kbps",
+          "math_text": null,
+          "ocr_confidence": 0.9860407313576306,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "cn1_physical.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "34",
+        "title": "第 34 题 · 2009年408统考真题计算机网络",
+        "text": "2009年408统考真题计算机网络\n34.在无噪声情况下，若某通信链路的带宽为3kHz，采用4个相位，\n每个相位具有4种振幅的QAM调制技术，则该通信链路的最大数\n据传输速率是（）。\nA.12kbps SB. 24kbpsC. 48kbps SD.96kbps",
+        "subject": "computer_network",
+        "subject_label": "计算机网络",
+        "confidence": 0.95,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "2009年408统考真题计算机网络 34.在无噪声情况下，若某通信链路的带宽为3kHz，采用4个相位， 每个相位具有4种振幅的QAM调制技术，则该通信链路的最大数 据传输速率是（）。 A.12kbps SB. 24kbpsC. 48kbps SD.96kbps"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "2009年408统考真题计算机网络\n34.在无噪声情况下，若某通信链路的带宽为3kHz，采用4个相位，\n每个相位具有4种振幅的QAM调制技术，则该通信链路的最大数\n据传输速率是（）。\nA.12kbps SB. 24kbpsC. 48kbps SD.96kbps",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "net_kind",
+              "label": "题型",
+              "value": "物理层",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "2009年408统考真题计算机网络 34.在无噪声情况下，若某通信链路的带宽为3kHz，采用4个相位， 每个相位具有4种振幅的QAM调制技术，则该通信链路的最大数 据传输速率是（）。 A.12kbps SB. 24kbpsC. 48kbps SD.96kbps"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "nyquist",
+              "tex": "C=2W\\log_2 M",
+              "plain": "奈奎斯特为理想无噪声上限；香农为有噪声上限。",
+              "role": "信道容量"
+            }
+          ],
+          "recognized_subject": "computer_network",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "net_physical_v1",
+          "subject": "computer_network",
+          "net_kind": "physical",
+          "raw": "2009年408统考真题计算机网络\n34.在无噪声情况下，若某通信链路的带宽为3kHz，采用4个相位，\n每个相位具有4种振幅的QAM调制技术，则该通信链路的最大数\n据传输速率是（）。\nA.12kbps SB. 24kbpsC. 48kbps SD.96kbps",
+          "defaults": {},
+          "params": [],
+          "teaching": false,
+          "net_result": {
+            "subject": "computer_network",
+            "engine": "net_physical_v1",
+            "net_kind": "physical",
+            "status": "ok",
+            "headline": "16 种码元对应 4 bit/码元；奈奎斯特最大数据率 = 24 kbps；ASK/FSK/PSK/QAM 分别用幅度/频率/相位/幅度相位组合承载比特",
+            "answer": "16 种码元对应 4 bit/码元；奈奎斯特最大数据率 = 24 kbps；ASK/FSK/PSK/QAM 分别用幅度/频率/相位/幅度相位组合承载比特",
+            "answer_value": 24000.0,
+            "answer_order": null,
+            "metrics": [
+              {
+                "id": "answer",
+                "label": "结论",
+                "value": "16 种码元对应 4 bit/码元；奈奎斯特最大数据率 = 24 kbps；ASK/FSK/PSK/QAM 分别用幅度/频率/相位/幅度相位组合承载比特"
+              },
+              {
+                "id": "nyquist",
+                "label": "奈奎斯特上限",
+                "value": "24 kbps"
+              },
+              {
+                "id": "value",
+                "label": "数值",
+                "value": "24000"
+              }
+            ],
+            "checks": [
+              {
+                "id": "formula",
+                "label": "公式适用范围",
+                "status": "pass",
+                "detail": "奈奎斯特适用于理想无噪声低通信道；香农适用于有噪声信道。"
+              }
+            ],
+            "notes": [
+              "波特率单位为 Baud；M 种码元需满足 log2 M 为整数。",
+              "曼彻斯特编码的波特率与比特率关系按常见教材口径说明。",
+              "复用计算未计帧头、保护间隔等额外开销。"
+            ],
+            "trace": [
+              {
+                "index": 0,
+                "action": "levels",
+                "label": "码元种类",
+                "detail": "16 种码元可表示 4 bit/码元（需为 2 的幂）；若题目给出波特率，再用比特率 = 波特率 × log2(M) 计算。",
+                "values": {
+                  "码元种类": "16",
+                  "每码元比特": "4"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 1,
+                "action": "nyquist",
+                "label": "奈奎斯特公式",
+                "detail": "理想无噪声低通信道：C = 2W log2 M = 2×3 kHz×log2(16) = 24 kbps。",
+                "values": {
+                  "带宽": "3 kHz",
+                  "码元种类": "16",
+                  "最大数据率": "24 kbps"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 2,
+                "action": "encoding",
+                "label": "编码与调制",
+                "detail": "ASK/FSK/PSK/QAM 分别用幅度/频率/相位/幅度相位组合承载比特。编码把比特映射为电平/码元，调制把基带信号搬到载波。",
+                "values": {
+                  "encodings": [
+                    "ASK/FSK/PSK/QAM 分别用幅度/频率/相位/幅度相位组合承载比特"
+                  ]
+                },
+                "pseudocodeLine": 1
+              }
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "action": "levels",
+                "label": "码元种类",
+                "detail": "16 种码元可表示 4 bit/码元（需为 2 的幂）；若题目给出波特率，再用比特率 = 波特率 × log2(M) 计算。",
+                "values": {
+                  "码元种类": "16",
+                  "每码元比特": "4"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 1,
+                "action": "nyquist",
+                "label": "奈奎斯特公式",
+                "detail": "理想无噪声低通信道：C = 2W log2 M = 2×3 kHz×log2(16) = 24 kbps。",
+                "values": {
+                  "带宽": "3 kHz",
+                  "码元种类": "16",
+                  "最大数据率": "24 kbps"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 2,
+                "action": "encoding",
+                "label": "编码与调制",
+                "detail": "ASK/FSK/PSK/QAM 分别用幅度/频率/相位/幅度相位组合承载比特。编码把比特映射为电平/码元，调制把基带信号搬到载波。",
+                "values": {
+                  "encodings": [
+                    "ASK/FSK/PSK/QAM 分别用幅度/频率/相位/幅度相位组合承载比特"
+                  ]
+                },
+                "pseudocodeLine": 1
+              }
+            ],
+            "pseudocode": [
+              "比特率 = 码元速率 × 每个码元携带的比特数",
+              "奈奎斯特：C = 2W log2 M（理想无噪声低通信道）",
+              "香农：C = W log2(1 + S/N)（有噪声信道）",
+              "频分/时分/波分/码分复用分别按频率、时间、波长、正交码划分信道"
+            ],
+            "stats": {
+              "nyquist_bps": 24000.0
+            },
+            "stop_reason": "done"
+          }
+        },
+        "solution": {
+          "summary": "按码元/比特率、奈奎斯特/香农公式与复用方式推导。",
+          "answer": "16 种码元对应 4 bit/码元；奈奎斯特最大数据率 = 24 kbps；ASK/FSK/PSK/QAM 分别用幅度/频率/相位/幅度相位组合承载比特",
+          "answer_value": 24000.0,
+          "answer_order": null,
+          "answer_sequence": null,
+          "steps": [
+            {
+              "id": "net_0",
+              "title": "码元种类",
+              "detail": "16 种码元可表示 4 bit/码元（需为 2 的幂）；若题目给出波特率，再用比特率 = 波特率 × log2(M) 计算。"
+            },
+            {
+              "id": "net_1",
+              "title": "奈奎斯特公式",
+              "detail": "理想无噪声低通信道：C = 2W log2 M = 2×3 kHz×log2(16) = 24 kbps。"
+            },
+            {
+              "id": "net_2",
+              "title": "编码与调制",
+              "detail": "ASK/FSK/PSK/QAM 分别用幅度/频率/相位/幅度相位组合承载比特。编码把比特映射为电平/码元，调制把基带信号搬到载波。"
+            }
+          ],
+          "conditions": [
+            "题目数据来自题面识别；可在条件面板中查看题型。"
+          ],
+          "limitations": [
+            "波特率单位为 Baud；M 种码元需满足 log2 M 为整数。",
+            "曼彻斯特编码的波特率与比特率关系按常见教材口径说明。",
+            "复用计算未计帧头、保护间隔等额外开销。"
+          ]
+        },
+        "states": {
+          "params": {},
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {},
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "computer_network",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "4ca216b6465d488f"
+}

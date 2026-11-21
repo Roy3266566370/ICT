@@ -1,0 +1,405 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_cc41f26065e44db7be730836a44d4129",
+    "title": "cn6_congestion.png",
+    "created_at": "2026-11-19T09:38:03Z",
+    "updated_at": "2026-11-19T09:38:03Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "cn6_congestion.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 180,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "2009年408统考真题计算机网络\n39.一个TCP连接总是以1KB的最大段发送TCP段，发送方有足够多\n的数据要发送。当拥塞窗口为16KB时发生了超时，如果接下来\n的4个RTT（往返时间）时间内的TCP段的传输都是成功的，那么\n当第4个RTT时间内发送的所有TCP段都得到肯定应答时，拥塞\n窗口大小是（）。\nA.7KB B.8KB C. 9KB D.16KB",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "2009年408统考真题计算机网络\n39.一个TCP连接总是以1KB的最大段发送TCP段，发送方有足够多\n的数据要发送。当拥塞窗口为16KB时发生了超时，如果接下来\n的4个RTT（往返时间）时间内的TCP段的传输都是成功的，那么\n当第4个RTT时间内发送的所有TCP段都得到肯定应答时，拥塞\n窗口大小是（）。\nA.7KB B.8KB C. 9KB D.16KB",
+          "math_text": null,
+          "ocr_confidence": 0.9919937820094088,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "cn6_congestion.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "39",
+        "title": "第 39 题 · 2009年408统考真题计算机网络",
+        "text": "2009年408统考真题计算机网络\n39.一个TCP连接总是以1KB的最大段发送TCP段，发送方有足够多\n的数据要发送。当拥塞窗口为16KB时发生了超时，如果接下来\n的4个RTT（往返时间）时间内的TCP段的传输都是成功的，那么\n当第4个RTT时间内发送的所有TCP段都得到肯定应答时，拥塞\n窗口大小是（）。\nA.7KB B.8KB C. 9KB D.16KB",
+        "subject": "computer_network",
+        "subject_label": "计算机网络",
+        "confidence": 0.95,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "2009年408统考真题计算机网络 39.一个TCP连接总是以1KB的最大段发送TCP段，发送方有足够多 的数据要发送。当拥塞窗口为16KB时发生了超时，如果接下来 的4个RTT（往返时间）时间内的TCP段的传输都是成功的，那么 当第4个RTT时间内发送的所有TCP段都得到肯定应答时，拥塞 窗口大小是（）。 A.7KB B.8KB C. 9KB D.16KB"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "2009年408统考真题计算机网络\n39.一个TCP连接总是以1KB的最大段发送TCP段，发送方有足够多\n的数据要发送。当拥塞窗口为16KB时发生了超时，如果接下来\n的4个RTT（往返时间）时间内的TCP段的传输都是成功的，那么\n当第4个RTT时间内发送的所有TCP段都得到肯定应答时，拥塞\n窗口大小是（）。\nA.7KB B.8KB C. 9KB D.16KB",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "net_kind",
+              "label": "题型",
+              "value": "TCP 流量与拥塞控制",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "2009年408统考真题计算机网络 39.一个TCP连接总是以1KB的最大段发送TCP段，发送方有足够多 的数据要发送。当拥塞窗口为16KB时发生了超时，如果接下来 的4个RTT（往返时间）时间内的TCP段的传输都是成功的，那么 当第4个RTT时间内发送的所有TCP段都得到肯定应答时，拥塞 窗口大小是（）。 A.7KB B.8KB C. 9KB D.16KB"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "cwnd",
+              "tex": "cwnd:\\ 快启动\\times2,\\ 拥塞避免+1",
+              "plain": "发送窗口 = min(rwnd, cwnd)；丢失后更新 ssthresh 与 cwnd。",
+              "role": "拥塞控制"
+            }
+          ],
+          "recognized_subject": "computer_network",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "net_tcp_v1",
+          "subject": "computer_network",
+          "net_kind": "tcp_control",
+          "raw": "2009年408统考真题计算机网络\n39.一个TCP连接总是以1KB的最大段发送TCP段，发送方有足够多\n的数据要发送。当拥塞窗口为16KB时发生了超时，如果接下来\n的4个RTT（往返时间）时间内的TCP段的传输都是成功的，那么\n当第4个RTT时间内发送的所有TCP段都得到肯定应答时，拥塞\n窗口大小是（）。\nA.7KB B.8KB C. 9KB D.16KB",
+          "defaults": {},
+          "params": [],
+          "teaching": false,
+          "net_result": {
+            "subject": "computer_network",
+            "engine": "net_tcp_v1",
+            "net_kind": "tcp_control",
+            "status": "ok",
+            "headline": "第 4 个 RTT 后 cwnd=9 MSS（9 KB），ssthresh=8 MSS",
+            "answer": "第 4 个 RTT 后 cwnd=9 MSS（9 KB），ssthresh=8 MSS",
+            "answer_value": 9.0,
+            "answer_order": null,
+            "metrics": [
+              {
+                "id": "answer",
+                "label": "结论",
+                "value": "第 4 个 RTT 后 cwnd=9 MSS（9 KB），ssthresh=8 MSS"
+              },
+              {
+                "id": "value",
+                "label": "数值",
+                "value": "9"
+              }
+            ],
+            "checks": [
+              {
+                "id": "window",
+                "label": "发送窗口取较小值",
+                "status": "pass",
+                "detail": "发送窗口 = min(接收窗口, 拥塞窗口)。"
+              }
+            ],
+            "notes": [
+              "慢启动按每 RTT 翻倍、拥塞避免按每 RTT +1 MSS 的教材口径。",
+              "3 个重复 ACK 的快恢复采用 Reno 简化口径：ssthresh=cwnd/2，cwnd=ssthresh。",
+              "未给出 MSS 时窗口数值按 MSS 为单位处理。"
+            ],
+            "trace": [
+              {
+                "index": 0,
+                "action": "timeout0",
+                "label": "超时事件",
+                "detail": "cwnd=16 MSS 时发生超时：ssthresh=cwnd/2=8 MSS，cwnd 重置为 1 MSS，重新慢启动。",
+                "values": {
+                  "事件": "超时",
+                  "原cwnd": "16",
+                  "ssthresh": "8",
+                  "新cwnd": "1",
+                  "阶段": "超时恢复"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 1,
+                "action": "round",
+                "label": "第 1 个 RTT",
+                "detail": "慢启动：cwnd 从 1 变为 2 MSS；ssthresh=未给出。",
+                "values": {
+                  "轮次": "1",
+                  "cwnd": "2",
+                  "ssthresh": "未给出",
+                  "阶段": "慢启动"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 2,
+                "action": "round",
+                "label": "第 2 个 RTT",
+                "detail": "慢启动：cwnd 从 2 变为 4 MSS；ssthresh=未给出。",
+                "values": {
+                  "轮次": "2",
+                  "cwnd": "4",
+                  "ssthresh": "未给出",
+                  "阶段": "慢启动"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 3,
+                "action": "round",
+                "label": "第 3 个 RTT",
+                "detail": "慢启动：cwnd 从 4 变为 8 MSS；ssthresh=未给出。",
+                "values": {
+                  "轮次": "3",
+                  "cwnd": "8",
+                  "ssthresh": "未给出",
+                  "阶段": "慢启动"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 4,
+                "action": "round",
+                "label": "第 4 个 RTT",
+                "detail": "拥塞避免：cwnd 从 8 变为 9 MSS；ssthresh=未给出。",
+                "values": {
+                  "轮次": "4",
+                  "cwnd": "9",
+                  "ssthresh": "未给出",
+                  "阶段": "拥塞避免"
+                },
+                "pseudocodeLine": 2
+              }
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "action": "timeout0",
+                "label": "超时事件",
+                "detail": "cwnd=16 MSS 时发生超时：ssthresh=cwnd/2=8 MSS，cwnd 重置为 1 MSS，重新慢启动。",
+                "values": {
+                  "事件": "超时",
+                  "原cwnd": "16",
+                  "ssthresh": "8",
+                  "新cwnd": "1",
+                  "阶段": "超时恢复"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 1,
+                "action": "round",
+                "label": "第 1 个 RTT",
+                "detail": "慢启动：cwnd 从 1 变为 2 MSS；ssthresh=未给出。",
+                "values": {
+                  "轮次": "1",
+                  "cwnd": "2",
+                  "ssthresh": "未给出",
+                  "阶段": "慢启动"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 2,
+                "action": "round",
+                "label": "第 2 个 RTT",
+                "detail": "慢启动：cwnd 从 2 变为 4 MSS；ssthresh=未给出。",
+                "values": {
+                  "轮次": "2",
+                  "cwnd": "4",
+                  "ssthresh": "未给出",
+                  "阶段": "慢启动"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 3,
+                "action": "round",
+                "label": "第 3 个 RTT",
+                "detail": "慢启动：cwnd 从 4 变为 8 MSS；ssthresh=未给出。",
+                "values": {
+                  "轮次": "3",
+                  "cwnd": "8",
+                  "ssthresh": "未给出",
+                  "阶段": "慢启动"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 4,
+                "action": "round",
+                "label": "第 4 个 RTT",
+                "detail": "拥塞避免：cwnd 从 8 变为 9 MSS；ssthresh=未给出。",
+                "values": {
+                  "轮次": "4",
+                  "cwnd": "9",
+                  "ssthresh": "未给出",
+                  "阶段": "拥塞避免"
+                },
+                "pseudocodeLine": 2
+              }
+            ],
+            "pseudocode": [
+              "发送窗口 = min(接收窗口, 拥塞窗口)",
+              "慢启动：cwnd 每 RTT 翻倍，直到 ssthresh",
+              "拥塞避免：cwnd 每 RTT 增加约 1 MSS",
+              "超时：ssthresh = cwnd/2，cwnd 回到 1 MSS 并重新慢启动",
+              "3 个重复 ACK：快重传丢失报文，快恢复把 cwnd 降到 ssthresh"
+            ],
+            "stats": {
+              "timeline": [
+                {
+                  "round": 1,
+                  "cwnd": 2.0,
+                  "ssthresh": null
+                },
+                {
+                  "round": 2,
+                  "cwnd": 4.0,
+                  "ssthresh": null
+                },
+                {
+                  "round": 3,
+                  "cwnd": 8.0,
+                  "ssthresh": null
+                },
+                {
+                  "round": 4,
+                  "cwnd": 9.0,
+                  "ssthresh": null
+                }
+              ],
+              "final_cwnd": 9.0
+            },
+            "stop_reason": "done"
+          }
+        },
+        "solution": {
+          "summary": "按 cwnd/ssthresh、慢启动、拥塞避免、快重传与接收窗口推导。",
+          "answer": "第 4 个 RTT 后 cwnd=9 MSS（9 KB），ssthresh=8 MSS",
+          "answer_value": 9.0,
+          "answer_order": null,
+          "answer_sequence": null,
+          "steps": [
+            {
+              "id": "net_0",
+              "title": "超时事件",
+              "detail": "cwnd=16 MSS 时发生超时：ssthresh=cwnd/2=8 MSS，cwnd 重置为 1 MSS，重新慢启动。"
+            },
+            {
+              "id": "net_1",
+              "title": "第 1 个 RTT",
+              "detail": "慢启动：cwnd 从 1 变为 2 MSS；ssthresh=未给出。"
+            },
+            {
+              "id": "net_2",
+              "title": "第 2 个 RTT",
+              "detail": "慢启动：cwnd 从 2 变为 4 MSS；ssthresh=未给出。"
+            },
+            {
+              "id": "net_3",
+              "title": "第 3 个 RTT",
+              "detail": "慢启动：cwnd 从 4 变为 8 MSS；ssthresh=未给出。"
+            },
+            {
+              "id": "net_4",
+              "title": "第 4 个 RTT",
+              "detail": "拥塞避免：cwnd 从 8 变为 9 MSS；ssthresh=未给出。"
+            }
+          ],
+          "conditions": [
+            "题目数据来自题面识别；可在条件面板中查看题型。"
+          ],
+          "limitations": [
+            "慢启动按每 RTT 翻倍、拥塞避免按每 RTT +1 MSS 的教材口径。",
+            "3 个重复 ACK 的快恢复采用 Reno 简化口径：ssthresh=cwnd/2，cwnd=ssthresh。",
+            "未给出 MSS 时窗口数值按 MSS 为单位处理。"
+          ]
+        },
+        "states": {
+          "params": {},
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {},
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "computer_network",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "7b006c61114b40c0"
+}

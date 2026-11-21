@@ -1,0 +1,418 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_a46a243d3eac47c784c028da5bc8ad56",
+    "title": "ph28_gr.png",
+    "created_at": "2026-11-19T11:21:04Z",
+    "updated_at": "2026-11-19T11:21:04Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph28_gr.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 95,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题波动光学\n20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的\n光栅上。求第2级主极大的衍射角（）。\nA.17.5°B.30° C.36.9°D. 53.1°",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题波动光学\n20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的\n光栅上。求第2级主极大的衍射角（）。\nA.17.5°B.30° C.36.9°D. 53.1°",
+          "math_text": null,
+          "ocr_confidence": 0.9917289663560649,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph28_gr.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "20",
+        "title": "第 20 题 · 大学物理期末考试题波动光学",
+        "text": "大学物理期末考试题波动光学\n20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的\n光栅上。求第2级主极大的衍射角（）。\nA.17.5°B.30° C.36.9°D. 53.1°",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题波动光学 20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的 光栅上。求第2级主极大的衍射角（）。 A.17.5°B.30° C.36.9°D. 53.1°"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题波动光学\n20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的\n光栅上。求第2级主极大的衍射角（）。\nA.17.5°B.30° C.36.9°D. 53.1°",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "光栅衍射",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题波动光学 20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的 光栅上。求第2级主极大的衍射角（）。 A.17.5°B.30° C.36.9°D. 53.1°"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_d",
+              "label": "间距/光栅常数/厚度 d",
+              "value": 2e-06,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题波动光学 20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的 光栅上。求第2级主极大的衍射角（）。 A.17.5°B.30° C.36.9°D. 53.1°"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_lam",
+              "label": "波长 λ",
+              "value": 6e-07,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题波动光学 20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的 光栅上。求第2级主极大的衍射角（）。 A.17.5°B.30° C.36.9°D. 53.1°"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_k",
+              "label": "级次 k",
+              "value": 2.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题波动光学 20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的 光栅上。求第2级主极大的衍射角（）。 A.17.5°B.30° C.36.9°D. 53.1°"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{d sinθ = kλ；最高级次 k_max = ⌊d/λ⌋}",
+              "plain": "d sinθ = kλ；最高级次 k_max = ⌊d/λ⌋",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "wave_optics",
+          "physics_mode": "grating",
+          "raw": "大学物理期末考试题波动光学\n20.波长入=600nm的光正入射到光栅常数d=2×10^-6m的\n光栅上。求第2级主极大的衍射角（）。\nA.17.5°B.30° C.36.9°D. 53.1°",
+          "defaults": {
+            "d": 2e-06,
+            "lam": 6e-07,
+            "k": 2.0
+          },
+          "params": [
+            {
+              "id": "d",
+              "label": "光栅常数 d (m)",
+              "kind": "number",
+              "min": 1e-07,
+              "max": 0.001,
+              "step": 1e-07,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "lam",
+              "label": "波长 λ (m)",
+              "kind": "number",
+              "min": 1e-09,
+              "max": 1e-05,
+              "step": 1e-09,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "k",
+              "label": "级次 k",
+              "kind": "number",
+              "min": 1,
+              "max": 20,
+              "step": 1,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "wave_optics",
+            "mode": "grating",
+            "answer": "第 2 级明纹衍射角 θ=36.87°，光栅最高可见级次 k_max=3，共 7 条主极大。",
+            "answer_value": 36.86989764584402,
+            "metrics": [
+              {
+                "id": "theta",
+                "label": "衍射角",
+                "value": "36.87°",
+                "tone": "accent"
+              },
+              {
+                "id": "kmax",
+                "label": "最高级次",
+                "value": "3"
+              },
+              {
+                "id": "count",
+                "label": "可见主极大数",
+                "value": "7"
+              }
+            ],
+            "checks": [
+              {
+                "id": "grating",
+                "label": "光栅方程",
+                "status": "pass",
+                "detail": "d sinθ = kλ"
+              },
+              {
+                "id": "range",
+                "label": "级次范围",
+                "status": "pass",
+                "detail": "|sinθ|≤1"
+              }
+            ],
+            "notes": [
+              "光栅垂直入射，主极大满足 d sinθ=kλ；忽略缺级与缝宽衍射包络。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "光栅方程",
+                "detail": "sinθ=0.6",
+                "values": {
+                  "sin": 0.6
+                }
+              },
+              {
+                "index": 1,
+                "label": "衍射角与级次",
+                "detail": "θ=36.87°，k_max=3",
+                "values": {
+                  "theta": 36.86989764584402,
+                  "kmax": 3
+                }
+              }
+            ],
+            "scene": {
+              "type": "grating",
+              "d": 2e-06,
+              "lam": 6e-07,
+              "k": 2,
+              "sin": 0.6,
+              "theta": 36.86989764584402,
+              "maxOrder": 3,
+              "orders": [
+                {
+                  "m": -3,
+                  "sin": -0.9,
+                  "theta": -64.15806723683288
+                },
+                {
+                  "m": -2,
+                  "sin": -0.6,
+                  "theta": -36.86989764584402
+                },
+                {
+                  "m": -1,
+                  "sin": -0.3,
+                  "theta": -17.457603123722095
+                },
+                {
+                  "m": 0,
+                  "sin": 0.0,
+                  "theta": 0.0
+                },
+                {
+                  "m": 1,
+                  "sin": 0.3,
+                  "theta": 17.457603123722095
+                },
+                {
+                  "m": 2,
+                  "sin": 0.6,
+                  "theta": 36.86989764584402
+                },
+                {
+                  "m": 3,
+                  "sin": 0.9,
+                  "theta": 64.15806723683288
+                }
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "第 2 级明纹衍射角 θ=36.87°，光栅最高可见级次 k_max=3，共 7 条主极大。",
+          "answer_value": 36.86989764584402,
+          "answer_values": [
+            36.87,
+            3.0,
+            7.0,
+            36.869897645844
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "光栅方程",
+              "detail": "sinθ=0.6"
+            },
+            {
+              "id": "phy_1",
+              "title": "衍射角与级次",
+              "detail": "θ=36.87°，k_max=3"
+            }
+          ],
+          "conditions": [
+            "按光栅衍射模型计算。"
+          ],
+          "limitations": [
+            "光栅垂直入射，主极大满足 d sinθ=kλ；忽略缺级与缝宽衍射包络。",
+            "常见单位会先换算为 SI；未给出的边界条件不会被自动补造。"
+          ]
+        },
+        "states": {
+          "params": {
+            "d": 2e-06,
+            "lam": 6e-07,
+            "k": 2.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "d": 2e-06,
+                "lam": 6e-07,
+                "k": 2.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "e600dc49dcff4c95"
+}

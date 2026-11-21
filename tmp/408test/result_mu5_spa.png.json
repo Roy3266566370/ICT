@@ -1,0 +1,237 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_86cbd41adc6b45acb96b2a88641401ad",
+    "title": "mu5_spa.png",
+    "created_at": "2026-11-19T13:55:35Z",
+    "updated_at": "2026-11-19T13:55:35Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "mu5_spa.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 96,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "高等数学期末考试题空间几何\n5.求过点（1,2,3)且与平面2x+y-z=1\n平行的平面方程（）。\nA. 2x+y-z=1 B. 2x+y-z=0 C.x+2y-z=1 D. 2x+y+z=9",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "高等数学期末考试题空间几何\n5.求过点（1,2,3)且与平面2x+y-z=1\n平行的平面方程（）。\nA. 2x+y-z=1 B. 2x+y-z=0 C.x+2y-z=1 D. 2x+y+z=9",
+          "math_text": null,
+          "ocr_confidence": 0.9732178202320468,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "mu5_spa.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "5",
+        "title": "第 5 题 · 高等数学期末考试题空间几何",
+        "text": "高等数学期末考试题空间几何\n5.求过点（1,2,3)且与平面2x+y-z=1\n平行的平面方程（）。\nA. 2x+y-z=1 B. 2x+y-z=0 C.x+2y-z=1 D. 2x+y+z=9",
+        "subject": "calculus",
+        "subject_label": "微积分",
+        "confidence": 0.75,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "高等数学期末考试题空间几何 5.求过点（1,2,3)且与平面2x+y-z=1 平行的平面方程（）。 A. 2x+y-z=1 B. 2x+y-z=0 C.x+2y-z=1 D. 2x+y+z=9"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "高等数学期末考试题空间几何\n5.求过点（1,2,3)且与平面2x+y-z=1\n平行的平面方程（）。\nA. 2x+y-z=1 B. 2x+y-z=0 C.x+2y-z=1 D. 2x+y+z=9",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "geometry_kind",
+              "label": "geometry_kind",
+              "value": "plane_point_normal",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "point",
+              "label": "point",
+              "value": "1,2,3",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "normal",
+              "label": "normal",
+              "value": "2,+1,-1",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [],
+          "recognized_subject": "calculus",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "space_v1",
+          "subject": "calculus",
+          "task": "space_geometry",
+          "kind": "space",
+          "conditions": {
+            "geometry_kind": "plane_point_normal",
+            "point": "1,2,3",
+            "normal": "2,+1,-1"
+          },
+          "defaults": {
+            "view_yaw": 0,
+            "view_zoom": 1.0
+          },
+          "params": [
+            {
+              "id": "view_yaw",
+              "label": "空间旋转角度",
+              "kind": "number",
+              "min": -180,
+              "max": 180,
+              "step": 5,
+              "options": []
+            },
+            {
+              "id": "view_zoom",
+              "label": "空间显示比例",
+              "kind": "number",
+              "min": 0.5,
+              "max": 2,
+              "step": 0.1,
+              "options": []
+            }
+          ],
+          "teaching": false,
+          "formula_tex": "",
+          "modeling_task": "space_geometry"
+        },
+        "solution": {
+          "answer": "",
+          "summary": "先核对原题公式与条件，再计算答案。",
+          "steps": [],
+          "limitations": []
+        },
+        "states": {
+          "params": {
+            "view_yaw": 0,
+            "view_zoom": 1.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "view_yaw": 0,
+                "view_zoom": 1.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "calculus",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "37e5836825e84654"
+}

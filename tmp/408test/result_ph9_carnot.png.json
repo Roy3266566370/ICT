@@ -1,0 +1,362 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_dddff7dbc30741f390694ccf3a6c91b0",
+    "title": "ph9_carnot.png",
+    "created_at": "2026-11-19T10:11:33Z",
+    "updated_at": "2026-11-19T10:11:33Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph9_carnot.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 100,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题 热学\n10.一卡诺热机工作在高温热源727°C和低温热源27°C之间，\n每循环从高温热源吸收热量2000J。求该热机的效率（）。\nA.70% B.37% C. 27% D. 96%",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题 热学\n10.一卡诺热机工作在高温热源727°C和低温热源27°C之间，\n每循环从高温热源吸收热量2000J。求该热机的效率（）。\nA.70% B.37% C. 27% D. 96%",
+          "math_text": null,
+          "ocr_confidence": 0.9897785272301426,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph9_carnot.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "10",
+        "title": "第 10 题 · 大学物理期末考试题 热学",
+        "text": "大学物理期末考试题 热学\n10.一卡诺热机工作在高温热源727°C和低温热源27°C之间，\n每循环从高温热源吸收热量2000J。求该热机的效率（）。\nA.70% B.37% C. 27% D. 96%",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题 热学 10.一卡诺热机工作在高温热源727°C和低温热源27°C之间， 每循环从高温热源吸收热量2000J。求该热机的效率（）。 A.70% B.37% C. 27% D. 96%"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题 热学\n10.一卡诺热机工作在高温热源727°C和低温热源27°C之间，\n每循环从高温热源吸收热量2000J。求该热机的效率（）。\nA.70% B.37% C. 27% D. 96%",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "卡诺热机与热机效率",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 10.一卡诺热机工作在高温热源727°C和低温热源27°C之间， 每循环从高温热源吸收热量2000J。求该热机的效率（）。 A.70% B.37% C. 27% D. 96%"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_Th",
+              "label": "高温热源 Th",
+              "value": 1000.15,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 10.一卡诺热机工作在高温热源727°C和低温热源27°C之间， 每循环从高温热源吸收热量2000J。求该热机的效率（）。 A.70% B.37% C. 27% D. 96%"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_Tc",
+              "label": "低温热源 Tc",
+              "value": 300.15,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 10.一卡诺热机工作在高温热源727°C和低温热源27°C之间， 每循环从高温热源吸收热量2000J。求该热机的效率（）。 A.70% B.37% C. 27% D. 96%"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_Qh",
+              "label": "吸热 Qh",
+              "value": 2000.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 10.一卡诺热机工作在高温热源727°C和低温热源27°C之间， 每循环从高温热源吸收热量2000J。求该热机的效率（）。 A.70% B.37% C. 27% D. 96%"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{η = 1 − Tc/Th；W = ηQh；Qc = Qh − W}",
+              "plain": "η = 1 − Tc/Th；W = ηQh；Qc = Qh − W",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "thermodynamics",
+          "physics_mode": "carnot",
+          "raw": "大学物理期末考试题 热学\n10.一卡诺热机工作在高温热源727°C和低温热源27°C之间，\n每循环从高温热源吸收热量2000J。求该热机的效率（）。\nA.70% B.37% C. 27% D. 96%",
+          "defaults": {
+            "Th": 1000.15,
+            "Tc": 300.15,
+            "Qh": 2000.0
+          },
+          "params": [
+            {
+              "id": "Th",
+              "label": "高温热源 Th (K)",
+              "kind": "number",
+              "min": 1,
+              "max": 5000,
+              "step": 1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "Tc",
+              "label": "低温热源 Tc (K)",
+              "kind": "number",
+              "min": 1,
+              "max": 5000,
+              "step": 1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "Qh",
+              "label": "吸热 Qh (J)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 10000000.0,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "thermodynamics",
+            "mode": "carnot",
+            "answer": "卡诺效率 η=69.99%，每循环做功 W=1400 J，放热 Qc=600.2 J。",
+            "answer_value": 0.6998950157476378,
+            "metrics": [
+              {
+                "id": "eta",
+                "label": "效率",
+                "value": "69.99 %",
+                "tone": "accent"
+              },
+              {
+                "id": "W",
+                "label": "做功",
+                "value": "1400 J"
+              },
+              {
+                "id": "Qc",
+                "label": "放热",
+                "value": "600.2 J"
+              }
+            ],
+            "checks": [
+              {
+                "id": "efficiency",
+                "label": "卡诺效率",
+                "status": "pass",
+                "detail": "η = 1 − Tc/Th"
+              },
+              {
+                "id": "energy",
+                "label": "能量守恒",
+                "status": "pass",
+                "detail": "Qh = W + Qc"
+              }
+            ],
+            "notes": [
+              "卡诺热机为可逆循环，效率 η=1−Tc/Th；热量与温度取开尔文。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "热源温度",
+                "detail": "Th=1000 K，Tc=300.1 K",
+                "values": {
+                  "Th": 1000.15,
+                  "Tc": 300.15
+                }
+              },
+              {
+                "index": 1,
+                "label": "循环结果",
+                "detail": "η=69.99%，W=1400 J",
+                "values": {
+                  "eta": 0.6998950157476378,
+                  "W": 1399.7900314952756
+                }
+              }
+            ],
+            "scene": {
+              "type": "thermo",
+              "kind": "carnot",
+              "Th": 1000.15,
+              "Tc": 300.15,
+              "Qh": 2000.0,
+              "eta": 0.6998950157476378,
+              "W": 1399.7900314952756,
+              "Qc": 600.2099685047244
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "卡诺效率 η=69.99%，每循环做功 W=1400 J，放热 Qc=600.2 J。",
+          "answer_value": 0.6998950157476378,
+          "answer_values": [
+            69.99,
+            1400.0,
+            600.2,
+            0.699895015748
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "热源温度",
+              "detail": "Th=1000 K，Tc=300.1 K"
+            },
+            {
+              "id": "phy_1",
+              "title": "循环结果",
+              "detail": "η=69.99%，W=1400 J"
+            }
+          ],
+          "conditions": [
+            "按卡诺热机与热机效率模型计算。"
+          ],
+          "limitations": [
+            "卡诺热机为可逆循环，效率 η=1−Tc/Th；热量与温度取开尔文。",
+            "常见单位会先换算为 SI；未给出的边界条件不会被自动补造。"
+          ]
+        },
+        "states": {
+          "params": {
+            "Th": 1000.15,
+            "Tc": 300.15,
+            "Qh": 2000.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "Th": 1000.15,
+                "Tc": 300.15,
+                "Qh": 2000.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "b83f386837bf40e0"
+}

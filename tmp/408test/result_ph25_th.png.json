@@ -1,0 +1,523 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_75d426d8f0b04274b6a0cd9afe38f641",
+    "title": "ph25_th.png",
+    "created_at": "2026-11-19T11:20:23Z",
+    "updated_at": "2026-11-19T11:20:23Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph25_th.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 102,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题 热学\n14.一定量理想气体从状态T1=300K、V1=2L变化到\nT2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。\nA.0.5 B.1.0 C. 2.0 D.4.0",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题 热学\n14.一定量理想气体从状态T1=300K、V1=2L变化到\nT2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。\nA.0.5 B.1.0 C. 2.0 D.4.0",
+          "math_text": null,
+          "ocr_confidence": 0.9897688821569364,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph25_th.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "14",
+        "title": "第 14 题 · 大学物理期末考试题 热学",
+        "text": "大学物理期末考试题 热学\n14.一定量理想气体从状态T1=300K、V1=2L变化到\nT2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。\nA.0.5 B.1.0 C. 2.0 D.4.0",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.8,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题 热学\n14.一定量理想气体从状态T1=300K、V1=2L变化到\nT2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。\nA.0.5 B.1.0 C. 2.0 D.4.0",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "理想气体与热力学第一定律",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_n",
+              "label": "物质的量 n",
+              "value": 1.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_n_assumed",
+              "label": "n_assumed",
+              "value": 1.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_T1",
+              "label": "初温 T1",
+              "value": 300.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_V1",
+              "label": "初体积 V1",
+              "value": 2.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_T2",
+              "label": "末温 T2",
+              "value": 600.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_V2",
+              "label": "末体积 V2",
+              "value": 4.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_process",
+              "label": "过程代号",
+              "value": 4.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_ask_ratio",
+              "label": "ask_ratio",
+              "value": 1.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_gamma",
+              "label": "绝热指数 γ",
+              "value": 1.4,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题 热学 14.一定量理想气体从状态T1=300K、V1=2L变化到 T2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。 A.0.5 B.1.0 C. 2.0 D.4.0"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{PV = nRT；Q = ΔU + W；Cv = R/(γ−1)}",
+              "plain": "PV = nRT；Q = ΔU + W；Cv = R/(γ−1)",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "thermodynamics",
+          "physics_mode": "thermo_process",
+          "raw": "大学物理期末考试题 热学\n14.一定量理想气体从状态T1=300K、V1=2L变化到\nT2=600K、V2=4L。求末态压强与初态压强之比p2/p1（）。\nA.0.5 B.1.0 C. 2.0 D.4.0",
+          "defaults": {
+            "n": 1.0,
+            "n_assumed": 1.0,
+            "T1": 300.0,
+            "V1": 2.0,
+            "T2": 600.0,
+            "V2": 4.0,
+            "process": 4.0,
+            "ask_ratio": 1.0,
+            "gamma": 1.4
+          },
+          "params": [
+            {
+              "id": "n",
+              "label": "物质的量 n (mol)",
+              "kind": "number",
+              "min": 0.001,
+              "max": 100,
+              "step": 0.001,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "T1",
+              "label": "初温 T1 (K)",
+              "kind": "number",
+              "min": 1,
+              "max": 5000,
+              "step": 1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "V1",
+              "label": "初体积 V1 (m³)",
+              "kind": "number",
+              "min": 0.0001,
+              "max": 100,
+              "step": 0.001,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "V2",
+              "label": "末体积 V2 (m³)",
+              "kind": "number",
+              "min": 0.0001,
+              "max": 100,
+              "step": 0.001,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "T2",
+              "label": "末温 T2 (K)",
+              "kind": "number",
+              "min": 1,
+              "max": 5000,
+              "step": 1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "gamma",
+              "label": "绝热指数 γ",
+              "kind": "number",
+              "min": 1.01,
+              "max": 2,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "thermodynamics",
+            "mode": "thermo_process",
+            "answer": "一般状态变化：P1=1247 Pa，P2=1247 Pa，p2/p1=1，ΔU=6236 J（未给物质的量，按 1 mol 计，比值不受影响）；做功与传热取决于具体过程路径，仅凭初末态不能确定。",
+            "answer_value": 1.0,
+            "metrics": [
+              {
+                "id": "P1",
+                "label": "初压",
+                "value": "1247 Pa"
+              },
+              {
+                "id": "P2",
+                "label": "末压",
+                "value": "1247 Pa"
+              },
+              {
+                "id": "ratio",
+                "label": "p2/p1",
+                "value": "1",
+                "tone": "accent"
+              },
+              {
+                "id": "dU",
+                "label": "内能变化",
+                "value": "6236 J"
+              }
+            ],
+            "checks": [
+              {
+                "id": "state_eq",
+                "label": "状态方程守恒",
+                "status": "pass",
+                "detail": "PV/T 在初末态之间守恒"
+              }
+            ],
+            "notes": [
+              "理想气体，准静态过程；R=8.314 J/(mol·K)，Cv=R/(γ−1)。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "初态",
+                "detail": "P1=1247 Pa，V1=2，T1=300 K",
+                "values": {
+                  "P1": 1247.1
+                }
+              },
+              {
+                "index": 1,
+                "label": "末态",
+                "detail": "P2=1247 Pa，V2=4，T2=600 K",
+                "values": {
+                  "P2": 1247.1
+                }
+              }
+            ],
+            "scene": {
+              "type": "thermo",
+              "process": 4,
+              "n": 1.0,
+              "T1": 300.0,
+              "T2": 600.0,
+              "V1": 2.0,
+              "V2": 4.0,
+              "P1": 1247.1,
+              "P2": 1247.1,
+              "dU": 6235.500000000001,
+              "gamma": 1.4
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "一般状态变化：P1=1247 Pa，P2=1247 Pa，p2/p1=1，ΔU=6236 J（未给物质的量，按 1 mol 计，比值不受影响）；做功与传热取决于具体过程路径，仅凭初末态不能确定。",
+          "answer_value": 1.0,
+          "answer_values": [
+            1247.0,
+            1.0,
+            6236.0
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "初态",
+              "detail": "P1=1247 Pa，V1=2，T1=300 K"
+            },
+            {
+              "id": "phy_1",
+              "title": "末态",
+              "detail": "P2=1247 Pa，V2=4，T2=600 K"
+            }
+          ],
+          "conditions": [
+            "按理想气体与热力学第一定律模型计算。"
+          ],
+          "limitations": [
+            "理想气体，准静态过程；R=8.314 J/(mol·K)，Cv=R/(γ−1)。",
+            "常见单位会先换算为 SI；未给出的边界条件不会被自动补造。"
+          ]
+        },
+        "states": {
+          "params": {
+            "n": 1.0,
+            "n_assumed": 1.0,
+            "T1": 300.0,
+            "V1": 2.0,
+            "T2": 600.0,
+            "V2": 4.0,
+            "process": 4.0,
+            "ask_ratio": 1.0,
+            "gamma": 1.4
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "n": 1.0,
+                "n_assumed": 1.0,
+                "T1": 300.0,
+                "V1": 2.0,
+                "T2": 600.0,
+                "V2": 4.0,
+                "process": 4.0,
+                "ask_ratio": 1.0,
+                "gamma": 1.4
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "8792e3f5a9c14f5e"
+}

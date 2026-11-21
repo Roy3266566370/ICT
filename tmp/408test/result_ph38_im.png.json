@@ -1,0 +1,413 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_c418bd50b3ce4b26a64f58d141aecc49",
+    "title": "ph38_im.png",
+    "created_at": "2026-11-19T11:51:45Z",
+    "updated_at": "2026-11-19T11:51:45Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph38_im.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 90,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题力学\n40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s，\n作用时间t=0.2s。求平均冲力（）。\nA.5N B.10N C.15N D.20N",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题力学\n40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s，\n作用时间t=0.2s。求平均冲力（）。\nA.5N B.10N C.15N D.20N",
+          "math_text": null,
+          "ocr_confidence": 0.997033724048829,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph38_im.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "40",
+        "title": "第 40 题 · 大学物理期末考试题力学",
+        "text": "大学物理期末考试题力学\n40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s，\n作用时间t=0.2s。求平均冲力（）。\nA.5N B.10N C.15N D.20N",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题力学 40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s， 作用时间t=0.2s。求平均冲力（）。 A.5N B.10N C.15N D.20N"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题力学\n40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s，\n作用时间t=0.2s。求平均冲力（）。\nA.5N B.10N C.15N D.20N",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "冲量与动量定理",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s， 作用时间t=0.2s。求平均冲力（）。 A.5N B.10N C.15N D.20N"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_m",
+              "label": "质量 m",
+              "value": 0.5,
+              "kind": "number",
+              "unit": "kg",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s， 作用时间t=0.2s。求平均冲力（）。 A.5N B.10N C.15N D.20N"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_v1",
+              "label": "速度 v1",
+              "value": 2.0,
+              "kind": "number",
+              "unit": "m/s",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s， 作用时间t=0.2s。求平均冲力（）。 A.5N B.10N C.15N D.20N"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_v2",
+              "label": "速度 v2",
+              "value": 6.0,
+              "kind": "number",
+              "unit": "m/s",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s， 作用时间t=0.2s。求平均冲力（）。 A.5N B.10N C.15N D.20N"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_t",
+              "label": "时间 t",
+              "value": 0.2,
+              "kind": "number",
+              "unit": "s",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s， 作用时间t=0.2s。求平均冲力（）。 A.5N B.10N C.15N D.20N"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{I = Δp = m(v2 − v1)；F平均 = I/t}",
+              "plain": "I = Δp = m(v2 − v1)；F平均 = I/t",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "momentum",
+          "physics_mode": "impulse",
+          "raw": "大学物理期末考试题力学\n40.质量m=0.5kg的物体速度由v1=2m/s变为v2=6m/s，\n作用时间t=0.2s。求平均冲力（）。\nA.5N B.10N C.15N D.20N",
+          "defaults": {
+            "m": 0.5,
+            "v1": 2.0,
+            "v2": 6.0,
+            "t": 0.2
+          },
+          "params": [
+            {
+              "id": "m",
+              "label": "质量 m (kg)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 100,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "v1",
+              "label": "初速度 v1 (m/s)",
+              "kind": "number",
+              "min": -50,
+              "max": 50,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "v2",
+              "label": "末速度 v2 (m/s)",
+              "kind": "number",
+              "min": -50,
+              "max": 50,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "t",
+              "label": "作用时间 t (s)",
+              "kind": "number",
+              "min": 0.01,
+              "max": 60,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "momentum",
+            "mode": "impulse",
+            "answer": "动量变化 Δp=2 kg·m/s，冲量 I=2 N·s，平均力 F=10 N。",
+            "answer_value": 10.0,
+            "metrics": [
+              {
+                "id": "dp",
+                "label": "动量变化",
+                "value": "2 kg·m/s",
+                "tone": "accent"
+              },
+              {
+                "id": "I",
+                "label": "冲量",
+                "value": "2 N·s"
+              },
+              {
+                "id": "F",
+                "label": "平均力",
+                "value": "10 N"
+              }
+            ],
+            "checks": [
+              {
+                "id": "impulse",
+                "label": "动量定理",
+                "status": "pass",
+                "detail": "I = Δp"
+              },
+              {
+                "id": "force",
+                "label": "平均力定义",
+                "status": "pass",
+                "detail": "F平均 = I/t"
+              }
+            ],
+            "notes": [
+              "一维运动，作用时间恒定；平均力按冲量除以时间计算。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "速度变化",
+                "detail": "v1=2 m/s，v2=6 m/s",
+                "values": {
+                  "v1": 2.0,
+                  "v2": 6.0
+                }
+              },
+              {
+                "index": 1,
+                "label": "冲量",
+                "detail": "I=2 N·s，F=10 N",
+                "values": {
+                  "I": 2.0,
+                  "F": 10.0
+                }
+              }
+            ],
+            "scene": {
+              "type": "impulse",
+              "m": 0.5,
+              "v1": 2.0,
+              "v2": 6.0,
+              "t": 0.2,
+              "impulse": 2.0,
+              "average": 10.0
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "动量变化 Δp=2 kg·m/s，冲量 I=2 N·s，平均力 F=10 N。",
+          "answer_value": 10.0,
+          "answer_values": [
+            2.0,
+            10.0
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "速度变化",
+              "detail": "v1=2 m/s，v2=6 m/s"
+            },
+            {
+              "id": "phy_1",
+              "title": "冲量",
+              "detail": "I=2 N·s，F=10 N"
+            }
+          ],
+          "conditions": [
+            "按冲量与动量定理模型计算。"
+          ],
+          "limitations": [
+            "一维运动，作用时间恒定；平均力按冲量除以时间计算。",
+            "未给出的初值或边界条件不会被自动补造。",
+            "常见单位 km/h、cm、mm、km、g、min、h 会先换算为 SI；仍无法识别的单位请以 SI 填写。"
+          ]
+        },
+        "states": {
+          "params": {
+            "m": 0.5,
+            "v1": 2.0,
+            "v2": 6.0,
+            "t": 0.2
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "m": 0.5,
+                "v1": 2.0,
+                "v2": 6.0,
+                "t": 0.2
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "fadf460f467948cf"
+}

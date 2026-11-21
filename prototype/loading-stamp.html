@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f2f0e8">
+<title>盖章加载 · Stamp Loader · 九章</title>
+<!--
+  盖章加载 · Stamp Loader（独立原型，无依赖，不接入应用代码）
+  色板与字体取自 frontend/src/styles/tokens.css：
+  暖纸 #f2f0e8 / 墨 #101211 / 钴蓝 #1c2ecb / 朱砂 #de421f
+  节奏：每 1.8s 落一次章，纯 CSS 循环；prefers-reduced-motion 时停在盖好的静帧。
+-->
+<style>
+  :root {
+    --paper-0: #fbf9f2;
+    --paper-1: #f6f3ea;
+    --paper-2: #f2f0e8;
+    --paper-3: #e9e5d9;
+    --ink-900: #101211;
+    --ink-700: #34372f;
+    --ink-500: #5f6257;
+    --ink-400: #7f8175;
+    --ink-300: #9a9b8f;
+    --hairline: #d8d3c4;
+    --hairline-strong: #c5c0b0;
+    --indigo: #1c2ecb;
+    --indigo-strong: #101a63;
+    --coral: #de421f;
+    --coral-ink: #ac2c10;
+    --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif;
+    --sans: "Inter", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SFMono-Regular", "Cascadia Code", Consolas, monospace;
+    --cycle: 1800ms;
+    --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.4'/%3E%3C/svg%3E");
+  }
+
+  *,
+  *::before,
+  *::after { box-sizing: border-box; }
+
+  html,
+  body { height: 100%; }
+
+  body {
+    margin: 0;
+    color: var(--ink-900);
+    background-color: var(--paper-2);
+    background-image:
+      radial-gradient(1000px 720px at 50% 34%, rgba(251, 249, 242, .72), rgba(242, 240, 232, 0) 66%),
+      radial-gradient(560px 420px at 12% 88%, rgba(28, 46, 203, .05), transparent 70%),
+      radial-gradient(640px 460px at 88% 10%, rgba(222, 66, 31, .055), transparent 70%);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    background-image: var(--grain);
+    opacity: .11;
+    mix-blend-mode: multiply;
+  }
+
+  .frame {
+    position: fixed;
+    inset: 16px;
+    z-index: 2;
+    border: 1px solid rgba(197, 192, 176, .42);
+    pointer-events: none;
+  }
+
+  .frame::before,
+  .frame::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    border-style: solid;
+  }
+
+  .frame::before {
+    top: -1px;
+    left: -1px;
+    border-width: 1px 0 0 1px;
+    border-color: var(--ink-300);
+  }
+
+  .frame::after {
+    right: -1px;
+    bottom: -1px;
+    border-width: 0 1px 1px 0;
+    border-color: var(--ink-300);
+  }
+
+  .masthead {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 26px 34px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-mark {
+    width: 22px;
+    height: 22px;
+    color: var(--ink-900);
+  }
+
+  .brand-name {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: .12em;
+  }
+
+  .brand-latin {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .22em;
+    color: var(--ink-500);
+  }
+
+  .masthead-meta {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .22em;
+    color: var(--ink-400);
+  }
+
+  .screen {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    min-height: 100vh;
+    min-height: 100svh;
+    place-items: center;
+    padding: 112px 24px 96px;
+  }
+
+  .loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* ---------- 舞台：印面与落点共用同一套坐标 ---------- */
+
+  .stage {
+    position: relative;
+    width: 260px;
+    height: 336px;
+  }
+
+  .stamp-slot {
+    position: absolute;
+    top: 142px;
+    left: 50%;
+    width: 116px;
+    height: 168px;
+    margin-left: -58px;
+    perspective: 780px;
+    perspective-origin: 50% -34%; /* 视点抬到章体上方，悬停时露出印顶 */
+    z-index: 5;
+  }
+
+  .stamp {
+    position: relative;
+    width: 116px;
+    height: 168px;
+    transform: translate3d(0, -165px, 0) rotateX(-24deg);
+    transform-origin: 50% 100%;
+    transform-style: preserve-3d;
+    will-change: transform;
+    animation: stamp-strike var(--cycle) infinite;
+  }
+
+  /* ---------- 立体印章：116×116 印面、52 高印身 + 立柱与印钮 ---------- */
+
+  .rig {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 0;
+    transform-style: preserve-3d;
+  }
+
+  .f {
+    position: absolute;
+    backface-visibility: hidden;
+  }
+
+  .base-top,
+  .base-bottom {
+    left: 0;
+    width: 116px;
+    height: 116px;
+  }
+
+  .base-top {
+    top: -110px;
+    border-radius: 6px;
+    background:
+      radial-gradient(120% 90% at 30% 16%, rgba(255, 255, 255, .2), rgba(255, 255, 255, 0) 56%),
+      linear-gradient(148deg, #f0643a 0%, #e14b25 46%, #cc3213 100%);
+    box-shadow: inset 0 0 24px rgba(118, 24, 4, .26);
+    transform: rotateX(90deg);
+  }
+
+  .base-top::before {
+    content: "";
+    position: absolute;
+    inset: 9px;
+    border: 1.5px solid rgba(249, 243, 229, .5);
+    border-radius: 4px;
+  }
+
+  .base-bottom {
+    top: -58px;
+    border-radius: 6px;
+    background: #5c1404;
+    transform: rotateX(-90deg);
+  }
+
+  .base-front,
+  .base-back,
+  .base-left,
+  .base-right {
+    top: -52px;
+    left: 0;
+    width: 116px;
+    height: 52px;
+  }
+
+  .base-front {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 32%),
+      linear-gradient(180deg, #d9421e 0%, #ba2f11 58%, #9a2008 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .2),
+      inset 0 0 16px rgba(96, 20, 4, .2);
+    transform: translateZ(58px);
+  }
+
+  .base-front::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 9px;
+    width: 34px;
+    height: 1px;
+    margin-left: -17px;
+    background: rgba(248, 242, 226, .42);
+  }
+
+  .base-back {
+    background: #6e1804;
+    transform: rotateY(180deg) translateZ(58px);
+  }
+
+  .base-left {
+    background: linear-gradient(180deg, #bd3414 0%, #8d2008 100%);
+    transform: rotateY(-90deg) translateZ(58px);
+  }
+
+  .base-right {
+    background: linear-gradient(180deg, #a92a0e 0%, #7a1b05 100%);
+    transform: rotateY(90deg) translateZ(58px);
+  }
+
+  .seal-glyphs {
+    font-family: var(--serif);
+    font-size: 29px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: .2em;
+    padding-left: .2em;
+    color: #f8f2e2;
+    text-shadow: 0 1px 1px rgba(90, 20, 4, .55);
+  }
+
+  .col-front,
+  .col-back,
+  .col-left,
+  .col-right {
+    left: 36px;
+    top: -98px;
+    width: 44px;
+    height: 46px;
+  }
+
+  .col-front {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .18), rgba(255, 255, 255, 0) 34%),
+      linear-gradient(180deg, #3a4cec 0%, #2231bd 52%, #101a63 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22);
+    transform: translateZ(22px);
+  }
+
+  .col-front::after {
+    content: "";
+    position: absolute;
+    right: 8px;
+    bottom: 6px;
+    left: 8px;
+    height: 2px;
+    background: rgba(222, 66, 31, .85);
+  }
+
+  .col-back {
+    background: #0b1247;
+    transform: rotateY(180deg) translateZ(22px);
+  }
+
+  .col-left {
+    background: linear-gradient(180deg, #2c3cde 0%, #121d77 100%);
+    transform: rotateY(-90deg) translateZ(22px);
+  }
+
+  .col-right {
+    background: linear-gradient(180deg, #1a279e 0%, #0a1140 100%);
+    transform: rotateY(90deg) translateZ(22px);
+  }
+
+  .knob-top {
+    left: 29px;
+    top: -145px;
+    width: 58px;
+    height: 58px;
+    border-radius: 6px;
+    background:
+      radial-gradient(90% 90% at 30% 22%, #5465f3 0%, #2a39d2 48%, #131e7c 100%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14);
+    transform: rotateX(90deg);
+  }
+
+  .knob-front,
+  .knob-back,
+  .knob-left,
+  .knob-right {
+    left: 29px;
+    top: -116px;
+    width: 58px;
+    height: 18px;
+  }
+
+  .knob-front {
+    background: linear-gradient(180deg, #3346e6 0%, #1a2699 60%, #101a63 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .22);
+    transform: translateZ(29px);
+  }
+
+  .knob-back {
+    background: #0a1140;
+    transform: rotateY(180deg) translateZ(29px);
+  }
+
+  .knob-left {
+    background: linear-gradient(180deg, #2a3ada 0%, #101a63 100%);
+    transform: rotateY(-90deg) translateZ(29px);
+  }
+
+  .knob-right {
+    background: linear-gradient(180deg, #1a279e 0%, #080e36 100%);
+    transform: rotateY(90deg) translateZ(29px);
+  }
+
+  /* ---------- 纸面印痕 ---------- */
+
+  .imprint {
+    position: absolute;
+    top: 197px;
+    left: 50%;
+    z-index: 2;
+    width: 122px;
+    height: 122px;
+    margin-left: -61px;
+    border-radius: 11px;
+    background:
+      radial-gradient(90% 80% at 32% 24%, rgba(180, 44, 15, .32), rgba(180, 44, 15, 0) 62%),
+      linear-gradient(150deg, #cb3c1c 0%, #b52d10 55%, #972107 100%);
+    box-shadow:
+      inset 0 0 30px rgba(96, 20, 4, .34),
+      inset 0 0 2px rgba(90, 18, 4, .5);
+    opacity: 0;
+    transform: rotate(-3.5deg);
+    filter: url(#ink-rough);
+    animation: imprint-print var(--cycle) infinite;
+  }
+
+  .imprint::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-image: var(--grain);
+    background-size: 110px 110px;
+    opacity: .24;
+    mix-blend-mode: multiply;
+  }
+
+  .imprint-inner {
+    position: absolute;
+    inset: 8px;
+    border: 1.5px solid rgba(247, 241, 225, .4);
+    border-radius: 5px;
+  }
+
+  .imprint-glyphs {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding-bottom: 1px;
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    font-family: var(--serif);
+    font-size: 37px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 2px;
+    color: rgba(247, 241, 225, .88);
+    text-shadow: 0 0 1px rgba(110, 22, 4, .35);
+  }
+
+  .fx {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+  }
+
+  .ring {
+    position: absolute;
+    top: 314px;
+    left: 50%;
+    width: 148px;
+    height: 38px;
+    margin: -19px 0 0 -74px;
+    border: 1.5px solid rgba(196, 55, 22, .5);
+    border-radius: 50%;
+    opacity: 0;
+    animation: ripple-a var(--cycle) infinite;
+  }
+
+  .ring.b {
+    border-color: rgba(222, 66, 31, .26);
+    animation-name: ripple-b;
+  }
+
+  .speck {
+    position: absolute;
+    top: calc(310px + var(--y));
+    left: calc(50% + var(--x));
+    width: var(--s);
+    height: var(--h, var(--s));
+    margin: calc(var(--h, var(--s)) / -2) 0 0 calc(var(--s) / -2);
+    border-radius: 55% 45% 60% 40%;
+    background: var(--c, #c93515);
+    opacity: 0;
+    animation: speck-fly var(--cycle) infinite;
+  }
+
+  .speck.dash {
+    border-radius: 999px;
+  }
+
+  .streaks {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .streaks i {
+    position: absolute;
+    top: 16px;
+    width: 1.5px;
+    height: 54px;
+    border-radius: 1px;
+    background: linear-gradient(180deg, rgba(52, 55, 47, 0), rgba(52, 55, 47, .22), rgba(52, 55, 47, 0));
+    transform-origin: 50% 0;
+    opacity: 0;
+    animation: streak-fall var(--cycle) infinite;
+  }
+
+  .streaks i:first-child { left: calc(50% - 36px); }
+  .streaks i:last-child {
+    top: 34px;
+    left: calc(50% + 36px);
+    height: 38px;
+  }
+
+  .contact-shadow {
+    position: absolute;
+    top: 296px;
+    left: 50%;
+    z-index: 4;
+    width: 144px;
+    height: 34px;
+    margin-left: -72px;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at center, rgba(38, 30, 16, .34) 0%, rgba(38, 30, 16, .16) 42%, rgba(38, 30, 16, 0) 72%);
+    filter: blur(3px);
+    animation: ground-shadow var(--cycle) infinite;
+  }
+
+  /* ---------- 文案 ---------- */
+
+  .copy {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .copy-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding-left: .3em;
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: .3em;
+    color: var(--ink-700);
+  }
+
+  .ellipsis {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding-top: 1px;
+  }
+
+  .ellipsis i {
+    width: 3px;
+    height: 3px;
+    border-radius: .5px;
+    background: var(--coral);
+    opacity: .3;
+    animation: dot-pulse 1.2s ease-in-out infinite;
+  }
+
+  .ellipsis i:nth-child(2) { animation-delay: .16s; }
+  .ellipsis i:nth-child(3) { animation-delay: .32s; }
+
+  .copy-sub {
+    margin: 0;
+    padding-left: .26em;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: .26em;
+    color: var(--ink-400);
+    text-transform: uppercase;
+  }
+
+  .page-foot {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 3;
+    display: flex;
+    justify-content: space-between;
+    padding: 24px 34px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .2em;
+    color: var(--ink-400);
+  }
+
+  .svg-defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
+  /* ---------- 动效 ---------- */
+
+  @keyframes stamp-strike {
+    0% {
+      transform: translate3d(0, -165px, 0) rotateX(-24deg);
+      animation-timing-function: cubic-bezier(.45, 0, .55, 1);
+    }
+    6% {
+      transform: translate3d(0, -168px, 0) rotateX(-24.8deg);
+      animation-timing-function: cubic-bezier(.45, 0, .55, 1);
+    }
+    12% {
+      transform: translate3d(0, -165px, 0) rotateX(-24deg);
+      animation-timing-function: cubic-bezier(.42, 0, .6, 1);
+    }
+    18% {
+      transform: translate3d(0, -172px, 0) rotateX(-25.5deg);
+      animation-timing-function: cubic-bezier(.55, .02, .82, .16);
+    }
+    28% {
+      transform: translate3d(0, 2px, 0) rotateX(0deg) scale3d(1.02, .94, 1);
+      animation-timing-function: cubic-bezier(.2, .85, .25, 1);
+    }
+    31% {
+      transform: translate3d(0, -4px, 0) rotateX(-1.2deg) scale3d(.998, 1.01, 1);
+      animation-timing-function: cubic-bezier(.3, .7, .4, 1);
+    }
+    34% {
+      transform: translate3d(0, -12px, 0) rotateX(-3.4deg) scale3d(1, 1, 1);
+      animation-timing-function: cubic-bezier(.18, .85, .3, 1);
+    }
+    46% {
+      transform: translate3d(0, -169px, 0) rotateX(-25deg);
+      animation-timing-function: cubic-bezier(.3, .7, .4, 1);
+    }
+    50%, 100% {
+      transform: translate3d(0, -165px, 0) rotateX(-24deg);
+    }
+  }
+
+  @keyframes imprint-print {
+    0%, 40% {
+      opacity: 0;
+      transform: rotate(-3.5deg) scale(1.05);
+    }
+    52% {
+      opacity: .9;
+      transform: rotate(-3.5deg) scale(1.004);
+      animation-timing-function: cubic-bezier(.16, 1, .3, 1);
+    }
+    56% {
+      opacity: .88;
+      transform: rotate(-3.5deg) scale(1);
+    }
+    84% {
+      opacity: .88;
+      transform: rotate(-3.5deg) scale(1);
+    }
+    93%, 100% {
+      opacity: 0;
+      transform: rotate(-3.5deg) scale(1);
+    }
+  }
+
+  @keyframes ripple-a {
+    0%, 26% {
+      opacity: 0;
+      transform: scale(.74);
+      animation-timing-function: cubic-bezier(.16, 1, .3, 1);
+    }
+    28% { opacity: .55; }
+    48% {
+      opacity: 0;
+      transform: scale(1.34);
+    }
+    100% { opacity: 0; }
+  }
+
+  @keyframes ripple-b {
+    0%, 27% {
+      opacity: 0;
+      transform: scale(.7);
+      animation-timing-function: cubic-bezier(.16, 1, .3, 1);
+    }
+    30% { opacity: .3; }
+    56% {
+      opacity: 0;
+      transform: scale(1.56);
+    }
+    100% { opacity: 0; }
+  }
+
+  @keyframes speck-fly {
+    0%, 25.5% {
+      opacity: 0;
+      transform: translate(calc(var(--x) * -.4), calc(var(--y) * -.4)) rotate(var(--rot, 0deg)) scale(.2);
+      animation-timing-function: cubic-bezier(.16, 1, .3, 1);
+    }
+    27.5% { opacity: .95; }
+    31% {
+      opacity: .9;
+      transform: translate(0, 0) rotate(var(--rot, 0deg)) scale(1);
+    }
+    46% {
+      opacity: 0;
+      transform: translate(calc(var(--x) * .12), calc(var(--y) * .12)) rotate(var(--rot, 0deg)) scale(.85);
+    }
+    100% { opacity: 0; }
+  }
+
+  @keyframes ground-shadow {
+    0%, 12% { transform: scale(1.05); opacity: .36; }
+    18% { transform: scale(1.08); opacity: .3; }
+    28% { transform: scale(.78); opacity: .85; }
+    36% { transform: scale(.9); opacity: .55; }
+    60%, 100% { transform: scale(1.05); opacity: .36; }
+  }
+
+  @keyframes streak-fall {
+    0%, 16.5% { opacity: 0; transform: scaleY(.4); }
+    18.5% { opacity: .45; }
+    26.5% { opacity: 0; transform: translateY(10px) scaleY(1.2); }
+    100% { opacity: 0; }
+  }
+
+  @keyframes dot-pulse {
+    0%, 55%, 100% { opacity: .28; transform: translateY(0); }
+    25% { opacity: 1; transform: translateY(-2px); }
+  }
+
+  @media (max-width: 640px) {
+    .masthead { padding: 22px 22px; }
+    .masthead-meta { display: none; }
+    .page-foot { padding: 20px 22px; }
+    .page-foot span:last-child { display: none; }
+    .frame { inset: 10px; }
+    .screen { padding: 96px 16px 88px; }
+  }
+
+  @media (max-height: 640px) {
+    .masthead { padding: 16px 22px; }
+    .page-foot { padding: 12px 22px; }
+    .screen { padding: 72px 16px 56px; }
+    .loader { transform: scale(.82); transform-origin: center; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stamp {
+      animation: none;
+      transform: translate3d(0, -165px, 0) rotateX(-24deg);
+    }
+    .imprint {
+      animation: none;
+      opacity: .88;
+      transform: rotate(-3.5deg);
+    }
+    .contact-shadow {
+      animation: none;
+      opacity: .36;
+      transform: scale(.85);
+    }
+    .ring,
+    .speck,
+    .streaks i { animation: none; opacity: 0; }
+    .ellipsis i { animation: none; opacity: .55; }
+  }
+</style>
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="frame" aria-hidden="true"></div>
+
+  <header class="masthead">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <path d="M5 12V5h7M20 5h7v7M27 20v7h-7M12 27H5v-7" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <circle cx="16" cy="16" r="2.6" fill="#de421f"/>
+      </svg>
+      <span class="brand-name">九章</span>
+      <span class="brand-latin">JIUZHANG</span>
+    </div>
+    <div class="masthead-meta">LOADER 001 · 盖章加载</div>
+  </header>
+
+  <main class="screen">
+    <div class="loader" role="status" aria-live="polite" aria-busy="true">
+      <div class="stage" aria-hidden="true">
+        <div class="contact-shadow"></div>
+
+        <div class="imprint">
+          <span class="imprint-inner"></span>
+          <span class="imprint-glyphs">九章</span>
+        </div>
+
+        <div class="fx">
+          <i class="ring"></i>
+          <i class="ring b"></i>
+          <i class="speck" style="--x:-88px; --y:-14px; --s:5px; --rot:24deg; --c:#c93515"></i>
+          <i class="speck" style="--x:82px; --y:-10px; --s:3.5px; --rot:-12deg; --c:#dd431f"></i>
+          <i class="speck dash" style="--x:96px; --y:6px; --s:9px; --h:2.5px; --rot:32deg; --c:#b12c0f"></i>
+          <i class="speck" style="--x:-94px; --y:4px; --s:3px; --rot:0deg; --c:#ac2c10"></i>
+          <i class="speck" style="--x:-72px; --y:16px; --s:4px; --rot:-25deg; --c:#c93515"></i>
+          <i class="speck" style="--x:68px; --y:18px; --s:3px; --rot:10deg; --c:#dd431f"></i>
+          <i class="speck dash" style="--x:-46px; --y:-22px; --s:7px; --h:2px; --rot:64deg; --c:#b12c0f"></i>
+          <i class="speck" style="--x:40px; --y:22px; --s:4.5px; --rot:-8deg; --c:#ac2c10"></i>
+          <i class="speck" style="--x:-100px; --y:-4px; --s:2.5px; --rot:0deg; --c:#dd431f"></i>
+        </div>
+
+        <div class="streaks">
+          <i></i>
+          <i></i>
+        </div>
+
+        <div class="stamp-slot">
+          <div class="stamp">
+            <div class="rig">
+              <i class="f base-top"></i>
+              <i class="f base-bottom"></i>
+              <i class="f base-back"></i>
+              <i class="f base-left"></i>
+              <i class="f base-right"></i>
+              <i class="f base-front"><span class="seal-glyphs">九章</span></i>
+
+              <i class="f col-back"></i>
+              <i class="f col-left"></i>
+              <i class="f col-right"></i>
+              <i class="f col-front"></i>
+
+              <i class="f knob-back"></i>
+              <i class="f knob-left"></i>
+              <i class="f knob-right"></i>
+              <i class="f knob-front"></i>
+              <i class="f knob-top"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="copy">
+        <p class="copy-title">正在加载<span class="ellipsis" aria-hidden="true"><i></i><i></i><i></i></span></p>
+        <p class="copy-sub">JIUZHANG · STAMPING</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="page-foot">
+    <span>盖章加载 · STAMP LOADER</span>
+    <span>PROTOTYPE / loading-stamp</span>
+  </footer>
+
+  <svg class="svg-defs" aria-hidden="true" focusable="false">
+    <defs>
+      <filter id="ink-rough" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="9" result="noise"></feTurbulence>
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="1.6" xChannelSelector="R" yChannelSelector="G"></feDisplacementMap>
+      </filter>
+    </defs>
+  </svg>
+</body>
+</html>

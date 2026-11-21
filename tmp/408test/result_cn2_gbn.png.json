@@ -1,0 +1,294 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_b6258905da534e97ae940a24b8a2d86c",
+    "title": "cn2_gbn.png",
+    "created_at": "2026-11-19T09:37:24Z",
+    "updated_at": "2026-11-19T09:37:24Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "cn2_gbn.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 116,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "2009年408统考真题计算机网络\n35.数据链路层采用后退N帧（GBN）协议，发送方已经发送了编号\n为0～7的帧。当计时器超时时，若发送方只收到0、2、3号帧的确\n认，则发送方需要重发的帧数是（）。\nA.2 B.3 C.4 D.5",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "2009年408统考真题计算机网络\n35.数据链路层采用后退N帧（GBN）协议，发送方已经发送了编号\n为0～7的帧。当计时器超时时，若发送方只收到0、2、3号帧的确\n认，则发送方需要重发的帧数是（）。\nA.2 B.3 C.4 D.5",
+          "math_text": null,
+          "ocr_confidence": 0.9964482396134751,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "cn2_gbn.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "35",
+        "title": "第 35 题 · 2009年408统考真题计算机网络",
+        "text": "2009年408统考真题计算机网络\n35.数据链路层采用后退N帧（GBN）协议，发送方已经发送了编号\n为0～7的帧。当计时器超时时，若发送方只收到0、2、3号帧的确\n认，则发送方需要重发的帧数是（）。\nA.2 B.3 C.4 D.5",
+        "subject": "computer_network",
+        "subject_label": "计算机网络",
+        "confidence": 0.95,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "2009年408统考真题计算机网络 35.数据链路层采用后退N帧（GBN）协议，发送方已经发送了编号 为0～7的帧。当计时器超时时，若发送方只收到0、2、3号帧的确 认，则发送方需要重发的帧数是（）。 A.2 B.3 C.4 D.5"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "2009年408统考真题计算机网络\n35.数据链路层采用后退N帧（GBN）协议，发送方已经发送了编号\n为0～7的帧。当计时器超时时，若发送方只收到0、2、3号帧的确\n认，则发送方需要重发的帧数是（）。\nA.2 B.3 C.4 D.5",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "net_kind",
+              "label": "题型",
+              "value": "可靠传输与滑动窗口",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "2009年408统考真题计算机网络 35.数据链路层采用后退N帧（GBN）协议，发送方已经发送了编号 为0～7的帧。当计时器超时时，若发送方只收到0、2、3号帧的确 认，则发送方需要重发的帧数是（）。 A.2 B.3 C.4 D.5"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "window",
+              "tex": "\\text{GBN：}W\\le N-1,\\quad \\text{SR：}W\\le N/2",
+              "plain": "停止等待、GBN、SR 的窗口与序号空间约束。",
+              "role": "可靠传输"
+            }
+          ],
+          "recognized_subject": "computer_network",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "net_window_v1",
+          "subject": "computer_network",
+          "net_kind": "sliding_window",
+          "raw": "2009年408统考真题计算机网络\n35.数据链路层采用后退N帧（GBN）协议，发送方已经发送了编号\n为0～7的帧。当计时器超时时，若发送方只收到0、2、3号帧的确\n认，则发送方需要重发的帧数是（）。\nA.2 B.3 C.4 D.5",
+          "defaults": {},
+          "params": [],
+          "teaching": false,
+          "net_result": {
+            "subject": "computer_network",
+            "engine": "net_window_v1",
+            "net_kind": "sliding_window",
+            "status": "ok",
+            "headline": "GBN：发送窗口 W 内可连续发送；接收窗口为 1。若序号空间为 N，必须满足 W ≤ N−1。；GBN 采用累积确认：收到 3 号帧的确认即表示 0–3 号帧均已到达；发送端已发 0–7，超时后需从 4 号帧起重传 4…7，共 4 帧。",
+            "answer": "GBN：发送窗口 W 内可连续发送；接收窗口为 1。若序号空间为 N，必须满足 W ≤ N−1。；GBN 采用累积确认：收到 3 号帧的确认即表示 0–3 号帧均已到达；发送端已发 0–7，超时后需从 4 号帧起重传 4…7，共 4 帧。",
+            "answer_value": 4.0,
+            "answer_order": null,
+            "metrics": [
+              {
+                "id": "answer",
+                "label": "结论",
+                "value": "GBN：发送窗口 W 内可连续发送；接收窗口为 1。若序号空间为 N，必须满足 W ≤ N−1。；GBN 采用累积确认：收到 3 号帧的确认即表示 0–3 号帧均已到达；发送端已发 0–7，超时后需从 4 号帧起重传 4…7，共 4 帧。"
+              },
+              {
+                "id": "value",
+                "label": "数值",
+                "value": "4"
+              }
+            ],
+            "checks": [
+              {
+                "id": "window_bound",
+                "label": "窗口与序号空间约束",
+                "status": "pass",
+                "detail": "GBN：W≤N−1；SR：W≤N/2；停止等待：W=1。"
+              }
+            ],
+            "notes": [
+              "窗口变化演示假设只有一个数据帧丢失、ACK 不丢失，且序号从 0 开始。",
+              "信道利用率忽略处理时延与 ACK 发送时间；GBN/SR 使用窗口完全利用的稳态公式。",
+              "序号位数按 2 的幂序号空间计算。"
+            ],
+            "trace": [
+              {
+                "index": 0,
+                "action": "protocol",
+                "label": "GBN 回退 N 窗口规则",
+                "detail": "GBN：发送窗口 W 内可连续发送；接收窗口为 1。若序号空间为 N，必须满足 W ≤ N−1。",
+                "values": {
+                  "协议": "GBN 回退 N",
+                  "发送窗口": "未给出",
+                  "接收窗口": "1",
+                  "序号空间": "未给出"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 1,
+                "action": "gbn_resend",
+                "label": "GBN 累积确认与重传",
+                "detail": "GBN 采用累积确认：收到 3 号帧的确认即表示 0–3 号帧均已到达；发送端已发 0–7，超时后需从 4 号帧起重传 4…7，共 4 帧。",
+                "values": {
+                  "已发帧": "0–7",
+                  "已确认": "[0, 2, 3]",
+                  "累积确认至": "3",
+                  "重传帧": "4,5,6,7"
+                },
+                "pseudocodeLine": 4
+              }
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "action": "protocol",
+                "label": "GBN 回退 N 窗口规则",
+                "detail": "GBN：发送窗口 W 内可连续发送；接收窗口为 1。若序号空间为 N，必须满足 W ≤ N−1。",
+                "values": {
+                  "协议": "GBN 回退 N",
+                  "发送窗口": "未给出",
+                  "接收窗口": "1",
+                  "序号空间": "未给出"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 1,
+                "action": "gbn_resend",
+                "label": "GBN 累积确认与重传",
+                "detail": "GBN 采用累积确认：收到 3 号帧的确认即表示 0–3 号帧均已到达；发送端已发 0–7，超时后需从 4 号帧起重传 4…7，共 4 帧。",
+                "values": {
+                  "已发帧": "0–7",
+                  "已确认": "[0, 2, 3]",
+                  "累积确认至": "3",
+                  "重传帧": "4,5,6,7"
+                },
+                "pseudocodeLine": 4
+              }
+            ],
+            "pseudocode": [
+              "发送窗口内的帧可以连续发送而不必逐个等待确认",
+              "停止等待窗口为 1；GBN 接收窗口为 1；SR 收发窗口可大于 1",
+              "GBN 超时回退到丢失帧，重传该帧及其后已发送帧",
+              "SR 接收端缓存失序帧，发送端只重传未被确认的帧",
+              "序号空间：GBN 需 N ≥ W+1，SR 需 N ≥ 2W"
+            ],
+            "stats": {
+              "protocol": "gbn",
+              "retransmissions": [
+                4,
+                5,
+                6,
+                7
+              ]
+            },
+            "stop_reason": "done"
+          }
+        },
+        "solution": {
+          "summary": "按停止等待/GBN/SR 的窗口、序号空间、利用率与重传规则推导。",
+          "answer": "GBN：发送窗口 W 内可连续发送；接收窗口为 1。若序号空间为 N，必须满足 W ≤ N−1。；GBN 采用累积确认：收到 3 号帧的确认即表示 0–3 号帧均已到达；发送端已发 0–7，超时后需从 4 号帧起重传 4…7，共 4 帧。",
+          "answer_value": 4.0,
+          "answer_order": null,
+          "answer_sequence": null,
+          "steps": [
+            {
+              "id": "net_0",
+              "title": "GBN 回退 N 窗口规则",
+              "detail": "GBN：发送窗口 W 内可连续发送；接收窗口为 1。若序号空间为 N，必须满足 W ≤ N−1。"
+            },
+            {
+              "id": "net_1",
+              "title": "GBN 累积确认与重传",
+              "detail": "GBN 采用累积确认：收到 3 号帧的确认即表示 0–3 号帧均已到达；发送端已发 0–7，超时后需从 4 号帧起重传 4…7，共 4 帧。"
+            }
+          ],
+          "conditions": [
+            "题目数据来自题面识别；可在条件面板中查看题型。"
+          ],
+          "limitations": [
+            "窗口变化演示假设只有一个数据帧丢失、ACK 不丢失，且序号从 0 开始。",
+            "信道利用率忽略处理时延与 ACK 发送时间；GBN/SR 使用窗口完全利用的稳态公式。",
+            "序号位数按 2 的幂序号空间计算。"
+          ]
+        },
+        "states": {
+          "params": {},
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {},
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "computer_network",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "26a5a611e33748f5"
+}

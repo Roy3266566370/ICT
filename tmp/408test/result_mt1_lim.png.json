@@ -1,0 +1,290 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_5a8ee3b316b44ab49827769c5635e07f",
+    "title": "mt1_lim.png",
+    "created_at": "2026-11-19T12:54:42Z",
+    "updated_at": "2026-11-19T12:54:42Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "mt1_lim.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 53,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "高等数学期末考试题极限\n1.求极限lim(x→0) sinx/x（）。\nA.0 B.1 C.2 D.不存在",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "高等数学期末考试题极限\n1.求极限lim(x→0) sinx/x（）。\nA.0 B.1 C.2 D.不存在",
+          "math_text": null,
+          "ocr_confidence": 0.9864742367216301,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "mt1_lim.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "1",
+        "title": "第 1 题 · 高等数学期末考试题极限",
+        "text": "高等数学期末考试题极限\n1.求极限lim(x→0) sinx/x（）。\nA.0 B.1 C.2 D.不存在",
+        "subject": "calculus",
+        "subject_label": "微积分",
+        "confidence": 0.85,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "高等数学期末考试题极限 1.求极限lim(x→0) sinx/x（）。 A.0 B.1 C.2 D.不存在"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "高等数学期末考试题极限\n1.求极限lim(x→0) sinx/x（）。\nA.0 B.1 C.2 D.不存在",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "expression",
+              "label": "函数表达式",
+              "value": "sin(x)/x",
+              "kind": "expr",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "高等数学期末考试题极限 1.求极限lim(x→0) sinx/x（）。 A.0 B.1 C.2 D.不存在"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "side",
+              "label": "考察方向",
+              "value": "both",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "高等数学期末考试题极限 1.求极限lim(x→0) sinx/x（）。 A.0 B.1 C.2 D.不存在"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "point",
+              "label": "极限点",
+              "value": "0",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "高等数学期末考试题极限 1.求极限lim(x→0) sinx/x（）。 A.0 B.1 C.2 D.不存在"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "limit",
+              "tex": "\\frac{\\sin{\\left(x \\right)}}{x}",
+              "plain": "sin(x)/x",
+              "role": "P1 分析模型"
+            }
+          ],
+          "recognized_subject": "calculus",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "analysis_v1",
+          "subject": "calculus",
+          "task": "limit",
+          "analysis_kind": "limit",
+          "kind": "limit",
+          "variable": "x",
+          "expression": "sin(x)/x",
+          "teaching": false,
+          "defaults": {
+            "point": 0.0,
+            "side": "both"
+          },
+          "params": [
+            {
+              "id": "point",
+              "label": "极限点 x₀",
+              "kind": "number",
+              "min": -50,
+              "max": 50,
+              "step": 0.5,
+              "options": []
+            },
+            {
+              "id": "side",
+              "label": "考察方向",
+              "kind": "enum",
+              "min": null,
+              "max": null,
+              "step": null,
+              "options": [
+                "both",
+                "left",
+                "right"
+              ]
+            }
+          ],
+          "formula_tex": "\\frac{\\sin{\\left(x \\right)}}{x}",
+          "side": "both",
+          "limit_point": "0.0",
+          "limit_point_value": 0.0
+        },
+        "solution": {
+          "summary": "极限题：先检查直接代入，再比较左右极限，最后区分有限极限、发散与不存在。",
+          "answer": "极限为 1",
+          "answer_value": 1.0,
+          "exact": "1",
+          "approx": null,
+          "steps": [
+            {
+              "id": "substitute",
+              "title": "先判断能否直接代入",
+              "latex": "\\lim_{x\\to 0.0} \\frac{\\sin{\\left(x \\right)}}{x}",
+              "detail": "代入后若出现 0/0、∞/∞、∞−∞ 等未定式，需要用等价变形或洛必达/泰勒等方法，而不能把代入失败当作无极限。"
+            },
+            {
+              "id": "sides",
+              "title": "分别检查左右极限",
+              "latex": "\\lim_{x\\to x_0^-}f(x),\\quad \\lim_{x\\to x_0^+}f(x)",
+              "detail": "左极限 1；右极限 1；当前所选方向结论：1。"
+            },
+            {
+              "id": "conclusion",
+              "title": "判定极限是否存在",
+              "latex": "\\lim f=1",
+              "detail": "有限值才称为极限存在；发到 ±∞ 时写“发散到 ±∞”，左右不同或振荡时写“不存在”。"
+            }
+          ],
+          "conditions": [
+            "研究点 0.0；方向 both。"
+          ],
+          "limitations": [
+            "发散到 ±∞ 不等于极限存在；振荡或左右不一致会明确标为不存在或无法判定。"
+          ],
+          "parameter": null,
+          "parameter_value": null,
+          "limit_point": "0.0",
+          "limit_point_value": 0.0,
+          "side": "both",
+          "left": {
+            "kind": "finite",
+            "value": 1.0,
+            "text": "1"
+          },
+          "right": {
+            "kind": "finite",
+            "value": 1.0,
+            "text": "1"
+          },
+          "two_sided": {
+            "kind": "finite",
+            "value": 1.0,
+            "text": "1"
+          },
+          "limit_status": "finite",
+          "solution_status": "complete",
+          "solution_complete": true,
+          "incomplete_reason": null
+        },
+        "states": {
+          "params": {
+            "point": 0.0,
+            "side": "both"
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "point": 0.0,
+                "side": "both"
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "calculus",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "12420a4f44c94c6d"
+}

@@ -17,6 +17,7 @@ import { REGION_LABELS } from '@/living/types';
 import { canInsertRegion, functionDocForRegion, regionAriaLabel, regionStyle } from '@/living/regions';
 import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
 import type { CanvasDoc } from '@/canvas/types.ts';
+import DiagramCanvas from './DiagramCanvas';
 import { worksApi } from '@/api/works';
 import { errorMessage } from '@/api/client';
 import { gradeLivingAnswer } from '@/api/living';
@@ -34,6 +35,8 @@ import { prepareLivingMarkdown } from '@/living/markdown';
 export interface ProgressPatch {
   quiz_guess?: number;
   checkpoint_attempts?: { answer: string; correct: boolean }[];
+  /** 流程图单步演示进度（学生端）：当前步序/总步数/是否走完全程。 */
+  diagram_states?: { step: number; total: number; completed?: boolean; region_id?: string };
 }
 
 export interface BlockViewProps {
@@ -50,8 +53,12 @@ export interface BlockViewProps {
   onInsertRegion?: (pageBlock: PageBlock, region: PageRegion) => void;
   /** 编辑器注入：对该公式区域跑一次本地公式 OCR（结果缓存回文档）。 */
   onRecognizeFormula?: (pageBlock: PageBlock, region: PageRegion) => Promise<void> | void;
+  /** 编辑器注入：对该图示区域做一次视觉流程图转译（预算内，缓存回文档）。 */
+  onRecognizeDiagram?: (pageBlock: PageBlock, region: PageRegion) => Promise<void> | void;
   /** 编辑器注入：为该锚块打开 AI 交互面板。 */
   onAI?: (blockId: string) => void;
+  /** 编辑器注入：把块 data 写回 blocks（防抖 PATCH，diagram 拖拽/改字用）。 */
+  onMutateBlock?: (blockId: string, data: PageBlock['data']) => void;
 }
 
 /** 块完成度（门控用）：submitted < correct；写入时取更高一级。 */
@@ -156,20 +163,23 @@ function LabelSelfTest({ pageBlock, region, assetUrl }: {
 
 /** 区域聚焦面板：原图 ⇄ 交互图 + 物化动作。编辑器与分享页共用；
  *  分享页只读时隐藏「插入到正文 / AI 交互」。 */
-function RegionPanel({ pageBlock, region, assetUrl, readOnly, onInsertRegion, onRecognizeFormula, onAI, onClose }: {
+function RegionPanel({ pageBlock, region, assetUrl, readOnly, onInsertRegion, onRecognizeFormula, onRecognizeDiagram, onAI, onClose, onProgress }: {
   pageBlock: PageBlock;
   region: PageRegion;
   assetUrl: (key: string) => string;
   readOnly?: boolean;
   onInsertRegion?: (pageBlock: PageBlock, region: PageRegion) => void;
   onRecognizeFormula?: (pageBlock: PageBlock, region: PageRegion) => Promise<void> | void;
+  onRecognizeDiagram?: (pageBlock: PageBlock, region: PageRegion) => Promise<void> | void;
   onAI?: (blockId: string) => void;
+  onProgress?: BlockViewProps["onProgress"];
   onClose: () => void;
 }): ReactNode {
   const labels = region.labels ?? [];
   const doc = useMemo(() => functionDocForRegion(region), [region]);
-  const interactive = doc !== null || labels.length > 0;
-  const [view, setView] = useState<'original' | 'interactive'>('original');
+  const diagram = region.diagram ?? null;
+  const interactive = doc !== null || labels.length > 0 || diagram !== null;
+  const [view, setView] = useState<'original' | 'interactive'>(diagram ? 'interactive' : 'original');
   const [copied, setCopied] = useState(false);
   const [recognizing, setRecognizing] = useState(false);
   const copyLatex = async (): Promise<void> => {
@@ -179,11 +189,13 @@ function RegionPanel({ pageBlock, region, assetUrl, readOnly, onInsertRegion, on
       window.setTimeout(() => setCopied(false), 1500);
     } catch { /* 剪贴板不可用时静默 */ }
   };
-  const recognize = async (): Promise<void> => {
-    if (!onRecognizeFormula || recognizing) return;
+  const runRecognize = async (
+    handler: ((pb: PageBlock, r: PageRegion) => Promise<void> | void) | undefined,
+  ): Promise<void> => {
+    if (!handler || recognizing) return;
     setRecognizing(true);
     try {
-      await onRecognizeFormula(pageBlock, region);
+      await handler(pageBlock, region);
     } finally {
       setRecognizing(false);
     }
@@ -201,7 +213,12 @@ function RegionPanel({ pageBlock, region, assetUrl, readOnly, onInsertRegion, on
           <button type="button" className={styles.regionViewBtn} aria-pressed={view === 'interactive'} onClick={() => setView('interactive')}>交互图</button>
         </div>
       ) : null}
-      {view === 'interactive' && doc ? (
+      {view === 'interactive' && diagram ? (
+        <DiagramCanvas doc={diagram} readOnly height={380}
+          onStep={readOnly && onProgress
+            ? (step, total) => onProgress({ diagram_states: { step, total, region_id: region.id } })
+            : undefined} />
+      ) : view === 'interactive' && doc ? (
         <RegionCanvasPreview doc={doc} />
       ) : view === 'interactive' && labels.length ? (
         <LabelSelfTest pageBlock={pageBlock} region={region} assetUrl={assetUrl} />
@@ -244,7 +261,7 @@ function RegionPanel({ pageBlock, region, assetUrl, readOnly, onInsertRegion, on
             className={styles.regionJump}
             onClick={() => document.getElementById(region.canvas_block_id!)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
           >
-            定位函数图
+            {region.diagram ? '定位流程图' : '定位函数图'}
           </button>
         ) : null}
         {!region.block_id && !readOnly && onInsertRegion && canInsertRegion(region) ? (
@@ -252,14 +269,22 @@ function RegionPanel({ pageBlock, region, assetUrl, readOnly, onInsertRegion, on
             插入到正文
           </button>
         ) : null}
-        {region.block_id && !region.canvas_block_id && doc && !readOnly && onInsertRegion ? (
+        {region.block_id && !region.canvas_block_id && (doc || diagram) && !readOnly && onInsertRegion ? (
           <button type="button" className={styles.regionJump} onClick={() => onInsertRegion(pageBlock, region)}>
-            插入函数图
+            {region.diagram ? '插入流程图' : '插入函数图'}
           </button>
         ) : null}
         {!readOnly && onRecognizeFormula && region.kind === 'formula' && !region.latex ? (
-          <button type="button" className={styles.regionMiniBtn} disabled={recognizing} onClick={() => void recognize()}>
+          <button type="button" className={styles.regionMiniBtn} disabled={recognizing}
+                  onClick={() => void runRecognize(onRecognizeFormula)}>
             {recognizing ? '识别中…（最长约 15 秒）' : '识别公式'}
+          </button>
+        ) : null}
+        {!readOnly && onRecognizeDiagram
+            && (region.kind === 'diagram' || region.kind === 'figure') && !diagram ? (
+          <button type="button" className={styles.regionMiniBtn} disabled={recognizing}
+                  onClick={() => void runRecognize(onRecognizeDiagram)}>
+            {recognizing ? '转译中…（视觉模型，最长 90 秒）' : '识别流程图'}
           </button>
         ) : null}
         {!readOnly && onAI && region.kind === 'formula' && region.block_id ? (
@@ -275,7 +300,7 @@ function RegionPanel({ pageBlock, region, assetUrl, readOnly, onInsertRegion, on
   );
 }
 
-function PageImageBlock({ block, assetUrl, readOnly, onInsertRegion, onRecognizeFormula, onAI }: BlockViewProps): ReactNode {
+function PageImageBlock({ block, assetUrl, readOnly, onInsertRegion, onRecognizeFormula, onRecognizeDiagram, onAI, onProgress }: BlockViewProps): ReactNode {
   const data = block.data as Extract<PageBlock, { type: 'page' }>['data'];
   const [open, setOpen] = useState(!data.collapsed);
   const [showRegions, setShowRegions] = useState(true);
@@ -350,6 +375,8 @@ function PageImageBlock({ block, assetUrl, readOnly, onInsertRegion, onRecognize
           readOnly={readOnly}
           onInsertRegion={onInsertRegion}
           onRecognizeFormula={onRecognizeFormula}
+          onRecognizeDiagram={onRecognizeDiagram}
+          onProgress={onProgress}
           onAI={onAI}
           onClose={() => setSelectedRegion(null)}
         />
@@ -436,6 +463,21 @@ function TextBlock({ block }: BlockViewProps): ReactNode {
   const markdown = useMemo(() => prepareLivingMarkdown(interpolate(data.md, values)), [data.md, values]);
   const body = <div className={styles.textBlock}><LivingMarkdown markdown={markdown} /></div>;
   return data.collapsed ? <details><summary>查看本页文字层（公式与图示以原页为准）</summary>{body}</details> : body;
+}
+
+/** 可编辑流程图块：编辑器内拖拽/改字写回 doc，分享页 readOnly 冻结演示。 */
+function DiagramBlockView({ block, readOnly, onMutateBlock, onProgress }: BlockViewProps): ReactNode {
+  if (block.type !== 'diagram') return null;
+  return (
+    <DiagramCanvas
+      doc={block.data.doc}
+      readOnly={readOnly}
+      onDocChange={readOnly ? undefined : (doc) => onMutateBlock?.(block.id, { doc })}
+      onStep={readOnly && onProgress
+        ? (step, total, completed) => onProgress({ diagram_states: { step, total, completed } })
+        : undefined}
+    />
+  );
 }
 
 function FigureBlock({ block, assetUrl }: BlockViewProps): ReactNode {
@@ -1027,6 +1069,9 @@ export function BlockView(props: BlockViewProps): ReactNode {
       break;
     case 'callout':
       body = <CalloutBlockView {...props} />;
+      break;
+    case 'diagram':
+      body = <DiagramBlockView {...props} />;
       break;
     case 'canvas':
       body = block.data.doc.version === 1 ? <EmbeddedCanvasBlock block={block} readOnly={props.readOnly} />

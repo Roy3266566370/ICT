@@ -1,0 +1,358 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_1a59bd01d1dd40bf8a9da581956590b0",
+    "title": "ph19_co.png",
+    "created_at": "2026-11-19T11:14:30Z",
+    "updated_at": "2026-11-19T11:14:30Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph19_co.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 93,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题电磁学\n2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。\n求它们之间的库仑力大小（）。\nA.0.3NB.0.6NC.1.2N D.1.8N",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题电磁学\n2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。\n求它们之间的库仑力大小（）。\nA.0.3NB.0.6NC.1.2N D.1.8N",
+          "math_text": null,
+          "ocr_confidence": 0.9901017046236731,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph19_co.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "2",
+        "title": "第 2 题 · 大学物理期末考试题电磁学",
+        "text": "大学物理期末考试题电磁学\n2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。\n求它们之间的库仑力大小（）。\nA.0.3NB.0.6NC.1.2N D.1.8N",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题电磁学 2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。 求它们之间的库仑力大小（）。 A.0.3NB.0.6NC.1.2N D.1.8N"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题电磁学\n2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。\n求它们之间的库仑力大小（）。\nA.0.3NB.0.6NC.1.2N D.1.8N",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "库仑力、电场叠加与电势",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。 求它们之间的库仑力大小（）。 A.0.3NB.0.6NC.1.2N D.1.8N"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_q1",
+              "label": "电荷 q1",
+              "value": 2e-06,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。 求它们之间的库仑力大小（）。 A.0.3NB.0.6NC.1.2N D.1.8N"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_q2",
+              "label": "电荷 q2",
+              "value": -3e-06,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。 求它们之间的库仑力大小（）。 A.0.3NB.0.6NC.1.2N D.1.8N"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_d",
+              "label": "间距 d",
+              "value": 0.3,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。 求它们之间的库仑力大小（）。 A.0.3NB.0.6NC.1.2N D.1.8N"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{F = k|q1q2|/r^2；E = Σkq_i/r_i^2；V = Σkq_i/r_i}",
+              "plain": "F = k|q1q2|/r²；E = Σkq_i/r_i²；V = Σkq_i/r_i",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "electrostatics",
+          "physics_mode": "coulomb",
+          "raw": "大学物理期末考试题电磁学\n2.两点电荷q1=2×10^-6C、q2=-3×10^-6C相距d=0.3m。\n求它们之间的库仑力大小（）。\nA.0.3NB.0.6NC.1.2N D.1.8N",
+          "defaults": {
+            "q1": 2e-06,
+            "q2": -3e-06,
+            "d": 0.3
+          },
+          "params": [
+            {
+              "id": "q1",
+              "label": "电荷 q1 (C)",
+              "kind": "number",
+              "min": -0.001,
+              "max": 0.001,
+              "step": 1e-09,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "q2",
+              "label": "电荷 q2 (C)",
+              "kind": "number",
+              "min": -0.001,
+              "max": 0.001,
+              "step": 1e-09,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "d",
+              "label": "间距 d (m)",
+              "kind": "number",
+              "min": 0.001,
+              "max": 100,
+              "step": 0.001,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "xP",
+              "label": "P 点位置 xP (m)",
+              "kind": "number",
+              "min": 0,
+              "max": 100,
+              "step": 0.001,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "electrostatics",
+            "mode": "coulomb",
+            "answer": "库仑力 F=0.5993 N（吸引）。",
+            "answer_value": 0.5993333333333334,
+            "metrics": [
+              {
+                "id": "F",
+                "label": "库仑力",
+                "value": "0.5993 N",
+                "tone": "accent"
+              }
+            ],
+            "checks": [
+              {
+                "id": "force",
+                "label": "库仑定律",
+                "status": "pass",
+                "detail": "F = k|q1q2|/d²"
+              }
+            ],
+            "notes": [
+              "真空中点电荷，库仑常数取 8.99×10⁹ N·m²/C²；一维位置沿 x 轴。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "两电荷作用",
+                "detail": "F=0.5993 N",
+                "values": {
+                  "F": 0.5993333333333334
+                }
+              }
+            ],
+            "scene": {
+              "type": "electric",
+              "q1": 2e-06,
+              "q2": -3e-06,
+              "d": 0.3,
+              "F": 0.5993333333333334,
+              "attraction": true
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "库仑力 F=0.5993 N（吸引）。",
+          "answer_value": 0.5993333333333334,
+          "answer_values": [
+            0.5993,
+            0.599333333333
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "两电荷作用",
+              "detail": "F=0.5993 N"
+            }
+          ],
+          "conditions": [
+            "按库仑力、电场叠加与电势模型计算。"
+          ],
+          "limitations": [
+            "真空中点电荷，库仑常数取 8.99×10⁹ N·m²/C²；一维位置沿 x 轴。",
+            "常见单位会先换算为 SI；未给出的边界条件不会被自动补造。"
+          ]
+        },
+        "states": {
+          "params": {
+            "q1": 2e-06,
+            "q2": -3e-06,
+            "d": 0.3
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "q1": 2e-06,
+                "q2": -3e-06,
+                "d": 0.3
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "a737105670a548e4"
+}

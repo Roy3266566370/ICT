@@ -1,0 +1,18 @@
+{
+  "cases": [
+    "eigen_exact_and_timeline",
+    "rational_matrix_display",
+    "complex_eigen",
+    "unsupported_diagonalization_blocks",
+    "eigen_image_confirmation",
+    "inverse_image_regression",
+    "subquestions_separate_confirmation",
+    "joined_determinant_text_blocks",
+    "separated_determinant_text_solves",
+    "compact_power_analysis",
+    "compact_power_optimization",
+    "superscript_power_analysis",
+    "superscript_power_optimization"
+  ],
+  "errors": []
+}

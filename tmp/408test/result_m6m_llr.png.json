@@ -1,0 +1,383 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_acaac609fd404271b59c88ad4918d786",
+    "title": "m6m_llr.png",
+    "created_at": "2026-11-20T01:53:01Z",
+    "updated_at": "2026-11-20T01:53:01Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "m6m_llr.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 56,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "高等数学期末试卷判断题\n13.（8分）判断直线x/1=y/0=z/0与\nx/0=y/1=z/0的位置关系。\n解：",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "高等数学期末试卷判断题\n13.（8分）判断直线x/1=y/0=z/0与\nx/0=y/1=z/0的位置关系。\n解：",
+          "math_text": null,
+          "ocr_confidence": 0.9869672616303202,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "m6m_llr.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "13",
+        "title": "第 13 题 · 高等数学期末试卷判断题",
+        "text": "高等数学期末试卷判断题\n13.（8分）判断直线x/1=y/0=z/0与\nx/0=y/1=z/0的位置关系。\n解：",
+        "subject": "calculus",
+        "subject_label": "微积分",
+        "confidence": 0.7,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "高等数学期末试卷判断题 13.（8分）判断直线x/1=y/0=z/0与 x/0=y/1=z/0的位置关系。 解："
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "高等数学期末试卷判断题\n13.（8分）判断直线x/1=y/0=z/0与\nx/0=y/1=z/0的位置关系。\n解：",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "geometry_kind",
+              "label": "geometry_kind",
+              "value": "line_line_relation",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "point_a",
+              "label": "point_a",
+              "value": "0,0,0",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "direction_a",
+              "label": "direction_a",
+              "value": "1,0,0",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "point_b",
+              "label": "point_b",
+              "value": "0,0,0",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "direction_b",
+              "label": "direction_b",
+              "value": "0,1,0",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [],
+          "recognized_subject": "calculus",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "space_v1",
+          "subject": "calculus",
+          "task": "space_geometry",
+          "kind": "space",
+          "conditions": {
+            "geometry_kind": "line_line_relation",
+            "point_a": "0,0,0",
+            "direction_a": "1,0,0",
+            "point_b": "0,0,0",
+            "direction_b": "0,1,0"
+          },
+          "defaults": {
+            "view_yaw": 0,
+            "view_zoom": 1.0
+          },
+          "params": [
+            {
+              "id": "view_yaw",
+              "label": "空间旋转角度",
+              "kind": "number",
+              "min": -180,
+              "max": 180,
+              "step": 5,
+              "options": []
+            },
+            {
+              "id": "view_zoom",
+              "label": "空间显示比例",
+              "kind": "number",
+              "min": 0.5,
+              "max": 2,
+              "step": 0.1,
+              "options": []
+            }
+          ],
+          "teaching": false,
+          "formula_tex": "",
+          "modeling_task": "space_geometry"
+        },
+        "solution": {
+          "summary": "空间解析几何：两直线位置关系。",
+          "answer": "两直线相交，交点 (0, 0, 0)，夹角 pi/2",
+          "answer_value": 1.5707963267948966,
+          "exact": "pi/2",
+          "exact_latex": "\\theta=\\frac{\\pi}{2}",
+          "steps": [
+            {
+              "id": "directions",
+              "title": "比较方向向量",
+              "detail": "d₁×d₂=0 时两直线平行或重合，否则在相交与异面中判断。"
+            },
+            {
+              "id": "coplanar",
+              "title": "检验共面",
+              "detail": "(P₂-P₁)·(d₁×d₂)=0。"
+            },
+            {
+              "id": "conclusion",
+              "title": "给出关系与数量",
+              "detail": "两直线相交，交点 (0, 0, 0)，夹角 pi/2"
+            }
+          ],
+          "conditions": [],
+          "limitations": [],
+          "space_details": {
+            "relation": "相交",
+            "angle": "pi/2",
+            "distance": "0",
+            "intersection": "(0, 0, 0)",
+            "equations": [],
+            "kind": "line_line_relation",
+            "label": "两直线位置关系",
+            "facts": [
+              {
+                "label": "直线1方向",
+                "latex": "\\left(1,0,0\\right)"
+              },
+              {
+                "label": "直线2方向",
+                "latex": "\\left(0,1,0\\right)"
+              },
+              {
+                "label": "位置关系",
+                "text": "相交"
+              },
+              {
+                "label": "夹角 θ",
+                "latex": "\\frac{\\pi}{2}"
+              },
+              {
+                "label": "距离 d",
+                "latex": "0"
+              },
+              {
+                "label": "交点",
+                "latex": "((0, 0, 0))"
+              }
+            ],
+            "notes": []
+          },
+          "space_result": {
+            "space": {
+              "kind": "geometry",
+              "points": [
+                {
+                  "id": "交点",
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 0.0
+                }
+              ],
+              "edges": [
+                [
+                  {
+                    "x": -2.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  },
+                  {
+                    "x": 2.0,
+                    "y": 0.0,
+                    "z": 0.0
+                  }
+                ],
+                [
+                  {
+                    "x": 0.0,
+                    "y": -2.0,
+                    "z": 0.0
+                  },
+                  {
+                    "x": 0.0,
+                    "y": 2.0,
+                    "z": 0.0
+                  }
+                ]
+              ]
+            },
+            "exact": "pi/2",
+            "answer_text": "两直线相交，交点 (0, 0, 0)，夹角 pi/2"
+          },
+          "space": {
+            "kind": "geometry",
+            "points": [
+              {
+                "id": "交点",
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              }
+            ],
+            "edges": [
+              [
+                {
+                  "x": -2.0,
+                  "y": 0.0,
+                  "z": 0.0
+                },
+                {
+                  "x": 2.0,
+                  "y": 0.0,
+                  "z": 0.0
+                }
+              ],
+              [
+                {
+                  "x": 0.0,
+                  "y": -2.0,
+                  "z": 0.0
+                },
+                {
+                  "x": 0.0,
+                  "y": 2.0,
+                  "z": 0.0
+                }
+              ]
+            ]
+          },
+          "solution_status": "complete",
+          "solution_complete": true,
+          "geometry_kind": "line_line_relation"
+        },
+        "states": {
+          "params": {
+            "view_yaw": 0,
+            "view_zoom": 1.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "view_yaw": 0,
+                "view_zoom": 1.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "calculus",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "76c2fd558a844819"
+}

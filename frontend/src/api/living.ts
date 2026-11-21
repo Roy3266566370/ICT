@@ -1,6 +1,6 @@
 /** 万象活页的 HTTP 客户端（独立于课件材料的 ApiClient）。 */
 
-import { apiBase, requestJson } from './client';
+import { apiBase, requestBinary, requestJson } from './client';
 import {
   parseLivingPageDoc,
   type ActivationSuggestion,
@@ -160,6 +160,19 @@ export async function recognizeRegionFormula(input: {
   return parseLivingPageDoc(data);
 }
 
+/** 按需流程图转译：视觉模型 → 校验过的 diagram 写回 region.diagram（预算内、缓存命中不重复调用）。 */
+export async function recognizeRegionDiagram(input: {
+  pageId: string;
+  regionId: string;
+  expectedRevision: number;
+}): Promise<LivingPageDoc> {
+  const data = await requestJson<LivingPageDoc>(
+    `${P}/pages/${encodeURIComponent(input.pageId)}/regions/${encodeURIComponent(input.regionId)}/diagram`,
+    { method: 'POST', body: JSON.stringify({ expected_revision: input.expectedRevision }) },
+  );
+  return parseLivingPageDoc(data);
+}
+
 export async function createLabBlock(input: {
   pageId: string;
   text: string;
@@ -169,6 +182,10 @@ export async function createLabBlock(input: {
     { method: 'POST', body: JSON.stringify({ text: input.text }) },
   );
   return data.block;
+}
+
+export function downloadLivingPage(pageId: string): Promise<Blob> {
+  return requestBinary(`${P}/pages/${encodeURIComponent(pageId)}/offline`);
 }
 
 export async function publishLivingPage(pageId: string): Promise<LivingShareResult> {

@@ -24,7 +24,7 @@ from typing import Any, Mapping, Sequence
 SCHEMA_VERSION = "page.1"
 
 BLOCK_TYPES = {
-    "page", "text", "figure", "formula", "section",
+    "page", "text", "figure", "formula", "section", "diagram",
     "lab", "canvas", "quiz", "checkpoint", "embed", "callout",
 }
 FLOOR_TYPES = {"page", "text", "figure", "formula", "section"}
@@ -363,6 +363,12 @@ def _validate_regions(raw: Any) -> list[dict[str, Any]]:
         canvas_block_id = item.get("canvas_block_id")
         if isinstance(canvas_block_id, str) and canvas_block_id.strip():
             region["canvas_block_id"] = canvas_block_id.strip()[:40]
+        if item.get("diagram") is not None:
+            from .diagram import validate_diagram
+            try:
+                region["diagram"] = validate_diagram(item["diagram"])
+            except ValueError:
+                pass  # 非法图数据剔除，不拖垮整页
         out.append(region)
     return out
 
@@ -391,6 +397,12 @@ def _validate_data(kind: str, data: Mapping[str, Any]) -> dict[str, Any]:
         }
     if kind == "formula":
         return {"latex": _clamp_text(data.get("latex"), 4000)}
+    if kind == "diagram":
+        from .diagram import validate_diagram
+        doc = data.get("doc")
+        if not isinstance(doc, Mapping):
+            raise ValueError("diagram 块缺少 doc")
+        return {"doc": validate_diagram(doc)}
     if kind == "section":
         level = data.get("level")
         return {

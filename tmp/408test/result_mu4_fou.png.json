@@ -1,0 +1,336 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_974ff39c3a5a4b5d905fd6aeb4ce31df",
+    "title": "mu4_fou.png",
+    "created_at": "2026-11-19T13:55:25Z",
+    "updated_at": "2026-11-19T13:55:25Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "mu4_fou.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 67,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "高等数学期末考试题级数\n4. 将f(x)=x在[-π,T]上展开为傅里叶\n级数，其系数b1等于（）。\nA.0 B. 1 C.2 D.T",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "高等数学期末考试题级数\n4. 将f(x)=x在[-π,T]上展开为傅里叶\n级数，其系数b1等于（）。\nA.0 B. 1 C.2 D.T",
+          "math_text": null,
+          "ocr_confidence": 0.9662620184265135,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "mu4_fou.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "4",
+        "title": "第 4 题 · 傅里叶级数",
+        "text": "高等数学期末考试题级数\n4. 将f(x)=x在[-π,T]上展开为傅里叶\n级数，其系数b1等于（）。\nA.0 B. 1 C.2 D.T",
+        "subject": "calculus",
+        "subject_label": "微积分",
+        "confidence": 0.95,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "高等数学期末考试题级数 4. 将f(x)=x在[-π,T]上展开为傅里叶 级数，其系数b1等于（）。 A.0 B. 1 C.2 D.T"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "高等数学期末考试题级数\n4. 将f(x)=x在[-π,T]上展开为傅里叶\n级数，其系数b1等于（）。\nA.0 B. 1 C.2 D.T",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "expression",
+              "label": "周期函数",
+              "value": "x",
+              "kind": "expr",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "lower",
+              "label": "区间下限",
+              "value": "-pi",
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "upper",
+              "label": "区间上限",
+              "value": "pi",
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "order",
+              "label": "截断阶数",
+              "value": 5,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "fourier",
+              "tex": "x\\quad x\\in[- \\pi,\\pi]",
+              "plain": "x",
+              "role": "傅里叶级数"
+            }
+          ],
+          "recognized_subject": "calculus",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "fourier_v1",
+          "subject": "calculus",
+          "task": "fourier_series",
+          "kind": "fourier_series",
+          "expression": "x",
+          "lower": "-pi",
+          "upper": "pi",
+          "order": 5,
+          "defaults": {
+            "lower": -3.141592653589793,
+            "upper": 3.141592653589793,
+            "order": 5
+          },
+          "params": [
+            {
+              "id": "order",
+              "label": "部分和截断阶数",
+              "kind": "integer",
+              "min": 1,
+              "max": 5,
+              "step": 1,
+              "options": []
+            }
+          ],
+          "teaching": false,
+          "formula_tex": "x\\quad x\\in[- \\pi,\\pi]"
+        },
+        "solution": {
+          "summary": "傅里叶级数：在给定区间计算 a0、an、bn，并检查部分和逼近与间断点。",
+          "answer": "Fourier 级数：a0=0；a1=0，b1=2；a2=0，b2=-1；a3=0，b3=2/3；a4=0，b4=-1/2；a5=0，b5=2/5；截断到 n=5。",
+          "answer_value": null,
+          "exact": "2*sin(x) - sin(2*x) + 2*sin(3*x)/3 - sin(4*x)/2 + 2*sin(5*x)/5",
+          "approx": null,
+          "steps": [
+            {
+              "id": "coefficients",
+              "title": "计算傅里叶系数",
+              "latex": "a_0=\\frac{2}{T}\\int f,\\quad a_n=\\frac{2}{T}\\int f\\cos\\frac{2\\pi nx}{T}",
+              "detail": "区间长度 T=2*pi；计算到 n=5。"
+            },
+            {
+              "id": "partial",
+              "title": "写出截断级数",
+              "latex": "2 \\sin{\\left(x \\right)} - \\sin{\\left(2 x \\right)} + \\frac{2 \\sin{\\left(3 x \\right)}}{3} - \\frac{\\sin{\\left(4 x \\right)}}{2} + \\frac{2 \\sin{\\left(5 x \\right)}}{5}",
+              "detail": "Fourier 级数：a0=0；a1=0，b1=2；a2=0，b2=-1；a3=0，b3=2/3；a4=0，b4=-1/2；a5=0，b5=2/5；截断到 n=5。"
+            },
+            {
+              "id": "convergence",
+              "title": "核对和函数",
+              "latex": "\\text{Dirichlet}",
+              "detail": "周期延拓在端点或内部间断点处按 Dirichlet 定理收敛到左右极限平均；不能把间断点函数值直接当作和函数值。"
+            }
+          ],
+          "conditions": [
+            "区间 [-pi, pi]，截断阶数 5。"
+          ],
+          "limitations": [
+            "系数积分未闭式完成时会标为未完成；间断点结论按 Dirichlet 定理说明。"
+          ],
+          "fourier": {
+            "a0": "0",
+            "coefficients": [
+              {
+                "n": 1,
+                "an": "0",
+                "bn": "2"
+              },
+              {
+                "n": 2,
+                "an": "0",
+                "bn": "-1"
+              },
+              {
+                "n": 3,
+                "an": "0",
+                "bn": "2/3"
+              },
+              {
+                "n": 4,
+                "an": "0",
+                "bn": "-1/2"
+              },
+              {
+                "n": 5,
+                "an": "0",
+                "bn": "2/5"
+              }
+            ],
+            "partial": "2*sin(x) - sin(2*x) + 2*sin(3*x)/3 - sin(4*x)/2 + 2*sin(5*x)/5",
+            "order": 5,
+            "lower": "-pi",
+            "upper": "pi",
+            "period": "2*pi",
+            "discontinuities": [],
+            "endpoint_jump": true,
+            "convergence_note": "周期延拓在端点或内部间断点处按 Dirichlet 定理收敛到左右极限平均；不能把间断点函数值直接当作和函数值。"
+          },
+          "fourier_details": {
+            "a0": "0",
+            "coefficients": [
+              {
+                "n": 1,
+                "an": "0",
+                "bn": "2"
+              },
+              {
+                "n": 2,
+                "an": "0",
+                "bn": "-1"
+              },
+              {
+                "n": 3,
+                "an": "0",
+                "bn": "2/3"
+              },
+              {
+                "n": 4,
+                "an": "0",
+                "bn": "-1/2"
+              },
+              {
+                "n": 5,
+                "an": "0",
+                "bn": "2/5"
+              }
+            ],
+            "partial": "2*sin(x) - sin(2*x) + 2*sin(3*x)/3 - sin(4*x)/2 + 2*sin(5*x)/5",
+            "order": 5,
+            "lower": "-pi",
+            "upper": "pi",
+            "period": "2*pi",
+            "discontinuities": [],
+            "endpoint_jump": true,
+            "convergence_note": "周期延拓在端点或内部间断点处按 Dirichlet 定理收敛到左右极限平均；不能把间断点函数值直接当作和函数值。",
+            "note": "系数按给定区间计算；连续点收敛到函数值，间断点按 Dirichlet 定理取左右极限平均。"
+          },
+          "solution_status": "complete",
+          "solution_complete": true,
+          "incomplete_reason": null
+        },
+        "states": {
+          "params": {
+            "lower": -3.141592653589793,
+            "upper": 3.141592653589793,
+            "order": 5
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "lower": -3.141592653589793,
+                "upper": 3.141592653589793,
+                "order": 5
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "calculus",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "5308bb5ab9a1476d"
+}

@@ -1,0 +1,304 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_4428abe0466542f6a6903b03d4f7d86c",
+    "title": "m5g_con.png",
+    "created_at": "2026-11-20T01:23:53Z",
+    "updated_at": "2026-11-20T01:23:53Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "m5g_con.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 64,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "高等数学期末试卷讨论题\n7.(8分）设f(x)=x·sin(1/x)(x≠0),\nf(0)=0，讨论f在x=0处的连续性。\n解：",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "高等数学期末试卷讨论题\n7.(8分）设f(x)=x·sin(1/x)(x≠0),\nf(0)=0，讨论f在x=0处的连续性。\n解：",
+          "math_text": null,
+          "ocr_confidence": 0.9744049022724102,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "m5g_con.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "7",
+        "title": "第 7 题 · 高等数学期末试卷讨论题",
+        "text": "高等数学期末试卷讨论题\n7.(8分）设f(x)=x·sin(1/x)(x≠0),\nf(0)=0，讨论f在x=0处的连续性。\n解：",
+        "subject": "calculus",
+        "subject_label": "微积分",
+        "confidence": 0.6,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "高等数学期末试卷讨论题 7.(8分）设f(x)=x·sin(1/x)(x≠0), f(0)=0，讨论f在x=0处的连续性。 解："
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "高等数学期末试卷讨论题\n7.(8分）设f(x)=x·sin(1/x)(x≠0),\nf(0)=0，讨论f在x=0处的连续性。\n解：",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "expression",
+              "label": "函数表达式",
+              "value": "x*sin(1/x)",
+              "kind": "expr",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": null,
+                "page": 1,
+                "excerpt": "函数极限"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "side",
+              "label": "考察方向",
+              "value": "both",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": null,
+                "page": 1,
+                "excerpt": "函数极限"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "point",
+              "label": "极限点",
+              "value": "0.0",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": null,
+                "page": 1,
+                "excerpt": "函数极限"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "variable",
+              "label": "variable",
+              "value": "x",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "value_mode",
+              "label": "value_mode",
+              "value": "value",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "point_value",
+              "label": "point_value",
+              "value": "0",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {},
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [],
+          "recognized_subject": "calculus",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "analysis_v1",
+          "subject": "calculus",
+          "task": "limit",
+          "analysis_kind": "limit",
+          "kind": "limit",
+          "variable": "x",
+          "expression": "x*sin(1/x)",
+          "teaching": false,
+          "defaults": {
+            "point": 0.0,
+            "side": "both",
+            "view_radius": 3.0,
+            "point_value": 0.0
+          },
+          "params": [
+            {
+              "id": "view_radius",
+              "label": "观察半径",
+              "kind": "number",
+              "min": 0.1,
+              "max": 10,
+              "step": 0.1,
+              "options": []
+            },
+            {
+              "id": "point_value",
+              "label": "实验点值 f(a)",
+              "kind": "number",
+              "min": -10,
+              "max": 10,
+              "step": 0.1,
+              "options": []
+            }
+          ],
+          "formula_tex": "x \\sin{\\left(\\frac{1}{x} \\right)}",
+          "side": "both",
+          "limit_point": "0.0",
+          "limit_point_value": 0.0,
+          "modeling_task": "continuity",
+          "exact_point": "0",
+          "preserve_expression_structure": true,
+          "continuity_config": {
+            "mode": "value",
+            "value": "0"
+          }
+        },
+        "solution": {
+          "answer": "",
+          "summary": "先核对原题公式与条件，再计算答案。",
+          "steps": [],
+          "limitations": []
+        },
+        "states": {
+          "params": {
+            "point": 0.0,
+            "side": "both",
+            "view_radius": 3.0,
+            "point_value": 0.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "point": 0.0,
+                "side": "both",
+                "view_radius": 3.0,
+                "point_value": 0.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "calculus",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "06ad4bf01ebd4ff2"
+}

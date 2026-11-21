@@ -1,0 +1,1232 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_69703cef4a6a4fe9b51aa99218906441",
+    "title": "os3_disk.png",
+    "created_at": "2026-11-19T09:13:29Z",
+    "updated_at": "2026-11-19T09:13:29Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "os3_disk.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 241,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "2009年408统考真题操作系统\n29.假设磁头当前位于第105道，正在向磁道序号增加的方向移\n动。现有一个磁道访问请求序列为35,45,12,68,110,180,170,\n195，采用SCAN调度（电梯调度）算法得到的磁道访问序列是\n（）。\nA.110,170,180,195,68,45,35,12\nB.110,68,45,35,12,170,180,195\nC.110,170,180,195,12,35,45,8\nD.12,35,45,68,110,170,180,195",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "2009年408统考真题操作系统\n29.假设磁头当前位于第105道，正在向磁道序号增加的方向移\n动。现有一个磁道访问请求序列为35,45,12,68,110,180,170,\n195，采用SCAN调度（电梯调度）算法得到的磁道访问序列是\n（）。\nA.110,170,180,195,68,45,35,12\nB.110,68,45,35,12,170,180,195\nC.110,170,180,195,12,35,45,8\nD.12,35,45,68,110,170,180,195",
+          "math_text": null,
+          "ocr_confidence": 0.9565793050550653,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "os3_disk.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "29",
+        "title": "第 29 题 · 2009年408统考真题操作系统",
+        "text": "2009年408统考真题操作系统\n29.假设磁头当前位于第105道，正在向磁道序号增加的方向移\n动。现有一个磁道访问请求序列为35,45,12,68,110,180,170,\n195，采用SCAN调度（电梯调度）算法得到的磁道访问序列是\n（）。\nA.110,170,180,195,68,45,35,12\nB.110,68,45,35,12,170,180,195\nC.110,170,180,195,12,35,45,8\nD.12,35,45,68,110,170,180,195",
+        "subject": "operating_system",
+        "subject_label": "操作系统",
+        "confidence": 0.95,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "2009年408统考真题操作系统 29.假设磁头当前位于第105道，正在向磁道序号增加的方向移 动。现有一个磁道访问请求序列为35,45,12,68,110,180,170, 195，采用SCAN调度（电梯调度）算法得到的磁道访问序列是 （）。 A.110,170,180,195,68,45,35,12 B.110,68,45,35,12,170,180,195 C.110,170,180,195,12,35,45,8 D.12,35,45,68,110,170,180,195"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "2009年408统考真题操作系统\n29.假设磁头当前位于第105道，正在向磁道序号增加的方向移\n动。现有一个磁道访问请求序列为35,45,12,68,110,180,170,\n195，采用SCAN调度（电梯调度）算法得到的磁道访问序列是\n（）。\nA.110,170,180,195,68,45,35,12\nB.110,68,45,35,12,170,180,195\nC.110,170,180,195,12,35,45,8\nD.12,35,45,68,110,170,180,195",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "requests",
+              "label": "磁道请求序列",
+              "value": "35, 45, 12, 68, 110, 180, 170, 195",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "2009年408统考真题操作系统 29.假设磁头当前位于第105道，正在向磁道序号增加的方向移 动。现有一个磁道访问请求序列为35,45,12,68,110,180,170, 195，采用SCAN调度（电梯调度）算法得到的磁道访问序列是 （）。 A.110,170,180,195,68,45,35,12 B.110,68,45,35,12,170,180,195 C.110,170,180,195,12,35,45,8 D.12,35,"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": "按到达顺序写出磁道号；修正后重新求解。"
+            },
+            {
+              "id": "head",
+              "label": "磁头起始位置",
+              "value": 105.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "2009年408统考真题操作系统 29.假设磁头当前位于第105道，正在向磁道序号增加的方向移 动。现有一个磁道访问请求序列为35,45,12,68,110,180,170, 195，采用SCAN调度（电梯调度）算法得到的磁道访问序列是 （）。 A.110,170,180,195,68,45,35,12 B.110,68,45,35,12,170,180,195 C.110,170,180,195,12,35,45,8 D.12,35,"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "max_track",
+              "label": "最大磁道号",
+              "value": 199.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "supplement",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "2009年408统考真题操作系统 29.假设磁头当前位于第105道，正在向磁道序号增加的方向移 动。现有一个磁道访问请求序列为35,45,12,68,110,180,170, 195，采用SCAN调度（电梯调度）算法得到的磁道访问序列是 （）。 A.110,170,180,195,68,45,35,12 B.110,68,45,35,12,170,180,195 C.110,170,180,195,12,35,45,8 D.12,35,"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": "题目未给出磁盘范围，SCAN/C-SCAN 默认走到 199，可在条件中修正。"
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "seek",
+              "tex": "\\text{总移动}=\\sum_i |p_i-p_{i-1}|",
+              "plain": "总移动距离 = 磁头相邻两次位置之差的绝对值之和；平均寻道长度 = 总移动 / 请求数。",
+              "role": "评价指标"
+            }
+          ],
+          "recognized_subject": "operating_system",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "os_disk_v1",
+          "subject": "operating_system",
+          "os_kind": "disk_schedule",
+          "requests": [
+            35.0,
+            45.0,
+            12.0,
+            68.0,
+            110.0,
+            180.0,
+            170.0,
+            195.0
+          ],
+          "head": 105.0,
+          "max_track": 199.0,
+          "defaults": {
+            "algorithm": "scan",
+            "direction": "up",
+            "return_cost": "count"
+          },
+          "params": [
+            {
+              "id": "algorithm",
+              "label": "磁盘调度算法",
+              "kind": "enum",
+              "min": null,
+              "max": null,
+              "step": null,
+              "options": [
+                "fcfs",
+                "sstf",
+                "scan",
+                "cscan",
+                "look",
+                "clook"
+              ],
+              "note": "同一请求序列可对照各算法的总移动距离。"
+            },
+            {
+              "id": "direction",
+              "label": "初始移动方向",
+              "kind": "enum",
+              "min": null,
+              "max": null,
+              "step": null,
+              "options": [
+                "up",
+                "down"
+              ],
+              "note": "仅 SCAN / C-SCAN / LOOK / C-LOOK 使用。"
+            },
+            {
+              "id": "return_cost",
+              "label": "回扫距离",
+              "kind": "enum",
+              "min": null,
+              "max": null,
+              "step": null,
+              "options": [
+                "count",
+                "skip"
+              ],
+              "note": "C-SCAN / C-LOOK 从一端跳到另一端：教材有的计入总移动，有的不计。"
+            }
+          ],
+          "teaching": false,
+          "os_result": {
+            "subject": "operating_system",
+            "engine": "os_disk_v1",
+            "os_kind": "disk_schedule",
+            "status": "ok",
+            "algorithm": "scan",
+            "frames": [
+              {
+                "index": 0,
+                "action": "initial",
+                "label": "SCAN（电梯）：磁头从 105 出发",
+                "detail": "共 8 个请求，磁道范围 0–199，初始向磁道号增大方向。",
+                "values": {
+                  "head": 105.0,
+                  "path": [
+                    105.0
+                  ],
+                  "served": [],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0,
+                    110.0,
+                    180.0,
+                    170.0,
+                    195.0
+                  ],
+                  "total": 0.0,
+                  "max_track": 199.0,
+                  "distance": 0.0,
+                  "from_pos": 105.0,
+                  "kind": "start",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 1,
+                "action": "seek",
+                "label": "磁头 105 → 110（移动 5）",
+                "detail": "服务磁道 110，累计移动 5。",
+                "values": {
+                  "head": 110.0,
+                  "path": [
+                    105.0,
+                    110.0
+                  ],
+                  "served": [
+                    110.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0,
+                    180.0,
+                    170.0,
+                    195.0
+                  ],
+                  "total": 5.0,
+                  "max_track": 199.0,
+                  "distance": 5.0,
+                  "from_pos": 105.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 2,
+                "action": "seek",
+                "label": "磁头 110 → 170（移动 60）",
+                "detail": "服务磁道 170，累计移动 65。",
+                "values": {
+                  "head": 170.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0,
+                    180.0,
+                    195.0
+                  ],
+                  "total": 65.0,
+                  "max_track": 199.0,
+                  "distance": 60.0,
+                  "from_pos": 110.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 3,
+                "action": "seek",
+                "label": "磁头 170 → 180（移动 10）",
+                "detail": "服务磁道 180，累计移动 75。",
+                "values": {
+                  "head": 180.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0,
+                    195.0
+                  ],
+                  "total": 75.0,
+                  "max_track": 199.0,
+                  "distance": 10.0,
+                  "from_pos": 170.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 4,
+                "action": "seek",
+                "label": "磁头 180 → 195（移动 15）",
+                "detail": "服务磁道 195，累计移动 90。",
+                "values": {
+                  "head": 195.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0
+                  ],
+                  "total": 90.0,
+                  "max_track": 199.0,
+                  "distance": 15.0,
+                  "from_pos": 180.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 5,
+                "action": "edge",
+                "label": "到达磁盘末端 199（移动 4）",
+                "detail": "SCAN 必须走到磁盘末端再换向，累计移动 94。",
+                "values": {
+                  "head": 199.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0
+                  ],
+                  "total": 94.0,
+                  "max_track": 199.0,
+                  "distance": 4.0,
+                  "from_pos": 195.0,
+                  "kind": "edge",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 4
+              },
+              {
+                "index": 6,
+                "action": "seek",
+                "label": "磁头 199 → 68（移动 131）",
+                "detail": "服务磁道 68，累计移动 225。",
+                "values": {
+                  "head": 68.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0
+                  ],
+                  "total": 225.0,
+                  "max_track": 199.0,
+                  "distance": 131.0,
+                  "from_pos": 199.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 7,
+                "action": "seek",
+                "label": "磁头 68 → 45（移动 23）",
+                "detail": "服务磁道 45，累计移动 248。",
+                "values": {
+                  "head": 45.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0,
+                    45.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0,
+                    45.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    12.0
+                  ],
+                  "total": 248.0,
+                  "max_track": 199.0,
+                  "distance": 23.0,
+                  "from_pos": 68.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 8,
+                "action": "seek",
+                "label": "磁头 45 → 35（移动 10）",
+                "detail": "服务磁道 35，累计移动 258。",
+                "values": {
+                  "head": 35.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0,
+                    45.0,
+                    35.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0,
+                    45.0,
+                    35.0
+                  ],
+                  "remaining": [
+                    12.0
+                  ],
+                  "total": 258.0,
+                  "max_track": 199.0,
+                  "distance": 10.0,
+                  "from_pos": 45.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 9,
+                "action": "seek",
+                "label": "磁头 35 → 12（移动 23）",
+                "detail": "服务磁道 12，累计移动 281。",
+                "values": {
+                  "head": 12.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0,
+                    45.0,
+                    35.0,
+                    12.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0,
+                    45.0,
+                    35.0,
+                    12.0
+                  ],
+                  "remaining": [],
+                  "total": 281.0,
+                  "max_track": 199.0,
+                  "distance": 23.0,
+                  "from_pos": 35.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 10,
+                "action": "result",
+                "label": "结果",
+                "detail": "总移动距离 = 281，平均寻道长度 = 35.125；服务顺序 110 → 170 → 180 → 195 → 68 → 45 → 35 → 12",
+                "values": {
+                  "head": 12.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0,
+                    45.0,
+                    35.0,
+                    12.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0,
+                    45.0,
+                    35.0,
+                    12.0
+                  ],
+                  "remaining": [],
+                  "total": 281.0,
+                  "max_track": 199.0,
+                  "distance": 0.0,
+                  "from_pos": 12.0,
+                  "kind": "result",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 5
+              }
+            ],
+            "trace": [
+              {
+                "index": 0,
+                "action": "initial",
+                "label": "SCAN（电梯）：磁头从 105 出发",
+                "detail": "共 8 个请求，磁道范围 0–199，初始向磁道号增大方向。",
+                "values": {
+                  "head": 105.0,
+                  "path": [
+                    105.0
+                  ],
+                  "served": [],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0,
+                    110.0,
+                    180.0,
+                    170.0,
+                    195.0
+                  ],
+                  "total": 0.0,
+                  "max_track": 199.0,
+                  "distance": 0.0,
+                  "from_pos": 105.0,
+                  "kind": "start",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 1,
+                "action": "seek",
+                "label": "磁头 105 → 110（移动 5）",
+                "detail": "服务磁道 110，累计移动 5。",
+                "values": {
+                  "head": 110.0,
+                  "path": [
+                    105.0,
+                    110.0
+                  ],
+                  "served": [
+                    110.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0,
+                    180.0,
+                    170.0,
+                    195.0
+                  ],
+                  "total": 5.0,
+                  "max_track": 199.0,
+                  "distance": 5.0,
+                  "from_pos": 105.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 2,
+                "action": "seek",
+                "label": "磁头 110 → 170（移动 60）",
+                "detail": "服务磁道 170，累计移动 65。",
+                "values": {
+                  "head": 170.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0,
+                    180.0,
+                    195.0
+                  ],
+                  "total": 65.0,
+                  "max_track": 199.0,
+                  "distance": 60.0,
+                  "from_pos": 110.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 3,
+                "action": "seek",
+                "label": "磁头 170 → 180（移动 10）",
+                "detail": "服务磁道 180，累计移动 75。",
+                "values": {
+                  "head": 180.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0,
+                    195.0
+                  ],
+                  "total": 75.0,
+                  "max_track": 199.0,
+                  "distance": 10.0,
+                  "from_pos": 170.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 4,
+                "action": "seek",
+                "label": "磁头 180 → 195（移动 15）",
+                "detail": "服务磁道 195，累计移动 90。",
+                "values": {
+                  "head": 195.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0
+                  ],
+                  "total": 90.0,
+                  "max_track": 199.0,
+                  "distance": 15.0,
+                  "from_pos": 180.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 5,
+                "action": "edge",
+                "label": "到达磁盘末端 199（移动 4）",
+                "detail": "SCAN 必须走到磁盘末端再换向，累计移动 94。",
+                "values": {
+                  "head": 199.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0,
+                    68.0
+                  ],
+                  "total": 94.0,
+                  "max_track": 199.0,
+                  "distance": 4.0,
+                  "from_pos": 195.0,
+                  "kind": "edge",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 4
+              },
+              {
+                "index": 6,
+                "action": "seek",
+                "label": "磁头 199 → 68（移动 131）",
+                "detail": "服务磁道 68，累计移动 225。",
+                "values": {
+                  "head": 68.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    45.0,
+                    12.0
+                  ],
+                  "total": 225.0,
+                  "max_track": 199.0,
+                  "distance": 131.0,
+                  "from_pos": 199.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 7,
+                "action": "seek",
+                "label": "磁头 68 → 45（移动 23）",
+                "detail": "服务磁道 45，累计移动 248。",
+                "values": {
+                  "head": 45.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0,
+                    45.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0,
+                    45.0
+                  ],
+                  "remaining": [
+                    35.0,
+                    12.0
+                  ],
+                  "total": 248.0,
+                  "max_track": 199.0,
+                  "distance": 23.0,
+                  "from_pos": 68.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 8,
+                "action": "seek",
+                "label": "磁头 45 → 35（移动 10）",
+                "detail": "服务磁道 35，累计移动 258。",
+                "values": {
+                  "head": 35.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0,
+                    45.0,
+                    35.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0,
+                    45.0,
+                    35.0
+                  ],
+                  "remaining": [
+                    12.0
+                  ],
+                  "total": 258.0,
+                  "max_track": 199.0,
+                  "distance": 10.0,
+                  "from_pos": 45.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 9,
+                "action": "seek",
+                "label": "磁头 35 → 12（移动 23）",
+                "detail": "服务磁道 12，累计移动 281。",
+                "values": {
+                  "head": 12.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0,
+                    45.0,
+                    35.0,
+                    12.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0,
+                    45.0,
+                    35.0,
+                    12.0
+                  ],
+                  "remaining": [],
+                  "total": 281.0,
+                  "max_track": 199.0,
+                  "distance": 23.0,
+                  "from_pos": 35.0,
+                  "kind": "request",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 10,
+                "action": "result",
+                "label": "结果",
+                "detail": "总移动距离 = 281，平均寻道长度 = 35.125；服务顺序 110 → 170 → 180 → 195 → 68 → 45 → 35 → 12",
+                "values": {
+                  "head": 12.0,
+                  "path": [
+                    105.0,
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    199.0,
+                    68.0,
+                    45.0,
+                    35.0,
+                    12.0
+                  ],
+                  "served": [
+                    110.0,
+                    170.0,
+                    180.0,
+                    195.0,
+                    68.0,
+                    45.0,
+                    35.0,
+                    12.0
+                  ],
+                  "remaining": [],
+                  "total": 281.0,
+                  "max_track": 199.0,
+                  "distance": 0.0,
+                  "from_pos": 12.0,
+                  "kind": "result",
+                  "algorithm": "scan",
+                  "direction": "up"
+                },
+                "pseudocodeLine": 5
+              }
+            ],
+            "pseudocode": [
+              "从当前磁头位置出发",
+              "按算法选出下一个服务的磁道（或端点）",
+              "移动磁头并累加移动距离",
+              "必要时到达末端后换向或回扫",
+              "全部请求服务完毕，统计总移动距离"
+            ],
+            "answer": "总移动距离 = 281，平均寻道长度 = 35.125；服务顺序 110 → 170 → 180 → 195 → 68 → 45 → 35 → 12",
+            "answer_value": 281.0,
+            "answer_order": [
+              "110",
+              "170",
+              "180",
+              "195",
+              "68",
+              "45",
+              "35",
+              "12"
+            ],
+            "headline": "SCAN（电梯）：总移动 281，平均 35.125",
+            "metrics": [
+              {
+                "id": "algorithm",
+                "label": "算法",
+                "value": "SCAN（电梯）"
+              },
+              {
+                "id": "total",
+                "label": "总移动距离",
+                "value": "281"
+              },
+              {
+                "id": "average",
+                "label": "平均寻道长度",
+                "value": "35.125"
+              },
+              {
+                "id": "order",
+                "label": "服务顺序",
+                "value": "110 → 170 → 180 → 195 → 68 → 45 → 35 → 12"
+              }
+            ],
+            "checks": [
+              {
+                "id": "coverage",
+                "label": "每个请求恰好服务一次",
+                "status": "pass",
+                "detail": "服务了 8 个磁道，请求共 8 个。"
+              },
+              {
+                "id": "range",
+                "label": "磁头不越界",
+                "status": "pass",
+                "detail": "磁头位置始终在 0–199 之间。"
+              }
+            ],
+            "stats": {
+              "total": 281.0,
+              "average": 35.125,
+              "served": [
+                110.0,
+                170.0,
+                180.0,
+                195.0,
+                68.0,
+                45.0,
+                35.0,
+                12.0
+              ],
+              "path": [
+                105.0,
+                110.0,
+                170.0,
+                180.0,
+                195.0,
+                199.0,
+                68.0,
+                45.0,
+                35.0,
+                12.0
+              ],
+              "compare": {
+                "fcfs": 316.0,
+                "sstf": 286.0,
+                "scan": 281.0,
+                "cscan": 361.0,
+                "look": 273.0,
+                "clook": 329.0
+              },
+              "max_track": 199.0,
+              "head": 105.0,
+              "requests": [
+                35.0,
+                45.0,
+                12.0,
+                68.0,
+                110.0,
+                180.0,
+                170.0,
+                195.0
+              ]
+            },
+            "stop_reason": "done",
+            "notes": [
+              "SSTF 并列时选请求队列中更靠前的磁道；SCAN / C-SCAN 走到磁盘末端，LOOK / C-LOOK 只走到最远的请求。",
+              "C-SCAN / C-LOOK 的回扫是否计入总移动因教材而异，可在“回扫距离”中切换。"
+            ]
+          }
+        },
+        "solution": {
+          "summary": "SCAN（电梯）：按算法依次服务请求，累加磁头移动距离。",
+          "answer": "总移动距离 = 281，平均寻道长度 = 35.125；服务顺序 110 → 170 → 180 → 195 → 68 → 45 → 35 → 12",
+          "answer_value": 281.0,
+          "answer_order": null,
+          "answer_sequence": [
+            "110",
+            "170",
+            "180",
+            "195",
+            "68",
+            "45",
+            "35",
+            "12"
+          ],
+          "steps": [
+            {
+              "id": "os_0",
+              "title": "磁头起点与请求",
+              "detail": "请求按到达顺序给出；总移动距离是相邻两次磁头位置之差的绝对值之和。"
+            },
+            {
+              "id": "os_1",
+              "title": "选择下一个磁道",
+              "detail": "SCAN（电梯）：按算法决定下一个服务的磁道，并累加移动距离。"
+            },
+            {
+              "id": "os_1",
+              "title": "端点与换向",
+              "detail": "SCAN 类算法走到末端或最远请求后换向（或回扫）；FCFS / SSTF 没有这一步。"
+            },
+            {
+              "id": "os_10",
+              "title": "总移动距离",
+              "detail": "总移动距离 = 281，平均寻道长度 = 35.125；服务顺序 110 → 170 → 180 → 195 → 68 → 45 → 35 → 12"
+            }
+          ],
+          "conditions": [
+            "题目数据来自识别条件；可在条件面板中修正后重建。"
+          ],
+          "limitations": [
+            "SSTF 并列时选请求队列中更靠前的磁道；SCAN / C-SCAN 走到磁盘末端，LOOK / C-LOOK 只走到最远的请求。",
+            "C-SCAN / C-LOOK 的回扫是否计入总移动因教材而异，可在“回扫距离”中切换。"
+          ]
+        },
+        "states": {
+          "params": {
+            "algorithm": "scan",
+            "direction": "up",
+            "return_cost": "count"
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "algorithm": "scan",
+                "direction": "up",
+                "return_cost": "count"
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "operating_system",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "acdeeaa030534d53"
+}

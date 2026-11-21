@@ -1,0 +1,263 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_078c9e6280c04a4888cc1649254567dd",
+    "title": "m5l_din.png",
+    "created_at": "2026-11-20T01:24:51Z",
+    "updated_at": "2026-11-20T01:24:51Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "m5l_din.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 56,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "高等数学期末试卷计算题\n12.（10分）计算二重积分口_Dxydo,\n其中D由y=x，y=0与x=1围成。\n解：",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "高等数学期末试卷计算题\n12.（10分）计算二重积分口_Dxydo,\n其中D由y=x，y=0与x=1围成。\n解：",
+          "math_text": null,
+          "ocr_confidence": 0.9732008052594734,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "m5l_din.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "12",
+        "title": "第 12 题 · 高等数学期末试卷计算题",
+        "text": "高等数学期末试卷计算题\n12.（10分）计算二重积分口_Dxydo,\n其中D由y=x，y=0与x=1围成。\n解：",
+        "subject": "calculus",
+        "subject_label": "微积分",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "高等数学期末试卷计算题 12.（10分）计算二重积分口_Dxydo, 其中D由y=x，y=0与x=1围成。 解："
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "高等数学期末试卷计算题\n12.（10分）计算二重积分口_Dxydo,\n其中D由y=x，y=0与x=1围成。\n解：",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "integrand",
+              "label": "被积函数",
+              "value": "口_Dx*y",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "高等数学期末试卷计算题 12.（10分）计算二重积分口_Dxydo, 其中D由y=x，y=0与x=1围成。 解："
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "outer_variable",
+              "label": "外层积分变量",
+              "value": "x",
+              "kind": "expression",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "高等数学期末试卷计算题 12.（10分）计算二重积分口_Dxydo, 其中D由y=x，y=0与x=1围成。 解："
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "outer_bounds",
+              "label": "外层积分区间",
+              "value": [
+                "0.0",
+                "1.0"
+              ],
+              "kind": "json",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "高等数学期末试卷计算题 12.（10分）计算二重积分口_Dxydo, 其中D由y=x，y=0与x=1围成。 解："
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "inner_bounds",
+              "label": "内层区域上下边界",
+              "value": [
+                "0",
+                "x"
+              ],
+              "kind": "json",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "高等数学期末试卷计算题 12.（10分）计算二重积分口_Dxydo, 其中D由y=x，y=0与x=1围成。 解："
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "exam_double_integral",
+              "field": "double_integral",
+              "question": "包含暂不支持的符号：_Dx",
+              "severity": "blocking",
+              "options": [],
+              "resolved": false,
+              "answer": null
+            },
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "double_integral",
+              "tex": "",
+              "plain": "口_Dx*y",
+              "role": "二重积分模型"
+            }
+          ],
+          "recognized_subject": "calculus",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "double_integral_v1",
+          "subject": "calculus",
+          "task": "double_integral",
+          "defaults": {},
+          "params": [],
+          "teaching": false,
+          "integrand": "口_Dx*y",
+          "outer_variable": "x",
+          "outer_bounds": [
+            "0.0",
+            "1.0"
+          ],
+          "inner_bounds": [
+            "0",
+            "x"
+          ]
+        },
+        "solution": {
+          "answer": "",
+          "summary": "先核对原题公式与条件，再计算答案。",
+          "steps": [],
+          "limitations": []
+        },
+        "states": {
+          "params": {},
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {},
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "calculus",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "5d1b3b5a3c2d4c7d"
+}

@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import copy
 import threading
@@ -22,7 +23,7 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
@@ -280,10 +281,24 @@ def patch_page(
             document["variables"] = validate_variables(payload.variables)
         except ValueError as exc:
             raise missing_field(str(exc)) from exc
-    record.document = document
-    _touch(record)
+    document["revision"] += 1
+    document["updated_at"] = to_iso(utc_now())
+    result = db.execute(update(LivingPageRecord).where(
+        LivingPageRecord.id == page_id,
+        LivingPageRecord.revision == payload.expected_revision,
+    ).values(document=document, title=document["title"], block_count=len(document["blocks"]),
+             revision=document["revision"], updated_at=document["updated_at"]))
+    if result.rowcount != 1:
+        db.rollback()
+        raise version_conflict()
     db.commit()
-    return ok(request, record.document)
+    return ok(request, document)
+
+
+from ..living.diagram import cache_key as diagram_cache_key
+from ..living.diagram import diagram_from_vision, diagram_prompt
+from ..living.vision import LivingVisionClient
+from ..ppt_ai.client import PPTAIError
 
 
 @router.post("/pages/{page_id}/regions/{region_id}/formula-ocr",
@@ -341,6 +356,105 @@ def recognize_region_formula(
         _touch(record)
         db.commit()
     return ok(request, record.document)
+
+
+@router.post("/pages/{page_id}/regions/{region_id}/diagram",
+             summary="按需把图示区域转译成可编辑流程图（预算/缓存/revision 锁）")
+def recognize_region_diagram(
+    page_id: str, region_id: str, payload: RegionOcrRequest,
+    request: Request, ctx: WriteDep, db: DBDep,
+) -> JSONResponse:
+    """P2：图示裁剪 → 视觉模型 → 严格校验过的 diagram 写回 ``region.diagram``。
+
+    - PPTX 确定性转译或同 ``cache_key`` 命中 → 直接返回，不消耗预算；
+    - 预算 ``living_figure_max_calls`` 以文档级 ``vision_calls`` 计数，
+      失败同样计数；并发写走 ``expected_revision``；
+    - 低置信度（证据匹配不足）结果不落库，裁剪图保留。
+    """
+    record = _owned_page(db, ctx, page_id)
+    _assert_revision(record, payload.expected_revision)
+    document = dict(record.document)
+    region: dict[str, Any] | None = None
+    for block in document.get("blocks") or []:
+        if block.get("type") != "page":
+            continue
+        for candidate in (block.get("data") or {}).get("regions") or []:
+            if isinstance(candidate, dict) and candidate.get("id") == region_id:
+                region = candidate
+    if region is None:
+        raise invalid_file("区域不存在，请刷新活页")
+    if region.get("kind") not in ("diagram", "figure"):
+        raise invalid_file("只有图示/图片区域支持流程图转译")
+
+    client = LivingVisionClient()
+    profile = client.profile
+    existing = region.get("diagram")
+    if isinstance(existing, dict) and existing.get("cache_key") == "pptx_shapes":
+        return ok(request, record.document)  # PPTX 确定性转译，永远命中
+
+    crop_path = None
+    for path in (LIVING_DIR / page_id / "analysis" / "regions" / f"{region_id}.png",
+                 _preview_path(page_id, region_id)):
+        if path.is_file():
+            crop_path = path
+            break
+    if crop_path is None:
+        raise invalid_file("区域裁剪已不存在，请重新上传原材料")
+    try:
+        png_bytes = crop_path.read_bytes()
+    except OSError as exc:
+        raise invalid_file("区域裁剪读取失败") from exc
+
+    evidence = [region.get("text"), region.get("caption"), region.get("label")]
+    evidence += [label.get("text") for label in region.get("labels") or []]
+    evidence = [text for text in evidence if text]
+    key = diagram_cache_key(png_bytes, model=profile.model, evidence=evidence)
+    if isinstance(existing, dict) and existing.get("cache_key") == key:
+        return ok(request, record.document)
+
+    if not client.available:
+        raise invalid_file("未配置活页图示视觉模型")
+    used = int(document.get("vision_calls") or 0)
+    if used >= profile.max_calls:
+        raise invalid_file("本文档的流程图转译次数已用尽")
+
+    def commit_revision() -> None:
+        expected = document["revision"]
+        document["revision"] = expected + 1
+        document["updated_at"] = to_iso(utc_now())
+        result = db.execute(update(LivingPageRecord).where(
+            LivingPageRecord.id == page_id,
+            LivingPageRecord.revision == expected,
+        ).values(document=document, revision=document["revision"],
+                 updated_at=document["updated_at"]))
+        if result.rowcount != 1:
+            db.rollback()
+            raise version_conflict("转译期间活页已修改，请刷新后重试")
+        db.commit()
+
+    prompt = diagram_prompt(evidence)
+    for attempt in range(2):
+        used += 1
+        document["vision_calls"] = used
+        commit_revision()
+        try:
+            payload_out = client.generate_json(image_png=png_bytes, prompt=prompt)
+            diagram = diagram_from_vision(payload_out, evidence)
+            break
+        except PPTAIError as exc:
+            if attempt == 0 and exc.retryable and used < profile.max_calls:
+                continue
+            raise invalid_file(f"流程图转译失败： {exc}", revision=document["revision"]) from exc
+        except ValueError as exc:
+            raise invalid_file(f"流程图校验失败： {exc}", revision=document["revision"]) from exc
+
+    if diagram["confidence"] < 0.3:
+        raise invalid_file("转译置信度过低，请换用更清晰的原图", revision=document["revision"])
+    diagram.pop("original_positions", None)
+    diagram["cache_key"] = key
+    region["diagram"] = diagram
+    commit_revision()
+    return ok(request, document)
 
 
 @router.post("/pages/{page_id}/suggestions/{suggestion_id}/accept",
@@ -573,6 +687,24 @@ def get_page_asset(
                         filename=f"{key}.png")
 
 
+@router.get("/pages/{page_id}/offline", response_class=HTMLResponse)
+def export_living_page(page_id: str, ctx: SessionDep, db: DBDep) -> HTMLResponse:
+    from ..offline import render_offline_living
+
+    record = _owned_page(db, ctx, page_id)
+
+    def find_asset(key: str):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", key):
+            raise missing_field("资产键无效")
+        return _preview_path(page_id, key)
+
+    content = render_offline_living(record.document, find_asset)
+    return HTMLResponse(content, headers={
+        "Content-Disposition": 'attachment; filename="living-page.html"',
+        "Cache-Control": "no-store",
+    })
+
+
 @router.post("/pages/{page_id}/publish", status_code=201, summary="发布只读活页")
 def publish_page(
     page_id: str, request: Request, ctx: WriteDep, db: DBDep
@@ -630,7 +762,7 @@ def get_public_asset(
 # 学生进度与学情
 # ---------------------------------------------------------------------------
 
-_PROGRESS_KEYS = {"quiz_guess", "checkpoint_attempts", "lab_states", "notes"}
+_PROGRESS_KEYS = {"quiz_guess", "checkpoint_attempts", "lab_states", "notes", "diagram_states"}
 
 
 def _load_or_insert_progress(
@@ -642,14 +774,22 @@ def _load_or_insert_progress(
     ``ix_living_progress_share_session``——回滚后重读胜出方的行继续合并。
     """
 
-    row = db.scalar(
-        select(LivingProgressRecord).where(
-            LivingProgressRecord.share_id == share_id,
-            LivingProgressRecord.session_id == session_id,
-        )
+    query = select(LivingProgressRecord).where(
+        LivingProgressRecord.share_id == share_id,
+        LivingProgressRecord.session_id == session_id,
     )
-    if row is not None:
+
+    def lock_existing(row: LivingProgressRecord) -> LivingProgressRecord:
+        # Serialize read/merge/write, including SQLite where SELECT FOR UPDATE is ignored.
+        db.execute(update(LivingProgressRecord).where(LivingProgressRecord.id == row.id)
+                   .values(updated_at=LivingProgressRecord.updated_at)
+                   .execution_options(synchronize_session=False))
+        db.refresh(row, with_for_update=True)
         return row
+
+    row = db.scalar(query)
+    if row is not None:
+        return lock_existing(row)
     row = LivingProgressRecord(
         id=f"lp_{uuid4().hex[:24]}",
         share_id=share_id,
@@ -663,14 +803,10 @@ def _load_or_insert_progress(
         db.flush()
     except IntegrityError:
         db.rollback()
-        row = db.scalar(
-            select(LivingProgressRecord).where(
-                LivingProgressRecord.share_id == share_id,
-                LivingProgressRecord.session_id == session_id,
-            )
-        )
+        row = db.scalar(query)
         if row is None:
-            raise resource_unavailable("进度记录异常")
+            raise resource_unavailable()
+        return lock_existing(row)
     return row
 
 
@@ -680,9 +816,11 @@ def report_progress(
 ) -> JSONResponse:
     share = _public_share(share_id, db)
     snapshot = share.snapshot_json or {}
-    block_ids = {b.get("id") for b in (snapshot.get("blocks") or [])}
-    if payload.block_id not in block_ids:
+    block = next((b for b in snapshot.get("blocks", []) if b.get("id") == payload.block_id), None)
+    if block is None:
         raise missing_field("块不存在")
+    if not (snapshot.get("settings") or {}).get("collect_progress"):
+        return ok(request, {"block_id": payload.block_id, "saved": False})
     now = to_iso(utc_now())
     row = _load_or_insert_progress(db, share_id, ctx.session_id, now)
     blocks = dict(row.blocks or {})
@@ -710,6 +848,23 @@ def report_progress(
                 continue
         elif key == "lab_states" and isinstance(value, dict):
             entry[key] = value
+        elif key == "diagram_states" and isinstance(value, dict):
+            from ..living.diagram import merge_diagram_progress
+
+            data = block.get("data") or {}
+            region_id = value.get("region_id")
+            if block["type"] == "diagram" and region_id is None:
+                merged = merge_diagram_progress(entry.get(key), value, data.get("doc"))
+                if merged is not None:
+                    entry[key] = merged
+            elif block["type"] == "page" and isinstance(region_id, str):
+                region = next((r for r in data.get("regions", []) if r["id"] == region_id), None)
+                if region is not None:
+                    states = dict(entry.get("region_diagram_states") or {})
+                    merged = merge_diagram_progress(states.get(region_id), value, region.get("diagram"))
+                    if merged is not None:
+                        states[region_id] = merged
+                        entry["region_diagram_states"] = states
         elif key == "notes" and isinstance(value, str):
             entry[key] = value[:2400]
     blocks[payload.block_id] = entry
@@ -741,13 +896,15 @@ def page_insights(
             ).all()
         )
     per_block: dict[str, dict[str, Any]] = {}
+    diagram_completions: dict[str, set[str]] = {}
     viewers: set[str] = set()
     for row in progress_rows:
         viewers.add(row.session_id)
         for block_id, entry in (row.blocks or {}).items():
             stat = per_block.setdefault(block_id, {
                 "visits": 0, "quiz_guesses": [], "checkpoint_attempts": 0,
-                "checkpoint_correct": 0, "last_active": None,
+                "checkpoint_correct": 0, "diagram_step_max": 0,
+                "diagram_completed": 0, "last_active": None,
             })
             if not isinstance(entry, dict):
                 continue
@@ -757,6 +914,14 @@ def page_insights(
             attempts = entry.get("checkpoint_attempts") or []
             stat["checkpoint_attempts"] += len(attempts)
             stat["checkpoint_correct"] += sum(1 for a in attempts if a.get("correct"))
+            diagrams = [entry.get("diagram_states"), *(entry.get("region_diagram_states") or {}).values()]
+            for diagram in diagrams:
+                if isinstance(diagram, dict):
+                    stat["diagram_step_max"] = max(stat["diagram_step_max"], diagram["step"])
+            if any(isinstance(diagram, dict) and diagram.get("completed") for diagram in diagrams):
+                completed = diagram_completions.setdefault(block_id, set())
+                completed.add(row.session_id)
+                stat["diagram_completed"] = len(completed)
             ts = entry.get("visited_at")
             if isinstance(ts, str) and (stat["last_active"] is None or ts > stat["last_active"]):
                 stat["last_active"] = ts

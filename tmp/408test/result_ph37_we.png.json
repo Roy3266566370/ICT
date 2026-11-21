@@ -1,0 +1,416 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_2d4e97899356419da204ce6abd076920",
+    "title": "ph37_we.png",
+    "created_at": "2026-11-19T11:51:32Z",
+    "updated_at": "2026-11-19T11:51:32Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph37_we.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 101,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题力学\n38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动，\n由静止开始。求合力做功后的末速度（）。\nA.5m/s 5B.7.07m/s C.10m/sD.14.1m/s",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题力学\n38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动，\n由静止开始。求合力做功后的末速度（）。\nA.5m/s 5B.7.07m/s C.10m/sD.14.1m/s",
+          "math_text": null,
+          "ocr_confidence": 0.9931484454702527,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph37_we.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "38",
+        "title": "第 38 题 · 大学物理期末考试题力学",
+        "text": "大学物理期末考试题力学\n38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动，\n由静止开始。求合力做功后的末速度（）。\nA.5m/s 5B.7.07m/s C.10m/sD.14.1m/s",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题力学 38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动， 由静止开始。求合力做功后的末速度（）。 A.5m/s 5B.7.07m/s C.10m/sD.14.1m/s"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题力学\n38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动，\n由静止开始。求合力做功后的末速度（）。\nA.5m/s 5B.7.07m/s C.10m/sD.14.1m/s",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "动能定理",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动， 由静止开始。求合力做功后的末速度（）。 A.5m/s 5B.7.07m/s C.10m/sD.14.1m/s"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_m",
+              "label": "质量 m",
+              "value": 2.0,
+              "kind": "number",
+              "unit": "kg",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动， 由静止开始。求合力做功后的末速度（）。 A.5m/s 5B.7.07m/s C.10m/sD.14.1m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_F",
+              "label": "合力 F",
+              "value": 10.0,
+              "kind": "number",
+              "unit": "N",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动， 由静止开始。求合力做功后的末速度（）。 A.5m/s 5B.7.07m/s C.10m/sD.14.1m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_s",
+              "label": "位移 s",
+              "value": 5.0,
+              "kind": "number",
+              "unit": "m",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动， 由静止开始。求合力做功后的末速度（）。 A.5m/s 5B.7.07m/s C.10m/sD.14.1m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_v0",
+              "label": "初速度 v0",
+              "value": 0.0,
+              "kind": "number",
+              "unit": "m/s",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动， 由静止开始。求合力做功后的末速度（）。 A.5m/s 5B.7.07m/s C.10m/sD.14.1m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{W = Fs；W = ΔEk = ½mv^2 − ½mv0^2}",
+              "plain": "W = Fs；W = ΔEk = ½mv² − ½mv0²",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "work_energy",
+          "physics_mode": "work_energy",
+          "raw": "大学物理期末考试题力学\n38.质量m=2kg的物体在合力F=10N作用下沿位移s=5m运动，\n由静止开始。求合力做功后的末速度（）。\nA.5m/s 5B.7.07m/s C.10m/sD.14.1m/s",
+          "defaults": {
+            "m": 2.0,
+            "F": 10.0,
+            "s": 5.0,
+            "v0": 0.0
+          },
+          "params": [
+            {
+              "id": "m",
+              "label": "质量 m (kg)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 100,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "F",
+              "label": "合力 F (N)",
+              "kind": "number",
+              "min": -500,
+              "max": 500,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "s",
+              "label": "位移 s (m)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 100,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "v0",
+              "label": "初速度 v0 (m/s)",
+              "kind": "number",
+              "min": -30,
+              "max": 30,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "work_energy",
+            "mode": "work_energy",
+            "answer": "合力做功 W=50 J，末速度 v=7.071 m/s，动能变化 ΔEk=50 J。",
+            "answer_value": 50.0,
+            "metrics": [
+              {
+                "id": "W",
+                "label": "合力做功",
+                "value": "50 J",
+                "tone": "accent"
+              },
+              {
+                "id": "v",
+                "label": "末速度",
+                "value": "7.071 m/s"
+              },
+              {
+                "id": "dK",
+                "label": "动能变化",
+                "value": "50 J"
+              }
+            ],
+            "checks": [
+              {
+                "id": "theorem",
+                "label": "动能定理",
+                "status": "pass",
+                "detail": "W = ΔEk"
+              },
+              {
+                "id": "speed",
+                "label": "末速度有效",
+                "status": "pass",
+                "detail": "末动能非负时才能得到实速度。"
+              }
+            ],
+            "notes": [
+              "合力恒定，从初速度开始沿直线运动；不考虑转动。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "合力做功",
+                "detail": "F=10 N，s=5 m，W=50 J",
+                "values": {
+                  "F": 10.0,
+                  "s": 5.0,
+                  "W": 50.0
+                }
+              },
+              {
+                "index": 1,
+                "label": "动能变化",
+                "detail": "v0=0 m/s，v=7.071 m/s",
+                "values": {
+                  "v0": 0.0,
+                  "v": 7.0710678118654755
+                }
+              }
+            ],
+            "scene": {
+              "type": "work_energy",
+              "m": 2.0,
+              "F": 10.0,
+              "s": 5.0,
+              "v0": 0.0,
+              "v": 7.0710678118654755,
+              "W": 50.0,
+              "K0": 0.0,
+              "K1": 50.0
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "合力做功 W=50 J，末速度 v=7.071 m/s，动能变化 ΔEk=50 J。",
+          "answer_value": 50.0,
+          "answer_values": [
+            50.0,
+            7.071
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "合力做功",
+              "detail": "F=10 N，s=5 m，W=50 J"
+            },
+            {
+              "id": "phy_1",
+              "title": "动能变化",
+              "detail": "v0=0 m/s，v=7.071 m/s"
+            }
+          ],
+          "conditions": [
+            "按动能定理模型计算。"
+          ],
+          "limitations": [
+            "合力恒定，从初速度开始沿直线运动；不考虑转动。",
+            "未给出的初值或边界条件不会被自动补造。",
+            "常见单位 km/h、cm、mm、km、g、min、h 会先换算为 SI；仍无法识别的单位请以 SI 填写。"
+          ]
+        },
+        "states": {
+          "params": {
+            "m": 2.0,
+            "F": 10.0,
+            "s": 5.0,
+            "v0": 0.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "m": 2.0,
+                "F": 10.0,
+                "s": 5.0,
+                "v0": 0.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "01d72b06ca5b401a"
+}

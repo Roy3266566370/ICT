@@ -28,6 +28,8 @@ coverage/
 # Local user data, uploads, credentials and diagnostic output.
 /backend/data/
 /verify/*
+!/verify/living-flowchart-accuracy.py
+!/verify/living-flowchart-accuracy-report.json
 !/verify/manual-integrals-2026-11-13/
 /verify/manual-integrals-2026-11-13/*
 !/verify/manual-integrals-2026-11-13/report.md

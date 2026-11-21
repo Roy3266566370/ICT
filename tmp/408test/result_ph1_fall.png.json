@@ -1,0 +1,611 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_b844ea0a81004462ba5bc7c9fc644e59",
+    "title": "ph1_fall.png",
+    "created_at": "2026-11-19T11:14:33Z",
+    "updated_at": "2026-11-19T11:14:33Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph1_fall.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 106,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题力学\n19.一个物体从高度h=10m处自由落下，忽略空气阻力，\n取重力加速度g=9.8m/s²。求物体落地时的速度大小。\nA.9.8m/s 5B.14m/s C. 19.6m/s D.28m/s",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题力学\n19.一个物体从高度h=10m处自由落下，忽略空气阻力，\n取重力加速度g=9.8m/s²。求物体落地时的速度大小。\nA.9.8m/s 5B.14m/s C. 19.6m/s D.28m/s",
+          "math_text": null,
+          "ocr_confidence": 0.979011882706122,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph1_fall.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "19",
+        "title": "第 19 题 · 大学物理期末考试题力学",
+        "text": "大学物理期末考试题力学\n19.一个物体从高度h=10m处自由落下，忽略空气阻力，\n取重力加速度g=9.8m/s²。求物体落地时的速度大小。\nA.9.8m/s 5B.14m/s C. 19.6m/s D.28m/s",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题力学 19.一个物体从高度h=10m处自由落下，忽略空气阻力， 取重力加速度g=9.8m/s²。求物体落地时的速度大小。 A.9.8m/s 5B.14m/s C. 19.6m/s D.28m/s"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题力学\n19.一个物体从高度h=10m处自由落下，忽略空气阻力，\n取重力加速度g=9.8m/s²。求物体落地时的速度大小。\nA.9.8m/s 5B.14m/s C. 19.6m/s D.28m/s",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "自由落体",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 19.一个物体从高度h=10m处自由落下，忽略空气阻力， 取重力加速度g=9.8m/s²。求物体落地时的速度大小。 A.9.8m/s 5B.14m/s C. 19.6m/s D.28m/s"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_g",
+              "label": "重力加速度 g",
+              "value": 9.8,
+              "kind": "number",
+              "unit": "m/s²",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 19.一个物体从高度h=10m处自由落下，忽略空气阻力， 取重力加速度g=9.8m/s²。求物体落地时的速度大小。 A.9.8m/s 5B.14m/s C. 19.6m/s D.28m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_h",
+              "label": "高度 h",
+              "value": 10.0,
+              "kind": "number",
+              "unit": "m",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 19.一个物体从高度h=10m处自由落下，忽略空气阻力， 取重力加速度g=9.8m/s²。求物体落地时的速度大小。 A.9.8m/s 5B.14m/s C. 19.6m/s D.28m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{t = \\sqrt (2h/g)；v = gt}",
+              "plain": "t = √(2h/g)；v = gt",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "kinematics",
+          "physics_mode": "free_fall",
+          "raw": "大学物理期末考试题力学\n19.一个物体从高度h=10m处自由落下，忽略空气阻力，\n取重力加速度g=9.8m/s²。求物体落地时的速度大小。\nA.9.8m/s 5B.14m/s C. 19.6m/s D.28m/s",
+          "defaults": {
+            "g": 9.8,
+            "h": 10.0
+          },
+          "params": [
+            {
+              "id": "h",
+              "label": "高度 h (m)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 500,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "g",
+              "label": "重力加速度 g",
+              "kind": "number",
+              "min": 0.1,
+              "max": 30,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "kinematics",
+            "mode": "free_fall",
+            "answer": "落地时间 t=1.429 s，落地速度 v=14 m/s。",
+            "answer_value": 14.000000000000002,
+            "metrics": [
+              {
+                "id": "t",
+                "label": "落地时间",
+                "value": "1.429 s",
+                "tone": "accent"
+              },
+              {
+                "id": "v",
+                "label": "落地速度",
+                "value": "14 m/s"
+              },
+              {
+                "id": "h",
+                "label": "下落高度",
+                "value": "10 m"
+              }
+            ],
+            "checks": [
+              {
+                "id": "energy",
+                "label": "自由落体关系",
+                "status": "pass",
+                "detail": "v² = 2gh 的数值复核"
+              },
+              {
+                "id": "time",
+                "label": "时间有效",
+                "status": "pass",
+                "detail": "从静止释放，空气阻力忽略。"
+              }
+            ],
+            "notes": [
+              "自由落体，空气阻力忽略。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "t=0 s",
+                "detail": "y=10 m，v=0 m/s",
+                "values": {
+                  "t": 0.0,
+                  "y": 10.0,
+                  "v": 0.0,
+                  "a": 9.8
+                }
+              },
+              {
+                "index": 1,
+                "label": "t=0.1786 s",
+                "detail": "y=9.844 m，v=1.75 m/s",
+                "values": {
+                  "t": 0.17857142857142858,
+                  "y": 9.84375,
+                  "v": 1.7500000000000002,
+                  "a": 9.8
+                }
+              },
+              {
+                "index": 2,
+                "label": "t=0.3571 s",
+                "detail": "y=9.375 m，v=3.5 m/s",
+                "values": {
+                  "t": 0.35714285714285715,
+                  "y": 9.375,
+                  "v": 3.5000000000000004,
+                  "a": 9.8
+                }
+              },
+              {
+                "index": 3,
+                "label": "t=0.5357 s",
+                "detail": "y=8.594 m，v=5.25 m/s",
+                "values": {
+                  "t": 0.5357142857142857,
+                  "y": 8.59375,
+                  "v": 5.25,
+                  "a": 9.8
+                }
+              },
+              {
+                "index": 4,
+                "label": "t=0.7143 s",
+                "detail": "y=7.5 m，v=7 m/s",
+                "values": {
+                  "t": 0.7142857142857143,
+                  "y": 7.5,
+                  "v": 7.000000000000001,
+                  "a": 9.8
+                }
+              },
+              {
+                "index": 5,
+                "label": "t=0.8929 s",
+                "detail": "y=6.094 m，v=8.75 m/s",
+                "values": {
+                  "t": 0.8928571428571429,
+                  "y": 6.093749999999999,
+                  "v": 8.750000000000002,
+                  "a": 9.8
+                }
+              },
+              {
+                "index": 6,
+                "label": "t=1.071 s",
+                "detail": "y=4.375 m，v=10.5 m/s",
+                "values": {
+                  "t": 1.0714285714285714,
+                  "y": 4.375,
+                  "v": 10.5,
+                  "a": 9.8
+                }
+              },
+              {
+                "index": 7,
+                "label": "t=1.25 s",
+                "detail": "y=2.344 m，v=12.25 m/s",
+                "values": {
+                  "t": 1.25,
+                  "y": 2.34375,
+                  "v": 12.25,
+                  "a": 9.8
+                }
+              },
+              {
+                "index": 8,
+                "label": "t=1.429 s",
+                "detail": "y=-1.776e-15 m，v=14 m/s",
+                "values": {
+                  "t": 1.4285714285714286,
+                  "y": -1.7763568394002505e-15,
+                  "v": 14.000000000000002,
+                  "a": 9.8
+                }
+              }
+            ],
+            "scene": {
+              "type": "fall",
+              "h": 10.0,
+              "g": 9.8,
+              "t": 1.4285714285714286,
+              "v": 14.000000000000002,
+              "samples": [
+                {
+                  "t": 0.0,
+                  "y": 10.0,
+                  "v": 0.0,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.05952380952380953,
+                  "y": 9.98263888888889,
+                  "v": 0.5833333333333334,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.11904761904761905,
+                  "y": 9.930555555555555,
+                  "v": 1.1666666666666667,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.17857142857142858,
+                  "y": 9.84375,
+                  "v": 1.7500000000000002,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.2380952380952381,
+                  "y": 9.722222222222221,
+                  "v": 2.3333333333333335,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.2976190476190476,
+                  "y": 9.565972222222221,
+                  "v": 2.916666666666667,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.35714285714285715,
+                  "y": 9.375,
+                  "v": 3.5000000000000004,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.4166666666666667,
+                  "y": 9.149305555555555,
+                  "v": 4.083333333333334,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.4761904761904762,
+                  "y": 8.88888888888889,
+                  "v": 4.666666666666667,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.5357142857142857,
+                  "y": 8.59375,
+                  "v": 5.25,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.5952380952380952,
+                  "y": 8.26388888888889,
+                  "v": 5.833333333333334,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.6547619047619048,
+                  "y": 7.899305555555555,
+                  "v": 6.416666666666667,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.7142857142857143,
+                  "y": 7.5,
+                  "v": 7.000000000000001,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.7738095238095238,
+                  "y": 7.065972222222221,
+                  "v": 7.583333333333334,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.8333333333333334,
+                  "y": 6.597222222222221,
+                  "v": 8.166666666666668,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.8928571428571429,
+                  "y": 6.093749999999999,
+                  "v": 8.750000000000002,
+                  "a": 9.8
+                },
+                {
+                  "t": 0.9523809523809524,
+                  "y": 5.555555555555555,
+                  "v": 9.333333333333334,
+                  "a": 9.8
+                },
+                {
+                  "t": 1.0119047619047619,
+                  "y": 4.982638888888888,
+                  "v": 9.916666666666668,
+                  "a": 9.8
+                },
+                {
+                  "t": 1.0714285714285714,
+                  "y": 4.375,
+                  "v": 10.5,
+                  "a": 9.8
+                },
+                {
+                  "t": 1.130952380952381,
+                  "y": 3.7326388888888884,
+                  "v": 11.083333333333334,
+                  "a": 9.8
+                },
+                {
+                  "t": 1.1904761904761905,
+                  "y": 3.0555555555555545,
+                  "v": 11.666666666666668,
+                  "a": 9.8
+                },
+                {
+                  "t": 1.25,
+                  "y": 2.34375,
+                  "v": 12.25,
+                  "a": 9.8
+                },
+                {
+                  "t": 1.3095238095238095,
+                  "y": 1.5972222222222214,
+                  "v": 12.833333333333334,
+                  "a": 9.8
+                },
+                {
+                  "t": 1.3690476190476193,
+                  "y": 0.8159722222222179,
+                  "v": 13.41666666666667,
+                  "a": 9.8
+                },
+                {
+                  "t": 1.4285714285714286,
+                  "y": -1.7763568394002505e-15,
+                  "v": 14.000000000000002,
+                  "a": 9.8
+                }
+              ]
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "落地时间 t=1.429 s，落地速度 v=14 m/s。",
+          "answer_value": 14.000000000000002,
+          "answer_values": [
+            1.429,
+            14.0,
+            10.0
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "t=0 s",
+              "detail": "y=10 m，v=0 m/s"
+            },
+            {
+              "id": "phy_1",
+              "title": "t=0.1786 s",
+              "detail": "y=9.844 m，v=1.75 m/s"
+            },
+            {
+              "id": "phy_2",
+              "title": "t=0.3571 s",
+              "detail": "y=9.375 m，v=3.5 m/s"
+            },
+            {
+              "id": "phy_3",
+              "title": "t=0.5357 s",
+              "detail": "y=8.594 m，v=5.25 m/s"
+            },
+            {
+              "id": "phy_4",
+              "title": "t=0.7143 s",
+              "detail": "y=7.5 m，v=7 m/s"
+            },
+            {
+              "id": "phy_5",
+              "title": "t=0.8929 s",
+              "detail": "y=6.094 m，v=8.75 m/s"
+            },
+            {
+              "id": "phy_6",
+              "title": "t=1.071 s",
+              "detail": "y=4.375 m，v=10.5 m/s"
+            },
+            {
+              "id": "phy_7",
+              "title": "t=1.25 s",
+              "detail": "y=2.344 m，v=12.25 m/s"
+            }
+          ],
+          "conditions": [
+            "按自由落体模型计算。"
+          ],
+          "limitations": [
+            "自由落体，空气阻力忽略。",
+            "未给出的初值或边界条件不会被自动补造。",
+            "常见单位 km/h、cm、mm、km、g、min、h 会先换算为 SI；仍无法识别的单位请以 SI 填写。"
+          ]
+        },
+        "states": {
+          "params": {
+            "g": 9.8,
+            "h": 10.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "g": 9.8,
+                "h": 10.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "b02d497bf07a419a"
+}

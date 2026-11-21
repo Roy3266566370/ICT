@@ -1,0 +1,296 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_7e7b3993848b4f6c8bece97f4584a14b",
+    "title": "mt5_int.png",
+    "created_at": "2026-11-19T12:55:11Z",
+    "updated_at": "2026-11-19T12:55:11Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "mt5_int.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 74,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "高等数学期末考试题积分\n5.计算不定积分∫x·e^xdx（）。\nA.e^x+C B.xe^x+C C.(x-1)e^x+C D.(x+1)e^x+C",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "高等数学期末考试题积分\n5.计算不定积分∫x·e^xdx（）。\nA.e^x+C B.xe^x+C C.(x-1)e^x+C D.(x+1)e^x+C",
+          "math_text": null,
+          "ocr_confidence": 0.9597820906166787,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "mt5_int.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "5",
+        "title": "第 5 题 · 高等数学期末考试题积分",
+        "text": "高等数学期末考试题积分\n5.计算不定积分∫x·e^xdx（）。\nA.e^x+C B.xe^x+C C.(x-1)e^x+C D.(x+1)e^x+C",
+        "subject": "calculus",
+        "subject_label": "微积分",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "高等数学期末考试题积分 5.计算不定积分∫x·e^xdx（）。 A.e^x+C B.xe^x+C C.(x-1)e^x+C D.(x+1)e^x+C"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "高等数学期末考试题积分\n5.计算不定积分∫x·e^xdx（）。\nA.e^x+C B.xe^x+C C.(x-1)e^x+C D.(x+1)e^x+C",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "expression",
+              "label": "被积函数",
+              "value": "x*exp(x)",
+              "kind": "expr",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "高等数学期末考试题积分 5.计算不定积分∫x·e^xdx（）。 A.e^x+C B.xe^x+C C.(x-1)e^x+C D.(x+1)e^x+C"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null
+            },
+            {
+              "id": "c",
+              "label": "积分常数 C",
+              "value": 0.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "supplement",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "高等数学期末考试题积分 5.计算不定积分∫x·e^xdx（）。 A.e^x+C B.xe^x+C C.(x-1)e^x+C D.(x+1)e^x+C"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": 0.5,
+              "note": "不定积分表示一族原函数；C 只改变图像上下平移，不改变原题答案。"
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "antiderivative",
+              "tex": "\\int x e^{x}\\,\\mathrm{d}x",
+              "plain": "x*exp(x)",
+              "role": "识别出的原题公式"
+            }
+          ],
+          "recognized_subject": "calculus",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "antiderivative_v1",
+          "subject": "calculus",
+          "kind": "antiderivative",
+          "ask": "",
+          "variable": "x",
+          "expression": "x*exp(x)",
+          "formula_tex": "\\int x e^{x}\\,\\mathrm{d}x=F(x)+C",
+          "defaults": {
+            "c": 0.0
+          },
+          "params": [
+            {
+              "id": "c",
+              "label": "积分常数 C",
+              "kind": "number",
+              "min": -16,
+              "max": 16,
+              "step": 0.5,
+              "options": [],
+              "note": "不定积分给出 F(x)+C；C 只改变曲线上下平移。"
+            }
+          ],
+          "teaching": false,
+          "provenance_note": null,
+          "indefinite": true,
+          "antiderivative_expression": "(x - 1)*exp(x)",
+          "plot_domain": [
+            -2.0,
+            2.0
+          ]
+        },
+        "solution": {
+          "summary": "不定积分题：先求原函数，再加任意常数 C；结果是一族函数。",
+          "answer": "F(x)=(x - 1)*exp(x)+C",
+          "answer_value": null,
+          "exact": "\\left(x - 1\\right) e^{x}+C",
+          "exact_latex": "\\left(x - 1\\right) e^{x}+C",
+          "approx": null,
+          "steps": [
+            {
+              "id": "integrand",
+              "title": "确认被积函数",
+              "latex": "f(x)=x e^{x}",
+              "detail": "不定积分没有上下限；按原题识别出的被积函数与积分变量计算。"
+            },
+            {
+              "id": "method-parts-choose",
+              "title": "分部积分：选择 u 与 dv",
+              "latex": "u=x,\\quad \\mathrm{d}v=e^{x}\\,\\mathrm{d}x",
+              "detail": "按对数、反三角、代数、三角、指数的先后顺序选择 u；剩余部分作为 dv，并能直接求出原函数。"
+            },
+            {
+              "id": "method-parts-duv",
+              "title": "求 du 与 v",
+              "latex": "\\mathrm{d}u=1\\,\\mathrm{d}x,\\quad v=e^{x}",
+              "detail": "对 u 求导得到 du，对 dv 积分得到 v；这里 v 不写积分常数。"
+            },
+            {
+              "id": "method-parts-formula",
+              "title": "代入分部积分公式",
+              "latex": "\\int u\\,\\mathrm{d}v=uv-\\int v\\,\\mathrm{d}u=x e^{x}-\\int e^{x}\\,\\mathrm{d}x",
+              "detail": "剩余积分由内核继续计算；若仍是乘积形式，可按同一规则再次分部积分。"
+            },
+            {
+              "id": "method-parts-finish",
+              "title": "完成剩余积分",
+              "latex": "\\int v\\,\\mathrm{d}u=e^{x},\\quad \\int u\\,\\mathrm{d}v=\\left(x - 1\\right) e^{x}+C",
+              "detail": "合并 uv 与剩余积分得到原函数；最终结果已通过符号求导核对。"
+            },
+            {
+              "id": "antiderivative",
+              "title": "求原函数并加常数 C",
+              "latex": "\\int x e^{x}\\,\\mathrm{d}x=\\left(x - 1\\right) e^{x}+C",
+              "detail": "逐项积分得到原函数；不定积分表示一族函数，必须写出任意常数 C。"
+            },
+            {
+              "id": "verify",
+              "title": "符号求导核对",
+              "latex": "\\frac{\\mathrm{d}}{\\mathrm{d}x}\\left(\\left(x - 1\\right) e^{x}\\right)=x e^{x}",
+              "detail": "对原函数求导并符号化简后回到被积函数，说明结果正确；常数 C 的导数为 0，因此不影响核验。"
+            }
+          ],
+          "conditions": [
+            "题目中的函数与区间按识别结果求值；数值近似与解析结果分开标注。",
+            "不定积分的结果是一族原函数，相差一个常数；C 由附加的初始条件确定。",
+            "原函数已通过符号求导核验：对结果求导可回到被积函数。"
+          ],
+          "tangent_tex": null,
+          "solution_status": "complete",
+          "solution_complete": true,
+          "incomplete_reason": null,
+          "verification": {
+            "level": "symbolic",
+            "label": "符号求导核验通过",
+            "detail": "对原函数求导并符号化简后回到被积函数，说明结果正确；常数 C 的导数为 0，因此不影响核验。"
+          },
+          "limitations": [
+            "证明题仍需写出符号推导；数值与图形只用于核对，不替代证明。",
+            "若原题含未识别的字母参数，求解器会保留识别结果并提示核对。",
+            "不定积分的结果含任意常数 C；只写原函数不写 +C 会被判为不完整。"
+          ]
+        },
+        "states": {
+          "params": {
+            "c": 0.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "c": 0.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "calculus",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "a9f4e17d33f34c92"
+}

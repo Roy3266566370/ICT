@@ -1,0 +1,684 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_33ae3978ec544332ab0800d454d696f9",
+    "title": "2009-408-2-栈队列",
+    "created_at": "2026-11-19T08:23:46Z",
+    "updated_at": "2026-11-19T08:23:46Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "q1_stack.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 137,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "2009年408统考真题数据结构\n2.设栈 S 和队列 Q 的初始状态均为空，元素 a,b,c,d,e,f, g\n依次进入栈S。若每个元素出栈后立即进入队列Q，且7个元\n素出队的顺序是b,d,c,f,e,a,g，则栈 S 的容量至少是（）。\nA.1 B.2 C. 3 D.4",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "2009年408统考真题数据结构\n2.设栈 S 和队列 Q 的初始状态均为空，元素 a,b,c,d,e,f, g\n依次进入栈S。若每个元素出栈后立即进入队列Q，且7个元\n素出队的顺序是b,d,c,f,e,a,g，则栈 S 的容量至少是（）。\nA.1 B.2 C. 3 D.4",
+          "math_text": null,
+          "ocr_confidence": 0.9705759312271447,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "q1_stack.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "2",
+        "title": "第 2 题 · 2009年408统考真题数据结构",
+        "text": "2009年408统考真题数据结构\n2.设栈 S 和队列 Q 的初始状态均为空，元素 a,b,c,d,e,f, g\n依次进入栈S。若每个元素出栈后立即进入队列Q，且7个元\n素出队的顺序是b,d,c,f,e,a,g，则栈 S 的容量至少是（）。\nA.1 B.2 C. 3 D.4",
+        "subject": "algorithm",
+        "subject_label": "数据结构与算法",
+        "confidence": 0.95,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "2009年408统考真题数据结构 2.设栈 S 和队列 Q 的初始状态均为空，元素 a,b,c,d,e,f, g 依次进入栈S。若每个元素出栈后立即进入队列Q，且7个元 素出队的顺序是b,d,c,f,e,a,g，则栈 S 的容量至少是（）。 A.1 B.2 C. 3 D.4"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "2009年408统考真题数据结构\n2.设栈 S 和队列 Q 的初始状态均为空，元素 a,b,c,d,e,f, g\n依次进入栈S。若每个元素出栈后立即进入队列Q，且7个元\n素出队的顺序是b,d,c,f,e,a,g，则栈 S 的容量至少是（）。\nA.1 B.2 C. 3 D.4",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "push_seq",
+              "label": "入栈序列",
+              "value": "a, b, c, d, e, f, g",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "2009年408统考真题数据结构 2.设栈 S 和队列 Q 的初始状态均为空，元素 a,b,c,d,e,f, g 依次进入栈S。若每个元素出栈后立即进入队列Q，且7个元 素出队的顺序是b,d,c,f,e,a,g，则栈 S 的容量至少是（）。 A.1 B.2 C. 3 D.4"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "pop_seq",
+              "label": "出栈序列",
+              "value": "b, d, c, f, e, a, g",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "2009年408统考真题数据结构 2.设栈 S 和队列 Q 的初始状态均为空，元素 a,b,c,d,e,f, g 依次进入栈S。若每个元素出栈后立即进入队列Q，且7个元 素出队的顺序是b,d,c,f,e,a,g，则栈 S 的容量至少是（）。 A.1 B.2 C. 3 D.4"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "stack_rule",
+              "tex": "\\text{只能操作栈顶；入栈次序固定}",
+              "plain": "栈：后进先出，只能在栈顶插入/删除；判断出栈序列合法时，入栈与出栈可任意交错。",
+              "role": "栈规则"
+            }
+          ],
+          "recognized_subject": "algorithm",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "ds_stack_v1",
+          "subject": "algorithm",
+          "ds_kind": "stack_ops",
+          "mode": "check",
+          "push_seq": [
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g"
+          ],
+          "pop_seq": [
+            "b",
+            "d",
+            "c",
+            "f",
+            "e",
+            "a",
+            "g"
+          ],
+          "ops": [],
+          "goal": "capacity",
+          "defaults": {},
+          "params": [],
+          "teaching": false,
+          "ds_result": {
+            "subject": "algorithm",
+            "algorithm": "data_structure",
+            "ds_kind": "stack_ops",
+            "status": "ok",
+            "headline": "出栈过程可达；栈内最多同时 3 个元素，栈的容量至少为 3",
+            "answer": "出栈过程可达；栈内最多同时 3 个元素，栈的容量至少为 3",
+            "metrics": [
+              {
+                "id": "answer",
+                "label": "结论",
+                "value": "出栈过程可达；栈内最多同时 3 个元素，栈的容量至少为 3",
+                "tone": "accent"
+              },
+              {
+                "id": "value",
+                "label": "数值",
+                "value": "3.0"
+              }
+            ],
+            "checks": [
+              {
+                "id": "stack_rule",
+                "label": "栈规则",
+                "status": "pass",
+                "detail": "只能操作栈顶；出栈时栈空即非法。"
+              },
+              {
+                "id": "sequence",
+                "label": "出栈记录",
+                "status": "pass",
+                "detail": "已按序得到 7 个元素。"
+              },
+              {
+                "id": "capacity",
+                "label": "最小容量",
+                "status": "pass",
+                "detail": "模拟过程中的最大栈深为 3，即所需栈容量。"
+              }
+            ],
+            "notes": [],
+            "trace": [
+              {
+                "index": 1,
+                "label": "初始化",
+                "detail": "入栈序列 a, b, c, d, e, f, g，目标出栈序列 b, d, c, f, e, a, g。",
+                "values": {
+                  "栈（底→顶）": "空栈",
+                  "已出栈": "空"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 2,
+                "label": "入栈 a",
+                "detail": "栈顶不是 b，继续入栈 a（栈深 1）。",
+                "values": {
+                  "栈（底→顶）": "底 → a",
+                  "已出栈": "空",
+                  "待出栈": "b",
+                  "栈深": "1"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 3,
+                "label": "入栈 b",
+                "detail": "栈顶不是 b，继续入栈 b（栈深 2）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → b",
+                  "已出栈": "空",
+                  "待出栈": "b",
+                  "栈深": "2"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 4,
+                "label": "出栈 b",
+                "detail": "栈顶恰为 b，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a",
+                  "已出栈": "b",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 5,
+                "label": "入栈 c",
+                "detail": "栈顶不是 d，继续入栈 c（栈深 2）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → c",
+                  "已出栈": "b",
+                  "待出栈": "d",
+                  "栈深": "2"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 6,
+                "label": "入栈 d",
+                "detail": "栈顶不是 d，继续入栈 d（栈深 3）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → c → d",
+                  "已出栈": "b",
+                  "待出栈": "d",
+                  "栈深": "3"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 7,
+                "label": "出栈 d",
+                "detail": "栈顶恰为 d，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a → c",
+                  "已出栈": "b, d",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 8,
+                "label": "出栈 c",
+                "detail": "栈顶恰为 c，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a",
+                  "已出栈": "b, d, c",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 9,
+                "label": "入栈 e",
+                "detail": "栈顶不是 f，继续入栈 e（栈深 2）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → e",
+                  "已出栈": "b, d, c",
+                  "待出栈": "f",
+                  "栈深": "2"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 10,
+                "label": "入栈 f",
+                "detail": "栈顶不是 f，继续入栈 f（栈深 3）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → e → f",
+                  "已出栈": "b, d, c",
+                  "待出栈": "f",
+                  "栈深": "3"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 11,
+                "label": "出栈 f",
+                "detail": "栈顶恰为 f，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a → e",
+                  "已出栈": "b, d, c, f",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 12,
+                "label": "出栈 e",
+                "detail": "栈顶恰为 e，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a",
+                  "已出栈": "b, d, c, f, e",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 13,
+                "label": "出栈 a",
+                "detail": "栈顶恰为 a，弹出。",
+                "values": {
+                  "栈（底→顶）": "空栈",
+                  "已出栈": "b, d, c, f, e, a",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 14,
+                "label": "入栈 g",
+                "detail": "栈顶不是 g，继续入栈 g（栈深 1）。",
+                "values": {
+                  "栈（底→顶）": "底 → g",
+                  "已出栈": "b, d, c, f, e, a",
+                  "待出栈": "g",
+                  "栈深": "1"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 15,
+                "label": "出栈 g",
+                "detail": "栈顶恰为 g，弹出。",
+                "values": {
+                  "栈（底→顶）": "空栈",
+                  "已出栈": "b, d, c, f, e, a, g",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 16,
+                "label": "完成",
+                "detail": "全部出栈成功。",
+                "values": {
+                  "栈（底→顶）": "空栈",
+                  "已出栈": "b, d, c, f, e, a, g"
+                },
+                "pseudocodeLine": 5
+              }
+            ],
+            "frames": [
+              {
+                "index": 1,
+                "label": "初始化",
+                "detail": "入栈序列 a, b, c, d, e, f, g，目标出栈序列 b, d, c, f, e, a, g。",
+                "values": {
+                  "栈（底→顶）": "空栈",
+                  "已出栈": "空"
+                },
+                "pseudocodeLine": 1
+              },
+              {
+                "index": 2,
+                "label": "入栈 a",
+                "detail": "栈顶不是 b，继续入栈 a（栈深 1）。",
+                "values": {
+                  "栈（底→顶）": "底 → a",
+                  "已出栈": "空",
+                  "待出栈": "b",
+                  "栈深": "1"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 3,
+                "label": "入栈 b",
+                "detail": "栈顶不是 b，继续入栈 b（栈深 2）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → b",
+                  "已出栈": "空",
+                  "待出栈": "b",
+                  "栈深": "2"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 4,
+                "label": "出栈 b",
+                "detail": "栈顶恰为 b，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a",
+                  "已出栈": "b",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 5,
+                "label": "入栈 c",
+                "detail": "栈顶不是 d，继续入栈 c（栈深 2）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → c",
+                  "已出栈": "b",
+                  "待出栈": "d",
+                  "栈深": "2"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 6,
+                "label": "入栈 d",
+                "detail": "栈顶不是 d，继续入栈 d（栈深 3）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → c → d",
+                  "已出栈": "b",
+                  "待出栈": "d",
+                  "栈深": "3"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 7,
+                "label": "出栈 d",
+                "detail": "栈顶恰为 d，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a → c",
+                  "已出栈": "b, d",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 8,
+                "label": "出栈 c",
+                "detail": "栈顶恰为 c，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a",
+                  "已出栈": "b, d, c",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 9,
+                "label": "入栈 e",
+                "detail": "栈顶不是 f，继续入栈 e（栈深 2）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → e",
+                  "已出栈": "b, d, c",
+                  "待出栈": "f",
+                  "栈深": "2"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 10,
+                "label": "入栈 f",
+                "detail": "栈顶不是 f，继续入栈 f（栈深 3）。",
+                "values": {
+                  "栈（底→顶）": "底 → a → e → f",
+                  "已出栈": "b, d, c",
+                  "待出栈": "f",
+                  "栈深": "3"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 11,
+                "label": "出栈 f",
+                "detail": "栈顶恰为 f，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a → e",
+                  "已出栈": "b, d, c, f",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 12,
+                "label": "出栈 e",
+                "detail": "栈顶恰为 e，弹出。",
+                "values": {
+                  "栈（底→顶）": "底 → a",
+                  "已出栈": "b, d, c, f, e",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 13,
+                "label": "出栈 a",
+                "detail": "栈顶恰为 a，弹出。",
+                "values": {
+                  "栈（底→顶）": "空栈",
+                  "已出栈": "b, d, c, f, e, a",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 14,
+                "label": "入栈 g",
+                "detail": "栈顶不是 g，继续入栈 g（栈深 1）。",
+                "values": {
+                  "栈（底→顶）": "底 → g",
+                  "已出栈": "b, d, c, f, e, a",
+                  "待出栈": "g",
+                  "栈深": "1"
+                },
+                "pseudocodeLine": 2
+              },
+              {
+                "index": 15,
+                "label": "出栈 g",
+                "detail": "栈顶恰为 g，弹出。",
+                "values": {
+                  "栈（底→顶）": "空栈",
+                  "已出栈": "b, d, c, f, e, a, g",
+                  "待出栈": "—"
+                },
+                "pseudocodeLine": 3
+              },
+              {
+                "index": 16,
+                "label": "完成",
+                "detail": "全部出栈成功。",
+                "values": {
+                  "栈（底→顶）": "空栈",
+                  "已出栈": "b, d, c, f, e, a, g"
+                },
+                "pseudocodeLine": 5
+              }
+            ],
+            "pseudocode": [
+              "读入一个操作",
+              "入栈：写入栈顶，栈顶指针 +1",
+              "出栈：栈空则失败，否则弹出栈顶",
+              "栈空即出栈失败；记录出栈序列",
+              "全部操作结束后输出栈与出栈序列"
+            ],
+            "params": {},
+            "answer_value": 3.0,
+            "answer_order": [
+              "b",
+              "d",
+              "c",
+              "f",
+              "e",
+              "a",
+              "g"
+            ]
+          }
+        },
+        "solution": {
+          "summary": "按栈规则模拟入栈/出栈并核对序列合法性。",
+          "answer": "出栈过程可达；栈内最多同时 3 个元素，栈的容量至少为 3",
+          "answer_order": [
+            "b",
+            "d",
+            "c",
+            "f",
+            "e",
+            "a",
+            "g"
+          ],
+          "answer_value": 3.0,
+          "steps": [
+            {
+              "id": "ds_1",
+              "title": "初始化",
+              "detail": "入栈序列 a, b, c, d, e, f, g，目标出栈序列 b, d, c, f, e, a, g。"
+            },
+            {
+              "id": "ds_2",
+              "title": "入栈 a",
+              "detail": "栈顶不是 b，继续入栈 a（栈深 1）。"
+            },
+            {
+              "id": "ds_3",
+              "title": "入栈 b",
+              "detail": "栈顶不是 b，继续入栈 b（栈深 2）。"
+            },
+            {
+              "id": "ds_4",
+              "title": "出栈 b",
+              "detail": "栈顶恰为 b，弹出。"
+            },
+            {
+              "id": "ds_5",
+              "title": "入栈 c",
+              "detail": "栈顶不是 d，继续入栈 c（栈深 2）。"
+            },
+            {
+              "id": "ds_6",
+              "title": "入栈 d",
+              "detail": "栈顶不是 d，继续入栈 d（栈深 3）。"
+            },
+            {
+              "id": "ds_7",
+              "title": "出栈 d",
+              "detail": "栈顶恰为 d，弹出。"
+            },
+            {
+              "id": "ds_8",
+              "title": "出栈 c",
+              "detail": "栈顶恰为 c，弹出。"
+            }
+          ],
+          "conditions": [
+            "全部结论由确定性执行产生，动画回放同一条轨迹。"
+          ],
+          "limitations": []
+        },
+        "states": {
+          "params": {},
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {},
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "algorithm",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "37fcc6c05f504fbc"
+}

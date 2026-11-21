@@ -1,0 +1,381 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_d8fd213a484c4352acf45f5ec39cfb05",
+    "title": "ph15_at.png",
+    "created_at": "2026-11-19T11:14:03Z",
+    "updated_at": "2026-11-19T11:14:03Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph15_at.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 101,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题力学\n11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg,\n取g=10m/s²。求系统加速度大小（）。\nA.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题力学\n11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg,\n取g=10m/s²。求系统加速度大小（）。\nA.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2",
+          "math_text": null,
+          "ocr_confidence": 0.995152779923373,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph15_at.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "11",
+        "title": "第 11 题 · 大学物理期末考试题力学",
+        "text": "大学物理期末考试题力学\n11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg,\n取g=10m/s²。求系统加速度大小（）。\nA.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题力学 11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg, 取g=10m/s²。求系统加速度大小（）。 A.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题力学\n11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg,\n取g=10m/s²。求系统加速度大小（）。\nA.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "连接体",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg, 取g=10m/s²。求系统加速度大小（）。 A.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_g",
+              "label": "重力加速度 g",
+              "value": 10.0,
+              "kind": "number",
+              "unit": "m/s²",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg, 取g=10m/s²。求系统加速度大小（）。 A.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_m1",
+              "label": "质量 m1",
+              "value": 3.0,
+              "kind": "number",
+              "unit": "kg",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg, 取g=10m/s²。求系统加速度大小（）。 A.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_m2",
+              "label": "质量 m2",
+              "value": 1.0,
+              "kind": "number",
+              "unit": "kg",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg, 取g=10m/s²。求系统加速度大小（）。 A.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{a = (m2 − m1)g/(m1 + m2)；T = 2m1m2g/(m1 + m2)}",
+              "plain": "a = (m2 − m1)g/(m1 + m2)；T = 2m1m2g/(m1 + m2)",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "newton",
+          "physics_mode": "atwood",
+          "raw": "大学物理期末考试题力学\n11.阿特伍德机跨过定滑轮的两物体质量m1=3kg、m2=1kg,\n取g=10m/s²。求系统加速度大小（）。\nA.2.5m/s2B.5m/s2C.7.5m/s2D.10m/s2",
+          "defaults": {
+            "g": 10.0,
+            "m1": 3.0,
+            "m2": 1.0
+          },
+          "params": [
+            {
+              "id": "m1",
+              "label": "质量 m1 (kg)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 100,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "m2",
+              "label": "质量 m2 (kg)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 100,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "g",
+              "label": "重力加速度 g",
+              "kind": "number",
+              "min": 0.1,
+              "max": 30,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "newton",
+            "mode": "atwood",
+            "answer": "加速度大小 5 m/s²（m1 下降、m2 上升），绳张力 T=15 N。",
+            "answer_value": 5.0,
+            "metrics": [
+              {
+                "id": "a",
+                "label": "加速度",
+                "value": "5 m/s²",
+                "tone": "accent"
+              },
+              {
+                "id": "T",
+                "label": "绳张力",
+                "value": "15 N"
+              },
+              {
+                "id": "total",
+                "label": "总质量",
+                "value": "4 kg"
+              }
+            ],
+            "checks": [
+              {
+                "id": "m2",
+                "label": "m2 方程",
+                "status": "pass",
+                "detail": "m2g − T = m2a"
+              },
+              {
+                "id": "m1",
+                "label": "m1 方程",
+                "status": "pass",
+                "detail": "T − m1g = m1a"
+              }
+            ],
+            "notes": [
+              "轻绳、定滑轮理想，忽略滑轮质量和摩擦；取较重物体下降方向为正。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "两物体受力",
+                "detail": "m1=3 kg，m2=1 kg",
+                "values": {
+                  "m1": 3.0,
+                  "m2": 1.0
+                }
+              },
+              {
+                "index": 1,
+                "label": "共同加速度",
+                "detail": "a=-5 m/s²，T=15 N",
+                "values": {
+                  "a": -5.0,
+                  "T": 15.0
+                }
+              }
+            ],
+            "scene": {
+              "type": "atwood",
+              "m1": 3.0,
+              "m2": 1.0,
+              "g": 10.0,
+              "a": -5.0,
+              "T": 15.0
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "加速度大小 5 m/s²（m1 下降、m2 上升），绳张力 T=15 N。",
+          "answer_value": 5.0,
+          "answer_values": [
+            5.0,
+            15.0,
+            4.0
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "两物体受力",
+              "detail": "m1=3 kg，m2=1 kg"
+            },
+            {
+              "id": "phy_1",
+              "title": "共同加速度",
+              "detail": "a=-5 m/s²，T=15 N"
+            }
+          ],
+          "conditions": [
+            "按连接体模型计算。"
+          ],
+          "limitations": [
+            "轻绳、定滑轮理想，忽略滑轮质量和摩擦；取较重物体下降方向为正。",
+            "未给出的初值或边界条件不会被自动补造。",
+            "常见单位 km/h、cm、mm、km、g、min、h 会先换算为 SI；仍无法识别的单位请以 SI 填写。"
+          ]
+        },
+        "states": {
+          "params": {
+            "g": 10.0,
+            "m1": 3.0,
+            "m2": 1.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "g": 10.0,
+                "m1": 3.0,
+                "m2": 1.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "0d1e4e467c8940be"
+}

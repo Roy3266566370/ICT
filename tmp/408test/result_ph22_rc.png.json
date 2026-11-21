@@ -1,0 +1,467 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_f4d929fd11814fceb55731dfcf369e38",
+    "title": "ph22_rc.png",
+    "created_at": "2026-11-19T11:19:44Z",
+    "updated_at": "2026-11-19T11:19:44Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph22_rc.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 98,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题电磁学\n8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V\n求充电t=0.01s时电容上的电压（）。\nA.3.29VB.5.69VC.8.08VD.9.0V",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题电磁学\n8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V\n求充电t=0.01s时电容上的电压（）。\nA.3.29VB.5.69VC.8.08VD.9.0V",
+          "math_text": null,
+          "ocr_confidence": 0.9964476773584331,
+          "requires_formula_confirmation": true,
+          "extraction_issues": [
+            {
+              "id": "source_formula_confirmation",
+              "severity": "blocking",
+              "message": "请对照原稿核对完整公式：图片识别可能遗漏或误读分式、根号、上下标及积分上下限。"
+            }
+          ],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph22_rc.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "8",
+        "title": "第 8 题 · 大学物理期末考试题电磁学",
+        "text": "大学物理期末考试题电磁学\n8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V\n求充电t=0.01s时电容上的电压（）。\nA.3.29VB.5.69VC.8.08VD.9.0V",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "needs_review",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题电磁学 8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V 求充电t=0.01s时电容上的电压（）。 A.3.29VB.5.69VC.8.08VD.9.0V"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": true
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题电磁学\n8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V\n求充电t=0.01s时电容上的电压（）。\nA.3.29VB.5.69VC.8.08VD.9.0V",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "RC 充放电",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V 求充电t=0.01s时电容上的电压（）。 A.3.29VB.5.69VC.8.08VD.9.0V"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_R",
+              "label": "半径/电阻 R",
+              "value": 1000.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V 求充电t=0.01s时电容上的电压（）。 A.3.29VB.5.69VC.8.08VD.9.0V"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_C",
+              "label": "电容 C",
+              "value": 10.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V 求充电t=0.01s时电容上的电压（）。 A.3.29VB.5.69VC.8.08VD.9.0V"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_E",
+              "label": "电源电压 E",
+              "value": 9.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V 求充电t=0.01s时电容上的电压（）。 A.3.29VB.5.69VC.8.08VD.9.0V"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_t",
+              "label": "时间 t",
+              "value": 0.01,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V 求充电t=0.01s时电容上的电压（）。 A.3.29VB.5.69VC.8.08VD.9.0V"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_discharge",
+              "label": "放电标志",
+              "value": 0.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V 求充电t=0.01s时电容上的电压（）。 A.3.29VB.5.69VC.8.08VD.9.0V"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_ask",
+              "label": "ask",
+              "value": 2.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题电磁学 8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V 求充电t=0.01s时电容上的电压（）。 A.3.29VB.5.69VC.8.08VD.9.0V"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [
+            {
+              "id": "source_formula_confirmation",
+              "field": "source_formula",
+              "question": "图片或PDF中的公式可能存在识别误差。请对照原稿核对指数、分子分母、根号、极限与区间，必要时修正题目文字后确认。",
+              "severity": "blocking",
+              "options": [
+                {
+                  "value": "confirmed",
+                  "label": "已对照原图核对并修正全部公式"
+                }
+              ],
+              "resolved": false,
+              "answer": null
+            }
+          ],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{τ = RC；充电 q = CE(1−e^(−t/τ))；放电 q = CEe^(−t/τ)}",
+              "plain": "τ = RC；充电 q = CE(1−e^(−t/τ))；放电 q = CEe^(−t/τ)",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": true,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "circuit",
+          "physics_mode": "rc",
+          "raw": "大学物理期末考试题电磁学\n8.RC串联电路中电阻R=1000Q、电容C=10uF、电源电压E=9V\n求充电t=0.01s时电容上的电压（）。\nA.3.29VB.5.69VC.8.08VD.9.0V",
+          "defaults": {
+            "R": 1000.0,
+            "C": 10.0,
+            "E": 9.0,
+            "t": 0.01,
+            "discharge": 0.0,
+            "ask": 2.0
+          },
+          "params": [
+            {
+              "id": "R",
+              "label": "电阻 R (Ω)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 1000000.0,
+              "step": 1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "C",
+              "label": "电容 C (μF)",
+              "kind": "number",
+              "min": 0.001,
+              "max": 10000,
+              "step": 0.001,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "E",
+              "label": "电源 E (V)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 1000,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "t",
+              "label": "时间 t (s)",
+              "kind": "number",
+              "min": 0,
+              "max": 1000,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "circuit",
+            "mode": "rc",
+            "answer": "充电：τ=0.01 s，t=0.01 s 时 q=56.89 μC，i=0.003311 A，Uc=5.689 V。",
+            "answer_value": 5.6890850294570185,
+            "metrics": [
+              {
+                "id": "tau",
+                "label": "时间常数",
+                "value": "0.01 s",
+                "tone": "accent"
+              },
+              {
+                "id": "q",
+                "label": "电荷",
+                "value": "56.89 μC"
+              },
+              {
+                "id": "i",
+                "label": "电流",
+                "value": "0.003311 A"
+              },
+              {
+                "id": "Uc",
+                "label": "电容电压",
+                "value": "5.689 V"
+              }
+            ],
+            "checks": [
+              {
+                "id": "tau",
+                "label": "时间常数",
+                "status": "pass",
+                "detail": "τ = RC"
+              },
+              {
+                "id": "limit",
+                "label": "极限行为",
+                "status": "pass",
+                "detail": "电荷和电压不超过电源上限"
+              }
+            ],
+            "notes": [
+              "一阶 RC 电路，忽略电源内阻；充电从零电荷开始，放电从满电荷开始。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "时间常数",
+                "detail": "τ=0.01 s",
+                "values": {
+                  "tau": 0.01
+                }
+              },
+              {
+                "index": 1,
+                "label": "t 时刻状态",
+                "detail": "q=56.89 μC，i=0.003311 A",
+                "values": {
+                  "q": 56.89085029457019,
+                  "i": 0.003310914970542981
+                }
+              }
+            ],
+            "scene": {
+              "type": "circuit",
+              "circuit": "rc",
+              "R": 1000.0,
+              "C": 10.0,
+              "E": 9.0,
+              "t": 0.01,
+              "tau": 0.01,
+              "q": 56.89085029457019,
+              "i": 0.003310914970542981,
+              "Uc": 5.6890850294570185,
+              "discharge": false
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "充电：τ=0.01 s，t=0.01 s 时 q=56.89 μC，i=0.003311 A，Uc=5.689 V。",
+          "answer_value": 5.6890850294570185,
+          "answer_values": [
+            0.01,
+            56.89,
+            0.003311,
+            5.689,
+            5.689085029457
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "时间常数",
+              "detail": "τ=0.01 s"
+            },
+            {
+              "id": "phy_1",
+              "title": "t 时刻状态",
+              "detail": "q=56.89 μC，i=0.003311 A"
+            }
+          ],
+          "conditions": [
+            "按RC 充放电模型计算。"
+          ],
+          "limitations": [
+            "一阶 RC 电路，忽略电源内阻；充电从零电荷开始，放电从满电荷开始。",
+            "常见单位会先换算为 SI；未给出的边界条件不会被自动补造。"
+          ]
+        },
+        "states": {
+          "params": {
+            "R": 1000.0,
+            "C": 10.0,
+            "E": 9.0,
+            "t": 0.01,
+            "discharge": 0.0,
+            "ask": 2.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "R": 1000.0,
+                "C": 10.0,
+                "E": 9.0,
+                "t": 0.01,
+                "discharge": 0.0,
+                "ask": 2.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "needs_review",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "fbd136b85e1547bd"
+}

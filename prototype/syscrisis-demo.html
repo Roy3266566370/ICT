@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万象 · 数字系统急诊室（SysCrisis Lab 独立概念原型）</title>
+  <style>
+    /* 沿用项目 tokens.css「纸上仪器 / Paper Instrument」视觉语言 */
+    :root {
+      --paper-0: #fbf9f2;
+      --paper-1: #f6f3ea;
+      --paper-2: #f2f0e8;
+      --paper-3: #e9e5d9;
+      --paper-4: #ddd8ca;
+
+      --ink-900: #101211;
+      --ink-700: #34372f;
+      --ink-500: #5f6257;
+      --ink-400: #7f8175;
+
+      --hairline: #d8d3c4;
+      --hairline-strong: #c5c0b0;
+
+      --indigo: #1c2ecb;
+      --indigo-soft: #e8e9f8;
+      --coral: #de421f;
+      --coral-ink: #ac2c10;
+      --coral-soft: #fbe9e3;
+
+      --pass: #0f7b5f;
+      --pass-soft: #e4f3ed;
+      --fail: #b42318;
+      --fail-soft: #fbeae7;
+      --warn: #9a5b08;
+      --warn-soft: #fbf1de;
+
+      --font-sans: 'Inter', 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--paper-2);
+      color: var(--ink-700);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .mono {
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* 顶部栏 */
+    .topbar {
+      background: var(--paper-0);
+      border-bottom: 1px solid var(--hairline-strong);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      background: var(--ink-900);
+      color: var(--paper-0);
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      font-size: 14px;
+      box-shadow: 3px 3px 0 var(--coral);
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--ink-900);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: var(--ink-500);
+      font-family: var(--font-mono);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pill-badge {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 4px 10px;
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-1);
+      color: var(--ink-500);
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--ink-900);
+      background: var(--paper-0);
+      color: var(--ink-900);
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s ease, background 0.15s ease;
+    }
+
+    .btn:hover {
+      background: var(--paper-3);
+    }
+
+    .btn:active {
+      transform: translate(1px, 1px);
+    }
+
+    .btn-primary {
+      background: var(--ink-900);
+      color: var(--paper-0);
+      box-shadow: 3px 3px 0 var(--coral);
+    }
+
+    .btn-primary:hover {
+      background: #232724;
+    }
+
+    .btn-indigo {
+      background: var(--indigo);
+      border-color: var(--indigo);
+      color: #fff;
+    }
+
+    .btn-indigo:hover {
+      background: #14229e;
+    }
+
+    /* 主容器 */
+    .shell {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 18px 20px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* AI 日志/题干编译栏 */
+    .compiler-bar {
+      background: var(--paper-0);
+      border: 1px solid var(--hairline-strong);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .compiler-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .compiler-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ink-900);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .compiler-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--indigo);
+      display: inline-block;
+    }
+
+    .quick-prompts {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-1);
+      color: var(--ink-700);
+      padding: 3px 9px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .chip:hover {
+      border-color: var(--indigo);
+      color: var(--indigo);
+      background: var(--indigo-soft);
+    }
+
+    .compiler-input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .compiler-input {
+      flex: 1;
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-1);
+      color: var(--ink-900);
+      padding: 9px 12px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+    }
+
+    .compiler-input:focus {
+      outline: 2px solid var(--indigo);
+      background: var(--paper-0);
+    }
+
+    .compiler-feedback {
+      font-size: 12px;
+      color: var(--indigo);
+      font-family: var(--font-mono);
+      display: none;
+    }
+
+    .compiler-feedback.is-visible {
+      display: block;
+    }
+
+    /* 病例切换卡 */
+    .case-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .case-tab {
+      text-align: left;
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-0);
+      padding: 12px 14px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      position: relative;
+    }
+
+    .case-tab:hover {
+      background: var(--paper-1);
+    }
+
+    .case-tab.is-active {
+      border-color: var(--ink-900);
+      box-shadow: 4px 4px 0 var(--ink-900);
+      background: var(--paper-0);
+    }
+
+    .case-tab-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-500);
+    }
+
+    .case-tab-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink-900);
+    }
+
+    .case-tab-desc {
+      font-size: 12px;
+      color: var(--ink-500);
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border: 1px solid currentColor;
+    }
+
+    .status-fail {
+      color: var(--fail);
+      background: var(--fail-soft);
+    }
+
+    .status-warn {
+      color: var(--warn);
+      background: var(--warn-soft);
+    }
+
+    .status-pass {
+      color: var(--pass);
+      background: var(--pass-soft);
+    }
+
+    /* 三界同构主体 */
+    .triptych {
+      display: grid;
+      grid-template-columns: 310px 1fr 340px;
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 1160px) {
+      .triptych {
+        grid-template-columns: 1fr;
+      }
+      .case-tabs {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .pane {
+      background: var(--paper-0);
+      border: 1px solid var(--hairline-strong);
+      display: flex;
+      flex-direction: column;
+      min-height: 540px;
+    }
+
+    .pane-header {
+      padding: 10px 14px;
+      background: var(--paper-1);
+      border-bottom: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .pane-kicker {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ink-500);
+      letter-spacing: 0.05em;
+    }
+
+    .pane-body {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    /* 左界：监控告警 */
+    .health-banner {
+      padding: 12px;
+      border: 1px solid currentColor;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .health-banner strong {
+      font-size: 14px;
+    }
+
+    .health-banner span {
+      font-size: 12px;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .kpi-card {
+      background: var(--paper-1);
+      border: 1px solid var(--hairline);
+      padding: 10px;
+    }
+
+    .kpi-label {
+      font-size: 11px;
+      color: var(--ink-500);
+    }
+
+    .kpi-val {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--ink-900);
+      margin-top: 2px;
+    }
+
+    .kpi-delta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-500);
+    }
+
+    .log-box {
+      background: #141715;
+      color: #d9dfd9;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      padding: 10px 12px;
+      line-height: 1.55;
+      border: 1px solid var(--ink-900);
+      flex: 1;
+      overflow-y: auto;
+      max-height: 240px;
+    }
+
+    .log-line-err { color: #ff7b72; }
+    .log-line-warn { color: #f2cc60; }
+    .log-line-ok { color: #56d364; }
+    .log-line-dim { color: #8b949e; }
+
+    /* 中界：病理透视镜 */
+    .xray-stage {
+      background: var(--paper-1);
+      border: 1px solid var(--hairline);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .xray-formula-bar {
+      background: var(--paper-0);
+      border: 1px solid var(--hairline);
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .xray-canvas-wrap {
+      background: var(--paper-0);
+      border: 1px solid var(--hairline);
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .timeline-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--paper-0);
+      border: 1px solid var(--hairline);
+      padding: 8px 12px;
+    }
+
+    .timeline-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--indigo);
+    }
+
+    /* 病例1：页面置换矩阵 */
+    .frame-table-wrap {
+      overflow-x: auto;
+    }
+
+    .frame-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .frame-table th, .frame-table td {
+      border: 1px solid var(--hairline);
+      padding: 5px 4px;
+      min-width: 30px;
+    }
+
+    .frame-table th {
+      background: var(--paper-2);
+      color: var(--ink-900);
+    }
+
+    .frame-table td.is-cur {
+      outline: 2px solid var(--indigo);
+      outline-offset: -2px;
+      background: var(--indigo-soft);
+    }
+
+    .cell-miss {
+      background: var(--fail-soft);
+      color: var(--fail);
+      font-weight: 700;
+    }
+
+    .cell-hit {
+      background: var(--pass-soft);
+      color: var(--pass);
+      font-weight: 700;
+    }
+
+    /* 右界：手术台与 AI 导师 */
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px;
+      background: var(--paper-1);
+      border: 1px solid var(--hairline);
+    }
+
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink-900);
+    }
+
+    .control-group select,
+    .control-group input[type="text"],
+    .control-group input[type="range"] {
+      width: 100%;
+    }
+
+    .control-group select,
+    .control-group input[type="text"] {
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-0);
+      padding: 6px 8px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--ink-900);
+    }
+
+    .control-group input[type="range"] {
+      accent-color: var(--coral);
+    }
+
+    .ai-box {
+      border: 1px solid var(--indigo);
+      background: var(--indigo-softer, #f2f2fa);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: auto;
+    }
+
+    .ai-box-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--indigo);
+    }
+
+    .ai-msg {
+      font-size: 12.5px;
+      color: var(--ink-700);
+      line-height: 1.55;
+    }
+
+    .verdict-box {
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-1);
+      padding: 10px 12px;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* 弹窗 */
+    dialog {
+      border: 1px solid var(--ink-900);
+      background: var(--paper-0);
+      color: var(--ink-900);
+      box-shadow: 8px 8px 0 var(--ink-900);
+      max-width: 620px;
+      width: calc(100% - 32px);
+      padding: 0;
+    }
+
+    dialog::backdrop {
+      background: rgba(16, 18, 17, 0.48);
+    }
+
+    .modal-head {
+      padding: 14px 18px;
+      background: var(--paper-1);
+      border-bottom: 1px solid var(--hairline-strong);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-body {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .compare-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .compare-table th, .compare-table td {
+      border: 1px solid var(--hairline);
+      padding: 8px 10px;
+      text-align: left;
+    }
+
+    .compare-table th {
+      background: var(--paper-1);
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">万</div>
+      <div>
+        <div class="brand-title">万象 · 数字系统急诊室 <span class="mono" style="font-weight:400;font-size:12px;color:var(--ink-500);">SysCrisis Lab</span></div>
+        <div class="brand-sub">独立交互概念原型 · 408 与高数内核直接驱动真实工程排障（零改原项目代码）</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="pill-badge">确定性内核裁决 · 非静态写死结果</span>
+      <button class="btn" id="btn-chaos" type="button">注入随机突发故障</button>
+      <button class="btn btn-primary" id="btn-report" type="button">生成急救复盘单</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- 模拟 MaaS 自由日志/题干编译栏 -->
+    <section class="compiler-bar" aria-label="故障日志与原题编译器">
+      <div class="compiler-head">
+        <div class="compiler-title">
+          <span class="compiler-dot"></span>
+          故障日志 / 传统课本原题 &rarr; 一键编译为可抢救系统沙盒（模拟 MaaS Schema 解析）
+        </div>
+        <div class="quick-prompts">
+          <span style="font-size:12px;color:var(--ink-500);">快捷示例：</span>
+          <button class="chip" data-sample="belady">示例1: 内存扩到4页后反更卡</button>
+          <button class="chip" data-sample="grad">示例2: 模型训练 Step8 Loss=NaN</button>
+          <button class="chip" data-sample="net">示例3: 千兆专线只跑出2%吞吐</button>
+          <button class="chip" data-sample="wrap">示例4: 408原题“SR窗口40用6bit序号”</button>
+        </div>
+      </div>
+      <div class="compiler-input-row">
+        <input
+          id="compiler-input"
+          class="compiler-input"
+          type="text"
+          placeholder="粘贴一段真实服务器报错、PyTorch 训练异常，或一道枯燥的 408/高数题干……"
+        />
+        <button id="btn-compile" class="btn btn-indigo" type="button">编译进急诊室</button>
+      </div>
+      <div id="compiler-feedback" class="compiler-feedback"></div>
+    </section>
+
+    <!-- 三大病例切换 -->
+    <section class="case-tabs" role="tablist" aria-label="急诊病例">
+      <button class="case-tab is-active" role="tab" data-case="os" type="button">
+        <div class="case-tab-top">
+          <span>CASE 01 · OS 虚拟内存</span>
+          <span class="status-pill status-fail" id="tab-badge-os">ALARM</span>
+        </div>
+        <div class="case-tab-title">内存加到 4 页框，服务器反而更卡死</div>
+        <div class="case-tab-desc">复用 opsys 内核：Belady 异常透视 &amp; 置换策略手术</div>
+      </button>
+
+      <button class="case-tab" role="tab" data-case="math" type="button">
+        <div class="case-tab-top">
+          <span>CASE 02 · 最优化 × 线代条件数</span>
+          <span class="status-pill status-fail" id="tab-badge-math">ALARM</span>
+        </div>
+        <div class="case-tab-title">AI 模型训练第 8 步 Loss 突然飞天 NaN</div>
+        <div class="case-tab-desc">复用优化/线代内核：条件数 &kappa;(H) 狭谷与学习率红线</div>
+      </button>
+
+      <button class="case-tab" role="tab" data-case="net" type="button">
+        <div class="case-tab-top">
+          <span>CASE 03 · 计算机网络管道与序号</span>
+          <span class="status-pill status-fail" id="tab-badge-net">ALARM</span>
+        </div>
+        <div class="case-tab-title">跨海专线吞吐黑洞 &amp; 序号回绕丢帧</div>
+        <div class="case-tab-desc">复用计网内核：时延带宽积 BDP 与滑动窗口序号铁律</div>
+      </button>
+    </section>
+
+    <!-- 三界同构主舞台 -->
+    <section class="triptych">
+      <!-- 左界：工程故障现场 -->
+      <article class="pane">
+        <header class="pane-header">
+          <span class="pane-kicker">01 · SYSTEM MONITOR（工程故障现场）</span>
+          <span class="status-pill status-fail" id="left-status-pill">CRITICAL</span>
+        </header>
+        <div class="pane-body" id="left-pane-body"></div>
+      </article>
+
+      <!-- 中界：病理透视镜 -->
+      <article class="pane">
+        <header class="pane-header">
+          <span class="pane-kicker">02 · X-RAY KERNEL（底层原理透视镜）</span>
+          <span class="mono" style="font-size:11px;color:var(--ink-500);" id="xray-kernel-tag">engine: page_replace_v1</span>
+        </header>
+        <div class="pane-body" id="center-pane-body"></div>
+      </article>
+
+      <!-- 右界：手术台与带教 AI -->
+      <article class="pane">
+        <header class="pane-header">
+          <span class="pane-kicker">03 · SURGERY &amp; AI MENTOR（手术调参台）</span>
+          <button class="btn" id="btn-reset-case" type="button" style="padding:3px 9px;font-size:11px;">恢复崩溃现场</button>
+        </header>
+        <div class="pane-body" id="right-pane-body"></div>
+      </article>
+    </section>
+  </main>
+
+  <!-- 复盘对比单弹窗 -->
+  <dialog id="report-dialog">
+    <div class="modal-head">
+      <div>
+        <strong style="font-size:15px;">《系统故障急诊与底层原理溯源单》</strong>
+        <div class="mono" style="font-size:11px;color:var(--ink-500);" id="report-hash"></div>
+      </div>
+      <button class="btn" id="btn-close-report" type="button">关闭</button>
+    </div>
+    <div class="modal-body" id="report-body"></div>
+  </dialog>
+
+  <script>
+    /**
+     * 独立概念原型：所有计算均为前端真实确定性算法执行，可任意修改参数实时重算。
+     */
+
+    const state = {
+      activeCase: 'os',
+      os: {
+        algo: 'fifo',
+        frames: 4,
+        seqText: '1,2,3,4,1,2,5,1,2,3,4,5',
+        step: 11,
+        baseline: { algo: 'fifo', frames: 4, faults: 10, latency: 184 }
+      },
+      math: {
+        a: 20,      // w1 方向曲率（未归一化时陡峭）
+        b: 0.5,     // w2 方向曲率
+        lr: 0.11,   // 初始超过 2/a = 0.10 引发梯度爆炸
+        step: 15,
+        baseline: { a: 20, lr: 0.11 }
+      },
+      net: {
+        proto: 'gbn',
+        window: 4,
+        seqBits: 5,
+        lossMode: 'none',
+        baseline: { proto: 'gbn', window: 4, seqBits: 5 }
+      }
+    };
+
+    /* ======================== 1. 真实 OS 页面置换内核 ======================== */
+    function runPageReplace(seq, framesCount, algo) {
+      const n = seq.length;
+      const frames = [];
+      const snapshots = [];
+      let faults = 0;
+      let hits = 0;
+      const fifoQueue = [];
+      const lruOrder = [];
+      let clockPtr = 0;
+      const refBits = new Map();
+
+      for (let i = 0; i < n; i++) {
+        const page = seq[i];
+        const idx = frames.indexOf(page);
+        let hit = false;
+        let evicted = null;
+
+        if (idx !== -1) {
+          hit = true;
+          hits++;
+          if (algo === 'lru') {
+            const p = lruOrder.indexOf(page);
+            if (p !== -1) lruOrder.splice(p, 1);
+            lruOrder.push(page);
+          } else if (algo === 'clock') {
+            refBits.set(page, 1);
+          }
+        } else {
+          faults++;
+          if (frames.length < framesCount) {
+            frames.push(page);
+            fifoQueue.push(page);
+            lruOrder.push(page);
+            refBits.set(page, 1);
+          } else {
+            let victim = frames[0];
+            if (algo === 'fifo') {
+              victim = fifoQueue.shift();
+              fifoQueue.push(page);
+            } else if (algo === 'lru') {
+              victim = lruOrder.shift();
+              lruOrder.push(page);
+            } else if (algo === 'opt') {
+              let farthest = -1;
+              for (const f of frames) {
+                const nextUse = seq.indexOf(f, i + 1);
+                if (nextUse === -1) {
+                  victim = f;
+                  break;
+                }
+                if (nextUse > farthest) {
+                  farthest = nextUse;
+                  victim = f;
+                }
+              }
+            } else if (algo === 'clock') {
+              while (true) {
+                const cand = frames[clockPtr % frames.length];
+                if ((refBits.get(cand) || 0) === 0) {
+                  victim = cand;
+                  break;
+                }
+                refBits.set(cand, 0);
+                clockPtr = (clockPtr + 1) % frames.length;
+              }
+            }
+            evicted = victim;
+            const replaceIdx = frames.indexOf(victim);
+            frames[replaceIdx] = page;
+            if (algo === 'clock') {
+              refBits.delete(victim);
+              refBits.set(page, 1);
+              clockPtr = (replaceIdx + 1) % frames.length;
+            }
+          }
+        }
+
+        snapshots.push({
+          step: i,
+          page,
+          hit,
+          evicted,
+          frames: [...frames]
+        });
+      }
+
+      return {
+        faults,
+        hits,
+        total: n,
+        rate: n ? faults / n : 0,
+        snapshots
+      };
+    }
+
+    function evaluateOsCase() {
+      const raw = state.os.seqText
+        .split(/[,，\s]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+        .slice(0, 24);
+      const seq = raw.length ? raw : ['1','2','3','4','1','2','5','1','2','3','4','5'];
+      const cur = runPageReplace(seq, state.os.frames, state.os.algo);
+      const prevFrameCount = Math.max(1, state.os.frames - 1);
+      const prev = runPageReplace(seq, prevFrameCount, state.os.algo);
+
+      // 计算 1..6 帧曲线以检测 Belady 异常
+      const series = [];
+      let hasBelady = false;
+      for (let f = 1; f <= 6; f++) {
+        const r = runPageReplace(seq, f, state.os.algo);
+        series.push({ frames: f, faults: r.faults });
+        if (f > 1 && r.faults > series[f - 2].faults) {
+          hasBelady = true;
+        }
+      }
+
+      // 模拟系统 P99 延迟（ms）与健康评估
+      const faultPenalty = cur.rate * 160;
+      const baseLatency = 52;
+      const latency = Math.round(baseLatency + faultPenalty);
+      const beladyTriggeredHere = state.os.frames > 1 && cur.faults > prev.faults;
+
+      let status = 'pass';
+      let headline = '内存子系统已稳定恢复';
+      let summary = `当前缺页率 ${(cur.rate * 100).toFixed(1)}%（${cur.faults}/${cur.total}），扩容收益单调正常，P99 延迟回落至 ${latency} ms。`;
+
+      if (beladyTriggeredHere) {
+        status = 'fail';
+        headline = '触发 Belady 异常：扩容反而更卡死！';
+        summary = `物理块从 ${prevFrameCount} 增至 ${state.os.frames} 时，${state.os.algo.toUpperCase()} 缺页从 ${prev.faults} 次反升至 ${cur.faults} 次！`;
+      } else if (cur.rate > 0.68) {
+        status = 'warn';
+        headline = '缺页率偏高：仍存在缓存抖动风险';
+        summary = `虽然未触发扩容逆增长，但缺页率仍达 ${(cur.rate * 100).toFixed(1)}%，建议换用局部性更优的置换策略或增大物理页框。`;
+      }
+
+      return { seq, cur, prev, prevFrameCount, series, hasBelady, beladyTriggeredHere, latency, status, headline, summary };
+    }
+
+    /* ======================== 2. 真实梯度下降 & 条件数内核 ======================== */
+    function evaluateMathCase() {
+      const { a, b, lr } = state.math;
+      const maxSteps = 18;
+      let w1 = 1.6;
+      let w2 = 3.8;
+      const path = [];
+      let exploded = false;
+
+      const lossFn = (x, y) => 0.5 * (a * x * x + b * y * y);
+
+      for (let k = 0; k <= maxSteps; k++) {
+        const loss = lossFn(w1, w2);
+        const g1 = a * w1;
+        const g2 = b * w2;
+        const gradNorm = Math.hypot(g1, g2);
+        path.push({ k, w1, w2, loss, gradNorm });
+        if (!Number.isFinite(loss) || loss > 1e5) {
+          exploded = true;
+          break;
+        }
+        w1 = w1 - lr * g1;
+        w2 = w2 - lr * g2;
+      }
+
+      const lambdaMax = Math.max(a, b);
+      const lambdaMin = Math.min(a, b);
+      const kappa = lambdaMax / lambdaMin;
+      const lrLimit = 2 / lambdaMax;
+      const finalPt = path[path.length - 1];
+      const diverging = exploded || finalPt.loss > path[0].loss * 1.1;
+
+      let status = 'pass';
+      let headline = '训练已安全收敛至全局最优点';
+      let summary = `条件数 κ(H) = ${kappa.toFixed(1)}，学习率 η = ${lr.toFixed(3)} < 红线 ${lrLimit.toFixed(3)}，${maxSteps} 步内 Loss 降至 ${finalPt.loss.toFixed(4)}。`;
+
+      if (diverging) {
+        status = 'fail';
+        headline = '梯度爆炸发散：突破数学稳定红线！';
+        summary = `学习率 η=${lr.toFixed(3)} 超过了最大稳定边界 2/λ_max=${lrLimit.toFixed(3)}，每步沿陡壁越界弹飞（Loss 飙至 ${finalPt.loss > 9999 ? '∞ (NaN)' : finalPt.loss.toFixed(1)}）。`;
+      } else if (finalPt.loss > 0.08) {
+        status = 'warn';
+        headline = '虽未爆炸，但地形病态导致收敛龟速';
+        summary = `只调小学习率避开了爆炸，但条件数 κ(H)=${kappa.toFixed(1)} 过高，w₂ 平坦方向爬行极慢，最终 Loss 仍停在 ${finalPt.loss.toFixed(3)}（目标 < 0.08）。`;
+      }
+
+      return { path, kappa, lrLimit, finalPt, diverging, status, headline, summary };
+    }
+
+    /* ======================== 3. 真实网络 BDP & 序号空间内核 ======================== */
+    function evaluateNetCase() {
+      const { proto, window: winRaw, seqBits } = state.net;
+      const bandwidthMbps = 10;
+      const rttMs = 80;
+      const frameBytes = 1000;
+      const tfMs = (frameBytes * 8) / (bandwidthMbps * 1e6) * 1000; // 0.8 ms
+      const bdpFrames = Math.ceil((rttMs + tfMs) / tfMs); // 101 帧
+
+      const effectiveW = proto === 'sw' ? 1 : winRaw;
+      const seqSpace = Math.pow(2, seqBits);
+      const maxSafeW = proto === 'sw' ? 1 : proto === 'gbn' ? seqSpace - 1 : Math.floor(seqSpace / 2);
+      const wrapViolation = effectiveW > maxSafeW;
+
+      const rawUtil = Math.min(1, (effectiveW * tfMs) / (rttMs + tfMs));
+      const throughputMbps = wrapViolation ? 0.12 : bandwidthMbps * rawUtil;
+      const effectiveUtil = wrapViolation ? 0.012 : rawUtil;
+
+      let status = 'pass';
+      let headline = '跨海专线管道已健康满载运行';
+      let summary = `序号空间 ${seqSpace} 满足 ${proto.toUpperCase()} 安全上限（W=${effectiveW} ≤ ${maxSafeW}），信道利用率 ${(effectiveUtil * 100).toFixed(1)}%，吞吐达 ${throughputMbps.toFixed(2)} Mbps。`;
+
+      if (wrapViolation) {
+        status = 'fail';
+        const rule = proto === 'gbn' ? `2^k ≥ W + 1（当前上限 ${seqSpace - 1}）` : `2^k ≥ 2W（当前上限 ${Math.floor(seqSpace / 2)}）`;
+        headline = '序号空间回绕崩溃：新旧帧产生静默歧义！';
+        summary = `${proto.toUpperCase()} 协议要求 ${rule}，但当前 W=${effectiveW} 越界！接收方将新帧误判为历史重复帧并丢弃，应用层吞吐跌穿！`;
+      } else if (effectiveUtil < 0.12) {
+        status = 'fail';
+        headline = '严重带宽黑洞：链路利用率不足 12%！';
+        summary = `管道容量（时延带宽积）达 ${bdpFrames} 帧，当前发送窗口仅 W=${effectiveW}，吞吐低至 ${throughputMbps.toFixed(2)} Mbps，专线几乎完全空转。`;
+      } else if (effectiveUtil < 0.55) {
+        status = 'warn';
+        headline = '管道半饥饿：仍有明显带宽浪费';
+        summary = `一条管道容量（时延带宽积）可容纳 ${bdpFrames} 帧，当前发送窗口仅 W=${effectiveW}，信道利用率只有 ${(effectiveUtil * 100).toFixed(1)}%。`;
+      }
+
+      return { bandwidthMbps, rttMs, frameBytes, tfMs, bdpFrames, effectiveW, seqSpace, maxSafeW, wrapViolation, effectiveUtil, throughputMbps, status, headline, summary };
+    }
+
+    /* ======================== 渲染主调度 ======================== */
+    function statusMeta(status) {
+      if (status === 'pass') return { cls: 'status-pass', label: 'HEALTHY · 绿灯' };
+      if (status === 'warn') return { cls: 'status-warn', label: 'DEGRADED · 黄灯' };
+      return { cls: 'status-fail', label: 'CRITICAL · 红灯' };
+    }
+
+    function renderAll() {
+      const osEval = evaluateOsCase();
+      const mathEval = evaluateMathCase();
+      const netEval = evaluateNetCase();
+
+      updateBadge('tab-badge-os', osEval.status);
+      updateBadge('tab-badge-math', mathEval.status);
+      updateBadge('tab-badge-net', netEval.status);
+
+      document.querySelectorAll('.case-tab').forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.case === state.activeCase);
+      });
+
+      if (state.activeCase === 'os') renderOsViews(osEval);
+      else if (state.activeCase === 'math') renderMathViews(mathEval);
+      else renderNetViews(netEval);
+    }
+
+    function updateBadge(id, status) {
+      const el = document.getElementById(id);
+      const m = statusMeta(status);
+      el.className = `status-pill ${m.cls}`;
+      el.textContent = status === 'pass' ? 'HEALTHY' : status === 'warn' ? 'DEGRADED' : 'ALARM';
+    }
+
+    /* ---------- 渲染病例 1：OS Belady ---------- */
+    function renderOsViews(ev) {
+      const m = statusMeta(ev.status);
+      document.getElementById('left-status-pill').className = `status-pill ${m.cls}`;
+      document.getElementById('left-status-pill').textContent = m.label;
+      document.getElementById('xray-kernel-tag').textContent = `kernel: opsys.page_replace(${state.os.algo.toUpperCase()})`;
+
+      // 左界
+      document.getElementById('left-pane-body').innerHTML = `
+        <div class="health-banner ${m.cls}">
+          <strong>${ev.headline}</strong>
+          <span>${ev.summary}</span>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">缺页中断次数</div>
+            <div class="kpi-val">${ev.cur.faults} <span style="font-size:12px;font-weight:400">/ ${ev.cur.total}</span></div>
+            <div class="kpi-delta">上一档(${ev.prevFrameCount}帧): ${ev.prev.faults} 次</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">系统 P99 响应延迟</div>
+            <div class="kpi-val">${ev.latency} ms</div>
+            <div class="kpi-delta">基线崩溃值: 184 ms</div>
+          </div>
+        </div>
+        <div class="log-box">
+          <div class="log-line-dim">[15:30:01] node-04 memory_frames=${state.os.frames}, policy=${state.os.algo.toUpperCase()}</div>
+          <div class="log-line-dim">[15:30:02] replay access_seq=[${ev.seq.join(',')}]</div>
+          ${ev.beladyTriggeredHere
+            ? `<div class="log-line-err">[ALERT] 扩容异常！${ev.prevFrameCount}→${state.os.frames} 帧缺页反增 (+${ev.cur.faults - ev.prev.faults} 次)</div>`
+            : `<div class="log-line-ok">[CHECK] 未检测到物理块扩容逆增长</div>`}
+          ${ev.cur.rate > 0.68
+            ? `<div class="log-line-warn">[WARN] page_fault_rate=${(ev.cur.rate * 100).toFixed(1)}% 高于健康红线 68%</div>`
+            : `<div class="log-line-ok">[OK] 缺页率 ${(ev.cur.rate * 100).toFixed(1)}% 已回落至健康区间</div>`}
+        </div>
+      `;
+
+      // 中界：页框表格 + Belady 曲线 SVG
+      const stepIdx = Math.min(state.os.step, ev.seq.length - 1);
+      const curSnap = ev.cur.snapshots[stepIdx];
+      let tableRows = `<tr><th>时刻 / 访问页</th>${ev.seq.map((p, idx) => `<th class="${idx === stepIdx ? 'is-cur' : ''}">${p}</th>`).join('')}</tr>`;
+      for (let f = 0; f < state.os.frames; f++) {
+        tableRows += `<tr><td style="background:var(--paper-2);font-weight:700;">物理块 ${f}</td>`;
+        for (let idx = 0; idx < ev.seq.length; idx++) {
+          const val = ev.cur.snapshots[idx].frames[f];
+          tableRows += `<td class="${idx === stepIdx ? 'is-cur' : ''}">${val ?? '—'}</td>`;
+        }
+        tableRows += `</tr>`;
+      }
+      tableRows += `<tr><td style="background:var(--paper-2);font-weight:700;">命中情况</td>${ev.cur.snapshots.map((s, idx) =>
+        `<td class="${s.hit ? 'cell-hit' : 'cell-miss'} ${idx === stepIdx ? 'is-cur' : ''}">${s.hit ? 'H' : 'M'}</td>`).join('')}</tr>`;
+
+      // 绘制 1..6 帧对比折线
+      const svgW = 520, svgH = 155, padL = 42, padR = 20, padT = 20, padB = 28;
+      const plotW = svgW - padL - padR, plotH = svgH - padT - padB;
+      const maxFault = Math.max(ev.seq.length, ...ev.series.map(d => d.faults));
+      const pts = ev.series.map((d, i) => {
+        const x = padL + (i / (ev.series.length - 1)) * plotW;
+        const y = padT + (1 - d.faults / maxFault) * plotH;
+        return { ...d, x, y };
+      });
+      const poly = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+      document.getElementById('center-pane-body').innerHTML = `
+        <div class="xray-stage">
+          <div class="xray-formula-bar">
+            <span>当前第 <b>${stepIdx + 1}</b> 步：访问页 <b>${curSnap.page}</b> &rarr; ${curSnap.hit ? '<span style="color:var(--pass);font-weight:700;">命中 (Hit)</span>' : `<span style="color:var(--fail);font-weight:700;">缺页 (Miss)</span>${curSnap.evicted ? `，淘汰页 <b>${curSnap.evicted}</b>` : '，装入空闲块'}`}</span>
+            <span style="color:var(--ink-500);">点击下方帧表或拖动时间轴回溯</span>
+          </div>
+          <div class="xray-canvas-wrap">
+            <div class="frame-table-wrap">
+              <table class="frame-table">${tableRows}</table>
+            </div>
+            <div class="timeline-row">
+              <span class="mono" style="font-size:12px;">时间轴步进：</span>
+              <input id="os-step-slider" type="range" min="0" max="${ev.seq.length - 1}" value="${stepIdx}" />
+              <span class="mono" style="font-size:12px;">${stepIdx + 1}/${ev.seq.length}</span>
+            </div>
+          </div>
+          <div class="xray-canvas-wrap">
+            <div style="font-size:12px;font-weight:700;color:var(--ink-900);">【扩容异常透视图】物理页框数 (1~6) vs 缺页次数（当前策略：${state.os.algo.toUpperCase()}）</div>
+            <svg viewBox="0 0 ${svgW} ${svgH}" style="width:100%;height:auto;max-height:170px;">
+              <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${svgH - padB}" stroke="#c5c0b0"/>
+              <line x1="${padL}" y1="${svgH - padB}" x2="${svgW - padR}" y2="${svgH - padB}" stroke="#c5c0b0"/>
+              <polyline fill="none" stroke="${ev.hasBelady ? '#de421f' : '#0f7b5f'}" stroke-width="2.5" points="${poly}" />
+              ${pts.map((p, i) => {
+                const isUp = i > 0 && p.faults > pts[i - 1].faults;
+                const isCur = p.frames === state.os.frames;
+                return `
+                  <circle cx="${p.x}" cy="${p.y}" r="${isCur ? 6 : 4}" fill="${isUp ? '#b42318' : isCur ? '#1c2ecb' : '#101211'}" />
+                  <text x="${p.x}" y="${p.y - 9}" text-anchor="middle" font-size="11" font-family="monospace" fill="${isUp ? '#b42318' : '#34372f'}">${p.faults}${isUp ? ' ↑异常' : ''}</text>
+                  <text x="${p.x}" y="${svgH - 8}" text-anchor="middle" font-size="11" font-family="monospace" fill="#5f6257">${p.frames}帧</text>
+                `;
+              }).join('')}
+            </svg>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('os-step-slider').addEventListener('input', (e) => {
+        state.os.step = Number(e.target.value);
+        renderAll();
+      });
+
+      // 右界
+      let mentorHint = '观察折线图：FIFO 只看进入队列的最早时间，不看是否刚被高频使用。试着切换具有“栈特性”的置换算法，或调整页框数观察变化。';
+      if (ev.status === 'pass') {
+        mentorHint = '✅ 抢救成功！LRU / OPT 满足栈属性（Stack Property），物理页框集合具有包含性，从根本上杜绝了 Belady 异常。';
+      } else if (state.os.algo === 'fifo' && !ev.beladyTriggeredHere) {
+        mentorHint = '⚠️ 你暂时避开了 4 帧异常点，但 FIFO 本身仍存在多处异常隐患，且当前缺页率依然偏高。尝试更换更合理的淘汰算法。';
+      }
+
+      document.getElementById('right-pane-body').innerHTML = `
+        <div class="control-group">
+          <label class="control-label" for="os-algo"><span>页面置换算法</span><span class="mono">${state.os.algo.toUpperCase()}</span></label>
+          <select id="os-algo">
+            <option value="fifo" ${state.os.algo === 'fifo' ? 'selected' : ''}>FIFO（先入先出 · 易发 Belady）</option>
+            <option value="lru" ${state.os.algo === 'lru' ? 'selected' : ''}>LRU（最近最久未使用 · 栈算法）</option>
+            <option value="clock" ${state.os.algo === 'clock' ? 'selected' : ''}>Clock（二次机会近似 LRU）</option>
+            <option value="opt" ${state.os.algo === 'opt' ? 'selected' : ''}>OPT（理论最优下界对照）</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="os-frames"><span>物理页框数量 (Frames)</span><span class="mono">${state.os.frames} 块</span></label>
+          <input id="os-frames" type="range" min="2" max="6" step="1" value="${state.os.frames}" />
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="os-seq"><span>线上访问序列（可任意修改验证）</span></label>
+          <input id="os-seq" type="text" value="${state.os.seqText}" />
+        </div>
+        <div class="verdict-box">
+          <strong>确定性验收标准（独立裁决）：</strong>
+          <span>① 消除扩容负收益（N 帧缺页 ≤ N−1 帧）；② 缺页率 ≤ 68%。</span>
+        </div>
+        <div class="ai-box">
+          <div class="ai-box-head"><span>AI 主任带教医师（MaaS 启发提示）</span><span>只引导 · 不代答</span></div>
+          <div class="ai-msg">${mentorHint}</div>
+        </div>
+      `;
+
+      document.getElementById('os-algo').addEventListener('change', (e) => { state.os.algo = e.target.value; renderAll(); });
+      document.getElementById('os-frames').addEventListener('input', (e) => { state.os.frames = Number(e.target.value); renderAll(); });
+      document.getElementById('os-seq').addEventListener('change', (e) => { state.os.seqText = e.target.value; renderAll(); });
+    }
+
+    /* ---------- 渲染病例 2：梯度下降 & 条件数 ---------- */
+    function renderMathViews(ev) {
+      const m = statusMeta(ev.status);
+      document.getElementById('left-status-pill').className = `status-pill ${m.cls}`;
+      document.getElementById('left-status-pill').textContent = m.label;
+      document.getElementById('xray-kernel-tag').textContent = `kernel: optim.gd_2d(κ=${ev.kappa.toFixed(1)})`;
+
+      const lastLossText = ev.finalPt.loss > 9999 ? 'NaN (∞)' : ev.finalPt.loss.toFixed(4);
+      document.getElementById('left-pane-body').innerHTML = `
+        <div class="health-banner ${m.cls}">
+          <strong>${ev.headline}</strong>
+          <span>${ev.summary}</span>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">第 ${ev.finalPt.k} 步 Loss</div>
+            <div class="kpi-val">${lastLossText}</div>
+            <div class="kpi-delta">目标验收阈值: &lt; 0.08</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">海森条件数 &kappa;(H)</div>
+            <div class="kpi-val">${ev.kappa.toFixed(1)}</div>
+            <div class="kpi-delta">学习率红线: &lt; ${ev.lrLimit.toFixed(3)}</div>
+          </div>
+        </div>
+        <div class="log-box">
+          <div class="log-line-dim">[train] init w=(1.60, 3.80), a=${state.math.a}, b=${state.math.b}, lr=${state.math.lr}</div>
+          ${ev.path.slice(0, 7).map(p => {
+            const over = p.loss > 30;
+            return `<div class="${over ? 'log-line-err' : 'log-line-dim'}">[step ${String(p.k).padStart(2,'0')}] loss=${p.loss > 99999 ? 'INF/NaN' : p.loss.toFixed(4)} |∇L|=${p.gradNorm > 9999 ? 'INF' : p.gradNorm.toFixed(2)}</div>`;
+          }).join('')}
+          ${ev.diverging
+            ? `<div class="log-line-err">[FATAL] FloatingPointOverflow: 步长超越稳定上界 2/λ_max=${ev.lrLimit.toFixed(3)}!</div>`
+            : ev.status === 'warn'
+              ? `<div class="log-line-warn">[WARN] 收敛停滞：狭长峡谷方向梯度震荡，平坦方向前进极微</div>`
+              : `<div class="log-line-ok">[OK] 模型损失稳定收敛，训练恢复健康</div>`}
+        </div>
+      `;
+
+      // 中界：绘制二维等高线与梯度迭代轨迹 SVG
+      const W = 520, H = 300;
+      const maxX = 4.5, maxY = 4.5;
+      const toSx = x => W / 2 + (x / maxX) * (W / 2 - 20);
+      const toSy = y => H / 2 - (y / maxY) * (H / 2 - 20);
+      const scaleX = (W / 2 - 20) / maxX;
+      const scaleY = (H / 2 - 20) / maxY;
+
+      const levels = [2, 8, 22, 50];
+      const ellipses = levels.map(c => {
+        const rx = Math.sqrt(2 * c / state.math.a) * scaleX;
+        const ry = Math.sqrt(2 * c / state.math.b) * scaleY;
+        return `<ellipse cx="${W/2}" cy="${H/2}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="none" stroke="#c5c0b0" stroke-dasharray="3 3" />`;
+      }).join('');
+
+      const visLen = Math.min(state.math.step + 1, ev.path.length);
+      const visPts = ev.path.slice(0, visLen);
+      const lineCoords = visPts.map(p => `${toSx(Math.max(-6, Math.min(6, p.w1))).toFixed(1)},${toSy(Math.max(-6, Math.min(6, p.w2))).toFixed(1)}`).join(' ');
+
+      document.getElementById('center-pane-body').innerHTML = `
+        <div class="xray-stage">
+          <div class="xray-formula-bar">
+            <span>损失地形：<b>L(w₁,w₂) = ½(${state.math.a}·w₁² + ${state.math.b}·w₂²)</b></span>
+            <span>特征比 κ = λ_max/λ_min = <b>${ev.kappa.toFixed(1)}</b></span>
+          </div>
+          <div class="xray-canvas-wrap">
+            <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-height:310px;background:#fbf9f2;">
+              <line x1="20" y1="${H/2}" x2="${W-20}" y2="${H/2}" stroke="#d8d3c4" />
+              <line x1="${W/2}" y1="20" x2="${W/2}" y2="${H-20}" stroke="#d8d3c4" />
+              ${ellipses}
+              <circle cx="${W/2}" cy="${H/2}" r="4" fill="#0f7b5f" />
+              <text x="${W/2 + 8}" y="${H/2 + 14}" font-size="11" font-family="monospace" fill="#0f7b5f">最优极小点 (0,0)</text>
+              <polyline fill="none" stroke="${ev.diverging ? '#b42318' : '#de421f'}" stroke-width="2.2" points="${lineCoords}" />
+              ${visPts.map((p, idx) => {
+                const cx = toSx(Math.max(-6, Math.min(6, p.w1)));
+                const cy = toSy(Math.max(-6, Math.min(6, p.w2)));
+                return `<circle cx="${cx}" cy="${cy}" r="${idx === visPts.length - 1 ? 5 : 3}" fill="${idx === 0 ? '#1c2ecb' : ev.diverging ? '#b42318' : '#de421f'}" />`;
+              }).join('')}
+            </svg>
+            <div class="timeline-row">
+              <span class="mono" style="font-size:12px;">迭代步数预览：</span>
+              <input id="math-step-slider" type="range" min="1" max="${ev.path.length - 1}" value="${Math.min(state.math.step, ev.path.length - 1)}" />
+              <span class="mono" style="font-size:12px;">Step ${Math.min(state.math.step, ev.path.length - 1)}</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('math-step-slider').addEventListener('input', (e) => {
+        state.math.step = Number(e.target.value);
+        renderAll();
+      });
+
+      // 右界
+      let mentorHint = '试着先单纯调小学习率 lr（比如 0.04），看看会发生什么？——你会发现不爆炸了，但因为地形过于狭长（条件数 κ 太大），沿着纵轴依然爬不动！真正根治需要做特征归一化（降低 a）。';
+      if (ev.status === 'pass') {
+        mentorHint = '✅ 完美！特征归一化把狭长峡谷拉圆（降低条件数 κ），再配合适步长，等高线与梯度方向几乎正交对齐，训练极速收敛。';
+      } else if (ev.status === 'warn') {
+        mentorHint = '⚠️ 你已经把步长压进 2/λ_max 以内止住了爆炸，但等高线依然像极扁的峡谷（κ 过高），仅靠小 lr 会在规定轮次内训练超时。试着拉低“特征尺度系数 a”做归一化！';
+      }
+
+      document.getElementById('right-pane-body').innerHTML = `
+        <div class="control-group">
+          <label class="control-label" for="math-lr"><span>学习率 η (Learning Rate)</span><span class="mono">${state.math.lr.toFixed(3)}</span></label>
+          <input id="math-lr" type="range" min="0.01" max="0.80" step="0.01" value="${state.math.lr}" />
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="math-a"><span>特征 w₁ 曲率尺度 a（条件数根源）</span><span class="mono">a = ${state.math.a.toFixed(1)}</span></label>
+          <input id="math-a" type="range" min="0.5" max="24" step="0.5" value="${state.math.a}" />
+          <button class="btn" id="btn-norm-feature" type="button" style="margin-top:4px;font-size:12px;">一键对特征做标准化（a 降为 1.5）</button>
+        </div>
+        <div class="verdict-box">
+          <strong>确定性验收标准（独立裁决）：</strong>
+          <span>① 必须满足稳定性判据 η &lt; 2/λ_max；② 18 步内 Loss &lt; 0.08。</span>
+        </div>
+        <div class="ai-box">
+          <div class="ai-box-head"><span>AI 主任带教医师（MaaS 启发提示）</span><span>只引导 · 不代答</span></div>
+          <div class="ai-msg">${mentorHint}</div>
+        </div>
+      `;
+
+      document.getElementById('math-lr').addEventListener('input', (e) => { state.math.lr = Number(e.target.value); renderAll(); });
+      document.getElementById('math-a').addEventListener('input', (e) => { state.math.a = Number(e.target.value); renderAll(); });
+      document.getElementById('btn-norm-feature').addEventListener('click', () => { state.math.a = 1.5; renderAll(); });
+    }
+
+    /* ---------- 渲染病例 3：计算机网络 BDP & 序号空间 ---------- */
+    function renderNetViews(ev) {
+      const m = statusMeta(ev.status);
+      document.getElementById('left-status-pill').className = `status-pill ${m.cls}`;
+      document.getElementById('left-status-pill').textContent = m.label;
+      document.getElementById('xray-kernel-tag').textContent = `kernel: computer_network.sliding_window(${state.net.proto.toUpperCase()})`;
+
+      document.getElementById('left-pane-body').innerHTML = `
+        <div class="health-banner ${m.cls}">
+          <strong>${ev.headline}</strong>
+          <span>${ev.summary}</span>
+        </div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">有效链路吞吐</div>
+            <div class="kpi-val">${ev.throughputMbps.toFixed(2)} <span style="font-size:12px;font-weight:400">Mbps</span></div>
+            <div class="kpi-delta">物理带宽上限: ${ev.bandwidthMbps} Mbps</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">序号安全上限 W_max</div>
+            <div class="kpi-val">${ev.maxSafeW} <span style="font-size:12px;font-weight:400">帧</span></div>
+            <div class="kpi-delta">当前使用窗口: W=${ev.effectiveW}</div>
+          </div>
+        </div>
+        <div class="log-box">
+          <div class="log-line-dim">[link] R=10Mbps, RTT=80ms, frame=1000B (Tf=0.8ms)</div>
+          <div class="log-line-dim">[calc] 满载管道容量 BDP_frames ≈ ${ev.bdpFrames} 帧</div>
+          ${ev.wrapViolation
+            ? `<div class="log-line-err">[CRITICAL] SeqWrapAroundError! 窗口 W=${ev.effectiveW} &gt; 协议安全上界 ${ev.maxSafeW} (2^${state.net.seqBits}=${ev.seqSpace})</div>`
+            : `<div class="log-line-ok">[CHECK] 序号空间无重叠歧义 (W=${ev.effectiveW} ≤ ${ev.maxSafeW})</div>`}
+          ${!ev.wrapViolation && ev.effectiveUtil < 0.55
+            ? `<div class="log-line-warn">[WARN] 管道利用不足 (${(ev.effectiveUtil * 100).toFixed(1)}%)，发送端大量时间空等 ACK</div>`
+            : !ev.wrapViolation ? `<div class="log-line-ok">[OK] 流水线吞吐达 ${(ev.effectiveUtil * 100).toFixed(1)}%</div>` : ''}
+        </div>
+      `;
+
+      // 中界：管道填充图 + 序号空间安全标尺
+      const pipeRatio = Math.min(1, ev.effectiveW / ev.bdpFrames);
+      const spacePct = Math.min(100, (ev.effectiveW / Math.max(1, ev.seqSpace)) * 100);
+      const safePct = Math.min(100, (ev.maxSafeW / Math.max(1, ev.seqSpace)) * 100);
+
+      document.getElementById('center-pane-body').innerHTML = `
+        <div class="xray-stage">
+          <div class="xray-formula-bar">
+            <span>管道容量 BDP = <b>${ev.bdpFrames} 帧</b>（发一帧仅需 0.8ms，但 ACK 往返要 80ms）</span>
+            <span>协议：<b>${state.net.proto.toUpperCase()}</b> · 序号空间 <b>2^${state.net.seqBits}=${ev.seqSpace}</b></span>
+          </div>
+          <div class="xray-canvas-wrap">
+            <div style="font-size:12px;font-weight:700;color:var(--ink-900);">1. 长肥管道填充状态（当前已塞入 ${ev.effectiveW} / ${ev.bdpFrames} 帧）</div>
+            <div style="height:44px;border:1px solid var(--ink-900);background:var(--paper-2);position:relative;display:flex;align-items:center;overflow:hidden;">
+              <div style="height:100%;width:${(pipeRatio * 100).toFixed(1)}%;background:${ev.wrapViolation ? 'var(--fail)' : ev.effectiveUtil >= 0.55 ? 'var(--pass)' : 'var(--coral)'};transition:width 0.15s;"></div>
+              <span class="mono" style="position:absolute;left:12px;font-size:12px;font-weight:700;color:#101211;background:rgba(251,249,242,0.85);padding:2px 6px;">
+                管道利用率 ${(ev.effectiveUtil * 100).toFixed(1)}% ${ev.wrapViolation ? '（序号冲突导致有效载荷失效）' : ''}
+              </span>
+            </div>
+          </div>
+
+          <div class="xray-canvas-wrap">
+            <div style="font-size:12px;font-weight:700;color:var(--ink-900);">2. 序号空间防冲突检测尺（408 铁律：GBN 需 N ≥ W+1；SR 需 N ≥ 2W）</div>
+            <div style="height:36px;border:1px solid var(--hairline-strong);background:var(--paper-2);position:relative;">
+              <div style="position:absolute;left:0;top:0;bottom:0;width:${safePct.toFixed(1)}%;background:var(--pass-soft);border-right:2px dashed var(--pass);"></div>
+              <div style="position:absolute;left:0;top:6px;bottom:6px;width:${spacePct.toFixed(1)}%;background:${ev.wrapViolation ? 'var(--fail)' : 'var(--indigo)'};opacity:0.85;"></div>
+              <span class="mono" style="position:absolute;right:8px;top:9px;font-size:11px;color:var(--ink-900);">
+                W=${ev.effectiveW} / 安全红线=${ev.maxSafeW} / 空间=${ev.seqSpace}
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--ink-500);">
+              浅绿区域为协议允许的无歧义安全窗口；蓝色/红色条一旦越过虚线，就会出现新帧与重传旧帧编号撞车！
+            </div>
+          </div>
+        </div>
+      `;
+
+      // 右界
+      let mentorHint = '先试着把发送窗口 W 拉大到 65 以上，观察吞吐上去了但有没有越过“序号安全红线”？要想既跑满长管道、又不序号撞车，必须同步扩充序号比特位数！';
+      if (ev.status === 'pass') {
+        mentorHint = '✅ 抢救完成！既通过足够大的窗口填满了跨海高时延管道（克服 BDP 瓶颈），又留足了序号比特空间防回绕。';
+      } else if (ev.wrapViolation) {
+        mentorHint = '🚨 撞上序号墙了！记住 408 铁律：GBN 需要 2^k ≥ W+1，SR 需要 2^k ≥ 2W。调大“序号字段比特数 k”或切回安全窗口。';
+      }
+
+      document.getElementById('right-pane-body').innerHTML = `
+        <div class="control-group">
+          <label class="control-label" for="net-proto"><span>滑动窗口协议</span><span class="mono">${state.net.proto.toUpperCase()}</span></label>
+          <select id="net-proto">
+            <option value="sw" ${state.net.proto === 'sw' ? 'selected' : ''}>停等协议 (Stop-and-Wait, W=1)</option>
+            <option value="gbn" ${state.net.proto === 'gbn' ? 'selected' : ''}>回退 N 帧 (GBN, N ≥ W+1)</option>
+            <option value="sr" ${state.net.proto === 'sr' ? 'selected' : ''}>选择重传 (SR, N ≥ 2W)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="net-win"><span>发送窗口大小 W</span><span class="mono">W = ${state.net.window} 帧</span></label>
+          <input id="net-win" type="range" min="1" max="110" step="1" value="${state.net.window}" ${state.net.proto === 'sw' ? 'disabled' : ''} />
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="net-bits"><span>帧序号字段位数 k (空间 2^k)</span><span class="mono">${state.net.seqBits} bit (${Math.pow(2, state.net.seqBits)})</span></label>
+          <input id="net-bits" type="range" min="3" max="9" step="1" value="${state.net.seqBits}" />
+        </div>
+        <div class="verdict-box">
+          <strong>确定性验收标准（独立裁决）：</strong>
+          <span>① 严禁序号回绕歧义；② 管道利用率 ≥ 55%。</span>
+        </div>
+        <div class="ai-box">
+          <div class="ai-box-head"><span>AI 主任带教医师（MaaS 启发提示）</span><span>只引导 · 不代答</span></div>
+          <div class="ai-msg">${mentorHint}</div>
+        </div>
+      `;
+
+      document.getElementById('net-proto').addEventListener('change', (e) => { state.net.proto = e.target.value; renderAll(); });
+      document.getElementById('net-win').addEventListener('input', (e) => { state.net.window = Number(e.target.value); renderAll(); });
+      document.getElementById('net-bits').addEventListener('input', (e) => { state.net.seqBits = Number(e.target.value); renderAll(); });
+    }
+
+    /* ======================== 交互绑定：病例切换、日志编译、混沌注错、复盘单 ======================== */
+    document.querySelectorAll('.case-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.activeCase = btn.dataset.case;
+        renderAll();
+      });
+    });
+
+    const SAMPLES = {
+      belady: '集群把物理块从 3 扩容到 4 块后，FIFO 缺页从 9 次暴涨到 10 次，序列 1,2,3,4,1,2,5,1,2,3,4,5',
+      grad: 'PyTorch 模型训练第 8 步出现梯度爆炸 Loss=NaN，两个特征尺度相差 40 倍 (a=20, b=0.5)，lr=0.11',
+      net: '10Mbps 跨海专线 RTT=80ms，帧长 1000B，采用 GBN 窗口只开了 4 帧导致吞吐仅 0.39Mbps',
+      wrap: '408原题：某信道速率 10Mbps，RTT=80ms，帧长 1000B，采用选择重传 SR，窗口 W=40，序号用 6 bit 可以吗？'
+    };
+
+    document.querySelectorAll('.chip').forEach(ch => {
+      ch.addEventListener('click', () => {
+        document.getElementById('compiler-input').value = SAMPLES[ch.dataset.sample];
+        compilePrompt(SAMPLES[ch.dataset.sample]);
+      });
+    });
+
+    document.getElementById('btn-compile').addEventListener('click', () => {
+      compilePrompt(document.getElementById('compiler-input').value);
+    });
+
+    function compilePrompt(text) {
+      const t = (text || '').trim();
+      const fb = document.getElementById('compiler-feedback');
+      if (!t) return;
+
+      if (/NaN|梯度|Loss|lr|特征|条件数|优化/i.test(t)) {
+        state.activeCase = 'math';
+        const lrMatch = t.match(/lr\s*=\s*([0-9.]+)/i);
+        const aMatch = t.match(/a\s*=\s*([0-9.]+)/i);
+        if (lrMatch) state.math.lr = Math.min(0.8, Math.max(0.01, Number(lrMatch[1])));
+        if (aMatch) state.math.a = Math.min(24, Math.max(0.5, Number(aMatch[1])));
+        fb.textContent = `✓ 已结构化提取模型参数 [kernel=optim.gd_2d, a=${state.math.a}, lr=${state.math.lr}] -> 并还原训练事故现场`;
+      } else if (/SR|GBN|窗口|bit|Mbps|RTT|吞吐|序号/i.test(t)) {
+        state.activeCase = 'net';
+        if (/SR|选择重传/i.test(t)) state.net.proto = 'sr';
+        else if (/GBN|回退/i.test(t)) state.net.proto = 'gbn';
+        const wMatch = t.match(/(?:W|窗口)[^\d]{0,4}(\d+)/i);
+        const bMatch = t.match(/(\d+)\s*bit/i);
+        if (wMatch) state.net.window = Math.min(110, Math.max(1, Number(wMatch[1])));
+        if (bMatch) state.net.seqBits = Math.min(9, Math.max(3, Number(bMatch[1])));
+        fb.textContent = `✓ 已结构化提取网络条件 [kernel=network.sliding_window, proto=${state.net.proto.toUpperCase()}, W=${state.net.window}, k=${state.net.seqBits}bit] -> 立即检验是否发生回绕`;
+      } else {
+        state.activeCase = 'os';
+        const seqMatch = t.match(/(\d+(?:[,，\s]+\d+){4,})/);
+        if (seqMatch) state.os.seqText = seqMatch[1].replace(/，|\s+/g, ',');
+        const fMatch = t.match(/(\d+)\s*(?:块|帧)/);
+        if (fMatch) state.os.frames = Math.min(6, Math.max(2, Number(fMatch[1])));
+        if (/FIFO/i.test(t)) state.os.algo = 'fifo';
+        fb.textContent = `✓ 已结构化提取内存现场 [kernel=opsys.page_replace, algo=${state.os.algo.toUpperCase()}, frames=${state.os.frames}] -> 已还原监控现场`;
+      }
+      fb.classList.add('is-visible');
+      renderAll();
+    }
+
+    document.getElementById('btn-reset-case').addEventListener('click', () => {
+      if (state.activeCase === 'os') {
+        state.os.algo = 'fifo'; state.os.frames = 4; state.os.seqText = '1,2,3,4,1,2,5,1,2,3,4,5'; state.os.step = 11;
+      } else if (state.activeCase === 'math') {
+        state.math.a = 20; state.math.b = 0.5; state.math.lr = 0.11; state.math.step = 15;
+      } else {
+        state.net.proto = 'gbn'; state.net.window = 4; state.net.seqBits = 5;
+      }
+      renderAll();
+    });
+
+    document.getElementById('btn-chaos').addEventListener('click', () => {
+      const pools = [
+        () => { state.activeCase = 'os'; state.os.algo = 'fifo'; state.os.frames = 4; state.os.seqText = '1,2,3,4,1,2,5,1,2,3,4,5'; },
+        () => { state.activeCase = 'math'; state.math.a = 22; state.math.lr = 0.14; },
+        () => { state.activeCase = 'net'; state.net.proto = 'sr'; state.net.window = 60; state.net.seqBits = 6; }
+      ];
+      pools[Math.floor(Math.random() * pools.length)]();
+      const fb = document.getElementById('compiler-feedback');
+      fb.textContent = '⚡ 混沌工程已向健康节点注入未知故障！请根据左界报警现象，利用中界透视镜找出真凶并动手术修复。';
+      fb.classList.add('is-visible');
+      renderAll();
+    });
+
+    document.getElementById('btn-report').addEventListener('click', () => {
+      const osEv = evaluateOsCase();
+      const mathEv = evaluateMathCase();
+      const netEv = evaluateNetCase();
+      const dlg = document.getElementById('report-dialog');
+      document.getElementById('report-hash').textContent =
+        `revision_hash: sha256:demo-${Date.now().toString(16)} · 由本地确定性内核实时复核`;
+
+      const rowHtml = (name, before, after, st) => {
+        const m = statusMeta(st);
+        return `<tr><td><b>${name}</b></td><td>${before}</td><td>${after}</td><td><span class="status-pill ${m.cls}">${m.label}</span></td></tr>`;
+      };
+
+      document.getElementById('report-body').innerHTML = `
+        <p style="margin:0;color:var(--ink-500);font-size:13px;">本报告完全由确定性求解内核基于当前参数重算得出，真实记录“故障现象 &rarr; 原理归因 &rarr; 手术修复前后对比”：</p>
+        <table class="compare-table">
+          <thead><tr><th>急诊病房</th><th>事故初始状态</th><th>当前手术后状态</th><th>内核验收</th></tr></thead>
+          <tbody>
+            ${rowHtml('CASE 01 · OS 虚拟内存', 'FIFO 4帧 · 缺页 10 次 (184ms)', `${state.os.algo.toUpperCase()} ${state.os.frames}帧 · 缺页 ${osEv.cur.faults} 次 (${osEv.latency}ms)`, osEv.status)}
+            ${rowHtml('CASE 02 · 训练梯度爆炸', 'a=20, lr=0.11 · Loss→NaN', `a=${state.math.a}, κ=${mathEv.kappa.toFixed(1)}, lr=${state.math.lr} · Loss=${mathEv.finalPt.loss > 9999 ? 'NaN' : mathEv.finalPt.loss.toFixed(4)}`, mathEv.status)}
+            ${rowHtml('CASE 03 · 跨海链路黑洞', 'GBN W=4, 5bit · 吞吐 0.39Mbps', `${state.net.proto.toUpperCase()} W=${netEv.effectiveW}, ${state.net.seqBits}bit · 吞吐 ${netEv.throughputMbps.toFixed(2)}Mbps`, netEv.status)}
+          </tbody>
+        </table>
+      `;
+      dlg.showModal();
+    });
+
+    document.getElementById('btn-close-report').addEventListener('click', () => {
+      document.getElementById('report-dialog').close();
+    });
+
+    renderAll();
+  </script>
+</body>
+</html>

@@ -1,0 +1,363 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_e51dbcc7ec844269af17d298b75eb375",
+    "title": "ph30_rf.png",
+    "created_at": "2026-11-19T11:50:06Z",
+    "updated_at": "2026-11-19T11:50:06Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph30_rf.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 91,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题几何光学\n24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气，\n入射角为30°。求折射角（）。\nA.19.5°B.30° C.41.8°D. 48.6°",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题几何光学\n24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气，\n入射角为30°。求折射角（）。\nA.19.5°B.30° C.41.8°D. 48.6°",
+          "math_text": null,
+          "ocr_confidence": 0.9940236444408314,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph30_rf.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "24",
+        "title": "第 24 题 · 大学物理期末考试题几何光学",
+        "text": "大学物理期末考试题几何光学\n24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气，\n入射角为30°。求折射角（）。\nA.19.5°B.30° C.41.8°D. 48.6°",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.78,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题几何光学 24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气， 入射角为30°。求折射角（）。 A.19.5°B.30° C.41.8°D. 48.6°"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题几何光学\n24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气，\n入射角为30°。求折射角（）。\nA.19.5°B.30° C.41.8°D. 48.6°",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "折射定律与全反射",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题几何光学 24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气， 入射角为30°。求折射角（）。 A.19.5°B.30° C.41.8°D. 48.6°"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_n1",
+              "label": "入射折射率 n1",
+              "value": 1.5,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题几何光学 24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气， 入射角为30°。求折射角（）。 A.19.5°B.30° C.41.8°D. 48.6°"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_n2",
+              "label": "折射折射率 n2",
+              "value": 1.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题几何光学 24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气， 入射角为30°。求折射角（）。 A.19.5°B.30° C.41.8°D. 48.6°"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_angle",
+              "label": "入射角 θ1",
+              "value": 30.0,
+              "kind": "number",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题几何光学 24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气， 入射角为30°。求折射角（）。 A.19.5°B.30° C.41.8°D. 48.6°"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{n1 sinθ1 = n2 sinθ2；临界角 sinθc = n2/n1（n1>n2）}",
+              "plain": "n1 sinθ1 = n2 sinθ2；临界角 sinθc = n2/n1（n1>n2）",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "geometric_optics",
+          "physics_mode": "refraction",
+          "raw": "大学物理期末考试题几何光学\n24.光从折射率n1=1.5的介质射入折射率n2=1.0的空气，\n入射角为30°。求折射角（）。\nA.19.5°B.30° C.41.8°D. 48.6°",
+          "defaults": {
+            "n1": 1.5,
+            "n2": 1.0,
+            "angle": 30.0
+          },
+          "params": [
+            {
+              "id": "n1",
+              "label": "入射介质折射率 n1",
+              "kind": "number",
+              "min": 1,
+              "max": 3,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "n2",
+              "label": "折射介质折射率 n2",
+              "kind": "number",
+              "min": 1,
+              "max": 3,
+              "step": 0.01,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "angle",
+              "label": "入射角 θ1 (°)",
+              "kind": "number",
+              "min": 0,
+              "max": 89,
+              "step": 1,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "geometric_optics",
+            "mode": "refraction",
+            "answer": "折射角 θ2=48.59°；光从光密介质射向光疏介质时临界角 θc=41.81°。",
+            "answer_value": 48.59037789072913,
+            "metrics": [
+              {
+                "id": "theta1",
+                "label": "入射角",
+                "value": "30°"
+              },
+              {
+                "id": "theta2",
+                "label": "折射角",
+                "value": "48.59°",
+                "tone": "accent"
+              },
+              {
+                "id": "critical",
+                "label": "临界角",
+                "value": "41.81°"
+              }
+            ],
+            "checks": [
+              {
+                "id": "snell",
+                "label": "折射定律",
+                "status": "pass",
+                "detail": "n1 sinθ1 = n2 sinθ2"
+              },
+              {
+                "id": "critical",
+                "label": "全反射条件",
+                "status": "pass",
+                "detail": "从光密射向光疏且入射角大于临界角时发生全反射。"
+              }
+            ],
+            "notes": [
+              "两种介质均为均匀各向同性，界面为平面；临界角只适用于从光密介质射向光疏介质。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "入射与法线",
+                "detail": "θ1=30°，n1=1.5，n2=1",
+                "values": {
+                  "theta1": 30.0,
+                  "n1": 1.5,
+                  "n2": 1.0
+                }
+              },
+              {
+                "index": 1,
+                "label": "折射或全反射",
+                "detail": "θ2=48.59°",
+                "values": {
+                  "theta2": 48.59037789072913,
+                  "tir": false
+                }
+              }
+            ],
+            "scene": {
+              "type": "refraction",
+              "n1": 1.5,
+              "n2": 1.0,
+              "angle1": 30.0,
+              "angle2": 48.59037789072913,
+              "critical": 41.810314895778596,
+              "tir": false,
+              "reflected": 30.0
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "折射角 θ2=48.59°；光从光密介质射向光疏介质时临界角 θc=41.81°。",
+          "answer_value": 48.59037789072913,
+          "answer_values": [
+            30.0,
+            48.59,
+            41.81,
+            48.590377890729
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "入射与法线",
+              "detail": "θ1=30°，n1=1.5，n2=1"
+            },
+            {
+              "id": "phy_1",
+              "title": "折射或全反射",
+              "detail": "θ2=48.59°"
+            }
+          ],
+          "conditions": [
+            "按折射定律与全反射模型计算。"
+          ],
+          "limitations": [
+            "两种介质均为均匀各向同性，界面为平面；临界角只适用于从光密介质射向光疏介质。",
+            "常见单位会先换算为 SI；未给出的边界条件不会被自动补造。"
+          ]
+        },
+        "states": {
+          "params": {
+            "n1": 1.5,
+            "n2": 1.0,
+            "angle": 30.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "n1": 1.5,
+                "n2": 1.0,
+                "angle": 30.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "b4417a7fd7334a08"
+}

@@ -1,0 +1,404 @@
+{
+  "data": {
+    "schema_version": "lab.1",
+    "lab_id": "lab_f729569d5aae4954a27f0b57bb6fdea6",
+    "title": "ph39_el.png",
+    "created_at": "2026-11-19T11:51:58Z",
+    "updated_at": "2026-11-19T11:51:58Z",
+    "revision": 1,
+    "source": {
+      "files": [
+        {
+          "file_id": "f1",
+          "name": "ph39_el.png",
+          "role": "problem",
+          "role_label": "题目",
+          "kind": "image",
+          "stored_name": "f1.png",
+          "pages": 1,
+          "chars": 101,
+          "methods": [
+            "image_ocr"
+          ]
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "text": "大学物理期末考试题力学\n42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体\n发生弹性碰撞。求碰后m1的速度（）。\nA. 1.33m/s B.2m/s C. 2.67m/s D.4m/s",
+          "method": "image_ocr",
+          "image_key": "f1_p1",
+          "ocr_text": "大学物理期末考试题力学\n42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体\n发生弹性碰撞。求碰后m1的速度（）。\nA. 1.33m/s B.2m/s C. 2.67m/s D.4m/s",
+          "math_text": null,
+          "ocr_confidence": 0.983195682688972,
+          "requires_formula_confirmation": false,
+          "extraction_issues": [],
+          "file_id": "f1"
+        }
+      ],
+      "method": "image_ocr",
+      "citation": "ph39_el.png · 第 1–1 页"
+    },
+    "problems": [
+      {
+        "problem_id": "prb_1",
+        "number": "42",
+        "title": "第 42 题 · 大学物理期末考试题力学",
+        "text": "大学物理期末考试题力学\n42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体\n发生弹性碰撞。求碰后m1的速度（）。\nA. 1.33m/s B.2m/s C. 2.67m/s D.4m/s",
+        "subject": "physics",
+        "subject_label": "大学物理",
+        "confidence": 0.95,
+        "status": "ready",
+        "source": {
+          "page_from": 1,
+          "page_to": 1,
+          "file_names": [
+            "f1"
+          ],
+          "label": "题目 + 图片",
+          "excerpt": "大学物理期末考试题力学 42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体 发生弹性碰撞。求碰后m1的速度（）。 A. 1.33m/s B.2m/s C. 2.67m/s D.4m/s"
+        },
+        "source_pages": [
+          {
+            "file_id": "f1",
+            "page": 1,
+            "image_key": "f1_p1",
+            "method": "image_ocr",
+            "requires_formula_confirmation": false
+          }
+        ],
+        "recognition": {
+          "method": "题目 + 图片",
+          "raw_text": "大学物理期末考试题力学\n42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体\n发生弹性碰撞。求碰后m1的速度（）。\nA. 1.33m/s B.2m/s C. 2.67m/s D.4m/s",
+          "ocr_empty": false,
+          "conditions": [
+            {
+              "id": "physics_mode",
+              "label": "物理题型",
+              "value": "一维弹性碰撞",
+              "kind": "text",
+              "unit": "",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体 发生弹性碰撞。求碰后m1的速度（）。 A. 1.33m/s B.2m/s C. 2.67m/s D.4m/s"
+              },
+              "editable": false,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_m1",
+              "label": "质量 m1",
+              "value": 2.0,
+              "kind": "number",
+              "unit": "kg",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体 发生弹性碰撞。求碰后m1的速度（）。 A. 1.33m/s B.2m/s C. 2.67m/s D.4m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_v1",
+              "label": "速度 v1",
+              "value": 4.0,
+              "kind": "number",
+              "unit": "m/s",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体 发生弹性碰撞。求碰后m1的速度（）。 A. 1.33m/s B.2m/s C. 2.67m/s D.4m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_m2",
+              "label": "质量 m2",
+              "value": 1.0,
+              "kind": "number",
+              "unit": "kg",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体 发生弹性碰撞。求碰后m1的速度（）。 A. 1.33m/s B.2m/s C. 2.67m/s D.4m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            },
+            {
+              "id": "phy_v2",
+              "label": "速度 v2",
+              "value": 0.0,
+              "kind": "number",
+              "unit": "m/s",
+              "provenance": "original",
+              "source": {
+                "file_id": "f1",
+                "page": 1,
+                "excerpt": "大学物理期末考试题力学 42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体 发生弹性碰撞。求碰后m1的速度（）。 A. 1.33m/s B.2m/s C. 2.67m/s D.4m/s"
+              },
+              "editable": true,
+              "options": [],
+              "min": null,
+              "max": null,
+              "step": null,
+              "note": null
+            }
+          ],
+          "ambiguities": [],
+          "formulas": [
+            {
+              "id": "physics_rule",
+              "tex": "\\text{m1v1 + m2v2 = m1v1′ + m2v2′；动能也守恒}",
+              "plain": "m1v1 + m2v2 = m1v1′ + m2v2′；动能也守恒",
+              "role": "物理规律"
+            }
+          ],
+          "recognized_subject": "physics",
+          "ai_used": false,
+          "quality": {
+            "untrusted": false,
+            "issues": [],
+            "needs_visual_verification": false,
+            "score": 1.0
+          },
+          "local_build_skipped": false,
+          "model_text": ""
+        },
+        "model": {
+          "engine": "physics_v1",
+          "subject": "physics",
+          "physics_kind": "momentum",
+          "physics_mode": "elastic",
+          "raw": "大学物理期末考试题力学\n42.质量m1=2kg的物体以v1=4m/s与静止的m2=1kg物体\n发生弹性碰撞。求碰后m1的速度（）。\nA. 1.33m/s B.2m/s C. 2.67m/s D.4m/s",
+          "defaults": {
+            "m1": 2.0,
+            "v1": 4.0,
+            "m2": 1.0,
+            "v2": 0.0
+          },
+          "params": [
+            {
+              "id": "m1",
+              "label": "质量 m1 (kg)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 100,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "v1",
+              "label": "速度 v1 (m/s)",
+              "kind": "number",
+              "min": -50,
+              "max": 50,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "m2",
+              "label": "质量 m2 (kg)",
+              "kind": "number",
+              "min": 0.1,
+              "max": 100,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            },
+            {
+              "id": "v2",
+              "label": "速度 v2 (m/s)",
+              "kind": "number",
+              "min": -50,
+              "max": 50,
+              "step": 0.1,
+              "options": [],
+              "note": null
+            }
+          ],
+          "teaching": false,
+          "physics_result": {
+            "kind": "momentum",
+            "mode": "elastic",
+            "answer": "碰后速度 v1′=1.333 m/s，v2′=5.333 m/s；动量守恒，动能也守恒。",
+            "answer_value": 1.3333333333333333,
+            "metrics": [
+              {
+                "id": "v1",
+                "label": "碰后 v1′",
+                "value": "1.333 m/s",
+                "tone": "accent"
+              },
+              {
+                "id": "v2",
+                "label": "碰后 v2′",
+                "value": "5.333 m/s"
+              },
+              {
+                "id": "p",
+                "label": "总动量",
+                "value": "8 kg·m/s"
+              },
+              {
+                "id": "Ek",
+                "label": "总动能",
+                "value": "16 J"
+              }
+            ],
+            "checks": [
+              {
+                "id": "momentum",
+                "label": "动量守恒",
+                "status": "pass",
+                "detail": "碰撞前后总动量相等"
+              },
+              {
+                "id": "energy",
+                "label": "动能守恒",
+                "status": "pass",
+                "detail": "一维弹性碰撞的动能保持"
+              }
+            ],
+            "notes": [
+              "一维弹性碰撞，碰撞时间极短，系统动量与动能都守恒。"
+            ],
+            "frames": [
+              {
+                "index": 0,
+                "label": "碰前",
+                "detail": "v1=4 m/s，v2=0 m/s",
+                "values": {
+                  "v1": 4.0,
+                  "v2": 0.0
+                }
+              },
+              {
+                "index": 1,
+                "label": "碰后",
+                "detail": "v1′=1.333 m/s，v2′=5.333 m/s",
+                "values": {
+                  "v1p": 1.3333333333333333,
+                  "v2p": 5.333333333333333
+                }
+              }
+            ],
+            "scene": {
+              "type": "collision",
+              "mode": "elastic",
+              "m1": 2.0,
+              "v1": 4.0,
+              "m2": 1.0,
+              "v2": 0.0,
+              "v1p": 1.3333333333333333,
+              "v2p": 5.333333333333333,
+              "p": 8.0,
+              "K0": 16.0,
+              "K1": 16.0
+            },
+            "status": "ok"
+          }
+        },
+        "solution": {
+          "summary": "按物理规律建立方程并代入题面条件；结果经过公式与单位一致性核对。",
+          "answer": "碰后速度 v1′=1.333 m/s，v2′=5.333 m/s；动量守恒，动能也守恒。",
+          "answer_value": 1.3333333333333333,
+          "answer_values": [
+            1.333,
+            5.333,
+            8.0,
+            16.0,
+            1.333333333333
+          ],
+          "steps": [
+            {
+              "id": "phy_0",
+              "title": "碰前",
+              "detail": "v1=4 m/s，v2=0 m/s"
+            },
+            {
+              "id": "phy_1",
+              "title": "碰后",
+              "detail": "v1′=1.333 m/s，v2′=5.333 m/s"
+            }
+          ],
+          "conditions": [
+            "按一维弹性碰撞模型计算。"
+          ],
+          "limitations": [
+            "一维弹性碰撞，碰撞时间极短，系统动量与动能都守恒。",
+            "未给出的初值或边界条件不会被自动补造。",
+            "常见单位 km/h、cm、mm、km、g、min、h 会先换算为 SI；仍无法识别的单位请以 SI 填写。"
+          ]
+        },
+        "states": {
+          "params": {
+            "m1": 2.0,
+            "v1": 4.0,
+            "m2": 1.0,
+            "v2": 0.0
+          },
+          "step": 0,
+          "mode": "explore",
+          "notes": "",
+          "observations": [],
+          "events": [],
+          "scenarios": [
+            {
+              "id": "baseline",
+              "name": "原题条件",
+              "params": {
+                "m1": 2.0,
+                "v1": 4.0,
+                "m2": 1.0,
+                "v2": 0.0
+              },
+              "created_at": null,
+              "kind": "baseline",
+              "summary": "原题识别条件"
+            }
+          ],
+          "active_scenario_id": "baseline",
+          "attempts": [],
+          "evaluated": null
+        }
+      }
+    ],
+    "selected_problem_id": "prb_1",
+    "status": "ready",
+    "subject": "physics",
+    "problem_count": 1,
+    "capabilities": {
+      "ai_configured": false,
+      "note": "识别与求解均由本地确定性引擎完成；AI 增强只在后端配置明确开启后才会调用。",
+      "ai_note": "本地识别与本地导师；模型增强未开启。",
+      "ai_solver_configured": true
+    }
+  },
+  "request_id": "39f7efa19aa64860"
+}

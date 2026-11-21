@@ -1,7 +1,7 @@
 /** 活页编辑器：块序列 + 激活建议 + 插入菜单 + 发布。 */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import {
   acceptSuggestion,
   createLabBlock,
@@ -9,12 +9,14 @@ import {
   dismissSuggestion,
   getLivingInsights,
   getLivingPage,
+  downloadLivingPage,
   livingAssetUrl,
   patchLivingPage,
   publishLivingPage,
   generateLivingModel,
   recommendLivingModels,
   recognizeRegionFormula,
+  recognizeRegionDiagram,
 } from '@/api/living';
 import { errorMessage, isApiError } from '@/api/client';
 import { worksApi, type WorkSummary } from '@/api/works';
@@ -99,7 +101,8 @@ export default function LivingPageEditor(): ReactNode {
   const [showInsights, setShowInsights] = useState(false);
   const [showVars, setShowVars] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const uploadState = useLocation().state as { diagramError?: string } | null;
+  const [error, setError] = useState<string | null>(uploadState?.diagramError ?? null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const saveTimer = useRef<number | null>(null);
   const [aiPanel, setAiPanel] = useState<{ blockId?: string } | null>(null);
@@ -293,6 +296,28 @@ export default function LivingPageEditor(): ReactNode {
     }
   };
 
+  const handleOfflineDownload = async (): Promise<void> => {
+    if (!doc || busy !== null) return;
+    setBusy('offline');
+    setError(null);
+    try {
+      if (dirty) {
+        if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+        if (!await save(blocks, doc.revision)) return;
+      }
+      const url = URL.createObjectURL(await downloadLivingPage(doc.page_id));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'living-page.html';
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handlePublish = async (): Promise<void> => {
     if (!doc) return;
     setBusy('publish');
@@ -442,6 +467,99 @@ export default function LivingPageEditor(): ReactNode {
     }
   };
 
+  /** 图示区域 → 视觉流程图转译：先落盘未保存改动，再按需识别并缓存回文档。 */
+  const recognizeDiagram = async (pageBlock: PageBlock, region: PageRegion): Promise<void> => {
+    if (!doc || busy !== null) return;
+    setBusy('region');
+    setError(null);
+    try {
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+      let current = doc;
+      if (dirty) {
+        const saved = await save(blocks, doc.revision);
+        if (!saved) return;
+        current = saved;
+      }
+      const updated = await recognizeRegionDiagram({
+        pageId: current.page_id, regionId: region.id, expectedRevision: current.revision,
+      });
+      setDoc(updated);
+      setBlocks(updated.blocks);
+      setDirty(false);
+      setSavedAt(new Date().toLocaleTimeString());
+    } catch (e) {
+      const revision = isApiError(e) ? e.details?.revision : undefined;
+      if (typeof revision === 'number') {
+        setDoc((current) => current && current.revision < revision ? { ...current, revision } : current);
+      }
+      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，请刷新' : errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** 批量转译：用户确认后逐张调用，进度可见、可取消、单张失败保留原图继续。 */
+  const [diagramQueue, setDiagramQueue] = useState<{ done: number; total: number } | null>(null);
+  const diagramCancel = useRef(false);
+  const pendingDiagramRegions = (): { pageBlock: PageBlock; region: PageRegion }[] => {
+    const out: { pageBlock: PageBlock; region: PageRegion }[] = [];
+    for (const block of blocks) {
+      if (block.type !== 'page') continue;
+      for (const region of block.data.regions ?? []) {
+        if ((region.kind === 'diagram' || region.kind === 'figure') && !region.diagram) {
+          out.push({ pageBlock: block, region });
+        }
+      }
+    }
+    return out;
+  };
+  const recognizeDiagramsBatch = async (): Promise<void> => {
+    if (!doc || busy !== null) return;
+    const queue = pendingDiagramRegions();
+    if (!queue.length || !window.confirm(`将 ${queue.length} 张图示发送给视觉模型转译？`)) return;
+    setBusy('diagram-batch');
+    diagramCancel.current = false;
+    setDiagramQueue({ done: 0, total: queue.length });
+    setError(null);
+    try {
+      let current = doc;
+      if (dirty) {
+        const saved = await save(blocks, doc.revision);
+        if (!saved) return;
+        current = saved;
+      }
+      for (const { region } of queue) {
+        if (diagramCancel.current) break;
+        try {
+          current = await recognizeRegionDiagram({
+            pageId: current.page_id, regionId: region.id, expectedRevision: current.revision,
+          });
+          setDoc(current);
+          setBlocks(current.blocks);
+        } catch (e) {
+          setError(errorMessage(e));
+          const revision = isApiError(e) ? e.details?.revision : undefined;
+          if (typeof revision === 'number') {
+            current = { ...current, revision };
+            setDoc(current);
+          }
+          if (isApiError(e, 'VERSION_CONFLICT')) break;
+        }
+        setDiagramQueue((q) => (q ? { ...q, done: q.done + 1 } : q));
+      }
+      setDirty(false);
+      setSavedAt(new Date().toLocaleTimeString());
+    } finally {
+      setDiagramQueue(null);
+      setBusy(null);
+    }
+  };
+
+  /** diagram 块拖拽/改字 → 本地 mutate（防抖 PATCH）。 */
+  const mutateBlock = (blockId: string, data: PageBlock['data']): void => {
+    mutate(blocks.map((b) => (b.id === blockId ? ({ ...b, data } as PageBlock) : b)));
+  };
+
   const openAI = (blockId: string): void => {
     setAiPanel({ blockId });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -526,9 +644,27 @@ export default function LivingPageEditor(): ReactNode {
           <button type="button" className={styles.ghostBtn} onClick={() => void loadInsights()}>
             学情
           </button>
+          {(() => {
+            const pending = pendingDiagramRegions().length;
+            if (!pending && !diagramQueue) return null;
+            return diagramQueue ? (
+              <span className={styles.ghostBtn} role="status">
+                转译 {diagramQueue.done}/{diagramQueue.total}
+                <button type="button" onClick={() => { diagramCancel.current = true; }}>取消</button>
+              </span>
+            ) : (
+              <button type="button" className={styles.ghostBtn}
+                      disabled={busy !== null}
+                      onClick={() => void recognizeDiagramsBatch()}>
+                识别流程图（{pending}）
+              </button>
+            );
+          })()}
           <button type="button" className={styles.ghostBtn} disabled={aiBusy} onClick={() => void handleDelete()}>
             删除
           </button>
+          <button type="button" className={styles.ghostBtn} disabled={busy !== null}
+                  onClick={() => void handleOfflineDownload()}>下载离线活页</button>
           <button type="button" className={styles.primaryBtn} disabled={aiBusy || busy === 'publish'} onClick={() => void handlePublish()}>
             {shareUrl ? '重新发布' : '发布'}
           </button>
@@ -578,6 +714,7 @@ export default function LivingPageEditor(): ReactNode {
                     访问 {stat.visits}
                     {stat.quiz_guesses.length ? ` · 竞猜 ${stat.quiz_guesses.length} 次` : ''}
                     {stat.checkpoint_attempts ? ` · 作答 ${stat.checkpoint_correct}/${stat.checkpoint_attempts}` : ''}
+                    {stat.diagram_step_max ? ` · 流程演示到 ${stat.diagram_step_max} 步 · ${stat.diagram_completed} 人走完全程` : ''}
                   </span>
                 </li>
               );
@@ -603,6 +740,8 @@ export default function LivingPageEditor(): ReactNode {
                 peerIds={peerIds}
                 onInsertRegion={(pageBlock, region) => void insertRegion(pageBlock, region)}
                 onRecognizeFormula={(pageBlock, region) => recognizeFormula(pageBlock, region)}
+                onRecognizeDiagram={(pageBlock, region) => recognizeDiagram(pageBlock, region)}
+                onMutateBlock={mutateBlock}
                 onAI={openAI}
                 controls={
                   <div className={styles.blockControls} data-editor-controls>

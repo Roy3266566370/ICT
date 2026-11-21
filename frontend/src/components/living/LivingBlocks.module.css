@@ -788,3 +788,124 @@ p.gateBadge {
 }
 .panelControl input[type="range"] { width: 110px; }
 .panelControl output { font-weight: 600; color: var(--ink-900, #1e293b); min-width: 3ch; }
+
+/* ---------- P2 流程图画布 ---------- */
+.diagramCanvas {
+  position: relative;
+  border: 1px solid rgba(47, 58, 73, 0.16);
+  border-radius: 10px;
+  background: #fafaf7;
+  overflow: hidden;
+}
+.diagramToolbar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.diagramStepBar {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.diagramStepHint {
+  font-size: 12px;
+  color: #5b6472;
+  white-space: nowrap;
+}
+.figNode {
+  position: relative;
+  width: 150px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  background: #fff;
+  border: 1.5px solid #3c4a5d;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.25;
+  text-align: center;
+  color: #2f3a49;
+  box-shadow: 0 1px 3px rgba(47, 58, 73, 0.08);
+}
+.figNode[data-shape="rounded"] { border-radius: 14px; }
+.figNode[data-shape="diamond"] {
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  border-radius: 0;
+  padding: 10px 26px;
+}
+.figNode[data-shape="oval"] { border-radius: 50%; }
+.figNode[data-shape="text"] {
+  border-color: transparent;
+  box-shadow: none;
+  background: transparent;
+}
+.figNode[data-selected="true"] {
+  outline: 2px solid #4a6fe0;
+  outline-offset: 2px;
+}
+.figNode[data-hl="self"] {
+  border-color: #d37535;
+  box-shadow: 0 0 0 3px rgba(211, 117, 53, 0.25);
+}
+.figNode[data-hl="up"] {
+  border-style: dashed;
+  border-color: #8a6dc9;
+}
+.figNode[data-hl="down"] {
+  background: #eef3ff;
+  border-color: #4a6fe0;
+}
+.figNode[data-step="now"] {
+  border-color: #d37535;
+  box-shadow: 0 0 0 4px rgba(211, 117, 53, 0.3);
+}
+.figNode[data-step="done"] {
+  background: #e9f5ec;
+  border-color: #3d8a5a;
+}
+.figHandle {
+  width: 6px;
+  height: 6px;
+  opacity: 0;
+  pointer-events: none;
+}
+.figLabel {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-all;
+}
+.figEdgeHot path {
+  stroke: #d37535;
+  stroke-width: 2;
+}
+.figEditor {
+  position: absolute;
+  z-index: 10;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(47, 58, 73, 0.2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 18px rgba(47, 58, 73, 0.16);
+}
+.figEditor input {
+  width: 220px;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid rgba(47, 58, 73, 0.3);
+  border-radius: 6px;
+}

@@ -1,0 +1,61 @@
+{
+  "source": "https://papers.nips.cc/paper_files/paper/2024/file/3a10c46572628d58cb44fb705f25cbbf-Paper-Conference.pdf",
+  "figure": 5,
+  "vision": {
+    "profile": "living.figure.vision",
+    "provider": "siliconflow",
+    "model": "Qwen/Qwen3-VL-32B-Instruct",
+    "available": true,
+    "max_calls": 12
+  },
+  "cases": [
+    {
+      "case": "lamp",
+      "ok": true,
+      "nodes": {
+        "matched": 6,
+        "expected": 6,
+        "predicted": 6,
+        "precision": 1.0,
+        "recall": 1.0,
+        "missing": [],
+        "extra": []
+      },
+      "directed_edges": {
+        "matched": 5,
+        "expected": 5,
+        "predicted": 5,
+        "precision": 1.0,
+        "recall": 1.0,
+        "missing": [],
+        "extra": []
+      },
+      "confidence": 1.0,
+      "warnings": []
+    },
+    {
+      "case": "tea",
+      "ok": true,
+      "nodes": {
+        "matched": 9,
+        "expected": 9,
+        "predicted": 9,
+        "precision": 1.0,
+        "recall": 1.0,
+        "missing": [],
+        "extra": []
+      },
+      "directed_edges": {
+        "matched": 9,
+        "expected": 9,
+        "predicted": 9,
+        "precision": 1.0,
+        "recall": 1.0,
+        "missing": [],
+        "extra": []
+      },
+      "confidence": 1.0,
+      "warnings": []
+    }
+  ]
+}

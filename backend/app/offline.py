@@ -78,3 +78,40 @@ def render_offline_deck(snapshot:Mapping[str,Any], material_id:str,
       '<script>(function(){const button=document.getElementById("project-backup-download");const node=document.getElementById("project-backup");if(!button||!node)return;button.addEventListener("click",function(){const blob=new Blob([node.textContent||"{}"],{type:"application/json"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="xiangsheng-project-backup.json";document.body.appendChild(link);link.click();link.remove();setTimeout(function(){URL.revokeObjectURL(link.href)},30000);});})();</script>'
       f'<script id="export-data" type="application/json">{data}</script>'
       f'<script>{script}</script></body></html>')
+
+
+def render_offline_living(document: Mapping[str, Any], find_asset: Callable[[str], Path]) -> str:
+    from .living.store import asset_keys, snapshot
+    from .schemas.errors import missing_field
+
+    runtime, stylesheet = ASSETS / 'runtime.js', ASSETS / 'runtime.css'
+    if not runtime.is_file() or not stylesheet.is_file():
+        raise missing_field('Offline runtime is missing. Run npm run build:offline')
+    frozen = snapshot(document, share_id='')
+    frozen['settings']['collect_progress'] = False
+    assets = {}
+    total = 0
+    for key in sorted(asset_keys({'blocks': frozen['blocks']})):
+        path = find_asset(key)
+        try:
+            total += path.stat().st_size
+            if total > MAX_PAGE_BYTES:
+                raise missing_field('Offline image assets exceed 64 MB')
+            assets[key] = 'data:image/png;base64,' + base64.b64encode(path.read_bytes()).decode('ascii')
+        except OSError as exc:
+            raise missing_field('An image required for offline export is missing') from exc
+
+    data = json.dumps({'living': frozen, 'assets': assets}, ensure_ascii=False).replace('<', '\u003c')
+    script = runtime.read_text(encoding='utf8').replace('</script', '<\\/script')
+    css = stylesheet.read_text(encoding='utf8').replace('</style', '<\\/style')
+    title = html.escape(str(frozen['title']), quote=True)
+    return (
+        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
+        "script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:;\">"
+        f'<title>{title}</title><style>{css}</style></head><body>'
+        '<div id="offline-root"></div>'
+        f'<script id="export-data" type="application/json">{data}</script>'
+        f'<script>{script}</script></body></html>'
+    )
