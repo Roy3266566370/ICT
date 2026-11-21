@@ -24,8 +24,16 @@ def model_context(document: Mapping[str, Any], block_id: str, instruction: str) 
     if index is None:
         raise ValueError("对应内容已删除，请重新选择")
     anchor = blocks[index]
-    text = str((anchor.get("data") or {}).get("md") or "").strip()
-    if anchor.get("type") != "text" or len(text) < 8:
+    if anchor.get("type") == "text":
+        text = str((anchor.get("data") or {}).get("md") or "").strip()
+        if len(text) < 8:
+            raise ValueError("请选择至少 8 个字符的文字内容生成交互")
+    elif anchor.get("type") == "formula":
+        latex = str((anchor.get("data") or {}).get("latex") or "").strip()
+        if len(latex) < 4:
+            raise ValueError("公式太短，请先补全后再生成交互")
+        text = f"公式：{latex}"
+    else:
         raise ValueError("请选择至少 8 个字符的文字内容生成交互")
     ref = anchor.get("source") or {}
     heading = next((b["data"]["heading"] for b in reversed(blocks[:index]) if b["type"] == "section"), "")

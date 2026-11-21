@@ -190,6 +190,30 @@ class Settings(BaseSettings):
         le=50,
         description="一次识别最多调用模型的页数；0 表示关闭图片兜底",
     )
+    # --- 活页图示视觉模型（与文本 LLM 解耦的 Provider Profile）---
+    living_figure_vision_provider: str = Field(
+        default="siliconflow",
+        description="活页图示转译供应方：none 关闭；siliconflow / maas 使用下面独立配置",
+    )
+    living_figure_vision_base_url: str = Field(
+        default="https://api.siliconflow.cn/v1",
+        description="OpenAI 兼容端点前缀，不含 /chat/completions",
+    )
+    living_figure_vision_model: str = Field(
+        default="Qwen/Qwen3-VL-32B-Instruct",
+        description="多模态模型 ID；必须支持 image_url 输入",
+    )
+    living_figure_vision_api_key: str = Field(
+        default="",
+        description="视觉模型 Key；只从环境变量 LIVING_FIGURE_VISION_API_KEY 读取",
+    )
+    living_figure_vision_timeout_s: int = Field(default=90, ge=5, le=300)
+    living_figure_max_calls: int = Field(
+        default=12,
+        ge=0,
+        le=100,
+        description="单份活页允许的图示转译调用次数；0 表示关闭",
+    )
     max_slide_pages: int = Field(default=100, ge=1)
 
     # --- 题目实验室（与课件转换分离；默认不产生任何模型调用）---

@@ -10,7 +10,11 @@
  *  - 求值见 engine.ts：沿连线向源回溯，支持 源→变换→视图 多级链。
  */
 
+export interface DatasetPoint { x: number; y: number; label: number; split: 'train' | 'validation' }
+
 export type PortValue =
+  | { kind: 'tensor2d'; data: number[][] }
+  | { kind: 'dataset2d'; points: DatasetPoint[] }
   | { kind: 'function'; expression: string; a: number; b: number; c: number }
   | { kind: 'matrix2'; a: number; b: number; c: number; d: number }
   | { kind: 'scalar'; v: number }
@@ -19,6 +23,11 @@ export type PortValue =
 export type ValueKind = PortValue['kind'];
 
 export type NodeType =
+  | 'activationProbe' | 'optimizerArena' | 'attentionAB' | 'kvCache'
+  | 'dataset2dSource' | 'pixelGridSource' | 'tokenSeqSource'
+  | 'linearOp' | 'activationOp' | 'residualJoin' | 'normOp' | 'conv2dOp' | 'attentionOp'
+  | 'mlpTrainer' | 'boundaryView' | 'matrixHeatmapView' | 'gradFlowMeter'
+  | 'svmLab' | 'resnetLab' | 'sequenceMemory' | 'multiheadLab' | 'autoencoderLab' | 'diffusionLab' | 'qLearningLab'
   | 'functionSource' | 'functionPlot' | 'limitProbe' | 'derivative' | 'integral' | 'taylor'
   // 源：只有输出
   | 'matrixSource'   // 矩阵源（可编辑 2×2 → 广播 matrix2）

@@ -8,8 +8,10 @@ RapidOCR，文字版 PDF 优先读取文字层。每个预览都是落盘 PNG，
 from __future__ import annotations
 
 import io
+import logging
 import math
 import re
+import shutil
 import threading
 import time
 import zipfile
@@ -56,6 +58,8 @@ _LATEX_MODEL_FILES = {
 #: 本地公式模型约 180MB；只使用已下载到包目录的权重，请求内不触发下载。
 _MATH_OCR_CUES = ("∫", "\\int", "\\frac", "dx", "dy", "dt", "\\sqrt")
 _LIMIT_CUE = re.compile(r"(?<![A-Za-z])lim(?![A-Za-z])|极限", re.I)
+
+logger = logging.getLogger(__name__)
 
 
 class ExtractError(ValueError):
@@ -139,6 +143,89 @@ def _ocr(image: Image.Image) -> tuple[str, float | None]:
     average = sum(scores) / len(scores) if scores else None
     return '\n'.join(' '.join(row['text'] for row in sorted(line['rows'], key=lambda row: row['x']))
                      for line in lines), average
+
+
+def _ocr_detections(image: Image.Image, limit: int = 8) -> list[dict[str, Any]]:
+    """RapidOCR 原始条目 → 标签候选 [{text, bbox 相对送检图归一化}]。
+
+    用于示意图/结构图区域的“可点击标签”热区；引擎不可用时返回空列表。
+    """
+    try:
+        import numpy as np
+
+        engine = _ocr_engine()
+        prepared = image.convert("RGB")
+        if prepared.width < 900 and prepared.height < 260:
+            prepared = prepared.resize((prepared.width * 4, prepared.height * 4), Image.LANCZOS)
+            prepared = ImageOps.expand(prepared, border=12, fill="white")
+        width, height = prepared.size
+        result, _elapsed = engine(np.asarray(prepared))
+    except Exception:  # noqa: BLE001 - OCR 失败按无标签处理
+        return []
+    detections: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in result or []:
+        if not isinstance(item, (list, tuple)) or len(item) < 3:
+            continue
+        box, text, score = item[0], item[1], item[2]
+        try:
+            xs = [float(point[0]) for point in box]
+            ys = [float(point[1]) for point in box]
+            confidence = float(score)
+        except (TypeError, IndexError, ValueError):
+            continue
+        content = str(text).strip()
+        if not content or len(content) > 40 or confidence < 0.5:
+            continue
+        x0, x1 = max(0.0, min(xs)) / width, min(width, max(xs)) / width
+        y0, y1 = max(0.0, min(ys)) / height, min(height, max(ys)) / height
+        if x1 - x0 < 0.01 or y1 - y0 < 0.01 or (x1 - x0) * (y1 - y0) > 0.7:
+            continue
+        key = content.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        detections.append({
+            "text": content,
+            "bbox": [round(x0, 6), round(y0, 6), round(x1, 6), round(y1, 6)],
+        })
+        if len(detections) >= limit:
+            break
+    return detections
+
+
+# 区域后处理预算：限制一次转换里标签 OCR 的调用次数。
+# 公式 LaTeX 已移出上传链路——子进程模型一次要十几秒，改为「点击时按需识别」
+#（POST /pages/{id}/regions/{rid}/formula-ocr，结果缓存回文档）。
+_REGION_LABEL_BUDGET = 10
+
+
+def _region_crop(lab_dir: Path, region_id: str) -> Image.Image | None:
+    path = lab_dir / "analysis" / "regions" / f"{region_id}.png"
+    try:
+        with Image.open(path) as img:
+            return img.convert("RGB")
+    except Exception:  # noqa: BLE001 - 裁剪缺失跳过
+        return None
+
+
+def _fill_region_extras(regions: list[dict[str, Any]], lab_dir: Path,
+                        budget: dict[str, int]) -> None:
+    """区域后处理：栅格图示裁剪 → OCR 标签热区（受预算约束，失败静默降级）。
+
+    矢量图/组合图示已有确定性文字层与形状框标签，这里只补位图来源。
+    """
+    for region in regions:
+        if not isinstance(region, dict):
+            continue
+        if (region.get("kind") in ("figure", "diagram")
+                and not region.get("labels") and budget["labels"] > 0):
+            budget["labels"] -= 1
+            crop = _region_crop(lab_dir, str(region.get("id") or ""))
+            if crop is not None:
+                labels = _ocr_detections(crop)
+                if labels:
+                    region["labels"] = labels
 
 
 def _local_latex_paths() -> dict[str, Any]:
@@ -684,6 +771,7 @@ def _pdf_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int, *, pres
         if preserve_layout and len(document) > remaining:
             raise ExtractError(f"PDF 共 {len(document)} 页，超过活页剩余 {remaining} 页额度，请拆分文件后上传")
         count = min(len(document), remaining)
+        region_budget = {"labels": _REGION_LABEL_BUDGET}
         for index in range(count):
             page = document[index]
             text = page.get_text("text").strip()
@@ -757,6 +845,18 @@ def _pdf_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int, *, pres
                     **review,
                 }
             )
+            if preserve_layout and image is not None:
+                try:
+                    from ..documents.regions import regions_for_pdf_page
+
+                    page_regions = regions_for_pdf_page(
+                        page, image, lab_dir, file_id, index + 1,
+                    )
+                    _fill_region_extras(page_regions, lab_dir, region_budget)
+                    if page_regions:
+                        pages[-1]["regions"] = page_regions
+                except Exception:  # noqa: BLE001 - 区域失败不影响原页与文字
+                    logger.exception("活页 PDF 区域提取失败 page=%s", index + 1)
             if needs_ocr:
                 _attach_ocr_quality(pages[-1])
     finally:
@@ -766,7 +866,8 @@ def _pdf_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int, *, pres
     return pages, "+".join(sorted(methods))
 
 
-def _image_pages(data: bytes, file_id: str, lab_dir: Path) -> tuple[list[dict[str, Any]], str]:
+def _image_pages(data: bytes, file_id: str, lab_dir: Path, *,
+                 regions: bool = False) -> tuple[list[dict[str, Any]], str]:
     try:
         image = Image.open(io.BytesIO(data))
         image.load()
@@ -791,24 +892,32 @@ def _image_pages(data: bytes, file_id: str, lab_dir: Path) -> tuple[list[dict[st
         method = "image_ocr"
         if confidence is not None and confidence < OCR_CONFIDENCE_THRESHOLD:
             method = "image_ocr_low_confidence"
-    return (
-        [
-            _attach_ocr_quality({
-                "file_id": file_id,
-                "page": 1,
-                "text": text,
-                "method": method,
-                "image_key": preview,
-                "ocr_text": ocr_text,
-                "math_text": math_text,
-                "math_repaired_text": repaired_text,
-                "math_display_text": display_text,
-                "ocr_confidence": confidence,
-                **_formula_review(f"{ocr_text}\n{text}", visual_formula=math_text is not None),
-            })
-        ],
-        method,
-    )
+    page_item = _attach_ocr_quality({
+        "file_id": file_id,
+        "page": 1,
+        "text": text,
+        "method": method,
+        "image_key": preview,
+        "ocr_text": ocr_text,
+        "math_text": math_text,
+        "math_repaired_text": repaired_text,
+        "math_display_text": display_text,
+        "ocr_confidence": confidence,
+        **_formula_review(f"{ocr_text}\n{text}", visual_formula=math_text is not None),
+    })
+    if regions:
+        try:
+            from ..documents.regions import regions_for_image
+
+            image_regions = regions_for_image(
+                image, lab_dir, file_id, text, math_text,
+                labels=_ocr_detections(image) if math_text is None else [],
+            )
+            if image_regions:
+                page_item["regions"] = image_regions
+        except Exception:  # noqa: BLE001 - 区域失败不影响图片识别
+            logger.exception("活页图片区域提取失败 file=%s", file_id)
+    return [page_item], method
 
 
 #: OMML（Office 公式编辑器对象）——python-pptx 的 text_frame 读不到它，直接走 XML。
@@ -977,7 +1086,76 @@ def _pptx_preview(slide: Any, slide_w: int, slide_h: int,
     return _save_preview(canvas.convert("RGB"), lab_dir, key)
 
 
-def _pptx_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int) -> tuple[list[dict[str, Any]], str]:
+def _render_pptx_slides(
+    pptx_path: Path,
+    lab_dir: Path,
+    file_id: str,
+    slide_w: int,
+    slide_h: int,
+    count: int,
+) -> dict[int, tuple[str, int, int]]:
+    """尽量调用本机 PowerPoint COM / LibreOffice 把 PPTX 渲染为整页 PNG。"""
+    from ..render import engine_com, engine_libreoffice
+    from ..render.engine_select import select_engine
+    from ..render.errors import ENGINE_COM, ENGINE_LIBREOFFICE, RenderError
+
+    choice = select_engine("auto")
+    if not choice.produces_page_images:
+        return {}
+
+    width = 1280
+    height = max(1, round(width * slide_h / slide_w)) if slide_w > 0 and slide_h > 0 else 720
+    tmp_dir = lab_dir / f"_pptx_render_{file_id}"
+    order = [choice.engine]
+    for fallback in (ENGINE_COM, ENGINE_LIBREOFFICE):
+        if fallback not in order and (
+            (fallback == ENGINE_COM and engine_com.is_available())
+            or (fallback == ENGINE_LIBREOFFICE and engine_libreoffice.is_available())
+        ):
+            order.append(fallback)
+
+    files: list[Path] = []
+    try:
+        for engine in order:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                if engine == ENGINE_COM:
+                    files = engine_com.render_pptx(pptx_path, tmp_dir, width=width, height=height)
+                elif engine == ENGINE_LIBREOFFICE:
+                    files = engine_libreoffice.render_pptx(pptx_path, tmp_dir, width=width, height=height)
+                if files:
+                    break
+            except RenderError as exc:
+                logger.warning("活页 PPTX 引擎 %s 整页渲染失败，尝试回退：%s", engine, exc.message)
+                files = []
+        out: dict[int, tuple[str, int, int]] = {}
+        for index, path in enumerate(files[:count], start=1):
+            if not path.is_file():
+                continue
+            try:
+                with Image.open(path) as img:
+                    img.load()
+                    key = _save_preview(img, lab_dir, f"{file_id}_p{index}", fast=True)
+                    preview_path = lab_dir / "previews" / f"{key}.png"
+                    with Image.open(preview_path) as saved:
+                        out[index] = (key, saved.width, saved.height)
+            except Exception:  # noqa: BLE001
+                continue
+        return out
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+def _pptx_pages(
+    data: bytes,
+    file_id: str,
+    lab_dir: Path,
+    remaining: int,
+    *,
+    preserve_layout: bool = False,
+    pptx_path: Path | None = None,
+) -> tuple[list[dict[str, Any]], str]:
     from pptx import Presentation
 
     _validate_pptx(data)
@@ -987,7 +1165,18 @@ def _pptx_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int) -> tup
         raise ExtractError("PPTX 无法打开") from exc
     slide_w = getattr(presentation, "slide_width", 0) or 0
     slide_h = getattr(presentation, "slide_height", 0) or 0
+    total_slides = len(presentation.slides)
+    if preserve_layout and total_slides > remaining:
+        raise ExtractError(f"PPTX 共 {total_slides} 页，超过活页剩余 {remaining} 页额度，请拆分文件后上传")
+    count = min(total_slides, remaining)
+    rendered = (
+        _render_pptx_slides(pptx_path, lab_dir, file_id, slide_w, slide_h, count)
+        if preserve_layout and pptx_path is not None and pptx_path.is_file()
+        else {}
+    )
     pages: list[dict[str, Any]] = []
+    methods: set[str] = set()
+    region_budget = {"labels": _REGION_LABEL_BUDGET}
     for index, slide in enumerate(presentation.slides):
         if index >= remaining:
             break
@@ -1002,18 +1191,64 @@ def _pptx_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int) -> tup
                     cells = [cell.text.strip() for cell in row.cells]
                     if any(cells):
                         parts.append(" | ".join(cells))
-        pages.append(
-            {
-                "page": index + 1,
+        page_no = index + 1
+        rendered_info = rendered.get(page_no)
+        if rendered_info is not None:
+            image_key, img_w, img_h = rendered_info
+            page_method = "pptx_render"
+            page_item: dict[str, Any] = {
+                "page": page_no,
                 "text": "\n".join(parts).strip(),
-                "method": "pptx_text",
+                "method": page_method,
                 "hidden": slide._element.get("show") == "0",
-                "image_key": _pptx_preview(slide, slide_w, slide_h, lab_dir, f"{file_id}_p{index + 1}"),
+                "image_key": image_key,
+                "image_width": img_w,
+                "image_height": img_h,
+                "preserve_layout": True,
             }
-        )
+        else:
+            image_key = _pptx_preview(slide, slide_w, slide_h, lab_dir, f"{file_id}_p{page_no}")
+            page_method = "pptx_text"
+            page_item = {
+                "page": page_no,
+                "text": "\n".join(parts).strip(),
+                "method": page_method,
+                "hidden": slide._element.get("show") == "0",
+                "image_key": image_key,
+            }
+            if image_key is not None and preserve_layout:
+                preview_file = lab_dir / "previews" / f"{image_key}.png"
+                if preview_file.is_file():
+                    try:
+                        with Image.open(preview_file) as img:
+                            page_item["image_width"] = img.width
+                            page_item["image_height"] = img.height
+                            page_item["preserve_layout"] = True
+                    except Exception:  # noqa: BLE001
+                        pass
+        methods.add(page_method)
+        if preserve_layout and image_key:
+            preview_file = lab_dir / "previews" / f"{image_key}.png"
+            if preview_file.is_file():
+                try:
+                    from ..documents.regions import regions_for_pptx_slide
+
+                    with Image.open(preview_file) as preview_image:
+                        preview_image.load()
+                        page_regions = regions_for_pptx_slide(
+                            slide, slide_w, slide_h,
+                            preview_image.convert("RGB"),
+                            lab_dir, file_id, page_no,
+                        )
+                    _fill_region_extras(page_regions, lab_dir, region_budget)
+                    if page_regions:
+                        page_item["regions"] = page_regions
+                except Exception:  # noqa: BLE001 - 区域失败不影响整页预览
+                    logger.exception("活页 PPTX 区域提取失败 page=%s", page_no)
+        pages.append(page_item)
     if not pages:
         raise ExtractError("PPTX 没有可读取的幻灯片")
-    return pages, "pptx_text"
+    return pages, "+".join(sorted(methods))
 
 
 def _text_pages(data: bytes, file_id: str, lab_dir: Path, suffix: str) -> tuple[list[dict[str, Any]], str]:
@@ -1109,10 +1344,17 @@ def extract_files(
                 pages, method = _pdf_pages(data, file_id, lab_dir, remaining)
             kind = "pdf"
         elif suffix in IMAGE_SUFFIXES:
-            pages, method = _image_pages(data, file_id, lab_dir)
+            pages, method = _image_pages(data, file_id, lab_dir, regions=preserve_layout)
             kind = "image"
         elif suffix == ".pptx":
-            pages, method = _pptx_pages(data, file_id, lab_dir, remaining)
+            pages, method = _pptx_pages(
+                data,
+                file_id,
+                lab_dir,
+                remaining,
+                preserve_layout=preserve_layout,
+                pptx_path=files_dir / stored_name,
+            )
             kind = "pptx"
         else:
             pages, method = _text_pages(data, file_id, lab_dir, suffix)

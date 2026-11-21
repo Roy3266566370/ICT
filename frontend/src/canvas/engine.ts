@@ -17,6 +17,10 @@ import type { CanvasDoc, CanvasNode, PortValue } from './types.ts';
 import { mul2, paramsM, rot2, IDENT } from './math.ts';
 import { PHYS_TYPES, bodyAt, physCycle, type PhysNodeType } from './physics.ts';
 import { functionValue, compileFunction, derivativeAt, integrate, approachLimit, taylorPolynomial } from './calculus.ts';
+import { DEEP_NODE_TYPES, validDeepValue } from './deepPorts.ts';
+import { deepFirstOutput } from './deepFirst.ts';
+import { deepCoreOutput } from './deepCore.ts';
+import { deepAdvancedOutput } from './deepAdvanced.ts';
 
 export interface EvalCtx {
   doc: CanvasDoc;
@@ -80,6 +84,17 @@ function subCtxOf(ctx: EvalCtx, node: CanvasNode): EvalCtx | null {
 }
 
 function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | null {
+  if (DEEP_NODE_TYPES.has(node.type)) {
+    const runtime = ctx.live.get(`${node.id}|${portId}`);
+    if (runtime && validDeepValue(runtime)) return runtime;
+    const input = (port: string) => evalInput(ctx, node, port);
+    try {
+      const value = deepFirstOutput(node, input, portId) ?? deepCoreOutput(node, input, portId) ?? deepAdvancedOutput(node, input, portId);
+      return validDeepValue(value) ? value : null;
+    } catch {
+      return null;
+    }
+  }
   switch (node.type) {
     case 'functionSource': {
       try { return functionValue(node.text ?? 'a*x^2+b*x+c', node.params); } catch { return null; }

@@ -70,7 +70,36 @@ def _segments(text: str) -> list[str]:
     return out
 
 
-def _source(file_id: str | None, page: int | None, span: int | None = None) -> dict[str, Any] | None:
+def _function_from_latex(latex: str) -> tuple[str | None, list[str]]:
+    """LaTeX → 画布可求值表达式 + 用到的参数字母；失败返回 (None, [])。
+
+    复用题目实验室的受限解析器；只接受自由变量 ⊆ {x,a,b,c} 的一元函数，
+    解析不了就不标 expression，前端只落 formula 块。
+    """
+    try:
+        from ..labs.ink import latex_to_expression
+
+        expression = latex_to_expression(latex)
+    except Exception:  # noqa: BLE001 - 解析失败不阻断
+        return None, []
+    if not expression:
+        return None, []
+    try:
+        from ..labs.expr import parse_expression
+
+        symbols = {
+            str(symbol)
+            for symbol in parse_expression(
+                expression, variables=("x", "a", "b", "c"),
+            ).free_symbols
+        }
+    except Exception:  # noqa: BLE001 - 参数缺失不阻断
+        symbols = set()
+    return expression, [name for name in ("a", "b", "c") if name in symbols]
+
+
+def _source(file_id: str | None, page: int | None, span: int | None = None,
+            region: str | None = None) -> dict[str, Any] | None:
     ref: dict[str, Any] = {}
     if file_id:
         ref["file_id"] = file_id
@@ -78,6 +107,8 @@ def _source(file_id: str | None, page: int | None, span: int | None = None) -> d
         ref["page"] = page
     if isinstance(span, int):
         ref["span"] = [span, span]
+    if isinstance(region, str) and region.strip():
+        ref["region"] = region.strip()[:40]
     return ref or None
 
 
@@ -89,6 +120,7 @@ def blockify(source: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str]
     blocks: list[dict[str, Any]] = []
     notes: list[str] = []
     seen_files: set[str] = set()
+    region_total = 0
 
     if not pages:
         notes.append("没有读取到页面内容")
@@ -126,20 +158,52 @@ def blockify(source: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str]
             notes.append(f"{file_name} 第 {page_no} 页内容过长，已合并尾部段落")
 
         src = _source(file_id, page_no if isinstance(page_no, int) else None)
+        page_regions = [
+            dict(region) for region in page.get("regions") or []
+            if isinstance(region, dict) and region.get("bbox")
+        ]
+        region_total += len(page_regions)
         if isinstance(image_key, str) and image_key:
+            page_data: dict[str, Any] = {
+                "image_key": image_key,
+                "alt": f"{file_name} 第 {page_no} 页" + ("（隐藏页）" if page.get("hidden") else ""),
+                "collapsed": bool(segments) and not preserve_layout,
+                "width": page.get("image_width"),
+                "height": page.get("image_height"),
+            }
+            if page_regions:
+                page_data["regions"] = page_regions
             blocks.append({
                 "id": new_block_id(),
                 "type": "page",
                 "floor": True,
                 "source": src,
-                "data": {
-                    "image_key": image_key,
-                    "alt": f"{file_name} 第 {page_no} 页" + ("（隐藏页）" if page.get("hidden") else ""),
-                    "collapsed": bool(segments) and not preserve_layout,
-                    "width": page.get("image_width"),
-                    "height": page.get("image_height"),
-                },
+                "data": page_data,
             })
+
+        if preserve_layout:
+            for region in page_regions:
+                if region.get("kind") != "formula":
+                    continue
+                latex = str(region.get("latex") or "").strip()
+                if not latex:
+                    continue
+                expression, params = _function_from_latex(latex)
+                if expression:
+                    region["expression"] = expression
+                    if params:
+                        region["params"] = params
+                block = {
+                    "id": new_block_id(),
+                    "type": "formula",
+                    "source": _source(
+                        file_id, page_no if isinstance(page_no, int) else None,
+                        region=str(region.get("id") or ""),
+                    ),
+                    "data": {"latex": latex},
+                }
+                blocks.append(block)
+                region["block_id"] = block["id"]
 
         for index, seg in enumerate(segments):
             kind = "formula" if _DISPLAY_FORMULA.match(seg) else "text"
@@ -159,6 +223,8 @@ def blockify(source: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str]
                 "data": {"md": f"（{file_name} 第 {page_no} 页没有读取到文字）"},
             })
 
+    if region_total:
+        notes.append(f"识别到 {region_total} 个可交互区域（图示/公式热区）")
     hidden_pages = [p.get("page") for p in pages if p.get("hidden")]
     if hidden_pages:
         notes.append(f"{len(hidden_pages)} 页为隐藏幻灯片，仍按原样保留")

@@ -1,0 +1,25 @@
+.body { padding: 12px; color: #333949; font-size: 12px; line-height: 1.6; }
+.controls { display: grid; gap: 8px; }
+.controls label { display: grid; gap: 2px; }
+.controls label span { display: flex; justify-content: space-between; gap: 8px; }
+.controls input { width: 100%; accent-color: #5368bb; }
+.controls input:disabled { opacity: .5; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; align-items: center; }
+.actions button { border: 1px solid #bfc5d8; background: #f1f3fa; border-radius: 5px; padding: 4px 8px; color: #364a8c; cursor: pointer; }
+.actions button:disabled { opacity: .45; cursor: default; }
+.note { border-left: 3px solid #d37535; padding: 8px 10px; background: #fbf7f1; margin: 12px 0; }
+.readouts { display: flex; gap: 12px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.charts { display: grid; gap: 8px; }
+.figure { margin: 8px 0; padding: 8px; background: #fafbfe; border: 1px solid #e0e4ef; border-radius: 6px; min-width: 0; }
+.figure figcaption { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.figure svg { display: block; width: 100%; height: auto; }
+.figure svg text { fill: #757d90; font-size: 9px; }
+.figure small { color: #626b80; overflow-wrap: anywhere; }
+.heatmap { display: grid; gap: 2px; }
+.heatmap button { min-width: 0; min-height: 18px; border: 0; border-radius: 2px; padding: 1px; color: #17213a; font-size: 10px; cursor: crosshair; }
+.heatmap button:hover, .heatmap button:focus-visible { outline: 2px solid #d37535; z-index: 1; }
+.plane { cursor: crosshair; }
+.world { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; padding: 3px; }
+.world button { aspect-ratio: 1; border: 1px solid #c1c8dc; border-radius: 3px; color: #25324e; font-size: 14px; cursor: pointer; }
+.body details { margin-top: 10px; color: #687086; }
+.body summary { cursor: pointer; }

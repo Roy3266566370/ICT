@@ -38,6 +38,8 @@ MAX_URL = 2000
 MAX_BLOCK_TYPE = 128
 MAX_VARIABLES = 40
 MAX_BINDINGS = 32
+MAX_REGIONS = 12
+REGION_KINDS = {"figure", "diagram", "formula", "table"}
 CALLOUT_KINDS = {"theorem", "proof", "example", "warning"}
 VARIABLE_TYPES = {"number", "select"}
 _VAR_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]{0,31}")
@@ -120,6 +122,9 @@ def _source_ref(raw: Any) -> dict[str, Any] | None:
         and all(isinstance(v, int) for v in span)
     ):
         ref["span"] = [max(0, span[0]), max(0, span[1])]
+    region = raw.get("region")
+    if isinstance(region, str) and region.strip():
+        ref["region"] = region.strip()[:40]
     return ref or None
 
 
@@ -267,6 +272,101 @@ def _finite_float(value: Any, label: str) -> float:
     return number
 
 
+def _validate_regions(raw: Any) -> list[dict[str, Any]]:
+    """页内区域：归一化 bbox + 裁剪资产 + 类型；越界直接拒绝，不静默漂移。"""
+    if not isinstance(raw, list):
+        raise ValueError("page.regions 必须是数组")
+    if len(raw) > MAX_REGIONS:
+        raise ValueError(f"page.regions 超过上限 {MAX_REGIONS}")
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            raise ValueError("区域必须是对象")
+        kind = str(item.get("kind") or "figure")
+        if kind not in REGION_KINDS:
+            raise ValueError(f"区域类型必须是 {sorted(REGION_KINDS)} 之一")
+        box = item.get("bbox")
+        if not isinstance(box, (list, tuple)) or len(box) != 4:
+            raise ValueError("区域 bbox 必须是 4 个归一化数值")
+        values = [_finite_float(value, "区域 bbox") for value in box]
+        x0, y0, x1, y1 = (
+            max(0.0, min(1.0, values[0])), max(0.0, min(1.0, values[1])),
+            max(0.0, min(1.0, values[2])), max(0.0, min(1.0, values[3])),
+        )
+        if x1 <= x0 or y1 <= y0:
+            raise ValueError("区域 bbox 必须满足 x1 > x0 且 y1 > y0")
+        identifier = str(item.get("id") or "").strip()
+        if not identifier or len(identifier) > 40:
+            raise ValueError("区域 id 必须是非空且不超过 40 字符的字符串")
+        asset_id = str(item.get("asset_id") or "").strip()
+        if not asset_id or len(asset_id) > 80:
+            raise ValueError("区域 asset_id 必须是非空且不超过 80 字符的字符串")
+        confidence = item.get("confidence", 0.0)
+        try:
+            confidence_value = float(confidence)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("区域 confidence 必须是有限数值") from exc
+        if isinstance(confidence, bool) or not math.isfinite(confidence_value):
+            raise ValueError("区域 confidence 必须是有限数值")
+        region: dict[str, Any] = {
+            "id": identifier,
+            "kind": kind,
+            "bbox": [round(x0, 6), round(y0, 6), round(x1, 6), round(y1, 6)],
+            "asset_id": asset_id,
+            "label": _clamp_text(item.get("label") or "区域", 200),
+            "caption": _clamp_text(item.get("caption"), 300),
+            "text": _clamp_text(item.get("text"), 2000),
+            "source": _clamp_text(item.get("source"), 40),
+            "confidence": round(max(0.0, min(1.0, confidence_value)), 3),
+        }
+        latex = item.get("latex")
+        if isinstance(latex, str) and latex.strip():
+            region["latex"] = latex.strip()[:4000]
+        expression = item.get("expression")
+        if isinstance(expression, str) and expression.strip():
+            region["expression"] = expression.strip()[:500]
+        params = item.get("params")
+        if isinstance(params, list):
+            keep = [p for p in dict.fromkeys(str(v) for v in params[:4])
+                    if p in ("a", "b", "c")]
+            if keep:
+                region["params"] = keep
+        labels = item.get("labels")
+        if isinstance(labels, list):
+            cleaned: list[dict[str, Any]] = []
+            for entry in labels[:10]:
+                if not isinstance(entry, Mapping):
+                    continue
+                text = _clamp_text(entry.get("text"), 80).strip()
+                box = entry.get("bbox")
+                if not text or not isinstance(box, (list, tuple)) or len(box) != 4:
+                    continue
+                try:
+                    lv = [float(v) for v in box]
+                except (TypeError, ValueError):
+                    continue
+                if any(not math.isfinite(v) for v in lv):
+                    continue
+                lx0 = max(0.0, min(1.0, lv[0]))
+                ly0 = max(0.0, min(1.0, lv[1]))
+                lx1 = max(0.0, min(1.0, lv[2]))
+                ly1 = max(0.0, min(1.0, lv[3]))
+                if lx1 <= lx0 or ly1 <= ly0:
+                    continue
+                cleaned.append({"text": text,
+                                "bbox": [round(v, 6) for v in (lx0, ly0, lx1, ly1)]})
+            if cleaned:
+                region["labels"] = cleaned
+        block_id = item.get("block_id")
+        if isinstance(block_id, str) and block_id.strip():
+            region["block_id"] = block_id.strip()[:40]
+        canvas_block_id = item.get("canvas_block_id")
+        if isinstance(canvas_block_id, str) and canvas_block_id.strip():
+            region["canvas_block_id"] = canvas_block_id.strip()[:40]
+        out.append(region)
+    return out
+
+
 def _validate_data(kind: str, data: Mapping[str, Any]) -> dict[str, Any]:
     if kind == "page":
         out = {"alt": _clamp_text(data.get("alt"), 300)}
@@ -277,6 +377,10 @@ def _validate_data(kind: str, data: Mapping[str, Any]) -> dict[str, Any]:
             value = data.get(key)
             if isinstance(value, (int, float)) and 0 < value <= 100000:
                 out[key] = int(value)
+        if data.get("regions") is not None:
+            regions = _validate_regions(data.get("regions"))
+            if regions:
+                out["regions"] = regions
         return out
     if kind == "text":
         return {"md": _clamp_text(data.get("md")), **({"collapsed": True} if data.get("collapsed") else {})}
@@ -534,8 +638,8 @@ def build_problem_snapshot(text: str) -> dict[str, Any]:
     if not problems:
         raise ValueError("这段文字识别不成题目")
     problem = copy.deepcopy(problems[0])
-    if problem.get("subject") == "unknown" or problem.get("status") == "unsupported":
-        raise ValueError("这段文字识别不成可求解的题目，请补充条件或换一段")
+    if problem.get("subject") == "unknown" or problem.get("status") != "ready":
+        raise ValueError("这段文字缺少可计算的完整条件，无法直接生成实验块，请补充条件或保留原文")
     problem.pop("states", None)
     for page in problem.get("source_pages") or []:
         page.pop("stored_name", None)

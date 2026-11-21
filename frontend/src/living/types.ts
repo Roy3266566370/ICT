@@ -35,7 +35,48 @@ export interface PageBlockSource {
   file_id?: string;
   page?: number;
   span?: [number, number];
+  /** 页内区域 id（公式块等由此回溯到原页热区）。 */
+  region?: string;
 }
+
+export type PageRegionKind = 'figure' | 'diagram' | 'formula' | 'table';
+
+/** 区域内可点击标签热区：bbox 相对区域裁剪图归一化（0..1）。 */
+export interface PageRegionLabel {
+  text: string;
+  bbox: [number, number, number, number];
+}
+
+/** 原页热区：bbox 为 0..1 归一化坐标，任何显示宽度都不会漂移。 */
+export interface PageRegion {
+  id: string;
+  kind: PageRegionKind;
+  bbox: [number, number, number, number];
+  asset_id: string;
+  label: string;
+  caption?: string;
+  text?: string;
+  source?: string;
+  confidence?: number;
+  latex?: string;
+  /** 区域内标签热区（文字层/形状框/OCR 检测框），供遮挡自测与点击解释。 */
+  labels?: PageRegionLabel[];
+  /** 后端规范化出的一元函数表达式（受限解析器可求值），有则可生成函数图。 */
+  expression?: string;
+  /** expression 中实际出现的参数字母（a/b/c 子集）。 */
+  params?: string[];
+  /** 正文锚块（formula 保真块 / figure 块）。 */
+  block_id?: string;
+  /** 交互函数图画布块（与 formula 保真块分开，避免重复插入）。 */
+  canvas_block_id?: string;
+}
+
+export const REGION_LABELS: Record<PageRegionKind, string> = {
+  figure: '插图',
+  diagram: '图示',
+  formula: '公式',
+  table: '表格',
+};
 
 interface BlockBase<T extends PageBlockType, D> {
   id: string;
@@ -52,7 +93,14 @@ interface BlockBase<T extends PageBlockType, D> {
 }
 
 export type PageBlock =
-  | BlockBase<'page', { alt: string; image_key?: string; collapsed: boolean; width?: number; height?: number }>
+  | BlockBase<'page', {
+    alt: string;
+    image_key?: string;
+    collapsed: boolean;
+    width?: number;
+    height?: number;
+    regions?: PageRegion[];
+  }>
   | BlockBase<'text', { md: string; collapsed?: boolean }>
   | BlockBase<'figure', { asset_id: string; caption: string }>
   | BlockBase<'formula', { latex: string }>

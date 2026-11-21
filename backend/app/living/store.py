@@ -121,12 +121,22 @@ def asset_keys(document: Mapping[str, Any]) -> set[str]:
         key = page.get("image_key")
         if isinstance(key, str) and key:
             keys.add(key)
+        for region in page.get("regions") or []:
+            if isinstance(region, dict):
+                key = region.get("asset_id")
+                if isinstance(key, str) and key:
+                    keys.add(key)
     for block in document.get("blocks") or []:
         data = block.get("data") or {}
         for field in ("image_key", "asset_id"):
             key = data.get(field)
             if isinstance(key, str) and key:
                 keys.add(key)
+        for region in data.get("regions") or []:
+            if isinstance(region, dict):
+                key = region.get("asset_id")
+                if isinstance(key, str) and key:
+                    keys.add(key)
     return keys
 
 

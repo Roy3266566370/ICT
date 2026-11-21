@@ -6,7 +6,7 @@
  * 模板在客户端组装 CanvasDoc 后经 worksApi 建档，打开即玩即改。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
 import { worksApi, type ShareSummary, type WorkSummary } from '@/api/works';
 import { nextId } from '@/canvas/math.ts';
@@ -20,6 +20,14 @@ import {
   lab408TemplateDoc,
   type Lab408TemplateKind,
 } from '@/canvas/lab408Templates';
+import {
+  DEEP_TEMPLATES,
+  DEEP_TOPICS,
+  deepTemplateDoc,
+  isDeepTemplateKind,
+  type DeepTemplate,
+  type DeepTemplateKind,
+} from '@/canvas/deepTemplates';
 import styles from './WorkshopPage.module.css';
 
 /* ---------- 模板：客户端组装 CanvasDoc ---------- */
@@ -29,6 +37,7 @@ function makeNode(type: string, x: number, y: number, params: Record<string, num
 }
 
 function templateDoc(kind: TemplateKind): CanvasDoc {
+  if (isDeepTemplateKind(kind)) return deepTemplateDoc(kind);
   if (isLab408Kind(kind) || isLab408WorkbenchKind(kind)) return lab408TemplateDoc(kind);
   if (kind !== 'projectile' && kind !== 'spring' && kind !== 'pendulum') return calculusTemplateDoc(kind);
   if (kind === 'projectile') {
@@ -79,8 +88,8 @@ function templateDoc(kind: TemplateKind): CanvasDoc {
 }
 
 type MechanicsKind = 'projectile' | 'spring' | 'pendulum';
-type TemplateKind = MechanicsKind | CalculusTemplateKind | Lab408TemplateKind;
-type TemplateCategory = 'calculus' | 'mechanics' | 'lab408' | 'all';
+type TemplateKind = MechanicsKind | CalculusTemplateKind | Lab408TemplateKind | DeepTemplateKind;
+type TemplateCategory = 'calculus' | 'mechanics' | 'lab408' | 'deep' | 'all';
 
 const TEMPLATES: readonly { kind: MechanicsKind; name: string; desc: string; tag: string }[] = [
   { kind: 'projectile', name: '抛体实验', desc: 'v0 / 角度 / g → 轨迹、能量、速率曲线', tag: '力学 · 抛体' },
@@ -177,6 +186,50 @@ const PREVIEWS: Record<MechanicsKind, () => JSX.Element> = {
   spring: SpringPreview,
   pendulum: PendulumPreview,
 };
+
+function DeepPreview({ template }: { template: DeepTemplate }): JSX.Element {
+  if (template.preview === 'attention') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {[0, 1, 2, 3].map(i => <g key={i}>{[0, 1, 2, 3].map(j => <rect key={j} x={48 + j * 38} y={24 + i * 24} width="34" height="20" rx="3" fill="var(--color-indigo)" fillOpacity={0.08 + ((i + j) % 4) * 0.12} stroke="var(--hairline)" />)}</g>)}
+      <path d="M65 125Q130 96 195 125" fill="none" stroke="var(--color-coral)" strokeWidth="1.6" />
+      <text x="130" y="138" textAnchor="middle" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">QKᵀ / √dₖ · softmax</text>
+    </svg>;
+  }
+  if (template.preview === 'generative') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {Array.from({ length: 26 }, (_, i) => <circle key={i} cx={54 + (i * 53) % 158} cy={40 + (i * 37) % 66} r={2 + (i % 3) * 0.8} fill={i % 4 === 0 ? 'var(--color-coral)' : 'var(--color-indigo)'} opacity=".58" />)}
+      {[0, 1, 2, 3].map(i => <path key={i} d={`M${70 + i * 34} 105q12 -26 ${26 + i * 4} -34`} fill="none" stroke="var(--color-coral)" strokeWidth="1.1" opacity=".55" />)}
+      <text x="130" y="132" textAnchor="middle" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">潜空间 / score / return</text>
+    </svg>;
+  }
+  if (template.preview === 'architecture') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {[0, 1, 2].map(layer => <g key={layer}>{[0, 1, 2, 3].map(i => <circle key={i} cx={58 + layer * 72} cy={38 + i * 22} r="6" fill={layer === 1 ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={layer === 1 ? .18 : 1} stroke={layer === 1 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />)}{layer < 2 && [0, 1, 2, 3].flatMap(a => [0, 1, 2, 3].map(b => <line key={`${a}-${b}`} x1={64 + layer * 72} y1={38 + a * 22} x2={124 + layer * 72} y2={38 + b * 22} stroke="var(--hairline)" opacity=".45" />))}</g>)}
+      <path d="M58 104h144" stroke="var(--color-coral)" strokeDasharray="3 3" />
+      <text x="130" y="126" textAnchor="middle" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">Wx+b → σ → 下一层</text>
+    </svg>;
+  }
+  return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+    <path d="M34 106Q130 18 228 106" fill="none" stroke="var(--color-indigo)" strokeWidth="1.8" />
+    <path d="M34 112Q130 64 228 32" fill="none" stroke="var(--color-coral)" strokeWidth="1.6" strokeDasharray="4 3" />
+    {Array.from({ length: 8 }, (_, i) => <circle key={i} cx={54 + i * 22} cy={84 - (i % 4) * 13} r="3" fill={i % 2 ? 'var(--color-indigo)' : 'var(--color-coral)'} opacity=".68" />)}
+    <text x="130" y="132" textAnchor="middle" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">参数 → 轨迹 → 观测</text>
+  </svg>;
+}
+
+function DeepCard({ template, index, creating, onCreate }: { template: DeepTemplate; index: number; creating: boolean; onCreate: () => void }): JSX.Element {
+  return <button type="button" className={styles.tplCard} disabled={creating} onClick={onCreate}>
+    <span className={styles.tplPreview} aria-hidden="true"><DeepPreview template={template} /></span>
+    <span className={styles.tplBody}>
+      <span className={styles.tplMeta}>{String(index + 1).padStart(2, '0')} · {template.tag}</span>
+      <span className={styles.tplName}>{template.name}</span>
+      <span className={styles.tplDesc}>{template.desc}</span>
+      <span className={styles.templateRecipe}>探究：{template.question}</span>
+      <span className={styles.templateRecipe}>已预设仪器面板 · 可嵌入活页</span>
+      <span className={styles.tplGo}>打开实验 →</span>
+    </span>
+  </button>;
+}
 
 function CanvasGlyph(): JSX.Element {
   return (
@@ -292,10 +345,12 @@ function SkeletonRows(): JSX.Element {
 
 export function WorkshopPage(): JSX.Element {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [works, setWorks] = useState<WorkSummary[] | null>(null);
   const [gallery, setGallery] = useState<ShareSummary[] | null>(null);
   const [creating, setCreating] = useState<string | null>(null);
-  const [category, setCategory] = useState<TemplateCategory>('calculus');
+  const [category, setCategory] = useState<TemplateCategory>(() => searchParams.get('subject') === 'deep' ? 'deep' : 'calculus');
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
 
   const [loadError, setLoadError] = useState('');
   const loadWorks = (): void => {
@@ -315,6 +370,17 @@ export function WorkshopPage(): JSX.Element {
       setCreating(null);
     }
   }, [navigate]);
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const hit = (...texts: string[]): boolean => !normalizedQuery || texts.some((text) => text.toLowerCase().includes(normalizedQuery));
+  const calculusShown = CALCULUS_TEMPLATES.filter((t) => hit(t.name, t.desc, t.tag));
+  const mechanicsShown = TEMPLATES.filter((t) => hit(t.name, t.desc, t.tag));
+  const lab408Shown = [...LAB408_TEMPLATES, ...LAB408_WORKBENCH_TEMPLATES].filter((t) => hit(t.name, t.desc, t.tag));
+  const deepShown = DEEP_TEMPLATES.filter((t) => hit(t.name, t.desc, t.tag, t.question, t.observation, ...t.keywords));
+  const shownCount = (category === 'calculus' ? calculusShown.length : category === 'mechanics' ? mechanicsShown.length
+    : category === 'lab408' ? lab408Shown.length : category === 'deep' ? deepShown.length
+      : calculusShown.length + mechanicsShown.length + lab408Shown.length + deepShown.length);
+  const totalTemplates = CALCULUS_TEMPLATES.length + TEMPLATES.length + LAB408_TEMPLATE_COUNT + DEEP_TEMPLATES.length;
 
   const openWork = useCallback((wid: string) => {
     navigate(`/canvas?work=${encodeURIComponent(wid)}`);
@@ -346,20 +412,21 @@ export function WorkshopPage(): JSX.Element {
             <h1 className={styles.title}>把实验摆上画布</h1>
             <p className={styles.lead}>
               理科实验台 × 数学 Scratch：摆下活对象、连线出行为、发布成作品。
-              从一条函数出发，搭出极限、导数、积分与泰勒近似；也可以继续探索抛体、弹簧、单摆，以及覆盖 60 个题型的 408 工作台与遍历、Cache、页面置换、子网划分实验。
+              从一条函数出发，搭出极限、导数、积分与泰勒近似；也可以继续探索抛体、弹簧、单摆、覆盖 60 个题型的 408 工作台，以及按四个专题组织的深度学习原理实验。
             </p>
             <p className={styles.headMeta}>
               <span><b>{CALCULUS_TEMPLATES.length}</b> 个高数实验</span>
               <span><b>{TEMPLATES.length}</b> 个力学实验</span>
               <span><b>{LAB408_TEMPLATE_COUNT}</b> 个 408 实验</span>
-              <span><b>{TEMPLATES.length + CALCULUS_TEMPLATES.length + LAB408_TEMPLATE_COUNT}</b> 个模板</span>
+              <span><b>{DEEP_TEMPLATES.length}</b> 个深度学习实验</span>
+              <span><b>{totalTemplates}</b> 个模板</span>
               <span><b>{works === null ? '—' : works.length}</b> 件我的作品</span>
               <span><b>{gallery === null ? '—' : gallery.length}</b> 件公开作品</span>
             </p>
           </div>
           <aside className={styles.headNote}>
             <span>打开即玩，随时能改</span>
-            <p>每个模板都附带探究问题、搭建步骤和观察记录。408 工作台覆盖 60 个已支持题型，高数、力学与 408 专题都能改参数、连积木，保存成自己的可推演作品。</p>
+            <p>每个模板都附带探究问题、搭建步骤和观察记录。深度学习实验默认带仪器面板，可直接嵌入活页；四个专题从优化动力学一路到生成模型与强化学习。</p>
           </aside>
         </header>
 
@@ -369,81 +436,92 @@ export function WorkshopPage(): JSX.Element {
               <p className={styles.sectionEyebrow}>01 · Templates</p>
               <h2 id="workshop-templates" className={styles.sectionTitle}>从模板新建</h2>
             </div>
-            <p className={styles.sectionNote}>已连好线 · 打开即运行</p>
+            <p className={styles.sectionNote}>已连好线 · 打开即运行{normalizedQuery ? ` · ${shownCount} 个匹配` : ''}</p>
           </div>
           <div className={styles.templateFilters} role="group" aria-label="模板分类">
             {([
               ['calculus', `高等数学 · ${CALCULUS_TEMPLATES.length}`],
               ['mechanics', `力学实验 · ${TEMPLATES.length}`],
               ['lab408', `408 专题 · ${LAB408_TEMPLATE_COUNT}`],
-              ['all', `全部模板 · ${CALCULUS_TEMPLATES.length + TEMPLATES.length + LAB408_TEMPLATE_COUNT}`],
+              ['deep', `深度学习 · ${DEEP_TEMPLATES.length}`],
+              ['all', `全部模板 · ${totalTemplates}`],
             ] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={category === key} onClick={() => setCategory(key)}>{label}</button>)}
+            <label className={styles.templateSearch}>
+              <span>搜索模板</span>
+              <input type="search" value={query} placeholder="Adam、CNN、Attention、Diffusion…" aria-label="按算法或关键词搜索模板" onChange={(e) => setQuery(e.target.value)} />
+            </label>
             <a href="#workshop-guide">第一次搭建？看三步指南 ↓</a>
           </div>
-          <div className={styles.tplGrid}>
-            {category !== 'mechanics' && category !== 'lab408' && CALCULUS_TEMPLATES.map((t, index) => <button key={t.kind} type="button" className={styles.tplCard} disabled={creating !== null} onClick={() => void fromTemplate(t.kind, t.name)}>
-              <span className={styles.tplPreview}><CalculusPreview kind={t.kind} /></span>
-              <span className={styles.tplBody}>
-                <span className={styles.tplMeta}>{String(index + 1).padStart(2, '0')} · {t.tag} · {t.level} / {t.minutes} 分钟</span>
-                <span className={styles.tplName}>{t.name}</span>
-                <span className={styles.tplDesc}>{t.desc}</span>
-                <span className={styles.templateFormula}>{t.formula}</span>
-                <span className={styles.templateRecipe}>{t.recipe}</span>
-                <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '搭建这个实验 →'}</span>
-              </span>
-            </button>)}
-            {category !== 'calculus' && category !== 'lab408' && TEMPLATES.map((t, index) => {
-              const Preview = PREVIEWS[t.kind];
-              return (
-                <button
-                  key={t.kind}
-                  type="button"
-                  className={styles.tplCard}
-                  disabled={creating !== null}
-                  onClick={() => void fromTemplate(t.kind, t.name)}
-                >
-                  <span className={styles.tplPreview} aria-hidden="true"><Preview /></span>
+          {category === 'deep' ? (
+            <div className={styles.deepTopics}>
+              {DEEP_TOPICS.map((topic) => {
+                const items = deepShown.filter((template) => template.topic === topic.id);
+                if (!items.length) return null;
+                return <section key={topic.id} className={styles.deepTopic} aria-labelledby={`deep-${topic.id}`}>
+                  <header className={styles.deepTopicHead}>
+                    <div><h3 id={`deep-${topic.id}`}>{topic.name}</h3><p>{topic.lead}</p></div>
+                    <span className={styles.countPill}>{items.length} 个实验</span>
+                  </header>
+                  <div className={styles.tplGrid}>
+                    {items.map((template) => <DeepCard key={template.kind} template={template} index={DEEP_TEMPLATES.indexOf(template)}
+                      creating={creating !== null} onCreate={() => void fromTemplate(template.kind, template.name)} />)}
+                  </div>
+                </section>;
+              })}
+              {!deepShown.length ? <p className={styles.emptyLead} role="status">没有匹配“{query.trim()}”的深度学习模板；试试 Adam、CNN、Attention 或 Diffusion。</p> : null}
+            </div>
+          ) : (
+            <div className={styles.tplGrid}>
+              {category !== 'mechanics' && category !== 'lab408' && calculusShown.map((t) => <button key={t.kind} type="button" className={styles.tplCard} disabled={creating !== null} onClick={() => void fromTemplate(t.kind, t.name)}>
+                <span className={styles.tplPreview}><CalculusPreview kind={t.kind} /></span>
+                <span className={styles.tplBody}>
+                  <span className={styles.tplMeta}>{t.tag} · {t.level} / {t.minutes} 分钟</span>
+                  <span className={styles.tplName}>{t.name}</span>
+                  <span className={styles.tplDesc}>{t.desc}</span>
+                  <span className={styles.templateFormula}>{t.formula}</span>
+                  <span className={styles.templateRecipe}>{t.recipe}</span>
+                  <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '搭建这个实验 →'}</span>
+                </span>
+              </button>)}
+              {category !== 'calculus' && category !== 'lab408' && mechanicsShown.map((t) => {
+                const Preview = PREVIEWS[t.kind];
+                return (
+                  <button key={t.kind} type="button" className={styles.tplCard} disabled={creating !== null} onClick={() => void fromTemplate(t.kind, t.name)}>
+                    <span className={styles.tplPreview} aria-hidden="true"><Preview /></span>
+                    <span className={styles.tplBody}>
+                      <span className={styles.tplMeta}>{t.tag}</span>
+                      <span className={styles.tplName}>{t.name}</span>
+                      <span className={styles.tplDesc}>{t.desc}</span>
+                      <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '打开实验 →'}</span>
+                    </span>
+                  </button>
+                );
+              })}
+              {category !== 'calculus' && category !== 'mechanics' && lab408Shown.map((t) => (
+                <button key={t.kind} type="button" className={styles.tplCard} disabled={creating !== null} onClick={() => void fromTemplate(t.kind, t.name)}>
+                  <span className={styles.tplPreview} aria-hidden="true"><Lab408Preview kind={t.kind} /></span>
                   <span className={styles.tplBody}>
-                    <span className={styles.tplMeta}>{String(index + 1).padStart(2, '0')} · {t.tag}</span>
+                    <span className={styles.tplMeta}>{t.tag}</span>
                     <span className={styles.tplName}>{t.name}</span>
                     <span className={styles.tplDesc}>{t.desc}</span>
                     <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '打开实验 →'}</span>
                   </span>
                 </button>
-              );
-            })}
-            {category !== 'calculus' && category !== 'mechanics' && [...LAB408_TEMPLATES, ...LAB408_WORKBENCH_TEMPLATES].map((t, index) => (
-              <button
-                key={t.kind}
-                type="button"
-                className={styles.tplCard}
-                disabled={creating !== null}
-                onClick={() => void fromTemplate(t.kind, t.name)}
-              >
-                <span className={styles.tplPreview} aria-hidden="true"><Lab408Preview kind={t.kind} /></span>
+              ))}
+              {category === 'all' ? deepShown.map((template) => <DeepCard key={template.kind} template={template} index={DEEP_TEMPLATES.indexOf(template)}
+                creating={creating !== null} onCreate={() => void fromTemplate(template.kind, template.name)} />) : null}
+              {!normalizedQuery ? <button type="button" className={`${styles.tplCard} ${styles.tplBlank}`} disabled={creating !== null} onClick={blank}>
+                <span className={styles.tplPreview} aria-hidden="true"><BlankPreview /></span>
                 <span className={styles.tplBody}>
-                  <span className={styles.tplMeta}>{String(index + 1).padStart(2, '0')} · {t.tag}</span>
-                  <span className={styles.tplName}>{t.name}</span>
-                  <span className={styles.tplDesc}>{t.desc}</span>
-                  <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '打开实验 →'}</span>
+                  <span className={styles.tplMeta}>自由搭建 · Blank Canvas</span>
+                  <span className={styles.tplName}>空白画布</span>
+                  <span className={styles.tplDesc}>从调色板自己搭：对象、连线、笔记，全由你摆。</span>
+                  <span className={styles.tplGo}>新建 →</span>
                 </span>
-              </button>
-            ))}
-            <button
-              type="button"
-              className={`${styles.tplCard} ${styles.tplBlank}`}
-              disabled={creating !== null}
-              onClick={blank}
-            >
-              <span className={styles.tplPreview} aria-hidden="true"><BlankPreview /></span>
-              <span className={styles.tplBody}>
-                <span className={styles.tplMeta}>自由搭建 · Blank Canvas</span>
-                <span className={styles.tplName}>空白画布</span>
-                <span className={styles.tplDesc}>从调色板自己搭：对象、连线、笔记，全由你摆。</span>
-                <span className={styles.tplGo}>新建 →</span>
-              </span>
-            </button>
-          </div>
+              </button> : null}
+              {!shownCount ? <p className={styles.emptyLead} role="status">没有匹配“{query.trim()}”的模板；清空搜索或切换分类。</p> : null}
+            </div>
+          )}
         </section>
 
         <section id="workshop-guide" className={styles.section} aria-labelledby="workshop-guide-title">

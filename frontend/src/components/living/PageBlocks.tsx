@@ -12,7 +12,9 @@ import { Formula } from '@/components/showcase/Formula';
 import { computeLab } from '@/labs/compute';
 import { formatNumber } from '@/labs/expr';
 import type { LabProblem, LabResult, LabState } from '@/labs/types';
-import type { ActivationSuggestion, CalloutKind, PageBlock } from '@/living/types';
+import type { ActivationSuggestion, CalloutKind, PageBlock, PageRegion } from '@/living/types';
+import { REGION_LABELS } from '@/living/types';
+import { canInsertRegion, functionDocForRegion, regionAriaLabel, regionStyle } from '@/living/regions';
 import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
 import type { CanvasDoc } from '@/canvas/types.ts';
 import { worksApi } from '@/api/works';
@@ -44,6 +46,12 @@ export interface BlockViewProps {
   controls?: ReactNode;
   /** 页面全部块 id（门控目标悬挂检测：缺失→解锁+警告） */
   peerIds?: ReadonlySet<string>;
+  /** 编辑器注入：把页内区域物化到正文（插入块并回写 block_id）。 */
+  onInsertRegion?: (pageBlock: PageBlock, region: PageRegion) => void;
+  /** 编辑器注入：对该公式区域跑一次本地公式 OCR（结果缓存回文档）。 */
+  onRecognizeFormula?: (pageBlock: PageBlock, region: PageRegion) => Promise<void> | void;
+  /** 编辑器注入：为该锚块打开 AI 交互面板。 */
+  onAI?: (blockId: string) => void;
 }
 
 /** 块完成度（门控用）：submitted < correct；写入时取更高一级。 */
@@ -83,23 +91,268 @@ const EMPTY_STATE: LabState = {
 /* 保真层                                                              */
 /* ------------------------------------------------------------------ */
 
-function PageImageBlock({ block, assetUrl }: BlockViewProps): ReactNode {
+/** 区域聚焦面板内的函数图预览：本地沙盒，不写回文档。 */
+function RegionCanvasPreview({ doc }: { doc: CanvasDoc }): ReactNode {
+  const [sandbox, setSandboxState] = useState<CanvasDoc>(() => JSON.parse(JSON.stringify(doc)) as CanvasDoc);
+  useEffect(() => {
+    setSandboxState(JSON.parse(JSON.stringify(doc)) as CanvasDoc);
+  }, [doc]);
+  const setSandbox = useCallback<React.Dispatch<React.SetStateAction<CanvasDoc>>>((update) => {
+    setSandboxState((previous) => (typeof update === 'function' ? (update as (d: CanvasDoc) => CanvasDoc)(previous) : update));
+  }, []);
+  return (
+    <div className={styles.regionCanvas}>
+      <CanvasBoard doc={sandbox} setDoc={setSandbox} tool="select" inkColor="#2F3A49" embedded focusContent />
+    </div>
+  );
+}
+
+/** 示意图标签遮挡自测：标签盖层 → 点开核对，支持全遮/全显。
+ *  揭示进度存进块状态，切走再回来不丢。 */
+function LabelSelfTest({ pageBlock, region, assetUrl }: {
+  pageBlock: PageBlock;
+  region: PageRegion;
+  assetUrl: (key: string) => string;
+}): ReactNode {
+  const labels = region.labels ?? [];
+  const [revealed, setRevealed] = useBlockState<number[]>(`${pageBlock.id}:${region.id}`, 'reveal', []);
+  const [picked, setPicked] = useState<number | null>(null);
+  const revealedSet = new Set(revealed);
+  const allShown = labels.length > 0 && revealed.length >= labels.length;
+  return (
+    <div className={styles.labelTest}>
+      <div className={styles.labelTestWrap}>
+        <img src={assetUrl(region.asset_id)} alt={region.label} loading="lazy" />
+        {labels.map((label, index) => (
+          <button
+            key={index}
+            type="button"
+            className={revealedSet.has(index) ? styles.labelTag : styles.labelCover}
+            style={regionStyle(label)}
+            aria-label={revealedSet.has(index) ? `标签：${label.text}` : `第 ${index + 1} 个标签，点击显示`}
+            onClick={() => {
+              if (!revealedSet.has(index)) setRevealed([...revealed, index]);
+              setPicked(index);
+            }}
+          >
+            {revealedSet.has(index) ? label.text : '?'}
+          </button>
+        ))}
+      </div>
+      <div className={styles.labelTestBar}>
+        <button type="button" onClick={() => setRevealed(allShown ? [] : labels.map((_, i) => i))}>
+          {allShown ? '全部遮挡' : '全部显示'}
+        </button>
+        <span>{revealed.length}/{labels.length} 已显示</span>
+      </div>
+      {picked !== null && labels[picked] ? (
+        <p className={styles.labelDetail}>标签「{labels[picked].text}」{region.caption ? ` — ${region.caption}` : ''}</p>
+      ) : (
+        <p className={styles.regionHint}>先回忆每个遮挡处的名称，再点开核对。</p>
+      )}
+    </div>
+  );
+}
+
+/** 区域聚焦面板：原图 ⇄ 交互图 + 物化动作。编辑器与分享页共用；
+ *  分享页只读时隐藏「插入到正文 / AI 交互」。 */
+function RegionPanel({ pageBlock, region, assetUrl, readOnly, onInsertRegion, onRecognizeFormula, onAI, onClose }: {
+  pageBlock: PageBlock;
+  region: PageRegion;
+  assetUrl: (key: string) => string;
+  readOnly?: boolean;
+  onInsertRegion?: (pageBlock: PageBlock, region: PageRegion) => void;
+  onRecognizeFormula?: (pageBlock: PageBlock, region: PageRegion) => Promise<void> | void;
+  onAI?: (blockId: string) => void;
+  onClose: () => void;
+}): ReactNode {
+  const labels = region.labels ?? [];
+  const doc = useMemo(() => functionDocForRegion(region), [region]);
+  const interactive = doc !== null || labels.length > 0;
+  const [view, setView] = useState<'original' | 'interactive'>('original');
+  const [copied, setCopied] = useState(false);
+  const [recognizing, setRecognizing] = useState(false);
+  const copyLatex = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(region.latex ?? '');
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch { /* 剪贴板不可用时静默 */ }
+  };
+  const recognize = async (): Promise<void> => {
+    if (!onRecognizeFormula || recognizing) return;
+    setRecognizing(true);
+    try {
+      await onRecognizeFormula(pageBlock, region);
+    } finally {
+      setRecognizing(false);
+    }
+  };
+  return (
+    <div className={styles.regionPanel} role="region" aria-label={regionAriaLabel(region)}>
+      <header className={styles.regionPanelHead}>
+        <span className={styles.regionKind}>{REGION_LABELS[region.kind] ?? '区域'}</span>
+        <strong>{region.label}</strong>
+        <button type="button" onClick={onClose}>收起</button>
+      </header>
+      {interactive ? (
+        <div className={styles.regionViews} role="group" aria-label="查看方式">
+          <button type="button" className={styles.regionViewBtn} aria-pressed={view === 'original'} onClick={() => setView('original')}>原图</button>
+          <button type="button" className={styles.regionViewBtn} aria-pressed={view === 'interactive'} onClick={() => setView('interactive')}>交互图</button>
+        </div>
+      ) : null}
+      {view === 'interactive' && doc ? (
+        <RegionCanvasPreview doc={doc} />
+      ) : view === 'interactive' && labels.length ? (
+        <LabelSelfTest pageBlock={pageBlock} region={region} assetUrl={assetUrl} />
+      ) : (
+        <>
+          <img src={assetUrl(region.asset_id)} alt={region.label} loading="lazy" />
+          {region.caption ? <p className={styles.regionCaption}>{region.caption}</p> : null}
+          {region.latex ? (
+            <div className={styles.regionLatexRow}>
+              <Formula tex={region.latex} block />
+              <button type="button" className={styles.regionMiniBtn} onClick={() => void copyLatex()}>
+                {copied ? '已复制' : '复制 LaTeX'}
+              </button>
+            </div>
+          ) : null}
+          {region.expression ? (
+            <p className={styles.regionHint}>可求值表达式 f(x) = {region.expression}，切到「交互图」查看函数图。</p>
+          ) : null}
+          {region.text && region.text !== region.caption ? (
+            <details>
+              <summary>区域文字</summary>
+              <p>{region.text}</p>
+            </details>
+          ) : null}
+        </>
+      )}
+      <footer className={styles.regionActions}>
+        {region.block_id ? (
+          <button
+            type="button"
+            className={styles.regionJump}
+            onClick={() => document.getElementById(region.block_id!)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
+            定位到正文
+          </button>
+        ) : null}
+        {region.canvas_block_id ? (
+          <button
+            type="button"
+            className={styles.regionJump}
+            onClick={() => document.getElementById(region.canvas_block_id!)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
+            定位函数图
+          </button>
+        ) : null}
+        {!region.block_id && !readOnly && onInsertRegion && canInsertRegion(region) ? (
+          <button type="button" className={styles.regionJump} onClick={() => onInsertRegion(pageBlock, region)}>
+            插入到正文
+          </button>
+        ) : null}
+        {region.block_id && !region.canvas_block_id && doc && !readOnly && onInsertRegion ? (
+          <button type="button" className={styles.regionJump} onClick={() => onInsertRegion(pageBlock, region)}>
+            插入函数图
+          </button>
+        ) : null}
+        {!readOnly && onRecognizeFormula && region.kind === 'formula' && !region.latex ? (
+          <button type="button" className={styles.regionMiniBtn} disabled={recognizing} onClick={() => void recognize()}>
+            {recognizing ? '识别中…（最长约 15 秒）' : '识别公式'}
+          </button>
+        ) : null}
+        {!readOnly && onAI && region.kind === 'formula' && region.block_id ? (
+          <button type="button" className={styles.regionMiniBtn} onClick={() => onAI(region.block_id!)}>
+            AI 交互
+          </button>
+        ) : null}
+        {region.kind === 'formula' && !doc && region.latex ? (
+          <span className={styles.regionHint}>暂不能转成函数图，可试 AI 交互。</span>
+        ) : null}
+      </footer>
+    </div>
+  );
+}
+
+function PageImageBlock({ block, assetUrl, readOnly, onInsertRegion, onRecognizeFormula, onAI }: BlockViewProps): ReactNode {
   const data = block.data as Extract<PageBlock, { type: 'page' }>['data'];
   const [open, setOpen] = useState(!data.collapsed);
+  const [showRegions, setShowRegions] = useState(true);
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
+  const regions = data.regions ?? [];
+  const selected = regions.find((region) => region.id === selectedRegion) ?? null;
   if (!data.image_key) return null;
+
+  // P1.1：热区始终打开聚焦面板；正文锚块/函数图的跳转放进面板按钮。
+  const activate = (region: PageRegion): void => {
+    setSelectedRegion((current) => current === region.id ? null : region.id);
+  };
+
   return (
     <figure className={styles.pageBlock}>
-      <button
-        type="button"
-        className={styles.pageToggle}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <span>{data.alt || '原始页面'}</span>
-        <span className={styles.pageToggleHint}>{open ? '收起原页' : '对照原页'}</span>
-      </button>
+      <div className={styles.pageHeading}>
+        <button
+          type="button"
+          className={styles.pageToggle}
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+        >
+          <span>{data.alt || '原始页面'}</span>
+          <span className={styles.pageToggleHint}>
+            {open ? (regions.length ? `${regions.length} 个区域 · 收起原页` : '收起原页') : '对照原页'}
+          </span>
+        </button>
+        {regions.length ? (
+          <button
+            type="button"
+            className={styles.regionToggle}
+            aria-pressed={showRegions}
+            onClick={() => {
+              setShowRegions((value) => !value);
+              setSelectedRegion(null);
+            }}
+          >
+            {showRegions ? '隐藏区域' : '显示区域'}
+          </button>
+        ) : null}
+      </div>
       {open ? (
-        <img className={styles.pageImage} src={assetUrl(data.image_key)} alt={data.alt || '原始页面'} width={data.width} height={data.height} loading="lazy" />
+        <div className={styles.pageImageWrap}>
+          <img className={styles.pageImage} src={assetUrl(data.image_key)} alt={data.alt || '原始页面'} width={data.width} height={data.height} loading="lazy" />
+          {showRegions ? regions.map((region) => (
+            <button
+              key={region.id}
+              type="button"
+              className={styles.pageRegion}
+              data-kind={region.kind}
+              data-active={selectedRegion === region.id ? 'true' : undefined}
+              style={regionStyle(region)}
+              aria-label={regionAriaLabel(region)}
+              aria-expanded={selectedRegion === region.id}
+              title={region.label}
+              onClick={() => activate(region)}
+            >
+              <span className={styles.pageRegionChip}>
+                {REGION_LABELS[region.kind] ?? '区域'}
+                {region.label ? ` · ${region.label.slice(0, 18)}` : ''}
+              </span>
+            </button>
+          )) : null}
+        </div>
+      ) : null}
+      {open && selected ? (
+        <RegionPanel
+          key={selected.id}
+          pageBlock={block}
+          region={selected}
+          assetUrl={assetUrl}
+          readOnly={readOnly}
+          onInsertRegion={onInsertRegion}
+          onRecognizeFormula={onRecognizeFormula}
+          onAI={onAI}
+          onClose={() => setSelectedRegion(null)}
+        />
       ) : null}
     </figure>
   );

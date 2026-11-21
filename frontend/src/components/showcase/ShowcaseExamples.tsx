@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { SurfaceIntegralLab } from './SurfaceIntegralLab';
 import { TransformerLab } from './TransformerLab';
 import styles from './ShowcaseExamples.module.css';
@@ -245,6 +245,9 @@ export function ShowcaseExamples(): JSX.Element {
                 </button>
               ))}
             </div>
+            {active.id === 'computer' ? <Link className={styles.workshopJump} to="/workshop?subject=deep&q=Attention#deep-dl03">
+              去万象工坊拆解注意力与 KV Cache →
+            </Link> : null}
           </div>
           <active.Component key={active.id} />
         </section>

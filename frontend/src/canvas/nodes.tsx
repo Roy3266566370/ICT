@@ -18,6 +18,9 @@ import { physCycle, samplePath } from './physics.ts';
 import { FunctionSourceBody, FunctionPlotBody, DerivativeBody, LimitBody, IntegralBody, TaylorBody } from './CalculusNodes';
 import { CacheSplitBody, DsTraversalBody, IpSubnetBody, Lab408WorkbenchBody, PageReplaceBody } from './Lab408Nodes';
 import { AttentionSimBody, PageLabSimBody } from './SimNodes';
+import { DEEP_FIRST_DEFS, deepFirstDefaults } from './DeepFirstNodes';
+import { DEEP_CORE_DEFS, deepCoreDefaults } from './DeepCoreNodes';
+import { DEEP_ADVANCED_DEFS, deepAdvancedDefaults } from './DeepAdvancedNodes';
 import styles from './canvas.module.css';
 
 export interface NodeBodyProps {
@@ -32,6 +35,7 @@ export interface NodeBodyProps {
   onText?: (text: string) => void;
   /** composite：请求展开（解封装）回本层 */
   onExplode?: () => void;
+  onLive?: (outputs: Record<string, PortValue>) => void;
 }
 
 export interface NodeDef {
@@ -416,15 +420,18 @@ function extract(v: PortValue | null | undefined): number | null {
   if (!v) return null;
   if (v.kind === 'scalar') return v.v;
   if (v.kind === 'body') return Math.hypot(v.vx, v.vy);
-  if (v.kind === 'function') return null;
+  if (v.kind !== 'matrix2') return null;
   return Math.abs(v.a * v.d - v.b * v.c);
 }
 
 function SparkBody({ values, node }: NodeBodyProps): JSX.Element {
   const n = extract(values.in);
+  const validation = extract(values.validation);
+  const validationHist = useRef<number[]>([]);
   const hist = useRef<number[]>([]);
   useEffect(() => {
     hist.current = [];
+    validationHist.current = [];
   }, [node.id]);
   useEffect(() => {
     if (n === null) return;
@@ -433,9 +440,13 @@ function SparkBody({ values, node }: NodeBodyProps): JSX.Element {
       hist.current = [...hist.current.slice(-119), n];
     }
   }, [n]);
+  useEffect(() => {
+    if (validation !== null && Number.isFinite(validation)) validationHist.current = [...validationHist.current.slice(-119), validation];
+  }, [validation]);
   if (n === null) return unconnected('记录仪');
   const h = hist.current;
-  const lo = Math.min(...h, n), hi = Math.max(...h, n);
+  const secondary = validation === null ? [] : validationHist.current;
+  const lo = Math.min(...h, ...secondary, n), hi = Math.max(...h, ...secondary, n);
   const span = Math.max(hi - lo, 1e-6);
   const pts = h.map((v, i) =>
     `${(i / Math.max(h.length - 1, 1)) * 186 + 7},${64 - ((v - lo) / span) * 52 - 6}`).join(' ');
@@ -444,6 +455,7 @@ function SparkBody({ values, node }: NodeBodyProps): JSX.Element {
     <div>
       <svg className={styles.objSvg} viewBox="0 0 200 70" role="img" aria-label={`${label} 历史记录`}>
         <polyline points={pts} fill="none" stroke="#FF7A59" strokeWidth={1.8} strokeLinejoin="round" />
+        {secondary.length ? <polyline points={secondary.map((v, i) => `${7 + i / Math.max(secondary.length - 1, 1) * 186},${58 - (v - lo) / span * 52}`).join(' ')} fill="none" stroke="#4f46e5" strokeWidth={1.8} /> : null}
         {h.length > 0 ? <circle cx={pts.split(' ').pop()!.split(',')[0]} cy={pts.split(' ').pop()!.split(',')[1]} r={3} fill="#FF7A59" /> : null}
       </svg>
       <div className={styles.miniRead}>
@@ -771,6 +783,9 @@ export function nodePorts(node: CanvasNode, dir: 'in' | 'out'): readonly PortSpe
 }
 
 export const NODE_DEFS: Record<NodeType, NodeDef> = {
+  ...DEEP_FIRST_DEFS,
+  ...DEEP_CORE_DEFS,
+  ...DEEP_ADVANCED_DEFS,
   functionSource: { title: '函数源', badge: '源', width: 280, outputs: [{ id: 'out', label: 'f(x)', kind: 'function' }], Body: FunctionSourceBody },
   functionPlot: { title: '函数图像', badge: '视图', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], Body: FunctionPlotBody },
   limitProbe: { title: '极限观察', badge: '实验', width: 310, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], outputs: [{ id: 'out', label: '数值候选', kind: 'scalar' }], Body: LimitBody },
@@ -793,7 +808,7 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   eigRead: { title: '特征值读数', badge: '视图', width: 200, inputs: [IN_M2], Body: EigReadBody },
   squareView: { title: '像的形状', badge: '视图', width: 200, inputs: [IN_M2], Body: SquareViewBody },
   quiz: { title: '预测闸门', badge: '学习', width: 210, inputs: [IN_M2], Body: QuizBody },
-  spark: { title: '记录仪', badge: '学习', width: 210, inputs: [{ id: 'in', label: 'in' }], Body: SparkBody },
+  spark: { title: '记录仪', badge: '学习', width: 210, inputs: [{ id: 'in', label: '训练' }, { id: 'validation', label: '验证' }], Body: SparkBody },
   textNote: { title: '便签', badge: '文字', width: 230, Body: TextNoteBody },
   latexNote: { title: '公式卡', badge: '文字', width: 240, Body: LatexNoteBody },
   cobweb: { title: '蛛网图', badge: '实验', width: 230, Body: CobwebBody },
@@ -828,10 +843,11 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   // 边界节点只存在于 sub 子图内部（不渲染、不进调色板），注册仅为类型完备
   portIn: { title: '入口', badge: '源', width: 0, Body: HiddenPortBody },
   portOut: { title: '出口', badge: '视图', width: 0, Body: HiddenPortBody },
-};
+} as Record<NodeType, NodeDef>;
 
 /** 调色板（按类别分组） */
 export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[] }[] = [
+  { label: '深度学习', types: ['dataset2dSource', 'pixelGridSource', 'tokenSeqSource', 'linearOp', 'activationOp', 'residualJoin', 'normOp', 'conv2dOp', 'attentionOp', 'mlpTrainer', 'boundaryView', 'matrixHeatmapView', 'gradFlowMeter', 'activationProbe', 'optimizerArena', 'attentionAB', 'kvCache', 'svmLab', 'resnetLab', 'sequenceMemory', 'multiheadLab', 'autoencoderLab', 'diffusionLab', 'qLearningLab'] },
   { label: '高数', types: ['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor'] },
   { label: '408', types: ['lab408Workbench', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet'] },
   { label: '源', types: ['matrixSource', 'slider', 'ticker'] },
@@ -844,6 +860,8 @@ export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[
 
 /** 新节点默认参数 */
 export function defaultParams(type: NodeType): Record<string, number> {
+  const deep = deepFirstDefaults(type) ?? deepCoreDefaults(type) ?? deepAdvancedDefaults(type);
+  if (deep) return deep;
   switch (type) {
     case 'functionSource': return { a: 1, b: 0, c: 0 };
     case 'functionPlot': return { min: -3, max: 3, x: 0 };

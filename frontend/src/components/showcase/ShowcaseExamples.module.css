@@ -162,6 +162,9 @@
   color: #1c2ecb;
 }
 
+.workshopJump { margin-left: auto; color: #7fe3ff; font-size: 12px; text-decoration: none; white-space: nowrap; }
+.workshopJump:hover { text-decoration: underline; text-underline-offset: 3px; }
+.workshopJump:focus-visible { outline: 2px solid #7fe3ff; outline-offset: 3px; }
 .switchPills {
   display: flex;
   flex-wrap: wrap;

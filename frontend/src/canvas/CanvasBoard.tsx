@@ -184,14 +184,21 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     if (!focusContent || focusedOnce.current) return;
     const vp = vpRef.current;
     if (!vp || vp.clientWidth === 0 || doc.nodes.length === 0) return;
+    const measured = new Map<string, { width: number; height: number }>();
+    vp.querySelectorAll<HTMLElement>('[data-node]').forEach((el) => {
+      const id = el.dataset.node;
+      if (id && el.offsetWidth > 0 && el.offsetHeight > 0) measured.set(id, { width: el.offsetWidth, height: el.offsetHeight });
+    });
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     walkNodes(doc.nodes, (node) => {
       if (visibleNodeIds && !visibleNodeIds.has(node.id)) return;
-      const width = NODE_DEFS[node.type]?.width ?? 240;
+      const size = measured.get(node.id);
+      const width = size?.width ?? NODE_DEFS[node.type]?.width ?? 240;
+      const height = size?.height ?? 190;
       minX = Math.min(minX, node.x);
       minY = Math.min(minY, node.y);
       maxX = Math.max(maxX, node.x + width);
-      maxY = Math.max(maxY, node.y + 190);
+      maxY = Math.max(maxY, node.y + height);
     });
     if (!Number.isFinite(minX)) return;
     const fit = Math.min(1, (vp.clientWidth - 56) / Math.max(1, maxX - minX), (vp.clientHeight - 56) / Math.max(1, maxY - minY));
@@ -721,6 +728,16 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                   values={inputValues(ctx, n)}
                   self={evalOutput(ctx, n.id)}
                   onParams={(patch) => updateParams(n.id, patch)}
+                  onLive={(outputs) => {
+                    const keys = Object.keys(outputs);
+                    if (!keys.length) return;
+                    // 输出可能序列化相同但内部模型已更新（如训练器的 boundary 快照），
+                    // 所以必须每次替换并触发渲染。
+                    for (const [port, value] of Object.entries(outputs)) {
+                      live.current.set(`${n.id}|${port}`, value);
+                    }
+                    setFrame((f) => f + 1);
+                  }}
                   onText={(text) => patchNode(n.id, { text })}
                   onExplode={n.type === 'composite' ? () => explode(n.id) : undefined}
                 />

@@ -235,6 +235,32 @@ def _png_bytes() -> bytes:
     return buf.getvalue()
 
 
+def test_image_upload_exposes_region_hotspots(owner: TestClient) -> None:
+    session = _session(owner)
+    response = owner.post(
+        "/api/v1/pages",
+        headers=_headers(session),
+        files=[("files", ("formula.png", _png_bytes(), "image/png"))],
+    )
+    assert response.status_code == 201, response.text
+    document = response.json()["data"]
+    page = next(block for block in document["blocks"] if block["type"] == "page")
+    regions = page["data"].get("regions") or []
+    assert regions, "图片上传应留下原页热区"
+    region = regions[0]
+    assert 0 <= region["bbox"][0] < region["bbox"][2] <= 1
+    asset = owner.get(f"/api/v1/pages/{document['page_id']}/assets/{region['asset_id']}")
+    assert asset.status_code == 200
+
+    published = owner.post(
+        f"/api/v1/pages/{document['page_id']}/publish", headers=_headers(session),
+    )
+    assert published.status_code == 201, published.text
+    share_id = published.json()["data"]["share_id"]
+    public_asset = owner.get(f"/api/v1/page-shares/{share_id}/assets/{region['asset_id']}")
+    assert public_asset.status_code == 200
+
+
 def test_upload_publish_progress_and_insights(owner: TestClient, guest: TestClient) -> None:
     session = _session(owner)
     response = owner.post(
@@ -568,3 +594,75 @@ def test_variables_patch_roundtrip_and_publish(owner: TestClient, guest: TestCli
     shared = guest.get(f"/api/v1/page-shares/{share_id}", headers=_headers(other))
     assert shared.status_code == 200, shared.text
     assert shared.json()["data"]["variables"]["eta"]["value"] == pytest.approx(0.05)
+
+
+def test_region_formula_ocr_on_demand(owner: TestClient, monkeypatch) -> None:
+    """P1.1：公式 OCR 只在点击时跑一次，latex/expression 缓存回文档。"""
+    import app.labs.extract as extract_mod
+
+    session = _session(owner)
+    response = owner.post(
+        "/api/v1/pages",
+        headers=_headers(session),
+        files=[("files", ("formula.png", _png_bytes(), "image/png"))],
+    )
+    assert response.status_code == 201, response.text
+    doc = response.json()["data"]
+    page = next(b for b in doc["blocks"] if b["type"] == "page")
+    region = (page["data"].get("regions") or [])[0]
+    # 上传后区域应不带 latex（公式 OCR 已移出上传链路）
+    assert not region.get("latex")
+
+    # 把区域标为公式类型（模拟公式热区）
+    page["data"]["regions"][0]["kind"] = "formula"
+    patched = owner.patch(
+        f"/api/v1/pages/{doc['page_id']}", headers=_headers(session),
+        json={"expected_revision": doc["revision"], "blocks": doc["blocks"]},
+    )
+    assert patched.status_code == 200, patched.text
+    doc = patched.json()["data"]
+
+    calls: list[object] = []
+    monkeypatch.setattr(extract_mod, "_math_ocr",
+                        lambda img: calls.append(img) or "y = x^{2} + a")
+    ok = owner.post(
+        f"/api/v1/pages/{doc['page_id']}/regions/{region['id']}/formula-ocr",
+        headers=_headers(session),
+        json={"expected_revision": doc["revision"]},
+    )
+    assert ok.status_code == 200, ok.text
+    latest = ok.json()["data"]
+    updated = next(b for b in latest["blocks"] if b["type"] == "page")["data"]["regions"][0]
+    assert updated["latex"] == "y = x^{2} + a"
+    assert "x^2" in updated["expression"] and "a" in updated["expression"]
+    assert updated["params"] == ["a"]
+    assert len(calls) == 1
+
+    # 已有 latex → 缓存命中，不再调用 OCR
+    again = owner.post(
+        f"/api/v1/pages/{doc['page_id']}/regions/{region['id']}/formula-ocr",
+        headers=_headers(session),
+        json={"expected_revision": latest["revision"]},
+    )
+    assert again.status_code == 200, again.text
+    assert len(calls) == 1
+
+    # 非公式区域 → 拒绝；OCR 无结果 → 4xx，区域不伪造 latex
+    doc2 = again.json()["data"]
+    page2 = next(b for b in doc2["blocks"] if b["type"] == "page")
+    page2["data"]["regions"][0]["kind"] = "diagram"
+    page2["data"]["regions"][0].pop("latex", None)
+    page2["data"]["regions"][0].pop("expression", None)
+    page2["data"]["regions"][0].pop("params", None)
+    patched2 = owner.patch(
+        f"/api/v1/pages/{doc2['page_id']}", headers=_headers(session),
+        json={"expected_revision": doc2["revision"], "blocks": doc2["blocks"]},
+    )
+    assert patched2.status_code == 200, patched2.text
+    doc3 = patched2.json()["data"]
+    wrong_kind = owner.post(
+        f"/api/v1/pages/{doc3['page_id']}/regions/{region['id']}/formula-ocr",
+        headers=_headers(session),
+        json={"expected_revision": doc3["revision"]},
+    )
+    assert wrong_kind.status_code in (400, 422), wrong_kind.text

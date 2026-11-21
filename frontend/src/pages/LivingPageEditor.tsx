@@ -14,6 +14,7 @@ import {
   publishLivingPage,
   generateLivingModel,
   recommendLivingModels,
+  recognizeRegionFormula,
 } from '@/api/living';
 import { errorMessage, isApiError } from '@/api/client';
 import { worksApi, type WorkSummary } from '@/api/works';
@@ -26,11 +27,13 @@ import type {
   LivingInsights,
   LivingPageDoc,
   PageBlock,
+  PageRegion,
   PageVariable,
   PageVariables,
 } from '@/living/types';
 import { blockDraft, blockRegistry, parseBlockDraft } from '@/living/blockRegistry';
 import { aiAnchorOf, aiInstructionOf } from '@/living/sim';
+import { planRegionInsert } from '@/living/regions';
 import { LiveVarsProvider, useLiveVars } from '@/living/liveVars';
 import { VariablesBar } from '@/components/living/VariablesBar';
 import styles from './LivingPage.module.css';
@@ -358,6 +361,92 @@ export default function LivingPageEditor(): ReactNode {
     }
   };
 
+  /** 页内区域 → 正文块：插入 formula/canvas/figure，回写 block_id/
+   *  canvas_block_id；已有公式锚块时插在其后且只补画布，不重复 formula。 */
+  const insertRegion = async (pageBlock: PageBlock, region: PageRegion): Promise<void> => {
+    if (!doc || busy !== null) return;
+    const pageIndex = blocks.findIndex((b) => b.id === pageBlock.id);
+    if (pageIndex < 0) return;
+    const plan = planRegionInsert(region, new Set(Object.keys(doc.variables ?? {})), newId);
+    if (!plan) return;
+    const anchorIndex = region.block_id
+      ? blocks.findIndex((b) => b.id === region.block_id)
+      : -1;
+    const insertIndex = (anchorIndex >= 0 ? anchorIndex : pageIndex) + 1;
+    setBusy('region');
+    setError(null);
+    try {
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+      const source = { ...(pageBlock.source ?? {}), region: region.id };
+      const inserted = plan.blocks.map((b) => ({ ...b, source }));
+      const focusId = plan.canvasAnchorId ?? plan.blockAnchorId;
+      const next = blocks.map((b) => {
+        if (b.id !== pageBlock.id || b.type !== 'page') return b;
+        const regions = (b.data.regions ?? []).map((r) =>
+          r.id === region.id
+            ? {
+                ...r,
+                ...(plan.blockAnchorId ? { block_id: plan.blockAnchorId } : {}),
+                ...(plan.canvasAnchorId ? { canvas_block_id: plan.canvasAnchorId } : {}),
+              }
+            : r);
+        return { ...b, data: { ...b.data, regions } };
+      });
+      next.splice(insertIndex, 0, ...inserted);
+      const updated = await patchLivingPage({
+        pageId: doc.page_id,
+        expectedRevision: doc.revision,
+        blocks: next,
+        variables: { ...(doc.variables ?? {}), ...plan.variables },
+      });
+      setDoc(updated);
+      setBlocks(updated.blocks);
+      setDirty(false);
+      setSavedAt(new Date().toLocaleTimeString());
+      if (focusId) {
+        window.setTimeout(() => {
+          document.getElementById(focusId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 60);
+      }
+    } catch (e) {
+      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，请刷新' : errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** 公式区域 → 本地公式 OCR：有未保存改动先落盘，再按需识别并缓存回文档。 */
+  const recognizeFormula = async (pageBlock: PageBlock, region: PageRegion): Promise<void> => {
+    if (!doc || busy !== null) return;
+    setBusy('region');
+    setError(null);
+    try {
+      if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+      let current = doc;
+      if (dirty) {
+        const saved = await save(blocks, doc.revision);
+        if (!saved) return;
+        current = saved;
+      }
+      const updated = await recognizeRegionFormula({
+        pageId: current.page_id, regionId: region.id, expectedRevision: current.revision,
+      });
+      setDoc(updated);
+      setBlocks(updated.blocks);
+      setDirty(false);
+      setSavedAt(new Date().toLocaleTimeString());
+    } catch (e) {
+      setError(isApiError(e, 'VERSION_CONFLICT') ? '文档已被别处修改，请刷新' : errorMessage(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openAI = (blockId: string): void => {
+    setAiPanel({ blockId });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   /** 页面变量定义是文档结构的一部分，改定义走 PATCH；运行时值只是预览态。 */
   const saveVariables = async (next: PageVariables): Promise<void> => {
     if (!doc) return;
@@ -512,9 +601,15 @@ export default function LivingPageEditor(): ReactNode {
                 block={block}
                 assetUrl={(key) => livingAssetUrl(doc.page_id, key)}
                 peerIds={peerIds}
+                onInsertRegion={(pageBlock, region) => void insertRegion(pageBlock, region)}
+                onRecognizeFormula={(pageBlock, region) => recognizeFormula(pageBlock, region)}
+                onAI={openAI}
                 controls={
-                  <div className={styles.blockControls}>
+                  <div className={styles.blockControls} data-editor-controls>
                     {block.type === 'text' && block.data.md.trim().length >= 8 ? <button type="button" onClick={() => {
+                      setAiPanel({ blockId: block.id }); window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}>AI 交互</button> : null}
+                    {block.type === 'formula' && block.data.latex.trim().length >= 4 ? <button type="button" onClick={() => {
                       setAiPanel({ blockId: block.id }); window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}>AI 交互</button> : null}
                     {block.type === 'canvas' && aiAnchorOf(block) ? <button type="button" onClick={() => {

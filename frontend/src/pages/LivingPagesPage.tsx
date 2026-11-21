@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createLivingPage, createLivingPageFromText, listLivingPages } from '@/api/living';
+import { createLivingPage, createLivingPageFromText, deleteLivingPage, listLivingPages, patchLivingPage } from '@/api/living';
 import { errorMessage } from '@/api/client';
 import { SiteNav } from '@/components/home/SiteNav';
+import { DEEP_LESSONS, type DeepLesson } from '@/living/deepLessons';
 import type { LivingPageSummary } from '@/living/types';
 import styles from './LivingPage.module.css';
 
@@ -44,6 +45,7 @@ export default function LivingPagesPage(): ReactNode {
   const [pages, setPages] = useState<LivingPageSummary[] | null>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState<'upload' | 'text' | null>(null);
+  const [lessonBusy, setLessonBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -86,6 +88,29 @@ export default function LivingPagesPage(): ReactNode {
       setError(errorMessage(e));
     } finally {
       setBusy(null);
+    }
+  };
+
+  const createLesson = async (lesson: DeepLesson): Promise<void> => {
+    setLessonBusy(lesson.id);
+    setError(null);
+    let pageId: string | null = null;
+    try {
+      const created = await createLivingPageFromText({ title: lesson.title, text: '互动教材副本' });
+      pageId = created.page_id;
+      const built = lesson.build();
+      const updated = await patchLivingPage({
+        pageId: created.page_id,
+        expectedRevision: created.revision,
+        blocks: built.blocks,
+        variables: built.variables,
+      });
+      navigate(`/living/${updated.page_id}`);
+    } catch (e) {
+      setError(errorMessage(e));
+      if (pageId) await deleteLivingPage(pageId).catch(() => undefined);
+    } finally {
+      setLessonBusy(null);
     }
   };
 
@@ -191,10 +216,43 @@ export default function LivingPagesPage(): ReactNode {
         {loadError ? <p role="alert">{loadError} <button onClick={loadPages}>重试</button></p> : null}
         {error ? <p className={styles.uploadError} role="alert">{error}</p> : null}
 
+        <section className={styles.listSection} aria-labelledby="living-lessons-title">
+          <div className={styles.sectionHead}>
+            <div>
+              <p className={styles.sectionEyebrow}>02 · Interactive Lessons</p>
+              <h2 id="living-lessons-title" className={styles.sectionTitle}>深度学习互动教材</h2>
+            </div>
+            <p className={styles.sectionNote}>预置仪器面板 · 活变量 · 先猜再看</p>
+          </div>
+          <ul className={styles.pageList}>
+            {DEEP_LESSONS.map((lesson, index) => (
+              <li key={lesson.id} className={styles.pageRow}>
+                <button
+                  type="button"
+                  className={`${styles.pageItem} ${styles.lessonButton}`}
+                  disabled={lessonBusy !== null}
+                  onClick={() => void createLesson(lesson)}
+                >
+                  <span className={styles.pageIndex}>{String(index + 1).padStart(2, '0')}</span>
+                  <span className={styles.pageMain}>
+                    <span className={styles.pageItemTitle}>{lesson.title}</span>
+                    <span className={styles.lessonDesc}>{lesson.desc}</span>
+                    <span className={styles.pageItemMeta}>
+                      <span>{lesson.subtitle}</span>
+                      <em className={styles.pendingBadge}>{lesson.topic}</em>
+                    </span>
+                  </span>
+                  <span className={styles.pageArrow} aria-hidden="true">{lessonBusy === lesson.id ? '…' : '→'}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+
         <section className={styles.listSection} aria-labelledby="living-mine-title">
           <div className={styles.sectionHead}>
             <div>
-              <p className={styles.sectionEyebrow}>02 · Library</p>
+              <p className={styles.sectionEyebrow}>03 · Library</p>
               <h2 id="living-mine-title" className={styles.sectionTitle}>我的活页</h2>
             </div>
             <span className={styles.countPill}>{pages === null ? '载入中' : `${pages.length} 份`}</span>

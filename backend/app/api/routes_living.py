@@ -84,6 +84,10 @@ class AIRecommendationRequest(BaseModel):
     force: bool = False
 
 
+class RegionOcrRequest(BaseModel):
+    expected_revision: int = Field(ge=1)
+
+
 class ProgressRequest(BaseModel):
     block_id: str = Field(min_length=1, max_length=64)
     patch: dict[str, Any] = Field(default_factory=dict)
@@ -282,6 +286,63 @@ def patch_page(
     return ok(request, record.document)
 
 
+@router.post("/pages/{page_id}/regions/{region_id}/formula-ocr",
+             summary="按需识别公式区域裁剪图（结果缓存回文档）")
+def recognize_region_formula(
+    page_id: str, region_id: str, payload: RegionOcrRequest,
+    request: Request, ctx: WriteDep, db: DBDep,
+) -> JSONResponse:
+    """P1.1：公式 OCR 移出上传链路——老师点击时才跑一次本地识别，
+    ``latex/expression/params`` 缓存回文档，同一区域不重复调用。"""
+    record = _owned_page(db, ctx, page_id)
+    _assert_revision(record, payload.expected_revision)
+    document = dict(record.document)
+    region: dict[str, Any] | None = None
+    for block in document.get("blocks") or []:
+        if block.get("type") != "page":
+            continue
+        for candidate in (block.get("data") or {}).get("regions") or []:
+            if isinstance(candidate, dict) and candidate.get("id") == region_id:
+                region = candidate
+    if region is None:
+        raise invalid_file("区域不存在，请刷新活页")
+    if region.get("kind") != "formula":
+        raise invalid_file("只有公式区域支持公式识别")
+    if not str(region.get("latex") or "").strip():
+        from PIL import Image
+
+        crop = None
+        for path in (LIVING_DIR / page_id / "analysis" / "regions" / f"{region_id}.png",
+                     _preview_path(page_id, region_id)):
+            if not path.is_file():
+                continue
+            try:
+                with Image.open(path) as image:
+                    crop = image.convert("RGB")
+            except Exception:  # noqa: BLE001 - 试下一个候选路径
+                continue
+            break
+        if crop is None:
+            raise invalid_file("区域裁剪已不存在，请重新上传原材料")
+        from ..labs.extract import _math_ocr
+
+        latex = _math_ocr(crop)
+        if not latex:
+            raise invalid_file("公式识别没有得到结果，请换更清晰的裁剪或手动录入")
+        region["latex"] = str(latex)[:4000]
+        from ..living.blockify import _function_from_latex
+
+        expression, params = _function_from_latex(region["latex"])
+        if expression:
+            region["expression"] = expression
+            if params:
+                region["params"] = params
+        record.document = document
+        _touch(record)
+        db.commit()
+    return ok(request, record.document)
+
+
 @router.post("/pages/{page_id}/suggestions/{suggestion_id}/accept",
              summary="接受激活建议并物化为活块")
 def accept_suggestion(
@@ -359,10 +420,16 @@ def grade_checkpoint(payload: GradeRequest, request: Request, ctx: SessionDep) -
 
 @router.get("/living/ai-status", summary="活页 AI 生成能力")
 def living_ai_status(request: Request, ctx: SessionDep) -> JSONResponse:
+    from ..model_profiles import vision_profile
     from ..ppt_ai.client import PPTAIClient
+
     client = PPTAIClient()
     available = client.available()
-    return ok(request, {"available": available, "model": client.settings.llm_model if available else ""})
+    return ok(request, {
+        "available": available,
+        "model": client.settings.llm_model if available else "",
+        "vision": vision_profile().status(),
+    })
 
 
 @router.post("/pages/{page_id}/ai-models", summary="根据活页内容自主设计交互模型（产出待激活建议）")

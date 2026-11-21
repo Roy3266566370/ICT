@@ -176,6 +176,15 @@
 .templateFilters button[aria-pressed="true"] { border-color: var(--color-coral, #b65a3c); color: var(--color-coral, #b65a3c); background: #b65a3c08; }
 .templateFilters button:focus-visible, .templateFilters a:focus-visible { outline: 2px solid var(--color-coral, #b65a3c); outline-offset: 3px; }
 .templateFilters a { margin-left: auto; color: var(--ink-500, #686f61); font-size: 11px; }
+.templateSearch { display: flex; align-items: center; gap: 6px; min-width: min(100%, 230px); }
+.templateSearch span { color: var(--ink-400, #8b9184); font-size: 11px; white-space: nowrap; }
+.templateSearch input { min-width: 0; width: 100%; padding: 7px 10px; border: 1px solid var(--hairline, #dedfd6); border-radius: 6px; background: var(--paper-0, #fff); color: var(--ink-700, #353b31); font: inherit; font-size: 12px; }
+.templateSearch input:focus-visible { outline: 2px solid var(--color-coral, #b65a3c); outline-offset: 2px; }
+.deepTopics { display: grid; gap: 26px; }
+.deepTopic { display: grid; gap: 14px; }
+.deepTopicHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 2px 2px 0; }
+.deepTopicHead h3 { margin: 0 0 5px; font-size: 16px; }
+.deepTopicHead p { margin: 0; max-width: 780px; color: var(--ink-500, #686f61); font-size: 12px; line-height: 1.8; }
 .templateFormula { display: block; margin-top: 10px; color: var(--color-coral, #b65a3c); font: 11px/1.7 var(--font-family-mono, monospace); overflow-wrap: anywhere; }
 .templateRecipe { display: block; margin-top: 6px; color: var(--ink-400, #8b9184); font-size: 10px; line-height: 1.6; }
 .guideGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 14px; }

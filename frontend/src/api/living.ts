@@ -147,6 +147,19 @@ export async function dismissSuggestion(input: {
   return parseLivingPageDoc(data);
 }
 
+/** 按需公式 OCR：点击时对区域裁剪跑一次本地识别，latex/expression 缓存回文档。 */
+export async function recognizeRegionFormula(input: {
+  pageId: string;
+  regionId: string;
+  expectedRevision: number;
+}): Promise<LivingPageDoc> {
+  const data = await requestJson<LivingPageDoc>(
+    `${P}/pages/${encodeURIComponent(input.pageId)}/regions/${encodeURIComponent(input.regionId)}/formula-ocr`,
+    { method: 'POST', body: JSON.stringify({ expected_revision: input.expectedRevision }) },
+  );
+  return parseLivingPageDoc(data);
+}
+
 export async function createLabBlock(input: {
   pageId: string;
   text: string;

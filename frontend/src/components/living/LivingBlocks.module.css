@@ -80,26 +80,291 @@
   overflow: hidden;
 }
 
+.pageHeading {
+  display: flex;
+  align-items: stretch;
+  background: var(--paper-3);
+}
+.blockShell:has([data-editor-controls]) .pageHeading { padding-right: 7.2rem; }
 .pageToggle {
   display: flex;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
   padding: 0.55rem 0.9rem;
   border: none;
-  background: var(--paper-3);
+  background: transparent;
   color: var(--ink-500);
   font-size: 0.85rem;
   cursor: pointer;
 }
 .pageToggle:hover { color: var(--ink-700); }
-.pageToggleHint { color: var(--color-coral-ink); font-size: 0.8rem; }
+.pageToggleHint { color: var(--color-coral-ink); font-size: 0.8rem; white-space: nowrap; }
+.regionToggle {
+  flex: 0 0 auto;
+  border: none;
+  border-left: 1px solid var(--hairline);
+  padding: 0 0.8rem;
+  background: transparent;
+  color: var(--ink-500);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.regionToggle:hover { color: var(--ink-700); }
+.regionToggle[aria-pressed='true'] { color: var(--color-coral-ink); font-weight: 600; }
 
 .pageImage {
   display: block;
   width: 100%;
   height: auto;
   background: var(--paper-0);
+}
+
+.pageImageWrap {
+  position: relative;
+  line-height: 0;
+}
+
+.pageRegion {
+  position: absolute;
+  z-index: 2;
+  padding: 0;
+  border: 1px dashed color-mix(in srgb, var(--color-coral-ink) 55%, transparent);
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+.pageRegion:hover,
+.pageRegion:focus-visible,
+.pageRegion[data-active='true'] {
+  border-color: var(--color-coral-ink);
+  background: color-mix(in srgb, var(--color-coral-ink) 10%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-coral-ink) 16%, transparent);
+  outline: none;
+}
+.pageRegion[data-kind='formula'] {
+  border-color: color-mix(in srgb, #6d4fd3 55%, transparent);
+}
+.pageRegion[data-kind='formula']:hover,
+.pageRegion[data-kind='formula']:focus-visible,
+.pageRegion[data-kind='formula'][data-active='true'] {
+  border-color: #6d4fd3;
+  background: color-mix(in srgb, #6d4fd3 10%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, #6d4fd3 16%, transparent);
+}
+.pageRegionChip {
+  position: absolute;
+  left: 0.25rem;
+  top: 0.25rem;
+  max-width: min(22rem, calc(100% - 0.5rem));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink-900) 82%, transparent);
+  color: var(--paper-0);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  pointer-events: none;
+}
+.pageRegion:hover .pageRegionChip,
+.pageRegion:focus-visible .pageRegionChip,
+.pageRegion[data-active='true'] .pageRegionChip {
+  opacity: 1;
+  transform: none;
+}
+
+.regionPanel {
+  margin: 0.75rem;
+  padding: 0.8rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--paper-0);
+  line-height: 1.6;
+}
+.regionPanelHead {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.regionPanelHead strong { flex: 1 1 12rem; }
+.regionPanelHead button,
+.regionJump {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  background: var(--paper-1);
+  color: var(--ink-700);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.regionKind {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-coral-ink) 12%, transparent);
+  color: var(--color-coral-ink);
+  font-size: 0.75rem;
+}
+.regionPanel > img {
+  display: block;
+  max-width: 100%;
+  max-height: 28rem;
+  margin: 0 auto 0.5rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--paper-1);
+}
+.regionCaption {
+  margin: 0.35rem 0;
+  color: var(--ink-700);
+  font-size: 0.9rem;
+}
+.regionPanel details { margin: 0.5rem 0; color: var(--ink-700); font-size: 0.86rem; }
+.regionPanel details p { white-space: pre-wrap; }
+.regionJump { display: inline-block; margin-top: 0.25rem; }
+
+.regionViews {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.regionViewBtn {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  background: var(--paper-1);
+  color: var(--ink-700);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.regionViewBtn[aria-pressed='true'] {
+  background: var(--ink-900);
+  border-color: var(--ink-900);
+  color: var(--paper-0);
+}
+.regionLatexRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.regionLatexRow > :first-child { flex: 1 1 16rem; }
+.regionMiniBtn {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  background: var(--paper-1);
+  color: var(--ink-700);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+.regionActions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+.regionHint {
+  margin: 0.4rem 0 0;
+  color: var(--ink-400);
+  font-size: 0.78rem;
+}
+.regionCanvas {
+  height: 340px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--paper-1);
+}
+.regionCanvas :global(canvas),
+.regionCanvas > div { min-height: 0; }
+
+.labelTest { display: flex; flex-direction: column; gap: 0.5rem; }
+.labelTestWrap {
+  position: relative;
+  line-height: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--paper-1);
+}
+.labelTestWrap img { display: block; width: 100%; height: auto; }
+.labelCover,
+.labelTag {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.labelCover {
+  background: color-mix(in srgb, var(--ink-900) 72%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--paper-0) 70%, transparent);
+  color: var(--paper-0);
+}
+.labelTag {
+  background: color-mix(in srgb, var(--color-coral-ink) 88%, transparent);
+  border: 1px solid var(--color-coral-ink);
+  color: var(--paper-0);
+}
+.labelTestBar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--ink-700);
+}
+.labelTestBar button {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  background: var(--paper-1);
+  color: var(--ink-700);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.labelDetail {
+  margin: 0;
+  color: var(--ink-700);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+  .regionPanel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    margin: 0;
+    max-height: 74vh;
+    overflow-y: auto;
+    border-radius: 16px 16px 0 0;
+    border: 0;
+    border-top: 1px solid var(--hairline);
+    box-shadow: 0 -10px 34px rgb(0 0 0 / 0.22);
+  }
+  .regionCanvas { height: 300px; }
 }
 
 .figureBlock { margin: 0; text-align: center; }

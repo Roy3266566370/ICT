@@ -267,3 +267,12 @@ class TestModel:
     def test_snapshot_raises_for_non_problem(self) -> None:
         with pytest.raises(ValueError):
             build_problem_snapshot("今天天气很好去公园散步")
+
+    @pytest.mark.parametrize("heading", [
+        "LINEAR ALGEBRA • SPACE VIEW",
+        "THE WHOLE MAP",
+        "CHAPTER 01",
+    ])
+    def test_snapshot_rejects_needs_review_hollow_heading(self, heading: str) -> None:
+        with pytest.raises(ValueError, match="条件"):
+            build_problem_snapshot(heading)
