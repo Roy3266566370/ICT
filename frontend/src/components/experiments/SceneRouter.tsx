@@ -1,7 +1,7 @@
 import {memo} from 'react';
 import {
   ColumnCombinationExperiment, EigenDecompositionExperiment, MatrixAdditionExperiment,
-  RelationTypesExperiment, VectorFamilyExperiment,
+  VectorFamilyExperiment,
 } from './BasicScenes';
 import {ShearCompareExperiment, SvdProcessExperiment} from './DecompositionScenes';
 import {BasisChangeExperiment, EigenProbeExperiment, InverseExperiment} from './GuidedScenes';
@@ -12,7 +12,7 @@ export const SPECIALIZED_SCENES = new Set([
   'vector_family', 'eigen_probe_lab', 'column_combination', 'matrix_addition',
   'eigen_decomposition', 'svd_process', 'shear_compare', 'rank_space',
   'det_area_lab', 'inverse_lab', 'perturbation', 'basis_change_lab',
-  'change_of_basis', 'relation_types',
+  'change_of_basis',
 ]);
 
 export const SceneRouter = memo(function SceneRouter({sceneType, ...props}: SceneComponentProps & {sceneType: string}) {
@@ -30,7 +30,6 @@ export const SceneRouter = memo(function SceneRouter({sceneType, ...props}: Scen
     case 'perturbation': return <PerturbationExperiment {...props}/>;
     case 'basis_change_lab': return <BasisChangeExperiment {...props}/>;
     case 'change_of_basis': return <ChangeOfBasisExperiment {...props}/>;
-    case 'relation_types': return <RelationTypesExperiment {...props}/>;
     default: return null;
   }
 });

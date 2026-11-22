@@ -1,15 +1,11 @@
-/** 首页上传对话框的活页版：文件 → POST /pages → 活页编辑器。
- *
- * 与原 UploadPanel（PPT 管线）解耦：活页上传是同步接口，无需任务轮询。
- */
+/** 首页材料上传：统一进入横向动态 PPT 工作台。 */
 
 import { useRef, useState, type DragEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createLivingPage } from '@/api/living';
+import { uploadTeachingMaterial, WORKBENCH_UPLOAD_ACCEPT } from '@/api/teachingUpload';
 import { errorMessage } from '@/api/client';
 import styles from './UploadPanel.module.css';
 
-const ACCEPT = '.pdf,.pptx,.png,.jpg,.jpeg,.webp,.txt,.md,.csv';
 const MAX_BYTES = 70 * 1024 * 1024;
 
 export function LivingUploadPanel(): JSX.Element {
@@ -30,8 +26,7 @@ export function LivingUploadPanel(): JSX.Element {
     setBusy(true);
     setError(null);
     try {
-      const doc = await createLivingPage({ files: list });
-      navigate(`/living/${doc.page_id}`);
+      navigate(await uploadTeachingMaterial(list));
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -49,10 +44,10 @@ export function LivingUploadPanel(): JSX.Element {
       <header className={styles.head}>
         <div className={styles.headText}>
           <h2 className={styles.title} id="living-upload-title">
-            上传材料，生成活页
+            上传动态 PPT 材料
           </h2>
           <p className={styles.lead}>
-            PDF / PPTX / 图片 / 文本——PDF 最多 100 页，保留原页图示与公式，确认建议后再激活交互。
+            上传 PPTX、PDF 或图片，直接进入横向 PPT 工作台，原位编辑图形、调参演示与分享导出。
           </p>
         </div>
       </header>
@@ -83,13 +78,12 @@ export function LivingUploadPanel(): JSX.Element {
             disabled={busy}
             onClick={() => inputRef.current?.click()}
           >
-            {busy ? '正在解析…' : '点击选择或拖入文件'}
+            {busy ? '正在解析并生成工作台…' : '点击选择或拖入 PPTX / PDF / 图片'}
           </button>
           <input
             ref={inputRef}
             type="file"
-            accept={ACCEPT}
-            multiple
+            accept={WORKBENCH_UPLOAD_ACCEPT}
             hidden
             onChange={(e) => {
               void submit(e.target.files);
@@ -109,29 +103,29 @@ export function LivingUploadPanel(): JSX.Element {
             <li>
               <span className={styles.railIndex}>01</span>
               <span className={styles.railBody}>
-                <strong>原页照原样保留</strong>
-                <span>识别不出的内容留在页图里，不会丢。</span>
+                <strong>直接展开横向幻灯片</strong>
+                <span>原页版式保真呈现，自动准备可操作对象。</span>
               </span>
             </li>
             <li>
               <span className={styles.railIndex}>02</span>
               <span className={styles.railBody}>
-                <strong>公式与题目可激活</strong>
-                <span>建议卡片逐条确认，点「激活」才变活。</span>
+                <strong>原位调节与自由编辑</strong>
+                <span>直接拖动线段、调线长/线型/颜色或嵌入交互模型。</span>
               </span>
             </li>
             <li>
               <span className={styles.railIndex}>03</span>
               <span className={styles.railBody}>
-                <strong>一键发布给学生</strong>
-                <span>只读链接 + 竞猜与判分数据回流。</span>
+                <strong>导出与分享</strong>
+                <span>一键生成只读分享链接、离线 HTML 或工程包。</span>
               </span>
             </li>
           </ol>
         </aside>
       </div>
 
-      <p className={styles.retention}>活页与「当前浏览器」的访客会话绑定，默认保留 24 小时。</p>
+      <p className={styles.retention}>课件与「当前浏览器」的访客会话绑定，默认保留 24 小时。</p>
     </section>
   );
 }

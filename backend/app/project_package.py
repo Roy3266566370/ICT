@@ -1,11 +1,12 @@
-"""``.xsproj`` 离线工程包：可分享，也可再次导入编辑。
+"""``.xsproj`` 离线工程包与单文件交互 HTML 的导出/导入：可分享，也可再次导入编辑。
 
 包内包含 SceneDocument（稳定节点 id + 修订号）、iSpecs、当前参数值、页面图片和
-可选原 PPTX。导入时校验 schema 与哈希，创建新材料，节点 id 保持不变。
+可选原 PPTX / 图层缓存。导入时校验 schema、哈希与资源安全边界，创建新材料并保留节点 id。
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import io
 import json
@@ -15,10 +16,14 @@ from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
 
+from PIL import Image
 from sqlalchemy.orm import Session
 
 from .db.models import MaterialRecord, PageRecord
-from .documents.store import read_document, write_document
+from .documents.layer_export import EXPORTER_VERSION
+from .documents.layers import layer_dir
+from .documents.presentation import public_document
+from .documents.store import document_root, read_document, write_document
 from .ispec.persistence import load_values, save_values
 from .render import pages_dir, render_dir
 from .settings import DATA_DIR, UPLOAD_DIR, get_settings
@@ -29,11 +34,21 @@ MAX_PACKAGE_BYTES = 64 * 1024 * 1024
 # 上传体积不是解压后体积：压缩率极高的 zip 可以很小却解压出数十 GB，
 # 因此另有解压总量与条目数上限（与 upload_material 的 max_unzipped_bytes 一致）。
 MAX_PACKAGE_UNZIPPED_BYTES = 200 * 1024 * 1024
-MAX_PACKAGE_MEMBERS = 256
+MAX_PACKAGE_MEMBERS = 1024
 ORIGINAL_FILE_NAME = "original.pptx"
 _KEY_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,96}")
+_LAYER_MEMBER_PATTERN = re.compile(r"layers/[A-Za-z0-9_-]{1,96}/p\d{2,3}/(manifest\.json|background\.png|n_\d+(_empty)?\.png)")
+_DATA_IMAGE_PATTERN = re.compile(r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=\s]+)$")
+_EXPORT_DATA_SCRIPT = re.compile(
+    r'<script\b[^>]*\bid=["\']export-data["\'][^>]*>(.*?)</script>',
+    re.IGNORECASE | re.DOTALL,
+)
+_BACKUP_DATA_SCRIPT = re.compile(
+    r'<script\b[^>]*\bid=["\']project-backup["\'][^>]*>(.*?)</script>',
+    re.IGNORECASE | re.DOTALL,
+)
 _ALLOWED_MEMBERS = ("manifest.json", "scene_document.json", "ispecs.json", "values.json")
-_ALLOWED_PREFIXES = ("pages/", "source/")
+_ALLOWED_PREFIXES = ("pages/", "source/", "layers/")
 
 
 def _hash_bytes(data: bytes) -> str:
@@ -47,7 +62,28 @@ def _json(data: Any) -> bytes:
 def _safe_member(name: str) -> bool:
     if name.startswith("/") or ".." in Path(name).parts or "\\" in name:
         return False
-    return name in _ALLOWED_MEMBERS or name.startswith(_ALLOWED_PREFIXES)
+    if name in _ALLOWED_MEMBERS:
+        return True
+    if name.startswith("layers/"):
+        return _LAYER_MEMBER_PATTERN.fullmatch(name) is not None
+    return name.startswith(("pages/", "source/"))
+
+
+def _layers_for_material(material_id: str, document: Mapping[str, Any]) -> list[tuple[str, bytes]]:
+    source_key = document.get("source_key")
+    if not isinstance(source_key, str) or not _KEY_PATTERN.fullmatch(source_key):
+        return []
+    base = document_root(material_id) / "layers" / source_key
+    if not base.is_dir():
+        return []
+    entries: list[tuple[str, bytes]] = []
+    for path in sorted(base.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = f"layers/{source_key}/{path.relative_to(base).as_posix()}"
+        if _LAYER_MEMBER_PATTERN.fullmatch(rel):
+            entries.append((rel, path.read_bytes()))
+    return entries
 
 
 def _pages_for_material(material_id: str, payload: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -141,6 +177,8 @@ def build_project_archive(material: MaterialRecord, payload: Mapping[str, Any] |
         archive.writestr("values.json", values_bytes)
         for page in pages:
             archive.writestr(page["file"], page["bytes"])
+        for rel, blob in _layers_for_material(material_id, document):
+            archive.writestr(rel, blob)
         if source_bytes is not None:
             archive.writestr("source/original.pptx", source_bytes)
     return buffer.getvalue()
@@ -221,6 +259,10 @@ def import_project_archive(
         page_bytes[str(page.get("page_no"))] = _read(file_name)
     if not page_bytes:
         raise ProjectPackageError("工程包没有页面图片")
+    layer_files: list[tuple[str, bytes]] = []
+    for name in names:
+        if name.startswith("layers/") and _LAYER_MEMBER_PATTERN.fullmatch(name):
+            layer_files.append((name, _read(name)))
     source = manifest.get("source_pptx") if isinstance(manifest.get("source_pptx"), Mapping) else {}
     source_content = _read("source/original.pptx") if "source/original.pptx" in names else None
     if source_content is not None:
@@ -311,11 +353,347 @@ def import_project_archive(
     for object_id, entry in values.items():
         if isinstance(object_id, str) and isinstance(entry, Mapping) and isinstance(entry.get("values"), Mapping):
             save_values(material_id, object_id, entry["values"])
+    for rel, blob in layer_files:
+        target_layer = UPLOAD_DIR / material_id / "document" / rel
+        target_layer.parent.mkdir(parents=True, exist_ok=True)
+        target_layer.write_bytes(blob)
     if source_content is not None:
         target_source = UPLOAD_DIR / material_id
         target_source.mkdir(parents=True, exist_ok=True)
         (target_source / ORIGINAL_FILE_NAME).write_bytes(source_content)
     return {"material_id": material_id, "page_count": len(page_entries), "title": material.title}
+
+
+def _decode_data_image(raw: Any, budget: list[int]) -> bytes | None:
+    """安全解码内联 data:image/...;base64,...；遵守累计字节上限。"""
+
+    if not isinstance(raw, str):
+        return None
+    match = _DATA_IMAGE_PATTERN.fullmatch(raw.strip())
+    if match is None:
+        return None
+    try:
+        blob = base64.b64decode(match.group(2), validate=True)
+    except (ValueError, TypeError) as exc:
+        raise ProjectPackageError("离线 HTML 中的内联图片格式不合法") from exc
+    if len(blob) > budget[0]:
+        raise ProjectPackageError("离线 HTML 解码后的图片总体积超过上限")
+    budget[0] -= len(blob)
+    return blob
+
+
+def _blank_slide_png(width_pt: float, height_pt: float) -> bytes:
+    """生成兜底纯白画布 PNG（仅在导出页不含任何底图时使用）。"""
+
+    w = max(160, min(1920, int(round(width_pt))))
+    h = max(90, min(1080, int(round(height_pt))))
+    buffer = io.BytesIO()
+    Image.new("RGB", (w, h), (255, 255, 255)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _extract_script_json(html_text: str, pattern: re.Pattern[str], label: str) -> dict[str, Any] | None:
+    match = pattern.search(html_text)
+    if match is None:
+        return None
+    raw = match.group(1).strip()
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except ValueError as exc:
+        raise ProjectPackageError(f"离线 HTML 中的 {label} 数据无法解析") from exc
+    if not isinstance(parsed, dict):
+        raise ProjectPackageError(f"离线 HTML 中的 {label} 结构不合法")
+    return parsed
+
+
+def import_offline_html(
+    data: bytes,
+    *,
+    session_id: str,
+    db: Session,
+) -> dict[str, Any]:
+    """从万象导出的单文件交互 HTML 恢复为可继续编辑的动态 PPT 材料。"""
+
+    if not data:
+        raise ProjectPackageError("导入文件为空")
+    if len(data) > MAX_PACKAGE_BYTES:
+        raise ProjectPackageError("离线 HTML 文件超过 64MB")
+    try:
+        html_text = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ProjectPackageError("不是有效的 UTF-8 离线 HTML 文件") from exc
+
+    export_data = _extract_script_json(html_text, _EXPORT_DATA_SCRIPT, "export-data")
+    if export_data is None:
+        raise ProjectPackageError("未在 HTML 中找到万象导出数据（export-data），请确认是由万象导出的交互网页")
+    if "living" in export_data and "pages" not in export_data:
+        raise ProjectPackageError("该 HTML 为旧版纵向活页导出，暂不支持导入到横向 PPT 工作台")
+
+    backup_data = _extract_script_json(html_text, _BACKUP_DATA_SCRIPT, "project-backup") or {}
+    raw_pages = export_data.get("pages") if isinstance(export_data.get("pages"), list) else []
+    raw_document = export_data.get("document")
+    if raw_document is None and isinstance(backup_data.get("scene_document"), dict):
+        raw_document = backup_data.get("scene_document")
+
+    cleaned_document = public_document(raw_document) if isinstance(raw_document, dict) else None
+    scene_pages_by_no: dict[int, dict[str, Any]] = {}
+    if cleaned_document is not None:
+        for page in cleaned_document.get("pages", []):
+            page_no = page.get("page_no")
+            if isinstance(page_no, int) and page_no >= 1:
+                scene_pages_by_no[page_no] = page
+
+    page_meta_by_no: dict[int, dict[str, Any]] = {}
+    for item in raw_pages:
+        if not isinstance(item, Mapping):
+            continue
+        page_no = item.get("page_no")
+        if not isinstance(page_no, int) or page_no < 1:
+            continue
+        page_meta_by_no[page_no] = {
+            "page_no": page_no,
+            "title": str(item.get("title") or f"第 {page_no} 页"),
+            "width": int(item.get("width") or 12192000),
+            "height": int(item.get("height") or 6858000),
+            "image_url": item.get("image_url"),
+            "elements": item.get("elements") if isinstance(item.get("elements"), list) else [],
+        }
+
+    all_page_nos = sorted(set(page_meta_by_no) | set(scene_pages_by_no))
+    if not all_page_nos:
+        raise ProjectPackageError("离线 HTML 中没有可恢复的幻灯片页面")
+    if len(all_page_nos) > 200:
+        raise ProjectPackageError("离线 HTML 页数超过上限（200 页）")
+
+    decode_budget = [MAX_PACKAGE_UNZIPPED_BYTES]
+    source_key = "html_import"
+    now = utc_now()
+    now_iso = to_iso(now)
+    material_id = f"mat_{uuid4().hex}"
+    title = str(export_data.get("title") or backup_data.get("title") or "导入的交互网页").strip() or "导入的交互网页"
+
+    page_blobs: dict[int, bytes] = {}
+    layer_writes: list[tuple[int, str, bytes]] = []
+    rebuilt_scene_pages: list[dict[str, Any]] = []
+    page_layouts: list[dict[str, Any]] = []
+
+    for page_no in all_page_nos:
+        meta = page_meta_by_no.get(page_no)
+        scene_page = scene_pages_by_no.get(page_no)
+        width_emu = int(meta["width"]) if meta else int(round(float((scene_page or {}).get("width") or 960) * 12700))
+        height_emu = int(meta["height"]) if meta else int(round(float((scene_page or {}).get("height") or 540) * 12700))
+        width_pt = float((scene_page or {}).get("width") or round(width_emu / 12700, 2))
+        height_pt = float((scene_page or {}).get("height") or round(height_emu / 12700, 2))
+
+        raw_page_blob = _decode_data_image(meta.get("image_url"), decode_budget) if meta else None
+        if scene_page is not None:
+            bg_blob = _decode_data_image(scene_page.get("background_url"), decode_budget)
+            if bg_blob is None:
+                bg_blob = raw_page_blob or _blank_slide_png(width_pt, height_pt)
+            layer_writes.append((page_no, "background.png", bg_blob))
+            manifest_objects: dict[str, dict[str, Any]] = {}
+            rebuilt_nodes: list[dict[str, Any]] = []
+            for idx, node in enumerate(scene_page.get("nodes", []), start=1):
+                rebuilt = dict(node)
+                asset_id = f"n_{idx}"
+                node_img = _decode_data_image(rebuilt.pop("image_url", None), decode_budget)
+                node_bg = _decode_data_image(rebuilt.pop("background_url", None), decode_budget)
+                if node_img is not None or node_bg is not None:
+                    entry: dict[str, Any] = {}
+                    if node_img is not None:
+                        asset_name = f"{asset_id}.png"
+                        layer_writes.append((page_no, asset_name, node_img))
+                        entry["asset"] = asset_name
+                        for field in ("frame", "scale", "size"):
+                            if f"image_{field}" in rebuilt:
+                                entry[f"asset_{field}"] = rebuilt.pop(f"image_{field}")
+                    if node_bg is not None:
+                        empty_name = f"{asset_id}_empty.png"
+                        layer_writes.append((page_no, empty_name, node_bg))
+                        entry["empty"] = empty_name
+                        for field in ("frame", "scale", "size"):
+                            if f"background_{field}" in rebuilt:
+                                entry[f"empty_{field}"] = rebuilt.pop(f"background_{field}")
+                    if "word_wrap" in rebuilt:
+                        entry["word_wrap"] = rebuilt["word_wrap"]
+                    manifest_objects[asset_id] = entry
+                    rebuilt["asset_id"] = asset_id
+                rebuilt_nodes.append(rebuilt)
+
+            manifest_payload = {
+                "status": "ready",
+                "exporter_version": EXPORTER_VERSION,
+                "background": "background.png",
+                "objects": manifest_objects,
+                "frozen_ids": list(scene_page.get("preparation", {}).get("frozen_ids", [])),
+            }
+            layer_writes.append((page_no, "manifest.json", _json(manifest_payload)))
+            rebuilt_scene_pages.append(
+                {
+                    "page_no": page_no,
+                    "width": width_pt,
+                    "height": height_pt,
+                    "modified": True,
+                    "nodes": rebuilt_nodes,
+                }
+            )
+            page_blobs[page_no] = raw_page_blob or bg_blob
+        else:
+            bg_blob = raw_page_blob or _blank_slide_png(width_pt, height_pt)
+            layer_writes.append((page_no, "background.png", bg_blob))
+            manifest_payload = {
+                "status": "ready",
+                "exporter_version": EXPORTER_VERSION,
+                "background": "background.png",
+                "objects": {},
+                "frozen_ids": [],
+            }
+            layer_writes.append((page_no, "manifest.json", _json(manifest_payload)))
+            rebuilt_scene_pages.append(
+                {
+                    "page_no": page_no,
+                    "width": width_pt,
+                    "height": height_pt,
+                    "modified": False,
+                    "nodes": [],
+                }
+            )
+            page_blobs[page_no] = bg_blob
+
+        page_layouts.append(
+            {
+                "page_no": page_no,
+                "width": width_emu,
+                "height": height_emu,
+                "title": meta["title"] if meta else f"第 {page_no} 页",
+                "elements": meta["elements"] if meta else [],
+            }
+        )
+
+    material = MaterialRecord(
+        id=material_id,
+        session_id=session_id,
+        title=title,
+        status="ready",
+        page_count=len(all_page_nos),
+        source_filename=f"{title}.html",
+        clone_of_example_id=None,
+        candidates=[],
+        created_at=now_iso,
+        expires_at=iso_after(get_settings().material_retention_hours, base=now),
+    )
+    db.add(material)
+    for page_no in all_page_nos:
+        meta = page_meta_by_no.get(page_no)
+        db.add(
+            PageRecord(
+                id=f"page_{uuid4().hex}",
+                material_id=material_id,
+                page_no=page_no,
+                title=meta["title"] if meta else f"第 {page_no} 页",
+                paragraphs=[],
+                excerpt="",
+                image_asset_id=None,
+            )
+        )
+    db.commit()
+
+    document_revision = int((cleaned_document or {}).get("revision") or 0)
+    document_to_save = {
+        "schema_version": "1.0",
+        "revision": document_revision,
+        "source_key": source_key,
+        "title": title,
+        "pages": rebuilt_scene_pages,
+    }
+    write_document(material_id, document_to_save)
+
+    for page_no, file_name, blob in layer_writes:
+        target = UPLOAD_DIR / material_id / "document" / "layers" / source_key / f"p{page_no:02d}" / file_name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(blob)
+
+    raw_specs = export_data.get("specs") if isinstance(export_data.get("specs"), list) else []
+    if not raw_specs and isinstance(backup_data.get("ispecs"), list):
+        raw_specs = backup_data.get("ispecs")
+    target_payload = {
+        "schema_version": "1.0",
+        "material_id": material_id,
+        "ispecs": [spec for spec in raw_specs if isinstance(spec, Mapping)],
+        "page_layouts": page_layouts,
+    }
+    (DATA_DIR / "ispecs").mkdir(parents=True, exist_ok=True)
+    temp = DATA_DIR / "ispecs" / f"{material_id}.{uuid4().hex}.tmp"
+    temp.write_text(json.dumps(target_payload, ensure_ascii=False), encoding="utf-8")
+    temp.replace(DATA_DIR / "ispecs" / f"{material_id}.json")
+
+    target_pages = pages_dir(material_id)
+    target_pages.mkdir(parents=True, exist_ok=True)
+    page_entries = []
+    for layout in page_layouts:
+        page_no = int(layout["page_no"])
+        content = page_blobs[page_no]
+        name = f"s{page_no:02d}.png"
+        (target_pages / name).write_bytes(content)
+        page_entries.append(
+            {
+                "page_no": page_no,
+                "file": name,
+                "bytes": len(content),
+                "width": layout["width"],
+                "height": layout["height"],
+            }
+        )
+    render_dir(material_id).mkdir(parents=True, exist_ok=True)
+    (render_dir(material_id) / "render.json").write_text(
+        json.dumps(
+            {
+                "render_engine": "offline_html_import",
+                "fidelity": "exact",
+                "render_status": "ready",
+                "page_count": len(page_entries),
+                "pages": page_entries,
+                "rendered_at": now_iso,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    backup_values = backup_data.get("values") if isinstance(backup_data.get("values"), Mapping) else {}
+    for object_id, entry in backup_values.items():
+        if isinstance(object_id, str) and isinstance(entry, Mapping):
+            values_map = entry.get("values") if isinstance(entry.get("values"), Mapping) else entry
+            if isinstance(values_map, Mapping):
+                save_values(material_id, object_id, values_map)
+
+    return {"material_id": material_id, "page_count": len(page_entries), "title": material.title}
+
+
+def import_project_file(
+    data: bytes,
+    *,
+    session_id: str,
+    db: Session,
+    filename: str = "",
+) -> dict[str, Any]:
+    """统一导入入口：支持 ``.xsproj`` zip 工程包和万象导出的单文件 ``.html``。"""
+
+    if not data:
+        raise ProjectPackageError("导入文件为空")
+    lower_name = filename.lower().strip()
+    if data[:4] == b"PK\x03\x04" or (lower_name.endswith(".xsproj") and not lower_name.endswith(".html")):
+        return import_project_archive(data, session_id=session_id, db=db)
+    stripped = data.lstrip()
+    if (
+        lower_name.endswith((".html", ".htm"))
+        or stripped.startswith((b"<!doctype html", b"<!DOCTYPE html", b"<html", b"<HTML"))
+        or b'id="export-data"' in data[:4096]
+    ):
+        return import_offline_html(data, session_id=session_id, db=db)
+    raise ProjectPackageError("仅支持导入 .xsproj 工程包或万象导出的单文件 .html 交互网页")
 
 
 class ProjectPackageError(ValueError):
@@ -329,5 +707,7 @@ __all__ = [
     "PACKAGE_SCHEMA",
     "ProjectPackageError",
     "build_project_archive",
+    "import_offline_html",
     "import_project_archive",
+    "import_project_file",
 ]

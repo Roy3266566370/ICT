@@ -44,10 +44,8 @@ RECIPES = {
 
 
 def _infer_recipe(question: str, hint: str | None) -> str:
-    if hint in RECIPES:
+    if hint in RECIPES and hint != "counterexample":
         return hint
-    if any(word in question for word in ("反例", "不成立", "违反", "是否成立", "存在")):
-        return "counterexample"
     if any(word in question for word in ("边界", "临界", "何时", "转折", "变化点", "分界")):
         return "boundary"
     if any(word in question for word in ("对比", "比较", "顺序", "差异", "哪个")):

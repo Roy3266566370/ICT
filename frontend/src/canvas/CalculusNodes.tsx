@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { NodeBodyProps } from './nodes.tsx';
 import type { RealFunction } from './calculus.ts';
-import { compileFunction, functionValue, finiteAt, derivativeAt, integrate, approachLimit, taylorPolynomial } from './calculus.ts';
+import { compileFunction, functionValue, finiteAt, derivativeAt, integrate, approachLimit, taylorPolynomial, epsilonDeltaBand } from './calculus.ts';
 import { formatNumber } from '../labs/expr.ts';
 import styles from './calculus.module.css';
 
@@ -41,11 +41,13 @@ function position(props: NodeBodyProps): number {
 }
 
 /** 同一图中的曲线共享尺度；定义域空洞断线，极端值裁剪，避免跨奇点画假连线。 */
-function Graph({ curves, min, max, rectangles = [], point }: {
+function Graph({ curves, min, max, rectangles = [], point, band }: {
   curves: { name: string; f: RealFunction; color: string; dashed?: boolean }[];
   min: number; max: number;
   rectangles?: { x: number; y: number; width: number }[];
   point?: { x: number; y: number };
+  /** ε-δ 带：L±ε 横带与 x₀±δ 竖带，交集加深（内联样式，不新增 CSS 类） */
+  band?: { x0: number; level: number; eps: number; delta: number };
 }) {
   const id = useId();
   if (!(max > min)) return <Notice>横轴上限必须大于下限。</Notice>;
@@ -60,6 +62,10 @@ function Graph({ curves, min, max, rectangles = [], point }: {
   const pad = Math.max((high - low) * 0.16, 0.5), bottom = low - pad, top = high + pad;
   const px = (x: number) => 34 + (x - min) / (max - min) * 310;
   const py = (y: number) => 185 - (y - bottom) / (top - bottom) * 165;
+  const bandTop = band ? Math.min(py(band.level + band.eps), py(band.level - band.eps)) : 0;
+  const bandHeight = band ? Math.abs(py(band.level + band.eps) - py(band.level - band.eps)) : 0;
+  const bandLeft = band ? px(band.x0 - band.delta) : 0;
+  const bandWidth = band ? Math.max(0, px(band.x0 + band.delta) - px(band.x0 - band.delta)) : 0;
   const paths = samples.map((points) => {
     let drawing = false, previous = 0;
     return points.map(({ x, y }) => {
@@ -80,6 +86,11 @@ function Graph({ curves, min, max, rectangles = [], point }: {
       <g clipPath={`url(#${id})`}>
         <line x1="34" x2="344" y1={py(0)} y2={py(0)} stroke="#aaa496" />
         <line x1={px(0)} x2={px(0)} y1="20" y2="185" stroke="#aaa496" />
+        {band ? <g>
+          <rect x="34" y={bandTop} width="310" height={bandHeight} fill="#b65a3c1f" stroke="#b65a3c66" strokeWidth="0.8" strokeDasharray="5 4" />
+          <rect x={bandLeft} y="20" width={bandWidth} height="165" fill="#6265be1f" stroke="#6265be66" strokeWidth="0.8" strokeDasharray="5 4" />
+          <rect x={bandLeft} y={bandTop} width={bandWidth} height={bandHeight} fill="#95866b3d" />
+        </g> : null}
         {rectangles.map((rect, i) => <rect key={i} x={px(rect.x)} y={Math.min(py(0), py(rect.y))} width={Math.max(0, px(rect.x + rect.width) - px(rect.x))}
           height={Math.abs(py(rect.y) - py(0))} fill={rect.y < 0 ? '#6265be24' : '#b65a3c24'} stroke={rect.y < 0 ? '#6265be88' : '#b65a3c88'} strokeWidth="0.6" />)}
         {curves.map((curve, i) => <path key={curve.name} d={paths[i]} fill="none" stroke={curve.color} strokeWidth="2" strokeDasharray={curve.dashed ? '5 4' : undefined} />)}
@@ -131,32 +142,52 @@ function ObservationPoint(props: NodeBodyProps) {
 
 export function DerivativeBody(props: NodeBodyProps) {
   const x = position(props), h = props.node.params.h ?? 0.5;
-  const controls = <><ObservationPoint {...props} /><Field label="割线步长 h" value={h} min={0.000001} max={2} step={0.01} onChange={(v) => props.onParams?.({ h: v })} /></>;
+  const showDerivative = !!props.node.params.showDerivative;
+  const controls = <>
+    <ObservationPoint {...props} />
+    <Field label="割线步长 h" value={h} min={0.000001} max={2} step={0.01} onChange={(v) => props.onParams?.({ h: v })} />
+    <label className={styles.check}><input type="checkbox" checked={showDerivative} onChange={(e) => props.onParams?.({ showDerivative: Number(e.target.checked) })} />叠加 f′(x)</label>
+  </>;
   try {
     const f = inputFunction(props.values), y = finiteAt(f, x), slope = derivativeAt(f, x);
     const secant = (finiteAt(f, x + h) - y) / h;
+    // 导数曲线只在自动微分可用的点取值，不可导处断线而不是让整幅图报错。
+    const derivativeCurve: RealFunction = (t) => { try { return derivativeAt(f, t); } catch { return null; } };
+    const curveOfDerivative = showDerivative ? [{ name: 'f′(x)', f: derivativeCurve, color: '#c08a2e', dashed: true }] : [];
     return <div className={styles.body}>
-      <Graph curves={[{ name: 'f(x)', f, color: blue }, { name: '切线', f: (t) => y + slope * (t - x), color: orange }, { name: '割线', f: (t) => y + secant * (t - x), color: '#629184', dashed: true }]} min={x - 2} max={x + 2} point={{ x, y }} />
+      <Graph curves={[{ name: 'f(x)', f, color: blue }, { name: '切线', f: (t) => y + slope * (t - x), color: orange }, { name: '割线', f: (t) => y + secant * (t - x), color: '#629184', dashed: true }, ...curveOfDerivative]} min={x - 2} max={x + 2} point={{ x, y }} />
       {controls}<p className={styles.readout}>差商 ≈ {num(secant)}<br />导数 f′(x₀) ≈ <strong>{num(slope)}</strong></p>
       <p className={styles.tip}>切线：y ≈ {num(y)} + ({num(slope)})(x − {num(x)})。逐渐减小 h，比较割线与切线。</p>
       <p className={styles.tip}>导数由表达式自动微分，左右分支的导数不一致时停止输出。割线仍按所选 h 计算差商。</p>
+      {showDerivative && <p className={styles.tip}>叠加的 f′(x) 虚线是各点导数连成的曲线：切点处切线的斜率应等于该曲线在同一点的纵坐标。</p>}
     </div>;
   } catch (e) { return <div className={styles.body}>{controls}<Notice>{errorText(e)}</Notice></div>; }
 }
 
 export function LimitBody(props: NodeBodyProps) {
-  const x = position(props), side = props.node.params.side ?? 0;
+  const x = position(props), side = props.node.params.side ?? 0, eps = props.node.params.eps ?? 0.1;
+  const controls = <>
+    <ObservationPoint {...props} />
+    <label className={styles.field}>趋近方向<select aria-label="趋近方向" value={side} onChange={(e) => props.onParams?.({ side: Number(e.target.value) })}><option value="0">双侧</option><option value="-1">左极限</option><option value="1">右极限</option></select></label>
+    <Field label="容差 ε" value={eps} min={0.000001} max={10} step={0.01} onChange={(v) => props.onParams?.({ eps: v })} />
+  </>;
   try {
     const f = inputFunction(props.values), result = approachLimit(f, x, side);
+    const band = epsilonDeltaBand(f, x, eps);
+    const hasBand = band.level !== null && band.delta !== null;
+    const span = Math.max((band.delta ?? 0) * 6, eps * 4, 0.5);
+    const insideCount = band.samples.filter((sample) => sample.inside).length;
     return <div className={styles.body}>
-      <ObservationPoint {...props} />
-      <label className={styles.field}>趋近方向<select aria-label="趋近方向" value={side} onChange={(e) => props.onParams?.({ side: Number(e.target.value) })}><option value="0">双侧</option><option value="-1">左极限</option><option value="1">右极限</option></select></label>
+      <Graph curves={[{ name: 'f(x)', f, color: blue }]} min={x - span} max={x + span}
+        band={hasBand ? { x0: x, level: band.level!, eps, delta: band.delta! } : undefined} />
+      {controls}
       <table className={styles.table}><caption>逐步靠近 x₀（不取 x₀ 本身）</caption><thead><tr><th>距离 h</th><th>f(x₀−h)</th><th>f(x₀+h)</th></tr></thead><tbody>{result.rows.map((r) => <tr key={r.h}><td>{r.h.toExponential(0)}</td><td>{num(r.left)}</td><td>{num(r.right)}</td></tr>)}</tbody></table>
-      <p className={styles.readout}>数值候选 ≈ <strong>{num(result.candidate)}</strong></p>
+      <p className={styles.readout}>数值候选 ≈ <strong>{num(result.candidate)}</strong><br />L ≈ {num(band.level)}<br />可选 δ = <b data-readout="delta">{num(band.delta)}</b></p>
       <Notice>{result.message}</Notice>
-      <p className={styles.tip}>f(x₀) = {num(f(x))}；函数值与极限要分别观察。</p>
+      {band.message ? <p className={styles.tip}>{band.message}</p> : <p className={styles.tip}>在 x₀±δ 内采集 {band.samples.length} 个点，其中 {insideCount} 个落入 L±ε 带。</p>}
+      <p className={styles.tip}>f(x₀) = {num(f(x))}；函数值与极限要分别观察。横带 L±ε 与竖带 x₀±δ 的交集加深：竖带内的曲线都落在横带里，ε 就达标。</p>
     </div>;
-  } catch (e) { return <Notice>{errorText(e)}</Notice>; }
+  } catch (e) { return <div className={styles.body}>{controls}<Notice>{errorText(e)}</Notice></div>; }
 }
 
 export function IntegralBody(props: NodeBodyProps) {

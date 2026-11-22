@@ -250,7 +250,7 @@ function MaterialsSection({
             disabled={importing}
             onClick={onTriggerImport}
           >
-            {importing ? '导入中…' : '导入工程包 (.xsproj)'}
+            {importing ? '导入中…' : '导入工程 / HTML'}
           </button>
           <button type="button" className={styles.toolbarBtnPrimary} onClick={onUpload}>
             + 上传新材料
@@ -301,7 +301,7 @@ function MaterialsSection({
               当前会话尚无课件材料
             </h3>
             <p className={styles.emptyLead}>
-              上传一份 PPT 课件或导入本地 .xsproj 工程包，即可将其拆解为可调参的交互工作台。
+              上传一份 PPT 课件或导入本地 .xsproj 工程包 / 单文件 .html 交互网页，即可恢复为可调参的交互工作台。
             </p>
           </div>
           <div className={styles.emptyActions}>
@@ -597,7 +597,7 @@ export function SpacePage(): JSX.Element {
     <input
       ref={projectInput}
       type="file"
-      accept=".xsproj,application/zip"
+      accept=".xsproj,.html,.htm,application/zip,text/html"
       hidden
       onChange={(event) => {
         const file = event.target.files?.[0];
@@ -685,7 +685,7 @@ export function SpacePage(): JSX.Element {
                   <span className={styles.matrixIdx}>02</span>
                   <div className={styles.matrixBody}>
                     <strong>万象活页 ↗</strong>
-                    <span>课件拆解与交互式讲义编辑</span>
+                    <span>动态 PPT 工作台与原位交互编辑</span>
                   </div>
                 </Link>
                 <Link className={styles.matrixCell} to="/workshop">
@@ -703,8 +703,8 @@ export function SpacePage(): JSX.Element {
                 >
                   <span className={styles.matrixIdx}>04</span>
                   <div className={styles.matrixBody}>
-                    <strong>{importing ? '正在导入…' : '导入工程包 ↗'}</strong>
-                    <span>恢复本地 .xsproj 存档文件</span>
+                    <strong>{importing ? '正在导入…' : '导入工程 / HTML ↗'}</strong>
+                    <span>恢复本地 .xsproj 或单文件 .html</span>
                   </div>
                 </button>
               </div>
@@ -931,7 +931,7 @@ export function SpacePage(): JSX.Element {
                 </span>
                 <div className={styles.quickCopy}>
                   <strong>万象活页 ↗</strong>
-                  <span>拆解课件与互动讲义编排</span>
+                  <span>动态 PPT 演示与原位交互编辑</span>
                 </div>
               </Link>
 

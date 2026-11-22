@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -54,7 +55,19 @@ _VALID_NODE_TYPES = {
     "curve",
     "heatmap",
     "scene3d",
+    "mermaid",
+    "chart",
 }
+_MERMAID_HEAD_RE = re.compile(
+    r"^\s*(?:flowchart|graph|sequenceDiagram|stateDiagram(?:-v2)?|classDiagram|erDiagram|mindmap)\b",
+    re.I,
+)
+_MERMAID_FORBIDDEN_RE = re.compile(
+    r"(?:^\s*click\s+|\bjavascript:|<script\b|\bhref\s*=|\bonclick\s*=|\bforeignObject\b)",
+    re.I | re.M,
+)
+_MERMAID_NODE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,48}$")
+_CHART_TYPES = {"bar", "line", "area", "scatter", "pie"}
 _FORBIDDEN_KEYS = {
     "script",
     "onclick",
@@ -128,6 +141,60 @@ def validate_contract(kind: str, payload: Any) -> None:
         raise ContractError(f"{path}: {first.message}")
 
 
+def _validate_mermaid_node(node: Mapping[str, Any]) -> None:
+    payload = node.get("mermaid")
+    if not isinstance(payload, Mapping):
+        raise ContractError("mermaid 节点缺少 mermaid 对象")
+    code = payload.get("code")
+    if not isinstance(code, str) or not code.strip() or len(code) > 4000:
+        raise ContractError("mermaid.code 必须为 1~4000 字符")
+    if not _MERMAID_HEAD_RE.match(code):
+        raise ContractError("mermaid.code 必须以受支持的图类型开头（flowchart/graph/sequenceDiagram/stateDiagram/classDiagram/erDiagram/mindmap）")
+    if _MERMAID_FORBIDDEN_RE.search(code):
+        raise ContractError("mermaid.code 包含禁止的脚本或交互跳转指令")
+    active = payload.get("activeNodes")
+    if active is not None:
+        if not isinstance(active, list) or len(active) > 16:
+            raise ContractError("mermaid.activeNodes 必须为不超过 16 项的数组")
+        for item in active:
+            if not isinstance(item, str) or not _MERMAID_NODE_ID_RE.fullmatch(item):
+                raise ContractError(f"mermaid.activeNodes 包含非法节点 ID：{item}")
+
+
+def _validate_chart_node(node: Mapping[str, Any]) -> None:
+    payload = node.get("chart")
+    if not isinstance(payload, Mapping):
+        raise ContractError("chart 节点缺少 chart 对象")
+    chart_type = payload.get("chartType")
+    if chart_type not in _CHART_TYPES:
+        raise ContractError(f"chart.chartType 不受支持：{chart_type}")
+    series = payload.get("series")
+    if not isinstance(series, list) or not (1 <= len(series) <= 6):
+        raise ContractError("chart.series 必须包含 1~6 个系列")
+    categories = payload.get("categories")
+    if chart_type != "scatter":
+        if not isinstance(categories, list) or not (1 <= len(categories) <= 40):
+            raise ContractError("非散点图必须提供 1~40 个 categories")
+        for entry in series:
+            values = entry.get("values") if isinstance(entry, Mapping) else None
+            if not isinstance(values, list) or len(values) != len(categories):
+                raise ContractError("chart.series[].values 长度必须与 categories 一致")
+            if any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in values):
+                raise ContractError("非散点图 values 必须全部为数值")
+    else:
+        for entry in series:
+            values = entry.get("values") if isinstance(entry, Mapping) else None
+            if not isinstance(values, list) or not values:
+                raise ContractError("散点图 values 不能为空")
+            for pt in values:
+                if not isinstance(pt, list) or len(pt) != 2 or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in pt):
+                    raise ContractError("散点图 values 必须为 [x, y] 数值对")
+    y_domain = payload.get("yDomain")
+    if y_domain is not None:
+        if not isinstance(y_domain, list) or len(y_domain) != 2 or float(y_domain[0]) >= float(y_domain[1]):
+            raise ContractError("chart.yDomain 必须满足 [min, max] 且 min < max")
+
+
 def validate_view_ast(ast: Any, *, registered_bindings: Iterable[str] = ()) -> None:
     """校验 ViewAST 的 Schema、节点唯一性、节点数、白名单键与绑定。"""
 
@@ -161,6 +228,10 @@ def validate_view_ast(ast: Any, *, registered_bindings: Iterable[str] = ()) -> N
             binding = node.get("binding")
             if binding is not None and binding not in allowed_bindings:
                 raise ContractError(f"ViewAST 绑定未登记：{binding}")
+            if node_type == "mermaid":
+                _validate_mermaid_node(node)
+            elif node_type == "chart":
+                _validate_chart_node(node)
             children = node.get("children")
             if isinstance(children, list):
                 if len(seen) + len(children) > MAX_VIEW_NODES:

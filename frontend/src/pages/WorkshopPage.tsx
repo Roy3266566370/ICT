@@ -1,103 +1,60 @@
-import { deepWorkshopDoc } from '@/canvas/deepWorkshop';
 /**
  * WorkshopPage.tsx —— 万象工坊（/workshop）
  *
- * 工坊门面：我的作品（已存画布）+ 公开画廊（已发布作品，可 fork）。
- * "从模板新建"提供七个高数实验及三个力学场景——
- * 模板在客户端组装 CanvasDoc 后经 worksApi 建档，打开即玩即改。
+ * 工坊门面：模板目录 + 我的作品（仅在用户从画布显式保存后展示）+ 公开画廊（已发布作品，可 fork）。
+ * 内置模板通过 /canvas?template=<kind> 直接在客户端打开即玩，不再自动向「我的作品」建档。
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
 import { worksApi, type ShareSummary, type WorkSummary } from '@/api/works';
-import { nextId } from '@/canvas/math.ts';
-import type { CanvasDoc } from '@/canvas/types.ts';
-import { CALCULUS_TEMPLATES, calculusTemplateDoc, type CalculusTemplateKind } from '@/canvas/calculusTemplates';
 import {
+  CALCULUS_TEMPLATES,
+  CALCULUS_TOPICS,
+  type CalculusTemplate,
+} from '@/canvas/calculusTemplates';
+import {
+  PHYSICS_TEMPLATES,
+  PHYSICS_TOPICS,
+  type PhysicsTemplate,
+} from '@/canvas/physicsTemplates';
+import {
+  LAB408_TOPICS,
   LAB408_TEMPLATES,
   LAB408_WORKBENCH_TEMPLATES,
   isLab408Kind,
-  isLab408WorkbenchKind,
-  lab408TemplateDoc,
-  type Lab408TemplateKind,
+  type Lab408Preview as Lab408PreviewKind,
 } from '@/canvas/lab408Templates';
 import {
   DEEP_TEMPLATES,
   DEEP_TOPICS,
-  isDeepTemplateKind,
   type DeepTemplate,
-  type DeepTemplateKind,
 } from '@/canvas/deepTemplates';
 import styles from './WorkshopPage.module.css';
 
-/* ---------- 模板：客户端组装 CanvasDoc ---------- */
-
-function makeNode(type: string, x: number, y: number, params: Record<string, number> = {}, text?: string) {
-  return { id: nextId('n'), type, x, y, params, ...(text !== undefined ? { text } : {}) } as CanvasDoc['nodes'][number];
-}
-
-function templateDoc(kind: TemplateKind): CanvasDoc {
-  if (isDeepTemplateKind(kind)) return deepWorkshopDoc(kind);
-  if (isLab408Kind(kind) || isLab408WorkbenchKind(kind)) return lab408TemplateDoc(kind);
-  if (kind !== 'projectile' && kind !== 'spring' && kind !== 'pendulum') return calculusTemplateDoc(kind);
-  if (kind === 'projectile') {
-    const P = nextId('n');
-    const trail = nextId('n');
-    const energy = nextId('n');
-    const spark = nextId('n');
-    return {
-      version: 1, title: '抛体实验', zoom: 1, strokes: [],
-      nodes: [
-        makeNode('textNote', 60, 30, {}, '探究：固定 v0，只调角度——什么角度射得最远？\n（提示：看轨迹仪的形状，再想想 sin2θ）'),
-        { ...makeNode('projectile', 60, 220, { v0: 10, angle: 45, g: 9.8, m: 1, running: 1 }), id: P },
-        { ...makeNode('trailView', 360, 200), id: trail },
-        { ...makeNode('energyMeter', 620, 200), id: energy },
-        { ...makeNode('spark', 620, 400), id: spark },
-      ],
-      wires: [
-        { id: nextId('w'), from: P, to: trail },
-        { id: nextId('w'), from: P, to: energy },
-        { id: nextId('w'), from: P, to: spark },
-      ],
-    };
-  }
-  const srcType = kind === 'spring' ? 'springOsc' : 'pendulum';
-  const src = nextId('n');
-  const trail = nextId('n');
-  const energy = nextId('n');
-  const spark = nextId('n');
-  const title = kind === 'spring' ? '弹簧·能量守恒' : '单摆·周期的秘密';
-  const note = kind === 'spring'
-    ? '探究：k 或 m 改变时，周期怎么变？\n能量表上总能量那条杠为什么不动？'
-    : '探究：只调摆长 L，周期变多少？\nθ0 从 5° 调到 60°，周期真的不变吗（小角近似）？';
-  return {
-    version: 1, title, zoom: 1, strokes: [],
-    nodes: [
-      makeNode('textNote', 60, 30, {}, note),
-      { ...makeNode(srcType, 60, 220, kind === 'spring' ? { k: 6, m: 1, x0: 1, running: 1 } : { L: 1.5, theta0: 25, g: 9.8, m: 1, running: 1 }), id: src },
-      { ...makeNode('trailView', 360, 200), id: trail },
-      { ...makeNode('energyMeter', 620, 200), id: energy },
-      { ...makeNode('spark', 620, 400), id: spark },
-    ],
-    wires: [
-      { id: nextId('w'), from: src, to: trail },
-      { id: nextId('w'), from: src, to: energy },
-      { id: nextId('w'), from: src, to: spark },
-    ],
-  };
-}
-
-type MechanicsKind = 'projectile' | 'spring' | 'pendulum';
-type TemplateKind = MechanicsKind | CalculusTemplateKind | Lab408TemplateKind | DeepTemplateKind;
+type TemplateKind = string;
 type TemplateCategory = 'calculus' | 'mechanics' | 'lab408' | 'deep' | 'all';
 
-const TEMPLATES: readonly { kind: MechanicsKind; name: string; desc: string; tag: string }[] = [
-  { kind: 'projectile', name: '抛体实验', desc: 'v0 / 角度 / g → 轨迹、能量、速率曲线', tag: '力学 · 抛体' },
-  { kind: 'spring', name: '弹簧·能量守恒', desc: 'k / m / 振幅 → 动能⇌势能实时交换', tag: '力学 · 振动' },
-  { kind: 'pendulum', name: '单摆·周期', desc: '摆长 / 摆角 / g → T=2π√(L/g) 验证', tag: '力学 · 单摆' },
-];
+/* ---------- 统一专题目录：数据形状（C-TOPIC-CATALOG@1） ---------- */
 
-const LAB408_TEMPLATE_COUNT = LAB408_TEMPLATES.length + LAB408_WORKBENCH_TEMPLATES.length;
+export interface WorkshopTopic {
+  id: string;
+  name: string;
+  lead: string;
+}
+
+export interface CatalogItem {
+  key: string;
+  topic: string;
+  name: string;
+  desc: string;
+  tag: string;
+  meta?: string;
+  formula?: string;
+  recipe?: string;
+  note?: string;
+  preview: JSX.Element;
+}
 
 /* ---------- 模板缩略图：用与画布一致的纸张与节点语言 ---------- */
 
@@ -129,49 +86,179 @@ function ProjectilePreview(): JSX.Element {
   );
 }
 
-function SpringPreview(): JSX.Element {
+function PhysicsDiagram({ caption, children }: { caption: string; children: ReactNode }): JSX.Element {
+  return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+    {children}
+    <text x="24" y="132" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">{caption}</text>
+  </svg>;
+}
+
+function ChargedParticlePreview(): JSX.Element {
+  return <PhysicsDiagram caption="速度选择 · qvB = mv²/r">
+    <line x1="28" y1="45" x2="88" y2="45" stroke="var(--ink-500)" strokeWidth="2" />
+    <line x1="28" y1="91" x2="88" y2="91" stroke="var(--ink-500)" strokeWidth="2" />
+    <path d="M58 52V82M52 76 58 84 64 76" fill="none" stroke="var(--color-indigo)" strokeWidth="1.4" />
+    <path d="M24 68H116Q148 68 148 98T188 98" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" />
+    <path d="M43 64 51 68 43 72Z" fill="var(--color-coral)" />
+    <circle cx="148" cy="98" r="24" fill="none" stroke="var(--hairline-strong)" strokeDasharray="3 3" />
+    <line x1="148" y1="98" x2="166" y2="81" stroke="var(--color-indigo)" strokeWidth="1.4" />
+    <text x="98" y="38" fontSize="8" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">E · v · B</text>
+    <text x="170" y="78" fontSize="8" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">r</text>
+  </PhysicsDiagram>;
+}
+
+function RcCircuitPreview(): JSX.Element {
+  return <PhysicsDiagram caption="RC 充放电 · U / I / 能量同步">
+    <path d="M34 82V38H96M118 38H176V82H34" fill="none" stroke="var(--ink-500)" strokeWidth="1.5" />
+    <path d="M96 32V44M100 32V44M104 32V44M108 32V44M112 32V44M116 32V44" stroke="var(--color-coral)" strokeWidth="1.4" />
+    <line x1="34" y1="54" x2="34" y2="66" stroke="var(--ink-700)" strokeWidth="2" />
+    <line x1="25" y1="60" x2="43" y2="60" stroke="var(--ink-700)" strokeWidth="1.6" />
+    <line x1="176" y1="38" x2="176" y2="20" stroke="var(--color-coral)" strokeWidth="1.5" />
+    <path d="M198 94V28M198 94H244" fill="none" stroke="var(--hairline-strong)" />
+    <path d="M201 91Q212 40 241 34" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" />
+    <path d="M201 35Q218 72 241 86" fill="none" stroke="var(--color-indigo)" strokeWidth="1.4" strokeDasharray="3 3" />
+    <text x="132" y="30" fontSize="8" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">R · C</text>
+  </PhysicsDiagram>;
+}
+
+function MotionalEmfPreview(): JSX.Element {
+  return <PhysicsDiagram caption="ε = BLv · 安培阻力与焦耳热">
+    {[54, 90, 126, 162, 198].map((x) => <g key={x}>
+      <circle cx={x} cy="48" r="6" fill="none" stroke="var(--hairline-strong)" />
+      <path d={`M${x - 3} 45l6 6m0-6-6 6`} stroke="var(--ink-400)" strokeWidth="1" />
+    </g>)}
+    <line x1="34" y1="76" x2="224" y2="76" stroke="var(--ink-500)" strokeWidth="1.6" />
+    <line x1="34" y1="106" x2="224" y2="106" stroke="var(--ink-500)" strokeWidth="1.6" />
+    <line x1="126" y1="70" x2="126" y2="112" stroke="var(--color-coral)" strokeWidth="3" />
+    <path d="M126 62H174M166 56 176 62 166 68" fill="none" stroke="var(--color-coral)" strokeWidth="1.6" />
+    <path d="M96 76V58H52V76" fill="none" stroke="var(--color-indigo)" strokeWidth="1.3" />
+    <text x="184" y="59" fontSize="8" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">v</text>
+  </PhysicsDiagram>;
+}
+
+function DoubleSlitPreview(): JSX.Element {
+  return <PhysicsDiagram caption="双缝 / 光栅 · 波长决定真实颜色条纹">
+    <circle cx="30" cy="70" r="4" fill="var(--color-coral)" />
+    <path d="M40 52Q60 70 40 88M48 44Q78 70 48 96" fill="none" stroke="var(--color-indigo)" strokeWidth="1.2" />
+    <path d="M92 30V58M92 66V74M92 82V110" stroke="var(--ink-500)" strokeWidth="3" />
+    <path d="M94 62Q138 34 184 48M94 78Q138 106 184 92" fill="none" stroke="var(--color-coral)" strokeWidth="1.4" />
+    <line x1="188" y1="26" x2="188" y2="112" stroke="var(--ink-500)" strokeWidth="2" />
+    {[34, 48, 62, 76, 90, 104].map((y, index) => <rect key={y} x="202" y={y} width="34" height="5" rx="2" fill={index % 2 ? 'var(--color-indigo)' : 'var(--color-coral)'} opacity={0.25 + (index % 3) * 0.25} />)}
+  </PhysicsDiagram>;
+}
+
+function RefractionFiberPreview(): JSX.Element {
+  return <PhysicsDiagram caption="Snell 定律 · 临界角与全反射">
+    <line x1="26" y1="70" x2="142" y2="70" stroke="var(--hairline-strong)" />
+    <line x1="88" y1="24" x2="88" y2="116" stroke="var(--hairline)" strokeDasharray="3 3" />
+    <path d="M42 28 88 70 116 112" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" />
+    <path d="M88 70 132 48" stroke="var(--color-indigo)" strokeWidth="1.4" strokeDasharray="4 3" />
+    <path d="M154 48H236V92H154Z" fill="var(--color-indigo)" fillOpacity=".08" stroke="var(--hairline-strong)" />
+    <path d="M154 70 172 52 194 88 216 52 236 70" fill="none" stroke="var(--color-coral)" strokeWidth="1.7" />
+    <text x="104" y="102" fontSize="8" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">n₁sinθ₁ = n₂sinθ₂</text>
+  </PhysicsDiagram>;
+}
+
+function ThinLensPreview(): JSX.Element {
+  return <PhysicsDiagram caption="三光线成像 · 1/f = 1/u + 1/v">
+    <line x1="24" y1="82" x2="238" y2="82" stroke="var(--hairline-strong)" />
+    <ellipse cx="132" cy="76" rx="9" ry="48" fill="var(--color-indigo)" fillOpacity=".1" stroke="var(--color-indigo)" />
+    <path d="M54 82V38M46 46 54 36 62 46" fill="none" stroke="var(--ink-600)" strokeWidth="1.8" />
+    <path d="M54 38 132 38 204 98M54 38 132 82 204 98M54 38 132 62 204 98" fill="none" stroke="var(--color-coral)" strokeWidth="1.3" />
+    <path d="M204 82V102M196 94 204 104 212 94" fill="none" stroke="var(--color-indigo)" strokeWidth="1.6" />
+    <text x="124" y="20" fontSize="8" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">F · 2F</text>
+  </PhysicsDiagram>;
+}
+
+function CarnotCyclePreview(): JSX.Element {
+  return <PhysicsDiagram caption="P–V 循环 · 等温与绝热 · η = W/Qh">
+    <path d="M42 112V24M42 112H232" fill="none" stroke="var(--hairline-strong)" />
+    <path d="M78 42C118 34 166 48 190 72C174 102 126 108 88 88C70 76 66 56 78 42Z" fill="var(--color-coral)" fillOpacity=".08" stroke="var(--color-coral)" strokeWidth="1.7" />
+    <path d="M113 39 124 40 118 32M158 96 148 98 154 106" fill="none" stroke="var(--color-indigo)" strokeWidth="1.4" />
+    <text x="24" y="28" fontSize="8" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">P</text>
+    <text x="226" y="124" fontSize="8" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">V</text>
+    <text x="118" y="72" fontSize="8" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">W = ∮P dV</text>
+  </PhysicsDiagram>;
+}
+
+function PhotoelectricPreview(): JSX.Element {
+  return <PhysicsDiagram caption="hν = W₀ + Ek · I–U 与遏止电压">
+    <path d="M32 100H128L116 112H20Z" fill="var(--ink-300)" fillOpacity=".35" stroke="var(--hairline-strong)" />
+    {[46, 70, 94].map((x) => <g key={x}>
+      <line x1={x - 18} y1="30" x2={x} y2="88" stroke="var(--color-coral)" strokeWidth="1.4" />
+      <circle cx={x} cy="88" r="2.5" fill="var(--color-coral)" />
+      <path d={`M${x + 4} 84Q${x + 24} 56 ${x + 42} 62`} fill="none" stroke="var(--color-indigo)" strokeWidth="1.3" />
+      <circle cx={x + 42} cy="62" r="2.8" fill="var(--color-indigo)" />
+    </g>)}
+    <path d="M174 102V28M174 102H242" fill="none" stroke="var(--hairline-strong)" />
+    <path d="M178 96Q190 42 202 38H240" fill="none" stroke="var(--color-coral)" strokeWidth="1.7" />
+    <line x1="190" y1="88" x2="190" y2="106" stroke="var(--color-indigo)" strokeDasharray="2 2" />
+    <text x="180" y="120" fontSize="7" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">−Us</text>
+  </PhysicsDiagram>;
+}
+
+function InclinePreview(): JSX.Element {
   return (
     <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
-      <line x1="52" y1="26" x2="188" y2="26" stroke="var(--ink-400)" strokeWidth="1.4" />
-      {[64, 84, 104, 124, 144, 164].map((x) => (
-        <line key={x} x1={x} y1="20" x2={x - 5} y2="32" stroke="var(--hairline-strong)" />
-      ))}
-      <path d="M112 27 124 32 100 40 124 48 100 56 124 64 112 69" fill="none" stroke="var(--ink-500)" strokeWidth="1.6" strokeLinejoin="round" />
-      <rect x="92" y="69" width="40" height="18" rx="3" fill="var(--paper-0)" stroke="var(--hairline-strong)" />
-      <text x="112" y="81" textAnchor="middle" fontSize="7.5" fill="var(--ink-500)">m</text>
-      <line x1="58" y1="98" x2="178" y2="98" stroke="var(--hairline-strong)" strokeDasharray="3 4" />
-      <line x1="112" y1="87" x2="112" y2="98" stroke="var(--ink-400)" strokeDasharray="2 2" />
-      <text x="66" y="108" fontSize="7" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">x = 0</text>
-      <text x="136" y="44" fontSize="7" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">k</text>
-      <MiniMeter x={196} y={50} />
+      <path d="M40 118 214 118 40 40Z" fill="var(--paper-2)" fillOpacity=".6" stroke="var(--hairline-strong)" />
+      <path d="M40 44 208 112" stroke="var(--ink-500)" strokeWidth="1.4" />
+      <rect x="106" y="66" width="30" height="17" rx="2" fill="var(--color-coral)" opacity=".82" transform="rotate(24 121 74)" />
+      <path d="M88 40 74 56M88 40 102 48" stroke="var(--ink-700)" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M60 118 60 88" stroke="var(--hairline-strong)" strokeDasharray="3 3" />
+      <text x="64" y="106" fontSize="7" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">α</text>
+      <text x="24" y="128" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">tanα ≟ μ</text>
+      <text x="24" y="34" fontSize="7" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">m, g, μ</text>
+      <MiniMeter x={196} y={40} />
     </svg>
   );
 }
 
-function PendulumPreview(): JSX.Element {
+function CollisionPreview(): JSX.Element {
   return (
     <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
-      <line x1="66" y1="24" x2="174" y2="24" stroke="var(--ink-400)" strokeWidth="1.4" />
-      {[82, 102, 122, 142, 162].map((x) => (
-        <line key={x} x1={x} y1="18" x2={x - 5} y2="30" stroke="var(--hairline-strong)" />
-      ))}
-      <circle cx="120" cy="24" r="2.6" fill="var(--ink-700)" />
-      <path d="M54 70 Q120 126 186 70" fill="none" stroke="var(--hairline-strong)" strokeDasharray="3 4" />
-      <line x1="120" y1="24" x2="120" y2="104" stroke="var(--hairline-strong)" strokeDasharray="2 3" />
-      <line x1="120" y1="24" x2="78" y2="86" stroke="var(--ink-700)" strokeWidth="1.6" strokeLinecap="round" />
-      <circle cx="78" cy="86" r="7" fill="var(--color-coral)" opacity=".82" stroke="var(--paper-0)" strokeWidth="1.5" />
-      <path d="M120 48 A24 24 0 0 0 101 42" fill="none" stroke="var(--color-coral)" strokeWidth="1.2" />
-      <text x="106" y="58" fontSize="7" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">θ0</text>
-      <text x="150" y="120" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">T = 2π√(L/g)</text>
+      <line x1="28" y1="104" x2="232" y2="104" stroke="var(--hairline-strong)" strokeWidth="1.4" />
+      {[46, 78, 110, 142, 174, 206].map((x) => <line key={x} x1={x} y1="104" x2={x} y2="110" stroke="var(--hairline)" />)}
+      <circle cx="62" cy="94" r="10" fill="var(--color-indigo)" opacity=".8" />
+      <circle cx="122" cy="94" r="10" fill="var(--paper-0)" stroke="var(--ink-500)" strokeWidth="1.4" />
+      <line x1="64" y1="78" x2="94" y2="78" stroke="var(--color-coral)" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M94 78 88 74 88 82Z" fill="var(--color-coral)" />
+      <text x="60" y="64" fontSize="7" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">m₁ v₁</text>
+      <text x="112" y="64" fontSize="7" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">m₂ v₂</text>
+      <text x="28" y="130" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">p = m₁v₁ + m₂v₂ 守恒</text>
     </svg>
   );
 }
 
-const PREVIEWS: Record<MechanicsKind, () => JSX.Element> = {
-  projectile: ProjectilePreview,
-  spring: SpringPreview,
-  pendulum: PendulumPreview,
-};
+
+function WavePreview(): JSX.Element {
+  return (
+    <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <line x1="24" y1="60" x2="236" y2="60" stroke="var(--hairline-strong)" />
+      <path d="M24 60Q53 18 82 60T140 60T198 60T236 60" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" strokeDasharray="4 3" />
+      <path d="M24 60Q44 34 64 60T104 60T144 60T184 60T224 60" fill="none" stroke="var(--color-indigo)" strokeWidth="1.4" opacity=".75" />
+      <path d="M24 60Q53 102 82 60T140 60T198 60T236 60" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" strokeDasharray="4 3" opacity=".45" />
+      {[64, 104, 144, 184, 224].map((x) => <circle key={x} cx={x} cy="60" r="2.6" fill="var(--ink-500)" />)}
+      <text x="24" y="130" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">行波 → 传播 · 驻波 · 波节不动</text>
+    </svg>
+  );
+}
+
+function PhysicsPreview({ template }: { template: PhysicsTemplate }): JSX.Element {
+  switch (template.kind) {
+    case 'projectile-drag': return <ProjectilePreview />;
+    case 'incline-friction': return <InclinePreview />;
+    case 'collision-momentum': return <CollisionPreview />;
+    case 'oscillation-wave': return <WavePreview />;
+    case 'charged-particle': return <ChargedParticlePreview />;
+    case 'rc-circuit': return <RcCircuitPreview />;
+    case 'motional-emf': return <MotionalEmfPreview />;
+    case 'double-slit': return <DoubleSlitPreview />;
+    case 'refraction-fiber': return <RefractionFiberPreview />;
+    case 'thin-lens': return <ThinLensPreview />;
+    case 'carnot-cycle': return <CarnotCyclePreview />;
+    case 'photoelectric': return <PhotoelectricPreview />;
+  }
+}
 
 function DeepPreview({ template }: { template: DeepTemplate }): JSX.Element {
   if (template.preview === 'attention') {
@@ -203,20 +290,6 @@ function DeepPreview({ template }: { template: DeepTemplate }): JSX.Element {
   </svg>;
 }
 
-function DeepCard({ template, index, creating, onCreate }: { template: DeepTemplate; index: number; creating: boolean; onCreate: () => void }): JSX.Element {
-  return <button type="button" className={styles.tplCard} disabled={creating} onClick={onCreate}>
-    <span className={styles.tplPreview} aria-hidden="true"><DeepPreview template={template} /></span>
-    <span className={styles.tplBody}>
-      <span className={styles.tplMeta}>{String(index + 1).padStart(2, '0')} · {template.tag}</span>
-      <span className={styles.tplName}>{template.name}</span>
-      <span className={styles.tplDesc}>{template.desc}</span>
-      <span className={styles.templateRecipe}>探究：{template.question}</span>
-      <span className={styles.templateRecipe}>已预设仪器面板 · 可嵌入活页</span>
-      <span className={styles.tplGo}>打开实验 →</span>
-    </span>
-  </button>;
-}
-
 function CanvasGlyph(): JSX.Element {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
@@ -228,37 +301,135 @@ function CanvasGlyph(): JSX.Element {
   );
 }
 
-function CalculusPreview({ kind }: { kind: CalculusTemplateKind }): JSX.Element {
-  const integral = kind.includes('integral') || kind === 'riemann-integral';
-  const limit = kind.includes('limit');
-  const taylor = kind === 'taylor-expansion';
-  return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+function CalcAxes({ grid = false }: { grid?: boolean }): JSX.Element {
+  return <g>
     <path d="M25 108H238M124 18V120" fill="none" stroke="var(--hairline-strong)" />
-    {[50, 75, 100, 150, 175, 200, 225].map((x) => <line key={x} x1={x} x2={x} y1="26" y2="108" stroke="var(--hairline)" opacity=".5" />)}
-    {integral && Array.from({ length: 8 }, (_, i) => <rect key={i} x={44 + i * 19} y={105 - (i + 1) ** 2 * 1.1} width="19" height={(i + 1) ** 2 * 1.1} fill="var(--color-coral)" fillOpacity=".13" stroke="var(--color-coral)" strokeOpacity=".3" />)}
-    <path d={limit ? 'M30 84Q124 32 230 84' : taylor ? 'M35 104C110 103 159 90 224 26' : 'M32 30Q124 182 229 30'} fill="none" stroke="var(--color-coral)" strokeWidth="2" />
-    {kind === 'derivative-definition' && <path d="M63 101 218 61" stroke="var(--ink-500)" strokeDasharray="4 4" />}
-    {taylor && <path d="M35 101Q136 117 224 40" fill="none" stroke="var(--ink-400)" strokeWidth="1.5" strokeDasharray="4 3" />}
-    <circle cx="124" cy={limit ? 58 : taylor ? 91 : 106} r="3.5" fill={limit ? 'var(--paper-0)' : 'var(--color-coral)'} stroke="var(--color-coral)" strokeWidth="1.5" />
-    <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">{limit ? 'x → x₀' : integral ? 'Σ f(ξ) Δx' : taylor ? 'f(x) ≈ Pₙ(x)' : 'f(x) · f′(x)'}</text>
-  </svg>;
+    {grid && [50, 75, 100, 150, 175, 200, 225].map((x) => <line key={x} x1={x} x2={x} y1="26" y2="108" stroke="var(--hairline)" opacity=".5" />)}
+  </g>;
 }
 
-function Lab408Preview({ kind }: { kind: Lab408TemplateKind }): JSX.Element {
-  if (kind === 'dsWorkbench' || kind === 'coWorkbench' || kind === 'osWorkbench' || kind === 'netWorkbench') {
-    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
-      <rect x="28" y="22" width="204" height="92" rx="8" fill="var(--paper-0)" stroke="var(--hairline-strong)" />
-      <rect x="42" y="36" width="88" height="14" rx="4" fill="var(--paper-2)" stroke="var(--hairline)" />
-      <rect x="136" y="36" width="82" height="14" rx="4" fill="var(--paper-2)" stroke="var(--hairline)" />
-      {[0, 1, 2].map(index => <rect key={index} x={42 + index * 64} y={62} width="54" height="24" rx="4"
-        fill={index === 1 ? 'var(--color-coral)' : 'var(--paper-2)'} fillOpacity={index === 1 ? .14 : 1}
-        stroke={index === 1 ? 'var(--color-coral)' : 'var(--hairline)'} />)}
-      <text x="130" y="128" textAnchor="middle" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">
-        {kind === 'dsWorkbench' ? '数据结构 · 18 题型' : kind === 'coWorkbench' ? '组成原理 · 12 题型' : kind === 'osWorkbench' ? '操作系统 · 13 题型' : '计算机网络 · 17 题型'}
-      </text>
-    </svg>;
+function CalculusPreview({ template }: { template: CalculusTemplate }): JSX.Element {
+  const svg = (children: JSX.Element, label: string): JSX.Element => (
+    <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {children}
+      <text x="30" y="132" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">{label}</text>
+    </svg>
+  );
+  switch (template.kind) {
+    case 'limit-epsilon':
+      return svg(<g>
+        <CalcAxes />
+        <path d="M30 84Q124 32 230 84" fill="none" stroke="var(--color-coral)" strokeWidth="2" />
+        <circle cx="124" cy="58" r="3.5" fill="var(--paper-0)" stroke="var(--color-coral)" strokeWidth="1.5" />
+        <line x1="108" y1="58" x2="140" y2="58" stroke="var(--hairline-strong)" strokeDasharray="2 3" />
+        <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">0 &lt; |x−a| &lt; δ</text>
+      </g>, 'ε–δ 窗口 · 左右样本逼近');
+    case 'derivative-triptych':
+    case 'mean-value':
+      return svg(<g>
+        <CalcAxes grid />
+        <path d="M32 30Q124 182 229 30" fill="none" stroke="var(--color-coral)" strokeWidth="2" />
+        <path d="M63 101 218 61" stroke="var(--ink-500)" strokeDasharray="4 4" />
+        <circle cx="124" cy="106" r="3.5" fill="var(--color-coral)" />
+        <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">割线 → 切线</text>
+      </g>, template.kind === 'mean-value' ? 'f(b)−f(a) = f′(ξ)(b−a)' : '函数 · 差商 · 自动微分三联');
+    case 'integration-race':
+      return svg(<g>
+        <CalcAxes grid />
+        {Array.from({ length: 8 }, (_, i) => <rect key={i} x={44 + i * 19} y={105 - (i + 1) ** 2 * 1.1} width="19" height={(i + 1) ** 2 * 1.1} fill="var(--color-coral)" fillOpacity=".13" stroke="var(--color-coral)" strokeOpacity=".3" />)}
+        <path d="M32 30Q124 182 229 30" fill="none" stroke="var(--color-coral)" strokeWidth="2" />
+        <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">Σ f(ξ) Δx</text>
+      </g>, '矩形 / 梯形 / Simpson · 误差竞赛');
+    case 'taylor-error':
+      return svg(<g>
+        <CalcAxes />
+        <path d="M35 104C110 103 159 90 224 26" fill="none" stroke="var(--color-coral)" strokeWidth="2" />
+        <path d="M35 101Q136 117 224 40" fill="none" stroke="var(--ink-400)" strokeWidth="1.5" strokeDasharray="4 3" />
+        <circle cx="124" cy="91" r="3.5" fill="var(--color-coral)" />
+        <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">f(x) ≈ Pₙ(x)</text>
+      </g>, '阶数 N · 截断误差与真实误差');
+    case 'ftc-sweep':
+      return svg(<g>
+        <CalcAxes grid />
+        <path d="M60 92 60 108 190 108 190 44 150 42 100 52 60 92Z" fill="var(--color-coral)" fillOpacity=".14" stroke="var(--color-coral-ink)" strokeOpacity=".3" />
+        <line x1="60" y1="92" x2="60" y2="108" stroke="var(--ink-400)" strokeDasharray="2 3" />
+        <line x1="190" y1="44" x2="190" y2="108" stroke="var(--color-coral)" strokeDasharray="2 3" />
+        <path d="M60 92C96 56 150 44 224 26" fill="none" stroke="var(--color-coral)" strokeWidth="2" />
+        <text x="46" y="120" fontSize="7.5" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">a</text>
+        <text x="184" y="120" fontSize="7.5" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">x</text>
+        <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">F(x) = ∫ₐˣ f</text>
+      </g>, '上限扫描 · F′(x) = f(x)');
+    case 'fourier-gibbs':
+      return svg(<g>
+        <line x1="24" y1="70" x2="236" y2="70" stroke="var(--hairline-strong)" />
+        <path d="M30 40H70V96H110V40H150V96H190V40H230" fill="none" stroke="var(--ink-300)" strokeWidth="1.4" strokeDasharray="3 3" />
+        <path d="M30 70C46 44 60 42 70 52S90 88 110 88 130 52 150 52 170 88 190 88 210 52 230 46" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" />
+        <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">S_N(x) → 方波</text>
+      </g>, '谐波频谱 · Gibbs 过冲');
+    case 'ode-methods':
+      return svg(<g>
+        <CalcAxes grid />
+        {[0, 1, 2, 3, 4, 5, 6, 7].flatMap((i) => [0, 1, 2, 3].map((j) => {
+          const x = 46 + i * 24, y = 32 + j * 22, slope = -0.55 * (1 - j * 0.2);
+          return <line key={`${i}-${j}`} x1={x - 7} y1={y - slope * 7} x2={x + 7} y2={y + slope * 7} stroke="var(--ink-300)" strokeWidth="1.1" opacity=".7" />;
+        }))}
+        <path d="M40 36C90 40 150 58 228 100" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" />
+        <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">y′ = −y</text>
+      </g>, 'Euler / RK2 / RK4 · 步长对照');
+    case 'gradient-direction':
+    case 'lagrange-multiplier':
+      return svg(<g>
+        {[0, 1, 2].map((k) => <ellipse key={k} cx="118" cy="74" rx={30 + k * 26} ry={18 + k * 15} fill="none" stroke="var(--hairline-strong)" />)}
+        <line x1="118" y1="74" x2="118" y2="26" stroke="var(--color-coral)" strokeWidth="2" />
+        <path d="M118 26 113 38 123 38Z" fill="var(--color-coral)" />
+        <line x1="92" y1="36" x2="158" y2="72" stroke="var(--ink-400)" strokeDasharray="3 3" />
+        <text x="126" y="30" fontSize="8" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">∇f</text>
+        <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">{template.kind === 'lagrange-multiplier' ? '∇f = λ∇g' : 'D_θ f = ∇f · u'}</text>
+      </g>, template.kind === 'lagrange-multiplier' ? '约束曲线 · 梯度平行条件' : '方向导数 · 梯度与等高线');
+    case 'double-green':
+      return svg(<g>
+        <line x1="34" y1="112" x2="226" y2="112" stroke="var(--hairline-strong)" />
+        <line x1="34" y1="112" x2="34" y2="22" stroke="var(--hairline-strong)" />
+        {[0, 1, 2, 3, 4].flatMap((row) => [0, 1, 2, 3, 4].map((col) => {
+          const inside = row + col < 5;
+          return <rect key={`${row}-${col}`} x={40 + col * 26} y={100 - row * 18} width="24" height="16" rx="2"
+            fill={inside ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={inside ? .22 : 1}
+            stroke={inside ? 'var(--color-coral)' : 'var(--hairline)'} />;
+        }))}
+        <text x="148" y="36" fontSize="8" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">r dr dθ</text>
+        <text x="137" y="21" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">∮ Pdx + Qdy</text>
+      </g>, '极坐标 Jacobian · 环量与旋度');
+    case 'basis-change':
+    case 'eigen-transform':
+    case 'svd-steps': {
+      const label = template.kind === 'basis-change' ? '[v]β = P[v]α · 双坐标系'
+        : template.kind === 'eigen-transform' ? 'Av = λv · 特征方向'
+          : 'A = UΣVᵀ · 三步分解与低秩重构';
+      return svg(<g>
+        <path d="M60 100 96 100 96 64 60 64Z" fill="none" stroke="var(--ink-300)" strokeDasharray="3 3" />
+        <path d="M60 100 128 82 146 26 78 44Z" fill="var(--color-coral)" fillOpacity=".14" stroke="var(--color-coral)" strokeWidth="1.6" />
+        {[0.25, 0.5, 0.75].map((t) => <g key={t}>
+          <line x1={60 + 68 * t} y1={100 - 18 * t} x2={78 + 68 * t} y2={44 - 18 * t} stroke="var(--ink-300)" opacity=".35" />
+          <line x1={60 + 18 * t} y1={100 - 56 * t} x2={128 + 18 * t} y2={82 - 56 * t} stroke="var(--ink-300)" opacity=".35" />
+        </g>)}
+        <line x1="60" y1="100" x2="130" y2="84" stroke="var(--ink-700)" strokeWidth="1.6" />
+        <path d="M134 82 126 79 129 88Z" fill="var(--ink-700)" />
+        <text x="152" y="34" fontSize="8" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">A · v</text>
+      </g>, label);
+    }
+    default:
+      return svg(<g>
+        {['输入', '模型', '分析', '对照'].map((label, index) => <g key={label}>
+          <rect x={22 + index * 58} y="48" width="46" height="32" rx="5" fill={index === 1 ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={index === 1 ? .14 : 1} stroke="var(--hairline-strong)" />
+          <text x={45 + index * 58} y="68" textAnchor="middle" fontSize="8" fill="var(--ink-500)">{label}</text>
+          {index < 3 ? <line x1={68 + index * 58} y1="64" x2={80 + index * 58} y2="64" stroke="var(--color-coral)" /> : null}
+        </g>)}
+      </g>, '已连线 · 可复算的数学管线');
   }
-  if (kind === 'dsTraversal') {
+}
+
+function Lab408Preview({ kind }: { kind: Lab408PreviewKind }): JSX.Element {
+  if (kind === 'tree') {
     return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
       <line x1="130" y1="36" x2="92" y2="76" stroke="var(--hairline-strong)" strokeWidth="1.4" />
       <line x1="130" y1="36" x2="168" y2="76" stroke="var(--hairline-strong)" strokeWidth="1.4" />
@@ -268,10 +439,79 @@ function Lab408Preview({ kind }: { kind: Lab408TemplateKind }): JSX.Element {
         <circle cx={Number(x)} cy={Number(y)} r="13" fill="var(--paper-0)" stroke={label === 'A' ? 'var(--color-coral)' : 'var(--hairline-strong)'} strokeWidth="1.4" />
         <text x={Number(x)} y={Number(y) + 3} textAnchor="middle" fontSize="9" fill="var(--ink-700)">{label}</text>
       </g>)}
-      <text x="148" y="126" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">先序 / 中序 / 后序 / 层序</text>
+      <text x="144" y="130" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">先序 / 中序 / 后序 / 层序</text>
     </svg>;
   }
-  if (kind === 'cacheSplit') {
+  if (kind === 'kmp') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {['A', 'B', 'A', 'B', 'A', 'B', 'C'].map((char, index) => <g key={index}>
+        <rect x={30 + index * 18} y="44" width="16" height="20" rx="3" fill={index < 5 ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={index < 5 ? .18 : 1} stroke="var(--hairline-strong)" />
+        <text x={38 + index * 18} y="58" textAnchor="middle" fontSize="8" fill="var(--ink-700)">{char}</text>
+      </g>)}
+      {[-1, 0, 0, 1, 2, 3, 1].map((value, index) => <text key={index} x={38 + index * 18} y="86" textAnchor="middle" fontSize="7.5" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">{value}</text>)}
+      <text x="30" y="110" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">next[j] · 失配只回退模式指针</text>
+    </svg>;
+  }
+  if (kind === 'sort') {
+    const bars = [5, 2, 9, 1, 5, 6];
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <line x1="30" y1="112" x2="230" y2="112" stroke="var(--hairline-strong)" />
+      {bars.map((value, index) => <rect key={index} x={38 + index * 32} y={112 - value * 8} width="22" height={value * 8} rx="3"
+        fill={index === 2 ? 'var(--color-coral)' : 'var(--ink-300)'} fillOpacity={index === 2 ? .8 : .35} />)}
+      <text x="30" y="130" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">比较 · 交换 · 枢轴归位</text>
+    </svg>;
+  }
+  if (kind === 'graph') {
+    const nodes: [number, number, string][] = [[40, 62, 'A'], [110, 32, 'B'], [110, 96, 'C'], [200, 66, 'D']];
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {nodes.map(([x, y, label], index) => <g key={label}>
+        {nodes.slice(index + 1).map(([tx, ty, target]) => <line key={target} x1={x} y1={y} x2={tx} y2={ty} stroke="var(--hairline-strong)" strokeWidth="1.2" />)}
+        <circle cx={x} cy={y} r="12" fill="var(--paper-0)" stroke={index === 0 ? 'var(--color-coral)' : 'var(--hairline-strong)'} strokeWidth="1.4" />
+        <text x={x} y={y + 3} textAnchor="middle" fontSize="8.5" fill="var(--ink-700)">{label}</text>
+      </g>)}
+      <text x="74" y="54" fontSize="7" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">4</text>
+      <text x="74" y="92" fontSize="7" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">2</text>
+      <text x="152" y="44" fontSize="7" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">7</text>
+      <text x="160" y="94" fontSize="7" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">1</text>
+      <text x="30" y="132" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">dist 更新 · 松弛</text>
+    </svg>;
+  }
+  if (kind === 'cache') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {[0, 1, 2].map((set) => <g key={set}>
+        {[0, 1, 2, 3].map((way) => <rect key={way} x={34 + way * 48} y={28 + set * 26} width="42" height="20" rx="3"
+          fill={set === 1 && way === 2 ? 'var(--color-coral)' : 'var(--paper-0)'}
+          fillOpacity={set === 1 && way === 2 ? .18 : 1}
+          stroke={set === 1 && way === 2 ? 'var(--color-coral)' : 'var(--hairline)'} />)}
+      </g>)}
+      <text x="34" y="122" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">命中 3 · 缺失 5 · 4 路</text>
+      <text x="182" y="122" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">LRU 淘汰</text>
+    </svg>;
+  }
+  if (kind === 'pipeline') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {['IF', 'ID', 'EX', 'MEM', 'WB'].map((stage, index) => <g key={stage}>
+        <text x="30" y={44 + index * 18} fontSize="7.5" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">{stage}</text>
+        {[0, 1, 2, 3].map((cycle) => <rect key={cycle} x={56 + (cycle + 4 - index) * 22} y={34 + index * 18} width="20" height="13" rx="2"
+          fill={index === 2 && cycle === 0 ? 'var(--color-coral)' : 'var(--ink-300)'}
+          fillOpacity={index === 2 && cycle === 0 ? .8 : .3} />)}
+      </g>)}
+      <text x="56" y="132" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">IF · ID · EX · MEM · WB</text>
+    </svg>;
+  }
+  if (kind === 'ieee') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <rect x="30" y="46" width="22" height="26" fill="var(--ink-300)" opacity=".8" />
+      <rect x="52" y="46" width="70" height="26" fill="var(--color-coral)" opacity=".82" />
+      <rect x="122" y="46" width="112" height="26" fill="var(--color-indigo)" opacity=".82" />
+      <text x="41" y="64" textAnchor="middle" fontSize="8" fill="#fff">S</text>
+      <text x="87" y="64" textAnchor="middle" fontSize="8" fill="#fff">阶码 8</text>
+      <text x="178" y="64" textAnchor="middle" fontSize="8" fill="#fff">尾数 23</text>
+      <text x="30" y="92" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">0x3fc00000 → 1.5</text>
+      <text x="30" y="112" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">(−1)^s × 1.M × 2^(E−127)</text>
+    </svg>;
+  }
+  if (kind === 'split') {
     return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
       <text x="28" y="48" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">32 位主存地址</text>
       <rect x="28" y="60" width="118" height="24" fill="var(--color-indigo)" opacity=".82" />
@@ -284,22 +524,73 @@ function Lab408Preview({ kind }: { kind: Lab408TemplateKind }): JSX.Element {
       <text x="28" y="120" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">64 KB · 64 B · 4 路</text>
     </svg>;
   }
-  if (kind === 'pageReplace') {
-    const rows = [0, 1, 2];
+  if (kind === 'cpu') {
+    const rows: [string, number, number][] = [['P1', 0, 3], ['P2', 3, 2], ['P3', 5, 1]];
     return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
-      {rows.map(row => <g key={row}>
-        {[0, 1, 2, 3].map(col => <rect key={col} x={38 + col * 46} y={30 + row * 30} width="38" height="22" rx="3"
+      {rows.map(([label, start, width], index) => <g key={label}>
+        <text x="30" y={44 + index * 26} fontSize="8" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">{label}</text>
+        <rect x={54 + start * 28} y={32 + index * 26} width={width * 28} height="16" rx="3"
+          fill={index === 0 ? 'var(--color-coral)' : 'var(--paper-0)'}
+          fillOpacity={index === 0 ? .18 : 1}
+          stroke={index === 0 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />
+      </g>)}
+      <text x="30" y="126" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">FCFS / SJF / SRTF / RR · 周转时间</text>
+    </svg>;
+  }
+  if (kind === 'banker') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {[0, 1, 2, 3].map((row) => <g key={row}>
+        {[0, 1, 2].map((col) => <rect key={col} x={40 + col * 44} y={28 + row * 22} width="40" height="18" rx="3"
+          fill={row === 1 ? 'var(--color-coral)' : 'var(--paper-0)'}
+          fillOpacity={row === 1 ? .14 : 1}
+          stroke={row === 1 ? 'var(--color-coral)' : 'var(--hairline)'} />)}
+      </g>)}
+      <text x="40" y="126" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">Need ≤ Work 才可推进</text>
+      <text x="196" y="126" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">安全序列</text>
+    </svg>;
+  }
+  if (kind === 'page') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {[0, 1, 2].map((row) => <g key={row}>
+        {[0, 1, 2, 3].map((col) => <rect key={col} x={38 + col * 46} y={30 + row * 30} width="38" height="22" rx="3"
           fill={row === 1 && col === 2 ? 'var(--color-coral)' : 'var(--paper-0)'}
           fillOpacity={row === 1 && col === 2 ? .16 : 1}
           stroke={row === 1 && col === 2 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />)}
       </g>)}
       <text x="38" y="128" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">缺页 9 / 12 · FIFO</text>
-      <text x="188" y="128" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">LRU · OPT</text>
+      <text x="184" y="128" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">LRU · OPT</text>
+    </svg>;
+  }
+  if (kind === 'tcp') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <path d="M30 106V24M30 106H238" fill="none" stroke="var(--hairline-strong)" />
+      <path d="M32 100 58 82 84 52 104 40 132 58 160 50 196 56 232 76" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" strokeLinejoin="round" />
+      <line x1="30" y1="46" x2="238" y2="46" stroke="var(--hairline-strong)" strokeDasharray="3 4" />
+      <text x="192" y="40" fontSize="7" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">ssthresh</text>
+      <circle cx="104" cy="40" r="3" fill="var(--color-coral)" />
+      <text x="108" y="32" fontSize="7" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">3ack</text>
+      <circle cx="232" cy="76" r="3" fill="var(--color-indigo)" />
+      <text x="196" y="90" fontSize="7" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">timeout</text>
+    </svg>;
+  }
+  if (kind === 'window') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {[0, 1, 2, 3, 4, 5, 6].map((index) => <g key={index}>
+        <rect x={34 + index * 28} y="50" width="24" height="22" rx="3"
+          fill={index >= 1 && index <= 4 ? 'var(--color-coral)' : 'var(--paper-0)'}
+          fillOpacity={index >= 1 && index <= 4 ? .18 : 1}
+          stroke={index >= 1 && index <= 4 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />
+        <text x={46 + index * 28} y="65" textAnchor="middle" fontSize="8" fill="var(--ink-700)">{index}</text>
+      </g>)}
+      <path d="M62 44h100" stroke="var(--color-coral)" strokeDasharray="3 3" />
+      <text x="34" y="34" fontSize="7.5" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">发送窗口</text>
+      <text x="34" y="100" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">GBN 重传整窗 · SR 只补丢帧</text>
+      <path d="M150 104q16 12 30 0" fill="none" stroke="var(--ink-400)" strokeWidth="1.2" />
     </svg>;
   }
   return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
     <text x="30" y="34" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">192.168.1.0/24</text>
-    {[0, 1, 2, 3].map(index => <g key={index}>
+    {[0, 1, 2, 3].map((index) => <g key={index}>
       <rect x={30 + index * 50} y={50} width="42" height="34" rx="4" fill={index === 2 ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={index === 2 ? .14 : 1} stroke={index === 2 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />
       <text x={51 + index * 50} y={70} textAnchor="middle" fontSize="7.5" fill="var(--ink-500)" fontFamily="var(--font-family-mono)">/26</text>
       <text x={51 + index * 50} y={80} textAnchor="middle" fontSize="6.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">.{(index * 64).toString().padStart(3, '0')}</text>
@@ -307,6 +598,138 @@ function Lab408Preview({ kind }: { kind: Lab408TemplateKind }): JSX.Element {
     <text x="30" y="114" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">网络地址 · 广播地址 · 可用范围</text>
   </svg>;
 }
+
+/* ---------- 专题目录：各分类的专题与条目 ---------- */
+
+export { CALCULUS_TOPICS, LAB408_TOPICS };
+
+const CALCULUS_ITEMS: readonly CatalogItem[] = CALCULUS_TEMPLATES.map((t) => ({
+  key: t.kind,
+  topic: t.topic,
+  name: t.name,
+  desc: t.desc,
+  tag: t.tag,
+  meta: `${t.level} / ${t.minutes} 分钟`,
+  formula: t.formula,
+  recipe: t.question,
+  note: '已预设仪器面板 · 可嵌入活页',
+  preview: <CalculusPreview template={t} />,
+}));
+
+const PHYSICS_ITEMS: readonly CatalogItem[] = PHYSICS_TEMPLATES.map((t) => ({
+  key: t.kind,
+  topic: t.topic,
+  name: t.name,
+  desc: t.desc,
+  tag: t.tag,
+  recipe: t.question,
+  note: '已预设仪器面板 · 可嵌入活页',
+  preview: <PhysicsPreview template={t} />,
+}));
+
+const LAB408_ITEMS: readonly CatalogItem[] = [...LAB408_TEMPLATES, ...LAB408_WORKBENCH_TEMPLATES].map((t) => ({
+  key: t.kind,
+  topic: t.topic,
+  name: t.name,
+  desc: t.desc,
+  tag: t.tag,
+  recipe: t.question,
+  note: isLab408Kind(t.kind) ? '模块流水线 · 可编辑输入' : '支持粘贴原题并核对',
+  preview: <Lab408Preview kind={t.preview} />,
+}));
+
+const DEEP_ITEMS: readonly CatalogItem[] = DEEP_TEMPLATES.map((t) => ({
+  key: t.kind,
+  topic: t.topic,
+  name: t.name,
+  desc: t.desc,
+  tag: t.tag,
+  recipe: t.question,
+  note: '已预设仪器面板 · 可嵌入活页',
+  preview: <DeepPreview template={t} />,
+}));
+
+const ALL_TOPICS: readonly WorkshopTopic[] = [...CALCULUS_TOPICS, ...PHYSICS_TOPICS, ...LAB408_TOPICS, ...DEEP_TOPICS];
+const ALL_ITEMS: readonly CatalogItem[] = [...CALCULUS_ITEMS, ...PHYSICS_ITEMS, ...LAB408_ITEMS, ...DEEP_ITEMS];
+
+const EXTRA_SEARCH: ReadonlyMap<string, string> = new Map([
+  ...CALCULUS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
+  ...DEEP_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
+  ...PHYSICS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
+  ...LAB408_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
+  ...LAB408_WORKBENCH_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation}`] as const),
+]);
+
+function matchesQuery(item: CatalogItem, normalizedQuery: string): boolean {
+  if (!normalizedQuery) return true;
+  return [item.name, item.desc, item.tag, item.recipe ?? '', EXTRA_SEARCH.get(item.key) ?? '']
+    .some((text) => text.toLowerCase().includes(normalizedQuery));
+}
+
+/* ---------- 专题目录：统一渲染 ---------- */
+
+export interface CatalogCardProps {
+  item: CatalogItem;
+  disabled: boolean;
+  creating: boolean;
+  actionLabel: string;
+  onCreate: () => void;
+}
+
+export function CatalogCard({ item, disabled, creating, actionLabel, onCreate }: CatalogCardProps): JSX.Element {
+  return <button type="button" className={styles.tplCard} disabled={disabled} onClick={onCreate}>
+    <span className={styles.tplPreview} aria-hidden="true">{item.preview}</span>
+    <span className={styles.tplBody}>
+      <span className={styles.tplMeta}>{item.tag}{item.meta ? ` · ${item.meta}` : ''}</span>
+      <span className={styles.tplName}>{item.name}</span>
+      <span className={styles.tplDesc}>{item.desc}</span>
+      {item.formula ? <span className={styles.templateFormula}>{item.formula}</span> : null}
+      {item.recipe ? <span className={styles.templateRecipe}>探究：{item.recipe}</span> : null}
+      {item.note ? <span className={styles.templateRecipe}>{item.note}</span> : null}
+      <span className={styles.tplGo}>{creating ? '创建中…' : actionLabel}</span>
+    </span>
+  </button>;
+}
+
+export interface TopicCatalogProps {
+  topics: readonly WorkshopTopic[];
+  items: readonly CatalogItem[];
+  disabled?: boolean;
+  creatingKey?: string | null;
+  actionLabel?: string;
+  onCreate?: (item: CatalogItem) => void;
+}
+
+export function TopicCatalog({
+  topics,
+  items,
+  disabled = false,
+  creatingKey = null,
+  actionLabel = '打开实验 →',
+  onCreate,
+}: TopicCatalogProps): JSX.Element {
+  const knownTopicIds = new Set(topics.map((topic) => topic.id));
+  const validItems = items.filter((item) => knownTopicIds.has(item.topic));
+  return <div className={styles.topicCatalog}>
+    {topics.map((topic) => {
+      const grouped = validItems.filter((item) => item.topic === topic.id);
+      if (!grouped.length) return null;
+      return <section key={topic.id} className={styles.topicGroup} aria-labelledby={`topic-${topic.id}`}>
+        <header className={styles.topicHead}>
+          <div><h3 id={`topic-${topic.id}`}>{topic.name}</h3><p>{topic.lead}</p></div>
+          <span className={styles.countPill}>{grouped.length} 个实验</span>
+        </header>
+        <div className={styles.tplGrid}>
+          {grouped.map((item) => <CatalogCard key={item.key} item={item} disabled={disabled}
+            creating={creatingKey === item.key} actionLabel={actionLabel}
+            onCreate={() => onCreate?.(item)} />)}
+        </div>
+      </section>;
+    })}
+  </div>;
+}
+
+/* ---------- 页面 ---------- */
 
 function EmptyBoard({ title, lead }: { title: string; lead: string }): JSX.Element {
   return (
@@ -331,11 +754,13 @@ function SkeletonRows(): JSX.Element {
 
 export function WorkshopPage(): JSX.Element {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [works, setWorks] = useState<WorkSummary[] | null>(null);
   const [gallery, setGallery] = useState<ShareSummary[] | null>(null);
-  const [creating, setCreating] = useState<string | null>(null);
-  const [category, setCategory] = useState<TemplateCategory>(() => searchParams.get('subject') === 'deep' ? 'deep' : 'calculus');
+  const [category, setCategory] = useState<TemplateCategory>(() => {
+    const subject = searchParams.get('subject');
+    return subject === 'mechanics' || subject === 'lab408' || subject === 'deep' || subject === 'all' ? subject : 'calculus';
+  });
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
 
   const [loadError, setLoadError] = useState('');
@@ -346,27 +771,30 @@ export function WorkshopPage(): JSX.Element {
   };
   useEffect(loadWorks, []);
 
-  const fromTemplate = useCallback(async (kind: TemplateKind, name: string) => {
-    setCreating(kind);
-    try {
-      const res = await worksApi.create(templateDoc(kind), name);
-      navigate(`/canvas?work=${encodeURIComponent(res.work_id)}`);
-    } catch {
-      window.alert('创建模板失败：请确认后端已启动。');
-      setCreating(null);
-    }
+  const fromTemplate = useCallback((kind: TemplateKind) => {
+    navigate(`/canvas?template=${encodeURIComponent(kind)}`);
   }, [navigate]);
 
+  const selectCategory = useCallback((key: TemplateCategory) => {
+    setCategory(key);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('subject', key);
+      if (query.trim()) next.set('q', query); else next.delete('q');
+      return next;
+    }, { replace: true });
+  }, [query, setSearchParams]);
+
   const normalizedQuery = query.trim().toLowerCase();
-  const hit = (...texts: string[]): boolean => !normalizedQuery || texts.some((text) => text.toLowerCase().includes(normalizedQuery));
-  const calculusShown = CALCULUS_TEMPLATES.filter((t) => hit(t.name, t.desc, t.tag));
-  const mechanicsShown = TEMPLATES.filter((t) => hit(t.name, t.desc, t.tag));
-  const lab408Shown = [...LAB408_TEMPLATES, ...LAB408_WORKBENCH_TEMPLATES].filter((t) => hit(t.name, t.desc, t.tag));
-  const deepShown = DEEP_TEMPLATES.filter((t) => hit(t.name, t.desc, t.tag, t.question, t.observation, ...t.keywords));
-  const shownCount = (category === 'calculus' ? calculusShown.length : category === 'mechanics' ? mechanicsShown.length
-    : category === 'lab408' ? lab408Shown.length : category === 'deep' ? deepShown.length
-      : calculusShown.length + mechanicsShown.length + lab408Shown.length + deepShown.length);
-  const totalTemplates = CALCULUS_TEMPLATES.length + TEMPLATES.length + LAB408_TEMPLATE_COUNT + DEEP_TEMPLATES.length;
+  const view = category === 'calculus' ? { topics: CALCULUS_TOPICS, items: CALCULUS_ITEMS }
+    : category === 'mechanics' ? { topics: PHYSICS_TOPICS, items: PHYSICS_ITEMS }
+      : category === 'lab408' ? { topics: LAB408_TOPICS, items: LAB408_ITEMS }
+        : category === 'deep' ? { topics: DEEP_TOPICS, items: DEEP_ITEMS }
+          : { topics: ALL_TOPICS, items: ALL_ITEMS };
+  const knownTopicIds = new Set(view.topics.map((topic) => topic.id));
+  const shownItems = view.items.filter((item) => knownTopicIds.has(item.topic) && matchesQuery(item, normalizedQuery));
+  const shownCount = shownItems.length;
+  const totalTemplates = CALCULUS_ITEMS.length + PHYSICS_ITEMS.length + LAB408_ITEMS.length + DEEP_ITEMS.length;
 
   const openWork = useCallback((wid: string) => {
     navigate(`/canvas?work=${encodeURIComponent(wid)}`);
@@ -397,22 +825,22 @@ export function WorkshopPage(): JSX.Element {
             <p className={styles.eyebrow}>万象工坊 · Workshop</p>
             <h1 className={styles.title}>把实验摆上画布</h1>
             <p className={styles.lead}>
-              理科实验台 × 数学 Scratch：摆下活对象、连线出行为、发布成作品。
-              从一条函数出发，搭出极限、导数、积分与泰勒近似；也可以继续探索抛体、弹簧、单摆、覆盖 60 个题型的 408 工作台，以及按四个专题组织的深度学习原理实验。
+              大学物理 × 高等数学 × 计算专题：摆下活对象、连线出行为、发布成作品。
+              物理四专题贯通运动受力、电磁电路、光学与热学近代，高数四专题覆盖微积分、级数 ODE、多元场论与线代几何；也可以继续探索 408 和深度学习实验。
             </p>
             <p className={styles.headMeta}>
-              <span><b>{CALCULUS_TEMPLATES.length}</b> 个高数实验</span>
-              <span><b>{TEMPLATES.length}</b> 个力学实验</span>
-              <span><b>{LAB408_TEMPLATE_COUNT}</b> 个 408 实验</span>
-              <span><b>{DEEP_TEMPLATES.length}</b> 个深度学习实验</span>
+              <span><b>{CALCULUS_ITEMS.length}</b> 个高数实验</span>
+              <span><b>{PHYSICS_ITEMS.length}</b> 个大学物理实验</span>
+              <span><b>{LAB408_ITEMS.length}</b> 个 408 实验</span>
+              <span><b>{DEEP_ITEMS.length}</b> 个深度学习实验</span>
               <span><b>{totalTemplates}</b> 个模板</span>
-              <span><b>{works === null ? '—' : works.length}</b> 件我的作品</span>
+              {works && works.length > 0 ? <span><b>{works.length}</b> 件我的作品</span> : null}
               <span><b>{gallery === null ? '—' : gallery.length}</b> 件公开作品</span>
             </p>
           </div>
           <aside className={styles.headNote}>
             <span>打开即玩，随时能改</span>
-            <p>每个模板都附带探究问题、搭建步骤和观察记录。深度学习实验默认带仪器面板，可直接嵌入活页；四个专题从优化动力学一路到生成模型与强化学习。</p>
+            <p>每个模板都附带探究问题、搭建步骤和观察记录。物理与高数模板已连接 4–6 个计算环节，源参数集中暴露在仪器面板，共享时间轴联动场景、读数与表格；打开即可嵌入活页，各分类均按二级专题组织。</p>
             <button type="button" onClick={blank}>新建空白画布</button>
           </aside>
         </header>
@@ -427,107 +855,42 @@ export function WorkshopPage(): JSX.Element {
           </div>
           <div className={styles.templateFilters} role="group" aria-label="模板分类">
             {([
-              ['calculus', `高等数学 · ${CALCULUS_TEMPLATES.length}`],
-              ['mechanics', `力学实验 · ${TEMPLATES.length}`],
-              ['lab408', `408 专题 · ${LAB408_TEMPLATE_COUNT}`],
-              ['deep', `深度学习 · ${DEEP_TEMPLATES.length}`],
+              ['calculus', `高等数学 · ${CALCULUS_ITEMS.length}`],
+              ['mechanics', `大学物理 · ${PHYSICS_ITEMS.length}`],
+              ['lab408', `408 专题 · ${LAB408_ITEMS.length}`],
+              ['deep', `深度学习 · ${DEEP_ITEMS.length}`],
               ['all', `全部模板 · ${totalTemplates}`],
-            ] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={category === key} onClick={() => setCategory(key)}>{label}</button>)}
+            ] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={category === key} onClick={() => selectCategory(key)}>{label}</button>)}
             <label className={styles.templateSearch}>
               <span>搜索模板</span>
-              <input type="search" value={query} placeholder="Adam、CNN、Attention、Diffusion…" aria-label="按算法或关键词搜索模板" onChange={(e) => setQuery(e.target.value)} />
+              <input type="search" value={query} placeholder="双缝、Taylor、Cache、Attention…" aria-label="按学科、算法或关键词搜索模板" onChange={(e) => setQuery(e.target.value)} />
             </label>
             <a href="#workshop-guide">第一次搭建？看三步指南 ↓</a>
           </div>
-          {category === 'deep' ? (
-            <div className={styles.deepTopics}>
-              {DEEP_TOPICS.map((topic) => {
-                const items = deepShown.filter((template) => template.topic === topic.id);
-                if (!items.length) return null;
-                return <section key={topic.id} className={styles.deepTopic} aria-labelledby={`deep-${topic.id}`}>
-                  <header className={styles.deepTopicHead}>
-                    <div><h3 id={`deep-${topic.id}`}>{topic.name}</h3><p>{topic.lead}</p></div>
-                    <span className={styles.countPill}>{items.length} 个实验</span>
-                  </header>
-                  <div className={styles.tplGrid}>
-                    {items.map((template) => <DeepCard key={template.kind} template={template} index={DEEP_TEMPLATES.indexOf(template)}
-                      creating={creating !== null} onCreate={() => void fromTemplate(template.kind, template.name)} />)}
-                  </div>
-                </section>;
-              })}
-              {!deepShown.length ? <p className={styles.emptyLead} role="status">没有匹配“{query.trim()}”的深度学习模板；试试 Adam、CNN、Attention 或 Diffusion。</p> : null}
-            </div>
-          ) : (
-            <div className={styles.tplGrid}>
-              {category !== 'mechanics' && category !== 'lab408' && calculusShown.map((t) => <button key={t.kind} type="button" className={styles.tplCard} disabled={creating !== null} onClick={() => void fromTemplate(t.kind, t.name)}>
-                <span className={styles.tplPreview}><CalculusPreview kind={t.kind} /></span>
-                <span className={styles.tplBody}>
-                  <span className={styles.tplMeta}>{t.tag} · {t.level} / {t.minutes} 分钟</span>
-                  <span className={styles.tplName}>{t.name}</span>
-                  <span className={styles.tplDesc}>{t.desc}</span>
-                  <span className={styles.templateFormula}>{t.formula}</span>
-                  <span className={styles.templateRecipe}>{t.recipe}</span>
-                  <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '搭建这个实验 →'}</span>
-                </span>
-              </button>)}
-              {category !== 'calculus' && category !== 'lab408' && mechanicsShown.map((t) => {
-                const Preview = PREVIEWS[t.kind];
-                return (
-                  <button key={t.kind} type="button" className={styles.tplCard} disabled={creating !== null} onClick={() => void fromTemplate(t.kind, t.name)}>
-                    <span className={styles.tplPreview} aria-hidden="true"><Preview /></span>
-                    <span className={styles.tplBody}>
-                      <span className={styles.tplMeta}>{t.tag}</span>
-                      <span className={styles.tplName}>{t.name}</span>
-                      <span className={styles.tplDesc}>{t.desc}</span>
-                      <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '打开实验 →'}</span>
-                    </span>
-                  </button>
-                );
-              })}
-              {category !== 'calculus' && category !== 'mechanics' && lab408Shown.map((t) => (
-                <button key={t.kind} type="button" className={styles.tplCard} disabled={creating !== null} onClick={() => void fromTemplate(t.kind, t.name)}>
-                  <span className={styles.tplPreview} aria-hidden="true"><Lab408Preview kind={t.kind} /></span>
-                  <span className={styles.tplBody}>
-                    <span className={styles.tplMeta}>{t.tag}</span>
-                    <span className={styles.tplName}>{t.name}</span>
-                    <span className={styles.tplDesc}>{t.desc}</span>
-                    <span className={styles.tplGo}>{creating === t.kind ? '创建中…' : '打开实验 →'}</span>
-                  </span>
-                </button>
-              ))}
-              {category === 'all' ? deepShown.map((template) => <DeepCard key={template.kind} template={template} index={DEEP_TEMPLATES.indexOf(template)}
-                creating={creating !== null} onCreate={() => void fromTemplate(template.kind, template.name)} />) : null}
-              {!shownCount ? <p className={styles.emptyLead} role="status">没有匹配“{query.trim()}”的模板；清空搜索或切换分类。</p> : null}
-            </div>
-          )}
+          <TopicCatalog topics={view.topics} items={shownItems} disabled={false} creatingKey={null}
+            actionLabel="打开实验 →" onCreate={(item) => fromTemplate(item.key)} />
+          {!shownCount ? <p className={styles.emptyLead} role="status">没有匹配“{query.trim()}”的模板；清空搜索或切换分类。</p> : null}
         </section>
 
         <section id="workshop-guide" className={styles.section} aria-labelledby="workshop-guide-title">
-          <div className={styles.sectionHead}><div><p className={styles.sectionEyebrow}>Build · Learn · Explore</p><h2 id="workshop-guide-title" className={styles.sectionTitle}>从函数到实验，只要三步</h2></div></div>
+          <div className={styles.sectionHead}><div><p className={styles.sectionEyebrow}>Build · Learn · Explore</p><h2 id="workshop-guide-title" className={styles.sectionTitle}>从问题到实验，只要三步</h2></div></div>
           <div className={styles.guideGrid}>
-            <article><span>01 / 定义</span><h3>放下一个函数源</h3><p>输入 x²、sin(x)、exp(x) 等函数，或用 a、b、c 参数探索函数族。先写下你想验证的问题。</p></article>
-            <article><span>02 / 连线</span><h3>把问题连成一条链</h3><p>红点接 f(x) 蓝圈，让同一个函数驱动图像、极限、导数与积分。滑杆接 x₀ 可同时改变多个对象的观察点。</p></article>
-            <article><span>03 / 验证</span><h3>先预测，再调参和记录</h3><p>比较左右、粗细分割与近似误差；用便签记录发现。保存后可继续编辑，发布后别人可以复制改造。</p></article>
+            <article><span>01 / 定义</span><h3>选择实验源</h3><p>从大学物理或高数专题打开模板，在仪器面板调整源参数、函数或矩阵，先写下你想验证的问题。</p></article>
+            <article><span>02 / 连线</span><h3>沿管线同步观察</h3><p>源环节将参数和文本送入模型、分析与对照环节；共享时间轴让轨迹、几何、读数和表格同步推进。</p></article>
+            <article><span>03 / 验证</span><h3>先预测，再复算和记录</h3><p>比较守恒量、近似误差与不同数值方法，用便签记录发现。保存后可继续编辑，发布后别人可以复制改造。</p></article>
           </div>
-          <details className={styles.mathBoundary}><summary>这些实验如何计算？</summary><p>支持一元实函数探索。极限表仅提供样本证据；导数与最高五阶泰勒系数由表达式自动微分，并检查左右分支一致性；积分参考使用有限区间 Simpson 数值求积。计算保留浮点误差，无定义、不可导或不稳定时停止输出；图像和采样不替代解析推导与证明。</p></details>
+          <details className={styles.mathBoundary}><summary>这些实验如何计算？</summary><p>物理与高数管线均在浏览器内按确定性公式计算，并输出中间量、读数与误差。无效定义域、无实解或低于截止频率时会明确提示，不伪造曲线；数值表和动画是探究证据，不替代解析推导与证明。</p></details>
         </section>
 
-        <section className={styles.section} aria-labelledby="workshop-mine">
-          <div className={styles.sectionHead}>
-            <div>
-              <p className={styles.sectionEyebrow}>02 · My Works</p>
-              <h2 id="workshop-mine" className={styles.sectionTitle}>我的作品</h2>
+        {works && works.length > 0 ? (
+          <section className={styles.section} aria-labelledby="workshop-mine">
+            <div className={styles.sectionHead}>
+              <div>
+                <p className={styles.sectionEyebrow}>02 · My Works</p>
+                <h2 id="workshop-mine" className={styles.sectionTitle}>我的作品</h2>
+              </div>
+              <span className={styles.countPill}>{`${works.length} 件`}</span>
             </div>
-            <span className={styles.countPill}>{works === null ? '载入中' : `${works.length} 件`}</span>
-          </div>
-          {works === null ? (
-            <SkeletonRows />
-          ) : works.length === 0 ? (
-            <EmptyBoard
-              title="还没有存到工坊的作品"
-              lead="在画布里点「存到工坊」或「发布画布」，作品就会出现在这里。"
-            />
-          ) : (
             <ul className={styles.workList}>
               {works.map((w) => (
                 <li key={w.work_id} className={styles.workCard}>
@@ -553,8 +916,8 @@ export function WorkshopPage(): JSX.Element {
                 </li>
               ))}
             </ul>
-          )}
-        </section>
+          </section>
+        ) : null}
 
         <section className={styles.section} aria-labelledby="workshop-gallery">
           <div className={styles.sectionHead}>

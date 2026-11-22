@@ -33,11 +33,13 @@ iSpec v1.0 必填字段：
   · source: 必填 source.page（整数且 >= 1）与 status
     以及 source.excerpt（字符串，该页原文片段，逐字复制，不得改写）
   · status: original | inferred | confirmed | manual_demo
-- views: 数组，至少 1 项，只能是以下形状之一：
-  · {"type":"vega","spec_ref":"line|bar|scatter|heatmap|grid_and_transform", ...}
-  · {"type":"table","columns":["..."], ...}
-  · {"type":"text","template":"...", ...}
-  · {"type":"figure","spec_ref":"vectors|circle_ellipse|grid_transform|step_diagram|det_area", ...}
+- views: 数组，至少 1 项，只能是以下形状之一（注意：每个视图对象严禁携带 parameters 字段）：
+  · {"type":"vega","spec_ref":"line|bar|scatter|heatmap|grid_and_transform","title":"...","x":"...","y":"...","dataset":"..."}
+  · {"type":"table","columns":["..."],"title":"...","dataset":"..."}
+  · {"type":"text","template":"...","title":"..."}
+  · {"type":"figure","spec_ref":"vectors|circle_ellipse|grid_transform|step_diagram|det_area","title":"..."}
+- 若有派生量，expressions 放在 iSpec 顶层，形如 [{"id":"area","expr":"length * width"}]。
+  views 只引用参数或派生量，不能在视图内定义 expressions。
 可选字段：title、expressions、datasets、constraints、checks、notes。
 禁止新增 Schema 未定义的字段（additionalProperties=false）。
 """
@@ -66,7 +68,7 @@ def _render_pages(request: LLMRequest) -> str:
     return "\n\n".join(blocks) if blocks else "（没有可识别的页面）"
 
 
-def build_prompt(request: LLMRequest) -> str:
+def build_prompt(request: LLMRequest, *, json_object: bool = False) -> str:
     """构造 prompt：只允许输出 JSON 数组，且每个参数必须带证据字段。"""
 
     hints: Mapping[str, Any] = request.hints or {}
@@ -79,14 +81,15 @@ def build_prompt(request: LLMRequest) -> str:
     ]
     max_specs = hints.get("max_specs", 8)
     kinds = ", ".join(str(item) for item in supported)
+    output = '{"ispecs": [...]}' if json_object else 'JSON 数组'
 
     return "\n".join(
         [
             "你是课件交互识别器。根据下面的 PPT 页面原文，找出可交互的区域，输出 iSpec。",
             "",
             "【输出格式】",
-            f"只输出一个 JSON 数组，最多 {max_specs} 个元素；不要输出 Markdown 代码块标记、",
-            "不要解释、不要注释、不要在数组外写任何文字。",
+            f"只输出 {output}，数组最多 {max_specs} 个元素；不要输出 Markdown 代码块标记、",
+            "不要解释、不要注释、不要在 JSON 外写任何文字。",
             f"kind 只能取：{kinds}。",
             "",
             "【证据规则（硬性）】",
@@ -101,7 +104,7 @@ def build_prompt(request: LLMRequest) -> str:
             "【页面原文】",
             _render_pages(request),
             "",
-            "请现在输出 JSON 数组：",
+            f"请现在输出 {output}：",
         ]
     )
 

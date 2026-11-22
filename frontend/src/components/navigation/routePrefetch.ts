@@ -17,8 +17,6 @@ export const routeLoaders = {
   labWorkbench: () => import('@/pages/LabWorkbenchPage'),
   labShare: () => import('@/pages/LabSharePage'),
   living: () => import('@/pages/LivingPagesPage'),
-  livingEditor: () => import('@/pages/LivingPageEditor'),
-  livingShare: () => import('@/pages/LivingPageShare'),
   workshop: () => import('@/pages/WorkshopPage'),
   workShare: () => import('@/pages/WorkSharePage'),
   login: () => import('@/pages/LoginPage'),
@@ -40,8 +38,6 @@ export function routeKeyForPath(path: string): RouteKey | null {
   if (clean.startsWith('/labs/')) return 'labWorkbench';
   if (clean.startsWith('/lab-share/')) return 'labShare';
   if (clean === '/living') return 'living';
-  if (clean.startsWith('/living/')) return 'livingEditor';
-  if (clean.startsWith('/page-shares/')) return 'livingShare';
   if (clean === '/workshop') return 'workshop';
   if (clean.startsWith('/work-shares/')) return 'workShare';
   if (/^\/materials\/[^/]+\/prepare$/.test(clean)) return 'prepare';

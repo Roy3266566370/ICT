@@ -27,3 +27,12 @@
 .table th { font-weight: 500; color: var(--ink-500, #686f61); }
 .table caption { text-align: left; font-size: 10px; margin-bottom: 5px; }
 .check { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+
+/* 高数高级节点：图面、双面板与频谱柱 */
+.plot { display: block; width: 100%; height: auto; background: var(--paper-1); border: 1px solid var(--hairline); border-radius: 7px; }
+.plot text { font: 8px var(--font-family-mono, monospace); fill: var(--ink-400); }
+.calcGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-width: 0; }
+.calcGrid > * { min-width: 0; }
+.spectrum { display: block; width: 100%; height: auto; background: var(--paper-1); border: 1px solid var(--hairline); border-radius: 7px; }
+.spectrum text { font: 8px var(--font-family-mono, monospace); fill: var(--ink-400); }
+.readout b { color: var(--color-coral-ink); font-weight: 600; }

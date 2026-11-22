@@ -15,7 +15,9 @@ from typing import Any, Mapping, Sequence
 
 from .ai import LabAI, LabAIUnavailable
 from .expr import number_text, parse_expression, safe_float
+from .math_verify_adapter import verify_math_equivalence
 from .solvers import evaluate_problem, solve_problem
+from .step_checker import diagnose_intermediate_step
 
 
 def _fmt(value: object, digits: int = 5) -> str:
@@ -1030,6 +1032,8 @@ def check_attempt(
         except Exception:  # noqa: BLE001 - 保留检查入口，反馈缺少结论
             solution = {}
     actual = answer.strip()
+    if kind == "step":
+        return diagnose_intermediate_step(problem, evaluation, actual)
     if (problem.get("model") or {}).get("task") == "proof":
         return {
             "correct": False, "expected": str(solution.get("answer") or solution.get("summary") or ""),
@@ -1357,15 +1361,20 @@ def check_attempt(
         value = solution.get("answer_value")
         expected = solution.get("answer") or ""
         student = _parse_number(actual)
-        if student is None or value is None:
-            detail = "请填写一个数值（支持 8/3、2.6667 这样的写法）。"
-        else:
+        if student is not None and value is not None:
             tolerance = max(1e-5, abs(float(value)) * 0.01)
             correct = abs(student - float(value)) <= tolerance
             detail = (
                 f"与解析结果一致（容差 1%）。" if correct else
                 f"解析值为 {_fmt(value, 8)}；你填写的是 {_fmt(student)}。可回到“完整讲解”核对原函数与上下限。"
             )
+        else:
+            detail = "请填写一个数值（支持 8/3、2.6667 这样的写法）。"
+        if not correct:
+            expected_exact = str(solution.get("exact") or expected or "").strip()
+            if expected_exact and verify_math_equivalence(expected_exact, actual) is True:
+                correct = True
+                detail = "与解析结果等价（符号/LaTeX 等价核验通过）。"
     feedback = ("判断：正确。\n" if correct else "判断：还需要核对。\n") + detail
     return {
         "correct": correct,

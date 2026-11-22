@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { FigureSpecView } from '@/components/ispec/views/FigureSpecView';
 import { evaluateSpec } from '@/ispec/evaluate';
 import { formatNumberSmart } from '@/ispec/format';
@@ -49,7 +49,7 @@ function ResultChips({ spec, plan, evaluation, base }: { spec: ISpec; plan: Live
   </div>;
 }
 
-function Cluster({ cluster, spec, plan, cells, evaluation, base, shared, showResults }: {
+const Cluster = memo(function Cluster({ cluster, spec, plan, cells, evaluation, base, shared, showResults }: {
   showResults: boolean; cluster: LiveCluster; spec: ISpec; plan: LivePlan; cells: Cells; evaluation: SpecEvaluation; base: SpecEvaluation;
   shared: Pick<Props, 'place' | 'disabled' | 'onChange' | 'onExpand' | 'flashKey' | 'pageSize' | 'pageImageUrl'>;
 }) {
@@ -83,20 +83,28 @@ function Cluster({ cluster, spec, plan, cells, evaluation, base, shared, showRes
     <button type="button" className={styles.expand} onClick={() => shared.onExpand(spec.object_id)}
       aria-label={`展开实验页：${spec.title ?? '交互'}`} title="展开为完整实验页">↗</button>
   </div>;
-}
+});
 
-function Figure({ figure, spec, plan, cells, evaluation, base, shared, reducedMotion }: {
+const Figure = memo(function Figure({ figure, spec, plan, cells, evaluation, base, shared, reducedMotion }: {
   figure: LiveFigureRegion; spec: ISpec; plan: LivePlan; cells: Cells; evaluation: SpecEvaluation; base: SpecEvaluation;
-  shared: Pick<Props, 'place' | 'disabled' | 'onChange' | 'onExpand' | 'flashKey'>; reducedMotion: boolean;
+  shared: Pick<Props, 'place' | 'disabled' | 'onChange' | 'onExpand' | 'flashKey' | 'pageSize' | 'pageImageUrl'>; reducedMotion: boolean;
 }) {
   const [hover, setHover] = useState(false);
   const [pinned, setPinned] = useState(false);
+  const [stage, setStage] = useState<0 | 1 | 2>(2);
   const [size, setSize] = useState({ w: 0, h: 0, natural: 0 });
   const host = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const timer = useRef<number | null>(null);
+  const isStep = figure.view.spec_ref === 'step_diagram';
   const active = hover || pinned;
   const NATURAL_W = 640;
+
+  const fraction = useMemo(() => ({
+    x: figure.bbox.x / shared.pageSize.width, y: figure.bbox.y / shared.pageSize.height,
+    w: figure.bbox.w / shared.pageSize.width, h: figure.bbox.h / shared.pageSize.height,
+  }), [figure.bbox, shared.pageSize.width, shared.pageSize.height]);
+  const surfaceBg = useRingBackground(shared.pageImageUrl, fraction, true);
 
   useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
   useLayoutEffect(() => {
@@ -111,32 +119,43 @@ function Figure({ figure, spec, plan, cells, evaluation, base, shared, reducedMo
   }, [active]);
   useLayoutEffect(() => {
     if (active && inner.current) setSize(current => ({ ...current, natural: inner.current!.offsetHeight }));
-  }, [active, cells]);
+  }, [active, cells, stage]);
 
   const scale = size.natural > 0 && size.w > 0 ? Math.min(size.w / NATURAL_W, size.h / size.natural) : 0;
   const params = figure.paramIds.map(id => spec.parameters.find(p => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
-  const enter = () => { if (!timer.current) timer.current = window.setTimeout(() => { timer.current = null; setHover(true); }, 140); };
+  const enter = () => { if (!timer.current) timer.current = window.setTimeout(() => { timer.current = null; setHover(true); }, 100); };
   const leave = () => { if (timer.current) { window.clearTimeout(timer.current); timer.current = null; } setHover(false); };
+  const placed = shared.place(figure.bbox, figure.elementId);
   return <div ref={host} className={styles.figureHost} data-active={active} data-reduced={reducedMotion}
     data-live-region={figure.key} data-live-kind="figure" data-live-title={spec.title ?? '图形'}
     data-live-params={spec.parameters.map(p => p.id).join('、')} data-flash={shared.flashKey === figure.key} data-no-pan
-    style={shared.place(figure.bbox, figure.elementId)}
+    style={{ ...placed, ['--live-fig-bg' as string]: surfaceBg ?? undefined }}
+    onClick={(event) => {
+      if ((event.target as Element).closest('button,input,select,[role="slider"]')) return;
+      if (!pinned) setPinned(true);
+    }}
     onPointerEnter={enter} onPointerLeave={leave}>
     <div className={styles.figureBadge}>
-      <span>{active ? '活图' : '◈ 可交互图形'}</span>
+      <span>{active ? '活图' : '◈ 点击常驻交互'}</span>
+      {active && isStep && <span className={styles.stagePills} role="group" aria-label="步骤切换">
+        {(['输入', '中间态', '最终'] as const).map((label, idx) => (
+          <button key={label} type="button" aria-pressed={stage === idx}
+            onClick={() => { setPinned(true); setStage(idx as 0 | 1 | 2); }}>{label}</button>
+        ))}
+      </span>}
       <button type="button" aria-pressed={pinned} onClick={() => setPinned(value => !value)}
-        title={pinned ? '取消固定' : '固定显示活图'}>{pinned ? '已固定' : '固定'}</button>
+        title={pinned ? '取消固定' : '固定显示活图'}>{pinned ? '收起' : '常驻'}</button>
       <button type="button" onClick={() => shared.onExpand(spec.object_id)} aria-label={`展开实验页：${spec.title ?? '交互'}`}
         title="展开为完整实验页">↗</button>
     </div>
     {active && scale > 0 && <div ref={inner} className={styles.figureInner}
       style={{ width: NATURAL_W, transform: `translate(${(size.w - NATURAL_W * scale) / 2}px, ${(size.h - size.natural * scale) / 2}px) scale(${scale})` }}>
-      <FigureSpecView view={figure.view} spec={spec} evaluation={evaluation} stage={2} reducedMotion={reducedMotion}
+      <FigureSpecView view={figure.view} spec={spec} evaluation={evaluation} stage={isStep ? stage : 2} reducedMotion={reducedMotion}
         draggable={figure.draggable && !shared.disabled}
         onParamChange={(id, value) => shared.onChange(spec, id, value)}/>
     </div>}
     {active && scale === 0 && <div ref={inner} className={styles.figureInner} style={{ width: NATURAL_W, visibility: 'hidden' }}>
-      <FigureSpecView view={figure.view} spec={spec} evaluation={evaluation} stage={2} reducedMotion={reducedMotion}/>
+      <FigureSpecView view={figure.view} spec={spec} evaluation={evaluation} stage={isStep ? stage : 2} reducedMotion={reducedMotion}/>
     </div>}
     {(params.length > 0 || (!plan.clusters.length && plan.results.length > 0)) &&
       (active || params.some(p => isOffBaseline(p, cells[p.id]))) &&
@@ -146,11 +165,28 @@ function Figure({ figure, spec, plan, cells, evaluation, base, shared, reducedMo
         {!plan.clusters.length && <ResultChips spec={spec} plan={plan} evaluation={evaluation} base={base}/>}
       </div>}
   </div>;
-}
+});
 
 /** 原位交互层：在原页的元素位置直接放置可操作的参数、结果与图形。 */
-export function LiveLayer(props: Props) {
-  const { specs, plans, values, deferred } = props;
+export const LiveLayer = memo(function LiveLayer(props: Props) {
+  const {
+    specs,
+    plans,
+    values,
+    deferred,
+    pageSize,
+    pageImageUrl,
+    place,
+    disabled,
+    reducedMotion,
+    flashKey,
+    onChange,
+    onExpand,
+  } = props;
+  const shared = useMemo(
+    () => ({ pageSize, pageImageUrl, place, disabled, flashKey, onChange, onExpand }),
+    [pageSize, pageImageUrl, place, disabled, flashKey, onChange, onExpand],
+  );
   const byId = useMemo(() => new Map(specs.map(spec => [spec.object_id, spec])), [specs]);
   const baselines = useMemo(() => new Map(specs.map(spec => {
     const cells = baselineCells(spec);
@@ -158,7 +194,7 @@ export function LiveLayer(props: Props) {
   })), [specs]);
   const evaluations = useMemo(() => new Map(specs.map(spec =>
     [spec.object_id, evaluateSpec(spec, deferred[spec.object_id] ?? initialValues(spec))] as const)), [specs, deferred]);
-  return <div className={styles.layer} data-disabled={props.disabled}>
+  return <div className={styles.layer} data-disabled={disabled}>
     {plans.map(plan => {
       const spec = byId.get(plan.specId);
       const evaluation = evaluations.get(plan.specId);
@@ -167,12 +203,14 @@ export function LiveLayer(props: Props) {
       const cells = values[plan.specId] ?? initialValues(spec);
       return <div key={plan.specId} className={styles.specGroup}>
         {plan.recognized.map(region => <RecognizedFigure key={region.key} region={region} spec={spec} cells={cells}
-          shared={props} reducedMotion={props.reducedMotion}/>)}
+          shared={shared} reducedMotion={reducedMotion}/>)}
         {plan.figure && <Figure figure={plan.figure} spec={spec} plan={plan} cells={cells} evaluation={evaluation} base={base}
-          shared={props} reducedMotion={props.reducedMotion}/>}
+          shared={shared} reducedMotion={reducedMotion}/>}
         {plan.clusters.map((cluster, i) => <Cluster key={cluster.key} showResults={i === 0} cluster={cluster} spec={spec} plan={plan} cells={cells}
-          evaluation={evaluation} base={base} shared={props}/>)}
+          evaluation={evaluation} base={base} shared={shared}/>)}
       </div>;
     })}
   </div>;
-}
+});
+
+export {MatrixImageLayer} from './MatrixImageLayer';

@@ -81,6 +81,84 @@ def _render_page(pymupdf: Any, page: Any) -> bytes:
     return pixmap.tobytes("png")
 
 
+def _extract_page_figures(pymupdf: Any, page: Any) -> list[tuple[tuple[float, float, float, float], bytes]]:
+    """提取 PDF 页内嵌的独立插图/图表区域，供下游公式识别与视觉图表提取使用。"""
+    rect = page.rect
+    page_area = max(rect.width * rect.height, 1.0)
+    figures: list[tuple[tuple[float, float, float, float], bytes]] = []
+    seen_boxes: list[tuple[float, float, float, float]] = []
+    try:
+        infos = page.get_image_info(xrefs=True) or []
+    except Exception:  # noqa: BLE001
+        return figures
+    zoom = max(1.5, min(MAX_IMAGE_ZOOM, TARGET_IMAGE_WIDTH / max(rect.width, 1.0)))
+    for info in infos:
+        bbox = info.get("bbox")
+        if not bbox or len(bbox) != 4:
+            continue
+        x0 = max(rect.x0, float(bbox[0]))
+        y0 = max(rect.y0, float(bbox[1]))
+        x1 = min(rect.x1, float(bbox[2]))
+        y1 = min(rect.y1, float(bbox[3]))
+        w, h = x1 - x0, y1 - y0
+        area_ratio = (w * h) / page_area
+        if w < 40 or h < 30 or not (0.02 <= area_ratio <= 0.85):
+            continue
+        if any(
+            abs(x0 - sx0) < 8 and abs(y0 - sy0) < 8 and abs(x1 - sx1) < 8 and abs(y1 - sy1) < 8
+            for sx0, sy0, sx1, sy1 in seen_boxes
+        ):
+            continue
+        seen_boxes.append((x0, y0, x1, y1))
+        try:
+            clip = pymupdf.Rect(x0, y0, x1, y1)
+            crop = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), clip=clip, alpha=False).tobytes("png")
+            figures.append(((x0, y0, x1, y1), crop))
+        except Exception:  # noqa: BLE001
+            continue
+        if len(figures) >= 6:
+            break
+    return figures
+
+
+def _add_pdf_tables(slide: Any, page: Any, scale: float, dx: float, dy: float) -> None:
+    """用 PyMuPDF 表格检测提取结构化表格，生成原生 PPTX 表格以触发下游表格交互。"""
+    if not hasattr(page, "find_tables"):
+        return
+    try:
+        found = page.find_tables()
+        tables = getattr(found, "tables", None) or []
+    except Exception:  # noqa: BLE001
+        return
+    for table in tables[:3]:
+        try:
+            rows = table.extract() or []
+            bbox = table.bbox
+        except Exception:  # noqa: BLE001
+            continue
+        cleaned = [[str(cell or "").strip() for cell in row] for row in rows if isinstance(row, list)]
+        if len(cleaned) < 2 or not cleaned[0] or len(cleaned[0]) < 2:
+            continue
+        if not any(cleaned[0]):
+            continue
+        col_count = min(12, len(cleaned[0]))
+        row_count = min(30, len(cleaned))
+        x0, y0, x1, y1 = bbox
+        shape = slide.shapes.add_table(
+            row_count,
+            col_count,
+            Emu(int(dx + x0 * scale)),
+            Emu(int(dy + y0 * scale)),
+            Emu(max(int((x1 - x0) * scale), EMU_PER_PT * 20)),
+            Emu(max(int((y1 - y0) * scale), EMU_PER_PT * 12)),
+        )
+        tbl = shape.table
+        for r_idx in range(row_count):
+            row = cleaned[r_idx]
+            for c_idx in range(col_count):
+                tbl.cell(r_idx, c_idx).text = row[c_idx] if c_idx < len(row) else ""
+
+
 def _add_text_box(slide: Any, block: dict[str, Any], scale: float, dx: float, dy: float) -> None:
     x0, y0, x1, y1 = block["bbox"]
     width = (x1 - x0) * scale * 1.08 + 2 * EMU_PER_PT
@@ -151,10 +229,20 @@ def convert_pdf_to_pptx(pdf_path: Path, pptx_path: Path, *, max_pages: int) -> i
             dx = (slide_w - rect.width * scale) / 2
             dy = (slide_h - rect.height * scale) / 2
             blocks = _text_blocks(page)
+            figures = _extract_page_figures(pymupdf, page)
             image = _render_page(pymupdf, page)
             slide = presentation.slides.add_slide(blank)
             for block in blocks:
                 _add_text_box(slide, block, scale, dx, dy)
+            _add_pdf_tables(slide, page, scale, dx, dy)
+            for (fx0, fy0, fx1, fy1), crop in figures:
+                slide.shapes.add_picture(
+                    io.BytesIO(crop),
+                    Emu(int(dx + fx0 * scale)),
+                    Emu(int(dy + fy0 * scale)),
+                    Emu(max(1, int((fx1 - fx0) * scale))),
+                    Emu(max(1, int((fy1 - fy0) * scale))),
+                )
             slide.shapes.add_picture(
                 io.BytesIO(image),
                 Emu(int(dx)),

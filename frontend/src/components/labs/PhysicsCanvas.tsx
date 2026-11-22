@@ -1,3 +1,4 @@
+import type React from 'react';
 import { MathText } from './ProblemText';
 import type { PhysicsResult } from '@/labs/types';
 import { PHYSICS_MODE_LABELS } from '@/labs/physics';
@@ -9,6 +10,8 @@ type Sample = Record<string, number>;
 interface Props {
   result: PhysicsResult;
   step: number;
+  onParamDrag?: (patch: Record<string, number>) => void;
+  readOnly?: boolean;
 }
 
 const CORAL = '#B8431F';
@@ -128,7 +131,42 @@ function FallScene({ scene, current }: { scene: Scene; current: Sample }): JSX.E
   </g>;
 }
 
-function ProjectileScene({ scene, current }: { scene: Scene; current: Sample }): JSX.Element {
+function beginSvgDrag(
+  event: React.PointerEvent<SVGCircleElement>,
+  onPoint: (svgX: number, svgY: number) => void,
+): void {
+  event.preventDefault();
+  event.stopPropagation();
+  const svg = event.currentTarget.ownerSVGElement;
+  if (!svg) return;
+  const move = (moveEvent: PointerEvent): void => {
+    const rect = svg.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    const svgX = ((moveEvent.clientX - rect.left) / rect.width) * 900;
+    const svgY = ((moveEvent.clientY - rect.top) / rect.height) * 420;
+    onPoint(svgX, svgY);
+  };
+  const cancel = (): void => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', cancel);
+    document.removeEventListener('pointercancel', cancel);
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', cancel);
+  document.addEventListener('pointercancel', cancel);
+}
+
+function ProjectileScene({
+  scene,
+  current,
+  onParamDrag,
+  readOnly,
+}: {
+  scene: Scene;
+  current: Sample;
+  onParamDrag?: (patch: Record<string, number>) => void;
+  readOnly?: boolean;
+}): JSX.Element {
   const maxX = Math.max(n(scene.range), 1);
   const maxY = Math.max(n(scene.maxHeight), 1);
   const list = samples(scene);
@@ -137,13 +175,48 @@ function ProjectileScene({ scene, current }: { scene: Scene; current: Sample }):
   const path = list.map(item => `${px(n(item.x))},${py(n(item.y))}`).join(' ');
   const x = n(current.x), y = n(current.y);
   const vx = n(current.vx, scene.vx), vy = n(current.vy);
+  const v0 = n(scene.v0, Math.hypot(vx, vy) || 10);
+  const angleDeg = n(scene.angle, 45);
+  const angleRad = (angleDeg * Math.PI) / 180;
+  const handleLen = Math.max(45, Math.min(130, v0 * 4.5));
+  const hx = 70 + handleLen * Math.cos(angleRad);
+  const hy = 330 - handleLen * Math.sin(angleRad);
+  const canDrag = Boolean(onParamDrag) && !readOnly;
   return <g>
     <line x1="45" y1="330" x2="580" y2="330" className={styles.axis} />
     <line x1="70" y1="330" x2="70" y2="45" className={styles.axis} />
     <polyline points={path} fill="none" stroke={INDIGO} strokeWidth="2" strokeDasharray="5 5" />
-    <circle cx={px(x)} cy={py(y)} r="10" className={styles.object} />
+    <Arrow x1={px(x)} y1={py(y)} x2={px(x) + vx * 5} y2={py(y)} label="vx" color="#0d9488" dash />
+    <Arrow x1={px(x)} y1={py(y)} x2={px(x)} y2={py(y) - vy * 5} label="vy" color={INDIGO} dash />
     <Arrow x1={px(x)} y1={py(y)} x2={px(x) + vx * 5} y2={py(y) - vy * 5} label="v" color={CORAL} />
+    <circle cx={px(x)} cy={py(y)} r="10" className={styles.object} />
     <line x1={px(x)} y1="330" x2={px(x)} y2={py(y)} stroke={MUTED} strokeDasharray="3 4" />
+    {canDrag ? (
+      <g>
+        <line x1="70" y1="330" x2={hx} y2={hy} stroke="#f97316" strokeWidth="2" strokeDasharray="4 3" />
+        <circle
+          cx={hx}
+          cy={hy}
+          r="9"
+          fill="rgba(249,115,22,0.18)"
+          stroke="#f97316"
+          strokeWidth="2.4"
+          style={{ cursor: 'grab', touchAction: 'none' }}
+          onPointerDown={(event) =>
+            beginSvgDrag(event, (svgX, svgY) => {
+              const dx = Math.max(8, svgX - 70);
+              const dy = Math.max(0, 330 - svgY);
+              const nextAngle = Math.round(Math.max(5, Math.min(85, (Math.atan2(dy, dx) * 180) / Math.PI)));
+              const nextV0 = Number(Math.max(2, Math.min(60, Math.hypot(dx, dy) / 4.5)).toFixed(1));
+              onParamDrag?.({ angle: nextAngle, v0: nextV0 });
+            })
+          }
+        >
+          <title>拖动发射矢量端点：实时调节初速度 v0 与仰角 θ</title>
+        </circle>
+        <text x={hx + 12} y={hy - 6} className={styles.muted}>拖此调 v₀/θ</text>
+      </g>
+    ) : null}
     <text x="60" y="348" className={styles.muted}>射程 {n(scene.range).toPrecision(4)} m</text>
     <text x={px(maxX / 2)} y={py(maxY) - 12} textAnchor="middle" className={styles.muted}>最高 {n(scene.maxHeight).toPrecision(4)} m</text>
     <text x="80" y="52" className={styles.title}>{scene.type === 'projectile' ? (n(scene.angle) > 0 ? '斜抛运动' : '平抛运动') : '抛体运动'}</text>
@@ -165,7 +238,15 @@ function RelativeScene({ scene }: { scene: Scene }): JSX.Element {
   </g>;
 }
 
-function InclineScene({ scene }: { scene: Scene }): JSX.Element {
+function InclineScene({
+  scene,
+  onParamDrag,
+  readOnly,
+}: {
+  scene: Scene;
+  onParamDrag?: (patch: Record<string, number>) => void;
+  readOnly?: boolean;
+}): JSX.Element {
   const angle = n(scene.angle) * Math.PI / 180;
   const m = n(scene.m);
   const baseX = 80, baseY = 330;
@@ -176,6 +257,7 @@ function InclineScene({ scene }: { scene: Scene }): JSX.Element {
   const by = baseY + (topY - baseY) * t;
   const size = 30 + Math.min(26, m * 4);
   const normal = n(scene.normal), friction = n(scene.friction), gravity = n(scene.gravityAlong);
+  const canDrag = Boolean(onParamDrag) && !readOnly;
   return <g>
     <path d={`M${baseX},${baseY} L${topX},${topY} L${topX},${baseY} Z`} className={styles.surface} />
     <text x={baseX + 20} y={baseY - 10} className={styles.muted}>θ={n(scene.angle)}°</text>
@@ -185,6 +267,30 @@ function InclineScene({ scene }: { scene: Scene }): JSX.Element {
     <Arrow x1={bx} y1={by - size / 2} x2={bx} y2={by + 70} label="mg" color={INK} />
     <Arrow x1={bx} y1={by - size / 2} x2={bx - Math.sin(angle) * 58} y2={by - size / 2 - Math.cos(angle) * 58} label="N" color={INDIGO} />
     {n(scene.moving) ? <Arrow x1={bx} y1={by - size / 2} x2={bx - Math.cos(angle) * 54} y2={by - size / 2 + Math.sin(angle) * 54} label="f" color={CORAL} dash /> : null}
+    {canDrag ? (
+      <g>
+        <circle
+          cx={topX}
+          cy={topY}
+          r="9"
+          fill="rgba(249,115,22,0.18)"
+          stroke="#f97316"
+          strokeWidth="2.4"
+          style={{ cursor: 'grab', touchAction: 'none' }}
+          onPointerDown={(event) =>
+            beginSvgDrag(event, (svgX, svgY) => {
+              const dx = Math.max(20, svgX - baseX);
+              const dy = Math.max(10, baseY - svgY);
+              const nextAngle = Math.round(Math.max(5, Math.min(75, (Math.atan2(dy, dx) * 180) / Math.PI)));
+              onParamDrag?.({ angle: nextAngle });
+            })
+          }
+        >
+          <title>拖动斜面顶端：实时调节倾角 θ 并观察受力变化</title>
+        </circle>
+        <text x={topX + 12} y={topY + 4} className={styles.muted}>拖此调倾角 θ</text>
+      </g>
+    ) : null}
     <text x={70} y="52" className={styles.title}>斜面受力与摩擦</text>
     <text x={70} y="365" className={styles.muted}>N={normal.toPrecision(4)} N · f={friction.toPrecision(4)} N · 重力分量={gravity.toPrecision(4)} N</text>
   </g>;
@@ -918,7 +1024,7 @@ function chartFor(scene: Scene, current: Sample): JSX.Element | null {
   return null;
 }
 
-export function PhysicsCanvas({ result, step }: Props): JSX.Element {
+export function PhysicsCanvas({ result, step, onParamDrag, readOnly }: Props): JSX.Element {
   const scene = result.scene as Scene;
   const current = currentSample(scene, step, result.trace.length);
   const modeLabel = PHYSICS_MODE_LABELS[result.mode] ?? result.mode ?? '物理实验';
@@ -926,9 +1032,9 @@ export function PhysicsCanvas({ result, step }: Props): JSX.Element {
     switch (scene.type) {
       case 'linear': return <LinearScene scene={scene} current={current} />;
       case 'fall': return <FallScene scene={scene} current={current} />;
-      case 'projectile': return <ProjectileScene scene={scene} current={current} />;
+      case 'projectile': return <ProjectileScene scene={scene} current={current} onParamDrag={onParamDrag} readOnly={readOnly} />;
       case 'relative': return <RelativeScene scene={scene} />;
-      case 'incline': return <InclineScene scene={scene} />;
+      case 'incline': return <InclineScene scene={scene} onParamDrag={onParamDrag} readOnly={readOnly} />;
       case 'atwood': return <AtwoodScene scene={scene} />;
       case 'circular': return <CircularScene scene={scene} step={step} traceLength={result.trace.length} />;
       case 'spring_work': return <SpringWorkScene scene={scene} />;

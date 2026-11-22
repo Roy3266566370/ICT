@@ -108,3 +108,23 @@ def test_periodic_log_antiderivative_is_normalized_and_verified():
     assert changed is True
     assert normalized.has(sp.Abs)
     assert verifies_antiderivative(normalized, secant, x)
+
+
+def test_manualintegrate_covers_partial_fractions_cyclic_parts_and_trig_rewrite():
+    x = sp.Symbol('x', real=True)
+    cases = [
+        ('1/(x^2-1)', '恒等变形 / 部分分式拆解'),
+        ('exp(x)*sin(x)', '循环分部积分'),
+        ('sin(x)^2', '恒等变形 / 部分分式拆解'),
+        ('1/(x^2+4)', '反正切标准型积分'),
+    ]
+    for raw, expected_title_fragment in cases:
+        integrand = expression(raw)
+        plan = method_plan(integrand, x)
+        assert plan is not None, f'expected plan for {raw}'
+        assert plan['kind'] == 'manualintegrate'
+        assert verifies_antiderivative(plan['result'], integrand, x)
+        steps = plan_steps(plan, x, constant=True)
+        assert any(expected_title_fragment in step['title'] for step in steps)
+        assert steps[-1]['id'] == 'method-manual-verify'
+        assert '+C' in steps[-1]['latex']

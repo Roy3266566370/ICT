@@ -42,8 +42,8 @@ export interface LivePlan {
   fallback: boolean;
 }
 
-/** step_diagram 依赖分步动画，不适合原位常驻。 */
-const FIGURE_EXCLUDED: ReadonlyArray<FigureView['spec_ref']> = ['step_diagram'];
+/** 所有 figure 视图（含 step_diagram）均支持原位轻量化交互与步骤切换。 */
+const FIGURE_EXCLUDED: ReadonlyArray<FigureView['spec_ref']> = [];
 const MAX_RESULTS = 3;
 
 export function isNumericParameter(parameter: Pick<SpecParameter, 'type'>): boolean {

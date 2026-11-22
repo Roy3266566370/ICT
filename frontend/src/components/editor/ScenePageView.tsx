@@ -1,6 +1,15 @@
+import { useEffect, useState } from 'react';
+import { VectorLine, VectorControls } from './VectorLine';
+import {MathSceneView,MathSceneControls} from './MathSceneView';
+import {SlideDiagramNode} from './SlideDiagramNode';
+import {SlideDemoNode} from './SlideDemoNode';
+import { BasisComposition, useBasisPlayback } from './BasisComposition';
 import {memo,type CSSProperties,type ReactNode} from 'react';
 import type {SceneNode,ScenePage,TextStyle} from '@/document/types';
+import {resizeVector,type vectorGeometry} from '@/document/vectorGeometry';
 import {same} from '@/document/model';
+import {resolveMatrixSource} from '@/document/mathScene';
+import {MatrixImageLayer} from '@/components/presentation/live/LiveLayer';
 import {VegaSpecView} from '@/components/ispec/views/VegaSpecView';
 import type {ISpec} from '@/ispec/types';
 import styles from './ScenePageView.module.css';
@@ -93,15 +102,157 @@ const NodeView=memo(function NodeView({node,editing,editingText,onText,onCompose
   </div>;
 });
 interface Props {page:ScenePage;scale:number;editing?:boolean;editingId?:string|null;preview?:Record<string,Partial<SceneNode>>;children?:ReactNode;
-  onText?:(id:string,text:string)=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void;}
-export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur}:Props){
+  onText?:(id:string,text:string)=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void; presentVectors?:boolean; vectorId?:string;
+  onVectorSelect?:(id:string)=>void; onVectorPatch?:(id:string, patch:import('@/document/types').NodePatch,key?:string)=>void;
+  onGenerateDemo?:(id:string)=>void;generating?:Record<string,boolean>;}
+export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur,presentVectors,vectorId,onVectorSelect,onVectorPatch,onGenerateDemo,generating}:Props){
   const frozen=page.preparation?.frozen_ids??[];
+  const visible = page.nodes.filter(n=>!n.deleted&&!n.hidden&&!frozen.includes(n.id));
+  const vectors = visible.filter(node=>node.type==='vector');
+  const mathNodes = visible.filter(node=>node.type==='math_scene');
+  const richNodes = visible.filter(node=>node.type==='diagram'||node.type==='demo');
+  const matrixImages = visible.filter(node=>node.type==='image'&&node.matrix_ocr);
+  const basis = vectors.find(node=>node.basis)?.basis;
+  const first = vectors.find(node=>node.id===basis?.firstId);
+  const second = vectors.find(node=>node.id===basis?.secondId);
+  const result = vectors.find(node=>node.id===basis?.resultId);
+  const [basisDraft, setBasisDraft] = useState<ReturnType<typeof vectorGeometry>>(null);
+  const [resetVersion,setResetVersion]=useState(0);
+  const playback = useBasisPlayback(basis?`${basis.secondId}:${resetVersion}`:undefined);
+  const basisActive = !!(basis && first && second && result);
+  const fixed = (node: SceneNode) => presentVectors && basisActive && (node.id===first?.id || node.id===result?.id);
+  const [overrides, setOverrides] = useState<Record<string, import('@/document/types').NodePatch>>({});
+  useEffect(()=>{setOverrides({});setChoice(undefined);setResetVersion(v=>v+1);},[page.page_no,page.id]);
+  const [scaleFactor, setScaleFactor] = useState(1);
+  const [rotateOffset, setRotateOffset] = useState(0);
+  const [stepState, setStepState] = useState<{ target: number | null; progress: number }>({ target: null, progress: 1 });
+  const [choice, setChoice] = useState<string>();
+  useEffect(() => {
+    if (stepState.target === null || stepState.progress >= 1) return;
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setStepState(current => ({ ...current, progress: 1 }));
+      return;
+    }
+    let frame = 0;
+    let start: number | undefined;
+    const tick = (time: number) => {
+      start ??= time;
+      const elapsed = Math.min(1, (time - start) / 650);
+      setStepState(current => current.target === null ? current : { ...current, progress: elapsed });
+      if (elapsed < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [stepState.target, stepState.progress]);
+  const canChangeGeometry = (node:SceneNode)=>!node.locked&&node.viewer_editable!==false&&(!node.viewer_parameters||node.viewer_parameters.includes('geometry'));
+  const hasScaleBind = vectors.some(node => node.style.bind_mode === 'scale'&&canChangeGeometry(node));
+  const hasRotateBind = vectors.some(node => node.style.bind_mode === 'rotate'&&canChangeGeometry(node));
+  const animSteps = [...new Set(vectors.map(node => node.style.anim_step ?? 0).filter(step => step >= 1))].sort((a, b) => a - b);
+  const selected = vectors.find(node=>node.id===choice && !fixed(node)) ?? second ?? vectors[0];
+  const selectedMath = mathNodes.find(node=>node.id===choice)??mathNodes[0];
+  const editableVector = (node:SceneNode)=>node.viewer_editable!==false&&!node.locked;
+  const withOverride = (node: SceneNode) => {
+    const patch = presentVectors ? overrides[node.id] : undefined;
+    let current = patch ? {...node,...patch,style:{...node.style,...patch.style}} : node;
+    if (presentVectors&&canChangeGeometry(node)) {
+      if (current.style.bind_mode === 'scale' && scaleFactor !== 1) {
+        const resized = resizeVector(current, Math.max(0.1, current.width * scaleFactor), current.rotation);
+        if (resized) current = { ...current, ...resized };
+      } else if (current.style.bind_mode === 'rotate' && rotateOffset !== 0) {
+        const rotated = resizeVector(current, current.width, current.rotation + rotateOffset);
+        if (rotated) current = { ...current, ...rotated };
+      }
+    }
+    if(current.math_scene){
+      const sources=page.nodes.map(source=>presentVectors&&overrides[source.id]?{...source,...overrides[source.id],style:{...source.style,...overrides[source.id]?.style}}:source);
+      current={...current,math_scene:resolveMatrixSource(current.math_scene,sources)};
+    }
+    return current;
+  };
+  const vectorProgress = (node: SceneNode) => {
+    const step = node.style.anim_step ?? 0;
+    if (!presentVectors || !step || stepState.target === null) return 1;
+    if (step < stepState.target) return 1;
+    if (step === stepState.target) return stepState.progress;
+    return 0;
+  };
+  const change = (id: string, patch: import('@/document/types').NodePatch,key?:string) => {
+    const target=visible.find(node=>node.id===id);
+    if(target?.locked||(!editing&&target?.viewer_editable===false))return;
+    if (!presentVectors) { onVectorPatch?.(id, patch,key); return; }
+    setChoice(id);
+    setOverrides(current=>({...current,[id]:{...current[id],...patch,style:{...current[id]?.style,...patch.style}}}));
+  };
   return <div className={styles.canvas} style={{width:page.width,height:page.height,transform:`scale(${scale})`}} data-scene-page={page.page_no}>
     <div className={styles.contentLayer}>
       {page.background_url&&<img className={styles.pageBackground} src={page.background_url} alt="" draggable={false}/>}
-      {page.nodes.filter(n=>!n.deleted&&!n.hidden&&!frozen.includes(n.id)).map(node=><NodeView key={node.id} node={preview?.[node.id]?{...node,...preview[node.id]}:node}
+      {visible.filter(node=>node.type!=='vector'&&node.type!=='math_scene'&&node.type!=='diagram'&&node.type!=='demo').map(node=><NodeView key={node.id} node={preview?.[node.id]?{...node,...preview[node.id]}:node}
         editing={editing} editingText={editingId===node.id} selectable={editing} onText={onText} onCompose={onCompose} onTextBlur={onTextBlur}/>)}
+      {matrixImages.map(node=><MatrixImageLayer key={node.id} node={withOverride(node)} interactive={presentVectors||editing}
+        onPatch={(patch,key)=>change(node.id,patch,key)}/>)}
+      {vectors.map(node=><VectorLine key={node.id} node={withOverride(preview?.[node.id] ? {...node,...preview[node.id]} : node)}
+        progress={vectorProgress(node)}
+        onSelect={presentVectors && !fixed(node) ? ()=>setChoice(node.id) : editing && onVectorSelect ? ()=>onVectorSelect(node.id) : undefined}
+        endOnly={presentVectors && basisActive && node.id===second?.id}
+        onPreview={basisActive && node.id===second?.id ? setBasisDraft : undefined}
+        onCommit={!fixed(node) && !node.locked && ((presentVectors&&canChangeGeometry(node)) || (editing && vectorId===node.id && onVectorPatch)) ? patch=>change(node.id,patch) : undefined}/>)}
+      {mathNodes.map(node=><div key={node.id} data-node-id={node.id} data-node-type="math_scene" style={{display:'contents'}}
+        onPointerDown={event=>{if(editing)onVectorSelect?.(node.id);else {setChoice(node.id);event.stopPropagation();}}}>
+        <MathSceneView key={`${node.id}:${resetVersion}`} node={withOverride(preview?.[node.id]?{...node,...preview[node.id]}:node)}
+          editing={editing} interactive={(presentVectors&&editableVector(node))|| (editing&&vectorId===node.id&&!node.locked)} onPatch={(patch,key)=>change(node.id,patch,key)}/>
+      </div>)}
+      {richNodes.map(node=>{
+        const shown=withOverride(preview?.[node.id]?{...node,...preview[node.id]}:node);
+        const props={node:shown,editing,interactive:!!presentVectors||(editing&&vectorId===node.id),onPatch:(patch:import('@/document/types').NodePatch,key?:string)=>change(node.id,patch,key)};
+        return <div key={node.id} data-node-id={node.id} data-node-type={node.type} style={{display:'contents'}}
+          onPointerDown={()=>{if(editing)onVectorSelect?.(node.id);}}>
+          {node.type==='diagram'?<SlideDiagramNode key={`${node.id}:${resetVersion}`} {...props}/>:
+            <SlideDemoNode key={`${node.id}:${resetVersion}`} {...props} generating={generating?.[node.id]} onGenerate={onGenerateDemo?()=>onGenerateDemo(node.id):undefined}/>}
+        </div>;
+      })}
+      {basis && first && second && result && <BasisComposition basis={basis} first={withOverride(first)}
+        second={{...withOverride(second), ...basisDraft}} result={withOverride(result)} progress={playback.value}/>}
     </div>
+    {presentVectors && selected && <div className={styles.vectorControls} data-no-pan aria-label="放映线条控制">
+      {vectors.length>1 && <select aria-label="选择线条" value={selected.id} onChange={e=>setChoice(e.target.value)}>
+        {vectors.filter(node=>!fixed(node)).map((node,i)=><option key={node.id} value={node.id}>{node.name} {i+1}</option>)}
+      </select>}
+      {editableVector(selected) && <VectorControls node={withOverride(selected)} onPatch={patch=>change(selected.id,patch)}/>}
+      {hasScaleBind && <label>联动倍率<input type="range" aria-label="联动倍率" min="0.2" max="2.5" step="0.05"
+        value={scaleFactor} onChange={e=>setScaleFactor(Number(e.target.value))}/></label>}
+      {hasRotateBind && <label>联动角度<input type="range" aria-label="联动角度" min="-180" max="180" step="1"
+        value={rotateOffset} onChange={e=>setRotateOffset(Number(e.target.value))}/></label>}
+      <button type="button" onClick={()=>{setOverrides({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});}}>重置线条</button>
+      {animSteps.map(step => <button key={step} type="button" onClick={()=>setStepState({target:step,progress:0})}>第 {step} 步</button>)}
+      {animSteps.length>0 && stepState.target!==null && <button type="button" onClick={()=>setStepState({target:null,progress:1})}>全部显示</button>}
+      {basisActive && <>
+        <button type="button" disabled={!!playback.animation} onClick={()=>playback.play(1)}>第 1 步：沿 b₁</button>
+        <button type="button" disabled={!!playback.animation || playback.completed<1} onClick={()=>playback.play(2)}>第 2 步：沿 b₂</button>
+      </>}
+    </div>}
+    {editing&&visible.find(node=>node.id===vectorId&&(node.type==='vector'||node.type==='math_scene')&&!node.locked)&&(()=>{
+      const node=withOverride(visible.find(node=>node.id===vectorId)!);
+      const toolbarWidth=Math.min(530,page.width*scale-16);
+      const left=Math.max(8/scale,Math.min(node.x,page.width-(toolbarWidth+8)/scale));
+      const top=node.type==='math_scene'?node.y+node.height+12/scale:
+        node.y>=132/scale?node.y-132/scale:node.y+node.height+16/scale;
+      return <div className={styles.inlineControls} data-no-pan aria-label="原位图形属性"
+        style={{left,top,width:toolbarWidth,transform:`scale(${1/scale})`,transformOrigin:'top left'}}
+        onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}>
+        {node.type==='vector'?<VectorControls node={node} onPatch={(patch,key)=>onVectorPatch?.(node.id,patch,key)} author/>:
+          <MathSceneControls key={node.id} node={withOverride(node)} onPatch={(patch,key)=>onVectorPatch?.(node.id,patch,key)} author compact hidePlayback/>}
+      </div>;
+    })()}
+    {presentVectors&&selectedMath&&<div className={styles.mathPresentationControls} data-no-pan aria-label="放映数学图控制">
+      <details open={selectedMath.math_scene?.template?undefined:true}>
+      <summary>图形参数</summary>
+      {mathNodes.length>1&&<select aria-label="选择数学图" value={selectedMath.id} onChange={e=>setChoice(e.target.value)}>{mathNodes.map(node=><option key={node.id} value={node.id}>{node.name}</option>)}</select>}
+      {editableVector(selectedMath)&&<MathSceneControls key={`${selectedMath.id}:${resetVersion}`} node={withOverride(selectedMath)} onPatch={patch=>change(selectedMath.id,patch)} hidePlayback={!!selectedMath.math_scene?.template}/>}
+      </details>
+    </div>}
+    {presentVectors&&(vectors.length>0||mathNodes.length>0||matrixImages.length>0||richNodes.length>0)&&<button className={styles.resetDynamics} type="button" data-no-pan onClick={()=>{
+      setOverrides({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});setBasisDraft(null);setResetVersion(v=>v+1);
+    }}>一键重置</button>}
     {children}
   </div>;
 }

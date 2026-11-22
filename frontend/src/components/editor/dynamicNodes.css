@@ -1,0 +1,18 @@
+@keyframes scene-flow { to { stroke-dashoffset: -30; } }
+.sceneFlow { animation: scene-flow 1s linear infinite; }
+.mathScene { color: #18233d; background: #fff; overflow: hidden; }
+.mathScene .MafsView { --mafs-bg: #fff; --mafs-fg: #18233d; --mafs-line-color: #d8dde5; --mafs-origin-color: #a8b2c3; }
+.mathScene[data-line-style=dotted] .mathGeometry :is(path,line,ellipse,polygon) { stroke-dasharray: 1 5; stroke-linecap: round; }
+.mathScene[data-line-style=dashed] .mathGeometry :is(path,line,ellipse,polygon) { stroke-dasharray: 9 6; }
+.mathScene[data-flow=true] .mathGeometry :is(path,line,ellipse,polygon) { stroke-dasharray: 9 6; animation: scene-flow var(--flow-duration,1s) linear infinite; }
+.mathScene[data-line-style=dotted][data-flow=true] .mathGeometry :is(path,line,ellipse,polygon) { stroke-dasharray: 1 5; }
+.mathReadout { position: absolute; bottom: 4px; left: 8px; padding: 3px 6px; background: #ffffffeb; font: 13px system-ui; pointer-events: none; }
+.mathControls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mathControls label { display: inline-flex; align-items: center; gap: 4px; }
+.mathControls input[type=number] { width: 65px; }
+.mathControls fieldset { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; margin: 0; }
+.matrixImageCell { appearance: textfield; -moz-appearance: textfield; }
+.matrixImageCell::-webkit-inner-spin-button,.matrixImageCell::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+@media (prefers-reduced-motion: reduce) {
+  .sceneFlow, .mathScene[data-flow=true] .mathGeometry :is(path,line,ellipse,polygon) { animation: none; }
+}

@@ -345,7 +345,6 @@ export function LabPage(): JSX.Element {
                         <option value="computer_organization">{SUBJECT_LABELS.computer_organization}</option>
                         <option value="operating_system">{SUBJECT_LABELS.operating_system}</option>
                         <option value="computer_network">{SUBJECT_LABELS.computer_network}</option>
-                        <option value="deep_learning">{SUBJECT_LABELS.deep_learning}</option>
                       </optgroup>
                     </select>
                   </label>

@@ -1,0 +1,273 @@
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.paramRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: #7C8694;
+}
+
+.select {
+  font-size: 11px;
+  color: #121B27;
+  border: 1px solid #DDD5C4;
+  border-radius: 6px;
+  background: #FFFDF7;
+  padding: 2px 4px;
+}
+
+.simInput {
+  width: 100%;
+  box-sizing: border-box;
+  font: 11px/1.6 var(--font-family-mono, Consolas, monospace);
+  border: 1px solid #DDD5C4;
+  border-radius: 6px;
+  background: #FFFDF7;
+  color: #121B27;
+  padding: 4px 6px;
+  resize: vertical;
+}
+
+.simInput:focus {
+  outline: 2px solid rgba(79, 70, 229, 0.35);
+}
+
+.slider {
+  width: 100%;
+  accent-color: #FF7A59;
+}
+
+.timeline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.timelineBtn {
+  min-width: 26px;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 2px 6px;
+  border: 1px solid #DDD5C4;
+  border-radius: 6px;
+  background: #FFFDF7;
+  color: #121B27;
+  cursor: pointer;
+}
+
+.timelineBtn:hover:not(:disabled) {
+  border-color: #B8431F;
+  color: #B8431F;
+}
+
+.timelineBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.timelineCount {
+  margin-left: auto;
+  font: 11px/1.4 var(--font-family-mono, Consolas, monospace);
+  color: #4B5563;
+}
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #F1EDE2;
+  font: 10px/1.6 var(--font-family-mono, Consolas, monospace);
+  color: #4B5563;
+}
+
+.chipHit {
+  background: #E4F3E6;
+  color: #1F7A3D;
+}
+
+.chipMiss {
+  background: #FBE7E1;
+  color: #B8431F;
+}
+
+.readoutGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.readout {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #F7F2E5;
+  font-size: 11px;
+  color: #7C8694;
+}
+
+.readout b {
+  color: #121B27;
+  font-family: var(--font-family-mono, Consolas, monospace);
+  font-weight: 600;
+}
+
+.setCard {
+  border: 1px dashed #DDD5C4;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.setTitle {
+  font-size: 10px;
+  color: #7C8694;
+  margin-bottom: 2px;
+}
+
+.setLine {
+  display: flex;
+  gap: 8px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font: 10px/1.8 var(--font-family-mono, Consolas, monospace);
+  color: #4B5563;
+}
+
+.setLineOn {
+  background: #E4F3E6;
+  color: #1F7A3D;
+}
+
+.setEvicted {
+  outline: 1px dashed #B8431F;
+}
+
+.pipeTable {
+  width: 100%;
+  border-collapse: collapse;
+  font: 10px/1.5 var(--font-family-mono, Consolas, monospace);
+}
+
+.pipeTable th,
+.pipeTable td {
+  border: 1px solid #EDE7DA;
+  padding: 1px 3px;
+  text-align: center;
+}
+
+.pipeTable tbody th {
+  text-align: left;
+  white-space: nowrap;
+  color: #4B5563;
+  font-weight: 500;
+}
+
+.pipeCell {
+  background: #EEF0FF;
+  color: #3B34B6;
+  font-weight: 600;
+}
+
+.conflictList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  color: #B8431F;
+}
+
+.gantt {
+  display: flex;
+  width: 100%;
+  height: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #F1EDE2;
+}
+
+.ganttBlock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 10px/1 var(--font-family-mono, Consolas, monospace);
+  color: #FFFFFF;
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+}
+
+.check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.checkBtn {
+  align-self: flex-start;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid #DDD5C4;
+  border-radius: 6px;
+  background: #FFFDF7;
+  color: #121B27;
+  cursor: pointer;
+}
+
+.checkBtn:hover:not(:disabled) {
+  border-color: #4F46E5;
+  color: #4F46E5;
+}
+
+.checkBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.answer {
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #F7F2E5;
+  font-size: 11px;
+  color: #121B27;
+  white-space: pre-wrap;
+}
+
+.error {
+  margin: 0;
+  font-size: 11px;
+  color: #B8431F;
+}
+
+.note {
+  margin: 0;
+  font-size: 11px;
+  color: #7C8694;
+}
+
+.warn {
+  margin: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #FBE7E1;
+  font-size: 11px;
+  color: #B8431F;
+}

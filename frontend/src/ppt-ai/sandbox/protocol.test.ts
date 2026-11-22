@@ -60,3 +60,26 @@ test('消息必须匹配 nonce、artifact、revision 与来源窗口', () => {
 test('nonce 每次不同', () => {
   assert.notEqual(newNonce(), newNonce());
 });
+
+test('mermaid 与 chart 声明式节点通过白名单，恶意指令与非法数据被拒收', () => {
+  const declarative = {
+    ...valid,
+    nodes: [
+      { id: 'm1', type: 'mermaid', x: 10, y: 10, w: 300, h: 300, mermaid: { code: 'flowchart LR\nA-->B', activeNodes: ['A'] } },
+      { id: 'c1', type: 'chart', x: 320, y: 10, w: 380, h: 300, chart: { chartType: 'bar', categories: ['A', 'B'], series: [{ name: 'S', values: [1, 2] }] } },
+    ],
+  };
+  assert.deepEqual(validateViewAst(declarative), []);
+
+  const badMermaid = {
+    ...valid,
+    nodes: [{ id: 'm2', type: 'mermaid', mermaid: { code: 'flowchart LR\nA-->B\nclick A "javascript:alert(1)"' } }],
+  };
+  assert.ok(validateViewAst(badMermaid).length > 0);
+
+  const badChart = {
+    ...valid,
+    nodes: [{ id: 'c2', type: 'chart', chart: { chartType: 'bar', categories: ['A', 'B'], series: [{ name: 'S', values: [1] }] } }],
+  };
+  assert.ok(validateViewAst(badChart).length > 0);
+});

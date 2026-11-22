@@ -278,6 +278,9 @@ def read_ispec_payload(material_id: str) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+CONVERSION_VERSION = 4
+
+
 def _persist_ispecs(material: MaterialRecord, slides_payload: Mapping[str, Any]) -> None:
     """``extracting`` 阶段：生成 iSpec 并原子落盘。
 
@@ -323,7 +326,7 @@ def _persist_ispecs(material: MaterialRecord, slides_payload: Mapping[str, Any])
 
     payload = {
         "schema_version": "1.0",
-        "conversion_version": 3,
+        "conversion_version": CONVERSION_VERSION,
         "material_id": material.id,
         "ispecs": ispecs,
         "edit_revision": metadata['revision'],
@@ -584,18 +587,31 @@ def _render_pages(
     return outcome
 
 
-def _run_upload_pipeline(db: Session, job: JobRecord, material: MaterialRecord) -> None:
+def _run_upload_pipeline(
+    db: Session,
+    job: JobRecord,
+    material: MaterialRecord,
+    *,
+    native_changed: bool = True,
+) -> None:
     """``queued → parsing → rendering → extracting → awaiting_confirmation``。"""
 
     transition(db, job, "parsing", progress_pct=STAGE_PROGRESS["parsing"])
 
     from ..editing import working_path
+    from ..render import has_render_manifest
     source_file = working_path(material.id)
     if not source_file.is_file():
         raise parse_failed("上传原件丢失，请重新上传", stage="parsing")
 
     # 渲染先于识别：整页底图一落盘，材料即可读（§3.1）。
-    _render_pages(db, job, material, source_file)
+    # 当仅修改公式核对或交互绑定（native_changed=False）且已有渲染底图时，跳过整本 PowerPoint COM 重渲染。
+    if not native_changed and has_render_manifest(material.id):
+        transition(db, job, "rendering", progress_pct=None)
+        material.status = READINESS_READABLE
+        db.commit()
+    else:
+        _render_pages(db, job, material, source_file)
 
     bundle = load_parser_bundle()
     if bundle is None:
@@ -634,12 +650,23 @@ def _run_upload_pipeline(db: Session, job: JobRecord, material: MaterialRecord) 
     if material.page_count == 0:
         # §2.2.8：python-pptx 抛异常或解析结果 0 页 → PARSE_FAILED（可重试）。
         raise parse_failed("解析结果为 0 页，无法进入确认阶段", stage="extracting")
+    if native_changed:
+        try:
+            from ..documents.auto_math import prepare_source_math
+            prepare_source_math(material.id, material.title)
+        except Exception:
+            logger.exception('PPT 数学活图准备失败，保留原稿 material=%s', material.id)
+        try:
+            from ..documents.auto_vectors import prepare_source_vectors
+            prepare_source_vectors(material.id, material.title)
+        except Exception:
+            logger.exception("PPT 自动线条准备失败，保留原稿 material=%s", material.id)
     material.status = "awaiting_confirmation"
 
     transition(db, job, "awaiting_confirmation", progress_pct=STAGE_PROGRESS["awaiting_confirmation"])
 
 
-def run_upload_job(job_id: str) -> None:
+def run_upload_job(job_id: str, *, native_changed: bool = True) -> None:
     """``BackgroundTasks`` 入口：独立事务推进上传任务，异常一律落到 ``failed``。"""
 
     with session_scope() as db:
@@ -655,7 +682,7 @@ def run_upload_job(job_id: str) -> None:
         try:
             if material is None:
                 raise model_unavailable("材料不存在，请重新上传", stage="parsing")
-            _run_upload_pipeline(db, job, material)
+            _run_upload_pipeline(db, job, material, native_changed=native_changed)
         except IllegalStateTransition:
             # transition() 已写 failed 并提交，这里只记录不覆盖。
             logger.error("任务 %s 因非法迁移终止", job_id)

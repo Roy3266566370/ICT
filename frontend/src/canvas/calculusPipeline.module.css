@@ -1,0 +1,9 @@
+.detail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.detail > p {
+  margin: 0;
+}

@@ -1,0 +1,23 @@
+.body { display: grid; gap: 7px; min-width: 0; color: var(--ink-700, #2f3a49); font-size: 11px; }
+.stage { display: block; width: 100%; height: auto; background: var(--paper-1, #fbfaf7); border: 1px solid var(--hairline, #dedfd6); border-radius: 7px; }
+.stage text { font: 8.5px var(--font-family-mono, monospace); fill: #6d7783; }
+.row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.row > span { flex: 0 0 auto; color: var(--ink-500, #686f61); font-size: 10px; }
+.slider { flex: 1; min-width: 0; accent-color: #ff7a59; }
+.value { flex: 0 0 auto; min-width: 42px; text-align: right; font: 10px var(--font-family-mono, monospace); font-variant-numeric: tabular-nums; color: #b8431f; }
+.readout { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 5px 7px; background: #ff7a590a; border-left: 2px solid #ff7a5973; font: 10px/1.7 var(--font-family-mono, monospace); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.readout b { color: #b8431f; }
+.readout i { font-style: normal; color: #6d7783; }
+.toggles { display: flex; flex-wrap: wrap; gap: 4px; }
+.toggle, .toggleOn { padding: 3px 7px; font: inherit; font-size: 10px; border-radius: 4px; cursor: pointer; background: var(--paper-0, #fff); color: #4b5563; border: 1px solid #d7d2c6; }
+.toggleOn { color: #b8431f; background: #ff7a5914; border-color: #ff7a5966; }
+.toggle:focus-visible, .toggleOn:focus-visible { outline: 2px solid #ff7a59; outline-offset: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 10px; color: #6d7783; }
+.legend span { display: inline-flex; align-items: center; gap: 4px; }
+.legend i { width: 10px; height: 2px; }
+.unwired { margin: 0; padding: 10px; color: #8b4c25; background: #ff7a590a; border-radius: 5px; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+.barTrack { display: flex; height: 16px; border-radius: 4px; overflow: hidden; background: #ede9df; }
+.barKe { background: #ff7a59; }
+.barPe { background: #8ecae6; }
+.caption { margin: 0; color: #6d7783; font-size: 10px; line-height: 1.6; }
+.mono { font-family: var(--font-family-mono, monospace); font-variant-numeric: tabular-nums; }

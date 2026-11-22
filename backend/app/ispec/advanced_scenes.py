@@ -245,26 +245,13 @@ def static_page_specs(material_id: str, layouts: list[dict], existing_ids: set[s
             object_id = f'scene_p{page_no}_eigen_decomposition'
             if object_id in existing_ids:
                 continue
-            params = _parameters([('a', 'A · 11', 0), ('b', 'A · 12', -1),
-                                  ('c', 'A · 21', 1), ('d', 'A · 22', 0)], source)
+            params = _parameters([('a', 'A · 11', 2), ('b', 'A · 12', 1),
+                                  ('c', 'A · 21', 1), ('d', 'A · 22', 2)], source)
             spec = _new_spec(layout, object_id, '拿特征方向当新基', params,
                              [{'type': 'text', 'title': '当前判断', 'template': 'det = {{det}}　trace = {{trace}}'}],
-                             '默认矩阵取页面“旋转90°”的反例，用于展示不存在完整实特征基；可切换到 SVD。',
+                             '默认取具有实特征方向的对称矩阵 [[2,1],[1,2]]，展示沿特征基拆开并重建 A = P·D·P⁻¹。',
                              'eigen_decomposition', ['a', 'b', 'c', 'd'],
                              [{'id': 'det', 'expr': 'a*d-b*c'}, {'id': 'trace', 'expr': 'a+d'}])
-            if spec:
-                result.append(spec)
-        elif '等价' in title and '相似' in title and '合同' in title:
-            object_id = f'scene_p{page_no}_relation_types'
-            if object_id in existing_ids:
-                continue
-            source_param = {'id': 'relation_case', 'label': '换基关系', 'type': 'enum', 'unit': '',
-                            'default': 'similar', 'options': ['equivalent', 'similar', 'congruent'],
-                            'source': deepcopy(source)}
-            spec = _new_spec(layout, object_id, '三种换基关系', [source_param],
-                             [{'type': 'text', 'title': '当前关系', 'template': 'B = P⁻¹AP'}],
-                             '原文只讲相似；等价与合同按页面补充卡建立，均标注为补充实验条件。',
-                             'relation_types', ['relation_case'])
             if spec:
                 result.append(spec)
     return result

@@ -147,3 +147,156 @@ def test_project_package_rejects_unsafe_source_key() -> None:
         archive.writestr("values.json", "{}")
     with pytest.raises(ProjectPackageError, match="source_key"):
         package.import_project_archive(buffer.getvalue(), session_id="ses_pkg", db=None)
+
+
+def test_offline_html_export_and_reimport_roundtrip(tmp_path, monkeypatch) -> None:
+    import base64
+    from app.api.routes_publish import render_standalone_html
+    from app.documents.layers import hydrate_document
+    from app.documents.presentation import public_document
+    import app.documents.store as doc_store
+    import app.project_package as package
+
+    monkeypatch.setattr(package, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(package, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(doc_store, "UPLOAD_DIR", tmp_path / "uploads")
+    monkeypatch.setattr(package, "write_document", doc_store.write_document)
+    monkeypatch.setattr(package, "pages_dir", lambda material_id: tmp_path / "renders" / material_id / "pages")
+    monkeypatch.setattr(package, "render_dir", lambda material_id: tmp_path / "renders" / material_id)
+    saved_values = []
+    monkeypatch.setattr(package, "save_values", lambda material_id, object_id, values: saved_values.append((material_id, object_id, dict(values))))
+
+    # 造两张合法 PNG（1x1 像素）
+    from PIL import Image
+    png_buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (240, 244, 255)).save(png_buf, format="PNG")
+    valid_png = png_buf.getvalue()
+    valid_data_uri = "data:image/png;base64," + base64.b64encode(valid_png).decode("ascii")
+
+    src_pages_dir = tmp_path / "src_pages"
+    src_pages_dir.mkdir()
+    (src_pages_dir / "s02.png").write_bytes(valid_png)
+
+    scene_doc = public_document({
+        "schema_version": "1.0",
+        "revision": 4,
+        "title": "矩阵空间视角",
+        "pages": [{
+            "page_no": 1,
+            "width": 960,
+            "height": 540,
+            "modified": True,
+            "background_url": valid_data_uri,
+            "preparation": {"status": "ready", "frozen_ids": []},
+            "nodes": [
+                {
+                    "id": "mat_1", "type": "image", "x": 40, "y": 80, "width": 200, "height": 120,
+                    "rotation": 0, "z": 1, "opacity": 1, "text": "", "style": {},
+                    "image_url": valid_data_uri,
+                    "viewer_editable": True,
+                    "matrix_ocr": {
+                        "matrices": [{"values": [[1, 2], [0, 1]], "cells": [
+                            {"row": 0, "col": 0, "bbox": [0.1, 0.1, 0.3, 0.3]},
+                            {"row": 0, "col": 1, "bbox": [0.5, 0.1, 0.3, 0.3]},
+                            {"row": 1, "col": 0, "bbox": [0.1, 0.5, 0.3, 0.3]},
+                            {"row": 1, "col": 1, "bbox": [0.5, 0.5, 0.3, 0.3]},
+                        ]}],
+                    },
+                },
+                {
+                    "id": "math_1", "type": "math_scene", "x": 300, "y": 80, "width": 480, "height": 360,
+                    "rotation": 0, "z": 2, "opacity": 1, "text": "", "style": {"stroke": "#008844", "line_style": "dashed"},
+                    "flow": {"enabled": True, "speed": 2},
+                    "viewer_editable": True,
+                    "math_scene": {
+                        "template": "circle_ellipse",
+                        "view_box": {"x": [-4, 4], "y": [-3, 3]},
+                        "matrix": [[2, 0], [0, 1]],
+                        "vector": [1, 0],
+                        "show_grid": True,
+                        "show_circle": True,
+                        "radius": 1,
+                        "progress": 1,
+                        "animation_step": 0.02,
+                        "viewer_parameters": ["vector", "progress"],
+                    },
+                },
+            ],
+        }],
+    })
+    spec = {
+        "spec_version": "1.0",
+        "object_id": "obj_scale",
+        "kind": "parametric",
+        "parameters": [{"id": "k", "label": "倍率", "default": 2}],
+        "views": [],
+    }
+    snapshot = {
+        "title": "矩阵空间视角",
+        "published_at": "2026-11-21T00:00:00Z",
+        "page_count": 2,
+        "pages": [
+            {"page_no": 1, "title": "第 1 页", "width": 12192000, "height": 6858000, "image": None},
+            {"page_no": 2, "title": "第 2 页", "width": 12192000, "height": 6858000, "image": "s02.png"},
+        ],
+        "ispecs": [spec],
+        "scene_document": scene_doc,
+    }
+    from app.offline import render_offline_deck
+    exported_html = render_offline_deck(snapshot, "mat_src", lambda _mid, name: src_pages_dir / name if (src_pages_dir / name).is_file() else None)
+
+    engine = create_engine("sqlite://", future=True)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
+    with factory() as db:
+        db.add(SessionRecord(
+            id="ses_html", csrf_token="x" * 16,
+            created_at="2026-01-01T00:00:00Z", expires_at="2026-01-02T00:00:00Z",
+            retention_hours=24,
+        ))
+        db.commit()
+        result = package.import_project_file(
+            exported_html.encode("utf-8"),
+            session_id="ses_html",
+            db=db,
+            filename="矩阵空间视角-交互网页.html",
+        )
+        new_id = result["material_id"]
+        assert new_id.startswith("mat_")
+        assert result["page_count"] == 2
+        assert result["title"] == "矩阵空间视角"
+        assert db.get(MaterialRecord, new_id) is not None
+        assert [p.page_no for p in db.scalars(select(PageRecord).order_by(PageRecord.page_no)).all()] == [1, 2]
+        assert (tmp_path / "renders" / new_id / "pages" / "s01.png").is_file()
+        assert (tmp_path / "renders" / new_id / "pages" / "s02.png").is_file()
+        assert (tmp_path / "renders" / new_id / "render.json").is_file()
+
+        reloaded = doc_store.read_document(new_id)
+        assert reloaded is not None
+        hydrated = hydrate_document(new_id, reloaded)
+        assert len(hydrated["pages"]) == 2
+        assert hydrated["pages"][0]["preparation"]["status"] == "ready"
+        assert hydrated["pages"][1]["preparation"]["status"] == "ready"
+        nodes_by_id = {n["id"]: n for n in hydrated["pages"][0]["nodes"]}
+        assert nodes_by_id["math_1"]["math_scene"]["matrix"] == [[2, 0], [0, 1]]
+        assert nodes_by_id["math_1"]["flow"] == {"enabled": True, "speed": 2.0}
+        assert nodes_by_id["mat_1"]["matrix_ocr"]["matrices"][0]["values"] == [[1, 2], [0, 1]]
+        assert nodes_by_id["mat_1"]["image_url"].endswith("/n_1.png")
+        assert saved_values == [(new_id, "obj_scale", {"k": 2})]
+
+
+def test_offline_html_import_rejects_invalid_or_legacy_html() -> None:
+    import app.project_package as package
+
+    with pytest.raises(ProjectPackageError, match="为空"):
+        package.import_project_file(b"", session_id="ses", db=None, filename="empty.html")
+
+    with pytest.raises(ProjectPackageError, match="export-data"):
+        package.import_project_file(b"<!doctype html><html><body>hello</body></html>", session_id="ses", db=None, filename="plain.html")
+
+    legacy_living = '<!doctype html><html><body><script id="export-data" type="application/json">{"living":{"title":"old","blocks":[]}}</script></body></html>'
+    with pytest.raises(ProjectPackageError, match="纵向活页"):
+        package.import_project_file(legacy_living.encode("utf-8"), session_id="ses", db=None, filename="old.html")
+
+    with pytest.raises(ProjectPackageError, match="仅支持导入"):
+        package.import_project_file(b"not a zip or html", session_id="ses", db=None, filename="notes.txt")

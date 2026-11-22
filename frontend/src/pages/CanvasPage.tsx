@@ -9,16 +9,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
-import { DEEP_NODE_TYPES } from '@/canvas/deepPorts';
+
 import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
 import { PALETTE_GROUPS, NODE_DEFS, defaultParams } from '@/canvas/nodes.tsx';
+import { buildTemplateDoc } from '@/canvas/templateCatalog.ts';
 import { nextId, clamp } from '@/canvas/math.ts';
 import type { CanvasDoc, CanvasTool, InkStroke, NodeType } from '@/canvas/types.ts';
 import { worksApi } from '@/api/works';
 import { extractInkFormula, type InkNodeType } from '@/api/labs';
-import { getLivingPage, listLivingPages, patchLivingPage } from '@/api/living';
 import { errorMessage } from '@/api/client';
-import type { LivingPageSummary, PageBlock } from '@/living/types';
 import { simParamMeta } from '@/living/sim';
 import { defaultManual408Text } from '@/labs/manual408';
 import { compileExpression } from '@/labs/expr';
@@ -171,21 +170,45 @@ export function CanvasPage(): JSX.Element {
   const { state: navigationState } = useLocation();
   const navigate = useNavigate();
   const workIdParam = params.get('work');
-  const [doc, setDocRaw] = useState<CanvasDoc>(() => navigationState?.blank === true
-    ? { version: 1, title: '空白画布', zoom: 1, nodes: [], wires: [], strokes: [] }
-    : loadDoc() ?? seedDoc());
+  const templateParam = params.get('template');
+  const [doc, setDocRaw] = useState<CanvasDoc>(() => {
+    if (navigationState?.blank === true) {
+      return { version: 1, title: '空白画布', zoom: 1, nodes: [], wires: [], strokes: [] };
+    }
+    if (templateParam) {
+      try { return buildTemplateDoc(templateParam); } catch { /* fallback below */ }
+    }
+    return loadDoc() ?? seedDoc();
+  });
   const [paletteQuery, setPaletteQuery] = useState('');
-  const useWorkbench = !!doc.panel && doc.nodes.some((node) => DEEP_NODE_TYPES.has(node.type));
+  const [paletteCategory, setPaletteCategory] = useState('常用');
+  const [deepPaletteGroup, setDeepPaletteGroup] = useState('输入');
+  const deepPaletteGroups = ['输入', '算子', '训练与更新', '观察'];
+  const [lastPaletteItem, setLastPaletteItem] = useState('');
+  const paletteRef = useRef<HTMLDetailsElement>(null);
+  const paletteSearch = useRef<HTMLInputElement>(null);
+  const paletteCategories = ['常用', '深度学习', '高数', '408', '基础积木', '力学', '文字'];
+  const commonTypes: readonly NodeType[] = ['slider', 'matrixSource', 'functionSource', 'textNote',
+    'dataset2dSource', 'linearOp', 'activationOp', 'matrixHeatmapView'];
+  const query = paletteQuery.trim().toLowerCase();
+  const visiblePaletteGroups = !query && paletteCategory === '常用' ? [{ label: '常用积木', types: commonTypes }]
+    : PALETTE_GROUPS.filter(({ label }) => query || (paletteCategory === '深度学习'
+      ? label === `深度学习 · ${deepPaletteGroup}` : paletteCategory === '基础积木'
+        ? ['源', '变换', '视图', '学习'].includes(label) : paletteCategory === '高数'
+          ? label.startsWith('高数') : label === paletteCategory))
+      .map((group) => ({ ...group, types: group.types.filter((type) =>
+        `${group.label} ${NODE_DEFS[type].title} ${type}`.toLowerCase().includes(query)) }))
+      .filter(({ types }) => types.length);
+
+  /* 工作台判定只看面板本身：任何学科只要预置了有效 panel（视图或外露参数），
+     打开即进入左右停靠的仪器工作台；取消勾选「设为仪器面板」立即回到自由画布。 */
+  const useWorkbench = !!doc.panel && (doc.panel.view_node_ids.length > 0 || doc.panel.exposed_params.length > 0);
   const [tool, setTool] = useState<CanvasTool>('select');
   const [inkColor, setInkColor] = useState('#2F3A49');
   const [savedFlash, setSavedFlash] = useState(false);
   const [workId, setWorkId] = useState<string | null>(null);
   const [cloudState, setCloudState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [livingOpen, setLivingOpen] = useState(false);
-  const [livingPages, setLivingPages] = useState<LivingPageSummary[] | null>(null);
-  const [livingBusy, setLivingBusy] = useState(false);
-  const [livingMessage, setLivingMessage] = useState<string | null>(null);
   const [inkReview, setInkReview] = useState<InkReviewState | null>(null);
   const [inkExpression, setInkExpression] = useState('');
   const [inkError, setInkError] = useState<string | null>(null);
@@ -198,8 +221,7 @@ export function CanvasPage(): JSX.Element {
   const spawn = useRef(0);
   const saveTimer = useRef<number | null>(null);
   const cloudTimer = useRef<number | null>(null);
-  const revisionRef = useRef(0);
-  const skipCloud = useRef(true);
+  const remote = useRef<{ id: string; revision: number; doc: CanvasDoc; pending: Promise<void> }>();
   const hist = useRef<{ past: CanvasDoc[]; future: CanvasDoc[]; lastPush: number }>({ past: [], future: [], lastPush: 0 });
 
   /* 带撤销历史的 setDoc：把"改动前"的快照压栈，400ms 内的连续改动合并为一步 */
@@ -267,6 +289,21 @@ export function CanvasPage(): JSX.Element {
     if (navigationState?.blank === true) navigate('/canvas', { replace: true, state: null });
   }, [navigationState, navigate]);
 
+  /* 指定模板（?template=<kind>）：客户端直接构造，不向「我的作品」自动建档 */
+  useEffect(() => {
+    if (!templateParam || workIdParam) return;
+    try {
+      const next = buildTemplateDoc(templateParam);
+      setWorkId(null);
+      remote.current = undefined;
+      hist.current = { past: [], future: [], lastPush: 0 };
+      setHistInfo({ undo: 0, redo: 0 });
+      setDocRaw(next);
+    } catch {
+      /* 忽略未知模板名 */
+    }
+  }, [templateParam, workIdParam]);
+
   /* 指定作品（?work=wk_id / fork 后跳转）：从后端装载 */
   useEffect(() => {
     if (!workIdParam) return;
@@ -276,8 +313,7 @@ export function CanvasPage(): JSX.Element {
       const d = res.document;
       d.nodes = sanitizeNodes(d.nodes, d.wires);
       setWorkId(res.work_id);
-      revisionRef.current = res.revision;
-      skipCloud.current = true;
+      remote.current = { id: res.work_id, revision: res.revision, doc: d, pending: Promise.resolve() };
       hist.current = { past: [], future: [], lastPush: 0 };
       setDocRaw(d);
     }).catch(() => {
@@ -301,19 +337,31 @@ export function CanvasPage(): JSX.Element {
     return () => { if (saveTimer.current !== null) window.clearTimeout(saveTimer.current); };
   }, [doc]);
 
+  const saveExisting = useCallback((id: string, snapshot: CanvasDoc): Promise<void> => {
+    const record = remote.current;
+    if (!record || record.id !== id) return Promise.reject(new Error('作品尚未载入'));
+    const save = record.pending.catch(() => {}).then(async () => {
+      if (record.doc === snapshot) return;
+      const saved = await worksApi.save(id, record.revision, snapshot, snapshot.title);
+      record.revision = saved.revision;
+      record.doc = snapshot;
+    });
+    record.pending = save;
+    return save;
+  }, []);
+
   /* 云端同步：作品已建档后，改动静默回写（乐观锁；冲突只提示不覆盖） */
   useEffect(() => {
-    if (!workId) return;
-    if (skipCloud.current) { skipCloud.current = false; return; }
+    if (!workId || remote.current?.doc === doc) return;
     if (cloudTimer.current !== null) window.clearTimeout(cloudTimer.current);
     cloudTimer.current = window.setTimeout(() => {
       setCloudState('saving');
-      worksApi.save(workId, revisionRef.current, doc, doc.title)
-        .then((res) => { revisionRef.current = res.revision; setCloudState('saved'); })
+      saveExisting(workId, doc)
+        .then(() => setCloudState('saved'))
         .catch(() => setCloudState('error'));
     }, 800);
     return () => { if (cloudTimer.current !== null) window.clearTimeout(cloudTimer.current); };
-  }, [doc, workId]);
+  }, [doc, saveExisting, workId]);
 
   const addNode = useCallback((type: NodeType, x?: number, y?: number) => {
     spawn.current += 1;
@@ -368,19 +416,18 @@ export function CanvasPage(): JSX.Element {
       setCloudState('saving');
       if (!workId) {
         const res = await worksApi.create(doc);
+        remote.current = { id: res.work_id, revision: res.revision, doc, pending: Promise.resolve() };
         setWorkId(res.work_id);
-        revisionRef.current = res.revision;
       } else {
-        const res = await worksApi.save(workId, revisionRef.current, doc, doc.title);
-        revisionRef.current = res.revision;
+        if (cloudTimer.current !== null) window.clearTimeout(cloudTimer.current);
+        await saveExisting(workId, doc);
       }
-      skipCloud.current = true;
       setCloudState('saved');
     } catch {
       setCloudState('error');
       window.alert('保存到工坊失败：请确认后端已启动（画布仍保存在本地）。');
     }
-  }, [doc, workId]);
+  }, [doc, saveExisting, workId]);
 
   /* 发布：先确保已建档，再生成快照分享链接 */
   const publish = useCallback(async () => {
@@ -389,9 +436,12 @@ export function CanvasPage(): JSX.Element {
       if (!wid) {
         const res = await worksApi.create(doc);
         wid = res.work_id;
+        remote.current = { id: wid, revision: res.revision, doc, pending: Promise.resolve() };
         setWorkId(wid);
-        revisionRef.current = res.revision;
-        skipCloud.current = true;
+      } else {
+        if (cloudTimer.current !== null) window.clearTimeout(cloudTimer.current);
+        await saveExisting(wid, doc);
+        setCloudState('saved');
       }
       const pub = await worksApi.publish(wid);
       const url = `${window.location.origin}${pub.share_url}`;
@@ -400,7 +450,7 @@ export function CanvasPage(): JSX.Element {
     } catch {
       window.alert('发布失败：请确认后端已启动。');
     }
-  }, [doc, workId]);
+  }, [doc, saveExisting, workId]);
 
   const recognizeInk = useCallback(async (strokes: InkStroke[]): Promise<boolean> => {
     try {
@@ -558,41 +608,6 @@ export function CanvasPage(): JSX.Element {
     fitResolve.current = null;
   }, [fitExpressions, fitReview, setDoc]);
 
-  const openLivingPanel = useCallback(async () => {
-    setLivingOpen(true);
-    setLivingMessage(null);
-    setLivingPages(null);
-    try {
-      setLivingPages(await listLivingPages());
-    } catch (cause) {
-      setLivingMessage(errorMessage(cause));
-    }
-  }, []);
-
-  const insertIntoLiving = useCallback(async (pageId: string) => {
-    setLivingBusy(true);
-    setLivingMessage(null);
-    try {
-      const page = await getLivingPage(pageId);
-      const block: PageBlock = {
-        id: `blk_${Math.random().toString(16).slice(2, 10)}${Date.now().toString(16)}`,
-        type: 'canvas',
-        data: { doc: doc as unknown as Record<string, unknown> },
-      };
-      const updated = await patchLivingPage({
-        pageId,
-        expectedRevision: page.revision,
-        blocks: [...page.blocks, block],
-      });
-      setLivingMessage(`已把当前画布快照追加到《${updated.title}》末尾；后续画布编辑不会自动同步。`);
-      setLivingPages(null);
-    } catch (cause) {
-      setLivingMessage(errorMessage(cause));
-    } finally {
-      setLivingBusy(false);
-    }
-  }, [doc]);
-
   return (
     <div className={styles.page}>
       <SiteNav current="canvas" appearance="studio" />
@@ -622,29 +637,53 @@ export function CanvasPage(): JSX.Element {
         >↪ 重做</button>
         <div className={styles.spacer} />
 
-        <details className={styles.palette}>
+        <details className={styles.palette} ref={paletteRef}
+          onToggle={() => { if (paletteRef.current?.open) paletteSearch.current?.focus(); }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape' || !paletteRef.current?.open) return;
+            event.preventDefault();
+            paletteRef.current.open = false;
+            paletteRef.current.querySelector('summary')?.focus();
+          }}>
           <summary className={styles.tbtn}>＋ 添加对象</summary>
-          <div className={styles.paletteMenu}>
-            <label>搜索积木 <input type="search" value={paletteQuery} onChange={(event) => setPaletteQuery(event.target.value)} /></label>
-            {PALETTE_GROUPS.map((group) => ({
-              ...group, types: group.types.filter((type) =>
-                `${group.label} ${NODE_DEFS[type].title} ${type}`.toLowerCase().includes(paletteQuery.trim().toLowerCase())),
-            })).filter((group) => group.types.length).map((g) => (
-              <div key={g.label} className={styles.paletteGroup}>
-                <div className={styles.paletteLabel}>{g.label}</div>
-                {g.types.map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    className={styles.paletteItem}
-                    onClick={() => addNode(t)}
-                  >
-                    {NODE_DEFS[t].title}
-                  </button>
-                ))}
+          <section className={styles.objectPicker} aria-label="积木库">
+            <header className={styles.objectPickerHeader}>
+              <strong>积木库</strong>
+              <input ref={paletteSearch} type="search" aria-label="搜索积木" placeholder="搜索名称或关键词"
+                value={paletteQuery} onChange={(event) => setPaletteQuery(event.target.value)} />
+            </header>
+            <div className={styles.objectPickerBody}>
+              <nav aria-label="积木分类" className={styles.objectCategories}>
+                {paletteCategories.map((category) => <button key={category} type="button"
+                  aria-pressed={!query && paletteCategory === category}
+                  onClick={() => { setPaletteCategory(category); setPaletteQuery(''); }}>{category}</button>)}
+              </nav>
+              <div className={styles.objectResults} key={query ? 'search' : paletteCategory}>
+                {!query && paletteCategory === '深度学习' && (
+                  <nav className={styles.objectSubcategories} aria-label="深度学习积木用途">
+                    {deepPaletteGroups.map((group) => <button key={group} type="button"
+                      aria-pressed={deepPaletteGroup === group} onClick={() => setDeepPaletteGroup(group)}>{group}</button>)}
+                  </nav>
+                )}
+                {query && <h3>搜索结果</h3>}
+                {visiblePaletteGroups.length === 0 && <p role="status">没有匹配的积木。</p>}
+                {visiblePaletteGroups.map(({ label, types }) => <section key={label}>
+                  <h3>{!query && paletteCategory === '深度学习' ? label.split(' · ')[1] : label}</h3>
+                  <div className={styles.objectGrid}>
+                    {types.map((type) => <button key={type} type="button" className={styles.objectItem}
+                      aria-label={NODE_DEFS[type].title}
+                      onClick={() => { addNode(type); setLastPaletteItem(NODE_DEFS[type].title); }}>
+                      <span>{NODE_DEFS[type].title}</span>
+                      <small>{NODE_DEFS[type].badge}</small>
+                    </button>)}
+                  </div>
+                </section>)}
               </div>
-            ))}
-          </div>
+            </div>
+            <footer className={styles.objectPickerFoot} aria-live="polite">
+              {lastPaletteItem ? `已添加：${lastPaletteItem}` : '点击积木，将它添加到画布'}
+            </footer>
+          </section>
         </details>
 
         <details className={styles.palette}>
@@ -762,9 +801,6 @@ export function CanvasPage(): JSX.Element {
             存到工坊
           </button>
         ) : null}
-        <button type="button" className={styles.tbtn} onClick={() => void openLivingPanel()} disabled={livingBusy}>
-          插入到活页
-        </button>
         <button
           type="button"
           className={`${styles.tbtn} ${styles.primary}`}
@@ -781,35 +817,6 @@ export function CanvasPage(): JSX.Element {
           <button type="button" className={styles.tbtn} onClick={() => setShareUrl(null)}>知道了</button>
         </div>
       ) : null}
-
-      {livingOpen ? (
-        <div className={styles.livingPanel} role="dialog" aria-label="插入到活页讲义">
-          <div className={styles.livingPanelHead}>
-            <strong>插入到活页讲义</strong>
-            <span>写入的是当前画布快照；之后的画布编辑不会自动同步。</span>
-          </div>
-          {livingMessage ? <p className={styles.livingMessage} role="status">{livingMessage}</p> : null}
-          <div className={styles.livingList}>
-            {livingPages === null ? <p>正在读取活页…</p> : livingPages.length ? livingPages.map((page) => (
-              <button key={page.page_id} type="button" disabled={livingBusy} onClick={() => void insertIntoLiving(page.page_id)}>
-                <strong>{page.title || '未命名活页'}</strong>
-                <span>{page.block_count} 个块 · 更新于 {page.updated_at.slice(0, 10)}</span>
-              </button>
-            )) : <p>还没有活页；先到 /living 创建一份讲义。</p>}
-          </div>
-          <button
-            type="button"
-            className={styles.tbtn}
-            onClick={() => { setLivingOpen(false); setLivingPages(null); setLivingMessage(null); }}
-          >
-            关闭
-          </button>
-        </div>
-      ) : null}
-
-      <div className={styles.hint}>
-        「高数」组：函数源 → 图像 / 极限 / 导数 / 积分 / 泰勒；滑杆可接 x₀，泰勒输出可再接函数图像。「408」组含全题型工作台（覆盖 60 个题型）与二叉树遍历、Cache 地址划分、页面置换和子网划分。<b>框选多个对象 → 封装成积木；用选择工具框选手写算式 → 识别为公式积木</b>。拖<span className={styles.hintOut}>红点</span>→<span className={styles.hintIn}>蓝圈</span>连线；Ctrl+滚轮缩放、空格/中键平移、Del 删除、Ctrl+Z 撤销、双击空白加便签。
-      </div>
 
       {inkReview ? (
         <div className={styles.inkReview} role="dialog" aria-modal="true" aria-label="核对手写识别结果">

@@ -16,12 +16,15 @@
 import type { CanvasDoc, CanvasNode, PortValue } from './types.ts';
 import { mul2, paramsM, rot2, IDENT } from './math.ts';
 import { PHYS_TYPES, bodyAt, physCycle, type PhysNodeType } from './physics.ts';
-import { functionValue, compileFunction, derivativeAt, integrate, approachLimit, taylorPolynomial } from './calculus.ts';
+import { functionValue, function2dValue, compileFunction, derivativeAt, integrate, approachLimit, taylorPolynomial } from './calculus.ts';
 import { DEEP_NODE_TYPES, validDeepValue } from './deepPorts.ts';
 import { isStudyStage, studyOutput } from './studyStages.ts';
 import { deepFirstOutput } from './deepFirst.ts';
 import { deepCoreOutput, mlpSetup } from './deepCore.ts';
 import { deepAdvancedOutput } from './deepAdvanced.ts';
+import { evaluate408Stage } from './lab408Pipeline.ts';
+import { evaluatePhysicsStage } from './physicsPipeline.ts';
+import { evaluateCalculusStage } from './calculusPipeline.ts';
 
 export interface EvalCtx {
   doc: CanvasDoc;
@@ -116,8 +119,17 @@ function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | nu
     }
   }
   switch (node.type) {
+    case 'lab408Stage':
+      return portId === 'out' ? evaluate408Stage(node, (id) => evalInput(ctx, node, id)) : null;
+    case 'physicsStage':
+      return portId === 'out' ? evaluatePhysicsStage(node, (id) => evalInput(ctx, node, id)) : null;
+    case 'calculusStage':
+      return portId === 'out' ? evaluateCalculusStage(node, (id) => evalInput(ctx, node, id)) : null;
     case 'functionSource': {
       try { return functionValue(node.text ?? 'a*x^2+b*x+c', node.params); } catch { return null; }
+    }
+    case 'func2dSource': {
+      try { return function2dValue(node.text ?? 'a*x^2+b*y^2', node.params); } catch { return null; }
     }
     case 'derivative':
     case 'integral':

@@ -1,29 +1,7 @@
-"""LLM provider 抽象（**仅接口，不含任何真实网络调用**）。
+"""iSpec proposal provider interface.
 
-设计约束
-========
-
-* 识别层只依赖 :class:`ISpecLLMProvider`，不关心底层是哪个厂商的模型；
-* 本仓库**没有**实现真实 provider：没有密钥、没有 URL、没有外网调用。
-  接入真实模型时，需要实现本协议并在调用方注入，至少补齐：
-
-  ==============  ==========================================================
-  需要补的东西      说明
-  ==============  ==========================================================
-  ``base_url``     厂商的 ``/chat/completions`` 之类端点（禁止写死在代码里）
-  ``api_key``      从环境变量读取（``ISEPC_LLM_API_KEY``），不得硬编码
-  ``model``        模型名（``ISEPC_LLM_MODEL``）
-  响应格式假设      返回 JSON 对象，正文位于 ``choices[0].message.content``
-                    （OpenAI 兼容格式）；provider 负责把正文放进
-                    :attr:`LLMResponse.raw_text`，解析与校验仍由
-                    :func:`app.ispec.llm.parse.parse_ispecs` 完成
-  HTTP 客户端      ``urllib.request`` 或已批准依赖；须设置
-                    ``ISEPC_LLM_TIMEOUT_S`` 超时、失败重试上限
-                    ``ISEPC_LLM_MAX_CALLS``
-  ==============  ==========================================================
-
-* provider 只负责"把请求发出去、把原始文本收回来"，**不得**自行相信模型输出；
-* 任何异常都由调用方捕获并降级为 ``MODEL_UNAVAILABLE``。
+Providers can validate the response shape before returning the JSON proposals.
+The builder verifies every accepted proposal against the source material.
 """
 
 from __future__ import annotations
@@ -47,11 +25,12 @@ class LLMRequest:
     #: 与 ``pages`` 对应的整页图，形状 ``{"page_no": int, "data_uri": str}``。
     #: 纯文本 provider 会忽略它；多模态 provider 把它作为 ``image_url`` 发送。
     images: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
+    material_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class LLMResponse:
-    """模型返回的原始文本；解析、Schema 校验与证据核验都不在这里做。"""
+    """交给识别层核验的 JSON 文本及模型标识。"""
 
     raw_text: str
     model: str
@@ -59,6 +38,10 @@ class LLMResponse:
 
 class LLMUnavailable(RuntimeError):
     """provider 未配置或调用失败时抛出（调用方映射为 ``MODEL_UNAVAILABLE``）。"""
+
+
+class LLMResponseInvalid(LLMUnavailable):
+    """The configured model exhausted its bounded output repair attempts."""
 
 
 @runtime_checkable

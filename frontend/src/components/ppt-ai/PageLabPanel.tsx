@@ -12,6 +12,7 @@ import {
   type SandboxInit,
 } from '@/ppt-ai/sandbox/protocol';
 import styles from './PageLabPanel.module.css';
+import { PageLabPlayer } from './PageLabPlayer';
 
 const RUN_TIMEOUT_MS = 3000;
 
@@ -21,92 +22,67 @@ function defaultsOf(lab: PageLab): Values {
   return Object.fromEntries(lab.params.map((param) => [param.id, param.default]));
 }
 
-function formatValue(value: number, step: number): string {
-  const digits = Math.min(4, Math.max(0, Math.ceil(-Math.log10(step || 1))));
-  return value.toFixed(digits);
-}
-
-/** 在 opaque-origin iframe + Worker 里运行模型生成的程序；滑块变化时复用同一个 iframe。 */
-export function LabCanvas({ lab, values }: { lab: PageLab; values: Values }) {
+/** One in-flight Worker per canvas; intermediate playback frames collapse to the latest input. */
+export function LabCanvas({ lab, values, identity }: { lab: PageLab; values: Values; identity?: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const nonceRef = useRef('');
   const timerRef = useRef<number | null>(null);
+  const busy = useRef(false);
+  const sent = useRef<Values | null>(null);
+  const latest = useRef(values);
+  latest.current = values;
   const [loaded, setLoaded] = useState(false);
   const [ast, setAst] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
-  const artifactId = `page-lab-${lab.page_no}`;
+  const [failed, setFailed] = useState(false);
+  const [generation, setGeneration] = useState(0);
+  const artifactId = identity || `page-lab-${lab.page_no}`;
   const revision = lab.content_hash;
-
-  const clearTimer = () => {
+  const stop = useCallback(() => {
+    iframeRef.current?.contentWindow?.postMessage({type:'stop', protocol:PROTOCOL_VERSION}, '*');
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
     timerRef.current = null;
-  };
-
+    busy.current = false;
+  }, []);
   useEffect(() => {
     const listener = (event: MessageEvent) => {
-      const parsed = parseSandboxMessage(event.data, {
-        nonce: nonceRef.current,
-        artifactId,
-        revision,
-        source: event.source,
-        contentWindow: iframeRef.current?.contentWindow ?? null,
-      });
+      const parsed = parseSandboxMessage(event.data, {nonce:nonceRef.current, artifactId, revision,
+        source:event.source, contentWindow:iframeRef.current?.contentWindow ?? null});
       if (!parsed.ok) return;
-      clearTimer();
-      if (!isSandboxResult(parsed.message)) {
-        setError(parsed.message.message || '交互程序执行失败');
-        return;
+      stop();
+      if (!isSandboxResult(parsed.message)) setError(parsed.message.message || '交互程序执行失败');
+      else {
+        const errors = validateViewAst(parsed.message.ast);
+        setError(errors[0] ?? '');
+        if (!errors.length) setAst(parsed.message.ast);
       }
-      const errors = validateViewAst(parsed.message.ast);
-      if (errors.length) {
-        setError(errors[0] ?? '视图未通过白名单校验');
-        return;
-      }
-      setError('');
-      setAst(parsed.message.ast);
+      if (latest.current !== sent.current) setGeneration(value => value + 1);
     };
     window.addEventListener('message', listener);
-    return () => window.removeEventListener('message', listener);
-  }, [artifactId, revision]);
-
+    return () => { window.removeEventListener('message', listener); stop(); };
+  }, [artifactId, revision, stop]);
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || failed || busy.current || sent.current === values) return;
     const target = iframeRef.current?.contentWindow;
     if (!target) return;
+    busy.current = true;
+    sent.current = values;
     const nonce = newNonce();
     nonceRef.current = nonce;
-    clearTimer();
-    timerRef.current = window.setTimeout(() => setError('交互程序运行超时，已终止。'), RUN_TIMEOUT_MS);
-    const init: SandboxInit = {
-      type: 'init',
-      protocol: PROTOCOL_VERSION,
-      nonce,
-      artifactId,
-      revision,
-      program: lab.program,
-      input: values,
-      timeoutMs: RUN_TIMEOUT_MS,
-    };
+    timerRef.current = window.setTimeout(() => {
+      stop(); setFailed(true); setError('交互程序运行超时，已终止。');
+    }, RUN_TIMEOUT_MS + 100);
+    const init: SandboxInit = {type:'init', protocol:PROTOCOL_VERSION, nonce, artifactId, revision,
+      program:lab.program, input:values, timeoutMs:RUN_TIMEOUT_MS};
     target.postMessage(init, '*');
-  }, [loaded, lab.program, values, artifactId, revision]);
-
-  useEffect(() => clearTimer, []);
-
-  return (
-    <div className={styles.stage}>
-      <iframe
-        ref={iframeRef}
-        className={styles.iframe}
-        sandbox="allow-scripts"
-        referrerPolicy="no-referrer"
-        title="AI 交互隔离沙箱"
-        srcDoc={SANDBOX_SRCDOC}
-        onLoad={() => setLoaded(true)}
-      />
-      {ast ? <ViewAstRenderer ast={ast} className={styles.view} /> : <p className={styles.stageNote} role="status">正在运行…</p>}
-      {error ? <p className={styles.error} role="alert">{error}</p> : null}
-    </div>
-  );
+  }, [loaded, failed, values, lab.program, artifactId, revision, generation, stop]);
+  return <div className={styles.stage}>
+    {!failed && <iframe ref={iframeRef} className={styles.iframe} sandbox="allow-scripts"
+      referrerPolicy="no-referrer" title="AI 交互隔离沙箱" tabIndex={-1} aria-hidden="true"
+      srcDoc={SANDBOX_SRCDOC} onLoad={() => setLoaded(true)} />}
+    {ast ? <ViewAstRenderer ast={ast} className={styles.view} /> : <p className={styles.stageNote} role="status">正在运行…</p>}
+    {error && <p className={styles.error} role="alert">{error}</p>}
+  </div>;
 }
 
 interface Props {
@@ -121,6 +97,7 @@ export function PageLabPanel({ materialId, pageNo, onClose }: Props) {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [values, setValues] = useState<Values>({});
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,10 +139,17 @@ export function PageLabPanel({ materialId, pageNo, onClose }: Props) {
   );
 
   return (
-    <div className={styles.panel}>
+    <div className={expanded ? `${styles.panel} ${styles.panelExpanded}` : styles.panel}>
       <div className={styles.head}>
         <span>AI 交互 · 第 {pageNo} 页</span>
-        <button type="button" onClick={onClose} aria-label="关闭 AI 交互面板">×</button>
+        <div className={styles.headActions}>
+          {lab ? (
+            <button type="button" className={styles.secondary} onClick={() => setExpanded((v) => !v)}>
+              {expanded ? '收回侧栏' : '舞台大屏展示'}
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} aria-label="关闭 AI 交互面板">×</button>
+        </div>
       </div>
       <div className={styles.body}>
         {loading ? <p className={styles.hint} role="status">正在读取…</p> : null}
@@ -184,26 +168,7 @@ export function PageLabPanel({ materialId, pageNo, onClose }: Props) {
           <>
             <h3 className={styles.title}>{lab.title}</h3>
             {lab.summary ? <p className={styles.summary}>{lab.summary}</p> : null}
-            <LabCanvas lab={lab} values={values} />
-            <fieldset className={styles.sliders}>
-              {lab.params.map((param) => (
-                <label key={param.id} className={styles.slider}>
-                  <span>{param.label}</span>
-                  <output>
-                    {formatValue(values[param.id] ?? param.default, param.step)}
-                    {param.unit}
-                  </output>
-                  <input
-                    type="range"
-                    min={param.min}
-                    max={param.max}
-                    step={param.step}
-                    value={values[param.id] ?? param.default}
-                    onChange={(event) => setValues((current) => ({ ...current, [param.id]: Number(event.target.value) }))}
-                  />
-                </label>
-              ))}
-            </fieldset>
+            <PageLabPlayer key={lab.content_hash} lab={lab} identity={`panel-${pageNo}`} values={values} onValues={setValues} />
             {lab.explain.length ? (
               <ul className={styles.explain}>
                 {lab.explain.map((item) => <li key={item}>{item}</li>)}

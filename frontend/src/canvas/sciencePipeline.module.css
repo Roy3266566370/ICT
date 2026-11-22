@@ -1,0 +1,216 @@
+.detail {
+  display: grid;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+  color: var(--ink-700);
+  font-size: var(--font-size-sm);
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--space-2, 8px);
+}
+
+.control {
+  display: grid;
+  gap: var(--space-1, 4px);
+  min-width: 0;
+  font-weight: var(--font-weight-semibold);
+}
+
+.detail :is(textarea, select, input[type='number']) {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--space-2, 8px);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-raised);
+  color: var(--ink-900);
+  font: inherit;
+}
+
+.detail textarea {
+  resize: vertical;
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-regular);
+}
+
+.detail :is(textarea, select, input[type='number']):focus {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+}
+
+.presets button {
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-indigo-softer);
+  color: var(--color-indigo-strong);
+  cursor: pointer;
+  font: inherit;
+}
+
+.presets button:hover:not(:disabled) {
+  border-color: var(--color-indigo);
+  background: var(--color-indigo-soft);
+}
+
+.presets button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.error,
+.waiting {
+  margin: 0;
+  padding: var(--space-2, 8px);
+  border-radius: var(--radius-sm, 6px);
+  line-height: var(--line-height-normal);
+}
+
+.error {
+  background: var(--color-fail-soft);
+  color: var(--color-fail);
+}
+
+.waiting {
+  background: var(--color-neutral-soft);
+  color: var(--color-neutral);
+}
+
+.frame {
+  min-width: 0;
+}
+
+.frame h4 {
+  margin: 0 0 var(--space-1, 4px);
+  color: var(--ink-900);
+  font-size: var(--font-size-md);
+}
+
+.summary {
+  margin: 0 0 var(--space-2, 8px);
+  line-height: var(--line-height-normal);
+}
+
+.scene {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 5 / 3;
+  margin: var(--space-2, 8px) 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-raised);
+  font-family: var(--font-family-sans);
+}
+
+.mini {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.gridLine {
+  fill: none;
+  stroke: var(--hairline);
+  stroke-width: 0.65;
+}
+
+.axisLine {
+  fill: none;
+  stroke: var(--ink-400);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sceneLabel {
+  paint-order: stroke;
+  stroke: var(--paper-0);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: var(--space-2, 8px);
+  margin: 0 0 var(--space-3, 12px);
+}
+
+.metrics > div {
+  min-width: 0;
+  padding: var(--space-2, 8px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--paper-1);
+}
+
+.metrics dt {
+  color: var(--ink-500);
+  font-size: var(--font-size-xs);
+}
+
+.metrics dd {
+  margin: var(--space-1, 4px) 0 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-900);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics > .metricEmphasis {
+  border-color: var(--color-coral);
+  background: var(--color-coral-soft);
+}
+
+.metrics > .metricEmphasis dd {
+  color: var(--color-coral-ink);
+}
+
+.tableScroll {
+  overflow: auto;
+  max-height: 340px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 6px);
+}
+
+.tableScroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-xs);
+}
+
+.tableScroll :is(th, td) {
+  padding: var(--space-1, 4px) var(--space-2, 8px);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.tableScroll th {
+  position: sticky;
+  top: 0;
+  background: var(--color-indigo-softer);
+  color: var(--color-indigo-strong);
+}
+
+.tableScroll td {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.tableScroll tr[data-highlight] td {
+  background: var(--color-warn-soft);
+  color: var(--color-warn);
+  font-weight: var(--font-weight-bold);
+}

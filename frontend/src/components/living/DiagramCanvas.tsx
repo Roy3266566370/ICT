@@ -26,7 +26,7 @@ import {
   toXY,
   type DiagramDoc,
 } from '@/living/diagram';
-import styles from './LivingBlocks.module.css';
+import styles from './DiagramCanvas.module.css';
 
 type FigData = { label: string; shape: string; hl?: string; step?: string };
 type FigNode = Node<FigData, 'fig'>;
@@ -50,7 +50,7 @@ const FigNodeView = memo(function FigNodeView({ data, selected }: NodeProps<FigN
 
 const NODE_TYPES = { fig: FigNodeView };
 
-function toFlow(doc: DiagramDoc, hl: Map<string, string>, step: Map<string, string>) {
+function toFlow(doc: DiagramDoc, hl: Map<string, string>, step: Map<string, string>,edgeStyle?:{color?:string;lineStyle?:'solid'|'dashed'|'dotted';width?:number}) {
   const nodes: FigNode[] = doc.nodes.map((node) => ({
     id: node.id,
     type: 'fig',
@@ -71,22 +71,27 @@ function toFlow(doc: DiagramDoc, hl: Map<string, string>, step: Map<string, stri
       target: edge.to,
       label: edge.label || undefined,
       markerEnd: { type: MarkerType.ArrowClosed },
+      style:{stroke:hot||cold?'#d37535':edgeStyle?.color,strokeWidth:edgeStyle?.width,
+        strokeDasharray:edgeStyle?.lineStyle==='dotted'?'1 5':edgeStyle?.lineStyle==='dashed'?'9 6':undefined},
       className: hot || cold ? styles.figEdgeHot : undefined,
     };
   });
   return { nodes, edges };
 }
 
-export default function DiagramCanvas({ doc, readOnly, onDocChange, onStep, height = 420 }: {
+export default function DiagramCanvas({ doc, readOnly, onDocChange, onStep, height = 420, embedded = false, flow,edgeStyle }: {
   doc: DiagramDoc;
   readOnly?: boolean;
   onDocChange?: (doc: DiagramDoc) => void;
   /** 学生端单步演示进度上报：当前步序（1 起）/总步数/是否走完全程。 */
   onStep?: (step: number, total: number, completed: boolean) => void;
   height?: number;
+  embedded?: boolean;
+  flow?: {enabled:boolean;speed:number};
+  edgeStyle?:{color?:string;lineStyle?:'solid'|'dashed'|'dotted';width?:number};
 }): ReactNode {
-  const [nodes, setNodes] = useState<FigNode[]>([]);
-  const [edges, setEdges] = useState<Edge[]>([]);
+  const [nodes, setNodes] = useState<FigNode[]>(()=>toFlow(doc,new Map(),new Map(),edgeStyle).nodes);
+  const [edges, setEdges] = useState<Edge[]>(()=>toFlow(doc,new Map(),new Map(),edgeStyle).edges);
   const [focus, setFocus] = useState<string | null>(null);
   const [stepIndex, setStepIndex] = useState(-1);
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null);
@@ -96,11 +101,11 @@ export default function DiagramCanvas({ doc, readOnly, onDocChange, onStep, heig
   docRef.current = doc;
   onStepRef.current = onStep;
 
-  // props.doc 变化（服务端 PATCH 返回）→ 重设基准与本地状态
+  // props.doc 变化：若焦点节点仍在则保留高亮与步序，仅在节点被移除时清理
   useEffect(() => {
-    setFocus(null);
-    setStepIndex(-1);
-    setEditing(null);
+    setFocus((current) => (current && doc.nodes.some((n) => n.id === current) ? current : null));
+    setStepIndex((current) => (current >= doc.nodes.length ? -1 : current));
+    setEditing((current) => (current && doc.nodes.some((n) => n.id === current.id) ? current : null));
   }, [doc]);
 
   const order = useMemo(() => stepOrder(doc), [doc]);
@@ -124,10 +129,15 @@ export default function DiagramCanvas({ doc, readOnly, onDocChange, onStep, heig
   }, [order, stepIndex]);
 
   useEffect(() => {
-    const flow = toFlow(doc, hl, step);
-    setNodes(flow.nodes);
+    const flow = toFlow(doc, hl, step,edgeStyle);
+    setNodes(current=>flow.nodes.map(node=>{
+      const previous=current.find(item=>item.id===node.id);
+      // Retain measured sizes when labels/styles change: ResizeObserver does
+      // not fire again for an unchanged box, leaving rebuilt nodes invisible.
+      return previous?.measured?{...node,measured:previous.measured}:node;
+    }));
     setEdges(flow.edges);
-  }, [doc, hl, step]);
+  }, [doc, hl, step,edgeStyle]);
 
   const originalPositions = (value: DiagramDoc) => value.original_positions
     ?? Object.fromEntries(value.nodes.map(({ id, x, y }) => [id, { x, y }]));
@@ -194,7 +204,7 @@ export default function DiagramCanvas({ doc, readOnly, onDocChange, onStep, heig
     }
   }, [stepping, stepIndex, order.length]);
   return (
-    <div className={styles.diagramCanvas} style={{ height }} aria-label="流程图画布">
+    <div className={styles.diagramCanvas} style={{ height, ...(embedded ? {border:0,background:'transparent',borderRadius:0} : {}), ...(flow?.enabled ? {'--diagram-flow-duration':`${2 / Math.max(0.1,flow.speed)}s`} : {}) }} data-flow={flow?.enabled ? 'true' : undefined} aria-label="流程图画布">
       <div className={styles.diagramToolbar} role="toolbar" aria-label="流程图操作">
         {!stepping ? (
           <button type="button" className={styles.regionMiniBtn}
@@ -210,8 +220,38 @@ export default function DiagramCanvas({ doc, readOnly, onDocChange, onStep, heig
                     onClick={() => setStepIndex(-1)}>退出</button>
           </span>
         )}
-        <button type="button" className={styles.regionMiniBtn} onClick={applyLayout}>整理布局</button>
-        <button type="button" className={styles.regionMiniBtn} onClick={resetLayout}>重置</button>
+        {!readOnly && <button type="button" className={styles.regionMiniBtn} onClick={applyLayout}>整理布局</button>}
+        {!readOnly && <button type="button" className={styles.regionMiniBtn} onClick={resetLayout}>重置</button>}
+        {!readOnly && onDocChange && doc.nodes.length < 40 ? (
+          <button type="button" className={styles.regionMiniBtn} onClick={() => {
+            const currentDoc = docRef.current;
+            const used = new Set(currentDoc.nodes.map((n) => n.id));
+            let idx = currentDoc.nodes.length + 1;
+            while (used.has(`n${idx}`)) idx += 1;
+            const id = `n${idx}`;
+            const nextNode = { id, label: `节点 ${idx}`, x: 0.5, y: 0.5, shape: 'rect' as const };
+            onDocChange({
+              ...currentDoc,
+              nodes: [...currentDoc.nodes, nextNode],
+              order: [...currentDoc.order, id],
+            });
+            setFocus(id);
+            setEditing({ id, value: nextNode.label });
+          }}>＋ 节点</button>
+        ) : null}
+        {!readOnly && onDocChange && focus && doc.nodes.length > 1 ? (
+          <button type="button" className={styles.regionMiniBtn} onClick={() => {
+            const currentDoc = docRef.current;
+            const targetId = focus;
+            setFocus(null);
+            onDocChange({
+              ...currentDoc,
+              nodes: currentDoc.nodes.filter((n) => n.id !== targetId),
+              edges: currentDoc.edges.filter((e) => e.from !== targetId && e.to !== targetId),
+              order: currentDoc.order.filter((id) => id !== targetId),
+            });
+          }}>删节点</button>
+        ) : null}
         {doc.warnings.length ? (
           <span className={styles.regionHint} title={doc.warnings.join('；')}>
             {doc.warnings[0]}
@@ -223,12 +263,25 @@ export default function DiagramCanvas({ doc, readOnly, onDocChange, onStep, heig
         edges={edges}
         nodeTypes={NODE_TYPES}
         nodesDraggable={!readOnly}
-        nodesConnectable={false}
+        nodesConnectable={!readOnly && Boolean(onDocChange)}
         elementsSelectable
         proOptions={{ hideAttribution: true }}
         fitView
         minZoom={0.3}
         maxZoom={2.5}
+        onConnect={(connection) => {
+          if (readOnly || !onDocChange) return;
+          const from = connection.source;
+          const to = connection.target;
+          if (!from || !to || from === to) return;
+          const currentDoc = docRef.current;
+          if (currentDoc.edges.length >= 60) return;
+          if (currentDoc.edges.some((e) => e.from === from && e.to === to)) return;
+          onDocChange({
+            ...currentDoc,
+            edges: [...currentDoc.edges, { from, to, label: '' }],
+          });
+        }}
         onNodesChange={(changes: NodeChangeset<FigNode>) => {
           setNodes((current) => changes.applyTo(current));
           for (const select of changes.getByType('select')) {
@@ -243,8 +296,8 @@ export default function DiagramCanvas({ doc, readOnly, onDocChange, onStep, heig
           setEditing({ id: node.id, value: node.data.label });
         }}
       >
-        <Background gap={18} size={1} />
-        <Controls showInteractive={false} />
+        {!embedded && <Background gap={18} size={1} />}
+        {!embedded && <Controls showInteractive={false} />}
       </ReactFlow>
       {editing ? (
         <div className={styles.figEditor} role="dialog" aria-label="编辑节点文字">

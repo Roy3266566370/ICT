@@ -30,7 +30,7 @@ def _num(value: Any, lo: float = -1e6, hi: float = 1e6) -> float | None:
     return None
 
 
-_PORT_KINDS = {"matrix2", "scalar", "body", "function", "tensor2d", "dataset2d"}
+_PORT_KINDS = {"matrix2", "scalar", "body", "function", "tensor2d", "dataset2d", "lab408Data"}
 
 
 def _wires(raw_list: Any, id_set: set[str]) -> list[dict[str, Any]]:

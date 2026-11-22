@@ -1,4 +1,5 @@
 import type { CanvasNode, PortValue, DatasetPoint } from './types.ts';
+import { parseCsvDatasetPayload, parseRealImagePayload } from './imageInput.ts';
 export type Matrix = number[][];
 export const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Number.isFinite(x) ? x : lo));
 export function rng(seed = 1) { let s = seed >>> 0; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
@@ -197,7 +198,11 @@ export function trainingOutputs(m: Model, points: DatasetPoint[]): Record<'bound
     const probabilities: PortValue = { kind: 'dataset2d', points: points.slice(0, 120).map(p => ({ ...p, label: forward(m, [p.x, p.y]).probability })) };
     return { boundary, probability: probabilities, loss: { kind: 'scalar', v: gradients(m, points.filter(p => p.split === 'train')).loss }, validationLoss: { kind: 'scalar', v: gradients(m, points.filter(p => p.split === 'validation')).loss }, grad: { kind: 'tensor2d', data: m.grad } };
 }
-export function pixelData(p: Record<string, number>): Matrix { return Array.from({ length: 12 }, (_, i) => Array.from({ length: 12 }, (_, j) => clamp(p[`pixel_${i}_${j}`]! ?? (p.preset === 1 ? (Math.hypot(i - 5.5, j - 5.5) < 4 ? 1 : 0) : p.preset === 2 ? (i === j || i + j === 11 ? 1 : 0) : (j >= 5 && j <= 6 ? 1 : 0)), 0, 1))); }
+export function pixelData(p: Record<string, number>, payload?: string): Matrix {
+    const uploaded = parseRealImagePayload(payload);
+    if (uploaded) return uploaded.data.map(r => [...r]);
+    return Array.from({ length: 12 }, (_, i) => Array.from({ length: 12 }, (_, j) => clamp(p[`pixel_${i}_${j}`]! ?? (p.preset === 1 ? (Math.hypot(i - 5.5, j - 5.5) < 4 ? 1 : 0) : p.preset === 2 ? (i === j || i + j === 11 ? 1 : 0) : (j >= 5 && j <= 6 ? 1 : 0)), 0, 1)));
+}
 export function kernelData(p: Record<string, number>): Matrix { const presets = [[0, -1, 0, -1, 4, -1, 0, -1, 0], [0, -1, 0, -1, 5, -1, 0, -1, 0], Array(9).fill(1 / 9)]; return Array.from({ length: 3 }, (_, i) => Array.from({ length: 3 }, (_, j) => clamp(p[`k${i}${j}`]! ?? presets[Math.round(clamp(p.kernel ?? 0, 0, 2))]![i * 3 + j]!, -10, 10))); }
 export function mlpSetup(node: CanvasNode, input: (port: string) => PortValue | null) {
     const model = matrix(input('model'))?.[0], training = matrix(input('training'))?.[0];
@@ -211,10 +216,13 @@ export function mlpSetup(node: CanvasNode, input: (port: string) => PortValue | 
 }
 export function deepCoreOutput(node: CanvasNode, input: (port: string) => PortValue | null, portId: string): PortValue | null {
     const p = node.params, a = matrix(input('in'));
-    if (node.type === 'dataset2dSource')
-        return portId === 'out' ? { kind: 'dataset2d', points: dataset(p.kind, p.samples, p.noise, p.seed) } : null;
+    if (node.type === 'dataset2dSource') {
+        if (portId !== 'out') return null;
+        const csv = parseCsvDatasetPayload(node.payload);
+        return { kind: 'dataset2d', points: csv ? csv.points.map(pt => ({ ...pt })) : dataset(p.kind, p.samples, p.noise, p.seed) };
+    }
     if (node.type === 'pixelGridSource')
-        return portId === 'out' ? tensor(pixelData(p)) : null;
+        return portId === 'out' ? tensor(pixelData(p, node.payload)) : null;
     if (node.type === 'tokenSeqSource') {
         const words = (node.text || '我 爱 学习 深度 网络').trim().split(/\s+/).slice(0, 6);
         while (words.length < 4)

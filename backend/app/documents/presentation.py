@@ -187,6 +187,19 @@ def apply_document_specs(material_id:str,specs:list[dict])->list[dict]:
             spec['trust']=build_trust_report(spec,page_texts)
     except Exception:  # noqa: BLE001 - 可信报告失败不得阻断阅读
         pass
+    def _is_meaningful_experiment(spec: dict) -> bool:
+        scene_type = str((spec.get('scene') or {}).get('scene_type') or '')
+        if scene_type == 'relation_types':
+            return False
+        notes = str(spec.get('notes') or '')
+        views = [v for v in (spec.get('views') or []) if isinstance(v, dict)]
+        has_visual = any(v.get('type') in ('figure', 'vega', 'table') for v in views)
+        has_expr = bool(spec.get('expressions'))
+        if not has_visual and not has_expr and ('omml_formula' in notes or '不执行公式求值' in notes):
+            return False
+        return True
+
+    result = [spec for spec in result if _is_meaningful_experiment(spec)]
     return result
 
 def freeze_document(material_id:str)->dict|None:
@@ -237,7 +250,7 @@ def public_document(raw)->dict|None:
     """A second whitelist at the delivery boundary, including nested scene fields."""
     if not isinstance(raw,dict):return None
     style_keys={'font_size','font_family','color','bold','italic','underline','letter_spacing','align','vertical_align','line_height',
-      'padding_left','padding_right','padding_top','padding_bottom','fill','stroke','stroke_width'}
+      'padding_left','padding_right','padding_top','padding_bottom','fill','stroke','stroke_width','line_style','arrow_start','arrow_end','anim_step','bind_mode'}
     node_keys={'id','type','x','y','width','height','rotation','z','opacity','text','base_text','base_width','base_height','shape','whole_group','word_wrap'}
     def style(value):return {k:v for k,v in value.items() if k in style_keys and type(v) in (str,float,int,bool)} if isinstance(value,dict) else {}
     def image(value):return value if isinstance(value,str) and re.fullmatch(r'data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+',value) else None
@@ -256,6 +269,15 @@ def public_document(raw)->dict|None:
             node={k:deepcopy(v) for k,v in source.items() if k in node_keys and (v is None or type(v) in (str,int,float,bool))}
             node.update(name=source.get('type','对象'),style=style(source.get('style')),base_style=style(source.get('base_style')),
               locked=False,hidden=False,deleted=False)
+            basis = source.get('basis')
+            if source.get('type') == 'vector' and isinstance(basis, dict):
+                ids = ('firstId', 'secondId', 'resultId')
+                title, size = basis.get('title'), basis.get('fontSize')
+                if (all(isinstance(basis.get(k), str) and len(basis[k]) <= 100 for k in ids)
+                    and isinstance(title, list) and len(title) == 2
+                    and all(type(value) in (int, float) and math.isfinite(value) for value in title)
+                    and type(size) in (int, float) and 0 < size <= 200):
+                    node['basis'] = {**{key: basis[key] for key in ids}, 'title': title, 'fontSize': size}
             for key in ('image_url','background_url','image_data'):
                 if image(source.get(key)):node[key]=source[key]
             for key in ('image_scale','background_scale'):
@@ -272,6 +294,35 @@ def public_document(raw)->dict|None:
                 try:validate_node_interaction(config)
                 except (ValueError,TypeError):pass
                 else:node['interaction']=config
+            if type(source.get('viewer_editable')) is bool:
+                node['viewer_editable']=source['viewer_editable']
+            vp=source.get('viewer_parameters')
+            if isinstance(vp,list) and len(vp)<=3 and all(k in ('geometry','style','flow') for k in vp) and len(set(vp))==len(vp):
+                node['viewer_parameters']=list(vp)
+            fl=source.get('flow')
+            if (isinstance(fl,dict) and set(fl)=={'enabled','speed'} and type(fl['enabled']) is bool
+                    and type(fl['speed']) in (int,float) and math.isfinite(fl['speed']) and .1<=fl['speed']<=10):
+                node['flow']={'enabled':fl['enabled'],'speed':float(fl['speed'])}
+            if isinstance(source.get('math_scene'),dict):
+                from .math_scene import validate_math_scene
+                ms=deepcopy(source['math_scene'])
+                try:validate_math_scene(ms)
+                except (ValueError,TypeError):pass
+                else:node['math_scene']=ms
+            if isinstance(source.get('matrix_ocr'),dict):
+                from .math_scene import validate_matrix_ocr
+                mo=deepcopy(source['matrix_ocr'])
+                try:validate_matrix_ocr(mo)
+                except (ValueError,TypeError):pass
+                else:node['matrix_ocr']=mo
+            if isinstance(source.get('diagram'),dict):
+                from .inline_systems import validate_scene_diagram
+                try:node['diagram']=validate_scene_diagram(deepcopy(source['diagram']))
+                except (ValueError,TypeError):pass
+            if isinstance(source.get('demo'),dict):
+                from .inline_systems import validate_scene_demo
+                try:node['demo']=validate_scene_demo(deepcopy(source['demo']))
+                except (ValueError,TypeError):pass
             for key in ('chart','base_chart'):
                 if isinstance(source.get(key),dict):node[key]=chart(source[key])
             for key in ('table','base_table'):

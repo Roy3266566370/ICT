@@ -28,9 +28,9 @@ test('deep workbench docks the same result components and reflects broken wiring
   await dimension.fill('4');
   const canvas = page.locator('[data-node]').first();
   expect((await canvas.boundingBox())!.x).toBeLessThan((await result.boundingBox())!.x);
-  await page.getByRole('button', { name: '收起结果栏' }).click();
+  await page.getByRole('button', { name: '收起详情栏' }).click();
   await expect(result).toBeHidden();
-  await page.getByRole('button', { name: '展开结果栏' }).click();
+  await page.getByRole('button', { name: '展开详情栏' }).click();
   await expect(dimension).toHaveValue('4');
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(result).toBeVisible();
@@ -71,6 +71,7 @@ test('all fourteen workbench graphs open with results at desktop sizes', async (
 test('training stays mounted when results are hidden and a setting change stops it', async ({ page }) => {
   await page.goto('/workshop?subject=deep&q=MLP');
   await page.getByRole('button', { name: /MLP · 流形折叠观察台/ }).click();
+  await page.getByRole('button', { name: '展开卡片', exact: true }).click();
   const result = page.getByRole('complementary', { name: '结果与参数' });
   await result.getByRole('button', { name: '开始训练', exact: true }).click();
   const snapshot = async () => {
@@ -79,8 +80,13 @@ test('training stays mounted when results are hidden and a setting change stops 
   };
   await expect.poll(snapshot).toBeGreaterThan(1);
   const before = await snapshot();
-  await page.getByRole('button', { name: '收起结果栏' }).click();
-  await page.getByRole('button', { name: '展开结果栏' }).click();
+  await result.getByRole('button', { name: '隐藏结果', exact: true }).click();
+  await expect(result.getByRole('button', { name: '暂停', exact: true })).toBeHidden();
+  await expect(result.getByRole('slider', { name: '隐层一宽度', exact: true })).toBeVisible();
+  await result.getByRole('button', { name: '显示结果', exact: true }).click();
+  await expect.poll(snapshot).toBeGreaterThan(before);
+  await page.getByRole('button', { name: '收起详情栏' }).click();
+  await page.getByRole('button', { name: '展开详情栏' }).click();
   await expect.poll(snapshot).toBeGreaterThan(before);
   const saved = page.waitForResponse((response) => {
     if (response.request().method() !== 'PATCH' || !response.url().includes('/works/')) return false;

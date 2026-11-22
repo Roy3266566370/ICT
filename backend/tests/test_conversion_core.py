@@ -151,7 +151,8 @@ def test_failed_or_active_conversion_is_not_reupgraded_by_material_read():
     from app.api.routes_materials import should_upgrade_conversion
     assert should_upgrade_conversion(1, None, 'readable', True) is True
     assert should_upgrade_conversion(2, None, 'readable', True) is True
-    assert should_upgrade_conversion(3, None, 'readable', True) is False
+    assert should_upgrade_conversion(3, None, 'readable', True) is True
+    assert should_upgrade_conversion(4, None, 'readable', True) is False
     assert should_upgrade_conversion(1, 'failed', 'readable', True) is False
     assert should_upgrade_conversion(1, 'extracting', 'readable', True) is False
     assert should_upgrade_conversion(1, None, 'failed', True) is False

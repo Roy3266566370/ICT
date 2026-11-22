@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEEP_TEMPLATES, DEEP_TOPICS, deepTemplateDoc } from './deepTemplates.ts';
-import { DEEP_LESSONS } from '../living/deepLessons.ts';
 import type { CanvasDoc } from './types.ts';
 
 function assertDoc(doc: CanvasDoc): void {
@@ -33,33 +32,6 @@ test('four topics and fourteen templates with unique kinds', () => {
 
 test('every template document has valid wiring and a usable instrument panel', () => {
   for (const template of DEEP_TEMPLATES) assertDoc(deepTemplateDoc(template.kind));
-});
-
-test('every official lesson builds valid blocks, bindings and gates', () => {
-  assert.ok(DEEP_LESSONS.length >= 4);
-  for (const lesson of DEEP_LESSONS) {
-    const { blocks, variables } = lesson.build();
-    const blockIds = new Set(blocks.map((block) => block.id));
-    assert.equal(blockIds.size, blocks.length, `${lesson.id} 块 id 重复`);
-    for (const block of blocks) {
-      if (block.type === 'canvas') {
-        const doc = block.data.doc as unknown as CanvasDoc;
-        assertDoc(doc);
-        const nodeIds = new Set(doc.nodes.map((node) => node.id));
-        for (const [key, variable] of Object.entries(block.bindings ?? {})) {
-          const [nodeId, paramKey] = key.split('.');
-          assert.ok(nodeIds.has(nodeId!), `${lesson.id} 绑定节点缺失 ${key}`);
-          assert.ok(paramKey, `${lesson.id} 绑定参数缺失 ${key}`);
-          const target = doc.nodes.find((node) => node.id === nodeId);
-          assert.ok(target && Object.hasOwn(target.params, paramKey!), `${lesson.id} 绑定参数不存在 ${key}`);
-          assert.equal(variables[variable]?.type, 'number', `${lesson.id} 绑定变量必须为数值 ${variable}`);
-        }
-      }
-      if (block.locked_until) assert.ok(blockIds.has(block.locked_until.block_id), `${lesson.id} 门控目标缺失`);
-    }
-    assert.ok(blocks.some((block) => block.type === 'quiz'), `${lesson.id} 缺少先猜再看`);
-    assert.ok(blocks.some((block) => block.type === 'canvas'), `${lesson.id} 缺少实验`);
-  }
 });
 
 test('new attention workshop graph uses independent Q K V and both scaled and raw branches', async () => {

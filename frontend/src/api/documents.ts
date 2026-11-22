@@ -1,6 +1,8 @@
 import {requestJson} from './client';
 import type {NodeChange,SceneDocument} from '@/document/types';
 export const getDocument=(id:string)=>requestJson<SceneDocument>(`/api/v1/materials/${encodeURIComponent(id)}/document`);
+export const createSceneDiagram=(id:string,page:number,text:string,ai=false)=>requestJson<{diagram:import('@/living/diagram').DiagramDoc}>(
+  `/api/v1/materials/${encodeURIComponent(id)}/document/pages/${page}/diagram`,{method:'POST',body:JSON.stringify({text,ai})});
 export const getDocumentCapabilities=(id:string)=>requestJson<{free_editing:boolean;engine:string;reason:string|null}>(
   `/api/v1/materials/${encodeURIComponent(id)}/document/capabilities`);
 export const patchDocument=(id:string,revision:number,operation:string,changes:NodeChange[])=>

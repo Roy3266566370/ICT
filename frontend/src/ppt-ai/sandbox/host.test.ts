@@ -23,7 +23,7 @@ function sandbox() {
     setTimeout: (callback: () => void, ms: number) => { const id = ++timerId; timers.set(id, { callback, ms }); return id; },
     clearTimeout: (id: number) => { timers.delete(id); },
   } });
-  return { workers, timers, messages, run: (nonce: string) => listener({ source: parent,
+  return { workers, timers, messages, stop: () => listener({source:parent,data:{type:'stop',protocol:SANDBOX_PROTOCOL}}), run: (nonce: string) => listener({ source: parent,
     data: { type: 'init', protocol: SANDBOX_PROTOCOL, nonce, artifactId: 'model', revision: 'v1', program: 'function render(){}', input: {}, timeoutMs: 3000 } }) };
 }
 
@@ -40,4 +40,14 @@ test('运行超时实际终止 Worker 并报告错误', () => {
   assert.ok(timeout, '必须设置运行超时'); timeout.callback();
   assert.equal(s.workers[0]!.terminated, true);
   assert.equal(s.messages.at(-1)!.type, 'sandbox-failure');
+});
+
+
+test('parent stop cancels a running Worker and execution timeout without a failure', () => {
+  const s=sandbox();s.run('first');s.stop();
+  assert.equal(s.workers[0]!.terminated,true);
+  assert.equal([...s.timers.values()].some(timer=>timer.ms===3000),false);
+  assert.equal(s.messages.length,0);
+  s.run('after-stop');
+  assert.equal(s.workers[1]!.terminated,false);
 });

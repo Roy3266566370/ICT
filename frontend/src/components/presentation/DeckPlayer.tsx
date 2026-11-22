@@ -1,6 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import {FormulaReviewDialog} from './FormulaReviewDialog';
 import { Link,useSearchParams } from 'react-router-dom';
-import { api, errorMessage, requestDownload } from '@/api/client';
+import { api, apiBase, errorMessage, requestDownload } from '@/api/client';
 import { downloadProjectPackage } from '@/api/projectPackage';
 import type { SlideElement } from '@/api/types';
 import { useReducedMotion } from '@/hooks/useMotionPreference';
@@ -38,8 +39,7 @@ import { newPrefetchUrls, planPrefetch, prefetchAllowed } from './prefetch';
 import { ThumbnailRail, type ThumbnailRailBadge, type ThumbnailRailItem } from './ThumbnailRail';
 import { LiveLayer } from './live/LiveLayer';
 import { planLive } from './live/liveRegions';
-import { AssistantDock, LassoLayer, type ClientRect } from './live/AssistantDock';
-import { describeSet, parseAssistantCommand, type AssistantParam } from './live/assistantCommands';
+import { PresentationAnnotator, type AnnotateTool } from './PresentationAnnotator';
 
 /** 悬停「自由编辑」时先把当前页对象准备好，点进去就不用再等十秒。 */
 function warmEditPage(materialId:string|undefined,pageNo:number){
@@ -76,6 +76,7 @@ interface Props {
   onRefresh?: () => Promise<unknown>;
   sceneDocument?:SceneDocument|null;
   aiSnapshot?:PptAiRuntimeSnapshot|null;
+  formulaReviews?: Record<string, {page_no: number; math_text: string; reason: string}>;
 }
 
 function boxStyle(bbox: {x: number; y: number; w: number; h: number}, page: DeckPage): CSSProperties {
@@ -85,14 +86,15 @@ function boxStyle(bbox: {x: number; y: number; w: number; h: number}, page: Deck
     width: `${100*bbox.w/width}%`, height: `${100*bbox.h/height}%` };
 }
 
-export function DeckPlayer({title, pages, specs, identity, materialId, fidelity, extraActions, onRefresh,sceneDocument,aiSnapshot}: Props) {
+export function DeckPlayer({title, pages, specs, identity, materialId, fidelity, extraActions, onRefresh,sceneDocument,aiSnapshot,formulaReviews}: Props) {
+  const [reviewId, setReviewId] = useState<string | null>(null);
   const [search, setSearch] = useSearchParams();
   const requested = Number(search.get('page') ?? 1);
   const index = Math.max(0, Math.min(pages.length - 1, pages.findIndex(p => p.page_no === requested)));
   const page = pages[index];
   const scenePage=sceneDocument?.pages.find(p=>p.page_no===page?.page_no&&p.modified&&p.preparation?.status==='ready');
   /** 编辑过的页面按场景节点定位；未编辑页面继续用原 bbox（EMU）。 */
-  const sceneNodeStyle=(elementId?: string | null): CSSProperties | null => {
+  const sceneNodeStyle = useCallback((elementId?: string | null): CSSProperties | null => {
     if(!scenePage || !elementId) return null;
     const node=scenePage.nodes.find(item=>item.source_element_id===elementId&&!item.deleted&&!item.hidden);
     if(!node) return null;
@@ -104,13 +106,21 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     if(!moved) return null;
     return {left:`${100*node.x/scenePage.width}%`,top:`${100*node.y/scenePage.height}%`,
       width:`${100*node.width/scenePage.width}%`,height:`${100*node.height/scenePage.height}%`};
-  };
-  const sourceStyle=(bbox: {x:number;y:number;w:number;h:number} | null | undefined, elementId?: string | null): CSSProperties => {
+  }, [scenePage]);
+  const sourceStyle = useCallback((bbox: {x:number;y:number;w:number;h:number} | null | undefined, elementId?: string | null): CSSProperties => {
     const moved=sceneNodeStyle(elementId);
     if(moved) return moved;
     return bbox && page ? boxStyle(bbox,page) : {};
-  };
+  }, [sceneNodeStyle, page]);
+  const livePageSize = useMemo(
+    () => ({ width: page?.width ?? 12192000, height: page?.height ?? 6858000 }),
+    [page?.width, page?.height],
+  );
   const [presenting, setPresenting] = useState(false);
+  const [annotateTool, setAnnotateTool] = useState<AnnotateTool>('off');
+  const [annotateColor, setAnnotateColor] = useState('#c4622d');
+  const [annotateClearNonce, setAnnotateClearNonce] = useState(0);
+  const [originalPage, setOriginalPage] = useState<number | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [aiActiveId, setAiActiveId] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -148,8 +158,16 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   const branchRevision = useRef(1);
   const linkSaveTimer = useRef<number | null>(null);
   const impactTimer = useRef<number | null>(null);
-  const pageSpecs = useMemo(() => specs.filter(spec => spec.anchor?.page===page?.page_no || spec.parameters.some(p => p.source.page === page?.page_no) ||
-    spec.checks?.some(check => check.page === page?.page_no)), [specs, page?.page_no]);
+  const meaningfulSpecs = useMemo(() => specs.filter(spec => {
+    if (spec.scene?.scene_type === 'relation_types') return false;
+    const hasVisual = spec.views.some(v => v.type === 'figure' || v.type === 'vega' || v.type === 'table');
+    const hasExpr = (spec.expressions?.length ?? 0) > 0;
+    const notes = spec.notes ?? '';
+    if (!hasVisual && !hasExpr && (notes.includes('omml_formula') || notes.includes('不执行公式求值'))) return false;
+    return true;
+  }), [specs]);
+  const pageSpecs = useMemo(() => meaningfulSpecs.filter(spec => spec.anchor?.page===page?.page_no || spec.parameters.some(p => p.source.page === page?.page_no) ||
+    spec.checks?.some(check => check.page === page?.page_no)), [meaningfulSpecs, page?.page_no]);
   const aiNodes = useMemo(() => nodesForPage(aiBundle, page?.page_no ?? 1), [aiBundle, page?.page_no]);
   const aiActiveNode = useMemo(() => aiNodes.find(node => node.node_id === aiActiveId) ?? null, [aiNodes, aiActiveId]);
   const prefetchedImages = useRef(new Map<string, HTMLImageElement>());
@@ -277,10 +295,9 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   const deferredValues = useDeferredValue(values);
   const valuesStale = values !== deferredValues;
   const [liveMode, setLiveMode] = useState(true);
-  const [flashKey, setFlashKey] = useState<string | null>(null);
   const deferredDeckValues = useDeferredValue(state.values);
   const livePlans = useMemo(() => activeSpecs.map(spec => planLive(spec, page?.page_no ?? 0)), [activeSpecs, page?.page_no]);
-  const liveSpecs = useMemo(() => liveMode ? activeSpecs.filter((_, i) => !livePlans[i]!.fallback) : [], [liveMode, activeSpecs, livePlans]);
+  const liveSpecs = useMemo(() => liveMode && !scenePage?.auto_vectors ? activeSpecs.filter((_, i) => !livePlans[i]!.fallback) : [], [liveMode, activeSpecs, livePlans, scenePage?.auto_vectors]);
   const liveSpecIds = useMemo(() => new Set(liveSpecs.map(spec => spec.object_id)), [liveSpecs]);
   const evaluation = useMemo(() => active ? evaluateSpec(active, deferredValues) : null, [active, deferredValues]);
   const visual = active?.views.find(view => view.type === 'figure' || view.type === 'vega');
@@ -313,7 +330,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     node.addEventListener('wheel', onWheel, {passive: false});
     return () => node.removeEventListener('wheel', onWheel);
   }, [fitScale, viewportNode]);
-  useEffect(() => { setActiveId(null); setAiActiveId(null); setSelected(null); setAdvancedOpen(false); setImageFailed(false);
+  useEffect(() => { setReviewId(null); setActiveId(null); setAiActiveId(null); setSelected(null); setAdvancedOpen(false); setImageFailed(false);
     setLearningOpen(false);setLearningPage(null);setLearningBundle(null);setLearningHighlight(null);setLearningError('');setLabOpen(false); }, [page?.page_no]);
   useEffect(() => { setAdvancedOpen(false); }, [activeId]);
   useEffect(() => {
@@ -334,7 +351,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
           if (!alive) return;
           setEditor(model); setEditJob(null); setEditorBusy(false);
           if (job.stage==='failed') {setMessage(job.error?.message ?? '更新失败，可重新识别'); return;}
-          setEditing(false); setSelected(null); setMessage('内容已保存，页面和交互已更新');
+          setEditing(false); setSelected(null); setReviewId(null); setMessage('内容已保存，页面和交互已更新');
           await onRefresh?.();
         }
       } catch(error) {if(alive) setMessage(`正在等待生成结果：${errorMessage(error)}`);}
@@ -419,7 +436,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
       if(!await state.save()) {setMessage('当前参数尚未保存，请先处理保存提示');setEditorBusy(false);return;}
       const model=editor ?? await getMaterialEditor(materialId);
       const result=await saveMaterialEdits(materialId,model.revision,change?[change]:[]);
-      if(change?.kind==='interaction') pendingActivation.current=change.element_id;
+      if(change?.kind==='interaction' || change?.kind==='recognition') pendingActivation.current=change.element_id;
       setEditJob(result.job_id);
     }catch(error){setMessage(errorMessage(error));setEditorBusy(false);}
   };
@@ -428,7 +445,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     if (!/未保存|仍有新修改/.test(state.status)) return;
     const timer = window.setTimeout(() => { void state.save(); }, 1100);
     return () => window.clearTimeout(timer);
-  }, [materialId, editorBusy, busy, state.saving, state.status, state.save]);
+  }, [materialId, editorBusy, busy, state.saving, state.status, state.save, state.values]);
   const go = useCallback((next: number) => {
     const target = pages[Math.max(0, Math.min(pages.length - 1, next))];
     if (!target) return;
@@ -499,7 +516,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
         else exitPresentation();
         return;
       }
-      if (event.defaultPrevented || (event.target as Element)?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (event.defaultPrevented || (event.target as Element)?.closest('input, textarea, select, math-field, [contenteditable="true"]')) return;
       if((event.ctrlKey || event.metaKey) && ['z','y'].includes(event.key.toLowerCase())) {
         event.preventDefault();
         if(busy || editorBusy || state.saving) return;
@@ -569,6 +586,18 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     }catch(error){setMessage(errorMessage(error));}
     finally{setBusy(false);}
   };
+  const exportPptx=async()=>{
+    if(!materialId||busy)return;
+    setBusy(true);setMessage('正在生成标准 PPTX 课件…');
+    try{
+      const file=await requestDownload(`/api/v1/materials/${encodeURIComponent(materialId)}/export-pptx`);
+      const url=URL.createObjectURL(file);const link=document.createElement('a');
+      link.href=url;link.download=`${title.replace(/[\\/:*?"<>|]/g,'_')}.pptx`;
+      document.body.appendChild(link);link.click();link.remove();window.setTimeout(()=>URL.revokeObjectURL(url),30000);
+      setMessage('标准 PPTX 课件已导出，可直接用 PowerPoint / WPS 打开');
+    }catch(error){setMessage(errorMessage(error));}
+    finally{setBusy(false);}
+  };
   const download=async()=>{
     if(!materialId || busy) return;
     setBusy(true);setMessage('正在打包整份交互网页…');
@@ -595,12 +624,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   const toggleAdvanced = useCallback(() => setAdvancedOpen(value => !value), []);
   const refreshTrust = useCallback(() => { void onRefresh?.(); }, [onRefresh]);
 
-  const slideRef = useRef<HTMLDivElement>(null);
-  const flashTimer = useRef<number | null>(null);
-  const [assistantMsg, setAssistantMsg] = useState('');
-  const [lassoArmed, setLassoArmed] = useState(false);
-  useEffect(() => { setLassoArmed(false); setFlashKey(null); }, [page?.page_no, active, editing]);
-  useEffect(() => () => { if (flashTimer.current) window.clearTimeout(flashTimer.current); }, []);
   const changeLive = useCallback((spec: ISpec, id: string, value: number) => {
     if (busy || state.saving || editorBusy) return false;
     const parameter = spec.parameters.find(p => p.id === id);
@@ -610,50 +633,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     return true;
   }, [busy, editorBusy, state.change, state.saving]);
   const expandSpec = useCallback((specId: string) => setActiveId(specId), []);
-  const assistantParams = useMemo<AssistantParam[]>(() => activeSpecs.flatMap(spec =>
-    spec.parameters.filter(p => p.type === undefined || p.type === 'number' || p.type === 'integer').map(p => {
-      const current = state.values[spec.object_id]?.[p.id];
-      return { specId: spec.object_id, specTitle: spec.title ?? spec.object_id, id: p.id, label: p.label,
-        value: typeof current === 'number' ? current : Number(p.default), min: p.min, max: p.max, step: p.step };
-    })), [activeSpecs, state.values]);
-  const assistantSuggestions = useMemo(() => {
-    const first = assistantParams[0];
-    return [...(first ? [`把 ${first.id} 设为 ${Number((first.value + (first.step ?? 1)).toFixed(4))}`] : []),
-      '恢复原稿', ...(index < pages.length - 1 ? ['下一页'] : [])];
-  }, [assistantParams, index, pages.length]);
-  const runAssistant = useCallback((text: string) => {
-    const action = parseAssistantCommand(text, assistantParams, { pageCount: pages.length, currentIndex: index });
-    if (action.kind === 'say') { setAssistantMsg(action.text); return; }
-    if (action.kind === 'page') { go(action.index); setAssistantMsg(`已翻到第 ${pages[action.index]?.page_no} 页。`); return; }
-    if (busy || state.saving || editorBusy) { setAssistantMsg('正在保存或处理中，请稍后再试。'); return; }
-    if (action.kind === 'reset') {
-      if (!activeSpecs.length) { setAssistantMsg('这一页没有可恢复的交互参数。'); return; }
-      activeSpecs.forEach(spec => state.reset(spec));
-      setAssistantMsg('已恢复本页原稿数值。');
-      return;
-    }
-    const spec = activeSpecs.find(item => item.object_id === action.param.specId);
-    setAssistantMsg(spec && changeLive(spec, action.param.id, action.value) ? describeSet(action.param, action.value)
-      : '这个值没有通过参数校验，未改动。');
-  }, [assistantParams, pages, index, go, busy, state.saving, state.reset, editorBusy, activeSpecs, changeLive]);
-  const finishLasso = useCallback((rect: ClientRect) => {
-    setLassoArmed(false);
-    const hits = [...(slideRef.current?.querySelectorAll<HTMLElement>('[data-live-region]') ?? [])].map(node => {
-      const box = node.getBoundingClientRect();
-      const area = Math.max(0, Math.min(rect.right, box.right) - Math.max(rect.left, box.left))
-        * Math.max(0, Math.min(rect.bottom, box.bottom) - Math.max(rect.top, box.top));
-      return { node, area };
-    }).filter(hit => hit.area > 120).sort((a, b) => b.area - a.area);
-    const hit = hits[0]?.node;
-    if (!hit) { setAssistantMsg('这块区域里没有识别到可交互内容，保持原样。'); return; }
-    const { liveRegion, liveKind, liveTitle, liveParams } = hit.dataset;
-    setAssistantMsg(liveKind === 'params' ? `「${liveTitle}」的数字已可原位调节（参数 ${liveParams}）：拖动、方向键，或点击后直接输入。`
-      : liveKind === 'figure' ? `「${liveTitle}」是可交互图形：拖动图里的圆点会改写参数，旁边的结果同步更新。`
-        : `「${liveTitle}」需要展开为完整实验页来操作。`);
-    setFlashKey(liveRegion ?? null);
-    if (flashTimer.current) window.clearTimeout(flashTimer.current);
-    flashTimer.current = window.setTimeout(() => setFlashKey(null), 2200);
-  }, []);
 
   const applyLinkChange = useCallback((
     nextValues: CanonicalValues,
@@ -762,6 +741,9 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   }, [pages, go]);
 
   if (!page) return <div className={styles.empty}>页面正在生成，请稍后重新载入。</div>;
+  const reviewElements = (page.elements ?? []).filter(element => formulaReviews?.[element.element_id]?.page_no === page.page_no);
+  const reviewElement = reviewElements.find(element => element.element_id === reviewId);
+  const review = reviewId ? formulaReviews?.[reviewId] : undefined;
 
   const editablePage=editor?.pages.find(item=>item.page_no===page.page_no);
   const selectedElement=editablePage?.elements.find(element=>element.element_id===selected);
@@ -769,7 +751,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   return <div ref={shell} className={styles.shell} data-presenting={presenting} data-experiment={!!active} data-panel={!!active}>
     <header className={styles.topbar}>
       <div className={styles.brand}>{materialId ? <a href="/" aria-label="返回首页">万象<span> / 演示文稿</span></a> : <span>万象<span> / 交互演示</span></span>}</div>
-      <div className={styles.title}><h1>{title}</h1><span>{pages.length} 页 · {specs.length} 个交互对象</span></div>
+      <div className={styles.title}><h1>{title}</h1><span>{pages.length} 页 · {meaningfulSpecs.length} 个交互对象</span></div>
       <button className={styles.railToggle} onClick={() => setRailCollapsed(value => !value)} aria-pressed={railCollapsed}
         aria-label={railCollapsed ? '展开页导航' : '收起页导航'}>{railCollapsed ? '▸ 页导航' : '◂ 页导航'}</button>
       <div className={styles.actions}>
@@ -794,6 +776,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
                 {editing?'退出图片交互配置':'图片交互配置（旧版）'}</button>
               <Link role="menuitem" to={`/materials/${materialId}/prepare`}>转换详情</Link>
               <button role="menuitem" onClick={() => void exportProject()} disabled={editorBusy || busy || state.saving || editing}>导出工程包（.xsproj）</button>
+              <button role="menuitem" onClick={() => void exportPptx()} disabled={editorBusy || busy || state.saving || editing}>导出 PPTX 课件（.pptx）</button>
             </div>
           </details>
         </div>}
@@ -805,6 +788,14 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
         {presenting && !active && <div className={styles.presentZoom}>
           <ZoomControl value={zoom} fitValue={fitScale} min={.25} max={4} step={.1} tone="dark" onChange={setZoom}/>
         </div>}
+        {!active && !editing && <button type="button" aria-pressed={annotateTool !== 'off'}
+          onClick={() => setAnnotateTool(t => t === 'off' ? 'pen' : 'off')} title="开启/关闭课堂板书批注">
+          {annotateTool === 'off' ? '✏ 板书' : '✏ 板书中'}
+        </button>}
+        {scenePage && page?.image_url && <button type="button"
+          onClick={()=>setOriginalPage(originalPage===page.page_no ? null : page.page_no)}>
+          {originalPage===page.page_no ? '显示可操作图形' : '查看原图'}
+        </button>}
         <button className={styles.primary} onClick={presenting ? exitPresentation : startPresentation}>
           {presenting ? '退出演示' : '▶ 开始演示'}</button>
       </div>
@@ -851,24 +842,31 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
             go(index + 1);
           }}>
           <div className={styles.canvasArea} style={{minWidth: slideWidth + 40, minHeight: slideHeight + 40}}>
-          <div className={styles.slide} ref={slideRef} style={{width: slideWidth, height: slideHeight}} aria-label={`幻灯片第 ${page.page_no} 页`}>
-            {scenePage?<ScenePageView page={scenePage} scale={scale}/>:page.image_url && !imageFailed ? <img className={styles.pageImage} src={pageDisplayUrl(page.image_url,page.render_bytes)}
+          <div className={styles.slide} style={{width: slideWidth, height: slideHeight}} aria-label={`幻灯片第 ${page.page_no} 页`}>
+            {scenePage && <div hidden={originalPage===page.page_no}>
+              <ScenePageView key={scenePage.page_no+":"+presenting} page={scenePage} scale={scale} presentVectors/>
+            </div>}
+            {(!scenePage || originalPage===page.page_no) && (page.image_url && !imageFailed ? <img className={styles.pageImage} src={pageDisplayUrl(page.image_url,page.render_bytes)}
               alt={`第 ${page.page_no} 页原始 PPT`} onError={() => setImageFailed(true)} draggable={false}
               decoding="async" fetchPriority="high"/> :
               <div className={styles.fallback}>{page.elements?.map(element => element.text ?
                 <span key={element.element_id} style={boxStyle(element.bbox, page)}>{element.text}</span> : null)}
-                <p>本页为结构还原，可能与原版式有差异{imageFailed ? '（整页图加载失败）' : ''}</p></div>}
+                <p>本页为结构还原，可能与原版式有差异{imageFailed ? '（整页图加载失败）' : ''}</p></div>)}
             {learningHighlight && learningHighlight.page_no === page.page_no ? <span className={styles.learningHighlight}
               style={{left:`${learningHighlight.bbox.x*100}%`,top:`${learningHighlight.bbox.y*100}%`,
                 width:`${learningHighlight.bbox.w*100}%`,height:`${learningHighlight.bbox.h*100}%`}}
               aria-hidden="true"/> : null}
             {!active && !editing && liveSpecs.length>0 && <LiveLayer specs={liveSpecs} plans={livePlans} values={state.values}
-              deferred={deferredDeckValues} pageSize={{width:page.width??12192000,height:page.height??6858000}}
+              deferred={deferredDeckValues} pageSize={livePageSize}
               pageImageUrl={!scenePage&&page.image_url?pageDisplayUrl(page.image_url,page.render_bytes):undefined}
               place={sourceStyle} disabled={busy||state.saving||editorBusy} reducedMotion={reducedMotion}
-              flashKey={flashKey} onChange={changeLive} onExpand={expandSpec}/>}
-            {lassoArmed && !active && !editing && <LassoLayer onDone={finishLasso} onCancel={()=>setLassoArmed(false)}/>}
-            {!active && activeSpecs.filter(spec=>!liveSpecIds.has(spec.object_id)).map(spec => {
+              flashKey={null} onChange={changeLive} onExpand={expandSpec}/>}
+            {materialId && !active && !editing && !presenting && reviewElements.map(element =>
+              <button key={element.element_id} type="button" className={styles.formulaReviewHotspot}
+                style={sourceStyle(element.bbox, element.element_id)}
+                onClick={() => setReviewId(element.element_id)}>公式待核对</button>)}
+            {!active && !editing && <PresentationAnnotator pageNo={page.page_no} tool={annotateTool} color={annotateColor} clearNonce={annotateClearNonce}/>}
+            {!active && !scenePage?.auto_vectors && activeSpecs.filter(spec=>!liveSpecIds.has(spec.object_id)).map(spec => {
               if(editing) return null;
               const sources = spec.anchor ? [{...spec.anchor,status:'original' as const,excerpt:spec.title??''}] : [...new Map(spec.parameters.filter(p => p.source.page === page.page_no && p.source.bbox)
                 .map(p => [p.source.element_id, p.source])).values()];
@@ -883,7 +881,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
                 style={sourceStyle(source.bbox, source.element_id)} onClick={() => setActiveId(spec.object_id)}
                 aria-label={`交互：${spec.title ?? '公式或图表'}`}><span>点击交互 ↗</span></button>);
             })}
-            {!active && !editing && aiNodes.map(node => {
+            {!active && !editing && !scenePage?.auto_vectors && aiNodes.map(node => {
               const box=node.source.bbox;
               return <button key={node.node_id} className={styles.aiHotspot}
                 style={{left:`${box.x*100}%`,top:`${box.y*100}%`,width:`${box.w*100}%`,height:`${box.h*100}%`}}
@@ -912,8 +910,23 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
           {fidelity === 'low' && <span>结构还原 · 版式可能有差异</span>}
         </div>
         </>}
-        {!active && !editing && pageSpecs.length>0 && <AssistantDock message={assistantMsg} suggestions={assistantSuggestions}
-          lassoArmed={lassoArmed} onSend={runAssistant} onToggleLasso={()=>setLassoArmed(value=>!value)}/>}
+        {!active && !editing && annotateTool !== 'off' && <div className={styles.annotateDock} role="toolbar" aria-label="课堂板书工具条" data-no-pan>
+          <button type="button" aria-pressed={annotateTool === 'pen'} onClick={() => setAnnotateTool('pen')} title="钢笔圈画">✏ 钢笔</button>
+          <button type="button" aria-pressed={annotateTool === 'highlighter'} onClick={() => setAnnotateTool('highlighter')} title="荧光笔高亮">🖍 荧光笔</button>
+          <button type="button" aria-pressed={annotateTool === 'laser'} onClick={() => setAnnotateTool('laser')} title="激光笔指示">🔴 激光</button>
+          {annotateTool === 'pen' && <>
+            <span className={styles.annotateDivider} aria-hidden="true" />
+            {['#c4622d', '#2563eb', '#16233a'].map(c => (
+              <button key={c} type="button" className={styles.colorDot} aria-label={`笔色 ${c}`}
+                aria-pressed={annotateColor === c} onClick={() => setAnnotateColor(c)}
+                style={{ background: c }} />
+            ))}
+          </>}
+          <span className={styles.annotateDivider} aria-hidden="true" />
+          <button type="button" aria-pressed={annotateTool === 'eraser'} onClick={() => setAnnotateTool(t => t === 'eraser' ? 'pen' : 'eraser')} title="橡皮擦">擦除</button>
+          <button type="button" onClick={() => setAnnotateClearNonce(n => n + 1)} title="清空本页板书">清屏</button>
+          <button type="button" onClick={() => setAnnotateTool('off')} title="退出板书">完成</button>
+        </div>}
       </main>
       {!editing && linkPanelOpen && aiBundle && linkEvaluation && (
         <div className={styles.linkAside}>
@@ -941,6 +954,10 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
           <button type="button" onClick={closeLearning}>关闭</button>
         </div>
       </aside>}
+      {materialId && reviewElement && review && <FormulaReviewDialog key={reviewElement.element_id}
+        imageUrl={apiBase() + '/api/v1/materials/' + encodeURIComponent(materialId) + '/editor/formulas/' + encodeURIComponent(reviewElement.element_id) + '/image'}
+        draft={review.math_text} reason={review.reason} busy={editorBusy} message={message} onClose={() => setReviewId(null)}
+        onConfirm={latex => void saveEdit({page: page.page_no, element_id: reviewElement.element_id, kind: 'recognition', text: latex})}/>}
       {editing && selectedElement && materialId && <ElementEditor key={selectedElement.element_id} element={selectedElement}
         materialId={materialId} page={page.page_no} specs={specs} busy={editorBusy} onSave={change=>void saveEdit(change)}
         onClose={()=>setSelected(null)}/>}

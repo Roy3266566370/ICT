@@ -1,11 +1,12 @@
-"""按页 AI 交互实验：模型读本页文字，生成「参数滑块 + 沙箱绘图程序」。
+"""按页 AI 交互实验：模型读本页文字，生成时间轴、参数与沙箱绘图程序。
 
-模型只产出两样东西：
+模型产出：
 - ``params``：最多 6 个数值滑块（id / 标签 / 范围 / 默认值）；
-- ``program``：``function render(input) -> ViewAST`` 的 JavaScript，只读 ``input``（滑块取值）。
+- ``timeline``：连续播放时长与带教学标签的暂停检查点；
+- ``program``：``function render(input) -> ViewAST``，只读参数与注入的 ``input.t/step``。
 
 后端从不执行模型代码以外的任何输入：程序先过静态黑名单；若本机有 Node，则在隔离子进程里按
-默认值与参数边界各跑一遍，结果必须通过 ViewAST 校验，否则把错误回传给模型修复一次。
+默认值、参数边界、时间采样与暂停点试运行，结果必须通过 ViewAST 校验并实际随时间变化，否则回传错误修复。
 真正展示时，前端仍在 opaque-origin sandbox iframe + Worker 中执行并再次校验（同专用视图）。
 """
 
@@ -32,7 +33,7 @@ from .util import hash_json, now_iso
 
 logger = logging.getLogger(__name__)
 
-PAGE_LAB_VERSION = "ppt-ai.page-lab.1"
+PAGE_LAB_VERSION = "ppt-ai.page-lab.2"
 CACHE_DIR = DATA_DIR / "ppt-ai" / "page-lab"
 MAX_PARAMS = 6
 MAX_OUTPUT_TOKENS = 12000
@@ -45,22 +46,29 @@ _COLOR = re.compile(r"^(#[0-9a-fA-F]{6}|transparent|none)$")
 OUTPUT_CONTRACT = """只输出一个 JSON 对象：
 {"title":"实验标题(<=24字)","summary":"一句话：拖动滑块能观察到什么(<=80字)",
  "params":[{"id":"temp","label":"温度 τ","min":0.2,"max":4,"step":0.1,"default":1}],
+ "public_params":["temp"],
+ "timeline":{"duration_s":8,"stops":[{"t":0,"label":"初始状态"},{"t":0.5,"label":"观察变化"},{"t":1,"label":"最终结果"}]},
  "explain":["观察要点1","观察要点2"],
  "program":"function render(input){ ... return {version:'ppt-ai.view.1',width:720,height:420,interactions:[],nodes:[...]}; }"}
 硬性要求：
-1. params 1~6 个，id 为英文标识符；default 必须在 [min,max] 内；render 只通过 input.<id> 读取取值。
+1. params 1~6 个，id 为英文标识符，t/step 是保留名不可用；default 必须在 [min,max] 内；render 只通过 input.<id> 读取取值。public_params 仅列出适合观众调节的参数 id（不重复，可为空）。
+   必须提供 timeline：duration_s 为 2~120 秒，stops 为 2~12 个暂停检查点，每项 t 为 0~1、严格递增、首项0末项1，label 为不超过60字的具体教学状态。
+   前端注入 input.t（连续播放进度0~1）与 input.step（最近到达检查点的下标，从0开始）。不得将时间做成普通滑块。
+   program 必须实际使用 input.t 驱动连续变化；只显示固定图或仅改变进度文字不算动态实验。每个暂停点应呈现可解释的中间状态。
 2. program 是纯 JavaScript(ES5/ES2015)，只定义 function render(input)，禁止访问网络/DOM/window/document/eval/Function/定时器，不用 while(true)。
 3. 画布坐标 720x420，原点左上。节点总数 <= 400，每个节点必须有唯一字符串 id。
 4. 可用节点(字段严格如下，颜色只能是 #RRGGBB 六位十六进制、transparent 或 none)：
  {id,type:'text',x,y,text,style:{fill,fontSize,fontWeight:400|600|700,textAnchor:'start|middle|end'}}
  {id,type:'rect',x,y,w,h,style:{fill,stroke,strokeWidth,opacity}}
  {id,type:'circle',cx,cy,r,style:{fill,stroke,strokeWidth,opacity}}
- {id,type:'line',x1,y1,x2,y2,style:{stroke,strokeWidth,opacity,dash:[4,3]}}
+ {id,type:'line',x1,y1,x2,y2,style:{stroke,strokeWidth,opacity,dash:[4,3],arrowStart:false,arrowEnd:true}}
  {id,type:'polyline',points:[[x,y],...],style:{fill,stroke,strokeWidth}}
  {id,type:'curve',series:[[x,y],...],x_min:0,x_max:720,y_min:0,y_max:420,style:{stroke,strokeWidth}}
  {id,type:'point',x,y,r,style:{fill,opacity}}
+ {id,type:'mermaid',x,y,w,h,mermaid:{code:'flowchart LR\\nA[步骤1]-->B[步骤2]',activeNodes:['A']}}  (算法流程/状态机/时序图/架构图优先使用，随 input.step 切换 activeNodes 高亮当前步骤；禁止 click/href/script)
+ {id,type:'chart',x,y,w,h,chart:{chartType:'bar|line|area|scatter|pie',title,xLabel,yLabel,categories:['A','B'],series:[{name:'S1',values:[1,2],color:'#c4622d'}],yDomain:[0,5]}}  (统计分布/函数对比/多系列数值变化优先使用，scatter 时 values 为 [[x,y],...]，无需手算柱状图坐标)
 5. 实验必须忠实于本页讲的概念：用本页出现的符号/公式命名变量，数据用小规模教学数值（自行设定固定的示例数据，不要声称来自原稿）；
-   图中直接标注关键数值(用 text 节点)，让学习者看到「改变参数 → 结果如何变化」。
+   图中直接标注关键数值(用 text 节点)，让学习者看到「播放过程或改变参数 → 结果如何变化」。时间轴必须演示本页机制，例如逐步叠加分量、更新迭代状态或移动采样点，不能把所有页面都套成无关的柱状图。
 6. 本页没有可交互的数学/算法内容时，仍做一个与本页概念最贴近的示意实验，不要返回空程序。
 7. 程序保持精简（<=4000 字符，一个核心实验、2~3个参数即可），只输出JSON，不输出推理。用循环生成采样点，不要展开大量字面量。
    优先使用 polyline 画折线/曲线，它只需要 points；用 curve 时必须给出 x_min/x_max/y_min/y_max。
@@ -76,6 +84,27 @@ EXAMPLE_PROGRAM = (
     "nodes.push({id:'val'+i,type:'text',x:120+i*140,y:350-p*300,text:p.toFixed(3),style:{fill:'#0f172a',fontSize:13,textAnchor:'middle'}});}"
     "return {version:'ppt-ai.view.1',width:720,height:420,interactions:[],nodes:nodes};}"
 )
+
+
+def _timeline_example(context: Mapping[str, Any]) -> dict[str, str]:
+    """Small timing example; the model must replace its mechanism with this page's."""
+    text = str(context.get("page_title", "")) + str(context.get("page_text", ""))
+    if any(word in text.lower() for word in ("softmax", "注意力", "attention")):
+        mechanism = "本页涉及注意力：让 t 从0到1逐渐揭示打分、归一化权重、加权汇总；温度是参数，时间是播放进度。"
+        expression = "40+Math.exp(input.t*input.gain)*35"
+    elif any(word in text for word in ("向量", "矩阵", "线性", "基底")):
+        mechanism = "本页涉及线性几何：让 t 推动向量分量逐步叠加或矩阵从恒等变换插值到目标变换，暂停点标注中间分量和合成结果。"
+        expression = "80+input.t*input.gain*140"
+    else:
+        mechanism = "依据本页术语选择一个可解释的过程（逐步累加、迭代更新或移动采样），让 t 控制过程，暂停点标注本页对应的中间状态。"
+        expression = "80+input.t*input.gain*140"
+    program = (
+        "function render(input){var x=" + expression + ";"
+        "return {version:'ppt-ai.view.1',width:720,height:420,interactions:[],nodes:["
+        "{id:'path',type:'line',x1:80,y1:210,x2:x,y2:210,style:{stroke:'#2563eb',strokeWidth:3,arrowEnd:true}},"
+        "{id:'value',type:'text',x:80,y:80,text:'t='+input.t.toFixed(2)+'; checkpoint='+input.step,style:{fill:'#334155',fontSize:18}}]};}"
+    )
+    return {"mechanism": mechanism, "program": program}
 
 _NODE_RUNNER = r"""
 const vm = require('node:vm');
@@ -93,7 +122,9 @@ process.stdin.on('end', () => {
   }
   let runner;
   try {
-    runner = new vm.Script('"use strict";\n' + job.program + '\nJSON.stringify(render(input), function(k,v){if(typeof v==="number"&&!Number.isFinite(v))throw new Error("结果含 NaN/Infinity");return v;});');
+    const timeGuard = job.timeline ? 'let __pageLabTimeRead = false; Object.defineProperty(input,"t",{get:(function(t){return function(){__pageLabTimeRead=true;return t;};})(input.t)});\n' : '';
+    const timeCheck = job.timeline ? 'if(!__pageLabTimeRead)throw new Error("时间轴程序必须实际读取 input.t");\n' : '';
+    runner = new vm.Script('"use strict";\n' + timeGuard + job.program + '\nvar __pageLabOutput=JSON.stringify(render(input), function(k,v){if(typeof v==="number"&&!Number.isFinite(v))throw new Error("结果含 NaN/Infinity");return v;});\n' + timeCheck + '__pageLabOutput;');
   } catch (e) {
     process.stdout.write(JSON.stringify({ error: '语法错误：' + String(e && e.message || e) }));
     return;
@@ -155,18 +186,54 @@ def collect_page_context(db: Session, material_id: str, page_no: int, material_t
         if element.text and element.text.strip():
             texts.append(_clip(element.text, 400))
     body = "\n".join(texts)[:MAX_TEXT_CHARS]
+    page_title = page.title or ""
     if not body:
         body = "\n".join(page.paragraphs or [])[:MAX_TEXT_CHARS]
+    try:
+        from ..documents.store import read_document
+        scene_doc = read_document(material_id)
+        scene_page = next((p for p in (scene_doc or {}).get("pages", []) if p.get("page_no") == page_no), None)
+        if isinstance(scene_page, Mapping):
+            scene_texts = [
+                _clip(str(n.get("text") or ""), 400)
+                for n in scene_page.get("nodes", [])
+                if isinstance(n, Mapping) and not n.get("deleted") and not n.get("hidden")
+                and str(n.get("text") or "").strip()
+            ]
+            vectors = [
+                n for n in scene_page.get("nodes", [])
+                if isinstance(n, Mapping) and not n.get("deleted") and not n.get("hidden")
+                and n.get("type") == "vector"
+            ]
+            body = "\n".join(scene_texts)[:MAX_TEXT_CHARS]
+            page_title = ""
+            if scene_texts:
+                visible_text_nodes = [
+                    n for n in scene_page.get("nodes", [])
+                    if isinstance(n, Mapping) and not n.get("deleted") and not n.get("hidden")
+                    and str(n.get("text") or "").strip()
+                ]
+                title_node = next((n for n in visible_text_nodes if "title" in str(n.get("name", "")).lower() or "标题" in str(n.get("name", ""))), visible_text_nodes[0])
+                page_title = str(title_node.get("text") or page_title)
+            if vectors:
+                has_basis = any(isinstance(n.get("basis"), Mapping) for n in vectors)
+                vec_note = f"本页图示含 {len(vectors)} 条可调矢量箭头" + ("（双基向量分解与平行四边形合成）" if has_basis else "")
+                body = f"{body}\n{vec_note}".strip()[:MAX_TEXT_CHARS]
+    except Exception:  # noqa: BLE001
+        pass
     neighbours = {
         "previous_title": _clip(pages[page_no - 1].title, 60) if page_no - 1 in pages else "",
         "next_title": _clip(pages[page_no + 1].title, 60) if page_no + 1 in pages else "",
     }
-    if not body.strip() and not (page.title or "").strip():
-        raise PageLabError("本页没有可读取的文字，无法据此生成交互；请换一页，或先在自由编辑里补充文字")
+    if not body.strip() and not page_title.strip():
+        if material_title.strip():
+            body = _clip(material_title, 200)
+        else:
+            raise PageLabError("本页没有可读取的文字，无法据此生成交互；请换一页，或先在自由编辑里补充文字")
     return {
         "material_title": _clip(material_title, 80),
         "page_no": page_no,
-        "page_title": _clip(page.title, 80),
+        "page_title": _clip(page_title, 80),
         "page_text": body,
         **neighbours,
     }
@@ -218,13 +285,47 @@ def normalize_params(raw: Any) -> list[dict[str, Any]]:
     return params
 
 
-def _probe_inputs(params: list[dict[str, Any]]) -> list[dict[str, float]]:
+def normalize_timeline(raw: Any) -> dict[str, Any]:
+    """Validate the optional timeline's value; callers decide whether it is required."""
+    if not isinstance(raw, Mapping):
+        raise PageLabError("timeline 必须是对象")
+    duration = _number(raw.get("duration_s"), "timeline.duration_s")
+    if not 2 <= duration <= 120:
+        raise PageLabError("timeline.duration_s 必须在 2~120 秒之间")
+    stops = raw.get("stops")
+    if not isinstance(stops, list) or not 2 <= len(stops) <= 12:
+        raise PageLabError("timeline.stops 必须有 2~12 个暂停点")
+    normalized = []
+    previous = -1.0
+    for stop in stops:
+        if not isinstance(stop, Mapping):
+            raise PageLabError("timeline.stops 每项必须是对象")
+        t = _number(stop.get("t"), "timeline.stops.t")
+        label = stop.get("label")
+        if not 0 <= t <= 1 or t <= previous:
+            raise PageLabError("timeline.stops.t 必须在 0~1 严格递增")
+        if not isinstance(label, str) or not label.strip() or len(label) > 60:
+            raise PageLabError("timeline.stops.label 必须是 1~60 字的文字")
+        normalized.append({"t": t, "label": label.strip()})
+        previous = t
+    if normalized[0]["t"] != 0 or normalized[-1]["t"] != 1:
+        raise PageLabError("timeline.stops 必须首项0、末项1")
+    return {"duration_s": duration, "stops": normalized}
+
+
+def _probe_inputs(params: list[dict[str, Any]], timeline: Mapping[str, Any] | None = None) -> list[dict[str, float]]:
     defaults = {p["id"]: p["default"] for p in params}
     inputs = [dict(defaults)]
     for p in params:
         inputs.append({**defaults, p["id"]: p["min"]})
         inputs.append({**defaults, p["id"]: p["max"]})
-    return inputs[:13]
+    if timeline is None:
+        return inputs[:13]
+    times = sorted({0.0, 0.25, 0.5, 0.75, 1.0, *(s["t"] for s in timeline["stops"])})
+    return [
+        {**values, "t": t, "step": max(i for i, stop in enumerate(timeline["stops"]) if stop["t"] <= t)}
+        for values in inputs for t in times
+    ]
 
 
 def _check_ast_colors(ast: Mapping[str, Any]) -> None:
@@ -242,14 +343,17 @@ def _check_ast_colors(ast: Mapping[str, Any]) -> None:
     walk(ast.get("nodes") or [])
 
 
-def dry_run(program: str, params: list[dict[str, Any]]) -> None:
-    """在 Node 子进程里按默认值与参数边界各跑一遍；没有 Node 时跳过（前端沙箱仍会校验）。"""
+def dry_run(program: str, params: list[dict[str, Any]], timeline: Mapping[str, Any] | None = None) -> None:
+    """在隔离 Node 子进程探测参数与时间边界；仅旧版无时间轴实验允许缺少 Node。"""
 
     node = shutil.which("node")
     if node is None:
+        if timeline is not None:
+            raise PageLabError("时间轴程序需要 Node 完成服务端试运行")
         logger.info("未找到 node，跳过交互程序的服务端试运行")
         return
-    job = json.dumps({"program": program, "inputs": _probe_inputs(params)}, ensure_ascii=False)
+    inputs = _probe_inputs(params, timeline)
+    job = json.dumps({"program": program, "inputs": inputs, "timeline": timeline is not None}, ensure_ascii=False)
     try:
         completed = subprocess.run(
             [node, "--max-old-space-size=96", "-e", _NODE_RUNNER],
@@ -268,14 +372,34 @@ def dry_run(program: str, params: list[dict[str, Any]]) -> None:
         result = json.loads(completed.stdout)
     except ValueError as exc:
         raise PageLabError("程序试运行输出无法解析") from exc
+    if not isinstance(result, dict):
+        raise PageLabError("程序试运行输出必须是对象")
     if "error" in result:
         raise PageLabError(str(result["error"])[:300])
-    for ast in result.get("asts", []):
+    asts = result.get("asts")
+    if not isinstance(asts, list) or len(asts) != len(inputs):
+        raise PageLabError("程序试运行未返回全部样本的 ViewAST")
+    for ast in asts:
         try:
             validate_view_ast(ast)
             _check_ast_colors(ast)
         except ContractError as exc:
             raise PageLabError(f"ViewAST 未通过校验：{exc}") from exc
+    if timeline is not None:
+        sample_count = len(inputs) // (1 + 2 * len(params))
+        # Progress captions alone do not demonstrate a changing mechanism.
+        def visual_state(value):
+            if isinstance(value, list):
+                return [visual_state(item) for item in value]
+            if isinstance(value, dict):
+                return {key: visual_state(item) for key, item in value.items()
+                        if not (value.get("type") == "text" and key == "text")}
+            return value
+        if not any(
+            len({hash_json(visual_state(ast)) for ast in asts[offset:offset + sample_count]}) > 1
+            for offset in range(0, len(asts), sample_count)
+        ):
+            raise PageLabError("时间轴程序在不同时间的 ViewAST 没有变化，请实际使用 input.t 演示本页过程")
 
 
 def validate_lab(data: Mapping[str, Any], *, probe: bool = True) -> dict[str, Any]:
@@ -289,8 +413,15 @@ def validate_lab(data: Mapping[str, Any], *, probe: bool = True) -> dict[str, An
     except GeneratedViewError as exc:
         raise PageLabError(str(exc)) from exc
     params = normalize_params(data.get("params"))
+    timeline = normalize_timeline(data["timeline"]) if "timeline" in data else None
+    if timeline is not None and any(p["id"] in {"t", "step"} for p in params):
+        raise PageLabError("时间轴参数不得占用保留 id：t、step")
+    public = data.get("public_params", [p["id"] for p in params])
+    valid_ids = {p["id"] for p in params}
+    if not isinstance(public, list) or any(not isinstance(pid, str) or pid not in valid_ids for pid in public) or len(set(public)) != len(public):
+        raise PageLabError("public_params 必须是不重复的有效参数 id 数组")
     if probe:
-        dry_run(program, params)
+        dry_run(program, params, timeline)
     explain = data.get("explain")
     points = [_clip(str(item), 120) for item in explain[:4]] if isinstance(explain, list) else []
     return {
@@ -298,6 +429,8 @@ def validate_lab(data: Mapping[str, Any], *, probe: bool = True) -> dict[str, An
         "summary": _clip(str(data.get("summary") or ""), 160),
         "explain": [item for item in points if item],
         "params": params,
+        "public_params": list(public),
+        **({"timeline": timeline} if timeline is not None else {}),
         "program": program,
     }
 
@@ -311,7 +444,7 @@ def generate_page_lab(
     context: Mapping[str, Any],
     *,
     client: PPTAIClient,
-    max_attempts: int = 2,
+    max_attempts: int = 3,
 ) -> dict[str, Any]:
     if not client.available():
         raise PPTAIError("disabled", "未配置模型服务，无法生成交互")
@@ -319,10 +452,14 @@ def generate_page_lab(
     feedback = ""
     last_error = ""
     for _ in range(max_attempts):
+        example = _timeline_example(context)
         payload: dict[str, Any] = {
             "page": dict(context),
             "output_contract": OUTPUT_CONTRACT,
-            "example_program": EXAMPLE_PROGRAM,
+            "example_program": example["program"],
+            "example_params": [{"id": "gain", "min": 0.5, "max": 2, "step": 0.1, "default": 1}],
+            "page_animation_guidance": example["mechanism"],
+            "example_note": "仅示范 input.t/step 接口和安全节点格式，不能直接复制；必须按照 page 内容重写教学机制与标签。",
         }
         if feedback:
             payload["previous_error"] = feedback
@@ -332,16 +469,19 @@ def generate_page_lab(
                 payload,
                 PAGE_LAB_VERSION,
                 budget,
-                instructions="为这一页课件设计一个可拖动参数的交互实验，严格按 output_contract 输出 JSON；若有 previous_error，先修复它。",
+                instructions="为这一页课件设计一个可播放、暂停并在检查点观察中间状态的时间轴实验，必须有 timeline，program 实际使用 input.t 连续演示本页机制；严格按 output_contract 输出 JSON；若有 previous_error，先修复它。",
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 timeout_s=LLM_TIMEOUT_S,
+                thinking=False,
             )
         except PPTAIError as exc:
-            if exc.kind not in ("invalid_json", "truncated") or budget.remaining <= 0:
+            if exc.kind not in ("invalid_json", "truncated", "schema") or budget.remaining <= 0:
                 raise
             last_error = feedback = f"上一次输出无法解析为 JSON（{exc}）；请只输出合法 JSON，program 中的换行与引号要正确转义"
             continue
         try:
+            if "timeline" not in response.data:
+                raise PageLabError("新生成的实验必须包含 timeline")
             lab = validate_lab(response.data)
         except PageLabError as exc:
             last_error = feedback = str(exc)
@@ -355,7 +495,7 @@ def generate_page_lab(
                 "created_at": now_iso(),
             }
         )
-        lab["content_hash"] = hash_json({"program": lab["program"], "params": lab["params"]})
+        lab["content_hash"] = hash_json({key: lab[key] for key in ("program", "params", "timeline", "public_params")})
         return lab
     raise PageLabError(f"模型生成的交互未通过校验：{last_error}")
 
@@ -372,7 +512,7 @@ def load_cached_lab(material_id: str, page_no: int) -> dict[str, Any] | None:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    return data if isinstance(data, dict) and data.get("version") == PAGE_LAB_VERSION else None
+    return data if isinstance(data, dict) and data.get("version") in {PAGE_LAB_VERSION, "ppt-ai.page-lab.1"} else None
 
 
 def save_cached_lab(material_id: str, page_no: int, lab: Mapping[str, Any]) -> None:
@@ -391,4 +531,5 @@ __all__ = [
     "load_cached_lab",
     "save_cached_lab",
     "validate_lab",
+    "normalize_timeline",
 ]

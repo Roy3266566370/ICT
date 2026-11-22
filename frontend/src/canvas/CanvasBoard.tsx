@@ -13,13 +13,20 @@
  * 双击空白快速加便签；Pointer Events 同套代码吃鼠标/触屏/手写笔。
  */
 import { createPortal } from 'react-dom';
+import { find408Stage, pipelinePorts } from './lab408Pipeline.ts';
+import { findPhysicsStage } from './physicsPipeline.ts';
+import { findCalculusStage } from './calculusPipeline.ts';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasDoc, CanvasNode, CanvasTool, InkStroke, NodeType, PortValue, Wire } from './types.ts';
 import { nextId, clamp } from './math.ts';
 import { isStudyStage } from './studyStages';
-import { NODE_DEFS, nodePorts } from './nodes.tsx';
+import { NODE_DEFS, nodePorts, type NodeBodyProps } from './nodes.tsx';
 import { makeCtx, evalOutput, inputValues } from './engine.ts';
 import { PHYS_TYPES, physCycle, type PhysNodeType } from './physics.ts';
+import { COMPACT_CARD_WIDTH, applyAutoLayout } from './layout.ts';
+import { NodeSchematic, nodeSchematicMeta } from './NodeSchematic.tsx';
+import { NodeInspector } from './NodeInspector.tsx';
+import { parseRealImagePayload, type RealImagePayload } from './imageInput.ts';
 import styles from './canvas.module.css';
 
 /** 递归遍历节点树（含 composite.sub 内部节点） */
@@ -56,6 +63,21 @@ interface BoardProps {
 
 interface Pt { x: number; y: number }
 
+function WirePulse({ path, delay, active }: { path: string; delay: number; active: boolean }): JSX.Element {
+  const motion = useRef<SVGAnimateMotionElement>(null);
+  const opacity = useRef<SVGAnimateElement>(null);
+  useEffect(() => {
+    motion.current?.beginElementAt(delay);
+    opacity.current?.beginElementAt(delay);
+  }, [delay]);
+  return (
+    <circle className={styles.flowPulse} r={active ? 4 : 3.2} fill={active ? '#4f46e5' : '#FF7A59'} opacity={0}>
+      <animateMotion ref={motion} dur="0.55s" begin="indefinite" path={path} fill="freeze" />
+      <animate ref={opacity} attributeName="opacity" values="0;1;1;0" keyTimes="0;0.12;0.82;1" dur="0.55s" begin="indefinite" fill="freeze" />
+    </circle>
+  );
+}
+
 const INNER_W = 2400;
 const INNER_H = 1400;
 const ZOOM_MIN = 0.4;
@@ -63,6 +85,8 @@ const ZOOM_MAX = 1.6;
 
 const pinKey = (nodeId: string, portId: string): string => `pin|${nodeId}|${portId}`;
 const poutKey = (nodeId: string, portId: string): string => `pout|${nodeId}|${portId}`;
+const PIPELINE_STAGE_TYPES: ReadonlySet<NodeType> = new Set<NodeType>(['lab408Stage', 'physicsStage', 'calculusStage']);
+const isPipelineStage = (type: NodeType): boolean => PIPELINE_STAGE_TYPES.has(type);
 
 function strokePath(pts: [number, number][]): string {
   if (pts.length < 3) return 'M' + pts.map((p) => `${p[0]},${p[1]}`).join('L');
@@ -95,17 +119,22 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
 
   const [paths, setPaths] = useState<Record<string, string>>({});
   const [tempWire, setTempWire] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
-  const [pulses, setPulses] = useState<Record<string, number>>({});
+  const [pulses, setPulses] = useState<Record<string, { count: number; delay: number }>>({});
   const [selSet, setSelSet] = useState<ReadonlySet<string>>(new Set());
   const [selStrokes, setSelStrokes] = useState<ReadonlySet<string>>(new Set());
   const [inkBusy, setInkBusy] = useState(false);
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [resultsOpen, setResultsOpen] = useState(true);
+  const [plotsOpen, setPlotsOpen] = useState(true);
   const [mobileResults, setMobileResults] = useState(false);
   const [resultHost, setResultHost] = useState<HTMLDivElement | null>(null);
+  const [compactPref, setCompactPref] = useState(true);
   const [frame, setFrame] = useState(0);
+  const [pipelineCursors, setPipelineCursors] = useState<Record<string, number>>({});
+  const autoLaidOutRef = useRef<string | null>(null);
   const zoom = doc.zoom;
-  const worldWidth = doc.nodes.reduce((size, node) => Math.max(size, node.x + (NODE_DEFS[node.type]?.width ?? 0) + 140), INNER_W);
+  const compactMode = Boolean(workbench && doc.panel && !embedded && !visibleNodeIds && compactPref);
+  const worldWidth = doc.nodes.reduce((size, node) => Math.max(size, node.x + (compactMode ? COMPACT_CARD_WIDTH : (NODE_DEFS[node.type]?.width ?? 0)) + 160), INNER_W);
   const worldHeight = doc.nodes.reduce((size, node) => Math.max(size, node.y + 700), INNER_H);
 
   const ctx = useMemo(() => makeCtx(doc, live.current), [doc, frame]);
@@ -279,6 +308,28 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
   });
 
   /* ---------- 文档变更 ---------- */
+  const pulseFrom = useCallback((id: string) => {
+    const isPipeline = doc.nodes.some((node) => node.id === id && isPipelineStage(node.type));
+    const visited = new Set<string>();
+    const pending = [{ node: id, depth: 0 }];
+    const edges: { id: string; depth: number }[] = [];
+    for (let index = 0; index < pending.length; index += 1) {
+      const { node: current, depth } = pending[index]!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      for (const wire of doc.wires) {
+        if (wire.from !== current) continue;
+        edges.push({ id: wire.id, depth });
+        if (isPipeline) pending.push({ node: wire.to, depth: depth + 1 });
+      }
+    }
+    if (edges.length) setPulses((previous) => {
+      const next = { ...previous };
+      for (const edge of edges) next[edge.id] = { count: (next[edge.id]?.count ?? 0) + 1, delay: edge.depth * 0.13 };
+      return next;
+    });
+  }, [doc.nodes, doc.wires]);
+
   const patchNode = useCallback((id: string, patch: Partial<CanvasNode>) => {
     setDoc((d) => ({ ...d, nodes: d.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) }));
   }, [setDoc]);
@@ -288,12 +339,8 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
       ...d,
       nodes: d.nodes.map((n) => (n.id === id ? { ...n, params: { ...n.params, ...patch } } : n)),
     }));
-    setPulses((p) => {
-      const next = { ...p };
-      for (const w of doc.wires) if (w.from === id) next[w.id] = (next[w.id] ?? 0) + 1;
-      return next;
-    });
-  }, [doc.wires, setDoc]);
+    pulseFrom(id);
+  }, [pulseFrom, setDoc]);
 
   const removeNode = useCallback((id: string) => {
     setDoc((d) => ({
@@ -465,6 +512,13 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
       const parts = key.split('|');
       if (parts[0] !== 'pin') return false;
       const inKind = portKindOf(ctx, parts[1] ?? '', false, parts[2] ?? '');
+      const source = find408Stage(node);
+      const target = doc.nodes.find(({ id }) => id === parts[1]);
+      const receiver = target && find408Stage(target);
+      if (source && receiver && target) {
+        const index = pipelinePorts(target, 'in').findIndex((port) => port.id === parts[2]);
+        return source.pipeline === receiver.pipeline && source.stage.id === receiver.stage.inputs?.[index];
+      }
       return !outKind || !inKind || outKind === inKind;
     };
     const arm = (on: boolean): void => {
@@ -496,7 +550,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     };
     document.addEventListener('pointermove', mv);
     document.addEventListener('pointerup', up);
-  }, [connect, ctx, portCenter, toInner]);
+  }, [connect, ctx, doc.nodes, portCenter, toInner]);
 
   /* ---------- 视口平移（中键 / 空格+拖拽） ---------- */
   const startPan = useCallback((e: React.PointerEvent) => {
@@ -679,6 +733,101 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
   }, [workbench, workId]);
 
   const studyPanel = workbench ? doc.panel : undefined;
+  const tidyLayout = useCallback(() => {
+    setDoc((prev) => ({
+      ...prev,
+      nodes: applyAutoLayout(prev.nodes, prev.wires, { excludeNotes: compactMode }),
+    }));
+  }, [compactMode, setDoc]);
+
+  /* 首次进入紧凑架构模式时自动整理一次坐标，保证打开即横平竖直、无重叠 */
+  useEffect(() => {
+    if (!compactMode || doc.nodes.some((node) => isPipelineStage(node.type))) return;
+    const sig = `${workId ?? 'local'}:${doc.title}:${doc.nodes.length}`;
+    if (autoLaidOutRef.current === sig) return;
+    autoLaidOutRef.current = sig;
+    setDoc((prev) => ({
+      ...prev,
+      nodes: applyAutoLayout(prev.nodes, prev.wires, { excludeNotes: true }),
+    }));
+  }, [compactMode, workId, doc.title, doc.nodes, setDoc]);
+
+  const convOrdinals = useMemo(() => {
+    const map = new Map<string, number>();
+    let idx = 1;
+    for (const n of doc.nodes) {
+      if (n.type === 'conv2dOp') map.set(n.id, idx++);
+    }
+    return map;
+  }, [doc.nodes]);
+
+  const activeSelId = selSet.size === 1 ? [...selSet][0]! : null;
+  const selectedNode = activeSelId ? doc.nodes.find((n) => n.id === activeSelId && n.type !== 'textNote') ?? null : null;
+
+  const findUpstreamRealImage = useCallback((nodeId: string): RealImagePayload | null => {
+    const visited = new Set<string>();
+    const queue = [nodeId];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      const found = doc.nodes.find((n) => n.id === cur);
+      if (found?.type === 'pixelGridSource') {
+        const parsed = parseRealImagePayload(found.payload);
+        if (parsed) return parsed;
+      }
+      for (const w of doc.wires) {
+        if (w.to === cur) queue.push(w.from);
+      }
+    }
+    return null;
+  }, [doc.nodes, doc.wires]);
+
+  const pipelineWork = workId ?? doc.nodes.find((node) => isPipelineStage(node.type))?.id ?? '';
+  const pipelineEnds = useMemo(() => {
+    const ends = new Map<string, number>();
+    for (const node of doc.nodes) {
+      if (!isPipelineStage(node.type)) continue;
+      const value = evalOutput(ctx, node.id);
+      if (value?.kind !== 'lab408Data' && value?.kind !== 'physicsData' && value?.kind !== 'calculusData') continue;
+      if (value.error || value.result.frames.length === 0) continue;
+      ends.set(value.pipeline, Math.max(ends.get(value.pipeline) ?? 0, value.result.frames.length - 1));
+    }
+    return ends;
+  }, [ctx, doc.nodes]);
+  const makeBodyProps = (n: CanvasNode): NodeBodyProps => {
+    const self = evalOutput(ctx, n.id);
+    const pipeline = self
+      && (self.kind === 'lab408Data' || self.kind === 'physicsData' || self.kind === 'calculusData')
+      && !self.error && self.result.frames.length > 0 ? self.pipeline : null;
+    const cursorKey = `${pipelineWork}:${pipeline}`;
+    return {
+      node: n,
+      values: inputValues(ctx, n),
+      self,
+      onParams: readOnly ? undefined : (patch) => updateParams(n.id, patch),
+      onLive: (outputs) => {
+        const keys = Object.keys(outputs);
+        if (!keys.length) return;
+        for (const [port, value] of Object.entries(outputs)) {
+          live.current.set(`${n.id}|${port}`, value);
+        }
+        setFrame((f) => f + 1);
+      },
+      onText: readOnly ? undefined : (text) => {
+        patchNode(n.id, { text });
+        if (isPipelineStage(n.type)) pulseFrom(n.id);
+      },
+      onPayload: readOnly ? undefined : (payload) => patchNode(n.id, { payload }),
+      onExplode: !readOnly && n.type === 'composite' ? () => explode(n.id) : undefined,
+      ...(pipeline ? { timeline: {
+        step: pipelineCursors[cursorKey] ?? 0,
+        last: pipelineEnds.get(pipeline) ?? 0,
+        onStep: (step: number) => setPipelineCursors((prev) => ({ ...prev, [cursorKey]: step })),
+      } } : {}),
+    };
+  };
+
   const fitAll = () => {
     const viewport = vpRef.current;
     if (!viewport || !doc.nodes.length) return;
@@ -688,10 +837,14 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     const top = Math.min(...boxes.map((box) => box.offsetTop));
     const right = Math.max(...boxes.map((box) => box.offsetLeft + box.offsetWidth));
     const bottom = Math.max(...boxes.map((box) => box.offsetTop + box.offsetHeight));
-    const fitted = clamp(Math.min((viewport.clientWidth - 36) / (right - left),
-      (viewport.clientHeight - 36) / (bottom - top)), 0.2, 1);
-    setDoc((prev) => ({ ...prev, zoom: fitted }));
-    requestAnimationFrame(() => viewport.scrollTo(Math.max(0, left * fitted - 18), Math.max(0, top * fitted - 18)));
+    const fitted = clamp(Math.min((viewport.clientWidth - 48) / Math.max(1, right - left),
+      (viewport.clientHeight - 48) / Math.max(1, bottom - top)), 0.35, 1.05);
+    setDoc((prev) => ({ ...prev, zoom: Math.round(fitted * 100) / 100 }));
+    requestAnimationFrame(() => viewport.scrollTo(Math.max(0, left * fitted - 24), Math.max(0, top * fitted - 24)));
+  };
+  const showModuleInspector = () => {
+    setResultsOpen(true);
+    if (window.matchMedia('(max-width: 820px)').matches) setMobileResults(true);
   };
   const canvas = (
     <div className={`${styles.viewport} ${embedded ? styles.viewportEmbedded : ''}`} ref={vpRef}>
@@ -703,13 +856,31 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
         onDoubleClick={onInnerDoubleClick}
       >
         {/* 连线层（仪器面板模式下隐藏内部接线，引擎照常求值） */}
-        <svg className={styles.wires} width={worldWidth} height={worldHeight} aria-hidden="true">
+        <svg className={styles.wires} data-408-flow={pipelineEnds.size > 0 || undefined} width={worldWidth} height={worldHeight} aria-hidden="true">
+          <defs>
+            <marker id="wx-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M0 1L7 4L0 7Z" fill="#94a3b8" />
+            </marker>
+            <marker id="wx-arrow-active" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto">
+              <path d="M0 1L7 4L0 7Z" fill="#4f46e5" />
+            </marker>
+          </defs>
           {visibleNodeIds ? null : doc.wires.map((w: Wire) => {
             const d = paths[w.id];
             if (!d) return null;
+            const isRelated = activeSelId ? (w.from === activeSelId || w.to === activeSelId) : false;
+            const pulse = pulses[w.id];
+            const wireClass = activeSelId
+              ? (isRelated ? `${styles.wire} ${styles.wireActive}` : `${styles.wire} ${styles.wireDim}`)
+              : styles.wire;
             return (
               <g key={w.id}>
-                <path className={styles.wire} d={d} />
+                <path
+                  className={wireClass}
+                  data-wire={w.id}
+                  d={d}
+                  markerEnd={compactMode ? (isRelated ? 'url(#wx-arrow-active)' : 'url(#wx-arrow)') : undefined}
+                />
                 <path
                   className={styles.wireHit}
                   d={d}
@@ -717,9 +888,9 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                 >
                   <title>{readOnly ? '只读画布' : '点击删除连线'}</title>
                 </path>
-                <circle r={4} fill="#FF7A59">
-                  <animateMotion key={`${w.id}:${pulses[w.id] ?? 0}`} dur="0.55s" begin="0s" path={d} fill="freeze" />
-                </circle>
+                {pulse ? (
+                  <WirePulse key={`p:${w.id}:${pulse.count}:${d}`} path={d} delay={pulse.delay} active={isRelated} />
+                ) : null}
               </g>
             );
           })}
@@ -734,6 +905,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
         {/* 节点层 */}
         {doc.nodes.map((n) => {
           if (visibleNodeIds && !visibleNodeIds.has(n.id)) return null;
+          if (compactMode && n.type === 'textNote') return null;
           const def = NODE_DEFS[n.type];
           if (!def) return null;
           const Body = def.Body;
@@ -741,37 +913,34 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
           const outPorts = nodePorts(n, 'out');
           const nIn = inPorts.length;
           const nOut = outPorts.length;
-          const docked = !!resultHost && !!studyPanel?.view_node_ids.includes(n.id);
+          const labStage = find408Stage(n)?.stage;
+          const physicsStage = findPhysicsStage(n)?.stage;
+          const calculusStage = findCalculusStage(n)?.stage;
+          const title = labStage?.title ?? physicsStage?.title ?? calculusStage?.title ?? def.title;
+          const docked = !compactMode && !!resultHost && !!studyPanel?.view_node_ids.includes(n.id);
+          const bodyProps = makeBodyProps(n);
           const body = (
             <div className={styles.nbody}>
-                  {docked && <h3>{n.text || def.title}</h3>}
-                <Body
-                  node={n}
-                  values={inputValues(ctx, n)}
-                  self={evalOutput(ctx, n.id)}
-                  onParams={(patch) => updateParams(n.id, patch)}
-                  onLive={(outputs) => {
-                    const keys = Object.keys(outputs);
-                    if (!keys.length) return;
-                    // 输出可能序列化相同但内部模型已更新（如训练器的 boundary 快照），
-                    // 所以必须每次替换并触发渲染。
-                    for (const [port, value] of Object.entries(outputs)) {
-                      live.current.set(`${n.id}|${port}`, value);
-                    }
-                    setFrame((f) => f + 1);
-                  }}
-                  onText={(text) => patchNode(n.id, { text })}
-                  onExplode={n.type === 'composite' ? () => explode(n.id) : undefined}
-                />
-              </div>
+              {docked && <h3>{isPipelineStage(n.type) ? title : n.text || title}</h3>}
+              <Body {...bodyProps} />
+            </div>
           );
           return (
             <div
               key={n.id}
-              className={styles.node}
-              style={{ left: n.x, top: n.y, width: def.width }}
+              className={`${styles.node} ${compactMode ? styles.nodeCompact : ''}`}
+              style={{ left: n.x, top: n.y, width: compactMode ? COMPACT_CARD_WIDTH : def.width }}
               data-node={n.id}
+              data-408-module={labStage?.id}
+              data-physics-module={physicsStage?.id}
+              data-calculus-module={calculusStage?.id}
               data-sel={selSet.has(n.id) || undefined}
+              onKeyDown={(e) => {
+                if (!compactMode || !(e.target as HTMLElement).matches('[role="button"]') || !['Enter', ' '].includes(e.key)) return;
+                e.preventDefault();
+                setSelSet(new Set([n.id]));
+                showModuleInspector();
+              }}
               onPointerDown={(e) => {
                 if (tool !== 'select' || (e.target as HTMLElement).closest('[data-port]')) return;
                 setSelSet((s) => {
@@ -782,33 +951,49 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                   }
                   return s.has(n.id) ? s : new Set([n.id]);
                 });
+                if (compactMode && !e.shiftKey && !(e.target as HTMLElement).closest('[data-node-x]')) showModuleInspector();
               }}
             >
-              <div
-                className={styles.nhead}
-                onPointerDown={readOnly ? undefined : (e) => startNodeDrag(e, n)}
-                role={readOnly ? undefined : 'button'}
-                aria-label={readOnly ? undefined : `拖动 ${def.title}`}
-                tabIndex={readOnly ? undefined : 0}
-              >
-                <span className={`${styles.ndot} ${def.badge === '源' ? styles.ndotSrc : ''}`} aria-hidden="true" />
-                {(n.type === 'composite' || n.type === 'slider' || n.type === 'matrixHeatmapView' || isStudyStage(n.type)) ? (n.text || def.title) : def.title}
-                <span className={`${styles.nbadge} ${def.badge === '源' ? '' : styles.nbadgeSink}`}>{def.badge}</span>
-                {readOnly ? null : (
-                  <button
-                    type="button"
-                    className={styles.nx}
-                    data-node-x
-                    aria-label={`移除 ${def.title}`}
-                    onClick={() => removeNode(n.id)}
+              {compactMode ? (
+                <NodeSchematic
+                  node={n}
+                  def={def}
+                  self={bodyProps.self}
+                  selected={selSet.has(n.id)}
+                  readOnly={readOnly}
+                  convOrdinal={convOrdinals.get(n.id)}
+                  onDragStart={readOnly ? undefined : (e) => startNodeDrag(e, n)}
+                  onRemove={() => removeNode(n.id)}
+                />
+              ) : (
+                <>
+                  <div
+                    className={styles.nhead}
+                    onPointerDown={readOnly ? undefined : (e) => startNodeDrag(e, n)}
+                    role={readOnly ? undefined : 'button'}
+                    aria-label={readOnly ? undefined : `拖动 ${title}`}
+                    tabIndex={readOnly ? undefined : 0}
                   >
-                    ×
-                  </button>
-                )}
-              </div>
-              {docked
-                ? <><p className={styles.dockedLabel}>结果与参数栏</p>{createPortal(body, resultHost!)}</>
-                : body}
+                    <span className={`${styles.ndot} ${def.badge === '源' ? styles.ndotSrc : ''}`} aria-hidden="true" />
+                    {(n.type === 'composite' || n.type === 'slider' || n.type === 'matrixHeatmapView' || isStudyStage(n.type)) ? (n.text || title) : title}
+                    <span className={`${styles.nbadge} ${def.badge === '源' ? '' : styles.nbadgeSink}`}>{def.badge}</span>
+                    {readOnly ? null : (
+                      <button
+                        type="button"
+                        className={styles.nx}
+                        data-node-x
+                        aria-label={`移除 ${title}`}
+                        onClick={() => removeNode(n.id)}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  {docked
+                    ? <><p className={styles.dockedLabel}>结果与参数栏</p>{createPortal(body, resultHost!)}</>
+                    : body}
+                </>
+              )}
               {visibleNodeIds ? null : inPorts.map((p, i) => (
                 <div
                   key={p.id}
@@ -818,7 +1003,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                   data-port
                   title={`输入 ${p.label}`}
                 >
-                  {(nIn > 1 || n.type === 'composite') ? <span className={styles.portLabel}>{p.label}</span> : null}
+                  {(n.type !== 'lab408Stage' && (nIn > 1 || n.type === 'composite')) ? <span className={styles.portLabel}>{p.label}</span> : null}
                 </div>
               ))}
               {visibleNodeIds ? null : outPorts.map((p, i) => (
@@ -887,31 +1072,87 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     </div>
   );
   if (!studyPanel) return canvas;
+
+  const overviewNodes = compactMode
+    ? studyPanel.view_node_ids
+        .map((id) => doc.nodes.find((n) => n.id === id))
+        .filter((n): n is CanvasNode => !!n && !!NODE_DEFS[n.type])
+        .map((n) => {
+          const def = NODE_DEFS[n.type]!;
+          const Body = def.Body;
+          const bp = makeBodyProps(n);
+          const meta = nodeSchematicMeta(n, def, bp.self, convOrdinals.get(n.id));
+          return { node: n, title: meta.title, content: <Body {...bp} /> };
+        })
+    : [];
+
+  const selectedDef = selectedNode ? NODE_DEFS[selectedNode.type] ?? null : null;
+  const selectedBodyProps = selectedNode ? makeBodyProps(selectedNode) : null;
+  const nodeTitle = (n: CanvasNode): string => {
+    const def = NODE_DEFS[n.type];
+    if (!def) return n.type;
+    return nodeSchematicMeta(n, def, evalOutput(ctx, n.id), convOrdinals.get(n.id)).title;
+  };
+
   return (
     <div className={styles.studyWorkspace} data-results={resultsOpen} data-mobile-results={mobileResults}>
-      <div className={styles.studyActions}>
-        <button type="button" onClick={fitAll}>适应全图</button>
-        <button type="button" className={styles.studyDesktopToggle} aria-expanded={resultsOpen}
-          onClick={() => setResultsOpen(!resultsOpen)}>{resultsOpen ? '收起结果栏' : '展开结果栏'}</button>
-        <button type="button" className={styles.studyMobileToggle} aria-pressed={mobileResults}
-          onClick={() => setMobileResults(!mobileResults)}>{mobileResults ? '查看画布' : '结果与参数'}</button>
+      <div className={styles.studyCanvas}>
+        {canvas}
+        <div className={styles.floatingBar} role="toolbar" aria-label="画布排版控制">
+          <button type="button" onClick={fitAll}>适应全图</button>
+          {!readOnly && <button type="button" onClick={tidyLayout}>整理排版</button>}
+          <button
+            type="button"
+            aria-pressed={compactPref}
+            onClick={() => setCompactPref((v) => !v)}
+          >
+            {compactPref ? '展开卡片' : '架构视图'}
+          </button>
+          <button type="button" className={styles.studyDesktopToggle} aria-expanded={resultsOpen}
+            onClick={() => setResultsOpen(!resultsOpen)}>{resultsOpen ? '收起详情栏' : '展开详情栏'}</button>
+        </div>
       </div>
-      <div className={styles.studyCanvas}>{canvas}</div>
-      <aside className={styles.studyResults} aria-label="结果与参数">
-        <h2>实验结果</h2>
-        <div ref={setResultHost} className={styles.studyPlots} />
-        <h2>常用参数</h2>
-        <div className={styles.studyParams}>{studyPanel.exposed_params.map((param) => {
-          const node = doc.nodes.find((item) => item.id === param.node_id);
-          if (!node) return null;
-          const value = node.params[param.param_key] ?? param.min ?? 0;
-          return <label key={`${param.node_id}:${param.param_key}`}>
-            <span>{param.label}</span><output>{value}</output>
-            <input type="range" aria-label={param.label || param.param_key} min={param.min} max={param.max} step={param.step} value={value}
-              onChange={(event) => updateParams(node.id, { [param.param_key]: Number(event.target.value) })} />
-          </label>;
-        })}</div>
-      </aside>
+
+      {compactMode ? (
+        <div className={styles.studyInspectorHost}>
+          <NodeInspector
+            doc={doc}
+            panel={studyPanel}
+            selectedNode={selectedNode}
+            selectedDef={selectedDef}
+            selectedBodyProps={selectedBodyProps}
+            convOrdinal={selectedNode ? convOrdinals.get(selectedNode.id) : undefined}
+            upstreamRealImage={selectedNode ? findUpstreamRealImage(selectedNode.id) : null}
+            overviewNodes={overviewNodes}
+            onSelectNode={(id) => setSelSet(id ? new Set([id]) : new Set())}
+            onUpdateParam={(nodeId, patch) => updateParams(nodeId, patch)}
+            nodeTitle={nodeTitle}
+          />
+        </div>
+      ) : (
+        <aside className={styles.studyResults} aria-label="结果与参数" data-plots-open={plotsOpen}>
+          <header className={styles.studyResultHeading}>
+            <h2>实验结果</h2>
+            <button type="button" aria-expanded={plotsOpen} onClick={() => setPlotsOpen((open) => !open)}>
+              {plotsOpen ? '隐藏结果' : '显示结果'}
+            </button>
+          </header>
+          <div ref={setResultHost} className={styles.studyPlots} hidden={!plotsOpen} />
+          <h2>常用参数</h2>
+          <div className={styles.studyParams}>{studyPanel.exposed_params.map((param) => {
+            const node = doc.nodes.find((item) => item.id === param.node_id);
+            if (!node) return null;
+            const value = node.params[param.param_key] ?? param.min ?? 0;
+            return <label key={`${param.node_id}:${param.param_key}`}>
+              <span>{param.label}</span><output>{value}</output>
+              <input type="range" aria-label={param.label || param.param_key} min={param.min} max={param.max} step={param.step} value={value}
+                onChange={(event) => updateParams(node.id, { [param.param_key]: Number(event.target.value) })} />
+            </label>;
+          })}</div>
+        </aside>
+      )}
+      <button type="button" className={styles.studyMobileToggle} aria-pressed={mobileResults}
+        onClick={() => setMobileResults(!mobileResults)}>{mobileResults ? '查看画布' : '结果与参数'}</button>
     </div>
   );
 

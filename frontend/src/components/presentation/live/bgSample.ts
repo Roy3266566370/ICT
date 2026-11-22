@@ -66,17 +66,58 @@ export function ringColor(pixels: Pixels, box: PageFraction): string | null {
   return `rgb(${r}, ${g}, ${b})`;
 }
 
-/** 区域外圈底色；加载中、失败或不适合纯色覆盖时为 null。 */
-export function useRingBackground(url: string | undefined, box: PageFraction | null): string | null {
+/**
+ * 当外圈采样因紧邻图注文字或卡片边界而离散时，从区域内侧四角附近采样底色（避开中心图形与坐标轴）。
+ */
+export function insetCornerColor(pixels: Pixels, box: PageFraction): string | null {
+  const { data, width, height } = pixels;
+  const x0 = Math.max(0, Math.min(width - 1, Math.round(box.x * width)));
+  const y0 = Math.max(0, Math.min(height - 1, Math.round(box.y * height)));
+  const x1 = Math.max(x0 + 1, Math.min(width - 1, Math.round((box.x + box.w) * width)));
+  const y1 = Math.max(y0 + 1, Math.min(height - 1, Math.round((box.y + box.h) * height)));
+  const insetX = Math.max(2, Math.round((x1 - x0) * 0.06));
+  const insetY = Math.max(2, Math.round((y1 - y0) * 0.06));
+  const samples: Array<[number, number, number]> = [];
+  const take = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const i = (y * width + x) * 4;
+    samples.push([data[i]!, data[i + 1]!, data[i + 2]!]);
+  };
+  const corners: Array<[number, number]> = [
+    [x0 + insetX, y0 + insetY],
+    [x1 - insetX, y0 + insetY],
+    [x0 + insetX, y1 - insetY],
+    [x1 - insetX, y1 - insetY],
+  ];
+  for (const [cx, cy] of corners) {
+    for (const dx of [-1, 0, 1]) {
+      for (const dy of [-1, 0, 1]) take(cx + dx, cy + dy);
+    }
+  }
+  if (samples.length < 8) return null;
+  const channels = [0, 1, 2].map(c => samples.map(sample => sample[c]!));
+  const [r, g, b] = channels.map(values => median([...values]));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+/** 区域外圈底色；加载中、失败或不适合纯色覆盖时为 null。开启 fallbackInset 时回退到区域内侧四角底色。 */
+export function useRingBackground(
+  url: string | undefined,
+  box: PageFraction | null,
+  fallbackInset = false,
+): string | null {
   const [color, setColor] = useState<string | null>(null);
   const key = box ? `${box.x.toFixed(4)},${box.y.toFixed(4)},${box.w.toFixed(4)},${box.h.toFixed(4)}` : '';
   useEffect(() => {
     let alive = true;
     setColor(null);
     if (!url || !box) return;
-    void loadPixels(url).then(pixels => { if (alive && pixels) setColor(ringColor(pixels, box)); });
+    void loadPixels(url).then(pixels => {
+      if (!alive || !pixels) return;
+      setColor(ringColor(pixels, box) ?? (fallbackInset ? insetCornerColor(pixels, box) : null));
+    });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, key]);
+  }, [url, key, fallbackInset]);
   return color;
 }

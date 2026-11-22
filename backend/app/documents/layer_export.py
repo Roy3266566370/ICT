@@ -377,7 +377,9 @@ def export_page(source: Path, target: Path, page: int, timeout_s: float | None =
                     shape.Visible = 0
             except Exception as error:
                 frozen.append(identifier)
-                errors.append(f'{getattr(shape, "Name", identifier)}: {type(error).__name__}')
+                # A group/ungroup may invalidate this COM proxy. Do not query
+                # it again while recording an object-level fallback.
+                errors.append(f'{identifier}: {type(error).__name__}')
                 current = _shape_by_id(slide, shape_id)
                 if current is not None:
                     try:

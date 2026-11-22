@@ -9,9 +9,9 @@ from ..editing import working_path
 
 _RENDER_LOCKS:dict[str,threading.Lock]={}
 _RENDER_LOCKS_GUARD=threading.Lock()
-# PowerPoint COM is resource-heavy; cap concurrent automation instances while
-# still allowing different pages/materials to proceed independently.
-_COM_SLOTS=threading.BoundedSemaphore(2)
+# PowerPoint may share its automation process even with DispatchEx. A second
+# export closing that process invalidates the first page's shape proxies.
+_COM_SLOTS=threading.BoundedSemaphore(1)
 
 
 def _render_lock(material_id:str,page_no:int)->threading.Lock:

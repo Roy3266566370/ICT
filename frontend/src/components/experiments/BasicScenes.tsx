@@ -199,30 +199,3 @@ export function EigenDecompositionExperiment({spec, values, progress}: SceneComp
     </div>
   </div>;
 }
-
-export function RelationTypesExperiment({values, onChange}: SceneComponentProps) {
-  const selected = String(values.relation_case ?? 'similar');
-  const A: Mat2 = [[2, 0], [0, 3]];
-  const cases: Record<string, {title: string; formula: string; B: Mat2; kept: string; note: string}> = {
-    equivalent: {title: '等价', formula: 'B = Q⁻¹·A·P', B: [[1, 0], [0, 1]], kept: '秩 = 2', note: '输入、输出基各换各的；只保证秩。'},
-    similar: {title: '相似', formula: 'B = P⁻¹·A·P', B: [[3, 0], [0, 2]], kept: '迹 5 · 行列式 6 · 特征值 2,3 · 秩 2', note: '同一套基一起换；内蕴量全保住。'},
-    congruent: {title: '合同', formula: 'B = Pᵀ·A·P', B: [[8, 0], [0, 12]], kept: '惯性指数 2 · 秩 2', note: '二次型换基；两侧都代入，出现转置。'},
-  };
-  const current = cases[selected] ?? cases.similar!;
-  return <div className={styles.specialScene}>
-    <div className={styles.sceneToolbar}><div><b>三种换基不能混</b><span>同时看公式、可变条件和保住的量。</span></div>
-      <div className={styles.sceneButtons}>{Object.entries(cases).map(([key, item]) => <button key={key} type="button"
-        aria-pressed={selected === key} onClick={() => onChange('relation_case', key)}>{item.title}</button>)}</div>
-    </div>
-    <div className={styles.scenePanels}>
-      <div className={styles.scenePanel}><h4>{current.title}</h4><p>{current.formula}</p>
-        <p>A = {formatMatrix(A)}</p><p>B = {formatMatrix(current.B)}</p>
-        <div className={styles.sceneMetrics}><span>保持<b>{current.kept}</b></span><span>秩<b>{matrixRank({a: current.B[0][0], b: current.B[0][1], c: current.B[1][0], d: current.B[1][1]})}</b></span></div>
-      </div>
-      <div className={styles.scenePanel}><h4>怎么读</h4><p>{current.note}</p>
-        <p>等价只看秩；相似看特征值/迹/行列式/秩；合同看惯性指数。</p>
-        <div className={styles.sceneWarning}>Q 正交时相似与合同公式外形相同，但一个换变换坐标，一个换二次型坐标。</div>
-      </div>
-    </div>
-  </div>;
-}

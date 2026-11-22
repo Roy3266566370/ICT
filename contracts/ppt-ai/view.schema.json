@@ -54,7 +54,9 @@
         "fontWeight": {"enum": ["normal", "bold", 400, 600, 700]},
         "textAnchor": {"enum": ["start", "middle", "end"]},
         "align": {"enum": ["left", "center", "right"]},
-        "dash": {"type": "array", "items": {"type": "number"}, "maxItems": 8}
+        "dash": {"type": "array", "items": {"type": "number"}, "maxItems": 8},
+        "arrowStart": {"type": "boolean"},
+        "arrowEnd": {"type": "boolean"}
       }
     },
     "node": {
@@ -63,7 +65,7 @@
       "required": ["id", "type"],
       "properties": {
         "id": {"type": "string", "minLength": 1, "maxLength": 96},
-        "type": {"enum": ["group", "text", "point", "line", "polyline", "rect", "circle", "axes", "curve", "heatmap", "scene3d"]},
+        "type": {"enum": ["group", "text", "point", "line", "polyline", "rect", "circle", "axes", "curve", "heatmap", "scene3d", "mermaid", "chart"]},
         "binding": {"type": ["string", "null"], "maxLength": 96},
         "x": {"type": "number"}, "y": {"type": "number"},
         "w": {"type": "number", "minimum": 0}, "h": {"type": "number", "minimum": 0},
@@ -91,6 +93,67 @@
             "params": {"type": "object"}
           }
         },
+        "mermaid": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code"],
+          "properties": {
+            "code": {"type": "string", "minLength": 4, "maxLength": 4000},
+            "activeNodes": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {"type": "string", "minLength": 1, "maxLength": 48}
+            },
+            "theme": {"enum": ["warm", "neutral", "default"]}
+          }
+        },
+        "chart": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["chartType", "series"],
+          "properties": {
+            "chartType": {"enum": ["bar", "line", "area", "scatter", "pie"]},
+            "title": {"type": "string", "maxLength": 80},
+            "xLabel": {"type": "string", "maxLength": 40},
+            "yLabel": {"type": "string", "maxLength": 40},
+            "categories": {
+              "type": "array",
+              "maxItems": 40,
+              "items": {"type": "string", "minLength": 1, "maxLength": 48}
+            },
+            "series": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "values"],
+                "properties": {
+                  "name": {"type": "string", "minLength": 1, "maxLength": 48},
+                  "color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+                  "values": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 200,
+                    "items": {
+                      "oneOf": [
+                        {"type": "number"},
+                        {"$ref": "#/$defs/point"}
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "yDomain": {
+              "type": "array",
+              "items": {"type": "number"},
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
+        },
         "style": {"$ref": "#/$defs/style"}
       },
       "allOf": [
@@ -104,7 +167,9 @@
         {"if": {"properties": {"type": {"const": "curve"}}}, "then": {"required": ["series", "x_min", "x_max", "y_min", "y_max"]}},
         {"if": {"properties": {"type": {"const": "heatmap"}}}, "then": {"required": ["cells", "x_min", "x_max", "y_min", "y_max"]}},
         {"if": {"properties": {"type": {"const": "group"}}}, "then": {"required": ["children"]}},
-        {"if": {"properties": {"type": {"const": "scene3d"}}}, "then": {"required": ["scene3d"]}}
+        {"if": {"properties": {"type": {"const": "scene3d"}}}, "then": {"required": ["scene3d"]}},
+        {"if": {"properties": {"type": {"const": "mermaid"}}}, "then": {"required": ["mermaid"]}},
+        {"if": {"properties": {"type": {"const": "chart"}}}, "then": {"required": ["chart"]}}
       ]
     }
   }

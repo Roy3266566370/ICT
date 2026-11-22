@@ -31,8 +31,6 @@ const MaterialDeckPage = lazy(routeLoaders.workbench);
 const FreeEditPage = lazy(routeLoaders.freeEdit);
 const PptAiPage = lazy(routeLoaders.pptAi);
 const LivingPagesPage = lazy(routeLoaders.living);
-const LivingPageEditor = lazy(routeLoaders.livingEditor);
-const LivingPageShare = lazy(routeLoaders.livingShare);
 const WorkshopPage = lazy(routeLoaders.workshop);
 const WorkSharePage = lazy(routeLoaders.workShare);
 const LoginPage = lazy(routeLoaders.login);
@@ -93,8 +91,6 @@ export const routes: RouteObject[] = [
       { path: 'labs/:labId', element: <LabWorkbenchPage /> },
       { path: 'lab-share/:shareId', element: <LabSharePage /> },
       { path: 'living', element: <LivingPagesPage /> },
-      { path: 'living/:pageId', element: <LivingPageEditor /> },
-      { path: 'page-shares/:shareId', element: <LivingPageShare /> },
       { path: 'workshop', element: <WorkshopPage /> },
       { path: 'work-shares/:shareId', element: <WorkSharePage /> },
       { path: 'materials/:materialId/prepare', element: <PreparePage /> },

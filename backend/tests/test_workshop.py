@@ -177,6 +177,49 @@ def test_delete_work(owner: TestClient) -> None:
     assert owner.get(f"/api/v1/works/{wid}").status_code == 404
 
 
+def test_408_pipeline_round_trips_through_share_and_fork(owner: TestClient, guest: TestClient) -> None:
+    document = dict(
+        DOC,
+        nodes=[
+            {"id": "n1", "type": "lab408Stage", "payload": "cacheSimLab/source",
+             "text": "0x1000 0x2000", "x": 10, "y": 10, "params": {}},
+            {"id": "n2", "type": "composite", "x": 300, "y": 10, "params": {},
+             "sub": {
+                 "nodes": [
+                     {"id": "pi", "type": "portIn", "x": 0, "y": 0, "params": {}},
+                     {"id": "n3", "type": "lab408Stage", "payload": "cacheSimLab/translation",
+                      "text": "1=8\n2=9", "x": 100, "y": 0, "params": {"entries": 4}},
+                 ],
+                 "wires": [{"id": "inside", "from": "pi", "to": "n3", "toPort": "in"}],
+                 "ports": [{"id": "pi", "dir": "in", "label": "CPU 访存流", "kind": "lab408Data"}],
+             }},
+        ],
+        wires=[{"id": "w1", "from": "n1", "fromPort": "out", "to": "n2", "toPort": "pi"}],
+        panel={"view_node_ids": ["n2"], "exposed_params": []},
+    )
+    session = _session(owner)
+    created = _create(owner, session, document)
+    work_id = created["work_id"]
+    saved = created["document"]
+    assert saved["nodes"][1]["sub"]["ports"][0]["kind"] == "lab408Data"
+    assert saved["nodes"][0]["payload"] == "cacheSimLab/source"
+    assert saved["panel"]["view_node_ids"] == ["n2"]
+
+    publish = owner.post(f"/api/v1/works/{work_id}/publish", headers=_h(session))
+    assert publish.status_code == 201
+    share_id = publish.json()["data"]["share_id"]
+    changed = dict(document, nodes=[dict(document["nodes"][0], text="0x4000"), document["nodes"][1]])
+    assert _patch(owner, session, work_id, 1, changed).status_code == 200
+    assert guest.get(f"/api/v1/work-shares/{share_id}").json()["data"]["document"] == saved
+
+    fork = guest.post(f"/api/v1/work-shares/{share_id}/fork", headers=_h(_session(guest)))
+    assert fork.status_code == 201
+    fork_id = fork.json()["data"]["work_id"]
+    forked = guest.get(f"/api/v1/works/{fork_id}").json()["data"]["document"]
+    assert forked["nodes"] == saved["nodes"]
+    assert forked["wires"] == saved["wires"]
+
+
 def test_panel_contract_validation(owner: TestClient) -> None:
     session = _session(owner)
     doc = dict(

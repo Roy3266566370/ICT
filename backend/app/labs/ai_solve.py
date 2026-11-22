@@ -16,6 +16,7 @@ import sympy as sp
 
 from .expr import parse_expression, safe_float
 from .kernel_models import ModelConditionsError
+from .math_verify_adapter import verify_math_equivalence
 from .model_contract import contract_payload, normalize_plan, MODEL_INSTRUCTIONS
 
 VERSION = "lab-ai.12"
@@ -337,8 +338,18 @@ def _matches(expected: Mapping[str, Any], answer: str) -> bool:
     variables = expected.get("variables") or ['dummy']
     raw = answer.strip().strip("{}[]")
     raw = re.sub(r"[A-Za-z][A-Za-z0-9_]*\s*=", "", raw)
-    actual = [_expr(part.strip(), variables) for part in re.split(r"[,，;；]|或", raw)]
-    return len(actual) == len(wanted) and all(any(_same(a, w) for w in wanted) for a in actual) and all(any(_same(a, w) for a in actual) for w in wanted)
+    try:
+        actual = [_expr(part.strip(), variables) for part in re.split(r"[,，;；]|或", raw)]
+        if len(actual) == len(wanted) and all(any(_same(a, w) for w in wanted) for a in actual) and all(any(_same(a, w) for a in actual) for w in wanted):
+            return True
+    except (ValueError, TypeError, ArithmeticError):
+        pass
+    # SymPy 文本解析未能直接匹配时，用 Math-Verify 做 LaTeX / 集合 / 根式等价核验兜底
+    expected_values = [str(v) for v in expected.get("values") or []]
+    expected_expr = expected_values[0] if len(expected_values) == 1 else "{" + ", ".join(expected_values) + "}"
+    if verify_math_equivalence(expected_expr, answer) is True:
+        return True
+    return False
 
 
 def check_ai_answer(problem: Mapping[str, Any], answer: str) -> dict:
@@ -493,6 +504,14 @@ def _compare_reference(expected: Mapping, answer: str) -> bool | None:
     try:
         if _matches(expected, answer.strip()):
             return True
+        expected_values = [str(v) for v in expected.get("values") or []]
+        if expected_values:
+            expected_expr = expected_values[0] if len(expected_values) == 1 else "{" + ", ".join(expected_values) + "}"
+            verdict = verify_math_equivalence(expected_expr, answer.strip())
+            if verdict is True:
+                return True
+            if verdict is False and not re.search(r"[\u4e00-\u9fff]", answer):
+                return False
         names = set(re.findall(r'[A-Za-z_][A-Za-z_0-9]*', answer))
         allowed = set(expected.get('variables') or []) | {'sqrt', 'sin', 'cos', 'log', 'exp', 'pi'}
         if re.search(r'[^\x00-\x7f，；]', answer) or not names <= allowed:

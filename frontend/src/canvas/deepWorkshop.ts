@@ -47,8 +47,8 @@ export function deepWorkshopDoc(kind: DeepTemplateKind): CanvasDoc {
     }
     case 'dlCnn': {
       const pixels = add('pixelGridSource', 0, 0, { preset: 0, brush: 1 });
-      const first = wire(pixels, add('conv2dOp', 1.15, 0, { kernel: 0, stride: 1, padding: 0, pool: 0, second: 0 }));
-      const second = wire(first, add('conv2dOp', 2.35, 0, { kernel: 0, stride: 1, padding: 0, pool: 0, second: 0 }));
+      const first = wire(pixels, add('conv2dOp', 1.15, 0, { kernel: 0, stride: 1, padding: 0, pool: 0, second: 0 }, 'conv1'));
+      const second = wire(first, add('conv2dOp', 2.35, 0, { kernel: 0, stride: 1, padding: 0, pool: 0, second: 0 }, 'conv2'));
       const poolEnabled = control('最大池化', 0, 0, 1, 1, 2);
       const pool = wire(second, add('studyPool', 3.55, 0));
       wire(poolEnabled, pool, '启用');

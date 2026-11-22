@@ -1,0 +1,95 @@
+import {test,expect} from '@playwright/test';
+import {resolve} from 'node:path';
+import {writeFile} from 'node:fs/promises';
+
+test('原始矩阵PPT自动识别六个重点页并原位交互、保存',async({page},info)=>{
+  test.setTimeout(900000);
+  await page.goto('/living');
+  await page.locator('input[type=file][accept*=".pptx"]').setInputFiles(resolve('..','用空间视角理解矩阵运算.pptx'));
+  await expect(page).toHaveURL(/\/materials\/[^/]+\/work/,{timeout:60000});
+  const materialId=page.url().match(/\/materials\/([^/]+)/)![1]!;
+  let detail:any;
+  await expect.poll(async()=>{
+    const response=await page.request.get(`/api/v1/materials/${materialId}`);
+    detail=(await response.json()).data;
+    return detail?.job?.stage;
+  },{timeout:720000,intervals:[2000,3000,5000],message:'等待真实视觉模型、像素校准与原位图层准备完成'}).toBe('awaiting_confirmation');
+  await writeFile(info.outputPath('recognized-document.json'),JSON.stringify(detail.scene_document,null,2));
+  const scene=(n:number)=>detail.scene_document.pages.find((p:any)=>p.page_no===n);
+  const maths=(n:number)=>scene(n).nodes.filter((node:any)=>node.type==='math_scene');
+  for(const n of [5,6,9,14,18,22])expect(maths(n).length,`P${n} ${JSON.stringify(scene(n).math_recognition)}`).toBeGreaterThan(0);
+  expect(maths(6)[0].math_scene.matrix).toEqual([[2,1],[1,2]]);
+  expect(maths(9)[0].math_scene.matrix).toEqual([[2,1],[1,2]]);
+  const composition=maths(5)[0].math_scene;
+  expect(composition.matrix[0][1]).toBeCloseTo(-.8,3);
+  expect(composition.comparison_matrix[0][1]).toBeCloseTo(-.5,3);
+  const svd=maths(14);
+  expect(svd).toHaveLength(1);
+  expect(svd[0].math_scene.steps).toHaveLength(3);
+  expect(svd[0].math_scene.steps[1].matrix[0][0]).toBeCloseTo(1.618,3);
+  expect(svd[0].math_scene.steps[1].matrix[1][1]).toBeCloseTo(.618,3);
+  const last=svd[0].math_scene.steps[2].matrix;
+  expect(Math.atan2(last[1][0],last[0][0])*180/Math.PI).toBeCloseTo(40,0);
+  const det=(m:number[][])=>m[0]![0]!*m[1]![1]!-m[0]![1]!*m[1]![0]!;
+  expect(maths(18).map((node:any)=>det(node.math_scene.matrix)).sort((a:number,b:number)=>a-b)).toEqual([0,1,1,6]);
+  expect(maths(22)[0].math_scene.matrix).toEqual([[2,0],[0,3]]);
+  expect(scene(11).nodes.find((node:any)=>node.matrix_ocr?.operation==='add').matrix_ocr.matrices.map((m:any)=>m.values))
+    .toEqual([[[1,2],[0,1]],[[2,0],[1,1]],[[3,2],[1,2]]]);
+
+  const open=async(n:number)=>{await page.goto(`/materials/${materialId}/work?page=${n}`);await expect(page.getByLabel(`幻灯片第 ${n} 页`,{exact:true})).toBeVisible();};
+  await open(6);
+  let slide=page.getByLabel('幻灯片第 6 页',{exact:true});
+  const graph=slide.locator('[data-math-scene]');
+  await expect(graph.locator('output')).toContainText('Av1 = (2, 1)');
+  const number=slide.locator('[data-matrix-image]').getByLabel('矩阵1 第1行 第1列',{exact:true});
+  await number.fill('3');
+  await expect(graph.locator('output')).toContainText('Av1 = (3, 1)');
+  await slide.getByRole('button',{name:'一键重置',exact:true}).click();
+  await expect(number).toHaveValue('2');
+  const handle=graph.locator('.mafs-movable-point-hitbox').first();
+  const box=(await handle.boundingBox())!;
+  await page.mouse.move(box.x+box.width/2,box.y+box.height/2);await page.mouse.down();
+  await page.mouse.move(box.x+box.width/2+25,box.y+box.height/2-15,{steps:6});await page.mouse.up();
+  await expect(graph.locator('output')).not.toContainText('Av1 = (2, 1)');
+  await page.screenshot({path:info.outputPath('p06-ocr-vector.png')});
+
+  await open(11);slide=page.getByLabel('幻灯片第 11 页',{exact:true});
+  const addition=slide.locator('[data-matrix-image]');
+  await addition.getByLabel('矩阵1 第1行 第1列',{exact:true}).fill('4');
+  await expect(addition.getByLabel('矩阵3 第1行 第1列',{exact:true})).toHaveValue('6');
+  await expect(addition.getByLabel('矩阵3 第1行 第1列',{exact:true})).toHaveAttribute('readonly','');
+
+  await open(14);slide=page.getByLabel('幻灯片第 14 页',{exact:true});
+  const animation=slide.locator('[data-math-scene]');
+  await animation.getByRole('button',{name:'第 2 步',exact:true}).click();
+  await animation.getByRole('button',{name:'第 3 步',exact:true}).click();
+  await animation.getByRole('button',{name:'播放',exact:true}).click();
+  await expect(animation.getByRole('button',{name:'暂停',exact:true})).toBeVisible();
+  await slide.getByRole('button',{name:'一键重置',exact:true}).click();
+  await expect(animation.getByRole('button',{name:'播放',exact:true})).toBeVisible();
+  await expect(animation.getByLabel('变换进度',{exact:true})).toHaveValue('1');
+  await page.screenshot({path:info.outputPath('p14-svd-steps.png')});
+  await open(18);await page.screenshot({path:info.outputPath('p18-area.png')});
+  await open(22);slide=page.getByLabel('幻灯片第 22 页',{exact:true});
+  await expect(slide.locator('[data-math-scene] output')).toContainText('P⁻¹AP = [2.5, -0.5; -0.5, 2.5]');
+  await page.getByRole('button',{name:/开始演示/}).click();
+  await expect(slide.locator('[data-math-scene]')).toBeVisible();
+  await page.screenshot({path:info.outputPath('p22-basis.png')});
+  await page.getByRole('button',{name:'查看原图',exact:true}).click();
+  await expect(slide.locator('[data-math-scene]')).toBeHidden();
+  await page.getByRole('button',{name:'退出演示',exact:true}).click();
+
+  await open(6);
+  await page.getByRole('link',{name:'编辑内容 / 交互'}).click();
+  const editor=page.locator('[data-free-editor]');
+  await editor.getByLabel('可编辑画布第 6 页',{exact:true}).locator('[data-matrix-image]').getByLabel('矩阵1 第1行 第1列',{exact:true}).fill('3');
+  await editor.getByRole('button',{name:'图层',exact:true}).click();
+  await editor.getByTitle(maths(6)[0].name,{exact:true}).click();
+  await expect(editor.getByLabel('对象属性').getByLabel('A11',{exact:true})).toHaveValue('3');
+  await editor.getByRole('button',{name:'保存并返回演示'}).click();
+  await expect(page).toHaveURL(/\/work/,{timeout:60000});
+  await page.reload();
+  slide=page.getByLabel('幻灯片第 6 页',{exact:true});
+  await expect(slide.locator('[data-matrix-image]').getByLabel('矩阵1 第1行 第1列',{exact:true})).toHaveValue('3');
+  await expect(slide.locator('[data-math-scene] output')).toContainText('Av1 = (3, 1)');
+});

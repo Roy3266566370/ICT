@@ -225,6 +225,20 @@ class Settings(BaseSettings):
         default=False,
         description="题目实验室是否允许调用已配置的 LLM；默认 false，识别与讲解全部本地完成",
     )
+    lab_ocr_backend: str = Field(
+        default="auto",
+        description="题目实验室 OCR 后端：auto（安装 Pix2Text 时优先图文公式混排）| pix2text | rapidocr",
+    )
+    lab_ocr_workers: int = Field(
+        default=2,
+        ge=1,
+        le=8,
+        description="题目实验室 OCR 并发实例池大小，避免单锁串行阻塞多请求",
+    )
+    lab_ink_backend: str = Field(
+        default="auto",
+        description="手写墨迹识别后端：auto（安装 ink2latex 时优先笔画序列）| ink2latex | raster",
+    )
 
     # --- PPT AI 领域模块（与题目实验室的 LAB_AI_ENABLED 相互独立）---
     ppt_ai_enabled: bool = Field(

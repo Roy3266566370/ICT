@@ -48,8 +48,10 @@ coverage/
 /backend/verify/
 /frontend/verify/
 /frontend/.tmp/
+/tmp/
 /tmp-perf/
 /tmp-s2-e2e/
+/vibe_images/
 *.log
 *.db
 *.db-*

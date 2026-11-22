@@ -17,3 +17,22 @@
 .chart { width:100%; height:100%; overflow:hidden; background:#fff; }
 .chart figure { margin:0; height:100%; padding:0; }
 .chart svg { width:100%; height:calc(100% - 24px); }
+
+.vectorControls { position:absolute; z-index:30000; right:10px; bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; max-width:calc(100% - 20px); padding:8px; border:1px solid #ccd2dc; border-radius:6px; background:#fff; color:#18233d; font:14px system-ui,sans-serif; }
+.vectorControls label { display:flex; align-items:center; gap:4px; }
+.vectorControls input[type=number] { width:75px; }
+.vectorControls input[type=color] { width:30px; height:23px; }
+.inlineControls,.mathPresentationControls { position:absolute; z-index:30002; display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px; border:1px solid #ccd2dc; border-radius:6px; background:#fff; color:#18233d; font:14px system-ui,sans-serif; box-sizing:border-box; }
+.inlineControls { max-height:120px; overflow:auto; }
+.inlineControls label { display:flex; align-items:center; gap:4px; }
+.inlineControls input[type=number] { width:65px; }
+.inlineControls input[type=color] { width:30px; }
+.mathPresentationControls { left:10px; bottom:10px; max-width:calc(100% - 20px); }
+.mathPresentationControls summary { cursor:pointer; padding:2px 6px; }
+.mathPresentationControls details[open] summary { margin-bottom:6px; }
+.canvas:has(.mathPresentationControls) .vectorControls { bottom:150px; }
+.resetDynamics { position:absolute; right:10px; top:10px; z-index:30003; padding:7px 12px; background:white; color:#18233d; border:1px solid #ccd2dc; border-radius:5px; cursor:pointer; }
+
+.canvas :global(.mathControls[data-playback-only=true]) { gap:3px; font-size:10px; }
+.canvas :global(.mathControls[data-playback-only=true] input[type=range]) { width:60px; }
+.canvas :global(.mathControls[data-playback-only=true] button) { padding:2px 4px; font:inherit; }

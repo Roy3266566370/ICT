@@ -31,11 +31,25 @@ python-pptx==1.0.2
 # 确定性内核与独立校验（C-ENGINE@1）
 numpy==1.26.2
 sympy==1.14.0
+# 数学表达式与 LaTeX/集合/区间等价校验（可选增强，缺失时自动回退原有 SymPy 判分）
+math-verify==0.9.0
 
 # 契约与夹具读取
 PyYAML==6.0.2
 jsonschema==4.23.0
 rapidocr_onnxruntime==1.4.4
+# Mixed text/formula OCR (CPU). Keep the compatible pre-DocLayout release:
+# newer DocLayout dependencies require Pydantic >=2.7 and break this backend's pin.
+pix2text==1.1.1
+cnocr[ort-cpu]==2.3.0.3
+cnstd==1.2.6
+transformers==4.44.2
+optimum[onnxruntime]==1.23.3
+ultralytics==8.3.0
+pytorch-lightning==2.2.5
+torchmetrics==1.4.3
+wandb==0.17.9
+onnx==1.16.2
 # 公式截图转 LaTeX（本地 ONNX，CPU 推理）。首次使用会下载约 180MB 权重；
 # 模型不可用/下载失败时 extract.py 自动回退到 rapidocr，不影响上传。
 rapid-latex-ocr==0.0.9
@@ -45,6 +59,10 @@ PyMuPDF>=1.23
 
 # 自检（tests/**、scripts/dev_run.py 使用）
 httpx==0.25.1
+# Instructor 1.0.0 supports our Pydantic pin and imports Anthropic at startup.
+instructor==1.0.0
+openai==1.13.3
+anthropic==0.23.1
 pytest==7.4.3
 pytest-asyncio==0.21.1
 # 渲染链路（R1 / spec §3：整页底图 + 擦除底图）

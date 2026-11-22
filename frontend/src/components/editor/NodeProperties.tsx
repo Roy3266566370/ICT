@@ -1,3 +1,6 @@
+import { VectorControls } from './VectorLine';
+import {MathSceneControls} from './MathSceneView';
+import {DynamicStyleControls} from './DynamicStyleControls';
 import {useEffect,useMemo,useState} from 'react';
 import type {NodeInteraction,SceneNode,NodePatch,TextStyle,InteractionTemplate} from '@/document/types';
 import type {ISpec,SpecEvaluation} from '@/ispec/types';
@@ -9,12 +12,97 @@ import {FigureSpecView} from '@/components/ispec/views/FigureSpecView';
 import {VegaSpecView} from '@/components/ispec/views/VegaSpecView';
 import {FIGURE_TEMPLATE_OPTIONS,defaultInteraction,formulaPreview,matrixPreview,parseFormulaText} from './interactionPreview';
 import styles from './FreeDeckEditor.module.css';
-interface Props {node:SceneNode|null;count:number;disabled:boolean;pageNo:number;materialId?:string;autoSpecs?:ISpec[];
+interface Props {node:SceneNode|null;count:number;disabled:boolean;pageNo:number;materialId?:string;autoSpecs?:ISpec[];pageNodes?:SceneNode[];
   onPatch:(patch:NodePatch,key?:string)=>void;onDuplicate:()=>void;onDelete:()=>void;
+  onDiagramBuild?:(text:string,ai:boolean)=>void|Promise<void>;onDemoGenerate?:()=>void;generating?:boolean;
   onInteraction:(config:NodeInteraction|null)=>void;onReinteract?:()=>void;reinteracting?:boolean;onRestoreContent?:()=>void;}
-export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=[],onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent}:Props){
+function VectorProperties({node,disabled,pageNodes=[],onPatch,onDuplicate,onDelete}:{node:SceneNode;disabled:boolean;pageNodes?:SceneNode[];
+  onPatch:(patch:NodePatch,key?:string)=>void;onDuplicate:()=>void;onDelete:()=>void}){
+  const peers=useMemo(()=>pageNodes.filter(item=>item.type==='vector'&&!item.deleted&&!item.hidden&&item.id!==node.id),[pageNodes,node.id]);
+  const [firstId,setFirstId]=useState(()=>node.basis?.firstId??peers[0]?.id??'');
+  const [resultId,setResultId]=useState(()=>node.basis?.resultId??peers[1]?.id??peers[0]?.id??'');
+  useEffect(()=>{
+    setFirstId(node.basis?.firstId??peers[0]?.id??'');
+    setResultId(node.basis?.resultId??peers.find(p=>p.id!==(node.basis?.firstId??peers[0]?.id))?.id??peers[0]?.id??'');
+  },[node.id,node.basis,peers]);
+  const canLink=peers.length>=2&&firstId&&resultId&&firstId!==resultId;
+  return <aside className={styles.properties} aria-label="对象属性">
+    <div className={styles.propertyTitle}><h2>线条属性</h2><span>{node.name}</span></div>
+    <fieldset disabled={disabled || node.locked}>
+      <section><h3>外观与动态</h3><div className={styles.numberGrid}><VectorControls node={node} onPatch={onPatch} full/></div></section>
+      {peers.length>=2&&<section><h3>换基与向量分解联动</h3>
+        <p className={styles.hint}>将当前线条设为可拖动斜基 b₂，自动计算目标合向量在 (b₁, b₂) 下的坐标与平行四边形分解虚线。</p>
+        <div className={styles.numberGrid}>
+          <label>基向量 b₁<select aria-label="选择基向量 b₁" value={firstId} onChange={e=>setFirstId(e.target.value)}>
+            {peers.map((item,i)=><option key={item.id} value={item.id}>{item.name} ({i+1})</option>)}
+          </select></label>
+          <label>合向量 v<select aria-label="选择合向量 v" value={resultId} onChange={e=>setResultId(e.target.value)}>
+            {peers.map((item,i)=><option key={item.id} value={item.id}>{item.name} ({i+1})</option>)}
+          </select></label>
+        </div>
+        <div className={styles.interactionActions}>
+          <button type="button" className={styles.applyButton} disabled={!canLink} onClick={()=>onPatch({
+            basis:{firstId,secondId:node.id,resultId,title:[Math.max(24,Math.round(node.x-40)),Math.max(24,Math.round(node.y-64))],fontSize:22},
+          },'vector.basis')}>{node.basis?'更新换基联动':'启用换基联动'}</button>
+          {node.basis&&<button type="button" onClick={()=>onPatch({basis:null},'vector.basis')}>解除换基联动</button>}
+        </div>
+      </section>}
+    </fieldset>
+    <fieldset disabled={disabled}>
+      <section><h3>对象操作</h3><div className={styles.objectButtons}>
+        <button type="button" onClick={onDuplicate}>复制对象</button>
+        <button type="button" onClick={()=>onPatch({locked:!node.locked})}>{node.locked?'解锁对象':'锁定对象'}</button>
+        <button type="button" onClick={()=>onPatch({hidden:!node.hidden})}>{node.hidden?'显示对象':'隐藏对象'}</button>
+        <button type="button" className={styles.danger} onClick={onDelete}>删除对象</button>
+      </div></section>
+    </fieldset>
+  </aside>;
+}
+function InlineSystemProperties({node,disabled,onPatch,onDuplicate,onDelete,onDiagramBuild,onDemoGenerate,generating}:Props&{node:SceneNode}){
+  const [text,setText]=useState(()=>node.diagram?.edges.map(edge=>{
+    const label=(id:string)=>node.diagram?.nodes.find(n=>n.id===id)?.label??id;
+    return `${edge.from}[${label(edge.from)}] --> ${edge.to}[${label(edge.to)}]`;
+  }).join('\n')??'');
+  const demo=node.demo;
+  return <aside className={styles.properties} aria-label="对象属性"><h2>{node.type==='diagram'?'原位流程图':'AI 演示框'}</h2>
+    <fieldset disabled={disabled||node.locked||generating}>
+      <section><h3>图框位置与大小</h3><div className={styles.numberGrid}>{(['x','y','width','height','rotation'] as const).map((key,i)=><label key={key}>
+        {['横坐标','纵坐标','框宽','框高','旋转角度'][i]}<input type="number" aria-label={['横坐标','纵坐标','框宽','框高','旋转角度'][i]} value={Number(node[key].toFixed(2))} step="1"
+          onChange={e=>{const value=e.currentTarget.valueAsNumber;if(Number.isFinite(value)&&Math.abs(value)<=20000&&(!['width','height'].includes(key)||value>=80))onPatch({[key]:value},`frame.${key}`);}}/></label>)}</div></section>
+      {node.type==='diagram'?<>
+        <section><h3>从文字生成流程图</h3><textarea aria-label="流程图描述" rows={7} value={text} onChange={e=>setText(e.target.value)} placeholder="输入 → 处理 → 输出，换行添加分支"/>
+          <div className={styles.objectButtons}><button type="button" onClick={()=>void onDiagramBuild?.(text,false)}>应用流程文字</button>
+            <button type="button" onClick={()=>void onDiagramBuild?.(text,true)}>AI 根据本页生成流程图</button></div></section>
+        <section><h3>外观与流动</h3><div className={styles.numberGrid}><DynamicStyleControls node={node} onPatch={onPatch} author/></div></section>
+      </>:<>
+        <section><button type="button" onClick={onDemoGenerate}>{generating?'正在生成演示…':demo?'重新生成演示':'AI 根据本页生成演示'}</button></section>
+        {demo&&<section><h3>{demo.title}</h3><p className={styles.hint}>{demo.summary}</p>
+          <h3>开放给观众的参数</h3>{demo.params.map(param=><label key={param.id} style={{display:'block',marginBottom:10}}>
+            <input type="checkbox" aria-label={`公开 ${param.label}`} checked={(demo.public_params??demo.params.map(p=>p.id)).includes(param.id)} onChange={e=>{
+              const current=demo.public_params??demo.params.map(p=>p.id);onPatch({demo:{...demo,public_params:e.target.checked?[...current,param.id]:current.filter(id=>id!==param.id)}});
+            }}/>{param.label}
+            <input type="number" aria-label={`默认值 ${param.label}`} min={param.min} max={param.max} step={param.step} value={param.default} onChange={e=>{
+              const value=e.currentTarget.valueAsNumber;if(Number.isFinite(value)&&value>=param.min&&value<=param.max)onPatch({demo:{...demo,params:demo.params.map(p=>p.id===param.id?{...p,default:value}:p)}},`demo.default.${param.id}`);
+            }}/></label>)}
+          <label><input type="checkbox" checked={node.viewer_editable!==false} onChange={e=>onPatch({viewer_editable:e.target.checked})}/>允许观众调节参数</label>
+        </section>}
+      </>}
+    </fieldset>
+    <fieldset disabled={disabled}><section><div className={styles.objectButtons}><button onClick={onDuplicate}>复制对象</button>
+      <button onClick={()=>onPatch({locked:!node.locked})}>{node.locked?'解锁对象':'锁定对象'}</button>
+      <button onClick={()=>onPatch({hidden:!node.hidden})}>{node.hidden?'显示对象':'隐藏对象'}</button><button onClick={onDelete}>删除对象</button></div></section></fieldset>
+  </aside>;
+}
+export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=[],pageNodes=[],onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onDiagramBuild,onDemoGenerate,generating}:Props){
   if(!node)return <aside className={styles.properties} aria-label="对象属性"><h2>对象属性</h2><p className={styles.hint}>点击画布中的对象，拖动调整位置。双击文字可直接输入，也可从左侧图层选择对象。</p></aside>;
-  return <NodePropertiesInner key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo} materialId={materialId} autoSpecs={autoSpecs}
+  if(node.type==='vector')return <VectorProperties node={node} disabled={disabled} pageNodes={pageNodes} onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete}/>;
+  if(node.type==='diagram'||node.type==='demo')return <InlineSystemProperties key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo}
+    onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onInteraction={onInteraction} onDiagramBuild={onDiagramBuild} onDemoGenerate={onDemoGenerate} generating={generating}/>;
+  if(node.type==='math_scene')return <aside className={styles.properties} aria-label="对象属性"><h2>数学图属性</h2>
+    <fieldset disabled={disabled||node.locked}><MathSceneControls key={node.id} node={node} onPatch={onPatch} author/></fieldset>
+    <fieldset disabled={disabled}><button onClick={onDuplicate}>复制对象</button><button onClick={()=>onPatch({locked:!node.locked})}>{node.locked?'解锁对象':'锁定对象'}</button><button onClick={onDelete}>删除对象</button></fieldset>
+  </aside>;
+  return <NodePropertiesInner key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo} materialId={materialId} autoSpecs={autoSpecs} pageNodes={pageNodes}
     onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onInteraction={onInteraction} onReinteract={onReinteract}
     reinteracting={reinteracting} onRestoreContent={onRestoreContent}/>;
 }

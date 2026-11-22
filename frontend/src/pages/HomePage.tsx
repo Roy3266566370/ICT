@@ -290,7 +290,7 @@ export function HomePage(): JSX.Element {
                 </div>
 
                 <div className="hero__fineprint">
-                  <span>PDF / PNG / JPG / PPTX / 文字</span>
+                  <span>PPTX / PDF / PNG / JPG</span>
                   <span>单次最多 6 份材料</span>
                   <span>公式先核对，再求解</span>
                 </div>
@@ -670,7 +670,7 @@ export function HomePage(): JSX.Element {
 
       {uploadOpen ? (
         <div className="wx-upload-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}>
-          <div ref={dialogRef} className="wx-upload-dialog" role="dialog" aria-modal="true" aria-label="上传材料生成活页">
+          <div ref={dialogRef} className="wx-upload-dialog" role="dialog" aria-modal="true" aria-label="上传教学材料">
             <button ref={closeRef} type="button" className="wx-upload-close" onClick={closeUpload} aria-label="关闭上传窗口">×</button>
             <div className="wx-upload-body"><LivingUploadPanel /></div>
           </div>

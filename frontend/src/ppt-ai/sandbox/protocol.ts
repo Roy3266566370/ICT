@@ -11,8 +11,12 @@ export const MAX_NODES = 2000;
 export const MAX_MESSAGE_BYTES = 256 * 1024;
 
 const NODE_TYPES = new Set([
-  'group', 'text', 'point', 'line', 'polyline', 'rect', 'circle', 'axes', 'curve', 'heatmap', 'scene3d',
+  'group', 'text', 'point', 'line', 'polyline', 'rect', 'circle', 'axes', 'curve', 'heatmap', 'scene3d', 'mermaid', 'chart',
 ]);
+const MERMAID_HEAD_RE = /^\s*(?:flowchart|graph|sequenceDiagram|stateDiagram(?:-v2)?|classDiagram|erDiagram|mindmap)\b/i;
+const MERMAID_FORBIDDEN_RE = /(?:^\s*click\s+|\bjavascript:|<script\b|\bhref\s*=|\bonclick\s*=|\bforeignObject\b)/im;
+const MERMAID_NODE_ID_RE = /^[A-Za-z0-9_-]{1,48}$/;
+const CHART_TYPES = new Set(['bar', 'line', 'area', 'scatter', 'pie']);
 const FORBIDDEN_KEYS = new Set([
   'script', 'onclick', 'onload', 'onerror', 'onmouseover', 'href', 'src',
   'foreignobject', 'dangerouslysetinnerhtml', 'innerhtml',
@@ -104,6 +108,49 @@ export function validateViewAst(ast: unknown, bindings: string[] = []): string[]
       }
       if (typeof item.binding === 'string' && item.binding && !allowedBindings.has(item.binding)) {
         errors.push(`绑定未登记：${item.binding}`);
+      }
+      if (item.type === 'mermaid') {
+        const m = item.mermaid;
+        if (!isRecord(m) || typeof m.code !== 'string' || !m.code.trim() || m.code.length > 4000) {
+          errors.push('mermaid 节点缺少合法的 code');
+        } else {
+          if (!MERMAID_HEAD_RE.test(m.code)) errors.push('mermaid.code 必须以受支持的图类型开头');
+          if (MERMAID_FORBIDDEN_RE.test(m.code)) errors.push('mermaid.code 包含禁止的脚本或跳转指令');
+        }
+        if (m && isRecord(m) && m.activeNodes !== undefined) {
+          if (!Array.isArray(m.activeNodes) || m.activeNodes.length > 16 ||
+            m.activeNodes.some((n) => typeof n !== 'string' || !MERMAID_NODE_ID_RE.test(n))) {
+            errors.push('mermaid.activeNodes 包含非法节点 ID');
+          }
+        }
+      }
+      if (item.type === 'chart') {
+        const c = item.chart;
+        if (!isRecord(c) || typeof c.chartType !== 'string' || !CHART_TYPES.has(c.chartType)) {
+          errors.push('chart 节点缺少合法的 chartType');
+        } else if (!Array.isArray(c.series) || c.series.length < 1 || c.series.length > 6) {
+          errors.push('chart.series 必须包含 1~6 个系列');
+        } else if (c.chartType !== 'scatter') {
+          if (!Array.isArray(c.categories) || c.categories.length < 1 || c.categories.length > 40) {
+            errors.push('非散点图必须提供 1~40 个 categories');
+          } else {
+            for (const s of c.series) {
+              if (!isRecord(s) || !Array.isArray(s.values) || s.values.length !== c.categories.length ||
+                s.values.some((v) => typeof v !== 'number' || !Number.isFinite(v))) {
+                errors.push('chart.series[].values 长度或数值非法');
+                break;
+              }
+            }
+          }
+        } else {
+          for (const s of c.series) {
+            if (!isRecord(s) || !Array.isArray(s.values) || !s.values.length ||
+              s.values.some((pt) => !Array.isArray(pt) || pt.length !== 2 || typeof pt[0] !== 'number' || typeof pt[1] !== 'number')) {
+              errors.push('散点图 values 必须为 [x, y] 数值对');
+              break;
+            }
+          }
+        }
       }
       if (Array.isArray(item.children)) walk(item.children);
     }

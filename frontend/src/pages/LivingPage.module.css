@@ -400,26 +400,6 @@
   border-top: 1px solid var(--hairline);
 }
 
-.lessonButton {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.lessonButton:disabled {
-  cursor: progress;
-  opacity: 0.6;
-}
-
-.lessonDesc {
-  color: var(--ink-500);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
 .pageItem {
   display: flex;
   align-items: center;

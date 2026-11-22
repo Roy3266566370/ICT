@@ -16,9 +16,20 @@ import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { Formula } from '@/components/showcase/Formula';
 import type { CanvasNode, NodeType, PortSpec, PortValue } from './types.ts';
 import { det, tr, eigen, rankOf, fmt, clamp, paramsM, type M2 } from './math.ts';
-import { physCycle, samplePath } from './physics.ts';
 import { FunctionSourceBody, FunctionPlotBody, DerivativeBody, LimitBody, IntegralBody, TaylorBody } from './CalculusNodes';
+import { DoubleIntegralBody, FourierLabBody, FtcViewBody, Func2dSourceBody, GradientContourBody, OdeSlopeFieldBody } from './CalculusAdvancedNodes';
+import {
+  CollisionBody, EnergyBody, InclineBody, PendulumBody, ProjectileBody, ResonanceBody, SpringBody, TrailBody, WaveBody,
+} from './PhysicsNodes';
 import { CacheSplitBody, DsTraversalBody, IpSubnetBody, Lab408WorkbenchBody, PageReplaceBody } from './Lab408Nodes';
+import { CacheSimBody, CpuScheduleBody, PipelineBody, TcpCongestionBody } from './Lab408SimNodes';
+import { BankerBody, DsStepBody, Ieee754Body, SlidingWindowBody } from './Lab408SimMoreNodes';
+import { Lab408PipelineNode } from './Lab408PipelineNode';
+import { pipelinePorts } from './lab408Pipeline.ts';
+import { PhysicsPipelineNode } from './PhysicsPipelineNode';
+import { physicsPipelinePorts } from './physicsPipeline.ts';
+import { CalculusPipelineNode } from './CalculusPipelineNode';
+import { calculusPipelinePorts } from './calculusPipeline.ts';
 import { AttentionSimBody, PageLabSimBody } from './SimNodes';
 import { DEEP_FIRST_DEFS, deepFirstDefaults } from './DeepFirstNodes';
 import { DEEP_CORE_DEFS, deepCoreDefaults } from './DeepCoreNodes';
@@ -35,9 +46,12 @@ export interface NodeBodyProps {
   onParams?: (patch: Record<string, number>) => void;
   /** 文本写回 */
   onText?: (text: string) => void;
+  /** 载荷写回（如上传真实图片、导入 CSV 数据集） */
+  onPayload?: (payload: string | undefined) => void;
   /** composite：请求展开（解封装）回本层 */
   onExplode?: () => void;
   onLive?: (outputs: Record<string, PortValue>) => void;
+  timeline?: { step: number; last: number; onStep: (step: number) => void };
 }
 
 export interface NodeDef {
@@ -547,185 +561,6 @@ function CobwebBody({ node, onParams }: NodeBodyProps): JSX.Element {
   );
 }
 
-/* ============================== 注册表 ============================== */
-
-/* ============================== 力学实验台 ============================== */
-
-function SliderRow({ label, v, min, max, step, onChange }: {
-  label: string; v: number; min: number; max: number; step: number;
-  onChange: (v: number) => void;
-}): JSX.Element {
-  return (
-    <div className={styles.miniRead}>
-      <span className={styles.dim}>{label}</span>
-      <input
-        type="range" className={styles.slider} style={{ flex: 1 }}
-        min={min} max={max} step={step} value={v}
-        aria-label={label}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-      />
-      <b className={styles.live}>{fmt(v)}</b>
-    </div>
-  );
-}
-
-const asBody = (v: PortValue | null | undefined): Extract<PortValue, { kind: 'body' }> | null =>
-  v && v.kind === 'body' ? v : null;
-
-function RunToggle({ node, onParams }: { node: CanvasNode; onParams?: (patch: Record<string, number>) => void }): JSX.Element {
-  const running = (node.params.running ?? 1) !== 0;
-  return (
-    <button type="button" className={styles.tbtn} onClick={() => onParams?.({ running: running ? 0 : 1 })}>
-      {running ? '⏸ 暂停' : '▶ 运行'}
-    </button>
-  );
-}
-
-function ProjectileBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
-  const b = asBody(self);
-  const v0 = node.params.v0 ?? 8, ang = node.params.angle ?? 55, g = node.params.g ?? 9.8;
-  const range = Math.max(0.1, (v0 * v0 * Math.sin(2 * ang * Math.PI / 180)) / g);
-  const hMax = Math.max(0.05, (v0 * Math.sin(ang * Math.PI / 180)) ** 2 / (2 * g));
-  const path = samplePath('projectile', node.params, physCycle('projectile', node.params));
-  const pts = path.map(([x, y]) => `${(x / range) * 188 + 6},${82 - (y / hMax) * 74}`).join(' ');
-  const bx = b ? (b.x / range) * 188 + 6 : 6;
-  const by = b ? 82 - (b.y / hMax) * 74 : 82;
-  return (
-    <div>
-      <svg className={styles.objSvg} viewBox="0 0 200 90" role="img" aria-label="抛体运动">
-        <line x1="0" y1="82" x2="200" y2="82" stroke="#2F3A49" strokeWidth="1.2" />
-        <polyline points={pts} fill="none" stroke="#EDE7DA" strokeWidth="1.4" strokeDasharray="3 3" />
-        {b ? <circle cx={bx} cy={by} r={4.5} fill="#FF7A59" stroke="#fff" strokeWidth="1.2" /> : null}
-      </svg>
-      <div className={styles.miniRead}>
-        <RunToggle node={node} onParams={onParams} />
-        {b ? <span>x <b className={styles.live}>{fmt(b.x)}m</b> · v <b className={styles.live}>{fmt(Math.hypot(b.vx, b.vy))}m/s</b></span> : null}
-      </div>
-      <SliderRow label="v0" v={v0} min={1} max={20} step={0.5} onChange={(v) => onParams?.({ v0: v })} />
-      <SliderRow label="角度°" v={ang} min={5} max={85} step={1} onChange={(v) => onParams?.({ angle: v })} />
-      <SliderRow label="g" v={g} min={1} max={25} step={0.1} onChange={(v) => onParams?.({ g: v })} />
-    </div>
-  );
-}
-
-function SpringBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
-  const b = asBody(self);
-  const A = Math.max(0.1, node.params.x0 ?? 1);
-  const k = node.params.k ?? 6, m = node.params.m ?? 1;
-  const w = Math.sqrt(k / m);
-  const mx = b ? 108 + (b.x / A) * 66 : 108 + 66;
-  // 弹簧折线：墙(14) → 滑块左缘(mx-10)
-  const seg = 7, sx0 = 16, sx1 = Math.max(sx0 + 8, mx - 12);
-  const coil = Array.from({ length: seg + 1 }, (_, i) => {
-    const px = sx0 + ((sx1 - sx0) * i) / seg;
-    const py = i === 0 || i === seg ? 40 : i % 2 ? 28 : 52;
-    return `${px},${py}`;
-  }).join(' ');
-  return (
-    <div>
-      <svg className={styles.objSvg} viewBox="0 0 200 80" role="img" aria-label="弹簧振子">
-        <line x1="14" y1="10" x2="14" y2="70" stroke="#2F3A49" strokeWidth="2.4" />
-        <line x1="0" y1="70" x2="200" y2="70" stroke="#2F3A49" strokeWidth="1.2" />
-        <polyline points={coil} fill="none" stroke="#2F3A49" strokeWidth="1.6" />
-        <rect x={mx - 10} y={28} width={20} height={24} rx={3} fill="#FF7A59" stroke="#fff" strokeWidth="1.2" />
-      </svg>
-      <div className={styles.miniRead}>
-        <RunToggle node={node} onParams={onParams} />
-        {b ? <span>x <b className={styles.live}>{fmt(b.x)}m</b> · v <b className={styles.live}>{fmt(b.vx)}m/s</b></span> : null}
-        <span className={styles.dim}>· ω={fmt(w)}</span>
-      </div>
-      <SliderRow label="k" v={k} min={0.5} max={40} step={0.5} onChange={(v) => onParams?.({ k: v })} />
-      <SliderRow label="m" v={m} min={0.1} max={10} step={0.1} onChange={(v) => onParams?.({ m: v })} />
-      <SliderRow label="振幅" v={A} min={0.2} max={2} step={0.1} onChange={(v) => onParams?.({ x0: v })} />
-    </div>
-  );
-}
-
-function PendulumBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
-  const b = asBody(self);
-  const L = node.params.L ?? 1.5, th0 = node.params.theta0 ?? 25, g = node.params.g ?? 9.8;
-  const s = 56 / Math.max(0.2, L); // 世界→像素
-  const px = 100, py = 10; // 悬点
-  const arc = samplePath('pendulum', node.params, physCycle('pendulum', node.params) / 2)
-    .map(([x, y]) => `${px + x * s},${py - y * s}`).join(' ');
-  const bx = b ? px + b.x * s : px;
-  const by = b ? py - b.y * s : py + 56;
-  const w = Math.sqrt(g / L);
-  return (
-    <div>
-      <svg className={styles.objSvg} viewBox="0 0 200 86" role="img" aria-label="单摆">
-        <circle cx={px} cy={py} r={2.6} fill="#2F3A49" />
-        <polyline points={arc} fill="none" stroke="#EDE7DA" strokeWidth="1.4" strokeDasharray="3 3" />
-        {b ? <line x1={px} y1={py} x2={bx} y2={by} stroke="#2F3A49" strokeWidth="1.6" /> : null}
-        {b ? <circle cx={bx} cy={by} r={5} fill="#FF7A59" stroke="#fff" strokeWidth="1.2" /> : null}
-      </svg>
-      <div className={styles.miniRead}>
-        <RunToggle node={node} onParams={onParams} />
-        {b ? <span>θ <b className={styles.live}>{fmt(Math.atan2(b.x, -b.y) / (Math.PI / 180))}°</b> · T <b className={styles.live}>{fmt((2 * Math.PI) / w)}s</b></span> : null}
-      </div>
-      <SliderRow label="摆长" v={L} min={0.3} max={3} step={0.1} onChange={(v) => onParams?.({ L: v })} />
-      <SliderRow label="θ0°" v={th0} min={2} max={60} step={1} onChange={(v) => onParams?.({ theta0: v })} />
-      <SliderRow label="g" v={g} min={1} max={25} step={0.1} onChange={(v) => onParams?.({ g: v })} />
-    </div>
-  );
-}
-
-function TrailBody({ values, node }: NodeBodyProps): JSX.Element {
-  const b = asBody(values.in);
-  const hist = useRef<[number, number][]>([]);
-  useEffect(() => { hist.current = []; }, [node.id]);
-  useEffect(() => {
-    if (!b) return;
-    const last = hist.current[hist.current.length - 1];
-    if (!last || Math.hypot(last[0] - b.x, last[1] - b.y) > 1e-4) {
-      hist.current = [...hist.current.slice(-199), [b.x, b.y]];
-    }
-  }, [b]);
-  if (!b) return unconnected('轨迹仪');
-  const h = hist.current;
-  const xs = h.map((p) => p[0]), ys = h.map((p) => p[1]);
-  const x0 = Math.min(...xs, b.x), x1 = Math.max(...xs, b.x);
-  const y0 = Math.min(...ys, b.y), y1 = Math.max(...ys, b.y);
-  const sx = Math.max(x1 - x0, 1e-6), sy = Math.max(y1 - y0, 1e-6);
-  const toPt = ([x, y]: [number, number]) =>
-    `${((x - x0) / sx) * 178 + 8},${76 - ((y - y0) / sy) * 62}`;
-  const pts = h.map(toPt).join(' ');
-  const [bx, by] = toPt([b.x, b.y]).split(',');
-  return (
-    <div>
-      <svg className={styles.objSvg} viewBox="0 0 194 82" role="img" aria-label="运动轨迹">
-        <polyline points={pts} fill="none" stroke="#FF7A59" strokeWidth={1.8} strokeLinejoin="round" />
-        <circle cx={bx} cy={by} r={3.4} fill="#2F3A49" />
-      </svg>
-      <div className={styles.miniRead}>
-        位置 <b className={styles.live}>({fmt(b.x)}, {fmt(b.y)})</b>
-        <span className={styles.dim}> · {h.length} 点</span>
-      </div>
-    </div>
-  );
-}
-
-function EnergyBody({ values }: NodeBodyProps): JSX.Element {
-  const b = asBody(values.in);
-  if (!b) return unconnected('能量表');
-  const ke = b.ke ?? 0, pe = b.pe ?? 0;
-  const total = Math.max(ke + pe, 1e-9);
-  const keW = (ke / total) * 100;
-  return (
-    <div>
-      <svg className={styles.objSvg} viewBox="0 0 194 34" role="img" aria-label="能量守恒">
-        <rect x={4} y={8} width={186 * (keW / 100)} height={16} rx={4} fill="#FF7A59" />
-        <rect x={4 + 186 * (keW / 100)} y={8} width={186 - 186 * (keW / 100)} height={16} rx={4} fill="#8ECAE6" />
-      </svg>
-      <div className={styles.miniRead}>
-        <span style={{ color: '#FF7A59' }}>■</span> 动 <b className={styles.live}>{fmt(ke)}J</b>
-        <span style={{ color: '#8ECAE6' }}>■</span> 势 <b className={styles.live}>{fmt(pe)}J</b>
-        <span className={styles.dim}>· 总 {fmt(total)}J 守恒</span>
-      </div>
-    </div>
-  );
-}
-
 /* ============================== 自制积木 ============================== */
 
 function HiddenPortBody(): JSX.Element {
@@ -775,6 +610,9 @@ function CompositeBody({ node, onText, onExplode }: NodeBodyProps): JSX.Element 
 
 /** 动态端口解析：composite 的端口来自 sub.ports，其余类型取 NODE_DEFS 静态声明 */
 export function nodePorts(node: CanvasNode, dir: 'in' | 'out'): readonly PortSpec[] {
+  if (node.type === 'lab408Stage') return pipelinePorts(node, dir);
+  if (node.type === 'physicsStage') return physicsPipelinePorts(node, dir);
+  if (node.type === 'calculusStage') return calculusPipelinePorts(node, dir);
   if (node.type === 'composite') {
     return (node.sub?.ports ?? [])
       .filter((p) => p.dir === dir)
@@ -795,6 +633,12 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   derivative: { title: '导数切线', badge: '实验', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], outputs: [{ id: 'out', label: '斜率', kind: 'scalar' }], Body: DerivativeBody },
   integral: { title: '黎曼积分', badge: '实验', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }], outputs: [{ id: 'out', label: '数值参考', kind: 'scalar' }], Body: IntegralBody },
   taylor: { title: '泰勒近似', badge: '变换', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], outputs: [{ id: 'out', label: 'Pₙ(x)', kind: 'function' }], Body: TaylorBody },
+  ftcView: { title: '变上限积分', badge: '变换', width: 380, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }], outputs: [{ id: 'out', label: 'F(x)', kind: 'scalar' }], Body: FtcViewBody },
+  fourierLab: { title: '傅里叶合成', badge: '实验', width: 400, Body: FourierLabBody },
+  odeSlopeField: { title: '斜率场', badge: '实验', width: 400, Body: OdeSlopeFieldBody },
+  func2dSource: { title: '二元函数源', badge: '源', width: 280, outputs: [{ id: 'out', label: 'f(x,y)', kind: 'function2d' }], Body: Func2dSourceBody },
+  gradientContour: { title: '梯度等高线', badge: '变换', width: 400, inputs: [{ id: 'in', label: 'f(x,y)', kind: 'function2d' }], outputs: [{ id: 'out', label: 'D_θ f', kind: 'scalar' }], Body: GradientContourBody },
+  doubleIntegralView: { title: '二重积分微元', badge: '实验', width: 400, Body: DoubleIntegralBody },
   matrixSource: { title: '矩阵源', badge: '源', width: 200, outputs: [OUT_M2], Body: MatrixSourceBody },
   slider: { title: '滑杆源', badge: '源', width: 190, outputs: [{ id: 'out', label: 'v', kind: 'scalar' }], Body: SliderBody },
   ticker: { title: '时间源', badge: '源', width: 190, outputs: [{ id: 'out', label: 't', kind: 'scalar' }], Body: TickerBody },
@@ -835,11 +679,46 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   },
   trailView: { title: '轨迹仪', badge: '实验', width: 210, inputs: [{ id: 'in', label: 'body', kind: 'body' }], Body: TrailBody },
   energyMeter: { title: '能量表', badge: '实验', width: 210, inputs: [{ id: 'in', label: 'body', kind: 'body' }], Body: EnergyBody },
+  inclineLab: {
+    title: '斜面', badge: '源', width: 300,
+    inputs: [{ id: 't', label: 't', kind: 'scalar' }],
+    outputs: [{ id: 'out', label: 'body', kind: 'body' }],
+    Body: InclineBody,
+  },
+  collisionLab: {
+    title: '一维碰撞', badge: '源', width: 320,
+    inputs: [{ id: 't', label: 't', kind: 'scalar' }],
+    outputs: [{ id: 'out', label: 'body', kind: 'body' }],
+    Body: CollisionBody,
+  },
+  resonanceLab: {
+    title: '受迫共振', badge: '源', width: 330,
+    inputs: [{ id: 't', label: 't', kind: 'scalar' }],
+    outputs: [{ id: 'out', label: 'body', kind: 'body' }],
+    Body: ResonanceBody,
+  },
+  waveLab: {
+    title: '波场', badge: '源', width: 330,
+    inputs: [{ id: 't', label: 't', kind: 'scalar' }],
+    outputs: [{ id: 'out', label: 'body', kind: 'body' }],
+    Body: WaveBody,
+  },
   dsTraversal: { title: '二叉树遍历', badge: '实验', width: 280, Body: DsTraversalBody },
   cacheSplit: { title: 'Cache 地址划分', badge: '实验', width: 310, Body: CacheSplitBody },
   pageReplace: { title: '页面置换', badge: '实验', width: 370, Body: PageReplaceBody },
   ipSubnet: { title: 'IPv4 子网划分', badge: '实验', width: 310, Body: IpSubnetBody },
   lab408Workbench: { title: '408 全题型工作台', badge: '实验', width: 460, Body: Lab408WorkbenchBody },
+  lab408Stage: { title: '408 模块', badge: '实验', width: 400, Body: Lab408PipelineNode },
+  physicsStage: { title: '大学物理模块', badge: '实验', width: 400, Body: PhysicsPipelineNode },
+  calculusStage: { title: '高等数学模块', badge: '实验', width: 400, Body: CalculusPipelineNode },
+  cacheSimLab: { title: 'Cache 组相联', badge: '实验', width: 380, Body: CacheSimBody },
+  pipelineLab: { title: '流水线时空图', badge: '实验', width: 400, Body: PipelineBody },
+  ieee754Lab: { title: 'IEEE754 解码', badge: '实验', width: 330, Body: Ieee754Body },
+  cpuScheduleLab: { title: 'CPU 调度', badge: '实验', width: 400, Body: CpuScheduleBody },
+  bankerLab: { title: '银行家算法', badge: '实验', width: 400, Body: BankerBody },
+  tcpCongestionLab: { title: 'TCP 拥塞窗口', badge: '实验', width: 360, Body: TcpCongestionBody },
+  slidingWindowLab: { title: '滑动窗口', badge: '实验', width: 380, Body: SlidingWindowBody },
+  dsStepLab: { title: '数据结构步进器', badge: '实验', width: 380, Body: DsStepBody },
   attentionSim: { title: '注意力实验', badge: '实验', width: 340, Body: AttentionSimBody },
   pageLabSim: { title: 'AI 交互模型', badge: '实验', width: 400, Body: PageLabSimBody },
   composite: { title: '自制积木', badge: '实验', width: 230, Body: CompositeBody },
@@ -857,13 +736,15 @@ export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[
   { label: '深度学习 · 观察', types: ['boundaryView', 'matrixHeatmapView', 'gradFlowMeter',
     ...(Object.keys(studyStages) as StudyStage[]).filter((type) => studyStages[type].outputs.length === 0), 'activationProbe', 'attentionAB',
     'kvCache', 'resnetLab', 'sequenceMemory', 'multiheadLab', 'autoencoderLab', 'diffusionLab'] },
-  { label: '高数', types: ['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor'] },
-  { label: '408', types: ['lab408Workbench', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet'] },
-  { label: '源', types: ['matrixSource', 'slider', 'ticker'] },
+  { label: '高数 · 一元与级数', types: ['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor', 'ftcView', 'fourierLab', 'odeSlopeField'] },
+  { label: '高数 · 多元与线代', types: ['func2dSource', 'gradientContour', 'doubleIntegralView', 'matrixSource', 'transformView', 'eigRead'] },
+  { label: '408', types: ['cacheSimLab', 'pipelineLab', 'ieee754Lab', 'cpuScheduleLab', 'bankerLab',
+    'tcpCongestionLab', 'slidingWindowLab', 'dsStepLab', 'lab408Workbench', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet'] },
+  { label: '源', types: ['slider', 'ticker'] },
   { label: '变换', types: ['rotor', 'matmul'] },
-  { label: '视图', types: ['transformView', 'fieldView', 'detGauge', 'eigRead', 'squareView', 'cobweb'] },
+  { label: '视图', types: ['fieldView', 'detGauge', 'squareView', 'cobweb'] },
   { label: '学习', types: ['quiz', 'spark', 'attentionSim'] },
-  { label: '力学', types: ['projectile', 'springOsc', 'pendulum', 'trailView', 'energyMeter'] },
+  { label: '力学', types: ['projectile', 'springOsc', 'pendulum', 'trailView', 'energyMeter', 'inclineLab', 'collisionLab', 'resonanceLab', 'waveLab'] },
   { label: '文字', types: ['textNote', 'latexNote'] },
 ];
 
@@ -874,23 +755,43 @@ export function defaultParams(type: NodeType): Record<string, number> {
   switch (type) {
     case 'functionSource': return { a: 1, b: 0, c: 0 };
     case 'functionPlot': return { min: -3, max: 3, x: 0 };
-    case 'limitProbe': return { x: 0, side: 0 };
-    case 'derivative': return { x: 1, h: 0.5 };
+    case 'limitProbe': return { x: 0, side: 0, eps: 0.1 };
+    case 'derivative': return { x: 1, h: 0.5, showDerivative: 0 };
     case 'integral': return { lower: 0, upper: 1, n: 12, method: 1, area: 0 };
     case 'taylor': return { center: 0, degree: 3, x: 0.5, span: 2 };
+    case 'ftcView': return { a: 0, x: 1, n: 122 };
+    case 'fourierLab': return { waveform: 0, n: 5, span: 6.283185307179586 };
+    case 'odeSlopeField': return { x0: 0, y0: 1, min: -3, max: 3, step: 0.02, steps: 150 };
+    case 'func2dSource': return { a: 1, b: 1 };
+    case 'gradientContour': return { x: 1, y: 1, theta: 0.7853981633974483, span: 2.5, gx: 0, gy: 0 };
+    case 'doubleIntegralView': return { mode: 0, n: 20, rMax: 1, theta1: 0, theta2: 6.283185307179586 };
     case 'matrixSource': return { a: 1, b: 0.5, c: 0, d: 1 };
     case 'slider': return { v: 0.3, min: 0, max: 1 };
     case 'ticker': return { period: 6, running: 1 };
     case 'rotor': return { theta: 0 };
     case 'cobweb': return { r: 3.2 };
-    case 'projectile': return { v0: 8, angle: 55, g: 9.8, m: 1, running: 1 };
-    case 'springOsc': return { k: 6, m: 1, x0: 1, running: 1 };
-    case 'pendulum': return { L: 1.5, theta0: 25, g: 9.8, m: 1, running: 1 };
+    case 'projectile': return { v0: 8, angle: 55, g: 9.8, m: 1, running: 1, showForce: 0, showVelocity: 0, showStrobe: 0, compare: 0, fan: 0 };
+    case 'springOsc': return { k: 6, m: 1, x0: 1, running: 1, showForce: 0, showVelocity: 0, showStrobe: 0 };
+    case 'pendulum': return { L: 1.5, theta0: 25, g: 9.8, m: 1, running: 1, showForce: 0, showVelocity: 0, showStrobe: 0, alt: 1 };
+    case 'trailView': return { mode: 0 };
+    case 'energyMeter': return {};
+    case 'inclineLab': return { alpha: 30, mu: 0.3, g: 9.8, m: 1, L: 2, running: 1, showForce: 1 };
+    case 'collisionLab': return { m1: 1, v1: 2, m2: 2, v2: -1, e: 1, running: 1, showForce: 1 };
+    case 'resonanceLab': return { k: 10, m: 1, c: 0.5, f0: 1, wd: 3.16, running: 1 };
+    case 'waveLab': return { amp: 0.6, freq: 1, lambda: 2, mode: 0, running: 1 };
     case 'dsTraversal': return { order: 0 };
     case 'cacheSplit': return { addrBits: 32, blockBytes: 64, cacheKB: 64, ways: 4 };
     case 'pageReplace': return { algorithm: 0, capacity: 3 };
     case 'ipSubnet': return { prefix: 26, index: 0 };
     case 'lab408Workbench': return { subjectIndex: 0, typeIndex: 0 };
+    case 'cacheSimLab': return { addrBits: 32, blockBytes: 64, cacheKB: 64, ways: 4 };
+    case 'pipelineLab': return { forwarding: 1 };
+    case 'ieee754Lab': return { bits: 32 };
+    case 'cpuScheduleLab': return { algo: 0, quantum: 2 };
+    case 'bankerLab': return { available0: 3 };
+    case 'tcpCongestionLab': return { ssthresh: 8 };
+    case 'slidingWindowLab': return { winSize: 4, mode: 0 };
+    case 'dsStepLab': return { mode: 0, order: 0 };
     case 'attentionSim': return { query: 1, temperature: 1, causal: 0 };
     default: return {};
   }

@@ -11,6 +11,9 @@ from typing import Any, Sequence
 
 import sympy as sp
 
+from importlib.util import find_spec
+
+from ..settings import get_settings
 from .expr import parse_expression
 from .extract import _math_ocr
 
@@ -313,6 +316,60 @@ def _collect_points(strokes: Sequence[dict[str, Any]]) -> list[tuple[float, floa
     return points or None
 
 
+def normalize_stroke_sequence(strokes: Sequence[dict[str, Any]]) -> list[list[tuple[float, float]]]:
+    """把原始画布笔迹归一化为 [0, 1] 坐标空间的笔画序列（供 ink2latex 序列模型使用）。"""
+    points = _collect_points(strokes)
+    if not points:
+        return []
+    min_x = min(p[0] for p in points)
+    min_y = min(p[1] for p in points)
+    span = max(1.0, max(p[0] for p in points) - min_x, max(p[1] for p in points) - min_y)
+    normalized: list[list[tuple[float, float]]] = []
+    for stroke in strokes:
+        raw = stroke.get("points")
+        if not isinstance(raw, list) or not raw:
+            continue
+        seq = [
+            (round((float(pt[0]) - min_x) / span, 5), round((float(pt[1]) - min_y) / span, 5))
+            for pt in raw
+            if isinstance(pt, (list, tuple)) and len(pt) >= 2
+        ]
+        if seq:
+            normalized.append(seq)
+    return normalized
+
+
+def _ink_backend_mode() -> str:
+    try:
+        mode = str(getattr(get_settings(), "lab_ink_backend", "auto") or "auto").strip().lower()
+        return mode if mode in {"auto", "ink2latex", "raster"} else "auto"
+    except Exception:  # noqa: BLE001
+        return "auto"
+
+
+def _ink2latex_recognize(strokes: Sequence[dict[str, Any]]) -> str | None:
+    """可选的 ink2latex 笔迹序列识别通道；未安装或失败时返回 None 回退栅格 OCR。"""
+    if _ink_backend_mode() == "raster":
+        return None
+    if find_spec("ink2latex") is None:
+        return None
+    normalized = normalize_stroke_sequence(strokes)
+    if not normalized:
+        return None
+    try:
+        import ink2latex  # type: ignore[import-not-found]
+
+        if hasattr(ink2latex, "recognize_strokes"):
+            result = ink2latex.recognize_strokes(normalized)
+        elif hasattr(ink2latex, "predict"):
+            result = ink2latex.predict(normalized)
+        else:
+            return None
+        return str(result).strip() if result else None
+    except Exception:  # noqa: BLE001 - 失败时无缝降级为栅格化公式 OCR
+        return None
+
+
 def ink_to_formula(strokes: Sequence[dict[str, Any]]) -> dict[str, Any]:
     points = _collect_points(strokes)
     if points is None:
@@ -323,33 +380,38 @@ def ink_to_formula(strokes: Sequence[dict[str, Any]]) -> dict[str, Any]:
     span_y = max(1.0, max(point[1] for point in points) - min_y)
     if len(points) < 8 or max(span_x, span_y) < 8:
         return {"supported": False, "reason": "笔迹过于稀疏，无法可靠识别；请完整写出一个算式后再圈选。"}
-    scale = max(0.3, min(4.0, 1200 / span_x))
-    pad = 28
-    width = max(1, int(span_x * scale) + pad * 2)
-    height = max(1, int(span_y * scale) + pad * 2)
-    try:
-        from PIL import Image, ImageDraw
-        image = Image.new("RGB", (width, height), "white")
-        draw = ImageDraw.Draw(image)
-        for stroke in strokes:
-            raw = stroke.get("points")
-            if not isinstance(raw, list) or not raw:
-                continue
-            line_width = max(2, int(round(max(1.0, min(12.0, float(stroke.get("width", 2.4)))) * scale)))
-            path = [
-                ((float(point[0]) - min_x) * scale + pad, (float(point[1]) - min_y) * scale + pad)
-                for point in raw
-                if isinstance(point, (list, tuple)) and len(point) >= 2
-            ]
-            if len(path) >= 2:
-                draw.line(path, fill="black", width=line_width, joint="curve")
-            elif path:
-                radius = max(2, line_width // 2)
-                x, y = path[0]
-                draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill="black")
-    except Exception:  # noqa: BLE001 - 栅格化失败按不可识别处理
-        return {"supported": False, "reason": "手写笔迹无法栅格化。"}
-    latex = _math_ocr(image, loose=True)
+
+    recognition_method = "ink2latex"
+    latex = _ink2latex_recognize(strokes)
+    if not latex or not _plausible_latex(latex):
+        recognition_method = "raster_ocr"
+        scale = max(0.3, min(4.0, 1200 / span_x))
+        pad = 28
+        width = max(1, int(span_x * scale) + pad * 2)
+        height = max(1, int(span_y * scale) + pad * 2)
+        try:
+            from PIL import Image, ImageDraw
+            image = Image.new("RGB", (width, height), "white")
+            draw = ImageDraw.Draw(image)
+            for stroke in strokes:
+                raw = stroke.get("points")
+                if not isinstance(raw, list) or not raw:
+                    continue
+                line_width = max(2, int(round(max(1.0, min(12.0, float(stroke.get("width", 2.4)))) * scale)))
+                path = [
+                    ((float(point[0]) - min_x) * scale + pad, (float(point[1]) - min_y) * scale + pad)
+                    for point in raw
+                    if isinstance(point, (list, tuple)) and len(point) >= 2
+                ]
+                if len(path) >= 2:
+                    draw.line(path, fill="black", width=line_width, joint="curve")
+                elif path:
+                    radius = max(2, line_width // 2)
+                    x, y = path[0]
+                    draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill="black")
+        except Exception:  # noqa: BLE001 - 栅格化失败按不可识别处理
+            return {"supported": False, "reason": "手写笔迹无法栅格化。"}
+        latex = _math_ocr(image, loose=True)
     if not latex or not _plausible_latex(latex):
         return {
             "supported": False,
@@ -368,4 +430,5 @@ def ink_to_formula(strokes: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "expression": node.get("expression"),
         "matrix": node.get("matrix"),
         "note": note,
+        "recognition_method": recognition_method,
     }

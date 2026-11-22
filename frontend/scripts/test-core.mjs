@@ -9,7 +9,7 @@ const dir=mkdtempSync(path.join(tmpdir(),'xiangsheng-core-'));
 try {
   execFileSync(process.execPath,['node_modules/typescript/lib/tsc.js',
     'src/ispec/functionSeries.ts','src/components/presentation/deckHistory.ts','src/components/presentation/editorDraft.ts',
-    '--target','ES2022','--module','commonjs','--outDir',dir,'--strict','--skipLibCheck'],{stdio:'inherit'});
+    '--target','ES2022','--module','commonjs','--rewriteRelativeImportExtensions','--outDir',dir,'--strict','--skipLibCheck'],{stdio:'inherit'});
   const {sampleFunction}=require(path.join(dir,'ispec/functionSeries.js'));
   const {createHistory,commitHistory,undoHistory,redoHistory,changeDeckParameter}=require(path.join(dir,'components/presentation/deckHistory.js'));
   const {inferMatrix,initialEditorMode,elementText}=require(path.join(dir,'components/presentation/editorDraft.js'));

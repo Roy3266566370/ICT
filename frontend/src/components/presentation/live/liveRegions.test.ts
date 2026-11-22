@@ -45,9 +45,9 @@ test('待核对、其他页、无位置的 spec 回退为原热区；带专用�
   assert.equal(other.fallback, true);
 });
 
-test('step_diagram 不做原位图，但参数簇仍可用', () => {
+test('step_diagram 现已放开原位轻量化交互，同时保留参数簇', () => {
   const plan = planLive(matrixSpec({ views: [{ type: 'figure', spec_ref: 'step_diagram' }] }), 6);
-  assert.equal(plan.figure, null);
+  assert.equal(plan.figure?.view.spec_ref, 'step_diagram');
   assert.equal(plan.clusters.length, 1);
 });
 

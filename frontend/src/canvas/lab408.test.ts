@@ -7,8 +7,9 @@ import {
   treeTraversal,
   TRAVERSAL_LABELS,
 } from './lab408.ts';
-import { LAB408_TEMPLATES, LAB408_WORKBENCH_TEMPLATES, lab408TemplateDoc } from './lab408Templates.ts';
+import { LAB408_TEMPLATES, LAB408_TOPICS, LAB408_WORKBENCH_TEMPLATES, lab408TemplateDoc } from './lab408Templates.ts';
 import { MANUAL_408_SUBJECTS } from '../labs/manual408.ts';
+import { evalOutput, makeCtx } from './engine.ts';
 
 test('二叉树四种遍历给出确定序列', () => {
   assert.deepEqual(TRAVERSAL_LABELS, ['先序', '中序', '后序', '层序']);
@@ -53,15 +54,47 @@ test('IPv4 子网划分给出网络地址、广播地址与可用范围', () => 
   assert.equal(subnetInfo(26, 9).index, 3);
 });
 
-test('408 工坊模板覆盖四个科目并生成对应实验节点', () => {
-  assert.deepEqual(LAB408_TEMPLATES.map(template => template.kind), ['dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet']);
+test('408 工坊的 13 张模板都生成可求值的模块接线和结果面板', () => {
+  assert.deepEqual(LAB408_TOPICS.map(topic => topic.id), ['l01', 'l02', 'l03', 'l04']);
+  assert.equal(LAB408_TEMPLATES.length, 13);
+  assert.deepEqual(LAB408_TEMPLATES.map(template => template.kind), [
+    'dsTraversal', 'avl', 'kmpSort', 'graphAlgo',
+    'cacheSimLab', 'pipelineLab', 'ieee754Lab',
+    'cpuScheduleLab', 'bankerLab', 'pageReplace',
+    'tcpCongestionLab', 'slidingWindowLab', 'ipSubnet',
+  ]);
   for (const template of LAB408_TEMPLATES) {
     const doc = lab408TemplateDoc(template.kind);
     assert.equal(doc.title, template.name);
-    assert.equal(doc.wires.length, 0);
-    assert.ok(doc.nodes.some(node => node.type === template.node));
+    assert.ok(doc.wires.length >= 3, template.kind);
+    assert.ok(doc.nodes.filter(node => node.type === 'lab408Stage').length >= 4, template.kind);
     assert.ok(doc.nodes.some(node => node.type === 'textNote' && node.text?.includes('探究')));
+    assert.ok(doc.panel, `${template.kind} 必须有 panel`);
+    assert.ok((doc.panel?.view_node_ids.length ?? 0) > 0, `${template.kind} panel 需要停靠视图`);
+    const ctx = makeCtx(doc, new Map());
+    for (const stage of doc.nodes.filter((node) => node.type === 'lab408Stage')) {
+      const value = evalOutput(ctx, stage.id);
+      assert.equal(value?.kind, 'lab408Data', stage.payload);
+      assert.equal(value.error, undefined, stage.payload);
+      assert.ok(value.result.frames.length > 0, stage.payload);
+    }
   }
+});
+
+test('编辑 408 源会更新末端，断开边后会等待有效输入', () => {
+  const doc = lab408TemplateDoc('cacheSimLab');
+  const source = doc.nodes.find((node) => node.payload === 'cacheSimLab/source')!;
+  const sink = doc.nodes.find((node) => node.payload === 'cacheSimLab/amat')!;
+  const before = evalOutput(makeCtx(doc, new Map()), sink.id);
+  source.text = '0x1000 0x1000 0x1000';
+  const after = evalOutput(makeCtx(doc, new Map()), sink.id);
+  assert.equal(after?.kind, 'lab408Data');
+  assert.notDeepEqual(after, before);
+  assert.equal(after.result.frames.at(-1)?.rows?.[0]?.[0], 2);
+  doc.wires = doc.wires.filter((wire) => wire.from !== source.id);
+  const disconnected = evalOutput(makeCtx(doc, new Map()), sink.id);
+  assert.equal(disconnected?.kind, 'lab408Data');
+  assert.match(disconnected.error ?? '', /等待有效输入/);
 });
 
 test('408 工作台模板覆盖四个科目并能切换全题型', () => {

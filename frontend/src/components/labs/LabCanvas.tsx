@@ -37,6 +37,8 @@ import { CoCanvas } from './CoCanvas';
 import { NetworkCanvas } from './NetworkCanvas';
 import { PhysicsCanvas } from './PhysicsCanvas';
 import { DoubleIntegralCanvas } from './DoubleIntegralCanvas';
+import { Space3DCanvas } from './Space3DCanvas';
+import { MafsCalculusCanvas } from './MafsCalculusCanvas';
 
 export interface LabSelection {
   id: string;
@@ -253,6 +255,25 @@ function CalculusCanvas({
       <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>目标函数切片 · 观察点函数值 {result.metrics.find(m => m.id === 'probe')?.value ?? '—'}</text>
       <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>固定坐标由观察滑杆控制；切片不替代偏导或极值的符号结论。</text>
     </svg>;
+  }
+
+  if (
+    !isNormal &&
+    (result.kind === 'integral' ||
+      result.kind === 'antiderivative' ||
+      (result.kind === 'derivative' && pointCandidate && typeof pointCandidate.y === 'number'))
+  ) {
+    return (
+      <MafsCalculusCanvas
+        result={result}
+        compare={compare}
+        selected={selected}
+        onSelect={onSelect}
+        onParamDrag={onParamDrag}
+        readOnly={readOnly}
+        boundsDraggable={boundsDraggable}
+      />
+    );
   }
 
   if (result.kind === 'derivative' && pointCandidate && typeof pointCandidate.y === 'number') {
@@ -1685,63 +1706,7 @@ function ConstrainedExtremaCanvas({ result }: { result: OptimizationResult }): R
 }
 
 function SpaceCanvas({ result }: { result: CalculusResult }): ReactNode {
-  const space = result.space;
-  const triple = result.task === 'triple_integral';
-  const curves = space?.curves ?? [];
-  const grid = space?.grid ?? [];
-  const edges = space?.edges ?? [];
-  const points = space?.points ?? [];
-  const line = space?.line ?? [];
-  const all = [
-    ...curves.flatMap(item => item.points),
-    ...grid.flatMap(row => row),
-    ...edges.flatMap(item => item),
-    ...points,
-    ...line,
-  ];
-  if (!all.length) {
-    return <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label={triple ? '三重积分区域' : '空间对象'}>
-      <text x="380" y="200" textAnchor="middle" className={styles.canvasLabel}>{result.answerText || (triple ? '三重积分区域待核对' : '空间对象待核对')}</text>
-    </svg>;
-  }
-  const xs = all.map(p => p.x), ys = all.map(p => p.y), zs = all.map(p => p.z);
-  const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
-  const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
-  const centerZ = (Math.min(...zs) + Math.max(...zs)) / 2;
-  const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), Math.max(...zs) - Math.min(...zs), 1);
-  const scale = 145 / span * (space?.view_zoom ?? 1);
-  const angle = (space?.view_yaw ?? 0) * Math.PI / 180;
-  const rotate = (p: {x:number;y:number;z:number}) => ({x:centerX+(p.x-centerX)*Math.cos(angle)-(p.y-centerY)*Math.sin(angle),y:centerY+(p.x-centerX)*Math.sin(angle)+(p.y-centerY)*Math.cos(angle),z:p.z});
-  const projectRotated = (p: { x: number; y: number; z: number }) => ({
-    x: 380 + ((p.x - centerX) - (p.y - centerY)) * 0.866 * scale,
-    y: 205 + (((p.x - centerX) + (p.y - centerY)) * 0.5 - (p.z - centerZ)) * scale,
-  });
-  const project = (p: {x:number;y:number;z:number}) => projectRotated(rotate(p));
-  const path = (items: { x: number; y: number; z: number }[]) => items.map((p, index) => {
-    const q = project(p);
-    return `${index === 0 ? 'M' : 'L'}${q.x},${q.y}`;
-  }).join(' ');
-  return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={styles.svg} role="img" aria-label={triple ? '三重积分区域、曲面网格与边界曲线' : '空间曲线、曲面与空间对象'}>
-      <text x={MARGIN.left + 16} y={MARGIN.top + 20} className={styles.canvasLabel}>
-        {triple ? '三重积分区域' : '空间对象'}
-      </text>
-      <text x={MARGIN.left + 16} y={MARGIN.top + 38} className={styles.canvasNote}>
-        {triple ? '等轴投影；曲面网格与边界曲线来自已核验的积分区域。' : '等轴投影；曲线、曲面网格、立方体边或几何点来自同一空间模型。'}
-      </text>
-      {grid.map((row, index) => <path key={`row${index}`} d={path(row)} fill="none" stroke="#94a3b8" strokeWidth="0.8" opacity="0.55" />)}
-      {grid.length ? Array.from({ length: grid[0]?.length ?? 0 }, (_, column) => <path key={`col${column}`} d={path(grid.map(row => row[column]).filter((point): point is { x: number; y: number; z: number } => point !== undefined))} fill="none" stroke="#94a3b8" strokeWidth="0.8" opacity="0.35" />) : null}
-      {edges.map((edge, index) => <path key={`edge${index}`} d={path(edge)} fill="none" stroke="#6366f1" strokeWidth="1.2" />)}
-      {line.length ? <path d={path(line)} fill="none" stroke="#f59e0b" strokeWidth="1.4" /> : null}
-      {curves.map(item => <path key={item.id} d={path(item.points)} fill="none" stroke="#4f46e5" strokeWidth="2" />)}
-      {points.map((point, index) => {
-        const q = project(point);
-        return <g key={index}><circle cx={q.x} cy={q.y} r="5" className={styles.currentPoint} />
-          <text x={q.x + 8} y={q.y - 8} className={styles.canvasNote}>{point.id ?? `P${index + 1}`}</text></g>;
-      })}
-      <text x="388" y="400" textAnchor="middle">{triple ? '区域网格与边界曲线来自已确认条件；数值积分仅作独立复核' : '曲线/曲面由参数模型采样；三大公式同时核对两条路径'}</text>
-    </svg>
-  );
+  return <Space3DCanvas result={result} />;
 }
 
 function ProofCanvas({ result }: { result: CalculusResult }): ReactNode {
@@ -1878,7 +1843,7 @@ export function LabCanvas(props: Props): ReactNode {
   if (result.subject === 'physics') {
     return (
       <div className={styles.canvasRoot} data-subject="physics">
-        <PhysicsCanvas result={result} step={step} />
+        <PhysicsCanvas result={result} step={step} onParamDrag={props.onParamDrag} readOnly={props.readOnly} />
         {selected?.kind === 'solution-step' ? <span className={styles.emphasisLabel}>正在突出：{selected.label}</span> : null}
       </div>
     );

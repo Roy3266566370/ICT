@@ -37,13 +37,15 @@ class _Handler(BaseHTTPRequestHandler):
     last_headers: dict = {}
     last_payload: dict = {}
     calls = 0
+    response_sequence = None
 
     def do_POST(self) -> None:  # noqa: N802
         length = int(self.headers.get("Content-Length") or 0)
         type(self).last_payload = json.loads(self.rfile.read(length) or b"{}")
         type(self).last_headers = {k.lower(): v for k, v in self.headers.items()}
         type(self).calls += 1
-        payload = json.dumps(self.body, ensure_ascii=False).encode("utf-8")
+        body = self.response_sequence[self.calls-1] if self.response_sequence is not None else self.body
+        payload = json.dumps(body, ensure_ascii=False).encode("utf-8")
         self.send_response(self.status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))
@@ -80,7 +82,7 @@ def _ok_body(text: str) -> dict:
 
 
 def test_maas_provider_sends_bearer_model_and_image(fake_maas) -> None:
-    fake_maas.handler.body = _ok_body("[]")
+    fake_maas.handler.body = _ok_body('{"ispecs":[]}')
     provider = MaasProvider(api_key="k-test", model="glm-5.3", base_url=fake_maas.base_url)
 
     request = LLMRequest(
@@ -106,6 +108,29 @@ def test_maas_provider_maps_http_errors_to_unavailable(fake_maas) -> None:
 
     with pytest.raises(LLMUnavailable):
         provider.propose(LLMRequest(pages=[{"page_no": 1, "text": "x"}]))
+
+
+def test_maas_reasks_and_persists_redacted_diagnostics(fake_maas, tmp_path, monkeypatch):
+    from app.ispec.llm import maas
+
+    monkeypatch.setattr(maas, 'DATA_DIR', tmp_path)
+    fake_maas.handler.response_sequence = [
+        _ok_body('not JSON auth-secret'),
+        _ok_body('{"ispecs":"wrong type"}'),
+        _ok_body('{"ispecs":[]}'),
+    ]
+    provider = MaasProvider(api_key='auth-secret', model='test', base_url=fake_maas.base_url)
+    result = provider.propose(LLMRequest(material_id='fixture_1', pages=[{'page_no': 1, 'text': 'x=2'}],
+                                         images=[{'page_no': 1, 'data_uri': 'data:image/png;base64,AAAA'}]))
+    assert result.raw_text == '[]'
+    assert fake_maas.handler.calls == 3
+    assert 'ispecs' in fake_maas.handler.last_payload['messages'][-1]['content']
+    trace = (tmp_path/'ispecs'/'fixture_1.llm.json').read_text(encoding='utf-8')
+    assert 'auth-secret' not in trace and 'base64,AAAA' not in trace
+    attempts = json.loads(trace)['attempts']
+    assert len(attempts) == 3
+    assert attempts[0]['request']['max_tokens'] == 5120
+    assert attempts[0]['response']['excerpt'] == 'not JSON [redacted]'
 
 
 def test_maas_provider_is_unavailable_without_key() -> None:

@@ -1,5 +1,8 @@
 import { useMemo } from 'react';
 import { validateViewAst } from '@/ppt-ai/sandbox/protocol';
+import { ChartNodeView } from './ChartNodeView';
+import { MermaidNodeView } from './MermaidNodeView';
+import { Scene3dNodeView } from './Scene3dNodeView';
 
 interface Props { ast: Record<string, unknown>; className?: string; bindings?: string[] }
 
@@ -11,14 +14,17 @@ function str(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
 
-function styleOf(node: Record<string, unknown>, defaults: Record<string, string | number> = {}) {
+function styleOf(node: Record<string, unknown>, defaults: Record<string, string | number | boolean> = {}) {
   const raw = node.style;
-  const style: Record<string, string | number> = { ...defaults };
+  const style: Record<string, string | number | boolean> = { ...defaults };
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
     const source = raw as Record<string, unknown>;
     for (const key of ['fill', 'stroke', 'strokeWidth', 'opacity', 'fontSize', 'fontWeight', 'textAnchor', 'align']) {
       const value = source[key];
       if (typeof value === 'string' || typeof value === 'number') style[key] = value;
+    }
+    for (const key of ['arrowStart', 'arrowEnd']) {
+      if (typeof source[key] === 'boolean') style[key] = source[key];
     }
     if (Array.isArray(source.dash)) style.dashArray = source.dash.filter((item) => typeof item === 'number').join(' ');
   }
@@ -76,9 +82,19 @@ function RenderNode({ node, keyPrefix }: { node: Record<string, unknown>; keyPre
     return <circle key={key} cx={num(node.x)} cy={num(node.y)} r={num(node.r, 3.2)} fill={str(style.fill, '#1d4ed8')} opacity={num(style.opacity, 1)} />;
   }
   if (type === 'line') {
-    return <line key={key} x1={num(node.x1)} y1={num(node.y1)} x2={num(node.x2)} y2={num(node.y2)}
-      stroke={str(style.stroke, '#334155')} strokeWidth={strokeWidth} opacity={num(style.opacity, 1)}
-      strokeDasharray={typeof style.dashArray === 'string' ? style.dashArray : undefined} />;
+    const lineStroke = str(style.stroke, '#334155');
+    const hasArrow = style.arrowStart === true || style.arrowEnd === true;
+    const markerId = `ast-arrow-${key}`;
+    return <g key={key}>
+      {hasArrow && <defs><marker id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+        <path d="M0 0L10 5L0 10Z" fill={lineStroke} />
+      </marker></defs>}
+      <line x1={num(node.x1)} y1={num(node.y1)} x2={num(node.x2)} y2={num(node.y2)}
+        stroke={lineStroke} strokeWidth={strokeWidth} opacity={num(style.opacity, 1)}
+        strokeDasharray={typeof style.dashArray === 'string' ? style.dashArray : undefined}
+        markerStart={style.arrowStart === true ? `url(#${markerId})` : undefined}
+        markerEnd={style.arrowEnd === true ? `url(#${markerId})` : undefined} />
+    </g>;
   }
   if (type === 'polyline') {
     return <polyline key={key} points={pointsText(node.points)} fill={fill} stroke={str(style.stroke, '#334155')}
@@ -122,11 +138,8 @@ function RenderNode({ node, keyPrefix }: { node: Record<string, unknown>; keyPre
       })}
     </g>;
   }
-  if (type === 'axes') {
+  if (type === 'axes' || type === 'mermaid' || type === 'chart' || type === 'scene3d') {
     return null;
-  }
-  if (type === 'scene3d') {
-    return <text key={key} x={40} y={40} fill="#64748b" fontSize="12">三维视图需可信渲染器；当前离线环境不支持。</text>;
   }
   return null;
 }
@@ -139,14 +152,36 @@ export function ViewAstRenderer({ ast, className, bindings = [] }: Props) {
   const width = num(ast.width, 720);
   const height = num(ast.height, 420);
   const nodes = Array.isArray(ast.nodes) ? ast.nodes.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null) : [];
-  return (
-    <svg className={className} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="专用视图">
+  const overlayNodes = nodes.filter((node) => {
+    const t = str(node.type);
+    return t === 'mermaid' || t === 'scene3d';
+  });
+  const svgEl = (
+    <svg className={overlayNodes.length ? undefined : className} style={overlayNodes.length ? { width: '100%', height: 'auto', display: 'block' } : undefined} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="专用视图">
       <rect x="0" y="0" width={width} height={height} fill="#f8fafc" rx="12" />
       {nodes.map((node, index) => {
-        if (str(node.type) === 'axes') return <Axes key={`axes-${index}`} node={node} width={width} height={height} />;
+        const nodeType = str(node.type);
+        if (nodeType === 'axes') return <Axes key={`axes-${index}`} node={node} width={width} height={height} />;
+        if (nodeType === 'chart') return <ChartNodeView key={`chart-${index}`} node={node} canvasWidth={width} canvasHeight={height} />;
+        if (nodeType === 'mermaid' || nodeType === 'scene3d') return null;
         return <RenderNode key={`node-${index}`} node={node} keyPrefix="" />;
       })}
     </svg>
+  );
+  if (!overlayNodes.length) {
+    return svgEl;
+  }
+  return (
+    <div className={className} style={{ position: 'relative', width: '100%' }}>
+      {svgEl}
+      {overlayNodes.map((node, index) =>
+        str(node.type) === 'scene3d' ? (
+          <Scene3dNodeView key={`scene3d-${index}`} node={node} canvasWidth={width} canvasHeight={height} />
+        ) : (
+          <MermaidNodeView key={`mermaid-${index}`} node={node} canvasWidth={width} canvasHeight={height} />
+        ),
+      )}
+    </div>
   );
 }
 

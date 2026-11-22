@@ -19,11 +19,19 @@ from ..ppt_ai.client import (
     PPTAIError,
     Transport,
     _endpoint,
-    _strip_fence,
 )
 from ..settings import Settings, get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _strip_fence(text: str) -> str:
+    lines = text.strip().splitlines()
+    if lines and lines[0].startswith('```'):
+        lines = lines[1:]
+        if lines and lines[-1].strip() == '```':
+            lines.pop()
+    return '\n'.join(lines).strip()
 
 
 class LivingVisionClient:
@@ -52,6 +60,10 @@ class LivingVisionClient:
         prompt: str,
         max_output_tokens: int = 4096,
         timeout_s: float | None = None,
+        additional_images: list[tuple[str, bytes]] | None = None,
+        image_label: str | None = None,
+        retry_without_response_format: bool = True,
+        response_model: type | None = None,
     ) -> dict[str, Any]:
         """一次 chat/completions 调用；返回解析后的 JSON 对象。
 
@@ -63,14 +75,23 @@ class LivingVisionClient:
         data_url = "data:image/png;base64," + base64.b64encode(image_png).decode("ascii")
         if len(data_url) > 6 * 1024 * 1024:
             raise PPTAIError("request_too_large", "区域裁剪过大，请改用更小的选区")
+        content = [{"type": "image_url", "image_url": {"url": data_url}}]
+        if image_label:
+            content.insert(0, {'type': 'text', 'text': f'附件元素 id={image_label}'})
+        if additional_images:
+            if len(additional_images) > 7:
+                raise PPTAIError('request_too_large', '同页裁图超过8张')
+            for identifier, blob in additional_images:
+                content.extend([{'type': 'text', 'text': f'附件元素 id={identifier}'},
+                                {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,'+base64.b64encode(blob).decode('ascii')}}])
+            if sum(len(item.get('image_url', {}).get('url', '')) for item in content) > 12*1024*1024:
+                raise PPTAIError('request_too_large', '同页裁图总量过大')
+        content.append({"type": "text", "text": prompt[:16000]})
         request_body = {
             "model": profile.model,
             "messages": [{
                 "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": data_url}},
-                    {"type": "text", "text": prompt[:8000]},
-                ],
+                "content": content,
             }],
             "temperature": 0.1,
             "max_tokens": int(max_output_tokens),
@@ -81,12 +102,41 @@ class LivingVisionClient:
             "Authorization": f"Bearer {profile.api_key}",
             "Content-Type": "application/json",
         }
+        if response_model is not None:
+            from openai import BadRequestError
+            from ..structured_llm import complete_json
+            rejected_format = False
+
+            def send(url, *, headers, json_body):
+                nonlocal rejected_format
+                if rejected_format:
+                    json_body.pop('response_format', None)
+                status, raw = self.transport.post(url, headers=headers, json_body=json_body,
+                                                  timeout=float(timeout_s or profile.timeout_s))
+                rejected_format = status == 400 and 'response_format' in json_body
+                return status, raw
+            try:
+                result, _ = complete_json(
+                    base_url=profile.base_url, api_key=profile.api_key, send=send,
+                    response_model=response_model, max_retries=2,
+                    retry_error=lambda error: rejected_format and isinstance(error, BadRequestError),
+                    **{key: value for key, value in request_body.items() if key != 'response_format'},
+                )
+            except Exception as error:
+                raise PPTAIError('invalid_json', '视觉图表复核未获得有效结构化响应') from error
+            return result.model_dump(exclude_unset=True)
         started = time.monotonic()
         try:
             status, payload = self.transport.post(
                 url, headers=headers, json_body=request_body,
                 timeout=float(timeout_s or profile.timeout_s),
             )
+            if status == 400 and retry_without_response_format and "response_format" in request_body:
+                fallback_body = {k: v for k, v in request_body.items() if k != "response_format"}
+                status, payload = self.transport.post(
+                    url, headers=headers, json_body=fallback_body,
+                    timeout=float(timeout_s or profile.timeout_s),
+                )
         except PPTAIError:
             raise
         except TimeoutError as exc:
@@ -142,6 +192,30 @@ class LivingVisionClient:
             status, elapsed, usage.get("prompt_tokens"), usage.get("completion_tokens"),
         )
         return data
+
+    def recognize_math_page(self, *, images: list[tuple[str, bytes]], page: dict, prompt: str) -> dict:
+        if not images or len(images) > 8:
+            raise PPTAIError('request_too_large', '数学识别需要1至8张元素裁图')
+        from io import BytesIO
+        from PIL import Image
+        prepared = []
+        for identifier, blob in images:
+            with Image.open(BytesIO(blob)) as source:
+                image = Image.new('RGBA', source.size, 'white')
+                image.alpha_composite(source.convert('RGBA'))
+                out = BytesIO(); image.convert('RGB').save(out, format='PNG')
+                prepared.append((identifier, out.getvalue()))
+        images = prepared
+        identifiers = {identifier for identifier, _ in images}
+        context = '\n'.join(node.get('text', '') for node in page.get('nodes', []) if node.get('text'))
+        geometry = [{key: node[key] for key in ('id', 'x', 'y', 'width', 'height')}
+                    for node in page.get('nodes', []) if node['id'] in identifiers]
+        instructions = (prompt+'\n第一张附件元素 id='+images[0][0]+'\n元素位置（幻灯片坐标）：'
+                        +json.dumps(geometry, ensure_ascii=False)+'\n本页文字：\n'+context[:6000])
+        return self.generate_json(image_png=images[0][1], additional_images=images[1:],
+                                  image_label=images[0][0],
+                                  prompt=instructions, max_output_tokens=6500,
+                                  timeout_s=min(90, self.profile.timeout_s))
 
 
 __all__ = ["LivingVisionClient"]

@@ -8,8 +8,6 @@ import {
   toXY,
   type DiagramDoc,
 } from './diagram.ts';
-import { planRegionInsert } from './regions.ts';
-import type { PageRegion } from './types.ts';
 
 const doc: DiagramDoc = {
   version: 1,
@@ -68,27 +66,4 @@ test('归一化坐标 ⇄ 像素换算互逆', () => {
   assert.ok(Math.abs(back.x - node.x) < 1e-6 && Math.abs(back.y - node.y) < 1e-6);
   const clamped = fromXY(-500, 9999);
   assert.deepEqual(clamped, { x: 0, y: 1 });
-});
-
-test('有 diagram 的图示区域：figure + diagram 双块', () => {
-  const region: PageRegion = {
-    id: 'r1', kind: 'diagram', bbox: [0.1, 0.1, 0.9, 0.9], asset_id: 'r1',
-    label: '流程图', diagram: doc,
-  };
-  let n = 0;
-  const plan = planRegionInsert(region, new Set(), () => `blk_${n++}`);
-  assert.ok(plan);
-  assert.equal(plan!.blocks[0]!.type, 'figure');
-  assert.equal(plan!.blocks[1]!.type, 'diagram');
-  assert.equal(plan!.canvasAnchorId, 'blk_1');
-  // 已有保真块 → 只补 diagram
-  const plan2 = planRegionInsert(
-    { ...region, block_id: 'blk_fig' }, new Set(), () => `blk_${n++}`,
-  );
-  assert.equal(plan2!.blocks.length, 1);
-  assert.equal(plan2!.blocks[0]!.type, 'diagram');
-  // 无 diagram → 只有 figure 保真块
-  const plan3 = planRegionInsert({ ...region, diagram: undefined }, new Set(), () => 'x');
-  assert.equal(plan3!.blocks.length, 1);
-  assert.equal(plan3!.canvasAnchorId, undefined);
 });

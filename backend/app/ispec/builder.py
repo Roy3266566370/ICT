@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .llm import ISpecLLMProvider, LLMRequest, LLMResponse, parse_ispecs
+from .llm.provider import LLMResponseInvalid
 from .shared import apply_shared_keys, assign_shared_keys
 from .text_structure import build_text_structure_specs
 from .validator import validate_ispec
@@ -309,7 +310,7 @@ def _element_summary(element: Mapping[str, Any]) -> str:
     return "；".join(parts)[:MAX_LLM_ELEMENT_SUMMARY]
 
 
-def _llm_request(pages: Sequence[Mapping[str, Any]]) -> LLMRequest:
+def _llm_request(pages: Sequence[Mapping[str, Any]], material_id: str | None = None) -> LLMRequest:
     """把页面转成 LLM 请求；只包含原文与元素摘要，不包含任何用户凭据。"""
 
     request_pages: list[dict[str, Any]] = []
@@ -332,6 +333,7 @@ def _llm_request(pages: Sequence[Mapping[str, Any]]) -> LLMRequest:
         )
 
     return LLMRequest(
+        material_id=material_id,
         pages=request_pages,
         hints={"supported_kinds": list(SUPPORTED_KINDS), "max_specs": LLM_MAX_SPECS},
     )
@@ -937,7 +939,7 @@ def _page_image_data_uri(material_id: str, page_no: int) -> str | None:
         return None
 
 
-def _page_llm_request(page: Mapping[str, Any], image_uri: str) -> LLMRequest:
+def _page_llm_request(page: Mapping[str, Any], image_uri: str, material_id: str | None = None) -> LLMRequest:
     """为一页构造带图的请求：原文 + 该页图片里 OCR 到的文字都作为证据来源。"""
 
     page_no = page.get("page_no")
@@ -956,6 +958,7 @@ def _page_llm_request(page: Mapping[str, Any], image_uri: str) -> LLMRequest:
         if isinstance(element, Mapping)
     ]
     return LLMRequest(
+        material_id=material_id,
         pages=[
             {
                 "page_no": page_no,
@@ -1008,16 +1011,22 @@ def build_ispecs_detailed(
                 continue
             kind = element.get("kind")
             element_id = element.get("element_id")
-            if kind == "chart":
+            if kind == "chart" or (kind == "picture" and isinstance(element.get("chart_data"), Mapping)):
                 spec, chart_skip_reason = _chart_ispec(
                     element=element, page=page_no, material_id=resolved_material
                 )
                 origin = _ORIGIN_CHART
                 if spec is None:
-                    skipped.append(
-                        f"{element_id}: {chart_skip_reason or '图表缺少可直读的分类/数值'}"
-                    )
+                    if kind == "chart":
+                        skipped.append(
+                            f"{element_id}: {chart_skip_reason or '图表缺少可直读的分类/数值'}"
+                        )
                     continue
+                if kind == "picture":
+                    bbox = element.get("bbox")
+                    if isinstance(bbox, Mapping):
+                        spec["anchor"] = {"page": page_no, "element_id": element_id, "bbox": dict(bbox)}
+                    spec["notes"] = "由视觉模型从原页图表截图提取，请结合原图核对关键数值。"
             elif kind == "table":
                 spec = _table_ispec(
                     element=element,
@@ -1032,16 +1041,9 @@ def build_ispecs_detailed(
             elif element.get("math_text"):
                 if element_id in native_element_ids:
                     continue
-                spec = _formula_ispec(
-                    element=element,
-                    page=page_no,
-                    material_id=resolved_material,
-                    page_title=page_title,
-                )
-                origin = _ORIGIN_FORMULA
-                if spec is None:
-                    skipped.append(f"{element_id}: 公式无法提取字母变量")
-                    continue
+                # 不再生成无图形、不执行求值的 OMML 降级空壳交互，直接保留原页阅读。
+                skipped.append(f"{element_id}: OMML 公式未解析出可求值模型，已保留原文")
+                continue
             else:
                 continue
             generated.append((spec, origin))
@@ -1112,6 +1114,16 @@ def build_ispecs_detailed(
         for spec in valid
         if spec.get("parameters") and isinstance(spec["parameters"][0].get("source"), Mapping)
     }
+    try:
+        from .user_config import _concept_specs, _spatial_specs
+
+        for page in pages:
+            pno = page.get("page_no")
+            if isinstance(pno, int) and not isinstance(pno, bool) and pno not in page_owner:
+                if _spatial_specs(page) or _concept_specs(page):
+                    page_owner.add(pno)
+    except Exception:  # noqa: BLE001
+        pass
 
     def _record(llm_errors: list[dict[str, Any]], code: str, message: str) -> None:
         llm_errors.append({"object_id": None, "code": code, "errors": [message]})
@@ -1145,13 +1157,16 @@ def build_ispecs_detailed(
                     continue
                 budget -= 1
                 llm_tried += 1
-                request = _page_llm_request(page, image)
+                request = _page_llm_request(page, image, resolved_material)
                 try:
                     response = llm.propose(request)
                     if not isinstance(response, LLMResponse):
                         raise TypeError("provider 返回类型不是 LLMResponse")
                     # 证据仍以该页文字为准；图片里能读到的文字（OCR 结果）也算原文。
                     outcome = parse_ispecs(response.raw_text, pages=request.pages)
+                except LLMResponseInvalid as exc:
+                    _record(errors, "LLM_RESPONSE_INVALID", str(exc))
+                    continue
                 except Exception as exc:  # noqa: BLE001 - 调用失败不得拖垮原生结果
                     _record(errors, "MODEL_UNAVAILABLE", f"LLM 调用失败：{type(exc).__name__}")
                     llm_note = "（LLM 调用失败：MODEL_UNAVAILABLE，已仅保留原生识别结果）"
@@ -1171,11 +1186,14 @@ def build_ispecs_detailed(
             # 已经走过图片兜底就不再重复调用，避免一次识别打两次模型。
             if not valid and not llm_tried:
                 try:
-                    request = _llm_request(pages)
+                    request = _llm_request(pages, resolved_material)
                     response = llm.propose(request)
                     if not isinstance(response, LLMResponse):
                         raise TypeError("provider 返回类型不是 LLMResponse")
                     outcome = parse_ispecs(response.raw_text, pages=request.pages)
+                except LLMResponseInvalid as exc:
+                    _record(errors, "LLM_RESPONSE_INVALID", str(exc))
+                    llm_note = "（LLM 修复重试后仍未返回有效响应）"
                 except Exception as exc:  # noqa: BLE001 - 调用失败不得拖垮原生结果
                     _record(errors, "MODEL_UNAVAILABLE", f"LLM 调用失败：{type(exc).__name__}")
                     llm_note = "（LLM 调用失败：MODEL_UNAVAILABLE，已仅保留原生识别结果）"

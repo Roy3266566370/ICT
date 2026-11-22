@@ -41,7 +41,7 @@ from ..db.models import (
 )
 from ..ispec.persistence import clear_values, save_values
 from ..parsers.pdf_to_pptx import PdfConvertError, convert_pdf_to_pptx
-from ..project_package import MAX_PACKAGE_BYTES, ProjectPackageError, build_project_archive, import_project_archive
+from ..project_package import MAX_PACKAGE_BYTES, ProjectPackageError, build_project_archive, import_project_file
 from ..documents.presentation import apply_document_specs,current_document
 from ..schemas.api_models import (
     CandidateObject,
@@ -151,13 +151,46 @@ def _assert_pptx_extension(filename: str | None) -> str:
     return name
 
 
+_SLIDE_IMAGES = {".jpg": "JPEG", ".jpeg": "JPEG", ".png": "PNG"}
+
+
 def _assert_upload_extension(filename: str | None) -> str:
-    """扩展名必须是 ``.pptx`` 或 ``.pdf``；PDF 会在落盘后转成 PPTX 再走同一条链路。"""
+    """PPTX is the source format for the classic editor and its upload job."""
 
     name = (filename or "").strip()
-    if name.lower().endswith(".pdf"):
+    if Path(name).suffix.lower() in {".pdf", *_SLIDE_IMAGES}:
         return name
     return _assert_pptx_extension(name)
+
+
+def _convert_image_upload(source: Path, target: Path, title: str) -> None:
+    from io import BytesIO
+    from PIL import Image, ImageOps
+    from pptx import Presentation
+    from pptx.util import Inches
+
+    try:
+        with Image.open(source) as raw:
+            if raw.format != _SLIDE_IMAGES[source.suffix] or raw.width * raw.height > 20_000_000:
+                raise ValueError("unsupported image")
+            image = ImageOps.exif_transpose(raw).convert("RGBA")
+            image.thumbnail((1920, 1920))
+    except (OSError, ValueError, Image.DecompressionBombError) as exc:
+        raise invalid_file("请上传有效的 JPG 或 PNG 图片，像素总数须不超过 2000 万") from exc
+    canvas = Image.new("RGB", image.size, "white")
+    canvas.paste(image, mask=image.getchannel("A"))
+    picture = BytesIO()
+    canvas.save(picture, format="PNG")
+    picture.seek(0)
+    deck = Presentation()
+    deck.core_properties.title = title[:120]
+    deck.slide_width, deck.slide_height = Inches(13 + 1/3), Inches(7.5)
+    scale = min(deck.slide_width / canvas.width, deck.slide_height / canvas.height)
+    width, height = round(canvas.width * scale), round(canvas.height * scale)
+    slide = deck.slides.add_slide(deck.slide_layouts[6])
+    slide.shapes.add_picture(picture, (deck.slide_width-width)//2, (deck.slide_height-height)//2,
+                             width=width, height=height)
+    deck.save(target)
 
 
 def _convert_pdf_upload(pdf_path: Path, pptx_path: Path) -> int:
@@ -491,18 +524,18 @@ def _retention_expires_at(db: Session, ctx_session_id: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/materials", status_code=202, summary="上传 PPTX / PDF 并建任务（端点 #5）")
+@router.post("/materials", status_code=202, summary="上传 PPTX / PDF / JPG / PNG 并建任务")
 def upload_material(
     request: Request,
     ctx: WriteDep,
     db: DBDep,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(..., description=".pptx 或 .pdf 文件，<= 70MB"),
+    file: UploadFile = File(..., description="PPTX、PDF、JPG 或 PNG 文件，<= 70MB"),
 ) -> JSONResponse:
     """校验后立即返回 202，解析推进交给 ``BackgroundTasks``（R3-AC1/AC3）。"""
 
     filename = _assert_upload_extension(file.filename)
-    is_pdf = filename.lower().endswith(".pdf")
+    extension = Path(filename).suffix.lower()
     settings = get_settings()
     now = utc_now()
     now_iso = to_iso(now)
@@ -511,10 +544,14 @@ def upload_material(
     target = UPLOAD_DIR / material_id / UPLOADED_FILE_NAME
 
     try:
-        if is_pdf:
+        if extension == ".pdf":
             pdf_target = target.with_suffix(".pdf")
             size = _save_upload_limited(file, pdf_target)
             page_count = _convert_pdf_upload(pdf_target, target)
+        elif extension in _SLIDE_IMAGES:
+            image_target = target.with_suffix(extension)
+            size = _save_upload_limited(file, image_target)
+            _convert_image_upload(image_target, target, Path(filename).stem)
         else:
             size = _save_upload_limited(file, target)
         page_count = inspect_pptx_archive(target)
@@ -614,7 +651,8 @@ def should_upgrade_conversion(
     A failed job must not be re-queued by a read request, otherwise every GET
     restarts the expensive conversion and keeps the material uneditable.
     """
-    if not source_exists or conversion_version == 3:
+    from .routes_jobs import CONVERSION_VERSION
+    if not source_exists or conversion_version == CONVERSION_VERSION:
         return False
     if job_stage in _NON_UPGRADE_JOB_STAGES:
         return False
@@ -653,6 +691,11 @@ def get_material(
             material_summary(db, material, stats, job_stage=job.stage if job is not None else None)
         ),
         "slides": _slides(db, material.id),
+        "formula_reviews": {
+            identifier: {key: evidence.get(key) for key in ('page_no', 'math_text', 'reason')}
+            for identifier, evidence in spec_payload.get('image_recognition', {}).items()
+            if isinstance(evidence, dict) and evidence.get('status') == 'needs_review'
+        },
         "objects": _objects(db, material.id),
         "candidates": _candidates(material),
         # MaterialDetail.job 是 required + nullable：无任务时显式 null。
@@ -809,19 +852,103 @@ def download_project_package(
     )
 
 
-@router.post("/project-packages/import", status_code=201, summary="导入 .xsproj 工程包")
+@router.get("/materials/{material_id}/export-pptx", summary="导出修改后的标准 .pptx 课件")
+def export_material_pptx(
+    material_id: str,
+    request: Request,
+    ctx: SessionDep,
+    db: DBDep,
+) -> Response:
+    from io import BytesIO
+    from pptx import Presentation
+    from pptx.util import Emu, Pt
+    from ..editing import working_path
+    from ..parsers.pptx_parser import _walk_shapes
+
+    material = owned_material(db, ctx, material_id)
+    source = working_path(material.id)
+    if not source.is_file():
+        raise resource_unavailable("原始 PPTX 文件已不存在")
+
+    doc = current_document(material.id)
+    if not doc or not any(p.get("modified") for p in doc.get("pages", [])):
+        data = source.read_bytes()
+    else:
+        deck = Presentation(source)
+        slide_w = int(deck.slide_width)
+        slide_h = int(deck.slide_height)
+        for doc_page in doc.get("pages", []):
+            if not doc_page.get("modified"):
+                continue
+            page_no = int(doc_page.get("page_no") or 0)
+            if not (1 <= page_no <= len(deck.slides)):
+                continue
+            slide = deck.slides[page_no - 1]
+            pw = float(doc_page.get("width") or 960) or 960.0
+            ph = float(doc_page.get("height") or 540) or 540.0
+            by_eid = {
+                eid: shape
+                for shape, _, eid, _, _ in _walk_shapes(
+                    slide.shapes, page_no=page_no, parent_transform=(1.0, 1.0, 0.0, 0.0)
+                )
+            }
+            for node in doc_page.get("nodes", []):
+                if node.get("type") != "text" or node.get("deleted") or node.get("hidden"):
+                    continue
+                src_eid = node.get("source_element_id")
+                text_val = str(node.get("text") or "")
+                if src_eid and src_eid in by_eid:
+                    shape = by_eid[src_eid]
+                    if getattr(shape, "has_text_frame", False):
+                        if shape.text_frame.text != text_val:
+                            shape.text_frame.text = text_val
+                    try:
+                        shape.left = Emu(int(round(float(node.get("x", 0)) / pw * slide_w)))
+                        shape.top = Emu(int(round(float(node.get("y", 0)) / ph * slide_h)))
+                        shape.width = Emu(max(1, int(round(float(node.get("width", 100)) / pw * slide_w))))
+                        shape.height = Emu(max(1, int(round(float(node.get("height", 30)) / ph * slide_h))))
+                    except Exception:  # noqa: BLE001 - 组合内形状不可直接改坐标时跳过
+                        pass
+                elif not src_eid and text_val.strip():
+                    left = Emu(int(round(float(node.get("x", 40)) / pw * slide_w)))
+                    top = Emu(int(round(float(node.get("y", 40)) / ph * slide_h)))
+                    width = Emu(max(1, int(round(float(node.get("width", 240)) / pw * slide_w))))
+                    height = Emu(max(1, int(round(float(node.get("height", 40)) / ph * slide_h))))
+                    box = slide.shapes.add_textbox(left, top, width, height)
+                    box.text_frame.text = text_val
+                    font_size = (node.get("style") or {}).get("font_size")
+                    if isinstance(font_size, (int, float)) and font_size > 0 and box.text_frame.paragraphs:
+                        box.text_frame.paragraphs[0].font.size = Pt(float(font_size))
+        out = BytesIO()
+        deck.save(out)
+        data = out.getvalue()
+
+    filename = f"{material.id}.pptx"
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/project-packages/import", status_code=201, summary="导入 .xsproj 工程包或单文件交互 .html")
 def import_project_package_endpoint(
     request: Request,
     ctx: WriteDep,
     db: DBDep,
-    file: UploadFile = File(..., description=".xsproj 工程包，<= 64MB"),
+    file: UploadFile = File(..., description=".xsproj 工程包或万象导出的单文件 .html，<= 64MB"),
 ) -> JSONResponse:
-    # sync def：FastAPI 在线程池执行，解压不再阻塞事件循环。
+    # sync def：FastAPI 在线程池执行，解压与解析不再阻塞事件循环。
     data = file.file.read(MAX_PACKAGE_BYTES + 1)
     if len(data) > MAX_PACKAGE_BYTES:
-        raise limit_exceeded("工程包超过 64MB")
+        raise limit_exceeded("导入文件超过 64MB")
     try:
-        result = import_project_archive(data, session_id=ctx.session_id, db=db)
+        result = import_project_file(
+            data,
+            session_id=ctx.session_id,
+            db=db,
+            filename=file.filename or "",
+        )
     except ProjectPackageError as exc:
         raise missing_field(str(exc)) from exc
     return ok(request, result, status_code=201)
@@ -863,6 +990,7 @@ def delete_material(material_id: str, request: Request, ctx: WriteDep, db: DBDep
     (DATA_DIR / "regions" / f"{material_id}.json").unlink(missing_ok=True)
     # 识别层 iSpec 产物随材料一起清理（离开数据库即不可访问）。
     (DATA_DIR / "ispecs" / f"{material_id}.json").unlink(missing_ok=True)
+    (DATA_DIR / "ispecs" / f"{material_id}.llm.json").unlink(missing_ok=True)
     # 用户保存的 iSpec 参数值（§10.1 第 5 步）随材料一起清理，避免孤儿数据。
     clear_values(material_id)
     logger.info("会话 %s 删除材料 %s（级联对象 %d 个）", ctx.session_id, material_id, len(object_ids))

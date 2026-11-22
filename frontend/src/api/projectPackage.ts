@@ -11,7 +11,7 @@ export function downloadProjectPackage(materialId: string): Promise<Blob> {
   return requestBinary(`/api/v1/materials/${encodeURIComponent(materialId)}/project-package`);
 }
 
-/** 导入 .xsproj；服务端校验 schema、哈希并重建材料。 */
+/** 导入 .xsproj 工程包或万象导出的单文件 .html 交互网页；服务端校验并重建材料。 */
 export function importProjectPackage(file: File): Promise<ImportedProject> {
   const form = new FormData();
   form.append('file', file, file.name);

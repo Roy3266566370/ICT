@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import type { FigureScene, ISpec } from '@/ispec/types';
 import { isOffBaseline, type RecognizedRegion } from './liveRegions';
 import { useRingBackground } from './bgSample';
@@ -139,7 +139,7 @@ function Caption({ scene, text, shared, cover }: {
  * 读图重建的原位图形：闲置时原图原样透出；悬停或参数偏离原稿后，
  * 在图片原位按识别出的坐标轴/线型/配色重画矢量图，拖动向量端点改矩阵。
  */
-export function RecognizedFigure({ region, spec, cells, shared, reducedMotion }: Props) {
+function RecognizedFigureInner({ region, spec, cells, shared, reducedMotion }: Props) {
   const scene = region.scene;
   const bind = scene.bind!;
   const [hover, setHover] = useState(false);
@@ -163,7 +163,7 @@ export function RecognizedFigure({ region, spec, cells, shared, reducedMotion }:
     x: region.bbox.x / shared.pageSize.width, y: region.bbox.y / shared.pageSize.height,
     w: region.bbox.w / shared.pageSize.width, h: region.bbox.h / shared.pageSize.height,
   }), [region.bbox, shared.pageSize.width, shared.pageSize.height]);
-  const cover = useRingBackground(shared.pageImageUrl, fraction) ?? '#ffffff';
+  const cover = useRingBackground(shared.pageImageUrl, fraction, true) ?? '#ffffff';
 
   const [iw, ih] = scene.image_px;
   const source = useMemo(() => sourceVertices(scene), [scene]);
@@ -308,3 +308,23 @@ export function RecognizedFigure({ region, spec, cells, shared, reducedMotion }:
     {captionChanged && caption && <Caption scene={scene} text={caption} shared={shared} cover={cover}/>}
   </>;
 }
+
+/** 仅当自身绑定的 4 个矩阵参数或布局/配置变化时重绘，避免拖动一张图时连带重绘同页其他图。 */
+export const RecognizedFigure = memo(RecognizedFigureInner, (prev, next) => {
+  if (
+    prev.region !== next.region ||
+    prev.spec !== next.spec ||
+    prev.shared !== next.shared ||
+    prev.reducedMotion !== next.reducedMotion
+  ) {
+    return false;
+  }
+  const bind = next.region.scene.bind;
+  if (!bind) return prev.cells === next.cells;
+  return (
+    Object.is(prev.cells[bind.a], next.cells[bind.a]) &&
+    Object.is(prev.cells[bind.b], next.cells[bind.b]) &&
+    Object.is(prev.cells[bind.c], next.cells[bind.c]) &&
+    Object.is(prev.cells[bind.d], next.cells[bind.d])
+  );
+});

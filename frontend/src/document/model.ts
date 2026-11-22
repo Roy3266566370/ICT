@@ -1,6 +1,8 @@
 import type {SceneDocument,SceneNode,ScenePage,NodePatch,NodeChange} from './types';
+import {defaultMathScene} from './mathScene.ts';
+import {defaultDiagram} from './inlineSystems.ts';
 export const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
-export const mutableKeys=['x','y','width','height','rotation','z','opacity','locked','hidden','deleted','text','table','chart','crop','interaction'] as const;
+export const mutableKeys=['x','y','width','height','rotation','z','opacity','locked','hidden','deleted','text','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo'] as const;
 export function patchNodes(document:SceneDocument,pageNo:number,ids:string[],patch:NodePatch):SceneDocument {
   return {...document,pages:document.pages.map(page=>page.page_no!==pageNo?page:{...page,modified:true,nodes:page.nodes.map(node=>{
     if(!ids.includes(node.id))return node;
@@ -85,11 +87,15 @@ export function newNode(page:ScenePage,id:string,type:SceneNode['type']='text'):
   // 位置放在页面中央——左上角往往压着标题，用户第一眼会以为写错了地方。
   const reference=[...page.nodes].filter(n=>n.type==='text'&&!n.deleted&&!n.hidden&&n.text.trim())
     .sort((a,b)=>(b.style.font_size??0)-(a.style.font_size??0))[0];
-  const width=type==='text'?320:200,height=type==='text'?70:140;
-  return {id,type,name:type==='text'?'新文字':type==='image'?'新图片':'新图形',
+  const width=type==='diagram'?640:type==='demo'?620:type==='math_scene'?480:type==='text'?320:200,height=type==='diagram'?280:type==='demo'?360:type==='math_scene'?360:type==='text'?70:type==='vector'?16:140;
+  return {id,type,name:type==='text'?'新文字':type==='image'?'新图片':type==='vector'?'线条':'新图形',
     x:Math.round((page.width-width)/2),y:Math.round((page.height-height)/2),
-    width,height,
+    width,height,...(type==='math_scene'?{math_scene:defaultMathScene(),viewer_editable:true,name:'矩阵变换图'}:{}),
+    ...(type==='diagram'?{diagram:defaultDiagram(),viewer_editable:true,name:'原位流程图',flow:{enabled:true,speed:1}}:{}),
+    ...(type==='demo'?{demo:null,viewer_editable:true,name:'AI 演示框'}:{}),
+    ...(type==='vector'?{flow:{enabled:false,speed:1},viewer_editable:true}:{}),
     rotation:0,z:Math.max(0,...page.nodes.map(n=>n.z))+1,opacity:1,locked:false,hidden:false,deleted:false,
     text:type==='text'?'新文字':'',base_text:null,style:{font_size:28,font_family:reference?.style.font_family??'Arial',color:reference?.style.color??'#18233D',line_height:1.15,align:'left',vertical_align:'top',
+      ...(type==='vector'?{stroke:'#167abc',stroke_width:3}:{}),
       ...(type==='shape'?{fill:'#E9E4FF',stroke:'#7966CE',stroke_width:1}: {})},base_style:{} as SceneNode['style'],shape:'rect',source_element_id:null};
 }

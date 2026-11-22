@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { evalOutput, makeCtx } from '../canvas/engine.ts';
 import { compileLabToCanvas } from './labToCanvas.ts';
 import { MANUAL_408_SUBJECTS } from './manual408.ts';
 import type { LabProblem } from './types.ts';
@@ -173,22 +174,107 @@ test('2×2 矩阵题编译为矩阵源与几何视图', () => {
   assertWires(compiled.doc);
 });
 
-test('OS 页面置换题编译为可编辑原题序列的专有积木', () => {
+test('OS 页面置换接入原题条件支路并保留冻结答案', () => {
   const compiled = compileLabToCanvas(problem({
     subject: 'operating_system',
     model: {
       engine: 'os_page_v1', subject: 'operating_system', os_kind: 'page_replace',
-      reference: ['7', '0', '1', '2', '0', '3', '0', '4', '2', '3'],
+      reference: ['A', '0', '1', '2', '0', '3', '0', '4', '2', '3'],
+      initial_frames: ['A'],
       defaults: { algorithm: 'lru', frames: 3 }, params: [],
     },
   }), { params: { algorithm: 'opt', frames: 4 } });
   assert.ok(compiled);
-  const node = compiled.doc.nodes.find((item) => item.type === 'pageReplace');
-  assert.ok(node);
-  assert.equal(node.text, '7,0,1,2,0,3,0,4,2,3');
-  assert.deepEqual(node.params, { algorithm: 2, capacity: 4 });
+  const source = compiled.doc.nodes.find(item => item.payload === 'pageReplaceOriginal/references');
+  const original = compiled.doc.nodes.find(item => item.payload === 'pageReplaceOriginal/original');
+  assert.equal(source?.text, 'A,0,1,2,0,3,0,4,2,3');
+  assert.ok(original);
+  assert.equal(original.text, 'A');
+  assert.equal(original.params.algorithm, 2);
+  assert.equal(original.params.capacity, 4);
+  const result = evalOutput(makeCtx(compiled.doc, new Map()), original.id);
+  assert.ok(result?.kind === 'lab408Data');
+  assert.deepEqual(result.result.frames[0]?.rows?.[0], ['OPT · 4 块', 'A · — · — · —', '命中', '—', 0]);
+  assert.ok(compiled.doc.nodes.some(({ text }) => text?.includes('原题答案') && text.includes('LRU · 3 块')));
   assert.ok(!compiled.doc.nodes.some((item) => item.type === 'lab408Workbench'));
   assertWires(compiled.doc);
+});
+
+test('OS 页面置换支持原题的非对照容量，拒绝丢失条件的转入', () => {
+  const model = {
+    engine: 'os_page_v1', subject: 'operating_system', os_kind: 'page_replace',
+    reference: ['1', '2', '3'], defaults: { algorithm: 'fifo', frames: 7 }, params: [],
+  };
+  const supported = compileLabToCanvas(problem({ subject: 'operating_system', model }));
+  assert.equal(supported?.doc.nodes.find(item => item.payload === 'pageReplaceOriginal/original')?.params.capacity, 7);
+  for (const changed of [
+    { ...model, reference: ['1', '2,3'] },
+    { ...model, defaults: { algorithm: 'fifo' } },
+    { ...model, defaults: { algorithm: 'fifo', frames: 2.5 } },
+  ]) {
+    const compiled = compileLabToCanvas(problem({ subject: 'operating_system', model: changed }));
+    assert.ok(compiled?.doc.nodes.some(item => item.type === 'lab408Workbench'));
+    assert.ok(!compiled.doc.nodes.some(item => item.type === 'lab408Stage'));
+  }
+  const guessed = compileLabToCanvas(problem({ subject: 'operating_system', model, recognition: {
+    conditions: [{ id: 'frames', provenance: 'supplement' }], ambiguities: [],
+  } }));
+  assert.ok(guessed?.doc.nodes.some(item => item.type === 'lab408Workbench'));
+});
+
+test('OS CPU 调度继承完整的进程顺序、原题算法以及时间片', () => {
+  const model = {
+    engine: 'os_sched_v1', subject: 'operating_system', os_kind: 'cpu_schedule',
+    processes: [{ id: 'JobB', arrival: 0, burst: 3 }, { id: 'JobA', arrival: 0, burst: 2 }],
+    defaults: { algorithm: 'rr', quantum: 4 }, params: [],
+  };
+  const compiled = compileLabToCanvas(problem({ subject: 'operating_system', model }));
+  assert.ok(compiled);
+  assert.equal(compiled.doc.nodes.find(item => item.payload === 'cpuScheduleLab/processes')?.text, 'JobB 0 3\nJobA 0 2');
+  const rr = compiled.doc.nodes.find(item => item.payload === 'cpuScheduleLab/rr');
+  assert.ok(rr);
+  assert.equal(rr.params.quantum, 4);
+  assert.ok(compiled.doc.panel?.view_node_ids.includes(rr.id));
+  const result = evalOutput(makeCtx(compiled.doc, new Map()), rr.id);
+  assert.ok(result?.kind === 'lab408Data');
+  assert.equal(result.result.frames[0]?.rows?.[0]?.[0], 'JobB');
+  for (const changed of [
+    { ...model, defaults: { algorithm: 'rr' } },
+    { ...model, defaults: { algorithm: 'hrrn', quantum: 4 } },
+    { ...model, processes: [{ id: 'JobB', arrival: 0.5, burst: 3 }] },
+  ]) {
+    const fallback = compileLabToCanvas(problem({ subject: 'operating_system', model: changed }));
+    assert.ok(fallback?.doc.nodes.some(item => item.type === 'lab408Workbench'));
+  }
+});
+
+test('OS 银行家原题继承资源名与请求，检查维度并避免填入示例请求', () => {
+  const model = {
+    engine: 'os_banker_v1', subject: 'operating_system', os_kind: 'banker', names: ['JobA', 'JobB'], resources: ['R1'],
+    available: [1], allocation: [[1], [1]], max: [[2], [3]], request: { process: 'JobB', vector: [1] },
+    defaults: { request_mode: 'apply' }, params: [],
+  };
+  const compiled = compileLabToCanvas(problem({ subject: 'operating_system', model }));
+  assert.ok(compiled);
+  assert.match(compiled.doc.nodes.find(item => item.payload === 'bankerLab/resources')?.text ?? '', /Resources: R1/);
+  assert.equal(compiled.doc.nodes.find(item => item.payload === 'bankerLab/request')?.text, 'JobB: 1');
+  const decision = compiled.doc.nodes.find(item => item.payload === 'bankerLab/decision');
+  assert.ok(decision);
+  const result = evalOutput(makeCtx(compiled.doc, new Map()), decision.id);
+  assert.ok(result?.kind === 'lab408Data');
+  assert.equal(result.result.data.status, 'rolledBack');
+  assert.deepEqual(result.result.data.available, [1]);
+  assert.deepEqual(result.result.data.need, [[1], [2]]);
+  const plain = compileLabToCanvas(problem({ subject: 'operating_system', model: { ...model, request: null, defaults: { request_mode: 'ignore' } } }));
+  assert.equal(plain?.doc.nodes.find(item => item.payload === 'bankerLab/request')?.text, '');
+  const ignored = compileLabToCanvas(problem({ subject: 'operating_system', model }), { params: { request_mode: 'ignore' } });
+  const ignoredRequest = ignored?.doc.nodes.find(item => item.payload === 'bankerLab/request');
+  assert.equal(ignoredRequest?.text, 'JobB: 1');
+  assert.equal(ignoredRequest.params.requestEnabled, 0);
+  const malformed = compileLabToCanvas(problem({ subject: 'operating_system', model: { ...model, request: { process: 'JobB', vector: [1, 2] } } }));
+  assert.ok(malformed?.doc.nodes.some(item => item.type === 'lab408Workbench'));
+  const conflicting = compileLabToCanvas(problem({ subject: 'operating_system', model: { ...model, need: [[1], [1]] } }));
+  assert.ok(conflicting?.doc.nodes.some(item => item.type === 'lab408Workbench'));
 });
 
 test('408 题编译为预填原文的全题型工作台', () => {

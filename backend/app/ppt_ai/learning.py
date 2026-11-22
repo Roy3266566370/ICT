@@ -168,9 +168,6 @@ def _suggested(node: CompiledNode, goal: str) -> list[LearningSuggestedAction]:
             LearningSuggestedAction(
                 action_type="explain", label="为什么可能没有唯一解？", question="为什么奇异矩阵可能没有唯一解？"
             ),
-            LearningSuggestedAction(
-                action_type="counterexample", label="找一个反例", question="在这个矩阵上找一个使 det(A)=0 的例子。"
-            ),
         ]
     if goal == "change_of_basis":
         return [

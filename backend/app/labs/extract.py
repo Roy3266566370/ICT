@@ -24,6 +24,7 @@ from PIL import Image, ImageOps
 
 from ..settings import LABS_DIR, get_settings
 from .expr import normalize_function_notation
+from .ocr_backends import checkout_rapid_ocr, pix2text_ocr
 from .source_recovery import OCR_CONFIDENCE_THRESHOLD
 
 ROLES = {"problem", "data", "attempt", "reference", "courseware"}
@@ -102,14 +103,14 @@ def _ocr(image: Image.Image) -> tuple[str, float | None]:
     try:
         import numpy as np
 
-        engine = _ocr_engine()
         prepared = image.convert("RGB")
         # 截图类小图直接送模型时上下标和斜体 a/α 很容易混淆；先放大再识别。
         if prepared.width < 900 and prepared.height < 260:
             prepared = prepared.resize((prepared.width * 4, prepared.height * 4), Image.LANCZOS)
             prepared = ImageOps.expand(prepared, border=12, fill="white")
         array = np.asarray(prepared)
-        result, _elapsed = engine(array)
+        with checkout_rapid_ocr() as engine:
+            result, _elapsed = engine(array)
     except Exception:  # noqa: BLE001 - OCR 缺失不应让整次上传失败
         return "", None
     rows: list[dict] = []
@@ -153,13 +154,13 @@ def _ocr_detections(image: Image.Image, limit: int = 8) -> list[dict[str, Any]]:
     try:
         import numpy as np
 
-        engine = _ocr_engine()
         prepared = image.convert("RGB")
         if prepared.width < 900 and prepared.height < 260:
             prepared = prepared.resize((prepared.width * 4, prepared.height * 4), Image.LANCZOS)
             prepared = ImageOps.expand(prepared, border=12, fill="white")
         width, height = prepared.size
-        result, _elapsed = engine(np.asarray(prepared))
+        with checkout_rapid_ocr() as engine:
+            result, _elapsed = engine(np.asarray(prepared))
     except Exception:  # noqa: BLE001 - OCR 失败按无标签处理
         return []
     detections: list[dict[str, Any]] = []
@@ -800,23 +801,29 @@ def _pdf_pages(data: bytes, file_id: str, lab_dir: Path, remaining: int, *, pres
                 preview = None
             if needs_ocr:
                 if image is not None:
-                    ocr_text, confidence = _ocr(image)
-                    if ocr_text.strip() and not (
-                        len(native_text) >= 24 and mixed_content and not mixed_math
-                        and not _formula_sensitive(ocr_text)
-                    ):
+                    p2t_result = pix2text_ocr(image)
+                    if p2t_result is not None:
+                        ocr_text, confidence = p2t_result
                         text = ocr_text.strip()
-                        method = "pdf_ocr"
-                        if confidence is not None and confidence < OCR_CONFIDENCE_THRESHOLD:
-                            method = "pdf_ocr_low_confidence"
-                    if _should_try_math_ocr(text) and image is not None:
-                        math_text = _math_ocr(image)
-                        if math_text is not None:
-                            repaired_text = _repair_math_formula(math_text, text)
-                            display_text = _latex_display(repaired_text)
-                            noise = _is_ocr_noise(text)
-                            text = display_text if noise else f"{text}\n{display_text}".strip()
-                            method = "pdf_math_ocr" if noise else "pdf_ocr+math_ocr"
+                        method = "pdf_pix2text"
+                    else:
+                        ocr_text, confidence = _ocr(image)
+                        if ocr_text.strip() and not (
+                            len(native_text) >= 24 and mixed_content and not mixed_math
+                            and not _formula_sensitive(ocr_text)
+                        ):
+                            text = ocr_text.strip()
+                            method = "pdf_ocr"
+                            if confidence is not None and confidence < OCR_CONFIDENCE_THRESHOLD:
+                                method = "pdf_ocr_low_confidence"
+                        if _should_try_math_ocr(text) and image is not None:
+                            math_text = _math_ocr(image)
+                            if math_text is not None:
+                                repaired_text = _repair_math_formula(math_text, text)
+                                display_text = _latex_display(repaired_text)
+                                noise = _is_ocr_noise(text)
+                                text = display_text if noise else f"{text}\n{display_text}".strip()
+                                method = "pdf_math_ocr" if noise else "pdf_ocr+math_ocr"
             review = (
                 _formula_review(
                     f"{native_text}\n{text}\n{math_text or ''}",
@@ -875,23 +882,32 @@ def _image_pages(data: bytes, file_id: str, lab_dir: Path, *,
     except Exception as exc:  # noqa: BLE001
         raise ExtractError("图片无法读取，请换一张 PNG/JPG/WebP") from exc
     preview = _save_preview(image, lab_dir, f"{file_id}_p1")
-    ocr_text, confidence = _ocr(image)
-    math_text = _math_ocr(image) if _should_try_math_ocr(ocr_text) else None
-    repaired_text = _repair_math_formula(math_text, ocr_text) if math_text is not None else None
-    display_text = _latex_display(repaired_text) if repaired_text is not None else None
-    if math_text is not None:
-        # 通用 OCR 只剩公式碎片时直接用可读公式；否则保留其文字并追加公式。
-        if _is_ocr_noise(ocr_text):
-            text = display_text
-            method = "image_math_ocr"
-        else:
-            text = _merge_math_text(ocr_text, display_text)
-            method = "image_ocr+math_ocr"
-    else:
+    p2t_result = pix2text_ocr(image)
+    if p2t_result is not None:
+        ocr_text, confidence = p2t_result
+        math_text = None
+        repaired_text = None
+        display_text = None
         text = ocr_text
-        method = "image_ocr"
-        if confidence is not None and confidence < OCR_CONFIDENCE_THRESHOLD:
-            method = "image_ocr_low_confidence"
+        method = "image_pix2text"
+    else:
+        ocr_text, confidence = _ocr(image)
+        math_text = _math_ocr(image) if _should_try_math_ocr(ocr_text) else None
+        repaired_text = _repair_math_formula(math_text, ocr_text) if math_text is not None else None
+        display_text = _latex_display(repaired_text) if repaired_text is not None else None
+        if math_text is not None:
+            # 通用 OCR 只剩公式碎片时直接用可读公式；否则保留其文字并追加公式。
+            if _is_ocr_noise(ocr_text):
+                text = display_text
+                method = "image_math_ocr"
+            else:
+                text = _merge_math_text(ocr_text, display_text)
+                method = "image_ocr+math_ocr"
+        else:
+            text = ocr_text
+            method = "image_ocr"
+            if confidence is not None and confidence < OCR_CONFIDENCE_THRESHOLD:
+                method = "image_ocr_low_confidence"
     page_item = _attach_ocr_quality({
         "file_id": file_id,
         "page": 1,
@@ -1086,75 +1102,11 @@ def _pptx_preview(slide: Any, slide_w: int, slide_h: int,
     return _save_preview(canvas.convert("RGB"), lab_dir, key)
 
 
-def _render_pptx_slides(
-    pptx_path: Path,
-    lab_dir: Path,
-    file_id: str,
-    slide_w: int,
-    slide_h: int,
-    count: int,
-) -> dict[int, tuple[str, int, int]]:
-    """尽量调用本机 PowerPoint COM / LibreOffice 把 PPTX 渲染为整页 PNG。"""
-    from ..render import engine_com, engine_libreoffice
-    from ..render.engine_select import select_engine
-    from ..render.errors import ENGINE_COM, ENGINE_LIBREOFFICE, RenderError
-
-    choice = select_engine("auto")
-    if not choice.produces_page_images:
-        return {}
-
-    width = 1280
-    height = max(1, round(width * slide_h / slide_w)) if slide_w > 0 and slide_h > 0 else 720
-    tmp_dir = lab_dir / f"_pptx_render_{file_id}"
-    order = [choice.engine]
-    for fallback in (ENGINE_COM, ENGINE_LIBREOFFICE):
-        if fallback not in order and (
-            (fallback == ENGINE_COM and engine_com.is_available())
-            or (fallback == ENGINE_LIBREOFFICE and engine_libreoffice.is_available())
-        ):
-            order.append(fallback)
-
-    files: list[Path] = []
-    try:
-        for engine in order:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-            tmp_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                if engine == ENGINE_COM:
-                    files = engine_com.render_pptx(pptx_path, tmp_dir, width=width, height=height)
-                elif engine == ENGINE_LIBREOFFICE:
-                    files = engine_libreoffice.render_pptx(pptx_path, tmp_dir, width=width, height=height)
-                if files:
-                    break
-            except RenderError as exc:
-                logger.warning("活页 PPTX 引擎 %s 整页渲染失败，尝试回退：%s", engine, exc.message)
-                files = []
-        out: dict[int, tuple[str, int, int]] = {}
-        for index, path in enumerate(files[:count], start=1):
-            if not path.is_file():
-                continue
-            try:
-                with Image.open(path) as img:
-                    img.load()
-                    key = _save_preview(img, lab_dir, f"{file_id}_p{index}", fast=True)
-                    preview_path = lab_dir / "previews" / f"{key}.png"
-                    with Image.open(preview_path) as saved:
-                        out[index] = (key, saved.width, saved.height)
-            except Exception:  # noqa: BLE001
-                continue
-        return out
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-
 def _pptx_pages(
     data: bytes,
     file_id: str,
     lab_dir: Path,
     remaining: int,
-    *,
-    preserve_layout: bool = False,
-    pptx_path: Path | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
     from pptx import Presentation
 
@@ -1165,18 +1117,7 @@ def _pptx_pages(
         raise ExtractError("PPTX 无法打开") from exc
     slide_w = getattr(presentation, "slide_width", 0) or 0
     slide_h = getattr(presentation, "slide_height", 0) or 0
-    total_slides = len(presentation.slides)
-    if preserve_layout and total_slides > remaining:
-        raise ExtractError(f"PPTX 共 {total_slides} 页，超过活页剩余 {remaining} 页额度，请拆分文件后上传")
-    count = min(total_slides, remaining)
-    rendered = (
-        _render_pptx_slides(pptx_path, lab_dir, file_id, slide_w, slide_h, count)
-        if preserve_layout and pptx_path is not None and pptx_path.is_file()
-        else {}
-    )
     pages: list[dict[str, Any]] = []
-    methods: set[str] = set()
-    region_budget = {"labels": _REGION_LABEL_BUDGET}
     for index, slide in enumerate(presentation.slides):
         if index >= remaining:
             break
@@ -1192,63 +1133,16 @@ def _pptx_pages(
                     if any(cells):
                         parts.append(" | ".join(cells))
         page_no = index + 1
-        rendered_info = rendered.get(page_no)
-        if rendered_info is not None:
-            image_key, img_w, img_h = rendered_info
-            page_method = "pptx_render"
-            page_item: dict[str, Any] = {
-                "page": page_no,
-                "text": "\n".join(parts).strip(),
-                "method": page_method,
-                "hidden": slide._element.get("show") == "0",
-                "image_key": image_key,
-                "image_width": img_w,
-                "image_height": img_h,
-                "preserve_layout": True,
-            }
-        else:
-            image_key = _pptx_preview(slide, slide_w, slide_h, lab_dir, f"{file_id}_p{page_no}")
-            page_method = "pptx_text"
-            page_item = {
-                "page": page_no,
-                "text": "\n".join(parts).strip(),
-                "method": page_method,
-                "hidden": slide._element.get("show") == "0",
-                "image_key": image_key,
-            }
-            if image_key is not None and preserve_layout:
-                preview_file = lab_dir / "previews" / f"{image_key}.png"
-                if preview_file.is_file():
-                    try:
-                        with Image.open(preview_file) as img:
-                            page_item["image_width"] = img.width
-                            page_item["image_height"] = img.height
-                            page_item["preserve_layout"] = True
-                    except Exception:  # noqa: BLE001
-                        pass
-        methods.add(page_method)
-        if preserve_layout and image_key:
-            preview_file = lab_dir / "previews" / f"{image_key}.png"
-            if preview_file.is_file():
-                try:
-                    from ..documents.regions import regions_for_pptx_slide
-
-                    with Image.open(preview_file) as preview_image:
-                        preview_image.load()
-                        page_regions = regions_for_pptx_slide(
-                            slide, slide_w, slide_h,
-                            preview_image.convert("RGB"),
-                            lab_dir, file_id, page_no,
-                        )
-                    _fill_region_extras(page_regions, lab_dir, region_budget)
-                    if page_regions:
-                        page_item["regions"] = page_regions
-                except Exception:  # noqa: BLE001 - 区域失败不影响整页预览
-                    logger.exception("活页 PPTX 区域提取失败 page=%s", page_no)
-        pages.append(page_item)
+        pages.append({
+            "page": page_no,
+            "text": "\n".join(parts).strip(),
+            "method": "pptx_text",
+            "hidden": slide._element.get("show") == "0",
+            "image_key": _pptx_preview(slide, slide_w, slide_h, lab_dir, f"{file_id}_p{page_no}"),
+        })
     if not pages:
         raise ExtractError("PPTX 没有可读取的幻灯片")
-    return pages, "+".join(sorted(methods))
+    return pages, "pptx_text"
 
 
 def _text_pages(data: bytes, file_id: str, lab_dir: Path, suffix: str) -> tuple[list[dict[str, Any]], str]:
@@ -1347,14 +1241,7 @@ def extract_files(
             pages, method = _image_pages(data, file_id, lab_dir, regions=preserve_layout)
             kind = "image"
         elif suffix == ".pptx":
-            pages, method = _pptx_pages(
-                data,
-                file_id,
-                lab_dir,
-                remaining,
-                preserve_layout=preserve_layout,
-                pptx_path=files_dir / stored_name,
-            )
+            pages, method = _pptx_pages(data, file_id, lab_dir, remaining)
             kind = "pptx"
         else:
             pages, method = _text_pages(data, file_id, lab_dir, suffix)

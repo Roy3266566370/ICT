@@ -69,6 +69,34 @@
   color: #8a8f8b;
 }
 
+.mathFieldHost {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.mathField {
+  width: 100%;
+  min-height: 26px;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  color: #101211;
+  font-size: 15px;
+  --caret-color: #1c2ecb;
+  --selection-background-color: rgba(28, 46, 203, 0.16);
+}
+
+.mathField:focus-within {
+  outline: none;
+}
+
+.mathField::part(virtual-keyboard-toggle),
+.mathField::part(menu-toggle) {
+  display: none;
+}
+
 .status {
   grid-column: 1 / -1;
   margin: 0;

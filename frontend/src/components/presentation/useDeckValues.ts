@@ -2,7 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, errorMessage, isApiError } from '@/api/client';
 import { initialValues, type ISpec } from '@/ispec/types';
 import type { SpecCell } from '@/ispec/format';
-import { createHistory,commitHistory,undoHistory,redoHistory,changeDeckParameter,sameDeckValues } from './deckHistory';
+import {
+  createHistory,
+  commitHistory,
+  undoHistory,
+  redoHistory,
+  changeDeckParameters,
+  sameDeckValues,
+  sameObjectValues,
+  type DeckParameterPatch,
+} from './deckHistory';
 import { useAccountScope } from '@/state/accountSession';
 
 export type DeckValues = Record<string, Record<string, SpecCell>>;
@@ -51,12 +60,59 @@ export function useDeckValues(specs: ISpec[], identity: string, materialId?: str
   const loadedObjects=useRef(new Set<string>());
   const current = useRef(values);
   const history=useRef(createHistory({}));
+  /** 同帧多次单点参数改动（如二维拖拽的 x/y）合并到一次 rAF 提交，避免高频全量重渲染与撤销栈暴涨。 */
+  const pendingPatches = useRef<Map<string, DeckParameterPatch>>(new Map());
+  const rafId = useRef<number | null>(null);
+  const storageTimer = useRef<number | null>(null);
+  const storagePending = useRef(false);
+  const ownerRef = useRef(valuesOwner);
+  ownerRef.current = valuesOwner;
   // 键含账号 scope：`xiangsheng.deck.v1.<scope>.<identity>`（identity 仍携带 edit_revision）。
   const key = `xiangsheng.deck.v1.${scope}.${identity}`;
   const signature = specs.map(s => s.object_id).join('|');
 
+  const writeStorageNow = useCallback((targetKey: string, snapshot: DeckValues) => {
+    if (storageTimer.current !== null) {
+      window.clearTimeout(storageTimer.current);
+      storageTimer.current = null;
+    }
+    storagePending.current = false;
+    if (!Object.keys(snapshot).length) return;
+    try {
+      localStorage.setItem(targetKey, JSON.stringify({
+        values: snapshot,
+        dirty: [...dirty.current],
+        versions: versions.current,
+      }));
+    } catch { /* private browsing */ }
+  }, []);
+
+  const scheduleStorageWrite = useCallback((targetKey: string) => {
+    storagePending.current = true;
+    if (typeof window === 'undefined') {
+      writeStorageNow(targetKey, current.current);
+      return;
+    }
+    if (storageTimer.current !== null) window.clearTimeout(storageTimer.current);
+    storageTimer.current = window.setTimeout(() => {
+      storageTimer.current = null;
+      if (ownerRef.current !== targetKey) return;
+      writeStorageNow(targetKey, current.current);
+    }, 350);
+  }, [writeStorageNow]);
+
   useEffect(() => {
     let alive = true;
+    if (rafId.current !== null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+    pendingPatches.current.clear();
+    if (storageTimer.current !== null && typeof window !== 'undefined') {
+      window.clearTimeout(storageTimer.current);
+      storageTimer.current = null;
+    }
+    storagePending.current = false;
     dirty.current = new Set();
     versions.current = {};
     edits.current = {};
@@ -80,6 +136,7 @@ export function useDeckValues(specs: ISpec[], identity: string, materialId?: str
     }
     current.current = next;
     history.current=createHistory(next);
+    ownerRef.current = key;
     setValuesOwner(key);
     setValues(next);
     setStatus(dirty.current.size ? '有未保存的修改' : '');
@@ -99,7 +156,7 @@ export function useDeckValues(specs: ISpec[], identity: string, materialId?: str
         // a newer server version while local edits are pending.
         if (versions.current[spec.object_id] === undefined) versions.current[spec.object_id] = record.updated_at;
         if (dirty.current.has(spec.object_id) || (edits.current[spec.object_id] ?? 0) !== generation) {
-          try { localStorage.setItem(key, JSON.stringify({values: current.current, dirty: [...dirty.current], versions: versions.current})); } catch { /* private browsing */ }
+          scheduleStorageWrite(key);
           return;
         }
         versions.current[spec.object_id] = record.updated_at;
@@ -126,33 +183,83 @@ export function useDeckValues(specs: ISpec[], identity: string, materialId?: str
     // 参数会被搬进新 scope 的键，新账号随即"继承"这些值（R5-AC3）。
     if (valuesOwner !== key) return;
     if (!Object.keys(values).length) return;
-    try { localStorage.setItem(key, JSON.stringify({ values, dirty: [...dirty.current], versions: versions.current })); } catch { /* private browsing */ }
-  }, [values, key, valuesOwner]);
+    scheduleStorageWrite(key);
+  }, [values, key, valuesOwner, scheduleStorageWrite]);
 
   const applyValues=useCallback((next:DeckValues)=>{
     if(sameDeckValues(current.current,next)) return;
-    for(const spec of specs) if(JSON.stringify(current.current[spec.object_id])!==JSON.stringify(next[spec.object_id])) {
+    for(const spec of specs) if(!sameObjectValues(current.current[spec.object_id],next[spec.object_id])) {
       dirty.current.add(spec.object_id);
       edits.current[spec.object_id]=(edits.current[spec.object_id]??0)+1;
     }
     current.current=next;setValues(next);
     setStatus(materialId ? '有未保存的修改' : '已在此浏览器保留修改');
   },[specs,materialId]);
-  const change = useCallback((spec: ISpec, id: string, value: SpecCell) => {
-    const next=changeDeckParameter(specs,current.current,spec.object_id,id,value);
-    history.current=commitHistory(history.current,next,`${spec.object_id}.${id}`);
+
+  const flushPending = useCallback(() => {
+    if (rafId.current !== null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+    if (!pendingPatches.current.size) return;
+    const batch = [...pendingPatches.current.values()];
+    pendingPatches.current.clear();
+    const next = changeDeckParameters(specs, current.current, batch);
+    const groupKey = batch
+      .map(item => `${item.objectId}.${item.id}`)
+      .sort()
+      .join('|');
+    history.current = commitHistory(history.current, next, groupKey);
     applyValues(next);
-  }, [specs,applyValues]);
+  }, [specs, applyValues]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const flushAll = () => {
+      flushPending();
+      if (storagePending.current && ownerRef.current === key) {
+        writeStorageNow(key, current.current);
+      }
+    };
+    window.addEventListener('pagehide', flushAll);
+    window.addEventListener('beforeunload', flushAll);
+    return () => {
+      window.removeEventListener('pagehide', flushAll);
+      window.removeEventListener('beforeunload', flushAll);
+      flushAll();
+    };
+  }, [flushPending, key, writeStorageNow]);
+
+  const change = useCallback((spec: ISpec, id: string, value: SpecCell) => {
+    pendingPatches.current.set(`${spec.object_id}:${id}`, { objectId: spec.object_id, id, value });
+    if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') {
+      flushPending();
+      return;
+    }
+    if (rafId.current === null) {
+      rafId.current = window.requestAnimationFrame(() => {
+        rafId.current = null;
+        flushPending();
+      });
+    }
+  }, [flushPending]);
+
   const restore=useCallback((spec:ISpec,snapshot:Record<string,SpecCell>)=>{
-    let next=current.current;
-    for(const parameter of spec.parameters) next=changeDeckParameter(specs,next,spec.object_id,parameter.id,snapshot[parameter.id]??parameter.default);
+    flushPending();
+    const patches: DeckParameterPatch[] = spec.parameters.map(parameter => ({
+      objectId: spec.object_id,
+      id: parameter.id,
+      value: snapshot[parameter.id] ?? parameter.default,
+    }));
+    const next = changeDeckParameters(specs, current.current, patches);
     history.current=commitHistory(history.current,next);
     applyValues(next);
-  },[specs,applyValues]);
-  const undo=useCallback(()=>{history.current=undoHistory(history.current);applyValues(history.current.present);},[applyValues]);
-  const redo=useCallback(()=>{history.current=redoHistory(history.current);applyValues(history.current.present);},[applyValues]);
+  },[specs,applyValues,flushPending]);
+  const undo=useCallback(()=>{flushPending();history.current=undoHistory(history.current);applyValues(history.current.present);},[applyValues,flushPending]);
+  const redo=useCallback(()=>{flushPending();history.current=redoHistory(history.current);applyValues(history.current.present);},[applyValues,flushPending]);
 
   const persistDirty = useCallback(async (): Promise<boolean> => {
+    flushPending();
     for (const spec of specs) {
       if (!dirty.current.has(spec.object_id)) continue;
       if (versions.current[spec.object_id] === undefined) throw new Error('无法核对服务端参数版本，请重新载入后保存');
@@ -162,10 +269,10 @@ export function useDeckValues(specs: ISpec[], identity: string, materialId?: str
       versions.current[spec.object_id] = result.updated_at;
       if (revision === edits.current[spec.object_id]) dirty.current.delete(spec.object_id);
     }
-    try { localStorage.setItem(key, JSON.stringify({ values: current.current, dirty: [...dirty.current], versions: versions.current })); } catch { /* server save succeeded */ }
+    writeStorageNow(key, current.current);
     setStatus(dirty.current.size ? '仍有新修改，请再次保存' : '参数已保存');
     return dirty.current.size === 0;
-  }, [materialId, specs, key]);
+  }, [materialId, specs, key, flushPending, writeStorageNow]);
 
   const save = useCallback(async (): Promise<boolean> => {
     if (!materialId || saving) return !materialId;

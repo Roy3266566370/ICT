@@ -9,6 +9,7 @@ import math
 from typing import Any
 
 import sympy as sp
+from sympy.integrals import manualintegrate as _mi
 
 from .expr import to_latex
 
@@ -334,12 +335,221 @@ def _parts_plan(integrand: sp.Expr, variable: sp.Symbol):
     return None
 
 
+_TRIVIAL_RULES = (
+    _mi.ConstantRule,
+    _mi.PowerRule,
+    _mi.ExpRule,
+    _mi.SinRule,
+    _mi.CosRule,
+    _mi.ReciprocalRule,
+)
+
+_MEANINGFUL_RULES = (
+    _mi.RewriteRule,
+    _mi.URule,
+    _mi.PartsRule,
+    _mi.CyclicPartsRule,
+    _mi.TrigSubstitutionRule,
+    _mi.ArctanRule,
+    _mi.ReciprocalSqrtQuadraticRule,
+    _mi.SqrtQuadraticRule,
+)
+
+
+def _rule_children(rule: Any) -> list[Any]:
+    children: list[Any] = []
+    substep = getattr(rule, "substep", None)
+    if substep is not None:
+        children.append(substep)
+    for key in ("substeps", "parts_rules", "alternatives"):
+        items = getattr(rule, key, None)
+        if items:
+            children.extend(items)
+    for key in ("v_step", "second_step"):
+        item = getattr(rule, key, None)
+        if item is not None:
+            children.append(item)
+    return children
+
+
+def _rule_has_unknown(rule: Any) -> bool:
+    if isinstance(rule, _mi.DontKnowRule):
+        return True
+    if isinstance(rule, _mi.AlternativeRule):
+        return not any(not _rule_has_unknown(alt) for alt in (rule.alternatives or ()))
+    return any(_rule_has_unknown(child) for child in _rule_children(rule))
+
+
+def _rule_is_meaningful(rule: Any) -> bool:
+    if isinstance(rule, _MEANINGFUL_RULES):
+        return True
+    if isinstance(rule, _mi.AlternativeRule):
+        return any(_rule_is_meaningful(alt) and not _rule_has_unknown(alt) for alt in (rule.alternatives or ()))
+    return any(_rule_is_meaningful(child) for child in _rule_children(rule))
+
+
+def _unwrap_alternative(rule: Any) -> Any:
+    if isinstance(rule, _mi.AlternativeRule):
+        for alt in rule.alternatives or ():
+            if not _rule_has_unknown(alt):
+                return _unwrap_alternative(alt)
+    return rule
+
+
+def _collect_manual_steps(rule: Any, steps: list[dict], depth: int = 0) -> None:
+    """仿 sympy_gamma/intsteps.py 将 SymPy manualintegrate 规则树翻译为中文教学步骤。"""
+    if rule is None or depth > 6 or len(steps) >= 7:
+        return
+    rule = _unwrap_alternative(rule)
+    var = getattr(rule, "variable", None)
+    var_tex = to_latex(var) if var is not None else "x"
+
+    if isinstance(rule, _mi.RewriteRule):
+        steps.append({
+            "id": f"method-manual-rewrite-{len(steps)}",
+            "title": "恒等变形 / 部分分式拆解",
+            "latex": rf"{to_latex(rule.integrand)} = {to_latex(rule.rewritten)}",
+            "detail": "先把被积函数改写为更易积分的等价形式（如部分分式分解或三角降幂/恒等变换）。",
+        })
+        _collect_manual_steps(rule.substep, steps, depth + 1)
+        return
+
+    if isinstance(rule, _mi.CyclicPartsRule):
+        parts_desc = []
+        for idx, pr in enumerate(rule.parts_rules or (), start=1):
+            v_expr = pr.v_step.eval() if getattr(pr, "v_step", None) is not None else None
+            if v_expr is not None:
+                parts_desc.append(
+                    rf"\text{{第 {idx} 次：}}u={to_latex(pr.u)},\ \mathrm{{d}}v={to_latex(pr.dv)}\,\mathrm{{d}}{var_tex},\ v={to_latex(v_expr)}"
+                )
+        steps.append({
+            "id": f"method-manual-cyclic-{len(steps)}",
+            "title": "循环分部积分（连续分部并移项求解）",
+            "latex": r" \\ ".join(parts_desc) if parts_desc else to_latex(rule.integrand),
+            "detail": (
+                f"连续进行 {len(rule.parts_rules or ())} 次分部积分后重新出现原积分（系数 {to_latex(rule.coefficient)}），"
+                "将原积分移到等号同侧并除以系数即可解出原函数。"
+            ),
+        })
+        return
+
+    if isinstance(rule, _mi.PartsRule):
+        v_expr = rule.v_step.eval() if getattr(rule, "v_step", None) is not None else None
+        latex = rf"u={to_latex(rule.u)},\quad \mathrm{{d}}v={to_latex(rule.dv)}\,\mathrm{{d}}{var_tex}"
+        if v_expr is not None:
+            latex += rf",\quad v={to_latex(v_expr)}"
+        steps.append({
+            "id": f"method-manual-parts-{len(steps)}",
+            "title": "分部积分：选择 u 与 dv",
+            "latex": latex,
+            "detail": "应用分部积分公式 ∫u dv = uv - ∫v du，化简剩余积分。",
+        })
+        _collect_manual_steps(rule.second_step, steps, depth + 1)
+        return
+
+    if isinstance(rule, _mi.URule):
+        u_var = rule.u_var
+        u_func = rule.u_func
+        du = sp.diff(u_func, var) if var is not None else sp.S.One
+        steps.append({
+            "id": f"method-manual-u-{len(steps)}",
+            "title": "换元：引入新变量",
+            "latex": rf"u={to_latex(u_func)},\quad \mathrm{{d}}u={to_latex(du)}\,\mathrm{{d}}{var_tex}",
+            "detail": f"令新变量替换复合结构 {to_latex(u_func)}，把积分转化为关于新变量的简单积分。",
+        })
+        if rule.substep is not None and not isinstance(rule.substep, _TRIVIAL_RULES):
+            _collect_manual_steps(rule.substep, steps, depth + 1)
+        return
+
+    if isinstance(rule, _mi.TrigSubstitutionRule):
+        steps.append({
+            "id": f"method-manual-trigsub-{len(steps)}",
+            "title": "三角换元",
+            "latex": rf"{var_tex} = {to_latex(rule.func)}",
+            "detail": "被积函数含二次根式结构，采用三角换元消去根号，再按三角函数积分并回代。",
+        })
+        _collect_manual_steps(rule.substep, steps, depth + 1)
+        return
+
+    if isinstance(rule, (_mi.ArctanRule, _mi.ReciprocalSqrtQuadraticRule, _mi.SqrtQuadraticRule)):
+        label = (
+            "反正切标准型积分" if isinstance(rule, _mi.ArctanRule)
+            else "二次根式标准型积分（三角/双曲换元）"
+        )
+        steps.append({
+            "id": f"method-manual-quad-{len(steps)}",
+            "title": label,
+            "latex": rf"\int {to_latex(rule.integrand)}\,\mathrm{{d}}{var_tex}",
+            "detail": "对二次项进行配方或直接套用含二次式/根式二次式的标准积分公式。",
+        })
+        return
+
+    if isinstance(rule, _mi.ConstantTimesRule):
+        _collect_manual_steps(rule.substep, steps, depth + 1)
+        return
+
+    if isinstance(rule, _mi.AddRule):
+        terms = [to_latex(sub.integrand) for sub in (rule.substeps or ()) if getattr(sub, "integrand", None) is not None]
+        if terms:
+            steps.append({
+                "id": f"method-manual-add-{len(steps)}",
+                "title": "按线性性质逐项积分",
+                "latex": r" + ".join(rf"\int \left({t}\right)\,\mathrm{{d}}{var_tex}" for t in terms[:5]),
+                "detail": "利用积分的线性性质拆分为多个基础项分别求原函数。",
+            })
+        for sub in rule.substeps or ():
+            if not isinstance(sub, _TRIVIAL_RULES):
+                _collect_manual_steps(sub, steps, depth + 1)
+
+
+def _manualintegrate_plan(integrand: sp.Expr, variable: sp.Symbol):
+    """使用 SymPy manualintegrate 规则树补充部分分式、三角换元、循环分部等教学步骤。"""
+    if integrand.has(*_UNSUPPORTED) or sp.count_ops(integrand) > _MAX_INTEGRAND_OPS:
+        return None
+    try:
+        rule = _mi.integral_steps(integrand, variable)
+    except Exception:  # noqa: BLE001
+        return None
+    if rule is None or isinstance(rule, _TRIVIAL_RULES) or _rule_has_unknown(rule):
+        return None
+    if not _rule_is_meaningful(rule):
+        return None
+    try:
+        result = sp.simplify(rule.eval())
+    except Exception:  # noqa: BLE001
+        return None
+    if not _displayable(result) or sp.count_ops(result) > _MAX_METHOD_OPS:
+        return None
+    result, log_abs = real_antiderivative(result, integrand, variable)
+    log_abs = log_abs or contains_absolute_log(result)
+    verification = antiderivative_verification(result, integrand, variable)
+    if verification["level"] == VERIFICATION_UNCONFIRMED:
+        return None
+    steps: list[dict] = []
+    _collect_manual_steps(rule, steps)
+    if not steps:
+        return None
+    return {
+        "kind": "manualintegrate",
+        "rule": rule,
+        "raw_steps": steps,
+        "result": result,
+        "log_abs": log_abs,
+        "verification": verification,
+    }
+
+
 def method_plan(integrand: sp.Expr, variable: sp.Symbol):
     """返回第一个通过求导核验的方法；没有可信方法时返回 None。"""
 
     try:
         plan = _substitution_plan(integrand, variable)
-        return plan or _parts_plan(integrand, variable)
+        if plan is not None:
+            return plan
+        plan = _parts_plan(integrand, variable)
+        if plan is not None:
+            return plan
+        return _manualintegrate_plan(integrand, variable)
     except Exception:  # noqa: BLE001 - 展示层方法探测不能影响求解
         return None
 
@@ -423,11 +633,30 @@ def _parts_steps(plan: dict, variable: sp.Symbol, constant: bool) -> list[dict]:
     ]
 
 
+def _manualintegrate_steps(plan: dict, variable: sp.Symbol, constant: bool) -> list[dict]:
+    suffix = _constant_suffix(constant)
+    steps = list(plan.get("raw_steps") or [])
+    steps.append({
+        "id": "method-manual-verify",
+        "title": "汇总原函数并核对",
+        "latex": rf"F({to_latex(variable)}) = {to_latex(plan['result'])}{suffix}",
+        "detail": _verification_detail(
+            plan,
+            "汇总各步得到原函数；对结果求导可回到原被积函数，符号核验通过。",
+            "汇总各步得到原函数；符号求导未能化简回被积函数，但多个样本点的数值抽查通过；"
+            "数值抽查不是全域证明。",
+        ),
+    })
+    return steps
+
+
 def plan_steps(plan: dict | None, variable: sp.Symbol, *, constant: bool) -> list[dict]:
     if plan is None:
         return []
     if plan["kind"] == "substitution":
         return _substitution_steps(plan, variable, constant)
+    if plan["kind"] == "manualintegrate":
+        return _manualintegrate_steps(plan, variable, constant)
     return _parts_steps(plan, variable, constant)
 
 

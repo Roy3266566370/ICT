@@ -1230,20 +1230,22 @@ def create_page_lab(
     if not lock.acquire(blocking=False):
         raise ApiError(ErrorCode.RATE_LIMITED, "本页的交互正在生成，请稍候", status_code=429)
     try:
-        if not body.force:
-            cached = load_cached_lab(material.id, page_no)
-            if cached is not None:
-                return ok(request, {"lab": cached, "cached": True})
         try:
             context = collect_page_context(db, material.id, page_no, material.title or "")
         except PageLabError as exc:
             raise missing_field(str(exc), field="page_no") from exc
+        context_hash = hash_json(context)
+        if not body.force:
+            cached = load_cached_lab(material.id, page_no)
+            if cached is not None and cached.get('context_hash') == context_hash:
+                return ok(request, {"lab": cached, "cached": True})
         try:
             lab = generate_page_lab(context, client=PPTAIClient())
         except PPTAIError as exc:
             raise model_unavailable(str(exc)) from exc
         except PageLabError as exc:
             raise model_unavailable(str(exc)) from exc
+        lab['context_hash'] = context_hash
         save_cached_lab(material.id, page_no, lab)
         return ok(request, {"lab": lab, "cached": False})
     finally:

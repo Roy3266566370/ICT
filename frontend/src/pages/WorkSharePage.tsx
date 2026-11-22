@@ -69,6 +69,7 @@ export function WorkSharePage(): JSX.Element {
     );
   }
   if (!doc) return <div className={styles.page}><p className={styles.muted}>载入中…</p></div>;
+  const isPipeline = !!doc.panel && doc.nodes.some((node) => node.type === 'lab408Stage');
 
   return (
     <div className={styles.page}>
@@ -89,8 +90,11 @@ export function WorkSharePage(): JSX.Element {
       <div className={styles.playerHint}>
         这是别人发布的活画布——对象还在动，但不能改。点右上角「在工坊里改造」复制一份到你自己的画布。
       </div>
-      <div className={styles.frozenBoard} aria-label="只读画布">
-        <CanvasBoard doc={doc} setDoc={() => { /* 只读 */ }} tool="select" inkColor="#2F3A49" />
+      <div className={styles.frozenBoard} data-pipeline={isPipeline || undefined} aria-label="只读画布">
+        <CanvasBoard doc={doc} setDoc={(update) => {
+          if (isPipeline) setDoc((current) => current && (typeof update === 'function' ? update(current) : update));
+        }} tool="select" inkColor="#2F3A49"
+          workbench={isPipeline} readOnly={isPipeline} />
       </div>
     </div>
   );

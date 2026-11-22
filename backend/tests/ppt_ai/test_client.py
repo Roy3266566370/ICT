@@ -33,6 +33,10 @@ def settings(**overrides) -> Settings:
         "llm_base_url": "https://example.invalid/v2",
         "llm_timeout_s": 5,
         "ppt_ai_max_llm_tokens": 1024,
+        "living_figure_vision_provider": "none",
+        "living_figure_vision_api_key": "",
+        "living_figure_vision_model": "",
+        "living_figure_vision_base_url": "",
     }
     values.update(overrides)
     return Settings(**values)
@@ -66,7 +70,7 @@ def test_auth_and_rate_limit_are_classified() -> None:
 def test_model_schema_is_sent_only_when_endpoint_support_is_enabled():
     from app.labs.model_contract import contract_payload
     for enabled in (False, True):
-        transport = FakeTransport(200, response('{"model":{"kind":"none"},"answer":"概念解释"}'))
+        transport = FakeTransport(200, response('{"question":"原题","model":{"kind":"none"},"answer":"概念解释"}'))
         client = PPTAIClient(settings(llm_json_schema=enabled), transport=transport)
         client.generate_json('lab_model_question', contract_payload(), 'v1', CallBudget(max_calls=1))
         fmt = transport.requests[0]['body']['response_format']
@@ -160,6 +164,27 @@ def test_invalid_json_and_schema_rejection() -> None:
             validator=lambda data: (_ for _ in ()).throw(ValueError("missing options")),
         )
     assert exc.value.kind == "schema"
+
+
+def test_instructor_reasks_for_truncation_and_wrong_field_type():
+    class SequenceTransport(FakeTransport):
+        def post(self, url, **kwargs):
+            super().post(url, **kwargs)
+            return 200, [
+                response('{"program":', finish_reason="length"),
+                response('{"program":42}'),
+                response('{"program":"function render(input) {}"}'),
+            ][len(self.requests)-1]
+
+    transport = SequenceTransport()
+    attempts = []
+    result = PPTAIClient(settings(), transport=transport).generate_json(
+        'generated_view', {}, 'v1', CallBudget(max_calls=3), on_attempt=attempts.append,
+    )
+    assert result.data['program'].startswith('function render')
+    assert attempts == [1, 2, 3]
+    assert '截断' in transport.requests[1]['body']['messages'][-1]['content']
+    assert 'program' in transport.requests[2]['body']['messages'][-1]['content']
 
 
 def test_budget_is_enforced_and_success_increments() -> None:

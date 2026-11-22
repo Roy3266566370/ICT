@@ -332,6 +332,9 @@ export function AssistantPanel({
   const [attempt, setAttempt] = useState('');
   const [attemptBusy, setAttemptBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ correct: boolean; text: string } | null>(null);
+  const [stepDraft, setStepDraft] = useState('');
+  const [stepBusy, setStepBusy] = useState(false);
+  const [stepFeedback, setStepFeedback] = useState<{ correct: boolean; text: string } | null>(null);
   const field = useMemo(() => attemptField(problem), [problem]);
   const solutions = problem.solution.steps ?? [];
 
@@ -383,6 +386,20 @@ export function AssistantPanel({
   };
 
   const submitAttempt = (): Promise<void> => checkValue(attempt, 'numeric');
+
+  const submitStepCheck = async (): Promise<void> => {
+    const trimmed = stepDraft.trim();
+    if (!trimmed || stepBusy || readOnly) return;
+    setStepBusy(true);
+    try {
+      const message = await onAttempt(trimmed, 'step', 'step');
+      if (message !== null) {
+        setStepFeedback({ correct: message.startsWith('判断：正确'), text: message });
+      }
+    } finally {
+      setStepBusy(false);
+    }
+  };
 
   return (
     <aside className={styles.assistantPanel} aria-label="学习助手">
@@ -482,6 +499,30 @@ export function AssistantPanel({
                 ))}
               </div>
               <p>从观察开始；只有在需要时才展开具体步骤。</p>
+              <div className={styles.attemptRow} style={{ marginTop: 8 }}>
+                <input
+                  value={stepDraft}
+                  aria-label="中间推导步骤"
+                  placeholder="试写中间步骤：如原函数、导函数或等式 (x^2-1)/(x-1)=x+1"
+                  disabled={stepBusy || readOnly}
+                  onChange={(event) => setStepDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.nativeEvent.isComposing) void submitStepCheck();
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void submitStepCheck()}
+                  disabled={stepBusy || !stepDraft.trim() || readOnly}
+                >
+                  {stepBusy ? '核对中…' : '核对步骤'}
+                </button>
+              </div>
+              {stepFeedback ? (
+                <p className={stepFeedback.correct ? styles.feedbackGood : styles.feedbackWarn}>
+                  <MathText text={stepFeedback.text} />
+                </p>
+              ) : null}
               {messages.length > 0 || busy ? (
                 <div className={styles.chatBox}>
                   {messages.slice(-8).map((message) => (

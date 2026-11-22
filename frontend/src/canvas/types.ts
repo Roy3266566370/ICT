@@ -1,4 +1,6 @@
 import type { StudyStage } from './studyStages.ts';
+import type { PipelineResult } from './lab408PipelineTypes.ts';
+import type { ScienceResult } from './sciencePipelineTypes.ts';
 /**
  * types.ts —— 万象画布数据模型
  *
@@ -14,12 +16,19 @@ import type { StudyStage } from './studyStages.ts';
 export interface DatasetPoint { x: number; y: number; label: number; split: 'train' | 'validation' }
 
 export type PortValue =
+  | { kind: 'lab408Data'; pipeline: string; stage: string; result: PipelineResult; error?: string }
+  | { kind: 'physicsData'; pipeline: string; stage: string; result: ScienceResult; error?: string }
+  | { kind: 'calculusData'; pipeline: string; stage: string; result: ScienceResult; error?: string }
   | { kind: 'tensor2d'; data: number[][] }
   | { kind: 'dataset2d'; points: DatasetPoint[]; featureMap?: 'linear' | 'quadratic' }
   | { kind: 'function'; expression: string; a: number; b: number; c: number }
+  | { kind: 'function2d'; expression: string; a: number; b: number }
   | { kind: 'matrix2'; a: number; b: number; c: number; d: number }
   | { kind: 'scalar'; v: number }
-  | { kind: 'body'; x: number; y: number; vx: number; vy: number; ke?: number; pe?: number };
+  | { kind: 'body'; x: number; y: number; vx: number; vy: number;
+      ke?: number; pe?: number;
+      fx?: number; fy?: number; ax?: number; ay?: number;
+      theta?: number; omega?: number; altX?: number; altY?: number };
 
 export type ValueKind = PortValue['kind'];
 
@@ -31,6 +40,8 @@ export type NodeType =
   | 'mlpTrainer' | 'boundaryView' | 'matrixHeatmapView' | 'gradFlowMeter'
   | 'svmLab' | 'resnetLab' | 'sequenceMemory' | 'multiheadLab' | 'autoencoderLab' | 'diffusionLab' | 'qLearningLab'
   | 'functionSource' | 'functionPlot' | 'limitProbe' | 'derivative' | 'integral' | 'taylor'
+  // 高数进阶：变上限积分、傅里叶、斜率场/ODE、二元函数与二重积分
+  | 'ftcView' | 'fourierLab' | 'odeSlopeField' | 'func2dSource' | 'gradientContour' | 'doubleIntegralView'
   // 源：只有输出
   | 'matrixSource'   // 矩阵源（可编辑 2×2 → 广播 matrix2）
   | 'slider'         // 滑杆源（标量）
@@ -56,12 +67,27 @@ export type NodeType =
   | 'pendulum'       // 单摆（L/θ0/g → 小角摆动 body）
   | 'trailView'      // 轨迹仪（累积 body 位置历史 → 轨迹线）
   | 'energyMeter'    // 能量表（body 的 ke/pe 实时条形）
+  | 'inclineLab'     // 斜面实验台（角度/摩擦系数 → 静摩擦临界与滑动）
+  | 'collisionLab'   // 一维碰撞实验台（质量/初速/恢复系数 → 碰撞前后动量能量）
+  | 'resonanceLab'   // 阻尼受迫共振实验台（k/m/c/F0/ω_d → 稳态振幅）
+  | 'waveLab'        // 波场实验台（振幅/频率/波长 → 行波或驻波采样）
   // 408 专题：自带结论的确定性小实验
   | 'dsTraversal'    // 二叉树四种遍历
   | 'cacheSplit'     // Cache 地址 tag/index/offset 划分
   | 'pageReplace'    // FIFO / LRU / OPT 页面置换
   | 'ipSubnet'       // IPv4 子网划分
   | 'lab408Workbench' // 408 全题型工作台：科目 → 题型 → 原文 → 本地内核
+  | 'lab408Stage'     // 408 数据流模块，payload 指向管线和环节
+  | 'physicsStage'    // 大学物理数据流模块
+  | 'calculusStage'   // 高等数学数据流模块
+  | 'cacheSimLab'     // Cache 组相联访存步进仿真
+  | 'pipelineLab'     // 5 级流水线时空图与冲突
+  | 'ieee754Lab'      // IEEE754 位段解码
+  | 'cpuScheduleLab'  // CPU 调度甘特图对比
+  | 'bankerLab'       // 银行家算法安全序列
+  | 'tcpCongestionLab' // TCP 拥塞窗口曲线
+  | 'slidingWindowLab' // GBN / SR 滑动窗口
+  | 'dsStepLab'       // 数据结构步进器（树 / KMP / 排序 / Dijkstra）
   // 自制积木（Scratch 自定义积木）：封装子图，边界端口对外接线
   | 'composite'      // 复合节点（内含 sub 子图）
   | 'portIn'         // 积木内部：入口边界节点（仅出现在 sub.nodes）

@@ -109,6 +109,8 @@ def enrich_recognition(parsed: dict, material_id: str, metadata: dict):
     if source.exists():
         deck = Presentation(source)
         count = 0
+        vision_chart_calls = 0
+        from .chart_extract import MAX_CHART_CALLS_PER_DECK, extract_chart_from_image
         for number, slide in enumerate(deck.slides, 1):
             page = next((p for p in enriched.get('pages', []) if p['page_no']==number), None)
             if page is None:
@@ -128,20 +130,32 @@ def enrich_recognition(parsed: dict, material_id: str, metadata: dict):
                 if element and element['bbox']['w']*element['bbox']['h'] > page.get('width',1)*page.get('height',1)*.9:
                     continue  # Decorative full-page backgrounds are not formula candidates.
                 count += 1
-                recognition = recognize_image(shape.image.blob)
-                evidence[identifier] = recognition
+                override = metadata.get('overrides', {}).get(identifier, {})
+                if override.get('formula_latex'):
+                    from .image_text import _latex_matrix
+                    latex = override['formula_latex']
+                    recognition = {'text': latex, 'math_text': latex, 'rows': [],
+                                   'matrix': _latex_matrix(latex), 'status': 'user_confirmed', 'reason': None}
+                else:
+                    recognition = recognize_image(shape.image.blob)
+                evidence[identifier] = {**recognition, 'page_no': number}
                 element = by_id.get(identifier)
                 if element is not None:
-                    text = recognition.get('text', '')
+                    waiting = recognition.get('status') == 'needs_review'
+                    text = '' if waiting else recognition.get('text', '')
                     if recognition.get('matrix'):
                         text += '\nA = ' + str(recognition['matrix'])
                     element['text'] = text
+                    element['math_text'] = None if waiting else recognition.get('math_text')
                     element['recognition_method'] = 'local_ocr'
                     # 供区域识别与文本/OCR 表格启发式复用；只保留证据字段。
                     element['image_recognition'] = {
                         key: recognition.get(key)
-                        for key in ('text', 'matrix', 'rows', 'method', 'reason')
+                        for key in ('text', 'math_text', 'matrix', 'rows', 'method', 'backend', 'reason', 'status')
                     }
+                    if waiting:
+                        element['image_recognition']['rows'] = []
+                        continue
                     page_pictures.append({'element_id': identifier, 'bbox': element['bbox'],
                                           'blob': shape.image.blob})
             # 位图读图重建：坐标轴 + 单位方格变换像这一类图还原为可操作场景；
@@ -158,12 +172,42 @@ def enrich_recognition(parsed: dict, material_id: str, metadata: dict):
                     figure_scenes.update(recognize_slide_scenes(number, page_pictures,
                                                                 ocr_lookup=recognize_image))
                 except Exception:  # noqa: BLE001 - 读图失败不影响 OCR/原生识别
-                    continue
+                    pass
+                # 通用图表截图提取：复用已配置的视觉模型（如 Qwen3-VL-32B），
+                # 把统计图表截图还原成标准 chart_data，直通下游 _chart_ispec 生成交互图表。
+                page_title = str(page.get('title') or '')
+                for pic in page_pictures:
+                    if vision_chart_calls >= MAX_CHART_CALLS_PER_DECK:
+                        break
+                    eid = pic['element_id']
+                    if eid in figure_scenes:
+                        continue
+                    element = by_id.get(eid)
+                    if element is None or element.get('chart_data'):
+                        continue
+                    rec = evidence.get(eid) or {}
+                    try:
+                        chart_data, used_call = extract_chart_from_image(
+                            pic['blob'],
+                            ocr_text=str(rec.get('text') or ''),
+                            ocr_rows=rec.get('rows') or (),
+                            has_matrix=bool(rec.get('matrix')),
+                            page_title=page_title,
+                        )
+                    except Exception:  # noqa: BLE001 - 视觉图表提取异常不得阻断其他识别
+                        continue
+                    if used_call:
+                        vision_chart_calls += 1
+                    if chart_data:
+                        element['chart_data'] = chart_data
+                        element['recognition_method'] = 'vision_chart'
+                        element.setdefault('image_recognition', {})['chart_extracted'] = True
     for page in enriched.get('pages', []):
         for element in page['elements']:
             override = metadata.get('overrides', {}).get(element['element_id'])
             if override and override.get('text'):
-                element['text'] = override['text']
+                if element.get('image_recognition', {}).get('status') != 'user_confirmed':
+                    element['text'] = override['text']
                 element['recognition_method'] = 'user_confirmed'
     return enriched, evidence, figure_scenes
 

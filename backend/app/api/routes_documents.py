@@ -22,6 +22,31 @@ class ReinteractRequest(BaseModel):
     model_config=ConfigDict(extra='forbid')
     expected_revision:int=Field(ge=0)
 
+class DiagramRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    text:str=Field(default='',max_length=6000)
+    ai:bool=False
+
+@router.post('/materials/{material_id}/document/pages/{page_no}/diagram')
+def create_inline_diagram(material_id:str,page_no:int,payload:DiagramRequest,request:Request,ctx:WriteDep,db:DBDep):
+    from ..documents.inline_systems import diagram_from_text
+    from ..documents.diagram_generation import generate_inline_diagram
+    from ..ppt_ai.page_lab import collect_page_context,PageLabError
+    from ..ppt_ai.client import PPTAIClient,PPTAIError
+    from ..schemas.errors import model_unavailable
+    material=owned_material(db,ctx,material_id)
+    document=ensure_document(material_id,material.title)
+    if not any(page['page_no']==page_no for page in document['pages']):raise missing_field('页面不存在')
+    try:
+        if payload.ai:
+            context=collect_page_context(db,material_id,page_no,material.title)
+            diagram=generate_inline_diagram(context,client=PPTAIClient(),instruction=payload.text)
+        else:
+            diagram=diagram_from_text(payload.text)
+    except PPTAIError as error:raise model_unavailable(str(error)) from error
+    except (ValueError,PageLabError) as error:raise missing_field(str(error),field='text') from error
+    return ok(request,{'diagram':diagram})
+
 @router.get('/materials/{material_id}/document')
 def get_document(material_id:str,request:Request,ctx:SessionDep,db:DBDep):
     material=owned_material(db,ctx,material_id)

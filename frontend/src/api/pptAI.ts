@@ -285,28 +285,8 @@ export async function recordPptAiArtifactAcceptance(
   return post(`${materialPath(materialId)}/ai-artifacts/${encodeURIComponent(artifactId)}/acceptance`, body);
 }
 
-export interface PageLabParam {
-  id: string;
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  default: number;
-  unit: string;
-}
-
-export interface PageLab {
-  version: string;
-  page_no: number;
-  title: string;
-  summary: string;
-  explain: string[];
-  params: PageLabParam[];
-  program: string;
-  content_hash: string;
-  generator: { model: string; attempts: number };
-  created_at: string;
-}
+export type { PageLabParam, PageLab } from '../ppt-ai/pageLabTypes';
+import type { PageLab } from '../ppt-ai/pageLabTypes';
 
 export async function getPageLab(materialId: string, pageNo: number): Promise<{ lab: PageLab | null }> {
   return requestJson(`${materialPath(materialId)}/pages/${pageNo}/ai-lab`);

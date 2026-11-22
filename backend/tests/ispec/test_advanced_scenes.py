@@ -56,7 +56,7 @@ def test_static_pages_get_new_specs_and_scene_definitions():
           'bbox': {'x': 1, 'y': 2, 'w': 3, 'h': 4}, 'text': '等价 相似 合同'}]},
     ]
     specs = static_page_specs('mat', layouts, set())
-    assert {spec['scene']['scene_type'] for spec in specs} == {'matrix_addition', 'eigen_decomposition', 'relation_types'}
+    assert {spec['scene']['scene_type'] for spec in specs} == {'matrix_addition', 'eigen_decomposition'}
     assert all(validate_ispec(spec) == [] for spec in specs)
     assert all(spec['parameters'][0]['source']['status'] == 'inferred' for spec in specs)
 
@@ -80,4 +80,4 @@ def test_new_material_without_scene_document_still_gets_static_scenes(monkeypatc
     monkeypatch.setattr(advanced_scenes, 'load_page_layouts', lambda _: layouts)
     result = presentation.apply_document_specs('mat', [])
     assert {spec['scene']['scene_type'] for spec in result} == {
-        'matrix_addition', 'eigen_decomposition', 'relation_types'}
+        'matrix_addition', 'eigen_decomposition'}

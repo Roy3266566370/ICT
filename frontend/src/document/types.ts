@@ -1,4 +1,6 @@
 export interface TextStyle {
+  line_style?: 'solid'|'dashed'|'dotted'; arrow_start?: boolean; arrow_end?: boolean;
+  anim_step?: number; bind_mode?: 'none'|'scale'|'rotate';
   font_size:number;font_family:string;color:string;bold?:boolean;italic?:boolean;underline?:boolean;letter_spacing?:number;
   align?:'left'|'center'|'right'|'justify';vertical_align?:'top'|'middle'|'bottom';line_height?:number;
   padding_left?:number;padding_right?:number;padding_top?:number;padding_bottom?:number;
@@ -22,8 +24,39 @@ export interface NodeInteraction {
   reason?:string;
   source?:'user'|'auto';
 }
+export interface BasisOverlay {
+  firstId: string; secondId: string; resultId: string; title: [number, number]; fontSize: number;
+}
+export type Matrix2 = [[number, number], [number, number]];
+export interface MatrixOCR {
+  matrices: Array<{values:number[][]; cells:Array<{row:number;col:number;bbox:[number,number,number,number]}>}>;
+  operation?: 'add'; operands?: [number,number]; result?: number;
+}
+export interface MathScene {
+  template?: 'matrix_vector'|'circle_ellipse'|'det_area'|'basis_change'|'composition'|'svd';
+  vectors?: [number,number][];
+  polygon?: [number,number][];
+  comparison_matrix?: Matrix2;
+  basis?: Matrix2;
+  steps?: Array<{label:string;matrix:Matrix2}>;
+  matrix_source?: {node_id:string;matrix_index:number};
+  view_box: {x: [number, number]; y: [number, number]};
+  matrix: [[number, number], [number, number]];
+  vector: [number, number];
+  show_grid: boolean; show_circle: boolean; radius: number;
+  progress: number; animation_step: number;
+  viewer_parameters: Array<'vector'|'matrix'|'progress'|'radius'|'style'>;
+}
 export interface SceneNode {
-  id:string;name:string;type:'text'|'image'|'shape'|'chart'|'table';x:number;y:number;width:number;height:number;
+  diagram?: import('../living/diagram').DiagramDoc;
+  demo?: import('../ppt-ai/pageLabTypes').PageLab|null;
+  flow?: {enabled: boolean; speed: number};
+  viewer_editable?: boolean;
+  viewer_parameters?: Array<'geometry'|'style'|'flow'>;
+  math_scene?: MathScene;
+  matrix_ocr?: MatrixOCR;
+  basis?: BasisOverlay | null;
+  id:string;name:string;type:'text'|'image'|'shape'|'chart'|'table'|'vector'|'math_scene'|'diagram'|'demo';x:number;y:number;width:number;height:number;
   rotation:number;z:number;opacity:number;locked:boolean;hidden:boolean;deleted:boolean;text:string;
   style:TextStyle;base_style:TextStyle;base_text:string|null;base_x?:number;base_y?:number;base_width?:number;base_height?:number;
   source_element_id?:string|null;source_shape_id?:number|null;whole_group?:boolean;content_changed?:boolean;
@@ -35,9 +68,9 @@ export interface SceneNode {
   style_modified?:string[];crop?:{left:number;right:number;top:number;bottom:number};interaction?:NodeInteraction|null;
 }
 export interface ScenePage {
-  page_no:number;id?:string;width:number;height:number;nodes:SceneNode[];modified?:boolean;background_url?:string;
+  page_no:number;id?:string;width:number;height:number;nodes:SceneNode[];modified?:boolean;auto_vectors?:boolean;background_url?:string;
   preparation?:{status:'unprepared'|'queued'|'preparing'|'ready'|'failed';message?:string;errors?:string[];frozen_ids?:string[];seconds?:number};
 }
 export interface SceneDocument {schema_version:string;revision:number;title:string;source_key?:string;pages:ScenePage[];}
-export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'table'|'chart'|'crop'|'interaction'>> & {style?:Partial<TextStyle>};
+export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'table'|'chart'|'crop'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'math_scene'|'matrix_ocr'|'diagram'|'demo'>> & {style?:Partial<TextStyle>};
 export interface NodeChange {page_no:number;id:string;patch?:NodePatch;create?:Record<string,unknown>;}

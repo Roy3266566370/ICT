@@ -2,11 +2,13 @@ import {useCallback,useEffect,useRef,useState,useSyncExternalStore,type PointerE
 import {useNavigate,useSearchParams,Link} from 'react-router-dom';
 import {useQueryClient} from '@tanstack/react-query';
 import type {MaterialDetail} from '@/api/types';
-import {getDocument,prepareDocumentPage,reinteractDocumentPage} from '@/api/documents';
+import {getDocument,prepareDocumentPage,reinteractDocumentPage,createSceneDiagram} from '@/api/documents';
+import {createPageLab} from '@/api/pptAI';
 import {errorMessage} from '@/api/client';
 import {useScopedQueryKeys} from '@/api/queryKeys';
 import type {DocumentController} from '@/document/controller';
 import {newNode,patchNodes,distributeNodes} from '@/document/model';
+import {resolveMatrixSource} from '@/document/mathScene';
 import type {SceneNode,NodePatch,NodeInteraction} from '@/document/types';
 import type {ISpec} from '@/ispec/types';
 import {ZoomControl} from '@/components/ui/ZoomControl';
@@ -31,6 +33,12 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
   const [selected,setSelected]=useState<string[]>([]);const [editingId,setEditingId]=useState<string|null>(null);
   const [preview,setPreview]=useState<Record<string,Partial<SceneNode>>>({});const [guides,setGuides]=useState<{x?:number;y?:number}>({});
   const [tab,setTab]=useState<'pages'|'layers'>('pages');const [zoom,setZoom]=useState<number|'fit'>('fit');
+  const [insertMode,setInsertMode]=useState<'diagram'|'demo'|null>(null);
+  const drawing=useRef<{x:number;y:number}|null>(null);
+  const [drawBox,setDrawBox]=useState<{x:number;y:number;width:number;height:number}|null>(null);
+  const [generating,setGenerating]=useState<Record<string,boolean>>({});
+  const currentPage=useRef(page.page_no);currentPage.current=page.page_no;
+  const mounted=useRef(true);useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   const [panMode,setPanMode]=useState(false);const [spaceHeld,setSpaceHeld]=useState(false);const spaceRef=useRef(false);
   const [panning,setPanning]=useState(false);const panRef=useRef<{x:number;y:number;left:number;top:number}|null>(null);
   const [reference,setReference]=useState(false);const [retry,setRetry]=useState(0);const [message,setMessage]=useState('');const [leaving,setLeaving]=useState(false);
@@ -72,7 +80,7 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',blur);
     return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',blur);};
   },[]);
-  useEffect(()=>{setSelected([]);setEditingId(null);setPreview({});setReference(false);},[page.page_no]);
+  useEffect(()=>{setSelected([]);setEditingId(null);setPreview({});setReference(false);setInsertMode(null);setDrawBox(null);drawing.current=null;},[page.page_no]);
   useEffect(()=>{
     if(status==='ready')return;
     let alive=true;let timer:ReturnType<typeof setTimeout>|undefined;
@@ -114,9 +122,38 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     controller.replace(next);setSelected(ids);setEditingId(null);
   };
   const remove=()=>{if(canEdit){controller.patch(page.page_no,unlocked.map(n=>n.id),{deleted:true});setSelected([]);setEditingId(null);}};
-  const add=(type:'text'|'shape',shape:'rect'|'ellipse'='rect')=>{
+  const add=(type:'text'|'shape'|'math_scene',shape:'rect'|'ellipse'='rect')=>{
     if(!canEdit)return;const node={...newNode(page,identifier(),type),shape};controller.add(page.page_no,node);setSelected([node.id]);if(type==='text')setEditingId(node.id);
   };
+  const addVector = (arrow: boolean) => {
+    if (!canEdit) return;
+    const node = newNode(page, identifier(), 'vector');
+    node.y += (page.nodes.filter(item => item.type === 'vector' && !item.deleted).length % 5) * 22;
+    node.style.arrow_end = arrow;
+    controller.add(page.page_no, node);
+    setSelected([node.id]);
+    setEditingId(null);
+  };
+  const generateNode=async(id:string,kind:'demo'|'diagram',text='',ai=false)=>{
+    const pageNo=page.page_no;
+    const original=controller.getSnapshot().document.pages.find(p=>p.page_no===pageNo)?.nodes.find(n=>n.id===id);
+    if(!canEdit||!original||original.locked||generating[id])return;
+    const content=JSON.stringify(kind==='demo'?original.demo:original.diagram);
+    setGenerating(current=>({...current,[id]:true}));setMessage('');
+    try{
+      if(!await controller.save())throw new Error('请先完成当前修改的同步，再根据本页生成。');
+      const patch:NodePatch=kind==='demo'?{demo:(await createPageLab(materialId,pageNo,!!original.demo)).lab}:
+        {diagram:(await createSceneDiagram(materialId,pageNo,text,ai)).diagram};
+      if(!mounted.current)return;
+      const latest=controller.getSnapshot().document.pages.find(p=>p.page_no===pageNo)?.nodes.find(n=>n.id===id);
+      if(currentPage.current!==pageNo||!latest||latest.deleted||latest.locked||JSON.stringify(kind==='demo'?latest.demo:latest.diagram)!==content){
+        setMessage('生成已完成，原对象已变更；请回到目标图框后重新应用。');return;
+      }
+      controller.patch(pageNo,[id],patch);setMessage('已生成到当前图框，可直接演示。');
+    }catch(error){if(mounted.current)setMessage(errorMessage(error));}
+    finally{if(mounted.current)setGenerating(current=>({...current,[id]:false}));}
+  };
+  const armInsert=(kind:'diagram'|'demo')=>{setInsertMode(current=>current===kind?null:kind);setPanMode(false);setSelected([]);setEditingId(null);setMessage('在幻灯片上拖出图框；按 Esc 取消。');};
   const addImage=async(image:File)=>{
     if(!['image/png','image/jpeg','image/webp'].includes(image.type)||image.size>4*1024*1024){setMessage('请选择4MB以内的PNG、JPEG或WebP图片');return;}
     const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(image);});
@@ -155,6 +192,8 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
   const begin=(e:ReactPointerEvent<HTMLDivElement>)=>{
     if(panMode||spaceRef.current)return;
     if(!canEdit||e.button!==0||(e.target as Element).closest('textarea,input,select'))return;
+    if(insertMode){const start=point(e);drawing.current={x:Math.max(0,Math.min(page.width,start.x)),y:Math.max(0,Math.min(page.height,start.y))};
+      setDrawBox({...drawing.current,width:0,height:0});e.preventDefault();e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);return;}
     const handle=(e.target as Element).closest<HTMLElement>('[data-handle]')?.dataset.handle;
     const id=(e.target as Element).closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
     let nodes=unlocked;
@@ -176,6 +215,8 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     const start=point(e);drag.current={kind:handle==='rotate'?'rotate':handle?'resize':'move',direction:handle??'',startX:start.x,startY:start.y,nodes,box:bounds(nodes),preview:{}};
   };
   const move=(e:ReactPointerEvent<HTMLDivElement>)=>{
+    if(drawing.current){const start=drawing.current,now=point(e),x=Math.max(0,Math.min(page.width,now.x)),y=Math.max(0,Math.min(page.height,now.y));
+      setDrawBox({x:Math.min(start.x,x),y:Math.min(start.y,y),width:Math.abs(x-start.x),height:Math.abs(y-start.y)});return;}
     const active=drag.current;if(!active)return;
     const current=point(e);let dx=current.x-active.startX,dy=current.y-active.startY;const result:Record<string,Partial<SceneNode>>={};const lines:{x?:number;y?:number}={};
     if(Math.hypot(dx,dy)>4)lastTap.current=null;
@@ -215,7 +256,7 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     const key=(e:KeyboardEvent)=>{
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();void controller.save();return;}
       if((e.target as Element)?.closest('input,textarea,select,[contenteditable=true]'))return;
-      if(e.key==='Escape'){setEditingId(null);setSelected([]);return;}
+      if(e.key==='Escape'){setEditingId(null);setSelected([]);setInsertMode(null);setDrawBox(null);drawing.current=null;return;}
       if(!canEdit)return;
       if(e.key==='Enter'&&primary?.type==='text'&&!primary.locked){e.preventDefault();setEditingId(primary.id);return;}
       if((e.ctrlKey||e.metaKey)&&['z','y'].includes(e.key.toLowerCase())){e.preventDefault();e.shiftKey||e.key.toLowerCase()==='y'?controller.redo():controller.undo();return;}
@@ -300,6 +341,10 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
         <button aria-label="重做编辑" title="Ctrl+Shift+Z" onClick={()=>controller.redo()} disabled={!state.canRedo||!canEdit}>↷ 重做</button></div>
       <div className={styles.toolGroup}><button onClick={()=>add('text')} disabled={!canEdit}>＋ 文字</button><button onClick={()=>file.current?.click()} disabled={!canEdit}>＋ 图片</button>
         <button onClick={()=>add('shape')} disabled={!canEdit}>□ 矩形</button><button onClick={()=>add('shape','ellipse')} disabled={!canEdit}>○ 椭圆</button></div>
+      <div className={styles.toolGroup}><button onClick={()=>addVector(false)} disabled={!canEdit}>＋ 线条</button><button onClick={()=>addVector(true)} disabled={!canEdit}>＋ 箭头</button></div>
+      <div className={styles.toolGroup}><button onClick={()=>add('math_scene')} disabled={!canEdit}>＋ 数学图</button></div>
+      <div className={styles.toolGroup}><button aria-pressed={insertMode==='diagram'} onClick={()=>armInsert('diagram')} disabled={!canEdit}>＋ 流程图</button>
+        <button aria-pressed={insertMode==='demo'} onClick={()=>armInsert('demo')} disabled={!canEdit}>＋ AI 演示框</button></div>
       <input type="file" accept="image/png,image/jpeg,image/webp" ref={file} hidden onChange={e=>{const image=e.target.files?.[0];if(image)void addImage(image).catch(error=>setMessage(errorMessage(error)));e.target.value='';}}/>
       <div className={styles.toolGroup}><button onClick={duplicate} disabled={!selectedNodes.length||!canEdit}>复制</button><button onClick={remove} disabled={!unlocked.length||!canEdit}>删除</button>
         <button onClick={()=>layer(true)} disabled={!unlocked.length||!canEdit}>置顶</button><button onClick={()=>layer(false)} disabled={!unlocked.length||!canEdit}>置底</button>
@@ -331,16 +376,24 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
           onPointerDown={panDown} onPointerMove={panMove} onPointerUp={panEnd} onPointerCancel={panEnd}>
           <div className={styles.workarea} style={{minWidth:page.width*scale+80,minHeight:page.height*scale+80}}>
             <div ref={frame} className={styles.frame} style={{width:page.width*scale,height:page.height*scale}} onPointerDown={begin} onPointerMove={move}
-              onPointerUp={()=>end()} onPointerCancel={()=>end(true)} onDoubleClick={e=>{
+              onPointerUp={()=>{if(drawing.current&&insertMode&&drawBox){const node=newNode(page,identifier(),insertMode);
+                const width=drawBox.width>=80?Math.max(160,drawBox.width):node.width,height=drawBox.height>=60?Math.max(120,drawBox.height):node.height;
+                Object.assign(node,{x:Math.max(0,Math.min(page.width-width,drawBox.x)),y:Math.max(0,Math.min(page.height-height,drawBox.y)),width:Math.min(page.width,width),height:Math.min(page.height,height)});
+                controller.add(page.page_no,node);setSelected([node.id]);drawing.current=null;setDrawBox(null);setInsertMode(null);setMessage('');return;}end();}}
+              onPointerCancel={()=>{drawing.current=null;setDrawBox(null);end(true);}} onDoubleClick={e=>{
                 if(!canEdit||panMode||spaceRef.current)return;const recent=lastTap.current;
                 const id=(e.target as Element).closest<HTMLElement>('[data-node-id]')?.dataset.nodeId??
                   (recent&&Date.now()-recent.time<500&&Math.hypot(e.clientX-recent.x,e.clientY-recent.y)<6?recent.id:undefined);
                 const node=page.nodes.find(n=>n.id===id);if(node?.type==='text'&&!node.locked){setSelected([node.id]);setEditingId(node.id);}
               }} aria-label={`可编辑画布第 ${page.page_no} 页`}>
               {reference||!ready?<img className={styles.original} src={source?.image_url??''} alt={`第 ${page.page_no} 页原稿`} draggable={false}/>:
-                <ScenePageView page={page} scale={scale} editing={canEdit} editingId={editingId} preview={preview} onText={onText} onCompose={onCompose} onTextBlur={closeText}>
+                <ScenePageView page={page} scale={scale} editing={canEdit} editingId={editingId} preview={preview} onText={onText} onCompose={onCompose} onTextBlur={closeText} vectorId={primary?.id}
+                  onVectorSelect={id=>{setSelected([id]);setEditingId(null);}}
+                  generating={generating} onGenerateDemo={id=>void generateNode(id,'demo')}
+                  onVectorPatch={(id, patch,key)=>controller.patch(page.page_no,[id],patch,key?`${id}.${key}`:'')}>
                   {guides.x!==undefined&&<div className={styles.guideX} style={{left:guides.x}}/>}{guides.y!==undefined&&<div className={styles.guideY} style={{top:guides.y}}/>}
-                  {box&&<div className={styles.selection} style={{left:box.x,top:box.y,width:box.width,height:box.height,
+                  {drawBox&&<div style={{position:'absolute',...drawBox,border:'2px dashed #1e73a8',background:'#e9f3fa55',pointerEvents:'none',zIndex:60000}}/>}
+                  {box&&primary?.type!=='vector'&&<div className={styles.selection} style={{left:box.x,top:box.y,width:box.width,height:box.height,
                     transform:shown.length===1?`rotate(${shown[0]!.rotation}deg)`:undefined,borderWidth:1/scale}}>
                     {unlocked.length===1&&selectedNodes.length===1&&!editingId&&<>
                       {['nw','n','ne','e','se','s','sw','w'].map(direction=><span key={direction} role="button" aria-label={`缩放手柄 ${direction}`} data-handle={direction}
@@ -356,7 +409,9 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
         {!ready&&<div className={styles.preparing} role="status">{status==='failed'?page.preparation?.message??'本页对象准备失败':'正在准备本页可编辑对象，首次需要几秒；后续输入和拖动即时显示。'}
           {status==='failed'&&<button onClick={()=>setRetry(n=>n+1)}>重新准备本页</button>}</div>}
       </main>
-      <NodeProperties node={primary} count={selectedNodes.length} pageNo={page.page_no} materialId={materialId} autoSpecs={autoSpecs}
+      <NodeProperties node={primary?.math_scene?{...primary,math_scene:resolveMatrixSource(primary.math_scene,page.nodes)}:primary} count={selectedNodes.length} pageNo={page.page_no} materialId={materialId} autoSpecs={autoSpecs} pageNodes={page.nodes}
+        generating={!!(primary&&generating[primary.id])} onDemoGenerate={()=>primary&&void generateNode(primary.id,'demo')}
+        onDiagramBuild={(text,ai)=>primary?generateNode(primary.id,'diagram',text,ai):undefined}
         disabled={!canEdit||!!(primary&&page.preparation?.frozen_ids?.includes(primary.id))}
         onPatch={patch} onDuplicate={duplicate} onDelete={remove}
         onInteraction={(config:NodeInteraction|null)=>patch({interaction:config},'interaction')}

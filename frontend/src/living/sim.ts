@@ -6,7 +6,6 @@
  */
 
 import type { PageLabParam } from '@/api/pptAI';
-import type { PageBlock } from './types';
 
 export interface PageLabSimData {
   kind: 'page_lab';
@@ -42,42 +41,6 @@ export function parsePageLabSim(payload: string | undefined): PageLabSimData | n
   } catch {
     return null;
   }
-}
-
-/** canvas 块关联的文字锚块 id：旧 ``ai_model`` 黑盒块与新 ``pageLabSim`` 块都认。 */
-export function aiAnchorOf(block: PageBlock): string | null {
-  if (block.type !== 'canvas') return null;
-  const doc = block.data.doc as Record<string, unknown>;
-  if (doc.template === 'ai_model') {
-    const anchor = doc.anchor_id;
-    return typeof anchor === 'string' && anchor ? anchor : null;
-  }
-  for (const sim of simsIn(block)) {
-    if (sim.anchor_id) return sim.anchor_id;
-  }
-  return null;
-}
-
-/** canvas 块内的 pageLabSim 载荷列表（多节点画布可含多个 AI 模型）。 */
-export function simsIn(block: PageBlock): PageLabSimData[] {
-  if (block.type !== 'canvas') return [];
-  const doc = block.data.doc as Record<string, unknown>;
-  if (doc.version !== 1 || !Array.isArray(doc.nodes)) return [];
-  const out: PageLabSimData[] = [];
-  for (const node of doc.nodes as Record<string, unknown>[]) {
-    if (node?.type !== 'pageLabSim' || typeof node.payload !== 'string') continue;
-    const sim = parsePageLabSim(node.payload);
-    if (sim) out.push(sim);
-  }
-  return out;
-}
-
-/** canvas 块上的 AI 设计指令（重新设计时回填输入框；新块从 payload 读）。 */
-export function aiInstructionOf(block: PageBlock): string {
-  if (block.type !== 'canvas') return '';
-  const doc = block.data.doc as Record<string, unknown>;
-  if (doc.template === 'ai_model') return String(doc.instruction ?? '');
-  return simsIn(block).find((sim) => sim.instruction)?.instruction ?? '';
 }
 
 const ATTENTION_RANGES: Record<string, { label: string; min: number; max: number; step: number }> = {

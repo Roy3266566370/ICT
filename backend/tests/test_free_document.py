@@ -256,3 +256,27 @@ def test_freeze_fails_fast_when_edited_page_is_not_prepared(source_deck, tmp_pat
     store.write_document('material', doc)
     with pytest.raises(ValueError, match='仍在准备'):
         presentation.freeze_document('material')
+
+def test_vector_create_and_style_validation():
+    from app.documents.store import _create, validate_patch
+    node = _create({"nodes": []}, "arrow", {
+        "type": "vector", "x": 80, "y": 60, "width": 120, "height": 16,
+        "rotation": -30, "style": {"stroke": "#123456", "stroke_width": 3,
+                                    "line_style": "dashed", "arrow_end": True},
+    })
+    assert node["type"] == "vector"
+    assert node["style"]["line_style"] == "dashed"
+    assert node["style"]["arrow_end"] is True
+    with pytest.raises(ValueError):
+        validate_patch({"style": {"line_style": "arbitrary"}})
+    with pytest.raises(ValueError):
+        validate_patch({"style": {"arrow_end": "true"}})
+    validate_patch({"style": {"anim_step": 2, "bind_mode": "scale"}})
+    validate_patch({"basis": {"firstId": "a", "secondId": "b", "resultId": "c", "title": [40, 24], "fontSize": 20}})
+    validate_patch({"basis": None})
+    with pytest.raises(ValueError):
+        validate_patch({"style": {"anim_step": 12}})
+    with pytest.raises(ValueError):
+        validate_patch({"style": {"bind_mode": "unknown"}})
+    with pytest.raises(ValueError):
+        validate_patch({"basis": {"firstId": "a", "secondId": "a", "resultId": "c", "title": [40, 24], "fontSize": 20}})

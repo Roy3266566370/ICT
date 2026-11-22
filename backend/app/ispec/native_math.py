@@ -24,6 +24,7 @@ def _normalize(text: str) -> str:
     # Unwrap simple nested LaTeX fractions/roots without evaluating anything.
     for _ in range(8):
         previous = text
+        text = re.sub(r"\\(?:mathbf|mathrm|mathit|mathsf|mathtt|mathnormal|boldsymbol)\s*\{([^{}]*)\}", r"\1", text)
         text = re.sub(r"\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}", r"((\1)/(\2))", text)
         text = re.sub(r"\\sqrt\s*\{([^{}]+)\}", r"sqrt(\1)", text)
         if text == previous:
@@ -35,7 +36,7 @@ def _expression(text: str) -> tuple[str, list[str]] | None:
     text = _normalize(text)
     if len(text) > 350:
         return None
-    text = re.sub(r"(?<=\d)(?=[a-df-zA-DF-Z])", "*", text)
+    text = re.sub(r"(?<=\d)\s*(?=[a-df-zA-DF-Z])", "*", text)
     text = re.sub(r"(?<=\))(?=[A-Za-z(])", "*", text)
     try:
         tree = ast.parse(text, mode="eval")
@@ -150,6 +151,11 @@ def build_native_math_specs(page: Mapping[str, Any], material_id: str) -> list[d
         original = str(element.get("math_text") or element.get("text") or "")
         line_status = "inferred" if element.get("recognition_method") == "local_ocr" else "original"
         for line_index, line in enumerate(original.splitlines()):
+            if element.get('image_recognition', {}).get('status') in ('recognized', 'user_confirmed', 'vision_confirmed') and r'\int' in line:
+                integral = _image_integral_spec(page, element, material_id, line, line_index)
+                if integral:
+                    specs.append(integral)
+                continue
             # Matrix transpose/inverse and symbolic operators are not scalar arithmetic.
             if any(symbol in line for symbol in ("⁻", "ᵀ", "Σ", "∑", "∫", "[", r"\begin")):
                 continue
@@ -200,3 +206,53 @@ def build_native_math_specs(page: Mapping[str, Any], material_id: str) -> list[d
                           {"type": "table", "columns": [p["id"] for p in parameters] + [output]}],
                          "受限标量公式；参数默认值来自本页明确赋值，缺失值标为系统推断并以 0 占位，请确认后使用。"))
     return specs
+
+
+def _image_integral_spec(page, element, material_id, latex, index):
+    """Plot the supported, confirmed single-variable definite integral."""
+    import sympy as sp
+    from .formula_review import parse_formula
+    from ..labs.expr import parse_expression
+
+    integral = parse_formula(latex)
+    if not isinstance(integral, sp.Integral) or len(integral.limits) != 1 or len(integral.limits[0]) != 3:
+        return None
+    variable, lower, upper = integral.limits[0]
+    if integral.function.free_symbols - {variable} or not re.fullmatch(r'[A-Za-z]', str(variable)):
+        return None
+    try:
+        a, b = float(lower), float(upper)
+        code = sp.sstr(integral.function)
+        parsed = _expression(code)
+        if not parsed or not all(math.isfinite(n) and abs(n) <= 1e6 for n in (a, b)) or a == b:
+            return None
+        expression = parse_expression(code, variables=(str(variable),))
+        sample_variable = next(iter(expression.free_symbols), variable)
+        lo, hi = sorted((a, b))
+        points = []
+        for i in range(81):
+            x = lo + (hi-lo)*i/80
+            try:
+                value = float(expression.subs(sample_variable, x))
+                points.append([x, value if math.isfinite(value) else None])
+            except (ValueError, TypeError, ArithmeticError):
+                points.append([x, None])
+        if sum(y is not None for _, y in points) < 2:
+            return None
+    except (ValueError, TypeError, ArithmeticError):
+        return None
+    source = _source(page['page_no'], element, latex,
+                     'confirmed' if element.get('recognition_method') == 'user_confirmed' else 'inferred')
+    parameter = _parameter(str(variable), (lo+hi)/2, source)
+    parameter.update(min=lo, max=hi)
+    spec = _spec(f"native_{material_id}_{element['element_id']}_{index}_integral", '定积分 · 被积函数',
+                 'parametric', [parameter], [{'id': 'fx', 'expr': parsed[0], 'label': '被积函数'}], [
+                     {'type': 'text', 'template': latex, 'title': '原始公式'},
+                     {'type': 'vega', 'spec_ref': 'line', 'x': 'x', 'y': 'y', 'dataset': 'curve',
+                      'title': '积分区间内的被积函数'},
+                     {'type': 'text', 'template': '当前被积函数值 = {{fx}}', 'title': '观察点'},
+                 ], '曲线来自已核对的公式，横轴取原积分区间。')
+    spec['anchor'] = {'page': page['page_no'], 'element_id': element['element_id'], 'bbox': element['bbox']}
+    spec['datasets'] = [{'id': 'curve', 'columns': ['x', 'y'], 'rows': points,
+                         'source': {'page': page['page_no'], 'element_id': element['element_id']}}]
+    return spec

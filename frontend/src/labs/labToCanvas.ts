@@ -1,4 +1,6 @@
 /** 把已核对完成的实验室题目编译成万象工坊积木；不可映射的题型明确返回 null。 */
+import { build408Pipeline, find408Stage } from '../canvas/lab408Pipeline.ts';
+import { isOsPageLabel, osPageAlgorithms, osPageCapacity } from '../canvas/lab408PipelineOs.ts';
 import { nextId } from '../canvas/math.ts';
 import type { CanvasDoc, CanvasNode, NodeType, Wire } from '../canvas/types.ts';
 import { compileExpression } from './expr.ts';
@@ -43,11 +45,111 @@ function matrixParams(matrix: number[][] | null | undefined): Record<string, num
   return { a: values[0]!, b: values[1]!, c: values[2]!, d: values[3]! };
 }
 
+function boundedInteger(value: unknown, min: number, max: number): number | null {
+  const number = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value;
+  return typeof number === 'number' && Number.isSafeInteger(number) && number >= min && number <= max ? number : null;
+}
+
+function identifier(value: unknown): value is string {
+  return typeof value === 'string' && /^[\p{L}][\p{L}\d_-]*$/u.test(value);
+}
+
+function originalOsPipeline(problem: LabProblem, seed: Record<string, unknown>, title: string, note: string): LabCanvasCompile | null {
+  const model = problem.model;
+  const defaults = model.defaults;
+  const missing = (id: string) => problem.recognition.conditions.some(condition => condition.id === id && condition.provenance === 'supplement');
+
+  if (model.os_kind === 'page_replace') {
+    const caseIndex = (value: unknown) => osPageAlgorithms.findIndex(algorithm => algorithm === String(value).toLowerCase());
+    const originalAlgorithm = caseIndex(defaults.algorithm);
+    const algorithm = caseIndex(seed.algorithm ?? defaults.algorithm);
+    const originalCapacity = boundedInteger(defaults.frames, 1, osPageCapacity);
+    const capacity = boundedInteger(seed.frames ?? defaults.frames, 1, osPageCapacity);
+    const windowValue = seed.window ?? defaults.window;
+    const window = windowValue === undefined ? null : boundedInteger(windowValue, 1, 60);
+    const reference = model.reference;
+    const initial = model.initial_frames === undefined ? [] : model.initial_frames;
+    if (originalAlgorithm < 0 || algorithm < 0 || originalCapacity === null || capacity === null || missing('frames') || missing('algorithm')
+      || (windowValue !== undefined && window === null)
+      || !Array.isArray(reference) || !reference.length || reference.length > 60 || !reference.every(isOsPageLabel)
+      || !Array.isArray(initial) || !initial.every(isOsPageLabel) || new Set(initial).size !== initial.length
+      || initial.length > Math.min(originalCapacity, capacity)) return null;
+    const originalLabel = `${osPageAlgorithms[originalAlgorithm]!.toUpperCase()} · ${originalCapacity} 块`;
+    const doc = build408Pipeline('pageReplaceOriginal', `${title} · 页面置换实验`,
+      `${note}\n\n题设置换条件 ${originalLabel}。对照分支从空块开始，用相同访问序列观察不同算法与容量。`);
+    doc.nodes.find(node => node.payload === 'pageReplaceOriginal/references')!.text = reference.join(',');
+    const branch = doc.nodes.find(node => node.payload === 'pageReplaceOriginal/original')!;
+    branch.text = initial.join(',');
+    branch.params = { ...branch.params, algorithm, capacity, ...(window === null ? {} : { window }) };
+    return { doc, summary: '已生成页面置换对照与题设支路' };
+  }
+
+  if (model.os_kind === 'cpu_schedule') {
+    const supported = ['fcfs', 'sjf', 'srtf', 'rr'];
+    const original = String(defaults.algorithm ?? '').toLowerCase();
+    const algorithm = String(seed.algorithm ?? original).toLowerCase();
+    const quantumValue = seed.quantum ?? defaults.quantum;
+    const quantum = boundedInteger(quantumValue, 1, 10);
+    const originalQuantum = boundedInteger(defaults.quantum, 1, 10);
+    const processes = model.processes;
+    if (!supported.includes(original) || !supported.includes(algorithm) || missing('algorithm') || model.has_priority
+      || (original === 'rr' && (originalQuantum === null || missing('quantum')))
+      || (quantumValue !== undefined && quantum === null) || (algorithm === 'rr' && quantum === null)
+      || !Array.isArray(processes) || !processes.length || processes.some(process => !process || !identifier(process.id)
+        || (process.priority !== undefined && process.priority !== null)
+        || !Number.isSafeInteger(process.arrival) || !Number.isSafeInteger(process.burst))) return null;
+    const label = `${original.toUpperCase()}${original === 'rr' ? `（时间片 ${originalQuantum}）` : ''}`;
+    const doc = build408Pipeline('cpuScheduleLab', `${title} · CPU 调度实验`, `${note}\n\n题设调度算法 ${label}。`);
+    const source = doc.nodes.find(node => node.payload === 'cpuScheduleLab/processes')!;
+    source.text = processes.map(({ id, arrival, burst }) => `${id} ${arrival} ${burst}`).join('\n');
+    if (!find408Stage(source)?.stage.run({ text: source.text, params: {}, upstream: [] }).data.processes) return null;
+    if (quantum !== null) doc.nodes.find(node => node.payload === 'cpuScheduleLab/rr')!.params.quantum = quantum;
+    const focused = doc.nodes.find(node => node.payload === `cpuScheduleLab/${algorithm}`)!;
+    doc.panel?.view_node_ids.unshift(focused.id);
+    return { doc, summary: '已生成 CPU 调度对照与题设进程表' };
+  }
+
+  if (model.os_kind === 'banker') {
+    const { names, resources, available, allocation, request } = model;
+    if (!Array.isArray(names) || !names.length || !names.every(identifier) || new Set(names).size !== names.length
+      || !Array.isArray(available) || !available.length || !Array.isArray(allocation) || allocation.length !== names.length) return null;
+    const width = available.length;
+    const vector = (value: unknown, max = 999): value is number[] => Array.isArray(value) && value.length === width
+      && value.every(item => typeof item === 'number' && boundedInteger(item, 0, max) !== null);
+    const matrix = (value: unknown, max = 999): value is number[][] => Array.isArray(value) && value.length === names.length
+      && value.every(row => vector(row, max));
+    if (!vector(available) || !matrix(allocation)) return null;
+    if (resources !== undefined && (!Array.isArray(resources) || resources.length !== width || !resources.every(isOsPageLabel)
+      || new Set(resources).size !== resources.length)) return null;
+    const maximum = 'max' in model ? model.max : undefined;
+    if (maximum != null && !matrix(maximum, 1998)) return null;
+    const computedNeed = maximum?.map((row, index) => row.map((value, dimension) => value - allocation[index]![dimension]!));
+    const need = model.need ?? computedNeed;
+    if (!matrix(need) || (computedNeed && need.some((row, index) => row.some((value, dimension) => value !== computedNeed[index]![dimension])))) return null;
+    const mode = seed.request_mode ?? defaults.request_mode ?? (request ? 'apply' : 'ignore');
+    if ((mode !== 'apply' && mode !== 'ignore') || (request && (!names.includes(request.process) || !vector(request.vector)))
+      || (mode === 'apply' && !request)) return null;
+    const doc = build408Pipeline('bankerLab', `${title} · 银行家算法实验`, note);
+    const source = doc.nodes.find(node => node.payload === 'bankerLab/resources')!;
+    source.text = [
+      ...(resources ? [`Resources: ${resources.join(',')}`] : []),
+      `Available: ${available.join(',')}`,
+      ...names.map((name, index) => `${name} ${allocation[index]!.join(',')} | ${need[index]!.join(',')}`),
+    ].join('\n');
+    if (!find408Stage(source)?.stage.run({ text: source.text, params: {}, upstream: [] }).data.resources) return null;
+    const requestNode = doc.nodes.find(node => node.payload === 'bankerLab/request')!;
+    requestNode.text = request ? `${request.process}: ${request.vector.join(',')}` : '';
+    requestNode.params.requestEnabled = mode === 'apply' || !request ? 1 : 0;
+    return { doc, summary: '已生成银行家算法的题设资源表与安全性检查' };
+  }
+  return null;
+}
+
 /**
  * 只编译能逐项对应的题型：
  * - 高数：导数/函数研究、积分、极限、泰勒；
  * - 线代：2×2 矩阵；
- * - 408：全题型工作台（预填原题文字）。
+ * - 408：完整结构化操作系统题接入专题管线，其余预填原题文字。
  * 其余题型返回 null，由调用方提示“该题型暂不支持一键拆解”。
  */
 export function compileLabToCanvas(
@@ -70,7 +172,12 @@ export function compileLabToCanvas(
   };
   const answer = problem.solution.answer || problem.solution.summary || '见原题计算结果';
   const source = problem.source?.label ? `\n来源：${problem.source.label}` : '';
-  add('textNote', 30, 24, {}, `${title}\n原题：${problem.text}\n${source}\n\n内核答案（冻结）：${answer}\n\n下面的积木是原题的沙盒拆解，可自由改参数；原题文字与答案不会被覆盖。`);
+  const note = `${title}\n原题：${problem.text}\n${source}\n\n内核答案（冻结）：${answer}\n\n下面的积木是原题的沙盒拆解，可自由改参数；原题文字与答案不会被覆盖。`;
+  if (problem.subject === 'operating_system') {
+    const compiled = originalOsPipeline(problem, seed, title, note);
+    if (compiled) return compiled;
+  }
+  add('textNote', 30, 24, {}, note);
 
   if (problem.subject === 'calculus') {
     const kind = model.kind;
@@ -176,20 +283,6 @@ export function compileLabToCanvas(
   if (['algorithm', 'computer_organization', 'operating_system', 'computer_network'].includes(problem.subject)) {
     const subjectIndex = MANUAL_408_SUBJECTS.findIndex((subject) => subject.id === problem.subject);
     if (subjectIndex < 0) return null;
-    if (problem.subject === 'operating_system' && model.os_kind === 'page_replace' && Array.isArray(model.reference)) {
-      const reference = model.reference.map(Number).filter((value) => Number.isInteger(value) && value >= 0);
-      const algorithm = String(seed.algorithm ?? model.defaults.algorithm ?? '').toLowerCase();
-      const algorithmIndex = algorithm === 'fifo' ? 0 : algorithm === 'lru' ? 1 : algorithm === 'opt' ? 2 : -1;
-      const capacity = Math.round(numeric(seed.frames ?? model.defaults.frames, 3));
-      if (reference.length && algorithmIndex >= 0 && capacity >= 1 && capacity <= 4) {
-        add('pageReplace', 40, 300, { algorithm: algorithmIndex, capacity }, reference.join(','));
-        add('textNote', 620, 300, {}, `页面置换专用积木\n原题访问序列已预填，可在积木内直接修改序列、算法与物理块数并重算。\n原题答案（冻结）：${answer}`);
-        return {
-          doc: { version: 1, title: `${title} · 页面置换实验`, zoom: 0.85, nodes, wires, strokes: [] },
-          summary: '已生成页面置换专用积木',
-        };
-      }
-    }
     add('lab408Workbench', 40, 300, { subjectIndex, typeIndex: 0 }, problem.text);
     add('textNote', 560, 300, {}, '408 探究说明\n原题文字已预填进工作台；如题型识别不匹配，可在工作台内切换题型后再运行本地内核。专有积木只在能完整承载原题数据时启用，避免用固定示例覆盖原题。');
     return {

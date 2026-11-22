@@ -1,15 +1,13 @@
-/** 活页入口：材料列表 + 两种创建方式（上传文件 / 粘贴文字）。 */
+/** 万象活页主入口：统一导入静态 PPTX / PDF / 图片到横向动态 PPT 工作台，并管理已有课件。 */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { createLivingPage, createLivingPageFromText, deleteLivingPage, listLivingPages, patchLivingPage } from '@/api/living';
 import { api, errorMessage } from '@/api/client';
+import { importProjectPackage } from '@/api/projectPackage';
+import { uploadTeachingMaterial, WORKBENCH_UPLOAD_ACCEPT } from '@/api/teachingUpload';
+import type { MaterialSummary } from '@/api/types';
 import { SiteNav } from '@/components/home/SiteNav';
-import { DEEP_LESSONS, type DeepLesson } from '@/living/deepLessons';
-import type { LivingPageSummary } from '@/living/types';
 import styles from './LivingPage.module.css';
-
-const ACCEPT = '.pdf,.pptx,.png,.jpg,.jpeg,.webp,.txt,.md,.csv';
 
 function UploadGlyph(): JSX.Element {
   return (
@@ -40,45 +38,50 @@ function SkeletonList(): JSX.Element {
   );
 }
 
+function statusLabel(status: MaterialSummary['status'] | 'readable'): string {
+  switch (status) {
+    case 'ready':
+      return '已就绪';
+    case 'awaiting_confirmation':
+      return '可交互';
+    case 'readable':
+      return '底图已就绪';
+    case 'processing':
+      return '转换中';
+    case 'failed':
+      return '转换失败';
+    default:
+      return status;
+  }
+}
+
 export default function LivingPagesPage(): ReactNode {
   const navigate = useNavigate();
-  const [pages, setPages] = useState<LivingPageSummary[] | null>(null);
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState<'upload' | 'text' | null>(null);
-  const [lessonBusy, setLessonBusy] = useState<string | null>(null);
+  const [materials, setMaterials] = useState<MaterialSummary[] | null>(null);
+  const [busy, setBusy] = useState<'upload' | 'import' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const importRef = useRef<HTMLInputElement>(null);
 
-  const totalBlocks = pages === null ? null : pages.reduce((sum, p) => sum + p.block_count, 0);
-  const pendingSuggestions = pages === null ? null : pages.reduce((sum, p) => sum + p.suggestions_pending, 0);
+  const totalSlides = materials === null ? null : materials.reduce((sum, item) => sum + item.page_count, 0);
+  const totalObjects = materials === null ? null : materials.reduce((sum, item) => sum + item.object_count, 0);
 
   const [loadError, setLoadError] = useState('');
-  const loadPages = (): void => {
+  const loadData = (): void => {
     setLoadError('');
-    listLivingPages()
-      .then(setPages)
-      .catch(() => setLoadError('活页列表加载失败，请重试。'));
+    api.listMaterials(50)
+      .then((res) => setMaterials(res.items))
+      .catch(() => setLoadError('课件列表加载失败，请重试。'));
   };
-  useEffect(loadPages, []);
+  useEffect(loadData, []);
 
   const upload = async (files: FileList | null): Promise<void> => {
     if (!files?.length) return;
     setBusy('upload');
     setError(null);
     try {
-      const pptx = [...files].find(file => /\.pptx$/i.test(file.name));
-      if (pptx) {
-        if (files.length !== 1) {
-          setError('请单独上传每份 PPTX，进入经典 PPT 工作台。');
-          return;
-        }
-        const material = await api.uploadMaterial(pptx);
-        navigate(`/materials/${material.material_id}/work?page=1`);
-        return;
-      }
-      const doc = await createLivingPage({ files: [...files] });
-      navigate(`/living/${doc.page_id}`);
+      navigate(await uploadTeachingMaterial([...files]));
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -87,40 +90,19 @@ export default function LivingPagesPage(): ReactNode {
     }
   };
 
-  const fromText = async (): Promise<void> => {
-    if (!text.trim()) return;
-    setBusy('text');
+  const handleImportPackage = async (files: FileList | null): Promise<void> => {
+    const file = files?.[0];
+    if (!file) return;
+    setBusy('import');
     setError(null);
     try {
-      const doc = await createLivingPageFromText({ title: '', text: text.trim() });
-      navigate(`/living/${doc.page_id}`);
+      const imported = await importProjectPackage(file);
+      navigate(`/materials/${encodeURIComponent(imported.material_id)}/work?page=1`);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setBusy(null);
-    }
-  };
-
-  const createLesson = async (lesson: DeepLesson): Promise<void> => {
-    setLessonBusy(lesson.id);
-    setError(null);
-    let pageId: string | null = null;
-    try {
-      const created = await createLivingPageFromText({ title: lesson.title, text: '互动教材副本' });
-      pageId = created.page_id;
-      const built = lesson.build();
-      const updated = await patchLivingPage({
-        pageId: created.page_id,
-        expectedRevision: created.revision,
-        blocks: built.blocks,
-        variables: built.variables,
-      });
-      navigate(`/living/${updated.page_id}`);
-    } catch (e) {
-      setError(errorMessage(e));
-      if (pageId) await deleteLivingPage(pageId).catch(() => undefined);
-    } finally {
-      setLessonBusy(null);
+      if (importRef.current) importRef.current.value = '';
     }
   };
 
@@ -130,21 +112,21 @@ export default function LivingPagesPage(): ReactNode {
       <main className={styles.listPage}>
         <header className={styles.pageHead}>
           <div className={styles.headText}>
-            <p className={styles.eyebrow}>万象活页 · Living Pages</p>
-            <h1 className={styles.pageTitle}>把讲义变成活页</h1>
+            <p className={styles.eyebrow}>万象活页 · 动态 PPT 工作台</p>
+            <h1 className={styles.pageTitle}>把静态 PPT 变成动态活页</h1>
             <p className={styles.lead}>
-              把任何文件变成“活的”讲义：文字、公式、题目、实验都长在页面上。
-              上传后自动解析成块，之后可以继续在编辑器里补题目、公式和实验。
+              上传静态 PPTX、PDF 或图片，直接进入横向幻灯片工作台。
+              在原页位置实时调节线条长短、线型与颜色，原位交互公式、图表与流程图，并可打包成独立 HTML 分享。
             </p>
             <p className={styles.headMeta}>
-              <span><b>{pages === null ? '—' : pages.length}</b> 份活页</span>
-              <span><b>{totalBlocks === null ? '—' : totalBlocks}</b> 个内容块</span>
-              <span><b>{pendingSuggestions === null ? '—' : pendingSuggestions}</b> 条待激活</span>
+              <span><b>{materials === null ? '—' : materials.length}</b> 份课件</span>
+              <span><b>{totalSlides === null ? '—' : totalSlides}</b> 页幻灯片</span>
+              <span><b>{totalObjects === null ? '—' : totalObjects}</b> 个交互对象</span>
             </p>
           </div>
           <aside className={styles.headNote}>
-            <span>支持的文件</span>
-            <p>PDF / PPTX / 图片 / 文本；PDF 最多 100 页，保留原页图示与公式，也可以直接粘贴讲义原文。</p>
+            <span>统一工作台</span>
+            <p>所有 PPTX、PDF 与图片均进入横向幻灯片舞台，默认开启原位交互，无需跳转或弹窗。</p>
           </aside>
         </header>
 
@@ -152,9 +134,9 @@ export default function LivingPagesPage(): ReactNode {
           <div className={styles.sectionHead}>
             <div>
               <p className={styles.sectionEyebrow}>01 · New</p>
-              <h2 id="living-create-title" className={styles.sectionTitle}>新建活页</h2>
+              <h2 id="living-create-title" className={styles.sectionTitle}>新建或导入动态 PPT</h2>
             </div>
-            <p className={styles.sectionNote}>上传即解析 · 文字直接生成</p>
+            <p className={styles.sectionNote}>上传即入工作台 · 原位编辑与演示</p>
           </div>
 
           <div className={styles.createRow}>
@@ -182,16 +164,15 @@ export default function LivingPagesPage(): ReactNode {
               }}
             >
               <span className={styles.dropIcon} aria-hidden="true"><UploadGlyph /></span>
-              <strong>{busy === 'upload' ? '正在解析并生成原页预览，大文件请稍候…' : '上传文件'}</strong>
-              <span className={styles.dropHint}>PDF / PPTX / 图片 / 文本 — 拖进来也行</span>
+              <strong>{busy === 'upload' ? '正在解析并打开幻灯片工作台，请稍候…' : '上传 PPT / PDF / 图片'}</strong>
+              <span className={styles.dropHint}>拖入或点击选择 1 份文件，直接生成横向动态 PPT</span>
               <span className={styles.dropFormats} aria-hidden="true">
-                <i>PDF</i><i>PPTX</i><i>PNG</i><i>TXT</i><i>MD</i>
+                <i>PPTX</i><i>PDF</i><i>PNG</i><i>JPG</i>
               </span>
               <input
                 ref={fileRef}
                 type="file"
-                accept={ACCEPT}
-                multiple
+                accept={WORKBENCH_UPLOAD_ACCEPT}
                 hidden
                 onChange={(e) => void upload(e.target.files)}
               />
@@ -199,103 +180,72 @@ export default function LivingPagesPage(): ReactNode {
 
             <div className={styles.pasteCard}>
               <div className={styles.pasteHead}>
-                <span className={styles.pasteLabel}>或者粘贴一段讲义文字</span>
-                {text.length > 0 ? <span className={styles.charCount}>{text.length} 字</span> : null}
+                <span className={styles.pasteLabel}>导入已有动态工程 / 离线网页</span>
+                <span className={styles.charCount}>.xsproj / .html</span>
               </div>
-              <textarea
-                placeholder="支持标题、段落与公式；粘贴后直接生成…"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={5}
-              />
+              <p className={styles.lead} style={{ margin: '0.25rem 0 auto', fontSize: '0.88rem' }}>
+                从本地恢复之前导出的工程包或单文件交互 HTML，保留所有原位矢量图形、颜色线型、数学画布、流程图与 AI 演示框，导入后立即回到 PPT 工作台继续修改。
+              </p>
               <div className={styles.pasteFoot}>
-                <span className={styles.pasteHint}>生成后仍可在编辑器里改块、插入题目与实验。</span>
+                <span className={styles.pasteHint}>支持 .xsproj 工程存档与万象导出的单文件 .html 直接导回</span>
                 <button
                   type="button"
                   className={styles.generateBtn}
-                  disabled={busy === 'text' || !text.trim()}
-                  onClick={() => void fromText()}
+                  disabled={busy === 'import'}
+                  onClick={() => importRef.current?.click()}
                 >
-                  {busy === 'text' ? '生成中…' : '生成活页'}
+                  {busy === 'import' ? '导入中…' : '选择 .xsproj / .html 导入'}
                 </button>
+                <input
+                  ref={importRef}
+                  type="file"
+                  accept=".xsproj,.html,.htm,application/zip,text/html"
+                  hidden
+                  onChange={(e) => void handleImportPackage(e.target.files)}
+                />
               </div>
             </div>
           </div>
         </section>
 
-        {loadError ? <p role="alert">{loadError} <button onClick={loadPages}>重试</button></p> : null}
+        {loadError ? <p role="alert">{loadError} <button onClick={loadData}>重试</button></p> : null}
         {error ? <p className={styles.uploadError} role="alert">{error}</p> : null}
-
-        <section className={styles.listSection} aria-labelledby="living-lessons-title">
-          <div className={styles.sectionHead}>
-            <div>
-              <p className={styles.sectionEyebrow}>02 · Interactive Lessons</p>
-              <h2 id="living-lessons-title" className={styles.sectionTitle}>深度学习互动教材</h2>
-            </div>
-            <p className={styles.sectionNote}>预置仪器面板 · 活变量 · 先猜再看</p>
-          </div>
-          <ul className={styles.pageList}>
-            {DEEP_LESSONS.map((lesson, index) => (
-              <li key={lesson.id} className={styles.pageRow}>
-                <button
-                  type="button"
-                  className={`${styles.pageItem} ${styles.lessonButton}`}
-                  disabled={lessonBusy !== null}
-                  onClick={() => void createLesson(lesson)}
-                >
-                  <span className={styles.pageIndex}>{String(index + 1).padStart(2, '0')}</span>
-                  <span className={styles.pageMain}>
-                    <span className={styles.pageItemTitle}>{lesson.title}</span>
-                    <span className={styles.lessonDesc}>{lesson.desc}</span>
-                    <span className={styles.pageItemMeta}>
-                      <span>{lesson.subtitle}</span>
-                      <em className={styles.pendingBadge}>{lesson.topic}</em>
-                    </span>
-                  </span>
-                  <span className={styles.pageArrow} aria-hidden="true">{lessonBusy === lesson.id ? '…' : '→'}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
 
         <section className={styles.listSection} aria-labelledby="living-mine-title">
           <div className={styles.sectionHead}>
             <div>
-              <p className={styles.sectionEyebrow}>03 · Library</p>
-              <h2 id="living-mine-title" className={styles.sectionTitle}>我的活页</h2>
+              <p className={styles.sectionEyebrow}>02 · Library</p>
+              <h2 id="living-mine-title" className={styles.sectionTitle}>我的动态 PPT</h2>
             </div>
-            <span className={styles.countPill}>{pages === null ? '载入中' : `${pages.length} 份`}</span>
+            <span className={styles.countPill}>{materials === null ? '载入中' : `${materials.length} 份`}</span>
           </div>
-          {pages === null ? (
+          {materials === null ? (
             <SkeletonList />
-          ) : pages.length === 0 ? (
+          ) : materials.length === 0 ? (
             <div className={styles.empty}>
               <span className={styles.emptyIcon} aria-hidden="true"><PagesGlyph /></span>
-              <p className={styles.emptyTitle}>还没有活页</p>
-              <p className={styles.emptyLead}>上传一份讲义或粘贴一段文字，生成的活页会出现在这里。</p>
+              <p className={styles.emptyTitle}>还没有动态 PPT</p>
+              <p className={styles.emptyLead}>上传一份 PPTX、PDF 或图片，会直接在这里打开横向幻灯片工作台。</p>
               <button type="button" className={styles.emptyAction} onClick={() => fileRef.current?.click()}>
                 上传文件
               </button>
             </div>
           ) : (
             <ul className={styles.pageList}>
-              {pages.map((p, index) => (
-                <li key={p.page_id} className={styles.pageRow}>
-                  <Link to={`/living/${p.page_id}`} className={styles.pageItem}>
+              {materials.map((item, index) => (
+                <li key={item.material_id} className={styles.pageRow}>
+                  <Link to={`/materials/${item.material_id}/work?page=1`} className={styles.pageItem}>
                     <span className={styles.pageIndex}>{String(index + 1).padStart(2, '0')}</span>
                     <span className={styles.pageMain}>
-                      <span className={styles.pageItemTitle}>{p.title}</span>
+                      <span className={styles.pageItemTitle}>{item.title}</span>
                       <span className={styles.pageItemMeta}>
-                        <span>
-                          {p.pages_total ? `${p.pages_total} 页 · ` : ''}{p.block_count} 块
-                        </span>
-                        {p.suggestions_pending > 0 ? (
-                          <em className={styles.pendingBadge}>{p.suggestions_pending} 条待激活</em>
+                        <span>{item.page_count} 页 · {statusLabel(item.status)}</span>
+                        {item.object_count > 0 ? (
+                          <em className={styles.pendingBadge}>{item.object_count} 个交互对象</em>
                         ) : null}
                       </span>
                     </span>
-                    <span className={styles.pageItemTime}>{formatTime(p.updated_at)}</span>
+                    <span className={styles.pageItemTime}>{formatTime(item.created_at)}</span>
                     <span className={styles.pageArrow} aria-hidden="true">→</span>
                   </Link>
                 </li>
@@ -304,18 +254,18 @@ export default function LivingPagesPage(): ReactNode {
           )}
         </section>
 
-        <section className={styles.tips} aria-label="活页怎么用">
+        <section className={styles.tips} aria-label="工作台能力说明">
           <div>
             <strong>01 导入</strong>
-            <p>PDF、PPTX、图片或一段文字，上传后保留原稿，逐条确认激活建议。</p>
+            <p>上传静态 PPTX、PDF 或图片直接进入横向工作台，保留原始排版。</p>
           </div>
           <div>
-            <strong>02 激活</strong>
-            <p>在编辑器里为段落插入公式、题目或实验，让纸面内容动起来。</p>
+            <strong>02 原位交互</strong>
+            <p>在幻灯片原位拖动向量、调整线长与颜色、交互图表、流程图和 AI 演示。</p>
           </div>
           <div>
-            <strong>03 分享</strong>
-            <p>发布生成学生链接，浏览与作答情况汇总在「学情」里。</p>
+            <strong>03 分享与导回</strong>
+            <p>导出独立 HTML 离线网页分享，也可打包工程随时恢复继续编辑。</p>
           </div>
         </section>
       </main>

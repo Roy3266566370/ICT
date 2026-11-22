@@ -62,6 +62,7 @@ export function buildSandboxDocument(): string {
   window.addEventListener('message', function (event) {
     if (event.source !== window.parent) return;
     var data = event.data || {};
+    if (data.type === 'stop' && data.protocol === '${SANDBOX_PROTOCOL}') { stop(); return; }
     if (data.type !== 'init' || data.protocol !== '${SANDBOX_PROTOCOL}') return;
     stop();
     nonce = String(data.nonce || '');

@@ -644,7 +644,7 @@ interface PageStep {
   faults: number; aux_title: string; aux: string[]; refs: number[]; hand: number;
 }
 
-function simulatePages(
+export function simulatePages(
   reference: string[], framesCount: number, algorithm: string, initialFrames: string[] = [],
 ): PageStep[] {
   const initial = initialFrames.slice(0, framesCount);
