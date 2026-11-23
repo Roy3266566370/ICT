@@ -1,4 +1,4 @@
-import type {SceneDocument,SceneNode,ScenePage,NodePatch,NodeChange} from './types';
+import type {SceneDocument,SceneNode,ScenePage,SceneRelation,NodePatch,NodeChange} from './types';
 import {defaultMathScene} from './mathScene.ts';
 import {defaultDiagram} from './inlineSystems.ts';
 export const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
@@ -9,6 +9,9 @@ export function patchNodes(document:SceneDocument,pageNo:number,ids:string[],pat
     if(!ids.includes(node.id))return node;
     return {...node,...patch,style:patch.style?{...node.style,...patch.style}:node.style};
   })})};
+}
+export function patchPageRelations(document:SceneDocument,pageNo:number,relations:SceneRelation[]):SceneDocument {
+  return {...document,pages:document.pages.map(page=>page.page_no!==pageNo?page:{...page,modified:true,relations})};
 }
 /** 等距分布：保持首尾对象不动，把剩余空隙平均分给相邻对象。 */
 export function distributeNodes(document:SceneDocument,pageNo:number,ids:string[],axis:'h'|'v'):SceneDocument {
@@ -59,13 +62,19 @@ export function diffDocuments(base:SceneDocument,current:SceneDocument):NodeChan
       if(Object.keys(patch).length)changes.push({page_no:page.page_no,id:node.id,patch});
     }
     for(const node of before?.nodes??[])if(!node.deleted&&!page.nodes.some(n=>n.id===node.id))changes.push({page_no:page.page_no,id:node.id,patch:{deleted:true}});
+    if(!same(page.relations??[],before?.relations??[])) {
+      changes.push({page_no:page.page_no,id:'__page__',relations:page.relations??[]});
+    }
   }
   return changes;
 }
 export function applyChanges(document:SceneDocument,changes:NodeChange[],source?:SceneDocument):SceneDocument {
   let next=document;
   for(const change of changes) {
-    if(change.patch){
+    if(change.relations!==undefined) {
+      next=patchPageRelations(next,change.page_no,change.relations);
+    }
+    else if(change.patch){
       let patch:NodePatch&{cleaned_url?:SceneNode['cleaned_url']}=change.patch;
       if('cleaned_asset_id' in patch){
         const local=source?.pages.find(p=>p.page_no===change.page_no)?.nodes.find(n=>n.id===change.id);
@@ -83,6 +92,14 @@ export function applyChanges(document:SceneDocument,changes:NodeChange[],source?
 export function rebaseDocument(base:SceneDocument,draft:SceneDocument,server:SceneDocument):{document:SceneDocument;conflicts:string[]} {
   const changes=diffDocuments(base,draft);const conflicts:string[]=[];
   for(const change of changes) {
+    if(change.relations!==undefined) {
+      const beforeRels=base.pages.find(p=>p.page_no===change.page_no)?.relations??[];
+      const remoteRels=server.pages.find(p=>p.page_no===change.page_no)?.relations??[];
+      if(!same(beforeRels,remoteRels)&&!same(remoteRels,change.relations)) {
+        conflicts.push(`${change.page_no}/__page__/relations`);
+      }
+      continue;
+    }
     const before=base.pages.find(p=>p.page_no===change.page_no)?.nodes.find(n=>n.id===change.id);
     const remote=server.pages.find(p=>p.page_no===change.page_no)?.nodes.find(n=>n.id===change.id);
     if(change.create) {

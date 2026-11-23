@@ -1,15 +1,18 @@
 import { useId, useRef, useState, type PointerEvent } from 'react';
+import { allowsViewerParameter } from '@/document/relations';
 import type { NodePatch, SceneNode } from '@/document/types';
 import { resizeVector, vectorEndpoints, vectorGeometry } from '@/document/vectorGeometry';
 import {DynamicStyleControls} from './DynamicStyleControls';
 import './dynamicNodes.css';
 
-export function VectorLine({ node, onCommit, onSelect, onPreview, endOnly, progress = 1 }: {
+export function VectorLine({ node, onCommit, onSelect, onPreview, endOnly, canDragStart, canDragEnd, progress = 1 }: {
   node: SceneNode;
   onCommit?: (patch: NodePatch) => void;
   onSelect?: () => void;
   onPreview?: (patch: ReturnType<typeof vectorGeometry>) => void;
   endOnly?: boolean;
+  canDragStart?: boolean;
+  canDragEnd?: boolean;
   progress?: number;
 }) {
   const marker = useId();
@@ -65,7 +68,7 @@ export function VectorLine({ node, onCommit, onSelect, onPreview, endOnly, progr
       stroke="transparent" strokeWidth={Math.max(16, lineWidth)}
       style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
       onPointerDown={event => { event.stopPropagation(); onSelect(); }}/>}
-    {onCommit && ([0, 1] as const).filter(index=>!endOnly || index===1).map(index => <circle key={index}
+    {onCommit && ([0, 1] as const).filter(index => index === 0 ? (canDragStart ?? !endOnly) : (canDragEnd ?? true)).map(index => <circle key={index}
       aria-label={index === 0 ? '拖动起点' : '拖动终点'}
       cx={(index === 0 ? start : end)[0]} cy={(index === 0 ? start : end)[1]}
       r={8} fill="none" stroke={color} strokeWidth={2}
@@ -93,18 +96,21 @@ export function VectorControls({ node, onPatch, full = false, author = full }: {
         const next = event.currentTarget.valueAsNumber;
         if (Number.isFinite(next) && next >= min && next <= max) apply(next);
       }}/></label>;
+  const canLength = allowsViewerParameter(node, 'length', author);
+  const canAngle = allowsViewerParameter(node, 'angle', author);
+  const canStrokeWidth = full || allowsViewerParameter(node, 'stroke_width', author);
   return <>
-    {(author||!node.viewer_parameters||node.viewer_parameters.includes('geometry'))&&<>{number('线长', node.width, .1, 20000, value => {
+    {canLength && number('线长', node.width, .1, 20000, value => {
       const patch = resizeVector(node, value);
       if (patch) onPatch(patch, 'vector.length');
     })}
-    {number('线条角度', node.rotation, -360, 360, value => {
+    {canAngle && number('线条角度', node.rotation, -360, 360, value => {
       const patch = resizeVector(node, node.width, value);
       if (patch) onPatch(patch, 'vector.angle');
-    })}</>}
+    })}
     <DynamicStyleControls node={node} onPatch={onPatch} author={author}/>
+    {canStrokeWidth && number('线宽', node.style.stroke_width ?? 3, .1, 100, value => onPatch({ style: { stroke_width: value } }, 'vector.stroke'))}
     {full && <>
-      {number('线宽', node.style.stroke_width ?? 3, .1, 100, value => onPatch({ style: { stroke_width: value } }, 'vector.stroke'))}
       <label><input type="checkbox" checked={node.style.arrow_start ?? false}
         onChange={event => onPatch({ style: { arrow_start: event.target.checked } })}/>起点箭头</label>
       <label><input type="checkbox" checked={node.style.arrow_end ?? false}

@@ -634,6 +634,7 @@ def import_offline_html(
                     "height": height_pt,
                     "modified": True,
                     "nodes": rebuilt_nodes,
+                    **({"relations": deepcopy(scene_page["relations"])} if isinstance(scene_page.get("relations"), list) and scene_page["relations"] else {}),
                 }
             )
             page_blobs[page_no] = raw_page_blob or bg_blob

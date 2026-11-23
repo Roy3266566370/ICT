@@ -40,7 +40,9 @@ def validate_patch(patch:dict)->dict:
         elif key in ('locked','hidden','deleted','viewer_editable'):
             if type(value) is not bool:raise ValueError('开关字段类型不合法')
         elif key=='viewer_parameters':
-            if (not isinstance(value,list) or len(value)>3 or any(k not in ('geometry','style','flow') for k in value)
+            from .relations import VIEWER_PARAMETERS
+            if (not isinstance(value,list) or len(value)>len(VIEWER_PARAMETERS)
+                    or any(k not in VIEWER_PARAMETERS for k in value)
                     or len(set(value))!=len(value)):
                 raise ValueError('观众可编辑线条参数不合法')
         elif key=='cleaned_asset_id':
@@ -227,9 +229,20 @@ def patch_document(material_id:str,expected_revision:int,operation_id:str,change
         if operation_id in original.get('applied_operations',[]):return original
         if expected_revision!=original['revision']:raise DocumentConflict('文档已在其他窗口更新，本地修改已保留')
         document=deepcopy(original)
+        pending_relations:dict[int,list[dict]]={}
         for change in changes:
             page=next((p for p in document['pages'] if p['page_no']==change.get('page_no')),None)
             if page is None:raise ValueError('页面不存在')
+            if 'relations' in change and 'patch' not in change and 'create' not in change:
+                raw_rels=change.get('relations')
+                if raw_rels is None:
+                    pending_relations[page['page_no']]=[]
+                elif isinstance(raw_rels,list):
+                    pending_relations[page['page_no']]=raw_rels
+                else:
+                    raise ValueError('页面关系列表格式不合法')
+                page['modified']=True
+                continue
             identifier=change.get('id','')
             if not isinstance(identifier,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,96}',identifier):raise ValueError('对象标识不合法')
             node=next((n for n in page['nodes'] if n['id']==identifier),None)
@@ -261,6 +274,11 @@ def patch_document(material_id:str,expected_revision:int,operation_id:str,change
                 if any(k in patch for k in ('text','table','chart')):
                     node['content_changed']=any(node.get(field)!=node.get('base_'+field) for field in ('text','table','chart') if field in node)
             page['modified']=True
+        if pending_relations:
+            from .relations import validate_page_relations
+            for page_no,raw_rels in pending_relations.items():
+                page=next(p for p in document['pages'] if p['page_no']==page_no)
+                page['relations']=validate_page_relations(raw_rels,page['nodes'])
         document['revision']+=1
         document['applied_operations']=(document.get('applied_operations',[])+[operation_id])[-100:]
         write_document(material_id,document)

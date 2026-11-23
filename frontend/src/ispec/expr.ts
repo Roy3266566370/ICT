@@ -288,7 +288,8 @@ function tokenize(source: string): Token[] {
 class Parser {
   private index = 0;
 
-  constructor(private readonly tokens: readonly Token[]) {}
+  private readonly tokens: readonly Token[];
+  constructor(tokens: readonly Token[]) { this.tokens = tokens; }
 
   private peek(): Token {
     const token = this.tokens[this.index];

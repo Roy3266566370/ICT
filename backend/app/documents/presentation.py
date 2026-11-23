@@ -301,6 +301,10 @@ def public_document(raw)->dict|None:
             provenance=source.get('figure_provenance')
             if provenance in ('native','pixel','vision','user_confirmed'):
                 node['figure_provenance']=provenance
+            for fig_key in ('figure_source_id','figure_object_id'):
+                fig_val=source.get(fig_key)
+                if isinstance(fig_val,str) and re.fullmatch(r'[A-Za-z0-9_-]{1,96}',fig_val):
+                    node[fig_key]=fig_val
             basis = source.get('basis')
             if source.get('type') == 'vector' and isinstance(basis, dict):
                 ids = ('firstId', 'secondId', 'resultId')
@@ -329,7 +333,9 @@ def public_document(raw)->dict|None:
             if type(source.get('viewer_editable')) is bool:
                 node['viewer_editable']=source['viewer_editable']
             vp=source.get('viewer_parameters')
-            if isinstance(vp,list) and len(vp)<=3 and all(k in ('geometry','style','flow') for k in vp) and len(set(vp))==len(vp):
+            from .relations import VIEWER_PARAMETERS,validate_page_relations
+            if (isinstance(vp,list) and len(vp)<=len(VIEWER_PARAMETERS)
+                    and all(k in VIEWER_PARAMETERS for k in vp) and len(set(vp))==len(vp)):
                 node['viewer_parameters']=list(vp)
             fl=source.get('flow')
             if (isinstance(fl,dict) and set(fl)=={'enabled','speed'} and type(fl['enabled']) is bool
@@ -365,7 +371,15 @@ def public_document(raw)->dict|None:
               'runs':[{'text':str(r.get('text','')),'style':style(r.get('style'))} for r in p.get('runs',[]) if isinstance(r,dict)]}
               for p in source.get('paragraphs',[]) if isinstance(p,dict)]
             nodes.append(node)
+        page_relations=[]
+        if isinstance(page.get('relations'),list) and page['relations']:
+            from .relations import validate_page_relations
+            try:
+                page_relations=validate_page_relations(page['relations'],nodes)
+            except (ValueError,TypeError):
+                page_relations=[]
         pages.append({k:deepcopy(page[k]) for k in ('page_no','width','height') if k in page}|
           {'modified':True,'nodes':nodes,'background_url':image(page.get('background_url')),
+           **({'relations':page_relations} if page_relations else {}),
            'preparation':{'status':'ready','frozen_ids':[v for v in page.get('preparation',{}).get('frozen_ids',[]) if isinstance(v,str)]}})
     return {'schema_version':'1.0','revision':raw.get('revision',0),'title':str(raw.get('title','')),'pages':pages}

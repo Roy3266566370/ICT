@@ -57,6 +57,12 @@ coverage/
 !/verify/m3-2026-11-23/*.json
 !/verify/m3-2026-11-23/*.py
 !/verify/m3-2026-11-23/*.png
+!/verify/m4-2026-11-23/
+/verify/m4-2026-11-23/*
+!/verify/m4-2026-11-23/*.md
+!/verify/m4-2026-11-23/*.json
+!/verify/m4-2026-11-23/*.py
+!/verify/m4-2026-11-23/*.png
 /backend/verify/
 /frontend/verify/
 /frontend/.tmp/

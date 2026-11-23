@@ -99,4 +99,24 @@ await Promise.all([
   writeDraft('deck','guest',draftFingerprint(created),created,created,'tab-a'),
 ]);
 assert.equal(await readDraft('deck','guest',draftFingerprint(created),'tab-a'),null,'Late persistence must not restore a synchronized draft');
+
+// M4: Page-level relations diff, atomic undo/redo, and rebase conflict detection
+const relEditor=new DocumentController(original,{save:async()=>({revision:1}),autosaveDelay:100000});
+const sampleRel=[{id:'rel_1',kind:'expr',targetId:'two',targetProperty:'text',expression:'one.width * 2',formatTemplate:'W={value}'}];
+relEditor.patchRelations(1,sampleRel);
+const relDiff=diffDocuments(original,relEditor.getSnapshot().document);
+assert.equal(relDiff.length,1);
+assert.equal(relDiff[0].id,'__page__');
+assert.deepEqual(relDiff[0].relations,sampleRel);
+relEditor.undo();
+assert.deepEqual(relEditor.getSnapshot().document.pages[0].relations??[],[]);
+relEditor.redo();
+assert.deepEqual(relEditor.getSnapshot().document.pages[0].relations,sampleRel);
+const remoteWithRel=structuredClone(original);
+remoteWithRel.revision=1;
+remoteWithRel.pages[0].relations=[{id:'rel_remote',kind:'expr',targetId:'one',targetProperty:'text',expression:'two.width'}];
+const relRebase=rebaseDocument(original,relEditor.getSnapshot().document,remoteWithRel);
+assert.ok(relRebase.conflicts.includes('1/__page__/relations'),'Concurrent page relation changes must report conflict');
+relEditor.dispose();
+
 console.log('PASS: instant immutable edits, atomic history, serialized saves, edits during save, offline drafts and field conflict detection');

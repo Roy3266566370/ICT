@@ -102,6 +102,113 @@ class FigureScene(Model):
         return self
 
 
+def _infer_basis_relations(scene: FigureScene) -> FigureScene:
+    """Populate default roles and basis_decompose relations from geometric and OCR evidence."""
+    import math
+
+    by_system: dict[str, list[FigureObject]] = {}
+    for obj in scene.objects:
+        if obj.system_id:
+            by_system.setdefault(obj.system_id, []).append(obj)
+
+    vector_systems = [
+        sys_id for sys_id, items in by_system.items()
+        if sum(1 for item in items if item.type == 'vector' and len(item.points) == 2) >= 3
+    ]
+    if not vector_systems:
+        return scene
+
+    role_updates: dict[str, str] = {}
+    relations: list[Relation] = list(scene.relations)
+    existing_rel_keys = {(r.kind, tuple(r.objects[:3])) for r in relations}
+
+    for sys_id in vector_systems:
+        items = by_system[sys_id]
+        for item in items:
+            if item.type == 'axis' and not item.role:
+                role_updates[item.id] = 'coordinate_axis'
+            elif item.type == 'dashed' and not item.role:
+                role_updates[item.id] = 'guide'
+            elif item.type == 'text' and not item.role:
+                role_updates[item.id] = 'coordinate_label'
+
+        vectors = [item for item in items if item.type == 'vector' and len(item.points) == 2]
+        guides = [item for item in items if item.type == 'dashed' and len(item.points) == 2]
+        texts = [item for item in items if item.type == 'text' and item.text]
+
+        vec_data = []
+        for v in vectors:
+            (x0, y0), (x1, y1) = v.points[0], v.points[1]
+            dx, dy = x1 - x0, y1 - y0
+            length = math.hypot(dx, dy)
+            if length >= 12:
+                vec_data.append((v, (x0, y0), (x1, y1), (dx, dy), length))
+
+        best = None
+        for i, (v1, s1, e1, d1, l1) in enumerate(vec_data):
+            for j, (v2, s2, e2, d2, l2) in enumerate(vec_data):
+                if i == j or math.dist(s1, s2) > min(l1, l2) * 0.25:
+                    continue
+                cross = d1[0] * d2[1] - d1[1] * d2[0]
+                if abs(cross) < l1 * l2 * 0.2:
+                    continue
+                for k, (vr, sr, er, dr, lr) in enumerate(vec_data):
+                    if k in (i, j) or lr < max(l1, l2) * 0.7 or math.dist(sr, s1) > min(l1, l2) * 0.25:
+                        continue
+                    c1 = (dr[0] * d2[1] - dr[1] * d2[0]) / cross
+                    c2 = (d1[0] * dr[1] - d1[1] * dr[0]) / cross
+                    if not (0.35 <= c1 <= 3.5 and 0.35 <= c2 <= 3.5):
+                        continue
+                    res_x = dr[0] - (c1 * d1[0] + c2 * d2[0])
+                    res_y = dr[1] - (c1 * d1[1] + c2 * d2[1])
+                    residual = math.hypot(res_x, res_y)
+                    if residual > lr * 0.18:
+                        continue
+                    angle1 = abs(math.degrees(math.atan2(d1[1], d1[0])))
+                    angle1 = min(angle1, abs(180 - angle1))
+                    cos_angle = abs(d1[0] * d2[0] + d1[1] * d2[1]) / (l1 * l2)
+                    score = angle1 + (residual / lr) * 30
+                    if best is None or score < best[0]:
+                        best = (score, v1, v2, vr, s1, (s1[0] + c1 * d1[0], s1[1] + c1 * d1[1]), cos_angle)
+
+        if best is None:
+            continue
+
+        _, v1, v2, vr, origin_pt, corner_pt, cos_angle = best
+        role_updates.setdefault(v1.id, 'basis_vector')
+        role_updates.setdefault(v2.id, 'basis_vector')
+        role_updates.setdefault(vr.id, 'result_vector')
+
+        has_standard_text = any('标准基' in (t.text or '') for t in texts)
+        has_oblique_text = any('斜基' in (t.text or '') for t in texts)
+        is_oblique_geom = cos_angle > 0.18
+
+        # In a multi-panel comparison figure (e.g. standard basis left vs oblique basis right),
+        # keep the standard orthogonal panel static so only the oblique basis panel is bound.
+        if len(vector_systems) > 1 and (has_standard_text or (not has_oblique_text and not is_oblique_geom and not guides)):
+            continue
+
+        ordered_guides = sorted(
+            guides,
+            key=lambda g: min(math.dist(g.points[0], origin_pt), math.dist(g.points[1], origin_pt))
+            - min(math.dist(g.points[0], corner_pt), math.dist(g.points[1], corner_pt)),
+        )
+        label_obj = next((t for t in texts if '坐标' in (t.text or '') or '(' in (t.text or '') or '（' in (t.text or '')), texts[0] if texts else None)
+        rel_objects = [v1.id, v2.id, vr.id, *(g.id for g in ordered_guides[:2])]
+        if label_obj:
+            rel_objects.append(label_obj.id)
+        key = ('basis_decompose', tuple(rel_objects[:3]))
+        if key not in existing_rel_keys:
+            existing_rel_keys.add(key)
+            relations.append(Relation(kind='basis_decompose', objects=rel_objects))
+
+    updated_objects = [
+        obj.model_copy(update={'role': role_updates[obj.id]}) if obj.id in role_updates and not obj.role else obj
+        for obj in scene.objects
+    ]
+    return scene.model_copy(update={'objects': updated_objects, 'relations': relations[:16]})
+
+
 def make_scene(image, systems, objects, warnings=()):
     frame = Frame(width=image.width, height=image.height)
     accepted = FigureScene(version=1, frame=frame, systems=systems)
@@ -113,4 +220,4 @@ def make_scene(image, systems, objects, warnings=()):
         except ValueError as error:
             messages.append(f'{item.get("id", "?")}：{str(error).splitlines()[1][:160]}')
     accepted.warnings = messages[:24]
-    return accepted
+    return _infer_basis_relations(accepted)

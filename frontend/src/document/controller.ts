@@ -1,6 +1,6 @@
-import type {SceneDocument,SceneNode,NodePatch,NodeChange} from './types';
-import {diffDocuments,patchNodes,rebaseDocument,same} from './model';
-export {diffDocuments,rebaseDocument} from './model';
+import type {SceneDocument,SceneNode,SceneRelation,NodePatch,NodeChange} from './types';
+import {diffDocuments,patchNodes,patchPageRelations,rebaseDocument,same} from './model';
+export {diffDocuments,patchPageRelations,rebaseDocument} from './model';
 interface Options {
   save:(revision:number,operationId:string,changes:NodeChange[])=>Promise<{revision:number}>;
   persist?:(base:SceneDocument,document:SceneDocument)=>void|Promise<void>;
@@ -46,6 +46,7 @@ export class DocumentController {
     this.emit();this.persist();this.schedule();
   }
   patch(pageNo:number,ids:string[],patch:NodePatch,key=''){this.replace(patchNodes(this.current,pageNo,ids,patch),key);}
+  patchRelations(pageNo:number,relations:SceneRelation[],key='page.relations'){this.replace(patchPageRelations(this.current,pageNo,relations),key);}
   add(pageNo:number,node:SceneNode){this.replace({...this.current,pages:this.current.pages.map(p=>p.page_no===pageNo?{...p,modified:true,nodes:[...p.nodes,node]}:p)});}
   undo(){const previous=this.past.at(-1);if(!previous)return;this.past=this.past.slice(0,-1);this.future=[this.current,...this.future];this.current={...previous,revision:this.base.revision};this.key='';this.emit();this.persist();this.schedule();}
   redo(){const next=this.future[0];if(!next)return;this.future=this.future.slice(1);this.past=[...this.past,this.current];this.current={...next,revision:this.base.revision};this.key='';this.emit();this.persist();this.schedule();}

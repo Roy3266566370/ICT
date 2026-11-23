@@ -52,7 +52,11 @@ def test_export_preserves_dynamic_scene_nodes_through_public_whitelist():
                     'rotation': 30, 'z': 2, 'opacity': 1, 'text': '', 'style': {'stroke': '#008844', 'line_style': 'dashed', 'arrow_end': True},
                     'flow': {'enabled': True, 'speed': 2.5},
                     'viewer_editable': True,
-                    'viewer_parameters': ['geometry', 'style', 'flow'],
+                    'viewer_parameters': ['end', 'color', 'line_style', 'stroke_width'],
+                },
+                {
+                    'id': 'lbl_1', 'type': 'text', 'x': 120, 'y': 40, 'width': 160, 'height': 28,
+                    'rotation': 0, 'z': 2, 'opacity': 1, 'text': '长度：180', 'style': {'font_size': 18, 'color': '#18233D'},
                 },
                 {
                     'id': 'math_1', 'type': 'math_scene', 'x': 300, 'y': 120, 'width': 420, 'height': 320,
@@ -121,6 +125,17 @@ def test_export_preserves_dynamic_scene_nodes_through_public_whitelist():
                     },
                 },
             ],
+            'relations': [
+                {
+                    'id': 'rel_len_1',
+                    'kind': 'expr',
+                    'targetId': 'lbl_1',
+                    'targetProperty': 'text',
+                    'expression': 'round(vec_1.length)',
+                    'formatTemplate': '长度：{value}',
+                    'precision': 0,
+                }
+            ],
         }],
     }
     cleaned = public_document(raw_doc)
@@ -136,7 +151,9 @@ def test_export_preserves_dynamic_scene_nodes_through_public_whitelist():
     nodes = {n['id']: n for n in data['document']['pages'][0]['nodes']}
     assert nodes['vec_1']['flow'] == {'enabled': True, 'speed': 2.5}
     assert nodes['vec_1']['viewer_editable'] is True
-    assert nodes['vec_1']['viewer_parameters'] == ['geometry', 'style', 'flow']
+    assert nodes['vec_1']['viewer_parameters'] == ['end', 'color', 'line_style', 'stroke_width']
+    assert data['document']['pages'][0]['relations'][0]['id'] == 'rel_len_1'
+    assert data['document']['pages'][0]['relations'][0]['expression'] == 'round(vec_1.length)'
     assert nodes['math_1']['math_scene']['matrix'] == [[2, 1], [1, 2]]
     assert nodes['mat_img_1']['matrix_ocr']['matrices'][0]['values'] == [[1, 2], [0, 1]]
     assert len(nodes['diag_1']['diagram']['nodes']) == 2

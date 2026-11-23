@@ -48,6 +48,35 @@ export interface MathScene {
   viewer_parameters: Array<'vector'|'matrix'|'progress'|'radius'|'style'>;
 }
 export type FigureProvenance='native'|'pixel'|'vision'|'user_confirmed';
+export type RelationProvenance='auto'|'user'|'legacy';
+export type ViewerParameter='geometry'|'style'|'flow'|'start'|'end'|'length'|'angle'|'color'|'line_style'|'stroke_width';
+export type RelationSourceProperty='x1'|'y1'|'x2'|'y2'|'dx'|'dy'|'length'|'angle'|'x'|'y'|'width'|'height'|'rotation'|'opacity';
+export type RelationTargetProperty='length'|'angle'|'x'|'y'|'width'|'height'|'rotation'|'opacity'|'text'|'x1'|'y1'|'x2'|'y2';
+export type GuideAnchor='start'|'end'|'center';
+export interface ExprBindingSource {nodeId:string;property:RelationSourceProperty;}
+export interface BasisDecomposeRelation {
+  id:string;kind:'basis_decompose';name?:string;enabled?:boolean;provenance?:RelationProvenance;
+  firstId:string;secondId:string;resultId:string;
+  guideIds?:string[];labelId?:string;labelTemplate?:string;degenerateText?:string;
+  title?:[number,number];fontSize?:number;
+}
+export interface LinearComboRelation {
+  id:string;kind:'linear_combo';name?:string;enabled?:boolean;provenance?:RelationProvenance;
+  firstId:string;secondId:string;targetId:string;
+  a:number|string;b:number|string;guideIds?:string[];
+}
+export interface GuideBindRelation {
+  id:string;kind:'guide_bind';name?:string;enabled?:boolean;provenance?:RelationProvenance;
+  targetId:string;
+  from:{nodeId:string;anchor:GuideAnchor};
+  to:{nodeId:string;anchor:GuideAnchor};
+}
+export interface ExprRelation {
+  id:string;kind:'expr';name?:string;enabled?:boolean;provenance?:RelationProvenance;
+  targetId:string;targetProperty:RelationTargetProperty;expression:string;
+  bindings?:Record<string,ExprBindingSource>;formatTemplate?:string;precision?:number;
+}
+export type SceneRelation=BasisDecomposeRelation|LinearComboRelation|GuideBindRelation|ExprRelation;
 export interface FigureScene {
   version:1;
   frame:{width:number;height:number};
@@ -67,6 +96,7 @@ export interface FigureVectorization {
   source_revision:number;
   scene:FigureScene;
   nodes:SceneNode[];
+  relations?:SceneRelation[];
   cleaned_asset_id:string|null;
   cleaned_url:string|null;
   source_url?:string|null;
@@ -78,7 +108,7 @@ export interface SceneNode {
   demo?: import('../ppt-ai/pageLabTypes').PageLab|null;
   flow?: {enabled: boolean; speed: number};
   viewer_editable?: boolean;
-  viewer_parameters?: Array<'geometry'|'style'|'flow'>;
+  viewer_parameters?: ViewerParameter[];
   math_scene?: MathScene;
   matrix_ocr?: MatrixOCR;
   basis?: BasisOverlay | null;
@@ -98,8 +128,9 @@ export interface SceneNode {
 export interface ScenePage {
   page_no:number;id?:string;width:number;height:number;nodes:SceneNode[];modified?:boolean;auto_vectors?:boolean;background_url?:string;
   figure_scenes?:Record<string,FigureScene>;
+  relations?:SceneRelation[];
   preparation?:{status:'unprepared'|'queued'|'preparing'|'ready'|'failed';message?:string;errors?:string[];frozen_ids?:string[];seconds?:number};
 }
 export interface SceneDocument {schema_version:string;revision:number;title:string;source_key?:string;pages:ScenePage[];}
 export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'table'|'chart'|'crop'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'math_scene'|'matrix_ocr'|'diagram'|'demo'|'cleaned_asset_id'|'figure_scene'>> & {style?:Partial<TextStyle>};
-export interface NodeChange {page_no:number;id:string;patch?:NodePatch;create?:Record<string,unknown>;}
+export interface NodeChange {page_no:number;id:string;patch?:NodePatch;create?:Record<string,unknown>;relations?:SceneRelation[];}

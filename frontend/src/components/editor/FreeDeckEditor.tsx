@@ -426,6 +426,7 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
           {status==='failed'&&<button onClick={()=>setRetry(n=>n+1)}>重新准备本页</button>}</div>}
       </main>
       <NodeProperties node={primary?.math_scene?{...primary,math_scene:resolveMatrixSource(primary.math_scene,page.nodes)}:primary} count={selectedNodes.length} pageNo={page.page_no} materialId={materialId} autoSpecs={autoSpecs} pageNodes={page.nodes}
+        pageRelations={page.relations} onRelationsChange={(relations,key)=>controller.patchRelations(page.page_no,relations,key)}
         generating={!!(primary&&generating[primary.id])} onDemoGenerate={()=>primary&&void generateNode(primary.id,'demo')}
         onVectorize={canVectorize?()=>setFigureTarget({pageNo:page.page_no,nodeId:primary.id}):undefined}
         figureCount={countFigureObjects(vectorized.filter(node=>node.figure_source_id===primary?.id))}

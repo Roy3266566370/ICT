@@ -113,8 +113,23 @@ export function FigureVectorizationDialog({materialId,pageNo,node,controller,onC
     const updated=target.page.nodes.filter(item=>!generatedIds.has(item.id)).map(item=>item.id===source.id?{
       ...item,cleaned_asset_id:result.cleaned_asset_id,cleaned_url:result.cleaned_url,figure_scene:result.scene,
     }:item);
+    const nextNodes=[...updated,...generated];
+    const nextNodeIds=new Set(nextNodes.filter(item=>!item.deleted).map(item=>item.id));
+    const incomingRelations=result.relations??[];
+    const incomingRelIds=new Set(incomingRelations.map(rel=>rel.id));
+    const figureRelReferences=(rel:import('@/document/types').SceneRelation)=>{
+      if(rel.kind==='basis_decompose')return [rel.firstId,rel.secondId,rel.resultId,...(rel.guideIds??[]),...(rel.labelId?[rel.labelId]:[])];
+      if(rel.kind==='linear_combo')return [rel.firstId,rel.secondId,rel.targetId,...(rel.guideIds??[])];
+      if(rel.kind==='guide_bind')return [rel.targetId,rel.from.nodeId,rel.to.nodeId];
+      return [rel.targetId];
+    };
+    const preservedRelations=(target.page.relations??[]).filter(rel=>
+      !incomingRelIds.has(rel.id)&&figureRelReferences(rel).every(id=>nextNodeIds.has(id)&&!generatedIds.has(id)),
+    );
+    const nextRelations=[...preservedRelations,...incomingRelations];
     controller.replace({...target.snapshot,pages:target.snapshot.pages.map(item=>item.page_no===pageNo?{
-      ...item,modified:true,nodes:[...updated,...generated],
+      ...item,modified:true,nodes:nextNodes,
+      ...(nextRelations.length||(item.relations?.length)?{relations:nextRelations}:{}),
     }:item)});
     close();onApplied(new Set(generated.map(item=>item.figure_object_id??item.id)).size);
   };
@@ -152,7 +167,7 @@ export function FigureVectorizationDialog({materialId,pageNo,node,controller,onC
     </div>
     <div className={styles.vectorizeViewport} ref={viewport} aria-label="图示预览">
       {scale>0&&<div className={styles.vectorizeCanvas} style={{width:width*scale,height:height*scale}}>
-        <ScenePageView page={{page_no:pageNo,width,height,nodes:[backdrop,...overlays]}} scale={scale}>
+        <ScenePageView page={{page_no:pageNo,width,height,nodes:[backdrop,...overlays],relations:mode==='original'?[]:(result?.relations??[])}} scale={scale}>
           {mode==='overlay'&&result&&proofOnly.length>0&&<div className={styles.vectorizeCandidates}
             style={{left:backdrop.x,top:backdrop.y,width:source.width,height:source.height,transform:`rotate(${source.rotation}deg)`}}>
             <svg aria-label="仅供校对的候选" viewBox={`0 0 ${result.scene.frame.width} ${result.scene.frame.height}`} preserveAspectRatio="none"

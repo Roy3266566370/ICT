@@ -262,9 +262,9 @@ def _scene_nodes(node, scene, entry, identifier):
             if min(tw, th) < .1:
                 continue
             nodes.append({**common, 'type': 'text', 'name': item.text[:80], 'text': item.text,
-                          'x': px-tw/2, 'y': py-th/2, 'width': tw, 'height': th,
+                          'x': px-tw/2, 'y': py-th/2, 'width': tw, 'height': th, 'word_wrap': False,
                           'rotation': node['rotation'], 'style': {'font_size': max(1, min(500, th*.88)),
-                          'align': 'center', 'vertical_align': 'middle', 'color': item.style.stroke}})
+                          'align': 'left', 'vertical_align': 'middle', 'color': item.style.stroke}})
         else:
             for number, (start, end) in enumerate(zip(item.points, item.points[1:])):
                 vector = _vector({**common, 'id': f"{common['id']}_{number}",
@@ -276,6 +276,76 @@ def _scene_nodes(node, scene, entry, identifier):
                 if vector:
                     nodes.append(vector)
     return nodes
+
+
+_COORD_PAIR_RE = re.compile(r'[\(（]\s*[-−+]?\d+(?:\.\d+)?\s*[,，]\s*[-−+]?\d+(?:\.\d+)?\s*[\)）]')
+
+
+def _materialize_relations(scene, nodes, identifier):
+    """Materialize FigureScene relations into ScenePage relations and assign fine-grained viewer permissions."""
+    from .relations import validate_page_relations
+
+    by_obj: dict[str, dict] = {}
+    for item in nodes:
+        obj_id = item.get('figure_object_id')
+        if obj_id and obj_id not in by_obj:
+            by_obj[obj_id] = item
+
+    raw_relations = []
+    movable_ids: set[str] = set()
+    for index, rel in enumerate(scene.relations):
+        if rel.kind != 'basis_decompose' or len(rel.objects) < 3:
+            continue
+        first_id, second_id, result_id = rel.objects[:3]
+        first_node = by_obj.get(first_id)
+        second_node = by_obj.get(second_id)
+        result_node = by_obj.get(result_id)
+        if not first_node or not second_node or not result_node:
+            continue
+        if any(n.get('type') != 'vector' for n in (first_node, second_node, result_node)):
+            continue
+        guide_ids = []
+        label_node = None
+        for extra_id in rel.objects[3:]:
+            target_node = by_obj.get(extra_id)
+            if not target_node:
+                continue
+            if target_node.get('type') == 'vector' and len(guide_ids) < 4:
+                guide_ids.append(target_node['id'])
+            elif target_node.get('type') == 'text' and label_node is None:
+                label_node = target_node
+        label_template = None
+        if label_node and isinstance(label_node.get('text'), str):
+            text = label_node['text'].strip()
+            if _COORD_PAIR_RE.search(text):
+                label_template = _COORD_PAIR_RE.sub('({a}, {b})', text, count=1)
+        entry = {
+            'id': f'rel_{identifier[:12]}_{index + 1}',
+            'kind': 'basis_decompose',
+            'name': '换基坐标分解',
+            'enabled': True,
+            'provenance': 'auto',
+            'firstId': first_node['id'],
+            'secondId': second_node['id'],
+            'resultId': result_node['id'],
+            **({'guideIds': guide_ids} if guide_ids else {}),
+            **({'labelId': label_node['id']} if label_node else {}),
+            **({'labelTemplate': label_template} if label_template else {}),
+        }
+        raw_relations.append(entry)
+        movable_ids.add(second_node['id'])
+
+    if not raw_relations:
+        return []
+
+    validated = validate_page_relations(raw_relations, nodes)
+    for item in nodes:
+        if item['id'] in movable_ids:
+            item['viewer_editable'] = True
+            item['viewer_parameters'] = ['end', 'color', 'line_style', 'stroke_width']
+        else:
+            item['viewer_editable'] = False
+    return validated
 
 
 def match_labels(scene, output):
@@ -476,12 +546,14 @@ def vectorize(material_id, page_no, element_id, *, expected_revision, stage='pix
     scene = FigureScene.model_validate(result['scene'])
     applicable = set(pixel['applicable_ids'])
     renderable = scene.model_copy(update={'objects': [item for item in scene.objects if item.id in applicable]})
+    scene_nodes = _scene_nodes(node, renderable, entry, identifier)
+    page_relations = _materialize_relations(renderable, scene_nodes, identifier)
     warnings = result.get('warnings', [])
     if not vision_available and stage == 'pixel':
         warnings = [*warnings, '未配置视觉模型，仍可使用本地识别或手工添加']
     return {'preview_id': identifier, 'source_node_id': node['id'], 'source_revision': expected_revision,
             'source_url': asset_url(material_id, page_no, identifier, 'source'),
-            'scene': scene.model_dump(mode='json'), 'nodes': _scene_nodes(node, renderable, entry, identifier),
+            'scene': scene.model_dump(mode='json'), 'nodes': scene_nodes, 'relations': page_relations,
             'cleaned_asset_id': identifier if pixel['cleaned'] else None,
             'cleaned_url': asset_url(material_id, page_no, identifier, 'cleaned') if pixel['cleaned'] else None,
             'vision_available': vision_available and bool(scene.objects) and any(item.type == 'text' for item in scene.objects),
