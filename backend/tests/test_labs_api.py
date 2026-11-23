@@ -1079,3 +1079,75 @@ def test_cloud_transport_failure_returns_503_without_local_fallback(owner, monke
     )
     assert response.status_code == 503, response.text
     assert response.json()['error']['code'] == 'MODEL_UNAVAILABLE'
+
+
+def test_walkthrough_persists_reuses_cache_and_respects_revision(owner, monkeypatch):
+    from app.labs.walkthrough import service
+    from app.labs.walkthrough.pattern_router import Surface
+    from app.labs.walkthrough.walkthrough_builder import build
+    from app.labs.walkthrough.walkthrough_verifier import derive, verify
+
+    calls = []
+    surface = Surface(family='sphere', scale='1', lower='-1', upper='1', field=['1'])
+    derived = derive(surface)
+
+    def generate(problem):
+        calls.append(problem['problem_id'])
+        claims = {key: str(value) for key, value in derived.claims.items()}
+        return {**build(surface, derived, verify(derived, claims), why='绕 z 轴旋转对称',
+                        alternatives=[], trusted=False), 'input_hash': service.input_hash(problem)}
+
+    monkeypatch.setattr(service, 'generate', generate)
+    headers = _headers(_session(owner))
+    response = owner.post('/api/v1/labs/text', headers=headers, json={
+        'text': '求单位球面的曲面积分 ∫∫ 1 dS。', 'subject': 'calculus',
+    })
+    assert response.status_code == 201, response.text
+    document = response.json()['data']
+    problem = document['problems'][0]
+    url = f'/api/v1/labs/{document["lab_id"]}'
+    body = {'problem_id': problem['problem_id'], 'expected_revision': document['revision']}
+    response = owner.post(url + '/walkthrough', headers=headers, json=body)
+    assert response.status_code == 200, response.text
+    current = response.json()['data']
+    assert current['problems'][0]['walkthrough']['verification']['status'] == 'verified'
+    assert owner.get(url).json()['data']['problems'][0]['walkthrough'] == current['problems'][0]['walkthrough']
+    assert owner.post(url + '/walkthrough', headers=headers, json=body).status_code == 409
+    body['expected_revision'] = current['revision']
+    assert owner.post(url + '/walkthrough', headers=headers, json=body).status_code == 200
+    assert len(calls) == 1
+
+    # A PATCH that read the old document must not erase a newly committed walkthrough.
+    from app.labs import store
+    save_state = store.save_state
+
+    def concurrent_generation(*args, **kwargs):
+        state = save_state(*args, **kwargs)
+        assert owner.post(url + '/walkthrough', headers=headers,
+                          json={**body, 'force': True}).status_code == 200
+        return state
+
+    monkeypatch.setattr(store, 'save_state', concurrent_generation)
+    response = owner.patch(url, headers=headers, json={
+        'expected_revision': current['revision'], 'state': {'notes': '保存草稿'},
+    })
+    assert response.status_code == 409, response.text
+    assert 'walkthrough' in owner.get(url).json()['data']['problems'][0]
+
+
+def test_walkthrough_without_model_keeps_existing_document(owner, monkeypatch):
+    from app.labs.walkthrough import service
+
+    monkeypatch.setattr(service, 'configured', lambda: False)
+    headers = _headers(_session(owner))
+    document = owner.post('/api/v1/labs/text', headers=headers, json={
+        'text': '求单位球面的曲面积分 ∫∫ 1 dS。', 'subject': 'calculus',
+    }).json()['data']
+    url = f'/api/v1/labs/{document["lab_id"]}'
+    response = owner.post(url + '/walkthrough', headers=headers, json={
+        'problem_id': document['problems'][0]['problem_id'], 'expected_revision': document['revision'],
+    })
+    assert response.status_code == 503, response.text
+    restored = owner.get(url).json()['data']
+    assert restored['revision'] == document['revision']
+    assert 'walkthrough' not in restored['problems'][0]

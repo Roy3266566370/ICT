@@ -2,11 +2,9 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { LabFormula as Formula } from './ProblemText';
 import { currentMetrics } from '@/labs/compute';
 import {
-  MODE_LABELS,
   type BfsResult,
   type LabAssistantResponse,
   type LabAttemptRecord,
-  type LabMode,
   type LabProblem,
   type LabResult,
 } from '@/labs/types';
@@ -19,7 +17,6 @@ interface Props {
   problem: LabProblem;
   result: LabResult;
   step: number;
-  mode: LabMode;
   selected: LabSelection | null;
   aiConfigured: boolean;
   useAi: boolean;
@@ -27,7 +24,6 @@ interface Props {
   attempts: LabAttemptRecord[];
   observations: { id: string; text: string }[];
   draftText: string;
-  onModeChange: (mode: LabMode) => void;
   onUseAi: (value: boolean) => void;
   onAsk: (question: string, hintLevel?: number) => Promise<LabAssistantResponse>;
   onAttempt: (answer: string, field: string, kind?: string) => Promise<string | null>;
@@ -309,15 +305,13 @@ export function AssistantPanel({
   problem,
   result,
   step,
-  mode,
   selected,
   aiConfigured,
   useAi,
   notes,
   attempts,
   observations,
-  draftText,
-  onModeChange,
+  draftText = '',
   onUseAi,
   onAsk,
   onAttempt,
@@ -411,23 +405,6 @@ export function AssistantPanel({
         <span className={styles.localBadge}>{aiConfigured ? '本地导师 · 可选增强' : '本地导师'}</span>
       </div>
 
-      <div className={styles.modeTabs} role="tablist" aria-label="学习方式">
-        {(Object.keys(MODE_LABELS) as LabMode[]).map((item) => (
-          <button
-            key={item}
-            type="button"
-            role="tab"
-            aria-selected={mode === item}
-            onClick={() => onModeChange(item)}
-          >
-            <strong>{MODE_LABELS[item].title}</strong>
-            <span>{MODE_LABELS[item].hint}</span>
-          </button>
-        ))}
-      </div>
-
-      <p className={styles.modeHintLine}>{MODE_LABELS[mode].hint}</p>
-
       <ContextCard result={result} step={step} />
 
       {selected ? (
@@ -439,8 +416,9 @@ export function AssistantPanel({
         </div>
       ) : null}
 
-      {mode === 'solution' ? (
-        <div className={styles.solutionList}>
+      {solutions.length ? (
+        <details className={styles.solutionList}>
+          <summary>解答步骤</summary>
           <p className={styles.solutionSummary}><MathText text={problem.solution.summary} /></p>
           {problem.solution.answer ? (
             <div className={styles.answerBox}>
@@ -465,154 +443,144 @@ export function AssistantPanel({
             </button>
           ))}
           {problem.solution.global_note ? <p className={styles.smallNote}><MathText text={problem.solution.global_note} /></p> : null}
-          <div className={styles.askRow}>
-            <input
-              value={question}
-              placeholder="对某一步追问，例如“为什么这里取负号？”"
-              onChange={(event) => setQuestion(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) void send(question);
-              }}
-            />
-            <button type="button" onClick={() => void send(question)} disabled={busy || !question.trim()}>
-              追问
+        </details>
+      ) : null}
+
+      <div className={styles.hints}>
+        <span className={styles.stateTitle}>分层提示</span>
+        <div className={styles.hintButtons}>
+          {[1, 2, 3].map((level) => (
+            <button key={level} type="button" onClick={() => void send('', level)} disabled={busy}>
+              {level === 1 ? '观察方向' : level === 2 ? '相关知识' : '具体步骤'}
             </button>
-          </div>
-          {messages.slice(-4).map((message) => (
-            <div key={message.id} className={styles.message} data-role={message.role}>
-              <span>{message.role === 'user' ? '你' : '导师'}</span>
-              <p><MathText text={message.text} /></p>
-              {message.notice ? <small>{message.notice}</small> : null}
-            </div>
           ))}
         </div>
-      ) : (
-        <>
-          {mode === 'guided' ? (
-            <div className={styles.hints}>
-              <span className={styles.stateTitle}>分层提示</span>
-              <div className={styles.hintButtons}>
-                {[1, 2, 3].map((level) => (
-                  <button key={level} type="button" onClick={() => void send('', level)} disabled={busy}>
-                    {level === 1 ? '观察方向' : level === 2 ? '相关知识' : '具体步骤'}
-                  </button>
-                ))}
+        <p>从观察开始；只有在需要时才展开具体步骤。</p>
+        <div className={styles.attemptRow} style={{ marginTop: 8 }}>
+          <input
+            value={stepDraft}
+            aria-label="中间推导步骤"
+            placeholder="试写中间步骤：如原函数、导函数或等式 (x^2-1)/(x-1)=x+1"
+            disabled={stepBusy || readOnly}
+            onChange={(event) => setStepDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) void submitStepCheck();
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => void submitStepCheck()}
+            disabled={stepBusy || !stepDraft.trim() || readOnly}
+          >
+            {stepBusy ? '核对中…' : '核对步骤'}
+          </button>
+        </div>
+        {stepFeedback ? (
+          <p className={stepFeedback.correct ? styles.feedbackGood : styles.feedbackWarn}>
+            <MathText text={stepFeedback.text} />
+          </p>
+        ) : null}
+        <div className={styles.askRow}>
+          <input
+            aria-label="向导师追问"
+            value={question}
+            placeholder="例如：为什么这里取负号？"
+            onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) void send(question);
+            }}
+          />
+          <button type="button" onClick={() => void send(question)} disabled={busy || !question.trim()}>
+            追问
+          </button>
+        </div>
+        {messages.length > 0 || busy ? (
+          <div className={styles.chatBox}>
+            {messages.slice(-8).map((message) => (
+              <div key={message.id} className={styles.message} data-role={message.role}>
+                <span>{message.role === 'user' ? '你' : '导师'}</span>
+                <p><MathText text={message.text} /></p>
+                <small>{message.local ? '本地导师 · 由计算记录生成' : message.notice ? '模型增强回答 · 数值以执行记录为准' : ''}</small>
               </div>
-              <p>从观察开始；只有在需要时才展开具体步骤。</p>
-              <div className={styles.attemptRow} style={{ marginTop: 8 }}>
-                <input
-                  value={stepDraft}
-                  aria-label="中间推导步骤"
-                  placeholder="试写中间步骤：如原函数、导函数或等式 (x^2-1)/(x-1)=x+1"
-                  disabled={stepBusy || readOnly}
-                  onChange={(event) => setStepDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.nativeEvent.isComposing) void submitStepCheck();
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => void submitStepCheck()}
-                  disabled={stepBusy || !stepDraft.trim() || readOnly}
-                >
-                  {stepBusy ? '核对中…' : '核对步骤'}
-                </button>
-              </div>
-              {stepFeedback ? (
-                <p className={stepFeedback.correct ? styles.feedbackGood : styles.feedbackWarn}>
-                  <MathText text={stepFeedback.text} />
-                </p>
-              ) : null}
-              {messages.length > 0 || busy ? (
-                <div className={styles.chatBox}>
-                  {messages.slice(-8).map((message) => (
-                    <div key={message.id} className={styles.message} data-role={message.role}>
-                      <span>{message.role === 'user' ? '你' : '导师'}</span>
-                      <p><MathText text={message.text} /></p>
-                      <small>{message.local ? '本地导师 · 由计算记录生成' : message.notice ? '模型增强回答 · 数值以执行记录为准' : ''}</small>
-                    </div>
-                  ))}
-                  {busy ? <p className={styles.thinking}>正在读取当前参数与执行记录…</p> : null}
-                </div>
-              ) : null}
+            ))}
+            {busy ? <p className={styles.thinking}>正在读取当前参数与执行记录…</p> : null}
+          </div>
+        ) : null}
+      </div>
+
+      {result.subject === 'algorithm' && result.algorithm !== 'heap' && !('dsKind' in result) ? (
+        <PredictionPrompt result={result} step={step} onRecord={onRecordObservation} />
+      ) : null}
+
+      <div className={styles.attemptBox}>
+        <span className={styles.stateTitle}>提交我的尝试</span>
+        {draftText.trim() ? (
+          <div className={styles.draftBox}>
+            <div className={styles.draftHead}>
+              <strong>已上传的解答草稿</strong>
+              <small>{draftText.trim().length} 字 · 由文件识别得到</small>
             </div>
-          ) : null}
-
-          {result.subject === 'algorithm' && result.algorithm !== 'heap' && !('dsKind' in result) ? (
-            <PredictionPrompt result={result} step={step} onRecord={onRecordObservation} />
-          ) : null}
-
-          <div className={styles.attemptBox}>
-            <span className={styles.stateTitle}>提交我的尝试</span>
-            {draftText.trim() ? (
-              <div className={styles.draftBox}>
-                <div className={styles.draftHead}>
-                  <strong>已上传的解答草稿</strong>
-                  <small>{draftText.trim().length} 字 · 由文件识别得到</small>
-                </div>
-                <p>{draftText.trim().slice(0, 240)}{draftText.trim().length > 240 ? '…' : ''}</p>
-                <div className={styles.draftActions}>
-                  <button type="button" onClick={() => setAttempt(draftText.trim().slice(0, 2000))} disabled={attemptBusy}>
-                    填入检查框
-                  </button>
-                  <button type="button" onClick={() => void checkValue(draftText, 'draft')} disabled={attemptBusy}>
-                    检查草稿中的答案
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            <div className={styles.attemptRow}>
-              {problem.subject !== 'algorithm' && problem.subject !== 'linear_algebra' && problem.subject !== 'operating_system' && problem.subject !== 'computer_organization' && problem.subject !== 'computer_network' ? <AttemptMathInput
-                key={`${problem.problem_id}-${field.field}`}
-                label={field.label}
-                placeholder={field.placeholder}
-                value={attempt}
-                variables={field.field === 'antiderivative' ? [problem.model.variable ?? 'x', 'C']
-                  : problem.model.variables ?? [problem.model.variable ?? 'x']}
-                disabled={attemptBusy || readOnly}
-                onChange={setAttempt}
-                onSubmit={() => void submitAttempt()}
-              /> : <input
-                value={attempt}
-                placeholder={field.placeholder}
-                aria-label={field.label}
-                disabled={attemptBusy || readOnly}
-                onChange={(event) => setAttempt(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.nativeEvent.isComposing) void submitAttempt();
-                }}
-              />}
-              <button type="button" onClick={() => void submitAttempt()} disabled={attemptBusy || !attempt.trim() || readOnly}>
-                检查
+            <p>{draftText.trim().slice(0, 240)}{draftText.trim().length > 240 ? '…' : ''}</p>
+            <div className={styles.draftActions}>
+              <button type="button" onClick={() => setAttempt(draftText.trim().slice(0, 2000))} disabled={attemptBusy}>
+                填入检查框
+              </button>
+              <button type="button" onClick={() => void checkValue(draftText, 'draft')} disabled={attemptBusy}>
+                检查草稿中的答案
               </button>
             </div>
-            {feedback ? (
-              <p className={feedback.correct ? styles.feedbackGood : styles.feedbackWarn}><MathText text={feedback.text} /></p>
-            ) : (
-              <p className={styles.smallNote}>{field.label}。检查只对照确定性结果，不读取模型生成答案。</p>
-            )}
-            {attempts.length ? (
-              <details className={styles.attemptHistory}>
-                <summary>我的尝试记录（{attempts.length}）</summary>
-                {attempts.slice(-4).reverse().map((item) => (
-                  <div key={item.id} data-correct={item.correct}>
-                    <strong>{item.correct ? '正确' : '待核对'}</strong>
-                    <span><MathText text={item.answer} /></span>
-                  </div>
-                ))}
-              </details>
-            ) : null}
           </div>
-        </>
-      )}
+        ) : null}
+        <div className={styles.attemptRow}>
+          {problem.subject !== 'algorithm' && problem.subject !== 'linear_algebra' && problem.subject !== 'operating_system' && problem.subject !== 'computer_organization' && problem.subject !== 'computer_network' ? <AttemptMathInput
+            key={`${problem.problem_id}-${field.field}`}
+            label={field.label}
+            placeholder={field.placeholder}
+            value={attempt}
+            variables={field.field === 'antiderivative' ? [problem.model.variable ?? 'x', 'C']
+              : problem.model.variables ?? [problem.model.variable ?? 'x']}
+            disabled={attemptBusy || readOnly}
+            onChange={setAttempt}
+            onSubmit={() => void submitAttempt()}
+          /> : <input
+            value={attempt}
+            placeholder={field.placeholder}
+            aria-label={field.label}
+            disabled={attemptBusy || readOnly}
+            onChange={(event) => setAttempt(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) void submitAttempt();
+            }}
+          />}
+          <button type="button" onClick={() => void submitAttempt()} disabled={attemptBusy || !attempt.trim() || readOnly}>
+            检查
+          </button>
+        </div>
+        {feedback ? (
+          <p className={feedback.correct ? styles.feedbackGood : styles.feedbackWarn}><MathText text={feedback.text} /></p>
+        ) : (
+          <p className={styles.smallNote}>{field.label}。检查只对照确定性结果，不读取模型生成答案。</p>
+        )}
+        {attempts.length ? (
+          <details className={styles.attemptHistory}>
+            <summary>我的尝试记录（{attempts.length}）</summary>
+            {attempts.slice(-4).reverse().map((item) => (
+              <div key={item.id} data-correct={item.correct}>
+                <strong>{item.correct ? '正确' : '待核对'}</strong>
+                <span><MathText text={item.answer} /></span>
+              </div>
+            ))}
+          </details>
+        ) : null}
+      </div>
 
-      {aiConfigured ? (
-        <label className={styles.aiToggle}>
-          <input type="checkbox" checked={useAi} onChange={(event) => onUseAi(event.target.checked)} />
-          <span>本次提问使用模型增强</span>
-          <small>需在后端显式启用，可能产生 API 费用；默认关闭，数值仍以执行记录为准。</small>
-        </label>
-      ) : null}
+  {aiConfigured ? (
+    <label className={styles.aiToggle}>
+      <input type="checkbox" checked={useAi} onChange={(event) => onUseAi(event.target.checked)} />
+      <span>本次提问使用模型增强</span>
+      <small>需在后端显式启用，可能产生 API 费用；默认关闭，数值仍以执行记录为准。</small>
+    </label>
+  ) : null}
 
       <div className={styles.notesBox}>
         <div className={styles.notesHead}>

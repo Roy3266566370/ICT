@@ -37,11 +37,12 @@ interface Props {
   problem: LabProblem;
   configured?: boolean;
   autoReady?: boolean;
+  autoStart?: boolean;
   onSolve?: (mode: 'auto' | 'direct') => Promise<void>;
   onCheck?: (answer: string) => Promise<{ correct: boolean; feedback: string }>;
 }
 
-export function LabAISolvePanel({ problem, configured, autoReady = true, onSolve, onCheck }: Props) {
+export function LabAISolvePanel({ problem, configured, autoReady = true, autoStart = true, onSolve, onCheck }: Props) {
   const solution = problem.ai_solution;
   const [action, setAction] = useState('');
   const [error, setError] = useState('');
@@ -64,13 +65,13 @@ export function LabAISolvePanel({ problem, configured, autoReady = true, onSolve
     finally { setAction(''); }
   };
   useEffect(() => {
-    if (!automatic || !configured || !autoReady || !onSolve || action) return;
+    if (!autoStart || !automatic || !configured || !autoReady || !onSolve || action) return;
     const input = JSON.stringify([problem.problem_id, problem.text, problem.recognition.ambiguities]);
     if (attemptedInputs.current.has(input)) return;
     // 先记录再调用，避免 StrictMode、保存回写或失败后的重渲染重复请求。
     attemptedInputs.current.add(input);
     void solve('auto');
-  }, [automatic, configured, autoReady, onSolve, action, problem]);
+  }, [autoStart, automatic, configured, autoReady, onSolve, action, problem]);
   if (!onSolve && !solution) return null;
   const hasKernel = solution?.verification === 'kernel' && !!solution.computation;
   const hasReference = Boolean(

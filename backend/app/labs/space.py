@@ -467,7 +467,20 @@ def _surface_integral(conditions):
         orientation_text = '正向 r_u×r_v' if orientation == 'positive' else '反向（与 r_u×r_v 相反）'
         if orientation == 'negative':
             integrand = sp.simplify(-integrand)
-    exact = sp.simplify(sp.integrate(integrand, (V, v0, v1), (U, u0, u1)))
+    symbolic_integrand = integrand
+    for absolute in integrand.atoms(sp.Abs):
+        argument = absolute.args[0]
+        for variable, interval in ((U, u_interval), (V, v_interval)):
+            if argument.free_symbols != {variable}:
+                continue
+            try:
+                values = function_range(argument, variable, interval)
+                sign = 1 if values.inf.is_nonnegative else -1 if values.sup.is_nonpositive else 0
+            except (ValueError, NotImplementedError):
+                continue
+            if sign:
+                symbolic_integrand = symbolic_integrand.xreplace({absolute: sign * argument})
+    exact = sp.simplify(sp.integrate(symbolic_integrand, (V, v0, v1), (U, u0, u1)))
     import mpmath as mp
     func = sp.lambdify((U, V), integrand, 'mpmath')
     with mp.workdps(16):

@@ -1,0 +1,223 @@
+{
+  "model": "Qwen/Qwen3-VL-32B-Instruct",
+  "prompt": "读这张 900×485 像素的换基图。以左上角为原点，x 向右、y 向下，返回实际像素。\n只返回 JSON，键为 left_x,left_y,left_e1,left_e2,left_v,left_coord,right_x,right_y,right_b1,right_b2,right_v,right_guide,right_coord。\n轴、箭头与虚线值均为 [[x1,y1],[x2,y2]]，箭头终点是尖端，虚线取右图可见斜虚线的两个几何端点。\n文字值为 {\"at\":[x,y],\"text\":\"...\"}，只抄写坐标对，at 取括号文字的中心。不可猜测不可见对象。",
+  "threshold_px": 27,
+  "annotations": {
+    "left_x": [
+      [
+        85,
+        343
+      ],
+      [
+        431,
+        343
+      ]
+    ],
+    "left_y": [
+      [
+        191,
+        139
+      ],
+      [
+        191,
+        408
+      ]
+    ],
+    "left_e1": [
+      [
+        191,
+        343
+      ],
+      [
+        335,
+        343
+      ]
+    ],
+    "left_e2": [
+      [
+        191,
+        343
+      ],
+      [
+        191,
+        260
+      ]
+    ],
+    "left_v": [
+      [
+        191,
+        343
+      ],
+      [
+        335,
+        260
+      ]
+    ],
+    "left_coord": {
+      "at": [
+        285,
+        99
+      ],
+      "text": "(2, 1)"
+    },
+    "right_x": [
+      [
+        521,
+        343
+      ],
+      [
+        867,
+        343
+      ]
+    ],
+    "right_y": [
+      [
+        627,
+        139
+      ],
+      [
+        627,
+        408
+      ]
+    ],
+    "right_b1": [
+      [
+        627,
+        343
+      ],
+      [
+        700,
+        343
+      ]
+    ],
+    "right_b2": [
+      [
+        627,
+        343
+      ],
+      [
+        700,
+        260
+      ]
+    ],
+    "right_v": [
+      [
+        627,
+        343
+      ],
+      [
+        771,
+        260
+      ]
+    ],
+    "right_guide": [
+      [
+        700,
+        343
+      ],
+      [
+        771,
+        260
+      ]
+    ],
+    "right_coord": {
+      "at": [
+        705,
+        99
+      ],
+      "text": "(1, 1)"
+    }
+  },
+  "prediction": {
+    "left_x": [
+      100,
+      280
+    ],
+    "left_y": [
+      100,
+      280
+    ],
+    "left_e1": [
+      100,
+      280,
+      280,
+      280
+    ],
+    "left_e2": [
+      100,
+      280,
+      100,
+      100
+    ],
+    "left_v": [
+      100,
+      280,
+      240,
+      220
+    ],
+    "left_coord": {
+      "at": [
+        150,
+        150
+      ],
+      "text": "(2, 1)"
+    },
+    "right_x": [
+      500,
+      280
+    ],
+    "right_y": [
+      500,
+      280
+    ],
+    "right_b1": [
+      500,
+      280,
+      580,
+      280
+    ],
+    "right_b2": [
+      500,
+      280,
+      560,
+      220
+    ],
+    "right_v": [
+      500,
+      280,
+      640,
+      220
+    ],
+    "right_guide": [
+      580,
+      280,
+      640,
+      220
+    ],
+    "right_coord": {
+      "at": [
+        550,
+        150
+      ],
+      "text": "(1, 1)"
+    }
+  },
+  "elapsed_s": 10.12,
+  "error_px": {
+    "left_x": null,
+    "left_y": null,
+    "left_e1": null,
+    "left_e2": null,
+    "left_v": null,
+    "left_coord": 144.31,
+    "right_x": null,
+    "right_y": null,
+    "right_b1": null,
+    "right_b2": null,
+    "right_v": null,
+    "right_guide": null,
+    "right_coord": 163.17
+  },
+  "passed": 0,
+  "total": 13
+}

@@ -4,6 +4,7 @@ import type { LinAlgResult } from './linalg.ts';
 import type { OsResult } from './opsys.ts';
 import type { CoResult } from './compOrg.ts';
 import type { NetworkResult } from './network.ts';
+import type { Walkthrough } from './walkthrough.ts';
 
 export type LabSubject =
   | 'calculus' | 'optimization' | 'algorithm' | 'deep_learning' | 'linear_algebra' | 'operating_system'
@@ -613,6 +614,9 @@ export interface ProofDetails {
 }
 
 export interface LabProblem {
+  walkthrough?: Walkthrough & { input_hash?: string };
+  walkthrough_eligible?: boolean;
+  walkthrough_context?: string;
   manual_input?: {
     task: 'integral' | 'antiderivative' | 'derivative' | 'limit' | 'higher_derivative' | 'continuity' | 'implicit_normal' | 'function_study' | 'taylor' | 'geometric_area' | 'rotation_volume' | 'ode' | 'multivariable' | 'multivariable_extrema' | 'double_integral' | 'triple_integral' | 'series_convergence' | 'power_series' | 'fourier_series' | 'space_geometry' | 'curve_surface_integral' | 'proof';
     conditions: Record<string, string>;
@@ -793,6 +797,7 @@ export interface LabDocument {
   subject: LabSubject;
   problem_count: number;
   capabilities?: {
+    walkthrough_configured?: boolean;
     ai_solver_configured?: boolean;
     ai_configured?: boolean;
     ai_note?: string;

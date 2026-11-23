@@ -169,6 +169,15 @@ export async function getLab(labId: string): Promise<LabDocument> {
   return parseLabDocument(await requestJson<LabDocument>(`${P}/labs/${encodeURIComponent(labId)}`));
 }
 
+export async function generateLabWalkthrough(input: {
+  labId: string; problemId: string; revision: number; force: boolean;
+}): Promise<LabDocument> {
+  return parseLabDocument(await requestJson<LabDocument>(`${P}/labs/${encodeURIComponent(input.labId)}/walkthrough`, {
+    method: 'POST',
+    body: JSON.stringify({ problem_id: input.problemId, expected_revision: input.revision, force: input.force }),
+  }));
+}
+
 export async function solveLabWithAI(input: { labId: string; problemId: string; revision: number; mode: 'auto' | 'direct'; force?: boolean }): Promise<LabDocument> {
   const result = await requestJson<{ document: LabDocument }>(`${P}/labs/${encodeURIComponent(input.labId)}/ai-solve`, {
     method: 'POST', body: JSON.stringify({ problem_id: input.problemId, expected_revision: input.revision, mode: input.mode, force: input.force ?? false }),

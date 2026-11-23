@@ -1696,7 +1696,6 @@ button.formulaBlock {
   to { opacity: 1; }
 }
 
-.reviewDialog,
 .compareDialog,
 .outcomeDialog {
   display: flex;
@@ -1708,6 +1707,14 @@ button.formulaBlock {
   background: var(--paper-0);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+}
+
+.reviewInline {
+  margin-block: 16px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-xl);
+  background: var(--paper-0);
+  scroll-margin-top: 80px;
 }
 
 .wideDialog {

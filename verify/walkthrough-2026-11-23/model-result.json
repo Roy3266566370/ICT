@@ -1,0 +1,935 @@
+{
+  "hemisphere": {
+    "question": "求第一类曲面积分 ∫∫_Σ 1 dS，其中 Σ 是 x^2+y^2+z^2=1 的上半球面，不含底圆盘。",
+    "elapsed_s": 6.62,
+    "walkthrough": {
+      "version": 1,
+      "pattern": "slice_accumulate",
+      "strategy": {
+        "why": "上半球面可视为绕 z 轴的完整圆环族，按高度 z 切片后每个圆环的半径由球面方程确定，面积元只依赖 z，便于沿 z 累加。",
+        "alternatives": [
+          "球坐标参数化直接计算",
+          "投影到 xy 平面用显式曲面公式"
+        ]
+      },
+      "source": "model",
+      "conditions_source": "model",
+      "geometry": {
+        "family": "hemisphere",
+        "scale": 1.0,
+        "lower": 0.0,
+        "upper": 1.0,
+        "radius_squared": "1 - z**2",
+        "density": "2*pi",
+        "density_tex": "2 \\pi",
+        "field_tex": "1",
+        "primitive": "2*pi*z",
+        "exact_tex": "2 \\pi",
+        "orientation": 1
+      },
+      "params": [
+        {
+          "id": "h",
+          "label": "截面高度",
+          "min": 0.0,
+          "max": 1.0,
+          "default": 0.6,
+          "source": "teaching"
+        },
+        {
+          "id": "n",
+          "label": "环带数",
+          "min": 4,
+          "max": 96,
+          "default": 12,
+          "source": "teaching"
+        }
+      ],
+      "steps": [
+        {
+          "id": "choose_slice",
+          "title": "为什么沿高度切片",
+          "explain": "曲面绕 z 轴旋转。固定高度后，曲面截线是圆；移动截面可以观察半径如何随高度变化。",
+          "controls": [
+            "h"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "r(z)^2=1 - z^{2}",
+              "check": "radius_squared"
+            }
+          ]
+        },
+        {
+          "id": "area_element",
+          "title": "从环线构造面积微元",
+          "explain": "把圆周弧长乘以母线上的斜长。斜长与竖直高度差之间的比例取决于半径的变化率。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "dS=1\\,d\\theta\\,dz",
+              "check": "metric"
+            }
+          ],
+          "checkpoint": {
+            "type": "predict",
+            "prompt": "取同样小的高度差时，球面环带的面积怎样变化？",
+            "options": [
+              "越接近极点，面积越小",
+              "与截面高度无关",
+              "在赤道处最小"
+            ],
+            "answer": 1
+          }
+        },
+        {
+          "id": "one_band",
+          "title": "估算一个环带的贡献",
+          "explain": "先沿整圈累加同一高度的贡献，得到每单位高度的积分密度，再用当前环带中点的密度乘以带宽。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "f=1"
+            },
+            {
+              "tex": "g(z)=2 \\pi",
+              "check": "density"
+            },
+            {
+              "tex": "\\Delta I\\approx g(z_{\\mathrm{mid}})\\,\\Delta z"
+            }
+          ]
+        },
+        {
+          "id": "accumulate",
+          "title": "把环带累加成积分",
+          "explain": "提高环带数，观察中点和如何逼近连续累积曲线。沿 z 轴移动截面，可读出下界到当前高度的累积。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "formulas": [
+            {
+              "tex": "G(z)=2 \\pi z",
+              "check": "primitive"
+            },
+            {
+              "tex": "I(h)=\\int_{0}^{h}g(z)\\,dz"
+            }
+          ]
+        },
+        {
+          "id": "answer",
+          "title": "代入边界并核对答案",
+          "explain": "在原函数中代入上下界并相减，再把结果与当前环带数给出的近似值对照。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "final": true,
+          "formulas": [
+            {
+              "tex": "I=G(1)-G(0)=2 \\pi",
+              "check": "exact"
+            }
+          ]
+        }
+      ],
+      "verification": {
+        "engine": "sympy",
+        "checks": [
+          {
+            "id": "radius_squared",
+            "status": "verified"
+          },
+          {
+            "id": "metric",
+            "status": "verified"
+          },
+          {
+            "id": "density",
+            "status": "verified"
+          },
+          {
+            "id": "primitive",
+            "status": "verified"
+          },
+          {
+            "id": "exact",
+            "status": "verified"
+          }
+        ],
+        "status": "verified"
+      },
+      "input_hash": "e1fa70e168e76ec67471e2a83bef88006caa4843070c55fc6edba2c458401479"
+    }
+  },
+  "cylinder": {
+    "question": "求第一类曲面积分 ∫∫_Σ (x^2+y^2+z) dS，Σ 是 x^2+y^2=1，0≤z≤2 的完整圆柱侧面。",
+    "elapsed_s": 6.26,
+    "walkthrough": {
+      "version": 1,
+      "pattern": "slice_accumulate",
+      "strategy": {
+        "why": "圆柱侧面关于 z 轴旋转对称，固定 z 时截面为完整圆周，可先沿圆周积分再对 z 累加。",
+        "alternatives": [
+          "直接使用柱面参数方程化为二重积分",
+          "利用柱坐标计算曲面积分"
+        ]
+      },
+      "source": "model",
+      "conditions_source": "model",
+      "geometry": {
+        "family": "cylinder",
+        "scale": 1.0,
+        "lower": 0.0,
+        "upper": 2.0,
+        "radius_squared": "1",
+        "density": "2*pi*(z + 1)",
+        "density_tex": "2 \\pi \\left(z + 1\\right)",
+        "field_tex": "x^{2} + y^{2} + z",
+        "primitive": "pi*z*(z + 2)",
+        "exact_tex": "8 \\pi",
+        "orientation": 1
+      },
+      "params": [
+        {
+          "id": "h",
+          "label": "截面高度",
+          "min": 0.0,
+          "max": 2.0,
+          "default": 1.2,
+          "source": "teaching"
+        },
+        {
+          "id": "n",
+          "label": "环带数",
+          "min": 4,
+          "max": 96,
+          "default": 12,
+          "source": "teaching"
+        }
+      ],
+      "steps": [
+        {
+          "id": "choose_slice",
+          "title": "为什么沿高度切片",
+          "explain": "曲面绕 z 轴旋转。固定高度后，曲面截线是圆；移动截面可以观察半径如何随高度变化。",
+          "controls": [
+            "h"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "r(z)^2=1",
+              "check": "radius_squared"
+            }
+          ]
+        },
+        {
+          "id": "area_element",
+          "title": "从环线构造面积微元",
+          "explain": "把圆周弧长乘以母线上的斜长。斜长与竖直高度差之间的比例取决于半径的变化率。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "dS=1\\,d\\theta\\,dz",
+              "check": "metric"
+            }
+          ]
+        },
+        {
+          "id": "one_band",
+          "title": "估算一个环带的贡献",
+          "explain": "先沿整圈累加同一高度的贡献，得到每单位高度的积分密度，再用当前环带中点的密度乘以带宽。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "f=x^{2} + y^{2} + z"
+            },
+            {
+              "tex": "g(z)=2 \\pi \\left(z + 1\\right)",
+              "check": "density"
+            },
+            {
+              "tex": "\\Delta I\\approx g(z_{\\mathrm{mid}})\\,\\Delta z"
+            }
+          ]
+        },
+        {
+          "id": "accumulate",
+          "title": "把环带累加成积分",
+          "explain": "提高环带数，观察中点和如何逼近连续累积曲线。沿 z 轴移动截面，可读出下界到当前高度的累积。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "formulas": [
+            {
+              "tex": "G(z)=\\pi z \\left(z + 2\\right)",
+              "check": "primitive"
+            },
+            {
+              "tex": "I(h)=\\int_{0}^{h}g(z)\\,dz"
+            }
+          ]
+        },
+        {
+          "id": "answer",
+          "title": "代入边界并核对答案",
+          "explain": "在原函数中代入上下界并相减，再把结果与当前环带数给出的近似值对照。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "final": true,
+          "formulas": [
+            {
+              "tex": "I=G(2)-G(0)=8 \\pi",
+              "check": "exact"
+            }
+          ]
+        }
+      ],
+      "verification": {
+        "engine": "sympy",
+        "checks": [
+          {
+            "id": "radius_squared",
+            "status": "verified"
+          },
+          {
+            "id": "metric",
+            "status": "verified"
+          },
+          {
+            "id": "density",
+            "status": "verified"
+          },
+          {
+            "id": "primitive",
+            "status": "verified"
+          },
+          {
+            "id": "exact",
+            "status": "verified"
+          }
+        ],
+        "status": "verified"
+      },
+      "input_hash": "ece67ddf65f2069357905bf7c897aee3249cc803f476c5106ba0b1d306591daa"
+    }
+  },
+  "changed_integrand": {
+    "question": "求第一类曲面积分 ∫∫_Σ (x^2+y^2) dS，Σ 是单位球面 x^2+y^2+z^2=1。",
+    "elapsed_s": 2.84,
+    "walkthrough": {
+      "version": 1,
+      "pattern": "slice_accumulate",
+      "strategy": {
+        "why": "单位球面可视为绕 z 轴的完整圆环，按高度 z 切片后每片是半径为 r 的圆，被积函数仅依赖 r，便于先对圆周积分再沿 z 累积。",
+        "alternatives": [
+          "球坐标参数化直接计算",
+          "利用对称性化为单变量积分"
+        ]
+      },
+      "source": "model",
+      "conditions_source": "model",
+      "geometry": {
+        "family": "sphere",
+        "scale": 1.0,
+        "lower": -1.0,
+        "upper": 1.0,
+        "radius_squared": "1 - z**2",
+        "density": "-2*pi*(z - 1)*(z + 1)",
+        "density_tex": "- 2 \\pi \\left(z - 1\\right) \\left(z + 1\\right)",
+        "field_tex": "x^{2} + y^{2}",
+        "primitive": "-2*pi*z*(z**2 - 3)/3",
+        "exact_tex": "\\frac{8 \\pi}{3}",
+        "orientation": 1
+      },
+      "params": [
+        {
+          "id": "h",
+          "label": "截面高度",
+          "min": -1.0,
+          "max": 1.0,
+          "default": 0.19999999999999996,
+          "source": "teaching"
+        },
+        {
+          "id": "n",
+          "label": "环带数",
+          "min": 4,
+          "max": 96,
+          "default": 12,
+          "source": "teaching"
+        }
+      ],
+      "steps": [
+        {
+          "id": "choose_slice",
+          "title": "为什么沿高度切片",
+          "explain": "曲面绕 z 轴旋转。固定高度后，曲面截线是圆；移动截面可以观察半径如何随高度变化。",
+          "controls": [
+            "h"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "r(z)^2=1 - z^{2}",
+              "check": "radius_squared"
+            }
+          ]
+        },
+        {
+          "id": "area_element",
+          "title": "从环线构造面积微元",
+          "explain": "把圆周弧长乘以母线上的斜长。斜长与竖直高度差之间的比例取决于半径的变化率。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "dS=1\\,d\\theta\\,dz",
+              "check": "metric"
+            }
+          ],
+          "checkpoint": {
+            "type": "predict",
+            "prompt": "取同样小的高度差时，球面环带的面积怎样变化？",
+            "options": [
+              "越接近极点，面积越小",
+              "与截面高度无关",
+              "在赤道处最小"
+            ],
+            "answer": 1
+          }
+        },
+        {
+          "id": "one_band",
+          "title": "估算一个环带的贡献",
+          "explain": "先沿整圈累加同一高度的贡献，得到每单位高度的积分密度，再用当前环带中点的密度乘以带宽。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "f=x^{2} + y^{2}"
+            },
+            {
+              "tex": "g(z)=- 2 \\pi \\left(z - 1\\right) \\left(z + 1\\right)",
+              "check": "density"
+            },
+            {
+              "tex": "\\Delta I\\approx g(z_{\\mathrm{mid}})\\,\\Delta z"
+            }
+          ]
+        },
+        {
+          "id": "accumulate",
+          "title": "把环带累加成积分",
+          "explain": "提高环带数，观察中点和如何逼近连续累积曲线。沿 z 轴移动截面，可读出下界到当前高度的累积。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "formulas": [
+            {
+              "tex": "G(z)=- \\frac{2 \\pi z \\left(z^{2} - 3\\right)}{3}",
+              "check": "primitive"
+            },
+            {
+              "tex": "I(h)=\\int_{-1}^{h}g(z)\\,dz"
+            }
+          ]
+        },
+        {
+          "id": "answer",
+          "title": "代入边界并核对答案",
+          "explain": "在原函数中代入上下界并相减，再把结果与当前环带数给出的近似值对照。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "final": true,
+          "formulas": [
+            {
+              "tex": "I=G(1)-G(-1)=\\frac{8 \\pi}{3}",
+              "check": "exact"
+            }
+          ]
+        }
+      ],
+      "verification": {
+        "engine": "sympy",
+        "checks": [
+          {
+            "id": "radius_squared",
+            "status": "verified"
+          },
+          {
+            "id": "metric",
+            "status": "verified"
+          },
+          {
+            "id": "density",
+            "status": "verified"
+          },
+          {
+            "id": "primitive",
+            "status": "verified"
+          },
+          {
+            "id": "exact",
+            "status": "verified"
+          }
+        ],
+        "status": "verified"
+      },
+      "input_hash": "d3fbe1d4b67594105ba78b7e191117b4c51e317a7c30ca06463b23af93ec8462"
+    }
+  },
+  "cone_flux": {
+    "question": "求第二类曲面积分，向量场 F=(0,0,1) 穿过圆锥 z=sqrt(x^2+y^2), 0≤z≤2 的侧面，法向朝内，不含底面。",
+    "elapsed_s": 5.76,
+    "walkthrough": {
+      "version": 1,
+      "pattern": "slice_accumulate",
+      "strategy": {
+        "why": "圆锥侧面可沿高度 z 切片，每层是完整圆周，面积元与 z 相关，适合先对 theta 积分再对 z 累积。",
+        "alternatives": [
+          "参数化后直接计算第二类曲面积分",
+          "高斯散度定理（需补底面）"
+        ]
+      },
+      "source": "model",
+      "conditions_source": "model",
+      "geometry": {
+        "family": "cone",
+        "scale": 1.0,
+        "lower": 0.0,
+        "upper": 2.0,
+        "radius_squared": "z**2",
+        "density": "2*pi*z",
+        "density_tex": "2 \\pi z",
+        "field_tex": "\\left( 0, \\  0, \\  1\\right)",
+        "primitive": "pi*z**2",
+        "exact_tex": "4 \\pi",
+        "orientation": -1,
+        "field": [
+          "0",
+          "0",
+          "1"
+        ]
+      },
+      "params": [
+        {
+          "id": "h",
+          "label": "截面高度",
+          "min": 0.0,
+          "max": 2.0,
+          "default": 1.2,
+          "source": "teaching"
+        },
+        {
+          "id": "n",
+          "label": "环带数",
+          "min": 4,
+          "max": 96,
+          "default": 12,
+          "source": "teaching"
+        }
+      ],
+      "steps": [
+        {
+          "id": "choose_slice",
+          "title": "为什么沿高度切片",
+          "explain": "曲面绕 z 轴旋转。固定高度后，曲面截线是圆；移动截面可以观察半径如何随高度变化。",
+          "controls": [
+            "h"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "r(z)^2=z^{2}",
+              "check": "radius_squared"
+            }
+          ]
+        },
+        {
+          "id": "area_element",
+          "title": "从环线构造面积微元",
+          "explain": "把圆周弧长乘以母线上的斜长。斜长与竖直高度差之间的比例取决于半径的变化率。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "dS=\\sqrt{2} z\\,d\\theta\\,dz",
+              "check": "metric"
+            }
+          ]
+        },
+        {
+          "id": "one_band",
+          "title": "估算一个环带的贡献",
+          "explain": "沿整圈积分向量场与定向面积元的点积。先沿整圈累加同一高度的贡献，得到每单位高度的积分密度，再用当前环带中点的密度乘以带宽。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "\\mathbf F=\\left( 0, \\  0, \\  1\\right)"
+            },
+            {
+              "tex": "dI=\\mathbf F\\cdot d\\mathbf S\\quad(\\text{朝内})"
+            },
+            {
+              "tex": "g(z)=2 \\pi z",
+              "check": "density"
+            },
+            {
+              "tex": "\\Delta I\\approx g(z_{\\mathrm{mid}})\\,\\Delta z"
+            }
+          ]
+        },
+        {
+          "id": "accumulate",
+          "title": "把环带累加成积分",
+          "explain": "提高环带数，观察中点和如何逼近连续累积曲线。沿 z 轴移动截面，可读出下界到当前高度的累积。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "formulas": [
+            {
+              "tex": "G(z)=\\pi z^{2}",
+              "check": "primitive"
+            },
+            {
+              "tex": "I(h)=\\int_{0}^{h}g(z)\\,dz"
+            }
+          ]
+        },
+        {
+          "id": "answer",
+          "title": "代入边界并核对答案",
+          "explain": "在原函数中代入上下界并相减，再把结果与当前环带数给出的近似值对照。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "final": true,
+          "formulas": [
+            {
+              "tex": "I=G(2)-G(0)=4 \\pi",
+              "check": "exact"
+            }
+          ]
+        }
+      ],
+      "verification": {
+        "engine": "sympy",
+        "checks": [
+          {
+            "id": "radius_squared",
+            "status": "verified"
+          },
+          {
+            "id": "metric",
+            "status": "verified"
+          },
+          {
+            "id": "density",
+            "status": "verified"
+          },
+          {
+            "id": "primitive",
+            "status": "verified"
+          },
+          {
+            "id": "exact",
+            "status": "verified"
+          }
+        ],
+        "status": "verified"
+      },
+      "input_hash": "5e98ee2128132465ea867b5c201383717143f9cf62ec028d39a053e7ec568f90"
+    }
+  },
+  "paraboloid": {
+    "question": "求第一类曲面积分 ∫∫_Σ 1 dS，其中 Σ 是 z=x^2+y^2, 0≤z≤1 的整圈旋转抛物面，不含平面圆盘。",
+    "elapsed_s": 5.69,
+    "walkthrough": {
+      "version": 1,
+      "pattern": "slice_accumulate",
+      "strategy": {
+        "why": "曲面是绕 z 轴的完整旋转抛物面，且 z 范围明确，适合按高度 z 切片，用极坐标参数化后对 θ 和 z 积分。",
+        "alternatives": [
+          "直接使用参数方程 r(u,v) 计算面积元",
+          "用柱坐标参数化后计算 dS"
+        ]
+      },
+      "source": "model",
+      "conditions_source": "model",
+      "geometry": {
+        "family": "paraboloid",
+        "scale": 1.0,
+        "lower": 0.0,
+        "upper": 1.0,
+        "radius_squared": "z",
+        "density": "pi*sqrt(4*z + 1)",
+        "density_tex": "\\pi \\sqrt{4 z + 1}",
+        "field_tex": "1",
+        "primitive": "pi*(4*z + 1)**(3/2)/6",
+        "exact_tex": "\\frac{\\pi \\left(-1 + 5 \\sqrt{5}\\right)}{6}",
+        "orientation": 1
+      },
+      "params": [
+        {
+          "id": "h",
+          "label": "截面高度",
+          "min": 0.0,
+          "max": 1.0,
+          "default": 0.6,
+          "source": "teaching"
+        },
+        {
+          "id": "n",
+          "label": "环带数",
+          "min": 4,
+          "max": 96,
+          "default": 12,
+          "source": "teaching"
+        }
+      ],
+      "steps": [
+        {
+          "id": "choose_slice",
+          "title": "为什么沿高度切片",
+          "explain": "曲面绕 z 轴旋转。固定高度后，曲面截线是圆；移动截面可以观察半径如何随高度变化。",
+          "controls": [
+            "h"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "r(z)^2=z",
+              "check": "radius_squared"
+            }
+          ]
+        },
+        {
+          "id": "area_element",
+          "title": "从环线构造面积微元",
+          "explain": "把圆周弧长乘以母线上的斜长。斜长与竖直高度差之间的比例取决于半径的变化率。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "dS=\\sqrt{z + \\frac{1}{4}}\\,d\\theta\\,dz",
+              "check": "metric"
+            }
+          ]
+        },
+        {
+          "id": "one_band",
+          "title": "估算一个环带的贡献",
+          "explain": "先沿整圈累加同一高度的贡献，得到每单位高度的积分密度，再用当前环带中点的密度乘以带宽。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "slice_bands"
+          },
+          "formulas": [
+            {
+              "tex": "f=1"
+            },
+            {
+              "tex": "g(z)=\\pi \\sqrt{4 z + 1}",
+              "check": "density"
+            },
+            {
+              "tex": "\\Delta I\\approx g(z_{\\mathrm{mid}})\\,\\Delta z"
+            }
+          ]
+        },
+        {
+          "id": "accumulate",
+          "title": "把环带累加成积分",
+          "explain": "提高环带数，观察中点和如何逼近连续累积曲线。沿 z 轴移动截面，可读出下界到当前高度的累积。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "formulas": [
+            {
+              "tex": "G(z)=\\frac{\\pi \\left(4 z + 1\\right)^{\\frac{3}{2}}}{6}",
+              "check": "primitive"
+            },
+            {
+              "tex": "I(h)=\\int_{0}^{h}g(z)\\,dz"
+            }
+          ]
+        },
+        {
+          "id": "answer",
+          "title": "代入边界并核对答案",
+          "explain": "在原函数中代入上下界并相减，再把结果与当前环带数给出的近似值对照。",
+          "controls": [
+            "h",
+            "n"
+          ],
+          "view": {
+            "kind": "primitive",
+            "name": "cumulative_chart"
+          },
+          "final": true,
+          "formulas": [
+            {
+              "tex": "I=G(1)-G(0)=\\frac{\\pi \\left(-1 + 5 \\sqrt{5}\\right)}{6}",
+              "check": "exact"
+            }
+          ]
+        }
+      ],
+      "verification": {
+        "engine": "sympy",
+        "checks": [
+          {
+            "id": "radius_squared",
+            "status": "verified"
+          },
+          {
+            "id": "metric",
+            "status": "verified"
+          },
+          {
+            "id": "density",
+            "status": "verified"
+          },
+          {
+            "id": "primitive",
+            "status": "verified"
+          },
+          {
+            "id": "exact",
+            "status": "verified"
+          }
+        ],
+        "status": "verified"
+      },
+      "input_hash": "1eb49fe3096480558ef606bcab67f23d4558822f1195865f4eb2c8f3ecf8e8ca"
+    }
+  }
+}

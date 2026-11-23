@@ -15,6 +15,7 @@ import { needsModelAfterReview } from '@/labs/autoAI';
 import {
   askLab,
   getLab,
+  generateLabWalkthrough,
   labPreviewUrl,
   reviewLabProblem,
   saveLabState,
@@ -23,6 +24,11 @@ import {
   solveLabWithAI,
   reviseCompositeLab,
 } from '@/api/labs';
+import { WalkthroughWorkbench } from '@/components/labs/walkthrough/WalkthroughWorkbench';
+import {
+  readDraft, writeDraft, baselineScenario, blankState, stateFromProblem,
+  scenarioName, solutionStepIndex, uploadedText, saveStatusText,
+} from '@/components/labs/workbenchState';
 import { LabCanvas, type LabSelection } from '@/components/labs/LabCanvas';
 import { LabControls } from '@/components/labs/LabControls';
 import { LabTimeline } from '@/components/labs/LabTimeline';
@@ -36,13 +42,9 @@ import { CompositeSolvePanel } from '@/components/labs/CompositeSolvePanel';
 import { LabAISolvePanel } from '@/components/labs/LabAISolvePanel';
 import { ManualIntegralResult } from '@/components/labs/ManualIntegralResult';
 import { GenericModelPanel } from '@/components/labs/GenericModelPanel';
-import { clamp, formatNumber } from '@/labs/expr';
+import { clamp } from '@/labs/expr';
 import { computeLab, currentFrame, defaultParams } from '@/labs/compute';
-import { OS_KIND_LABELS } from '@/labs/opsys';
 import { parseLabCommand, COMMAND_EXAMPLES } from '@/labs/commands';
-import { CO_KIND_LABELS } from '@/labs/compOrg';
-import { NET_KIND_LABELS } from '@/labs/network';
-import { PHYSICS_MODE_LABELS } from '@/labs/physics';
 import {
   commitHistory,
   createHistory,
@@ -53,10 +55,8 @@ import {
 } from '@/labs/history';
 import { useReducedMotion } from '@/hooks/useMotionPreference';
 import { useAccountScope } from '@/state/accountSession';
-import { draftStorageKey, type DraftScope } from '@/state/draftScope';
 import {
   isBlocking,
-  MODE_LABELS,
   SUBJECT_LABELS,
   type LabAssistantResponse,
   type LabDocument,
@@ -69,237 +69,6 @@ import {
   type CalculusResult,
 } from '@/labs/types';
 import styles from './LabWorkbenchPage.module.css';
-
-interface Draft {
-  revision: number;
-  dirty: boolean;
-  state: LabState;
-  /** 写入时的账号 scope；与当前 scope 不符则丢弃（R5-AC3）。 */
-  scope: DraftScope;
-}
-
-/** 键由 `C-DRAFT-SCOPE@1` 生成：`xiangsheng.lab.v1.<scope>.<labId>.<problemId>`。 */
-function storageKey(labId: string, problemId: string, scope: DraftScope): string {
-  return draftStorageKey('lab', scope, [labId, problemId]);
-}
-
-function readDraft(labId: string, problemId: string, scope: DraftScope): Draft | null {
-  try {
-    const raw = window.localStorage.getItem(storageKey(labId, problemId, scope));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<Draft>;
-    if (!parsed || typeof parsed !== 'object' || !parsed.state) return null;
-    // 键已含 scope，值里的 scope 是二次校验：旧格式/手工拷贝的数据一律不恢复。
-    if (parsed.scope !== scope) return null;
-    return parsed as Draft;
-  } catch {
-    return null;
-  }
-}
-
-function writeDraft(labId: string, problemId: string, scope: DraftScope, revision: number, state: LabState, dirty: boolean): void {
-  try {
-    window.localStorage.setItem(
-      storageKey(labId, problemId, scope),
-      JSON.stringify({ revision, dirty, state, scope } satisfies Draft),
-    );
-  } catch {
-    /* 隐私模式或存储已满：服务端仍可保存 */
-  }
-}
-
-function baselineScenario(problem: LabProblem): LabScenario {
-  return {
-    id: 'baseline',
-    name: '原题条件',
-    params: { ...(problem.model.defaults ?? {}) },
-    created_at: null,
-    kind: 'baseline',
-    summary: '题目识别后建立的原条件',
-  };
-}
-
-function blankState(problem: LabProblem): LabState {
-  const params = defaultParams(problem);
-  return {
-    params,
-    step: 0,
-    mode: 'explore',
-    notes: '',
-    observations: [],
-    events: [],
-    scenarios: [baselineScenario(problem)],
-    active_scenario_id: 'baseline',
-    attempts: [],
-    evaluated: null,
-  };
-}
-
-function stateFromProblem(problem: LabProblem): LabState {
-  const raw = problem.states ?? blankState(problem);
-  const defaults = defaultParams(problem);
-  const params: Record<string, unknown> = { ...defaults };
-  for (const key of Object.keys(defaults)) {
-    if (raw.params && key in raw.params) params[key] = raw.params[key];
-  }
-  const scenarios = raw.scenarios?.length ? raw.scenarios : [baselineScenario(problem)];
-  return {
-    params,
-    step: Number.isFinite(raw.step) ? Number(raw.step) : 0,
-    mode: raw.mode ?? 'explore',
-    notes: raw.notes ?? '',
-    observations: raw.observations ?? [],
-    events: raw.events ?? [],
-    scenarios,
-    active_scenario_id: raw.active_scenario_id ?? 'baseline',
-    attempts: raw.attempts ?? [],
-    evaluated: raw.evaluated ?? null,
-    manual: raw.manual && typeof raw.manual === 'object' ? raw.manual : {},
-  };
-}
-
-function scenarioName(problem: LabProblem, params: Record<string, unknown>): string {
-  const subject = problem.subject;
-  if (subject === 'optimization') {
-    return `η ${formatNumber(Number(params.learning_rate), 3)} · x₀ ${formatNumber(Number(params.x0 ?? params.y0), 2)}`;
-  }
-  if (subject === 'calculus') {
-    const kind = problem.model.kind ?? 'integral';
-    if (kind === 'antiderivative') {
-      return `C=${formatNumber(Number(params.c ?? problem.model.defaults.c ?? 0), 2)}`;
-    }
-    if (kind === 'integral') {
-      return `区间 [${formatNumber(Number(params.lower))}, ${formatNumber(Number(params.upper))}] · n=${formatNumber(Number(params.n), 0)}`;
-    }
-    return `x=${formatNumber(Number(params.point))} · h=${formatNumber(Number(params.h), 3)}`;
-  }
-  if (subject === 'algorithm') {
-    if (String(problem.model.engine ?? '').startsWith('ds_')) return '原题执行';
-    return problem.model.engine === 'heap_v1'
-      ? `删除 ${String(params.deletion_count ?? '')} 次` : `起点 ${String(params.start ?? problem.model.start ?? '')}`;
-  }
-  if (subject === 'linear_algebra') {
-    if (problem.model.la_kind === 'eigen') return '精确特征值与特征空间';
-    if (problem.model.la_kind === 'matmul') {
-      const op = problem.model.op;
-      if (op === 'scalar') return `数乘 k=${formatNumber(Number(params.scalar ?? problem.model.defaults.scalar ?? 2), 2)}`;
-      if (op === 'mul') return String(params.order ?? 'ab') === 'ba' ? 'B·A 乘积' : 'A·B 乘积';
-      return op === 'sub' ? 'A−B' : 'A+B';
-    }
-    return `${String(params.method ?? 'gauss') === 'jordan' ? '若尔当' : '高斯消元'} · ${String(params.pivoting ?? 'partial') === 'none' ? '不选主元' : '部分主元'}`;
-  }
-  if (subject === 'operating_system') {
-    const algorithm = String(params.algorithm ?? problem.model.defaults.algorithm ?? '').toUpperCase();
-    if (problem.model.os_kind === 'cpu_schedule' && algorithm === 'RR') {
-      return `RR q=${formatNumber(Number(params.quantum ?? problem.model.defaults.quantum ?? 2), 2)}`;
-    }
-    if (problem.model.os_kind === 'page_replace') {
-      if (!(problem.model.reference?.length)) return OS_KIND_LABELS.page_replace ?? '虚拟内存';
-      return `${algorithm} · ${formatNumber(Number(params.frames ?? problem.model.defaults.frames ?? 3), 0)} 块 · Δ=${formatNumber(Number(params.window ?? problem.model.defaults.window ?? 4), 0)}`;
-    }
-    if (problem.model.os_kind === 'disk_schedule' && ['SCAN', 'CSCAN', 'LOOK', 'CLOOK'].includes(algorithm)) {
-      return `${algorithm} · ${String(params.direction ?? 'up') === 'down' ? '向小' : '向大'}`;
-    }
-    if (problem.model.os_kind === 'banker') {
-      return String(params.request_mode ?? problem.model.defaults.request_mode ?? 'ignore') === 'apply' ? '处理资源请求' : '当前状态';
-    }
-    return algorithm || OS_KIND_LABELS[String(problem.model.os_kind)] || '原题条件';
-  }
-  if (subject === 'computer_organization') {
-    return CO_KIND_LABELS[String(problem.model.co_kind ?? '')] ?? '原题条件';
-  }
-  if (subject === 'computer_network') {
-    return NET_KIND_LABELS[String(problem.model.net_kind ?? '')] ?? '原题条件';
-  }
-  if (subject === 'physics') {
-    return PHYSICS_MODE_LABELS[String(problem.model.physics_mode ?? '')] ?? '物理实验';
-  }
-  return `η ${formatNumber(Number(params.learning_rate), 3)} · ${formatNumber(Number(params.epochs), 0)} 轮`;
-}
-
-function solutionStepIndex(result: ReturnType<typeof computeLab>, stepId: string, current: number): number | null {
-  const last = Math.max(0, result.trace.length - 1);
-  if (result.subject === 'calculus') {
-    if (result.kind === 'antiderivative') {
-      if (stepId === 'integrand' || stepId === 'antiderivative') return 0;
-      if (stepId === 'verify') return last;
-    }
-    if (result.kind === 'integral') {
-      if (stepId === 'limits' || stepId === 'antiderivative') return 0;
-      if (stepId === 'evaluate' || stepId === 'approx') return last;
-    }
-    if (stepId === 'approx') return last;
-    if (stepId === 'value' || stepId === 'derivative' || stepId === 'slope'
-      || stepId === 'preimage' || stepId === 'inverse_formula') return 0;
-    return null;
-  }
-  if (result.subject === 'optimization') {
-    if (stepId === 'objective') return 0;
-    if (stepId === 'update') return Math.min(last, current + 1);
-    if (stepId === 'stop') return last;
-    return null;
-  }
-  if (result.subject === 'algorithm') {
-    if (result.algorithm === 'heap') {
-      const index = Number(stepId.replace(/^heap_/, ''));
-      return Number.isInteger(index) ? clamp(index, 0, last) : null;
-    }
-    if (stepId === 'init') return 0;
-    const action = stepId === 'dequeue' ? 'dequeue' : stepId === 'enqueue' ? 'enqueue' : '';
-    const index = result.frames.findIndex((frame) => frame.action === action);
-    return index >= 0 ? index : null;
-  }
-  if (result.subject === 'deep_learning') {
-    if (stepId === 'forward' || stepId === 'loss') return stepId === 'loss' ? last : 0;
-    if (stepId === 'backward' || stepId === 'update') return last;
-  }
-  if (result.subject === 'linear_algebra') {
-    const match = /^la_(\d+)$/.exec(stepId);
-    if (match) return clamp(Number(match[1]), 0, last);
-    return null;
-  }
-  if (result.subject === 'operating_system') {
-    const match = /^os_(\d+)$/.exec(stepId);
-    if (match) return clamp(Number(match[1]), 0, last);
-    return null;
-  }
-  if (result.subject === 'computer_organization') {
-    const match = /^co_(\d+)$/.exec(stepId);
-    if (match) return clamp(Number(match[1]), 0, last);
-    return null;
-  }
-  if (result.subject === 'computer_network') {
-    const match = /^net_(\d+)$/.exec(stepId);
-    if (match) return clamp(Number(match[1]), 0, last);
-    return null;
-  }
-  if (result.subject === 'physics') {
-    const match = /^phy_(\d+)$/.exec(stepId);
-    if (match) return clamp(Number(match[1]), 0, last);
-    return null;
-  }
-  return null;
-}
-
-function uploadedText(lab: LabDocument | null, roles: string[]): string {
-  if (!lab) return '';
-  const fileIds = new Set(
-    lab.source.files.filter((file) => roles.includes(file.role)).map((file) => file.file_id),
-  );
-  return lab.source.pages
-    .filter((page) => fileIds.has(page.file_id))
-    .map((page) => page.text.trim())
-    .filter(Boolean)
-    .join('\n\n');
-}
-
-function saveStatusText(status: string): string {
-  if (status === 'saving') return '正在保存';
-  if (status === 'saved') return '已保存到服务端';
-  if (status === 'error') return '同步失败，本机草稿已保留';
-  if (status === 'restored') return '已恢复本机草稿';
-  return '有修改，等待保存';
-}
 
 function Gate({
   problem,
@@ -341,7 +110,7 @@ export function LabWorkbenchPage(): JSX.Element {
   const [problemId, setProblemId] = useState('');
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [step, setStep] = useState(0);
-  const [mode, setMode] = useState<LabMode>('explore');
+  const mode: LabMode = 'guided';
   const [notes, setNotes] = useState('');
   const [scenarios, setScenarios] = useState<LabScenario[]>([]);
   const [attempts, setAttempts] = useState<LabState['attempts']>([]);
@@ -362,10 +131,15 @@ export function LabWorkbenchPage(): JSX.Element {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const generationKey = JSON.stringify([scope, labId]);
+  const walkthroughBusy = generatingFor === generationKey;
   const [aiPreparedState, setAiPreparedState] = useState<LabState | null>(null);
   const aiBusyRef = useRef(false);
   const activeLabIdRef = useRef(labId);
   activeLabIdRef.current = labId;
+  const activeScopeRef = useRef(scope);
+  activeScopeRef.current = scope;
   const [compareOpen, setCompareOpen] = useState(false);
   const [outcomeOpen, setOutcomeOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
@@ -415,7 +189,6 @@ export function LabWorkbenchPage(): JSX.Element {
     paramsRef.current = state.params;
     setParams(state.params);
     setStep(state.step);
-    setMode(state.mode);
     setNotes(state.notes);
     setScenarios(scenariosNext);
     setAttempts(state.attempts);
@@ -472,7 +245,6 @@ export function LabWorkbenchPage(): JSX.Element {
           const serverState = stateFromProblem(selectedProblem);
           setParams({ ...serverState.params, ...draft.state.params });
           setStep(draft.state.step ?? 0);
-          setMode(draft.state.mode ?? 'explore');
           setNotes(draft.state.notes ?? '');
           setScenarios(draft.state.scenarios?.length ? draft.state.scenarios : serverState.scenarios);
           setAttempts(draft.state.attempts ?? serverState.attempts);
@@ -1031,6 +803,27 @@ export function LabWorkbenchPage(): JSX.Element {
     await aiOperation(() => solveLabWithAI({ labId, problemId: problem.problem_id, revision: revisionRef.current, mode: solveMode, force: !!problem.ai_solution }));
   };
 
+  const generateWalkthrough = async (force: boolean): Promise<void> => {
+    if (!problem) return;
+    const isCurrentLab = () => activeLabIdRef.current === labId && activeScopeRef.current === scope;
+    setGeneratingFor(generationKey);
+    try {
+      if (dirtyRef.current && !await persistNow(true)) throw new Error('请先保存当前学习记录');
+      if (!isCurrentLab() || problemIdRef.current !== problem.problem_id) return;
+      const document = await generateLabWalkthrough({
+        labId, problemId: problem.problem_id, revision: revisionRef.current, force,
+      });
+      if (isCurrentLab() && document.revision >= revisionRef.current) {
+        // The walkthrough changes no learning state. Keep any local drafts.
+        revisionRef.current = document.revision;
+        setRevision(document.revision);
+        setLab(document);
+      }
+    } finally {
+      setGeneratingFor((current) => current === generationKey ? null : current);
+    }
+  };
+
   const checkAI = async (answer: string) => {
     if (!problem) throw new Error('题目尚未加载');
     let feedback = { correct: false, feedback: '' };
@@ -1079,12 +872,6 @@ export function LabWorkbenchPage(): JSX.Element {
     }
   };
 
-  const setModeAndTouch = (next: LabMode): void => {
-    setMode(next);
-    touch();
-    logEvent('mode', `切换到${MODE_LABELS[next].title}`);
-  };
-
   const setNotesAndTouch = (value: string): void => {
     setNotes(value);
     touch();
@@ -1129,7 +916,7 @@ export function LabWorkbenchPage(): JSX.Element {
         setCompareScenarioId('baseline');
         break;
       case 'mode':
-        setModeAndTouch(command.value);
+        setCommandMessage('学习助手已合并为逐步引导。可在助手内展开解答步骤。');
         break;
       default:
         setCommandMessage(`${command.message} 也可以直接在右侧导师中提问。`);
@@ -1171,6 +958,7 @@ export function LabWorkbenchPage(): JSX.Element {
   const noticeTeaching = supplemental.length > 0 || problem.model.teaching;
   const referenceView = problem.status === 'reference';
   const pendingView = problem.status === 'pending_ai' && !problem.ai_solution;
+  const assistantAvailable = !problem.model.teaching && !(problem.ai_solution && blocking);
   const subjectLabel = SUBJECT_LABELS[problem.subject as LabSubject] ?? problem.subject_label;
 
   return (
@@ -1245,12 +1033,14 @@ export function LabWorkbenchPage(): JSX.Element {
               )}
               <span className={styles.subjectPill}>{subjectLabel}</span>
               <span className={styles.statusPill} data-status={problem.status}>
-                {aiBusy ? '正在准备实验' : problem.status === 'reference' ? '参考解答 · 不自动判分'
+                {aiBusy ? '正在准备实验' : problem.walkthrough
+                  ? problem.walkthrough.conditions_source === 'model' ? '过程已生成 · 条件待核对' : '过程已生成'
+                  : problem.status === 'reference' ? '参考解答 · 不自动判分'
                   : problem.status === 'pending_ai' ? '等待 AI 理解'
                   : problem.ai_solution ? problem.ai_solution.verification === 'kernel' ? problem.ai_solution.source_review_required ? '实验可操作 · 原图待核对' : '实验已就绪' : '需要补充条件'
                   : problem.status === 'ready' ? problem.manual_input ? '原题已确认 · 内核已计算' : '条件已就绪' : problem.status === 'needs_review' ? '待核对' : '暂不支持'}
               </span>
-              {problem.model.teaching ? <span className={styles.teachingPill}>含教学示例</span> : null}
+              {problem.model.teaching ? <span className={styles.teachingPill}>{problem.walkthrough ? '旧结果含教学示例' : '含教学示例'}</span> : null}
             </div>
             <div className={styles.metaRow}>
               {lab.problems.length > 1 ? (
@@ -1265,7 +1055,6 @@ export function LabWorkbenchPage(): JSX.Element {
                   </select>
                 </label>
               ) : null}
-              <span className={styles.modeHint}>{MODE_LABELS[mode].title} · {MODE_LABELS[mode].hint}</span>
               <span className={styles.saveState} data-status={saveStatus}>
                 <i aria-hidden="true" />
                 {saveStatusText(saveStatus)}
@@ -1309,7 +1098,15 @@ export function LabWorkbenchPage(): JSX.Element {
           result={lab.orchestration} onSolve={(text) => aiOperation(() => reviseCompositeLab({
             labId, text, revision: revisionRef.current,
           }))} /></details> : null}
-        <div className={styles.layout}>
+        <ReviewDialog
+          open={reviewOpen}
+          problem={problem}
+          busy={reviewBusy}
+          onClose={() => setReviewOpen(false)}
+          onSubmit={(payload) => void review(payload)}
+          previewUrl={(key) => labPreviewUrl(labId, key)}
+        />
+        <div className={styles.layout} data-assistant={!!result && assistantAvailable}>
           <LabSourcePanel
             lab={lab}
             problem={problem}
@@ -1325,6 +1122,13 @@ export function LabWorkbenchPage(): JSX.Element {
           />
 
           <section className={styles.mainColumn} aria-label="可操作模型">
+            <WalkthroughWorkbench
+              key={`${problem.problem_id}:${problem.walkthrough_context ?? ''}`}
+              problem={problem}
+              configured={lab.capabilities?.walkthrough_configured === true}
+              ready={aiPreparedState === stateSnapshot && !aiBusy && !walkthroughBusy && saveStatus !== 'saving' && !reviewBusy && !reviewOpen}
+              onGenerate={generateWalkthrough}
+            >
             <div className={styles.modelCard}>
               <ManualIntegralResult problem={problem} params={params} />
 
@@ -1502,16 +1306,17 @@ export function LabWorkbenchPage(): JSX.Element {
               )}
             </div>
             {!problem.manual_input && (!lab.orchestration || lab.orchestration.status !== '完成' || lab.orchestration.stale) ? <LabAISolvePanel key={problem.problem_id} problem={problem} configured={lab.capabilities?.ai_solver_configured}
-              autoReady={aiPreparedState === stateSnapshot && !aiBusy && saveStatus !== 'saving' && !reviewBusy && !reviewOpen}
+              autoStart={!problem.walkthrough}
+              autoReady={aiPreparedState === stateSnapshot && !walkthroughBusy && !aiBusy && saveStatus !== 'saving' && !reviewBusy && !reviewOpen}
               onSolve={solveAI} onCheck={checkAI} /> : null}
+            </WalkthroughWorkbench>
           </section>
 
-          {result && !((problem.model.teaching || (problem.ai_solution && blocking))) ? (
+          {result && assistantAvailable ? (
             <AssistantPanel
               problem={problem}
               result={result}
               step={timelineIndex}
-              mode={mode}
               selected={selected}
               aiConfigured={lab.capabilities?.ai_configured ?? false}
               useAi={useAi}
@@ -1519,7 +1324,6 @@ export function LabWorkbenchPage(): JSX.Element {
               attempts={attempts}
               observations={observations}
               draftText={draftText}
-              onModeChange={setModeAndTouch}
               onUseAi={setUseAi}
               onAsk={ask}
               onAttempt={attempt}
@@ -1534,14 +1338,6 @@ export function LabWorkbenchPage(): JSX.Element {
         </fieldset>
       </main>
 
-      <ReviewDialog
-        open={reviewOpen}
-        problem={problem}
-        busy={reviewBusy}
-        onClose={() => setReviewOpen(false)}
-        onSubmit={(payload) => void review(payload)}
-        previewUrl={(key) => labPreviewUrl(labId, key)}
-      />
       {result ? (
         <OriginalCompare
           open={compareOpen}

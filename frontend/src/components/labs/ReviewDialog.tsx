@@ -1,5 +1,5 @@
 import { MathText } from './ProblemText';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   SUBJECT_LABELS,
   PROVENANCE_LABELS,
@@ -70,6 +70,7 @@ function asText(value: unknown): string {
 }
 
 export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUrl }: Props): ReactNode {
+  const sectionRef = useRef<HTMLElement>(null);
   const [text, setText] = useState(problem.text);
   const [subject, setSubject] = useState<LabSubject>(problem.subject);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -107,13 +108,8 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
   }, [open, problem]);
 
   useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+    if (open) sectionRef.current?.focus();
+  }, [open]);
 
   if (!open) return null;
 
@@ -197,14 +193,8 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
   };
 
   return (
-    <div
-      className={styles.modalBackdrop}
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget && !busy) onClose();
-      }}
-    >
-      <div className={styles.reviewDialog} role="dialog" aria-modal="true" aria-labelledby="lab-review-title">
+    <section ref={sectionRef} tabIndex={-1} className={styles.reviewInline} aria-labelledby="lab-review-title">
+      <div>
         <header className={styles.modalHead}>
           <div>
             <span className={styles.eyebrow}>CONDITION REVIEW</span>
@@ -504,7 +494,7 @@ export function ReviewDialog({ open, problem, busy, onClose, onSubmit, previewUr
           </div>
         </footer>
       </div>
-    </div>
+    </section>
   );
 }
 

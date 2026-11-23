@@ -1,0 +1,38 @@
+[
+  {
+    "id": "choose_slice",
+    "title": "为什么沿高度切片",
+    "explain": "曲面绕 z 轴旋转。固定高度后，曲面截线是圆；移动截面可以观察半径如何随高度变化。",
+    "controls": ["h"],
+    "view": {"kind": "primitive", "name": "slice_bands"}
+  },
+  {
+    "id": "area_element",
+    "title": "从环线构造面积微元",
+    "explain": "把圆周弧长乘以母线上的斜长。斜长与竖直高度差之间的比例取决于半径的变化率。",
+    "controls": ["h", "n"],
+    "view": {"kind": "primitive", "name": "slice_bands"}
+  },
+  {
+    "id": "one_band",
+    "title": "估算一个环带的贡献",
+    "explain": "先沿整圈累加同一高度的贡献，得到每单位高度的积分密度，再用当前环带中点的密度乘以带宽。",
+    "controls": ["h", "n"],
+    "view": {"kind": "primitive", "name": "slice_bands"}
+  },
+  {
+    "id": "accumulate",
+    "title": "把环带累加成积分",
+    "explain": "提高环带数，观察中点和如何逼近连续累积曲线。沿 z 轴移动截面，可读出下界到当前高度的累积。",
+    "controls": ["h", "n"],
+    "view": {"kind": "primitive", "name": "cumulative_chart"}
+  },
+  {
+    "id": "answer",
+    "title": "代入边界并核对答案",
+    "explain": "在原函数中代入上下界并相减，再把结果与当前环带数给出的近似值对照。",
+    "controls": ["h", "n"],
+    "view": {"kind": "primitive", "name": "cumulative_chart"},
+    "final": true
+  }
+]

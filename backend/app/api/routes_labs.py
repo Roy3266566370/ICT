@@ -138,6 +138,12 @@ class AISolveRequest(BaseModel):
     force: bool = False
 
 
+class WalkthroughRequest(BaseModel):
+    problem_id: str = Field(min_length=1, max_length=64)
+    expected_revision: int = Field(ge=1)
+    force: bool = False
+
+
 # ---------------------------------------------------------------------------
 # 文档与权限
 # ---------------------------------------------------------------------------
@@ -196,6 +202,7 @@ def _ensure_default_title(db: Any, record: LabRecord, document: dict[str, Any]) 
 def _lab_payload(record: LabRecord, db: Any = None) -> dict[str, Any]:
     from ..ppt_ai.client import PPTAIClient
     from ..labs.ai_solve import restore_ai_understanding, attach_interactive_model
+    from ..labs.walkthrough.service import configured, eligible, input_hash
     document = copy.deepcopy(record.document)
     if db is not None:
         _ensure_default_title(db, record, document)
@@ -207,7 +214,13 @@ def _lab_payload(record: LabRecord, db: Any = None) -> dict[str, Any]:
         elif restored and solution.get('verification') == 'ai_reference' and solution.get('answer') and (
                 solution.get('proposed_model') or {}).get('kind') in (None, 'none') and problem.get('status') != 'reference':
             attach_interactive_model(problem, solution)
+        if eligible(problem):
+            problem['walkthrough_eligible'] = True
+            problem['walkthrough_context'] = input_hash(problem)
+        if problem.get('walkthrough') and problem['walkthrough'].get('input_hash') != input_hash(problem):
+            problem.pop('walkthrough')
     document.setdefault("capabilities", {})["ai_solver_configured"] = PPTAIClient().available()
+    document["capabilities"]["walkthrough_configured"] = configured()
     return document
 
 
@@ -279,8 +292,9 @@ def _new_lab_record(
     return record
 
 
-def _touch(record: LabRecord, document: dict[str, Any]) -> None:
-    document["revision"] = int(document.get("revision") or 1) + 1
+def _touch(db: Any, record: LabRecord, document: dict[str, Any]) -> None:
+    expected_revision = record.revision
+    document["revision"] = expected_revision + 1
     document["updated_at"] = to_iso(utc_now())
     problem = _problem(document)
     document["subject"] = problem.get("subject") or document.get("subject")
@@ -288,13 +302,18 @@ def _touch(record: LabRecord, document: dict[str, Any]) -> None:
     orchestration = document.get("orchestration") or {}
     if orchestration and (orchestration.get("stale") or orchestration.get("status") != "完成"):
         document["status"] = "needs_review"
-    record.document = document
-    record.revision = int(document["revision"])
-    record.title = str(document.get("title") or record.title)
-    record.subject = str(document.get("subject") or record.subject)
-    record.status = str(document.get("status") or record.status)
-    record.problem_count = int(document.get("problem_count") or record.problem_count)
-    record.updated_at = str(document["updated_at"])
+    written = db.execute(update(LabRecord).where(
+        LabRecord.id == record.id, LabRecord.revision == expected_revision,
+    ).values(
+        document=document, revision=document["revision"], updated_at=document["updated_at"],
+        title=str(document.get("title") or record.title),
+        subject=str(document.get("subject") or record.subject),
+        status=str(document.get("status") or record.status),
+        problem_count=int(document.get("problem_count") or record.problem_count),
+    ))
+    if written.rowcount != 1:
+        db.rollback()
+        raise version_conflict("实验室内容已更新，请重新载入后再保存")
 
 
 def _build_and_store(
@@ -661,7 +680,6 @@ def update_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: La
         cleaned_title = body.title.strip()[:120]
         if cleaned_title:
             document["title"] = cleaned_title
-            record.title = cleaned_title
     if body.selected_problem_id:
         target = next(
             (item for item in document.get("problems") or [] if item.get("problem_id") == body.selected_problem_id),
@@ -681,7 +699,7 @@ def update_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: La
         )
     except ValueError as exc:
         raise missing_field(str(exc)) from exc
-    _touch(record, document)
+    _touch(db, record, document)
     db.commit()
     return ok(request, {"revision": document["revision"], "document": _lab_payload(record, db=db), "state": state})
 
@@ -740,10 +758,16 @@ def review_lab(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: Re
     )
     if document.get("orchestration"):
         document["orchestration"] = {**document["orchestration"], "stale": True}
+    from ..labs.walkthrough.service import input_hash
+    cached_walkthrough = target.get('walkthrough') or {}
+    if cached_walkthrough.get('input_hash') == input_hash(rebuilt):
+        rebuilt['walkthrough'] = cached_walkthrough
+    else:
+        rebuilt.pop('walkthrough', None)
     document["problems"][replace_index] = rebuilt
     document["selected_problem_id"] = body.problem_id
     save_state(document, body.problem_id, rebuilt.get("states") or {})
-    _touch(record, document)
+    _touch(db, record, document)
     db.commit()
     return ok(request, _lab_payload(record, db=db))
 
@@ -880,9 +904,54 @@ def lab_attempt(lab_id: str, request: Request, ctx: WriteDep, db: DBDep, body: A
     attempts.append(attempt)
     state["attempts"] = attempts[-40:]
     save_state(document, problem.get("problem_id"), state)
-    _touch(record, document)
+    _touch(db, record, document)
     db.commit()
     return ok(request, {"attempt": attempt, "checked": checked, "document": _lab_payload(record, db=db)})
+
+
+@router.post("/labs/{lab_id}/walkthrough", summary="生成并验算曲面积分过程")
+def lab_walkthrough(lab_id: str, body: WalkthroughRequest, request: Request, ctx: WriteDep, db: DBDep) -> JSONResponse:
+    from ..labs.walkthrough import service
+    from ..ppt_ai.client import PPTAIError
+    from ..schemas.errors import ApiError, ErrorCode
+
+    record = _owned_lab(db, ctx, lab_id)
+    if record.revision != body.expected_revision:
+        raise version_conflict("题目或学习记录已有修改，请先同步")
+    document = copy.deepcopy(record.document)
+    target = next((item for item in document['problems'] if item['problem_id'] == body.problem_id), None)
+    if target is None:
+        raise missing_field("题目不存在")
+    if not service.eligible(target):
+        raise missing_field("当前题目未进入曲面积分过程试用范围")
+    cached = target.get('walkthrough') or {}
+    if not body.force and cached.get('input_hash') == service.input_hash(target):
+        return ok(request, _lab_payload(record, db=db))
+    # Share the per-lab model lock with the original AI entry point.
+    with _AI_SOLVE_LOCK:
+        if lab_id in _AI_SOLVING:
+            raise ApiError(ErrorCode.RATE_LIMITED, "当前实验室正在生成，请稍候")
+        _AI_SOLVING.add(lab_id)
+    try:
+        db.rollback()
+        try:
+            target['walkthrough'] = service.generate(target)
+        except (PPTAIError, ValueError) as error:
+            raise model_unavailable(str(error)) from error
+        document['revision'] = body.expected_revision + 1
+        document['updated_at'] = to_iso(utc_now())
+        written = db.execute(update(LabRecord).where(
+            LabRecord.id == lab_id, LabRecord.session_id == ctx.session_id,
+            LabRecord.revision == body.expected_revision,
+        ).values(document=document, revision=document['revision'], updated_at=document['updated_at']))
+        if written.rowcount != 1:
+            db.rollback()
+            raise version_conflict("生成期间题目或学习记录已有修改，请同步后重试")
+        db.commit()
+        return ok(request, _lab_payload(_owned_lab(db, ctx, lab_id), db=db))
+    finally:
+        with _AI_SOLVE_LOCK:
+            _AI_SOLVING.discard(lab_id)
 
 
 @router.post("/labs/{lab_id}/ai-solve", summary="AI 理解题意、内核计算或直接参考解答")

@@ -967,6 +967,10 @@
 /* Visualization leads; optional explanations live below the experiment. */
 .mainColumn { display: flex; flex-direction: column; gap: 18px; }
 
+@media (min-width: 1051px) {
+  .layout[data-assistant='false'] { grid-template-columns: minmax(220px, 0.65fr) minmax(0, 2.7fr); }
+}
+
 @media (max-width: 1050px) {
   .layout > aside:first-child { grid-row: 2; min-height: 0; }
   .mainColumn { grid-row: 1; }
