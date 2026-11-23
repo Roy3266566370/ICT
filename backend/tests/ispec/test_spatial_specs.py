@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.ispec.user_config import _spatial_specs
+from app.ispec.user_config import _spatial_specs, apply_user_interactions
 from app.ispec.validator import validate_ispec
 
 
@@ -77,3 +77,10 @@ def test_axis_scale_page_keeps_grid_transform():
     assert spec["views"][0]["spec_ref"] == "grid_transform"
     assert [p["default"] for p in spec["parameters"][:4]] == [2.0, 0.0, 0.0, 3.0]
     assert validate_ispec(spec) == []
+
+
+def test_upload_does_not_generate_picture_rotation_and_stretch_defaults():
+    page = _page('图示说明', title='示意图')
+    page['elements'][-1]['text'] = '旋转 30° 后横向拉伸 2 倍'
+    assert [spec['object_id'] for spec in _spatial_specs(page)] == ['image_steps_p14_s08']
+    assert apply_user_interactions([], {'pages': [page]}, {}) == []

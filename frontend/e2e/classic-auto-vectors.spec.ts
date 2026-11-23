@@ -1,5 +1,6 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
 async function dragArrowEnd(page: Page, arrow: Locator) {
   const handle = arrow.getByLabel('拖动终点');
@@ -14,29 +15,69 @@ async function dragArrowEnd(page: Page, arrow: Locator) {
   await expect(line).not.toHaveAttribute('x2', before!);
 }
 
-test('真实 PPTX 上传后原生和嵌图箭头直接可操作', async ({ page }, info) => {
+test('真实 PPTX 保留原生矢量，并可按需校对、应用和撤销嵌图矢量化', async ({ page }, info) => {
   test.setTimeout(360_000);
+  const screenshot = (name: string) => page.screenshot({ path: process.env.E2E_M3_CAPTURE_DIR ? join(process.env.E2E_M3_CAPTURE_DIR, name) : info.outputPath(name) });
   await page.goto('/living');
-  await page.locator('input[type=file]').setInputFiles(fileURLToPath(new URL('./fixtures/auto-vector-arrows.pptx', import.meta.url)));
+  const uploadStart = Date.now();
+  await page.locator('input[type=file][accept*=".pptx"]').setInputFiles(fileURLToPath(new URL('./fixtures/auto-vector-arrows.pptx', import.meta.url)));
   await expect(page).toHaveURL(/\/materials\/[^/]+\/work/);
   const slide = page.getByLabel('幻灯片第 1 页', { exact: true });
   const native = slide.locator('[data-vector-node]').first();
   await expect(native).toBeVisible({ timeout: 180_000 });
   await expect(native.locator('[data-vector-stroke]')).toHaveAttribute('x2', '430');
-  await dragArrowEnd(page, native);
-  await slide.getByLabel('线长', { exact: true }).fill('210');
-  await slide.getByLabel('线条颜色').fill('#cc3300');
-  await expect(native.locator('[data-vector-stroke]')).toHaveAttribute('stroke', '#cc3300');
 
-  await page.keyboard.press('Tab');
   await page.getByRole('button', { name: /^第 2 页/ }).first().click();
   const second = page.getByLabel('幻灯片第 2 页', { exact: true });
+  await expect(second.locator('[data-vector-node]')).toHaveCount(0);
+  await page.getByRole('link', { name: '编辑内容 / 交互' }).click();
+  const editor = page.locator('[data-free-editor]');
+  const canvas = editor.getByLabel('可编辑画布第 2 页');
+  const picture = canvas.locator('[data-node-type="image"]').first();
+  await expect(picture).toBeVisible({ timeout: 180_000 });
+  const uploadMs = Date.now() - uploadStart;
+  await picture.click();
+  const originalSource = await picture.locator('img').getAttribute('src');
+  const vectorize = editor.getByRole('button', { name: '矢量化此图', exact: true });
+  await expect(vectorize).toBeEnabled();
+  const previewStart = Date.now();
+  await vectorize.click();
+  const dialog = page.getByRole('dialog', { name: '矢量化此图' });
+  const apply = dialog.getByRole('button', { name: '应用到文档' });
+  await expect(apply).toBeEnabled();
+  console.log(`M3 PPTX upload-to-editable=${uploadMs}ms click-to-preview=${Date.now() - previewStart}ms total=${Date.now() - uploadStart}ms`);
+  await expect(canvas.locator('[data-vector-node]')).toHaveCount(0);
+  await expect(dialog.locator('[data-vector-node]').first()).toBeVisible();
+  await screenshot('pptx-figure-overlay.png');
+  await dialog.getByRole('button', { name: '原图', exact: true }).click();
+  await expect(dialog.locator('[data-vector-node]')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '演示效果', exact: true }).click();
+  await expect(dialog.locator('[data-node-type="image"] img')).toHaveAttribute('src', /cleaned/);
+  await apply.click();
+  await expect(dialog).toBeHidden();
+  await expect(canvas.locator('[data-vector-node]').first()).toBeVisible();
+  await expect(picture.locator('img')).toHaveAttribute('src', /cleaned/);
+  await expect.poll(() => picture.locator('img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  await screenshot('pptx-figure-applied.png');
+  await expect(editor.getByText('已保存到服务端', { exact: true })).toBeVisible();
+  await editor.getByRole('button', { name: '图示校对', exact: true }).click();
+  await expect(picture.locator('img')).toHaveAttribute('src', originalSource!);
+  await editor.getByRole('button', { name: '撤销编辑' }).click();
+  await expect(canvas.locator('[data-vector-node]')).toHaveCount(0);
+  await expect(picture.locator('img')).toHaveAttribute('src', originalSource!);
+  await screenshot('pptx-figure-undone.png');
+  await expect(editor.getByText('已保存到服务端', { exact: true })).toBeVisible();
+  await editor.getByRole('button', { name: '重做编辑' }).click();
+  await editor.getByRole('button', { name: '保存并返回演示' }).click();
+  await expect(page).toHaveURL(/\/work\?page=2$/);
+  await page.reload();
   const detected = second.locator('[data-vector-node]').first();
   await expect(detected).toBeVisible();
+  await expect(second.locator('[data-node-type="image"] img').first()).toHaveAttribute('src', /cleaned/);
   await dragArrowEnd(page, detected);
   await second.getByLabel('线条颜色').fill('#007744');
   await expect(detected.locator('[data-vector-stroke]')).toHaveAttribute('stroke', '#007744');
-  await page.screenshot({ path: info.outputPath('recognized-arrows.png') });
+  await screenshot('pptx-figure-reloaded.png');
   await page.getByRole('button', { name: '查看原图', exact: true }).click();
   await expect(detected).toBeHidden();
   await expect(second.getByRole('img', { name: '第 2 页原始 PPT' })).toBeVisible();

@@ -16,6 +16,81 @@ from app.db.models import MaterialRecord, PageRecord, SessionRecord
 from app.project_package import ProjectPackageError, build_project_archive, import_project_archive
 
 
+@pytest.mark.parametrize("rendered_only", [False, True])
+def test_project_package_roundtrips_applied_figure_without_preview_diagnostics(tmp_path, monkeypatch, rendered_only):
+    import base64
+    from hashlib import sha256
+
+    from PIL import Image
+
+    from app import project_package as package
+    from app.documents import figure_service, layers, store
+
+    def document_root(material_id):
+        return tmp_path / "uploads" / material_id / "document"
+
+    for module in (figure_service, layers, package, store):
+        monkeypatch.setattr(module, "document_root", document_root)
+    for attribute, value in {"UPLOAD_DIR": tmp_path / "uploads", "DATA_DIR": tmp_path / "data",
+                             "pages_dir": lambda mid: tmp_path / "renders" / mid / "pages",
+                             "render_dir": lambda mid: tmp_path / "renders" / mid,
+                             "read_document": store.read_document, "write_document": store.write_document,
+                             "load_values": lambda _: {}}.items():
+        monkeypatch.setattr(package, attribute, value)
+    material_id = "mat_applied"
+    pages = package.pages_dir(material_id)
+    pages.mkdir(parents=True)
+    monkeypatch.setattr(figure_service, "pages_dir", package.pages_dir)
+    source = pages / ("s01_v100.png" if rendered_only else "s01.png")
+    Image.new("RGBA", (20, 20), "red").save(source)
+    raw = source.read_bytes()
+    identifier = "a" * 64
+    cleaned = document_root(material_id) / "figures/p01/previews" / identifier / "cleaned.png"
+    cleaned.parent.mkdir(parents=True)
+    Image.new("RGBA", (20, 20), "white").save(cleaned)
+    node = {"id": "figure", "type": "image", "cleaned_asset_id": identifier,
+            "image_data": "data:image/png;base64," + base64.b64encode(raw).decode()}
+    if rendered_only:
+        node.pop("image_data")
+        node["render_file"] = source.name
+        Image.new("RGBA", (20, 20), "blue").save(pages / "s01_v99.png")
+    doc = {"source_key": "drawings", "revision": 1,
+           "pages": [{"page_no": 1, "nodes": [node], "rendered_only": rendered_only}]}
+    store.write_document(material_id, doc)
+    (cleaned.parent / "pixel.json").write_text(json.dumps({
+        "fingerprint": figure_service.node_fingerprint(doc["source_key"], node),
+        "source_digest": sha256(raw).hexdigest(), "diagnostics": "secret vision output"}))
+    (cleaned.parent / "source.png").write_bytes(raw)
+    material = MaterialRecord(id=material_id, title="Applied figure", page_count=1)
+
+    data = build_project_archive(material, {"page_layouts": [{"page_no": 1}]})
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        assets = [name for name in archive.namelist() if name.startswith("figures/")]
+        assert assets == [f"figures/p01/previews/{identifier}/cleaned.png"]
+        assert b"secret vision output" not in archive.read("manifest.json")
+        members = {name: archive.read(name) for name in archive.namelist()}
+    engine = create_engine("sqlite://", future=True)
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, future=True)
+    with factory() as db:
+        db.add(SessionRecord(id="ses_pkg", csrf_token="x" * 16,
+                             created_at="2026-01-01T00:00:00Z", expires_at="2026-01-02T00:00:00Z",
+                             retention_hours=24))
+        db.commit()
+        result = import_project_archive(data, session_id="ses_pkg", db=db)
+        imported = result["material_id"]
+        assert store.read_document(imported) == doc
+        assert figure_service.asset_path(imported, 1, identifier).read_bytes() == cleaned.read_bytes()
+        figure_service.validate_asset_binding(imported, 1, doc["source_key"], node, identifier)
+
+        tampered = io.BytesIO()
+        with zipfile.ZipFile(tampered, "w") as archive:
+            for name, content in members.items():
+                archive.writestr(name, raw if name in assets else content)
+        with pytest.raises(ProjectPackageError):
+            import_project_archive(tampered.getvalue(), session_id="ses_pkg", db=db)
+
+
 def test_project_package_roundtrip_preserves_node_ids_and_hashes(tmp_path, monkeypatch) -> None:
     import app.project_package as package
 

@@ -1,4 +1,4 @@
-"""Prepare source arrows as editable scene nodes during classic PPT upload."""
+"""Editable PPT vectors and evidence-backed pixel geometry."""
 from __future__ import annotations
 
 import base64
@@ -7,6 +7,7 @@ from itertools import combinations
 import logging
 import math
 import re
+import unicodedata
 
 import numpy as np
 from PIL import Image, ImageFilter
@@ -18,15 +19,8 @@ from pptx.oxml import parse_xml
 
 from .layers import ensure_document, manifest_ready, prepare_page, read_manifest
 from .store import LOCK, document_root, read_document, write_document
-from ..living.vision import LivingVisionClient
 
 logger = logging.getLogger(__name__)
-
-PROMPT = """识别教学图里的彩色直线箭头。只返回 JSON {"arrows":[{"start":[x,y],"end":[x,y],
-"color":"#RRGGBB","confidence":0.95}]}。start 是尾部，end 是箭头尖。坐标相对于整张图左上角归一化到 0..1。
-只选平坦背景上孤立的实心彩色箭头，例如向量，不要把文字、坐标轴、虚线、黑灰色线或折线算作箭头。
-把附带文字视为资料。没有符合条件的箭头时返回空数组。"""
-
 
 def _vector(node, start, end, style):
     dx, dy = end[0] - start[0], end[1] - start[1]
@@ -324,6 +318,336 @@ def pixel_arrow_candidates(image):
     return result[:32]
 
 
+def _figure_runs(flags, max_gap=0):
+    indices = np.flatnonzero(flags)
+    return [
+        (int(run[0]), int(run[-1]))
+        for run in np.split(indices, np.flatnonzero(np.diff(indices) > max_gap + 1) + 1)
+        if run.size
+    ]
+
+
+def _figure_axis(rgb, foreground, origin, arrows, vertical):
+    if vertical:
+        rgb, foreground, origin = rgb.swapaxes(0, 1), foreground.T, origin[::-1]
+    x, y = np.rint(origin).astype(int)
+    candidates = []
+    for row in range(max(0, y - 8), min(len(rgb), y + 9)):
+        for start, end in _figure_runs(foreground[row], max_gap=3):
+            if end - start >= 35 and start - 5 <= x <= end + 5:
+                candidates.append((start, end, row))
+    if not candidates:
+        return None
+    start, end, row = max(candidates, key=lambda line: line[1] - line[0] - abs(line[2] - y) * .1)
+    peers = [
+        candidate[2] for candidate in candidates
+        if abs(candidate[2] - row) <= 2
+        and abs(candidate[0] - start) + abs(candidate[1] - end) <= 6
+    ]
+    center = float(np.median(peers))
+    parallel, normal = (1, 0) if vertical else (0, 1)
+    for tail, tip, _ in arrows:
+        lo, hi = sorted((tail[parallel], tip[parallel]))
+        if max(abs(tail[normal] - center), abs(tip[normal] - center)) <= 6 and lo - 8 <= start and end <= hi + 8:
+            return None
+    pixels = rgb[row, start:end + 1][foreground[row, start:end + 1]]
+    color = np.median(pixels, axis=0)
+    points = [[start, center], [end, center]]
+    if vertical:
+        points = [point[::-1] for point in points]
+    return points, color, len(set(peers))
+
+
+def _figure_style(color, width):
+    return {'stroke': '#' + ''.join(f'{int(channel):02x}' for channel in color), 'width': width}
+
+
+def _figure_arrow_style(rgb, foreground, start, end, candidate):
+    direction = (end - start) / math.dist(start, end)
+    center = np.rint((start + end) * .5).astype(int)
+    normal = np.array([-direction[1], direction[0]])
+    cross = np.rint(center + np.arange(-4, 5)[:, None] * normal).astype(int)
+    cross = np.clip(cross, 0, [rgb.shape[1] - 1, rgb.shape[0] - 1])
+    thickness = np.count_nonzero(foreground[cross[:, 1], cross[:, 0]])
+    return {'stroke': candidate['color'], 'width': max(2, int(thickness))}
+
+
+def _isolated_figure_arrow(rgb, start, end, candidate):
+    color = np.array([int(candidate['color'][i:i + 2], 16) for i in (1, 3, 5)])
+    if np.ptp(color) < 45 or math.dist(start, end) < 32:
+        return False
+    shaft = np.rint(start + np.linspace(.16, .72, 17)[:, None] * (end - start)).astype(int)
+    pixels = rgb[shaft[:, 1], shaft[:, 0]]
+    return np.mean(np.max(abs(pixels - color), axis=1) < 44) >= .9
+
+
+def _figure_dash(rgb, background, start, end):
+    distance = math.dist(start, end)
+    if distance < 27:
+        return None
+    count = round(distance) + 1
+    line = np.linspace(start, end, count)
+    normal = np.array([start[1] - end[1], end[0] - start[0]]) / distance
+    offsets = np.arange(-5, 6)
+    points = np.rint(line[:, None, :] + normal * offsets[None, :, None]).astype(int)
+    x = np.clip(points[:, :, 0], 0, rgb.shape[1] - 1)
+    y = np.clip(points[:, :, 1], 0, rgb.shape[0] - 1)
+    pixels = rgb[y, x]
+    interior = round(min(9, distance * .13))
+    pixels = pixels[interior:-interior]
+    contrast = np.max(background - pixels, axis=2)
+    dark = (np.ptp(pixels, axis=2) >= 15) & (contrast >= np.maximum(34, np.quantile(contrast, .9, axis=0) * .64))
+    candidates = []
+    for index, offset in enumerate(offsets):
+        mask = dark[:, index]
+        runs = [(a, b) for a, b in _figure_runs(mask, max_gap=1) if b - a >= 2]
+        if len(runs) < 3 or mask.mean() > .86 or runs[-1][1] - runs[0][0] < distance * .40:
+            continue
+        gaps = np.diff([a for a, _ in runs])
+        if max(gaps) > min(gaps) * 2.8:
+            continue
+        strength = np.median(contrast[:, index][mask])
+        candidates.append((strength - abs(offset) * 2, offset, pixels[:, index][mask]))
+    if candidates:
+        _, offset, ink = max(candidates, key=lambda item: item[0])
+        shift = normal * offset
+        points = np.clip([start + shift, end + shift], 0, [rgb.shape[1] - 1, rgb.shape[0] - 1])
+        return points, _figure_style(np.median(ink, axis=0), 2.0)
+    return None
+
+
+_COORDINATE_LABEL = re.compile(r'\(\s*([−+-]?\d+(?:\.\d+)?)\s*,\s*([−+-]?\d+(?:\.\d+)?)\s*\)\s*$')
+
+
+def _figure_labels(ocr, rgb, background):
+    for row in ocr:
+        try:
+            text = unicodedata.normalize('NFKC', row['text']).strip()
+            box = np.asarray(row['box'], dtype=float)
+            score = float(row['score'])
+        except (AttributeError, KeyError, TypeError, ValueError):
+            continue
+        coordinate = _COORDINATE_LABEL.search(text)
+        if coordinate is None or box.shape != (4, 2) or not np.isfinite(box).all() or not .75 <= score <= 1:
+            continue
+        box = np.clip(box, 0, [rgb.shape[1], rgb.shape[0]])
+        x0, y0 = box.min(axis=0).astype(int).tolist()
+        x1, y1 = box.max(axis=0).astype(int).tolist()
+        if x1 - x0 < 8 or y1 - y0 < 5:
+            continue
+        prefix = text[:coordinate.start()]
+        if prefix:
+            # A detector often returns one box for the entire heading. Look for the
+            # blank band nearest the estimated start of the coordinate substring.
+            def measure(value):
+                return sum(2 if unicodedata.east_asian_width(c) in 'FW' else 1 for c in value)
+
+            expected = x1 - (x1 - x0) * measure(coordinate[0]) / measure(text)
+            ink = (background - rgb[y0:y1, x0:x1]).max(axis=2) > 65
+            separators = [x0 + (a + b) // 2 for a, b in _figure_runs(~ink.any(axis=0)) if b - a >= 1]
+            near = [p for p in separators if abs(p - expected) <= (y1 - y0) * .6]
+            if not near:
+                continue
+            x0 = min(near, key=lambda p: abs(p - expected))
+        if x1 - x0 < 5:
+            continue
+        ink = (background - rgb[y0:y1, x0:x1]).max(axis=2) > 65
+        rows, columns = np.nonzero(ink)
+        if not len(rows):
+            continue
+        box = [max(x0, x0 + int(columns.min()) - 1), max(y0, y0 + int(rows.min()) - 1),
+               min(x1, x0 + int(columns.max()) + 2), min(y1, y0 + int(rows.max()) + 2)]
+        center = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2]
+        color = np.median(rgb[y0 + rows, x0 + columns], axis=0)
+        yield f'({coordinate[1]}, {coordinate[2]})', center, box, score, _figure_style(color, 1.0)
+
+
+def detect_figure(image, ocr):
+    """Extract geometry supported by raster strokes, with OCR boxes in source pixels."""
+    rgb = np.asarray(image.convert('RGB'), dtype=np.int16)
+    height, width = rgb.shape[:2]
+    background = np.median(rgb[::5, ::5], axis=(0, 1)).astype(np.int16)
+    foreground = (background - rgb).max(axis=2) >= 19
+    arrows = []
+    for candidate in pixel_arrow_candidates(image):
+        start, end = (
+            np.asarray(candidate[key]) * [width - 1, height - 1]
+            for key in ('start', 'end')
+        )
+        if not any(math.dist(start, a) < 10 and math.dist(end, b) < 8 for a, b, _ in arrows):
+            arrows.append((start, end, candidate))
+    # Vote for origins using converging arrow tails. Isolated components, such
+    # as connected letters in JPEG headings, cannot establish a coordinate panel.
+    groups = []
+    for arrow in arrows:
+        group = next((group for group in groups if math.dist(group[0][0], arrow[0]) <= 12), None)
+        if group is None:
+            groups.append([arrow])
+        else:
+            group.append(arrow)
+    systems, objects, panels = [], [], []
+
+    def add(kind, points, system, style, evidence, confidence=.95, **details):
+        objects.append({
+            'id': f'figure-{len(objects) + 1}', 'type': kind,
+            'points': [[round(float(value), 2) for value in point] for point in points],
+            'system_id': system['id'] if system else None, 'style': style,
+            'provenance': 'pixel', 'evidence': evidence, 'confidence': confidence, **details,
+        })
+
+    for group in sorted(groups, key=lambda group: tuple(group[0][0])):
+        directions = [end - start for start, end, _ in group]
+        shares_origin = any(abs(a[0] * b[1] - a[1] * b[0]) > np.linalg.norm(a) * np.linalg.norm(b) * .16
+                            for a, b in combinations(directions, 2))
+        if not shares_origin:
+            for start, end, candidate in group:
+                if _isolated_figure_arrow(rgb, start, end, candidate):
+                    add('vector', (start, end), None, _figure_arrow_style(rgb, foreground, start, end, candidate),
+                        ['arrowhead', 'continuous_colored_shaft'])
+            continue
+        origin = np.median([start for start, _, _ in group], axis=0)
+        horizontal = _figure_axis(rgb, foreground, origin, group, vertical=False)
+        vertical = _figure_axis(rgb, foreground, origin, group, vertical=True)
+        if horizontal and vertical:
+            crossing = np.asarray([vertical[0][0][0], horizontal[0][0][1]])
+            if all(math.dist(crossing, start) <= 12 for start, _, _ in group):
+                origin = crossing
+        system = {'id': f'system-{len(systems) + 1}', 'origin_px': origin.tolist(),
+                  'unit_px': float(min(math.dist(origin, end) for _, end, _ in group))}
+        systems.append(system)
+        for axis in (horizontal, vertical):
+            if axis is not None:
+                points, color, thickness = axis
+                add('axis', points, system, _figure_style(color, thickness), ['continuous_axis', 'shared_origin'])
+        x_limits = (horizontal[0][0][0], horizontal[0][1][0]) if horizontal else (
+            min(origin[0], *(end[0] for _, end, _ in group)),
+            max(origin[0], *(end[0] for _, end, _ in group)),
+        )
+        panels.append((system, x_limits, directions))
+        for start, end, candidate in sorted(group, key=lambda v: tuple(v[1])):
+            tip_delta = end - origin
+            snapped_end = np.where(abs(tip_delta) <= 2, origin, end)
+            add('vector', (origin, snapped_end), system, _figure_arrow_style(rgb, foreground, start, end, candidate),
+                ['arrowhead', 'continuous_shaft', 'shared_origin'])
+        for (_, start, _), (_, end, _) in combinations(group, 2):
+            dash = _figure_dash(rgb, background, start, end)
+            if dash:
+                points, style = dash
+                add('dashed', points, system, style, ['repeated_dash_strokes', 'vector_tip_alignment'], .9)
+    for text, center, box, score, style in _figure_labels(ocr, rgb, background):
+        possible = [(system, directions) for system, (x0, x1), directions in panels
+                    if x0 - 10 <= center[0] <= x1 + 10 and center[1] < system['origin_px'][1] - 15]
+        if not possible:
+            continue
+        system, directions = min(possible, key=lambda item: math.dist(center, item[0]['origin_px']))
+        existing_labels = [obj for obj in objects if obj['type'] == 'text' and obj['system_id'] == system['id']]
+        if any(math.dist(obj['points'][0], center) < 5 for obj in existing_labels):
+            continue
+        if not existing_labels:
+            _fit_orthogonal_unit(system, directions, text)
+        add('text', [center], system, style, ['ocr_box', 'coordinate_label'], score, text=text, bbox=box)
+    return systems, objects
+
+
+def _fit_orthogonal_unit(system, directions, text):
+    if (len(directions) < 3 or not any(abs(x) < abs(y) * .05 for x, y in directions)
+            or not any(abs(y) < abs(x) * .05 for x, y in directions)):
+        return
+    coordinate = [float(value.replace('−', '-')) for value in _COORDINATE_LABEL.fullmatch(text).groups()]
+    if not all(math.isfinite(value) for value in coordinate):
+        return
+    x, y = max(directions, key=np.linalg.norm)
+    if coordinate[0] * x <= 0 or coordinate[1] * y >= 0:
+        return
+    units = [x / coordinate[0], -y / coordinate[1]]
+    if .5 <= min(units) and min(units) >= max(units) * .76:
+        system['unit_px'] = float(np.mean(units))
+
+
+def clean_figure(image, objects, *, verified_ids=None):
+    """Erase verified strokes on locally flat raster and optionally collect their IDs."""
+    source = np.asarray(image.convert('RGB'), dtype=np.float32)
+    result = source.copy()
+    height, width = source.shape[:2]
+    for obj in objects:
+        style = obj.get('style') or {}
+        stroke = style.get('stroke', '')
+        if not isinstance(stroke, str) or not re.fullmatch(r'#[0-9a-fA-F]{6}', stroke):
+            continue
+        color = np.array([int(stroke[i:i + 2], 16) for i in (1, 3, 5)])
+        points = np.asarray(obj['points'], dtype=float)
+        kind = obj['type']
+        radius = max(2.5, style.get('width', 2) / 2 + 1)
+        pad = 14 if kind == 'vector' else math.ceil(radius + 6)
+        if kind == 'text':
+            if not obj.get('bbox'):
+                continue
+            left, top, right, bottom = obj['bbox']
+        else:
+            left, top = points.min(axis=0)
+            right, bottom = points.max(axis=0)
+        x0, y0 = max(0, math.floor(left - pad)), max(0, math.floor(top - pad))
+        x1, y1 = min(width, math.ceil(right + pad + 1)), min(height, math.ceil(bottom + pad + 1))
+        crop = source[y0:y1, x0:x1]
+        if not crop.size:
+            continue
+        yy, xx = np.ogrid[y0:y1, x0:x1]
+        if kind == 'text':
+            corridor = (xx >= left) & (xx < right) & (yy >= top) & (yy < bottom)
+        else:
+            corridor = np.zeros(crop.shape[:2], dtype=bool)
+            for start, end in zip(points, points[1:]):
+                length = math.dist(start, end)
+                if length < 1:
+                    continue
+                ux, uy = (end - start) / length
+                along = (xx - start[0]) * ux + (yy - start[1]) * uy
+                across = (yy - start[1]) * ux - (xx - start[0]) * uy
+                limit = np.where(along > length - min(24, length * .3), max(radius, 9), radius) if kind == 'vector' else radius
+                corridor |= (along >= -2) & (along <= length + 2) & (abs(across) <= limit)
+        surround = crop[~corridor]
+        if len(surround) < 20:
+            continue
+        background = np.median(surround, axis=0)
+        if np.mean(abs(surround - background).max(axis=1) <= 16) < .8:
+            continue
+        delta = color - background
+        if delta @ delta < 300:
+            continue
+        contrast = crop - background
+        fraction = (contrast @ delta) / (delta @ delta)
+        disagreement = abs(contrast - fraction[:, :, None] * delta).max(axis=2)
+        neutral_arrow = kind == 'vector' and np.ptp(color) <= 35
+        threshold = .4 if neutral_arrow else .13
+        ceiling = 1.45 if kind == 'axis' else 2.2
+        tolerance = 16 if kind in ('axis', 'text') or neutral_arrow else 33
+        mask = corridor & (fraction >= threshold) & (fraction <= ceiling) & (disagreement < tolerance)
+        if kind in ('text', 'vector', 'dashed'):
+            grown = np.asarray(Image.fromarray(mask).convert('L').filter(ImageFilter.MaxFilter(3))) > 0
+            fringe = corridor & grown & (fraction >= .055) & (fraction <= ceiling) & (disagreement < 12)
+            if neutral_arrow:
+                fringe &= abs(across) <= radius
+            mask |= fringe
+        if kind == 'dashed' and np.ptp(color) >= 15:
+            # Compression can desaturate guides beside stronger labels. Their
+            # color direction still distinguishes overlapping neighboring ink.
+            mask &= (contrast @ (color - color.mean())) > 0
+        if kind == 'text':
+            ink = corridor & (abs(contrast).max(axis=2) >= 65)
+            if np.count_nonzero(mask) < max(8, np.count_nonzero(ink) * .8):
+                continue
+        else:
+            rows, columns = np.nonzero(mask)
+            distance = math.dist(points[0], points[-1])
+            covered = math.hypot(np.ptp(columns), np.ptp(rows)) if len(rows) else 0
+            if len(rows) < max(5, distance * .35) or covered < distance * (.54 if kind == 'dashed' else .74):
+                continue
+        result[y0:y1, x0:x1][mask] = background
+        if verified_ids is not None:
+            verified_ids.add(obj['id'])
+    return Image.fromarray(result.astype(np.uint8))
+
+
 def replace_picture_arrows(image, candidates, node):
     """Check the shaft against real pixels before masking and recreating it."""
     if not isinstance(candidates, list):
@@ -461,51 +785,38 @@ def _collect_shapes(shapes):
 
 
 def prepare_source_vectors(material_id, title):
-    """Persist automatic nodes once per page, before the upload is marked ready."""
+    """Upload imports native lines only. Raster recognition starts on demand."""
     from .capabilities import layer_editor_available
+    from .importer import native_figure_scene, native_group_nodes
+
     if not layer_editor_available()[0]:
         return
-    document = ensure_document(material_id, title)
-    deck = Presentation(document_root(material_id) / "source.pptx")
-    vision = LivingVisionClient()
-    budget = min(4, max(0, vision.settings.living_figure_max_calls-document.get('math_recognition_calls', 0))) if vision.available else 0
+    ensure_document(material_id, title)
+    document = read_document(material_id)
+    source = document_root(material_id) / "source.pptx"
+    if not document or not source.is_file():
+        return
+    deck = Presentation(source)
     for page, slide in zip(document["pages"], deck.slides):
-        if page.get("modified") or page.get("auto_vectors"):
+        if page.get("native_vectors") or (page.get("modified") and not page.get("math_recognition")):
             continue
         shapes = _collect_shapes(slide.shapes)
         replacements = {}
-        pictures = []
         for node in page["nodes"]:
             shape = shapes.get(node.get("source_shape_id"))
             if shape is None:
                 continue
             try:
-                vector = native_vector(shape, node)
-            except (AttributeError, ValueError, TypeError, OverflowError):
-                vector = None
-            if vector:
-                replacements[node["id"]] = [vector]
-            elif node["type"] == "image" and shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
-                pictures.append((node, shape))
-        for node, shape in sorted(pictures, key=lambda p: p[0]["width"]*p[0]["height"], reverse=True)[:8]:
-            try:
-                image = _picture(shape)
-                if image is None:
-                    continue
-                found = replace_picture_arrows(image, pixel_arrow_candidates(image), node)
-                if not found and budget:
-                    data = BytesIO()
-                    image.save(data, format="PNG")
-                    budget -= 1
-                    context = "\n".join(n["text"] for n in page["nodes"] if n.get("text"))
-                    parsed = vision.generate_json(image_png=data.getvalue(), prompt=PROMPT+"\n本页文字：\n"+context[:600],
-                                                  timeout_s=15, max_output_tokens=1000)
-                    found = replace_picture_arrows(image, parsed.get("arrows"), node)
-                if found:
-                    cleaned, vectors = found
-                    replacements[node["id"]] = [{**node, "image_data": cleaned}, *vectors]
-            except Exception as exc:
-                logger.info("PPT image vector recognition skipped: %s", type(exc).__name__)
+                if node.get("whole_group"):
+                    children = native_group_nodes(shape, node)
+                    if children:
+                        replacements[node["id"]] = children
+                elif node["type"] == "shape":
+                    vector = native_vector(shape, node)
+                    if vector:
+                        replacements[node["id"]] = [{**vector, "figure_provenance": "native"}]
+            except (AttributeError, ValueError, TypeError, OverflowError) as error:
+                logger.info("Native figure kept as raster (%s)", type(error).__name__)
         if not replacements:
             continue
         prepare_page(material_id, page["page_no"])
@@ -522,11 +833,19 @@ def prepare_source_vectors(material_id, title):
             if not current or current["source_key"] != document["source_key"]:
                 return
             latest = next(p for p in current["pages"] if p["page_no"] == page["page_no"])
-            if latest.get("modified") or latest.get("auto_vectors"):
+            if latest["nodes"] != page["nodes"]:
                 continue
-            latest["nodes"] = [item for node in latest["nodes"]
-                               for item in replacements.get(node["id"], [node])]
-            latest["modified"] = True
-            latest["auto_vectors"] = True
+            nodes = [item for node in sorted(latest["nodes"], key=lambda n: n["z"])
+                     for item in replacements.get(node["id"], [node])]
+            for index, node in enumerate(nodes):
+                node["z"] = index
+            scenes = dict(latest.get("figure_scenes") or {})
+            for identifier, children in replacements.items():
+                scene = native_figure_scene(children, page)
+                if scene:
+                    scenes[identifier] = scene
+            if scenes:
+                latest["figure_scenes"] = scenes
+            latest.update(nodes=nodes, modified=True, native_vectors=True, auto_vectors=True)
             current["revision"] += 1
             write_document(material_id, current)

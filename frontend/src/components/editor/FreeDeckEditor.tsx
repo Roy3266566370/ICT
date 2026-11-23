@@ -14,6 +14,7 @@ import type {ISpec} from '@/ispec/types';
 import {ZoomControl} from '@/components/ui/ZoomControl';
 import {fitZoom,wheelZoom} from '@/components/ui/zoom';
 import {ScenePageView} from './ScenePageView';
+import {FigureVectorizationDialog} from './FigureVectorizationDialog';
 import {NodeProperties} from './NodeProperties';
 import styles from './FreeDeckEditor.module.css';
 
@@ -22,6 +23,7 @@ interface Drag {kind:'move'|'resize'|'rotate';direction:string;startX:number;sta
 const identifier=()=>`u_${crypto.randomUUID().replaceAll('-','')}`;
 const round=(n:number)=>Math.round(n*100)/100;
 const bounds=(nodes:SceneNode[])=>{const x=Math.min(...nodes.map(n=>n.x)),y=Math.min(...nodes.map(n=>n.y));return {x,y,width:Math.max(...nodes.map(n=>n.x+n.width))-x,height:Math.max(...nodes.map(n=>n.y+n.height))-y};};
+const countFigureObjects=(nodes:SceneNode[])=>new Set(nodes.map(node=>`${node.figure_source_id}:${node.figure_object_id??node.id}`)).size;
 
 export function FreeDeckEditor({materialId,controller,material}:Props){
   const state=useSyncExternalStore(controller.subscribe,controller.getSnapshot);const document=state.document;
@@ -42,6 +44,8 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
   const [panMode,setPanMode]=useState(false);const [spaceHeld,setSpaceHeld]=useState(false);const spaceRef=useRef(false);
   const [panning,setPanning]=useState(false);const panRef=useRef<{x:number;y:number;left:number;top:number}|null>(null);
   const [reference,setReference]=useState(false);const [retry,setRetry]=useState(0);const [message,setMessage]=useState('');const [leaving,setLeaving]=useState(false);
+  const [proofFigures,setProofFigures]=useState(false);
+  const [figureTarget,setFigureTarget]=useState<{pageNo:number;nodeId:string}|null>(null);
   const [reinteracting,setReinteracting]=useState(false);const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine);
   const viewport=useRef<HTMLDivElement>(null);const frame=useRef<HTMLDivElement>(null);const drag=useRef<Drag|null>(null);const file=useRef<HTMLInputElement>(null);
   const lastTap=useRef<{id:string;time:number;x:number;y:number}|null>(null);
@@ -55,6 +59,11 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
   const source=material.slides.find(p=>p.page_no===page.page_no);
   const selectedNodes=page.nodes.filter(n=>selected.includes(n.id)&&!n.deleted);const primary=selectedNodes[0]??null;
   const unlocked=selectedNodes.filter(n=>!n.locked&&!page.preparation?.frozen_ids?.includes(n.id));
+  const vectorized=page.nodes.filter(node=>!node.deleted&&node.figure_source_id);
+  const hasAppliedFigures=page.nodes.some(node=>node.cleaned_asset_id&&!node.deleted);
+  const figureNode=figureTarget?.pageNo===page.page_no&&figureTarget.nodeId===primary?.id&&selectedNodes.length===1?primary:null;
+  const canVectorize=canEdit&&online&&selectedNodes.length===1&&primary?.type==='image'&&!primary.hidden&&!primary.cleaned_asset_id&&
+    !primary.matrix_ocr&&!page.preparation?.frozen_ids?.includes(primary.id);
   const shown=selectedNodes.filter(n=>!n.hidden).map(n=>preview[n.id]?{...n,...preview[n.id]}:n);
   const box=shown.length?bounds(shown):null;
   useEffect(()=>{const node=viewport.current;if(!node)return;const observer=new ResizeObserver(()=>setArea({width:node.clientWidth,height:node.clientHeight}));observer.observe(node);return()=>observer.disconnect();},[]);
@@ -81,6 +90,7 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',blur);};
   },[]);
   useEffect(()=>{setSelected([]);setEditingId(null);setPreview({});setReference(false);setInsertMode(null);setDrawBox(null);drawing.current=null;},[page.page_no]);
+  useEffect(()=>{if(figureTarget&&!figureNode)setFigureTarget(null);},[figureNode,figureTarget]);
   useEffect(()=>{
     if(status==='ready')return;
     let alive=true;let timer:ReturnType<typeof setTimeout>|undefined;
@@ -117,6 +127,7 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     if(!canEdit||!selectedNodes.length)return;
     const ids:string[]=[];let next=controller.getSnapshot().document;
     for(const node of selectedNodes){const id=identifier();ids.push(id);const copy={...node,id,duplicate_from:node.id,source_element_id:null,source_shape_id:null,
+      cleaned_asset_id:undefined,cleaned_url:undefined,figure_scene:undefined,figure_source_id:undefined,figure_object_id:undefined,figure_provenance:undefined,
       name:node.name+' 副本',x:node.x+18,y:node.y+18,z:Math.max(...page.nodes.map(n=>n.z))+ids.length,locked:false};
       next={...next,pages:next.pages.map(p=>p.page_no===page.page_no?{...p,modified:true,nodes:[...p.nodes,copy]}:p)};}
     controller.replace(next);setSelected(ids);setEditingId(null);
@@ -254,6 +265,7 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
   };
   useEffect(()=>{
     const key=(e:KeyboardEvent)=>{
+      if(figureNode)return;
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();void controller.save();return;}
       if((e.target as Element)?.closest('input,textarea,select,[contenteditable=true]'))return;
       if(e.key==='Escape'){setEditingId(null);setSelected([]);setInsertMode(null);setDrawBox(null);drawing.current=null;return;}
@@ -353,6 +365,8 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
         <select aria-label="分布对象" value="" disabled={unlocked.length<3||!canEdit} onChange={e=>distribute(e.target.value as 'h'|'v')}><option value="" disabled>分布 ▾</option>
           <option value="h">横向等距</option><option value="v">纵向等距</option></select></div>
       <div className={styles.toolbarEnd}><button aria-pressed={reference} onClick={()=>{setReference(!reference);setEditingId(null);}}>原稿对照</button>
+        {hasAppliedFigures&&<button aria-pressed={proofFigures} disabled={reference}
+          onClick={()=>setProofFigures(value=>!value)} title="显示半透明原图和矢量对象">图示校对</button>}
         <button aria-pressed={panMode} title="放大后拖动画布；也可按住空格或鼠标中键拖动" onClick={()=>{setPanMode(value=>!value);setEditingId(null);}}>平移</button>
         <ZoomControl className={styles.zoomControl} value={zoom} fitValue={fit} min={.15} max={4} step={.1} onChange={setZoom}/></div>
     </div>
@@ -371,7 +385,9 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
             <button aria-label={`${node.locked?'解锁':'锁定'}图层 ${node.name}`} onClick={()=>controller.patch(page.page_no,[node.id],{locked:!node.locked})} disabled={!canEdit}>{node.locked?'▣':'◇'}</button>
           </div>)}</div>
       </aside>
-      <main className={styles.main}><div className={styles.pageHeading}><span>第 {page.page_no} 页</span><b>{source?.title??document.title}</b><span>{reference?'原稿对照':`${Math.round(scale*100)}%`}</span></div>
+      <main className={styles.main}><div className={styles.pageHeading}><span>第 {page.page_no} 页</span><b>{source?.title??document.title}</b>
+        {vectorized.length>0&&<span>已矢量化 {countFigureObjects(vectorized)} 个对象</span>}
+        <span>{reference?'原稿对照':proofFigures&&hasAppliedFigures?'图示校对':`${Math.round(scale*100)}%`}</span></div>
         <div className={styles.viewport} ref={viewport} data-pan-ready={canPan&&(panMode||spaceHeld)} data-panning={panning}
           onPointerDown={panDown} onPointerMove={panMove} onPointerUp={panEnd} onPointerCancel={panEnd}>
           <div className={styles.workarea} style={{minWidth:page.width*scale+80,minHeight:page.height*scale+80}}>
@@ -387,7 +403,7 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
                 const node=page.nodes.find(n=>n.id===id);if(node?.type==='text'&&!node.locked){setSelected([node.id]);setEditingId(node.id);}
               }} aria-label={`可编辑画布第 ${page.page_no} 页`}>
               {reference||!ready?<img className={styles.original} src={source?.image_url??''} alt={`第 ${page.page_no} 页原稿`} draggable={false}/>:
-                <ScenePageView page={page} scale={scale} editing={canEdit} editingId={editingId} preview={preview} onText={onText} onCompose={onCompose} onTextBlur={closeText} vectorId={primary?.id}
+                <ScenePageView page={page} scale={scale} editing={canEdit} proofFigures={proofFigures} editingId={editingId} preview={preview} onText={onText} onCompose={onCompose} onTextBlur={closeText} vectorId={primary?.id}
                   onVectorSelect={id=>{setSelected([id]);setEditingId(null);}}
                   generating={generating} onGenerateDemo={id=>void generateNode(id,'demo')}
                   onVectorPatch={(id, patch,key)=>controller.patch(page.page_no,[id],patch,key?`${id}.${key}`:'')}>
@@ -411,6 +427,8 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
       </main>
       <NodeProperties node={primary?.math_scene?{...primary,math_scene:resolveMatrixSource(primary.math_scene,page.nodes)}:primary} count={selectedNodes.length} pageNo={page.page_no} materialId={materialId} autoSpecs={autoSpecs} pageNodes={page.nodes}
         generating={!!(primary&&generating[primary.id])} onDemoGenerate={()=>primary&&void generateNode(primary.id,'demo')}
+        onVectorize={canVectorize?()=>setFigureTarget({pageNo:page.page_no,nodeId:primary.id}):undefined}
+        figureCount={countFigureObjects(vectorized.filter(node=>node.figure_source_id===primary?.id))}
         onDiagramBuild={(text,ai)=>primary?generateNode(primary.id,'diagram',text,ai):undefined}
         disabled={!canEdit||!!(primary&&page.preparation?.frozen_ids?.includes(primary.id))}
         onPatch={patch} onDuplicate={duplicate} onDelete={remove}
@@ -421,5 +439,7 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
       <div><button disabled={page.page_no===1} onClick={()=>setQuery({page:String(page.page_no-1)},{replace:true})}>上一页</button><span>{page.page_no} / {document.pages.length}</span>
         <button disabled={page.page_no===document.pages.length} onClick={()=>setQuery({page:String(page.page_no+1)},{replace:true})}>下一页</button></div>
       <span>修改即时显示 · 网页自动保存</span></footer>
+    {figureNode&&<FigureVectorizationDialog key={`${page.page_no}:${figureNode.id}`} materialId={materialId} pageNo={page.page_no} node={figureNode} controller={controller}
+      onClose={()=>setFigureTarget(null)} onApplied={count=>{setProofFigures(false);setMessage(`已应用 ${count} 个图示对象，可撤销或选择对象继续编辑。`);}} onManual={addVector}/>}
   </div>;
 }

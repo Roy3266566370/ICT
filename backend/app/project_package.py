@@ -25,7 +25,7 @@ from .documents.layers import layer_dir
 from .documents.presentation import public_document
 from .documents.store import document_root, read_document, write_document
 from .ispec.persistence import load_values, save_values
-from .render import pages_dir, render_dir
+from .render import PAGE_IMAGE_PATTERN, pages_dir, render_dir
 from .settings import DATA_DIR, UPLOAD_DIR, get_settings
 from .schemas.common import iso_after, to_iso, utc_now
 
@@ -38,6 +38,9 @@ MAX_PACKAGE_MEMBERS = 1024
 ORIGINAL_FILE_NAME = "original.pptx"
 _KEY_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,96}")
 _LAYER_MEMBER_PATTERN = re.compile(r"layers/[A-Za-z0-9_-]{1,96}/p\d{2,3}/(manifest\.json|background\.png|n_\d+(_empty)?\.png)")
+_FIGURE_MEMBER_PATTERN = re.compile(r"figures/p\d{2,5}/previews/[a-f0-9]{64}/cleaned\.png")
+_DIGEST_PATTERN = re.compile(r"[a-f0-9]{64}")
+_FIGURE_BINDING_FIELDS = ("fingerprint", "source_digest")
 _DATA_IMAGE_PATTERN = re.compile(r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=\s]+)$")
 _EXPORT_DATA_SCRIPT = re.compile(
     r'<script\b[^>]*\bid=["\']export-data["\'][^>]*>(.*?)</script>',
@@ -66,7 +69,60 @@ def _safe_member(name: str) -> bool:
         return True
     if name.startswith("layers/"):
         return _LAYER_MEMBER_PATTERN.fullmatch(name) is not None
+    if name.startswith("figures/"):
+        return _FIGURE_MEMBER_PATTERN.fullmatch(name) is not None
     return name.startswith(("pages/", "source/"))
+
+
+def _document_resources(document):
+    figures, rendered = {}, {}
+    pages = document.get("pages", [])
+    if not isinstance(pages, list):
+        raise ProjectPackageError("工程包页面结构不合法")
+    for page in pages:
+        if not isinstance(page, dict) or not isinstance(page.get("nodes", []), list):
+            raise ProjectPackageError("工程包页面结构不合法")
+        page_no = page.get("page_no")
+        for node in page.get("nodes", []):
+            if not isinstance(node, dict):
+                raise ProjectPackageError("工程包页面节点结构不合法")
+            if page.get("rendered_only") and node.get("render_file"):
+                filename = node["render_file"]
+                match = PAGE_IMAGE_PATTERN.fullmatch(filename) if isinstance(filename, str) else None
+                if (not match or match.group("erased") or type(page_no) is not int
+                    or int(match.group("page_no")) != page_no
+                    or page_no in rendered and rendered[page_no] != filename):
+                    raise ProjectPackageError("工程包页面原图标识不合法")
+                rendered[page_no] = filename
+            asset_id = node.get("cleaned_asset_id")
+            if asset_id is None:
+                continue
+            if (node.get("type") != "image" or not isinstance(asset_id, str)
+                or not _DIGEST_PATTERN.fullmatch(asset_id) or type(page_no) is not int
+                or not 1 <= page_no <= 10000 or not document.get("source_key")):
+                raise ProjectPackageError("工程包包含无效的图示清底资产引用")
+            figures[f"figures/p{page_no:02d}/previews/{asset_id}/cleaned.png"] = page_no
+    return figures, rendered
+
+
+def _figure_metadata(data, keys):
+    if not isinstance(data, dict) or any(
+        not isinstance(data.get(key), str) or not _DIGEST_PATTERN.fullmatch(data[key]) for key in keys
+    ):
+        raise ProjectPackageError("工程包图示清底资产校验信息不合法")
+    return {key: data[key] for key in keys}
+
+
+def _validate_figure_png(blob):
+    if not 0 < len(blob) <= MAX_PACKAGE_BYTES:
+        raise ProjectPackageError("工程包图示清底资产体积超出上限")
+    try:
+        with Image.open(io.BytesIO(blob), formats=["PNG"]) as image:
+            if not 0 < image.width * image.height <= 30_000_000 or getattr(image, "is_animated", False):
+                raise ProjectPackageError("工程包图示清底资产尺寸不合法")
+            image.verify()
+    except (OSError, SyntaxError, ValueError, Image.DecompressionBombError) as exc:
+        raise ProjectPackageError("工程包图示清底资产不是有效的 PNG") from exc
 
 
 def _layers_for_material(material_id: str, document: Mapping[str, Any]) -> list[tuple[str, bytes]]:
@@ -86,7 +142,7 @@ def _layers_for_material(material_id: str, document: Mapping[str, Any]) -> list[
     return entries
 
 
-def _pages_for_material(material_id: str, payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _pages_for_material(material_id: str, payload: Mapping[str, Any], rendered: Mapping[int, str]) -> list[dict[str, Any]]:
     layouts = {
         int(page["page_no"]): page
         for page in payload.get("page_layouts", [])
@@ -103,7 +159,7 @@ def _pages_for_material(material_id: str, payload: Mapping[str, Any]) -> list[di
                 files[int(match.group(1))] = path
     result = []
     for page_no, layout in sorted(layouts.items()):
-        path = files.get(page_no)
+        path = directory / rendered[page_no] if page_no in rendered else files.get(page_no)
         if path is None or not path.is_file():
             continue
         result.append(
@@ -138,7 +194,23 @@ def build_project_archive(material: MaterialRecord, payload: Mapping[str, Any] |
     if "material_id" in ispecs_payload:
         ispecs_payload["material_id"] = material_id
     values = load_values(material_id)
-    pages = _pages_for_material(material_id, payload)
+    figures, rendered = _document_resources(document)
+    pages = _pages_for_material(material_id, payload, rendered)
+    if (set(figures.values()) | rendered.keys()) - {page["page_no"] for page in pages}:
+        raise ProjectPackageError("工程包图示所在的页面原图缺失")
+    figure_assets, figure_hashes = {}, {}
+    for member in sorted(figures):
+        target = document_root(material_id) / member
+        if target.is_file() and target.stat().st_size > MAX_PACKAGE_BYTES:
+            raise ProjectPackageError("工程包图示清底资产体积超出上限")
+        try:
+            blob = target.read_bytes()
+            binding = json.loads(target.with_name("pixel.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ProjectPackageError("无法读取已应用的图示清底资产") from exc
+        _validate_figure_png(blob)
+        figure_assets[member] = blob
+        figure_hashes[member] = {"sha256": _hash_bytes(blob), **_figure_metadata(binding, _FIGURE_BINDING_FIELDS)}
     source_path = UPLOAD_DIR / material_id / ORIGINAL_FILE_NAME
     source_bytes = source_path.read_bytes() if source_path.is_file() else None
     source_hash = _hash_bytes(source_bytes) if source_bytes else ""
@@ -169,6 +241,8 @@ def build_project_archive(material: MaterialRecord, payload: Mapping[str, Any] |
             for page in pages
         ],
     }
+    if figure_hashes:
+        manifest["figure_assets"] = figure_hashes
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
         archive.writestr("manifest.json", _json(manifest))
@@ -179,6 +253,8 @@ def build_project_archive(material: MaterialRecord, payload: Mapping[str, Any] |
             archive.writestr(page["file"], page["bytes"])
         for rel, blob in _layers_for_material(material_id, document):
             archive.writestr(rel, blob)
+        for member, blob in figure_assets.items():
+            archive.writestr(member, blob)
         if source_bytes is not None:
             archive.writestr("source/original.pptx", source_bytes)
     return buffer.getvalue()
@@ -259,6 +335,22 @@ def import_project_archive(
         page_bytes[str(page.get("page_no"))] = _read(file_name)
     if not page_bytes:
         raise ProjectPackageError("工程包没有页面图片")
+    referenced_figures, rendered = _document_resources(document)
+    if any(str(page_no) not in page_bytes for page_no in set(referenced_figures.values()) | rendered.keys()):
+        raise ProjectPackageError("工程包图示所在的页面原图缺失")
+    figure_names = [name for name in names if name.startswith("figures/")]
+    figure_hashes = manifest.get("figure_assets", {})
+    if (not isinstance(figure_hashes, dict) or figure_hashes.keys() != referenced_figures.keys()
+        or set(figure_names) != referenced_figures.keys() or len(figure_names) != len(referenced_figures)):
+        raise ProjectPackageError("工程包的图示清底资产不完整或未被页面引用")
+    figure_files = []
+    for member in figure_names:
+        metadata = _figure_metadata(figure_hashes[member], ("sha256", *_FIGURE_BINDING_FIELDS))
+        blob = _read(member)
+        if metadata.pop("sha256") != _hash_bytes(blob):
+            raise ProjectPackageError("工程包图示清底资产哈希不一致")
+        _validate_figure_png(blob)
+        figure_files.append((member, blob, metadata))
     layer_files: list[tuple[str, bytes]] = []
     for name in names:
         if name.startswith("layers/") and _LAYER_MEMBER_PATTERN.fullmatch(name):
@@ -324,7 +416,7 @@ def import_project_archive(
         content = page_bytes.get(str(page_no))
         if content is None:
             continue
-        name = f"s{page_no:02d}.png"
+        name = rendered.get(page_no, f"s{page_no:02d}.png")
         (target_pages / name).write_bytes(content)
         page_entries.append(
             {
@@ -357,6 +449,11 @@ def import_project_archive(
         target_layer = UPLOAD_DIR / material_id / "document" / rel
         target_layer.parent.mkdir(parents=True, exist_ok=True)
         target_layer.write_bytes(blob)
+    for member, blob, binding in figure_files:
+        target = document_root(material_id) / member
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(blob)
+        target.with_name("pixel.json").write_bytes(_json(binding))
     if source_content is not None:
         target_source = UPLOAD_DIR / material_id
         target_source.mkdir(parents=True, exist_ok=True)

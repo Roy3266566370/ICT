@@ -74,16 +74,19 @@ function ChartContent({node}:{node:SceneNode}){
   return <div className={styles.chart}><VegaSpecView spec={spec} evaluation={{values:{},derived:{},violations:[]}}
     view={{type:'vega',spec_ref:data.chart_type?.includes('LINE')?'line':'bar',dataset:'data',x:'category',y:'value',title:data.title??node.name}} reducedMotion/></div>;
 }
-const NodeView=memo(function NodeView({node,editing,editingText,onText,onCompose,onTextBlur,selectable}:{node:SceneNode;editing:boolean;editingText:boolean;
+const NodeView=memo(function NodeView({node,editing,editingText,onText,onCompose,onTextBlur,selectable,proofFigures}:{node:SceneNode;editing:boolean;editingText:boolean;proofFigures?:boolean;
   onText?:(id:string,text:string)=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void;selectable:boolean}){
-  const changed=textChanged(node);const src=node.image_data||node.image_url;
+  const changed=textChanged(node);
+  const clean=node.type==='image'&&node.cleaned_asset_id&&node.cleaned_url;
+  const src=(!proofFigures&&clean)||node.image_data||node.image_url;
+  const transform=`rotate(${node.rotation}deg)${node.text_transform?` matrix(${node.text_transform.join(',')},0,0)`:''}`;
   const crop=node.crop;const imageStyle:CSSProperties=crop?{position:'absolute',width:`${100/(1-crop.left-crop.right)}%`,height:`${100/(1-crop.top-crop.bottom)}%`,
     left:`${-100*crop.left/(1-crop.left-crop.right)}%`,top:`${-100*crop.top/(1-crop.top-crop.bottom)}%`}:{};
   const tableChanged=node.type==='table'&&!same(node.table,node.base_table);
   const chartChanged=node.type==='chart'&&!same(node.chart,node.base_chart);
   return <div className={styles.node} data-node-id={node.id} data-node-type={node.type} data-locked={node.locked}
     role={selectable?'button':undefined} tabIndex={selectable?0:undefined} aria-label={selectable?`选择：${node.text?.slice(0,28)||node.name}`:undefined}
-    style={{left:node.x,top:node.y,width:node.width,height:node.height,transform:`rotate(${node.rotation}deg)`,zIndex:node.z+10001,opacity:node.opacity,
+    style={{left:node.x,top:node.y,width:node.width,height:node.height,transform,zIndex:node.z+10001,opacity:node.opacity*(proofFigures&&clean?0.35:1),
       pointerEvents:editing?'auto':'none'}}>
     {editingText?<>
       {node.background_url&&<img className={styles.raster} src={node.background_url} style={rasterCss(node,'background')} alt="" draggable={false}/>}
@@ -104,8 +107,8 @@ const NodeView=memo(function NodeView({node,editing,editingText,onText,onCompose
 interface Props {page:ScenePage;scale:number;editing?:boolean;editingId?:string|null;preview?:Record<string,Partial<SceneNode>>;children?:ReactNode;
   onText?:(id:string,text:string)=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void; presentVectors?:boolean; vectorId?:string;
   onVectorSelect?:(id:string)=>void; onVectorPatch?:(id:string, patch:import('@/document/types').NodePatch,key?:string)=>void;
-  onGenerateDemo?:(id:string)=>void;generating?:Record<string,boolean>;}
-export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur,presentVectors,vectorId,onVectorSelect,onVectorPatch,onGenerateDemo,generating}:Props){
+  onGenerateDemo?:(id:string)=>void;generating?:Record<string,boolean>;proofFigures?:boolean;}
+export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur,presentVectors,vectorId,onVectorSelect,onVectorPatch,onGenerateDemo,generating,proofFigures}:Props){
   const frozen=page.preparation?.frozen_ids??[];
   const visible = page.nodes.filter(n=>!n.deleted&&!n.hidden&&!frozen.includes(n.id));
   const vectors = visible.filter(node=>node.type==='vector');
@@ -187,7 +190,7 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
     <div className={styles.contentLayer}>
       {page.background_url&&<img className={styles.pageBackground} src={page.background_url} alt="" draggable={false}/>}
       {visible.filter(node=>node.type!=='vector'&&node.type!=='math_scene'&&node.type!=='diagram'&&node.type!=='demo').map(node=><NodeView key={node.id} node={preview?.[node.id]?{...node,...preview[node.id]}:node}
-        editing={editing} editingText={editingId===node.id} selectable={editing} onText={onText} onCompose={onCompose} onTextBlur={onTextBlur}/>)}
+        editing={editing} editingText={editingId===node.id} selectable={editing} proofFigures={proofFigures} onText={onText} onCompose={onCompose} onTextBlur={onTextBlur}/>)}
       {matrixImages.map(node=><MatrixImageLayer key={node.id} node={withOverride(node)} interactive={presentVectors||editing}
         onPatch={(patch,key)=>change(node.id,patch,key)}/>)}
       {vectors.map(node=><VectorLine key={node.id} node={withOverride(preview?.[node.id] ? {...node,...preview[node.id]} : node)}

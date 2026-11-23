@@ -4,6 +4,7 @@ from pathlib import Path
 import json,os,re,shutil,subprocess,sys,threading,time
 from .store import LOCK,document_root,read_document,write_document
 from .importer import import_document
+from .capabilities import layer_editor_available
 from .layer_export import EXPORTER_VERSION
 from ..editing import working_path
 
@@ -24,12 +25,59 @@ def ensure_document(material_id:str,title:str)->dict:
         document=read_document(material_id)
         if document is None:
             source=working_path(material_id)
-            if not source.exists():raise ValueError('这份材料没有可编辑的PPT原件，请上传PPT后使用自由编辑')
-            root=document_root(material_id);root.mkdir(parents=True,exist_ok=True)
-            shutil.copyfile(source,root/'source.pptx')
-            document=import_document(root/'source.pptx',title)
+            if source.is_file() and (layer_editor_available()[0] or not has_rendered_pages(material_id)):
+                root=document_root(material_id);root.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(source,root/'source.pptx')
+                document=import_document(root/'source.pptx',title)
+            else:
+                document=rendered_document(material_id,title)
             write_document(material_id,document)
         return hydrate_document(material_id,document)
+
+
+def has_rendered_pages(material_id:str)->bool:
+    from ..render import PAGE_IMAGE_PATTERN, existing_page_images
+
+    return any((match:=PAGE_IMAGE_PATTERN.fullmatch(image.name)) and not match.group('erased')
+               for image in existing_page_images(material_id))
+
+
+def rendered_document(material_id:str,title:str)->dict:
+    from hashlib import sha256
+    from PIL import Image
+    from ..render import PAGE_IMAGE_PATTERN, existing_page_images, pages_dir, read_render_manifest
+
+    manifest=read_render_manifest(material_id) or {}
+    paths={}
+    for image in existing_page_images(material_id):
+        match=PAGE_IMAGE_PATTERN.fullmatch(image.name)
+        if match and not match.group('erased'):
+            paths.setdefault(int(match.group('page_no')),image)
+    for entry in manifest.get('pages',[]):
+        if isinstance(entry,dict) and isinstance(entry.get('file'),str):
+            match=PAGE_IMAGE_PATTERN.fullmatch(entry['file'])
+            if match and not match.group('erased'):
+                path=pages_dir(material_id)/entry['file']
+                if path.is_file():
+                    paths[int(match.group('page_no'))]=path
+    if not paths:
+        raise ValueError('这份材料没有可编辑原件或已渲染页图')
+    pages=[]
+    for number,path in sorted(paths.items()):
+        with Image.open(path) as image:
+            width,height=image.size
+        if not (0<width<=20000 and 0<height<=20000):
+            raise ValueError('页面图像尺寸超出编辑范围')
+        style={}
+        node={'id':f'render_p{number:02d}','type':'image','name':'页面原图','x':0,'y':0,'width':width,
+              'height':height,'z':0,'rotation':0,'opacity':1,'locked':False,'hidden':False,'deleted':False,
+              'style':style,'base_style':{},'text':'','base_text':'','asset_id':None,
+              'source_element_id':None,'render_file':path.name}
+        pages.append({'page_no':number,'id':f'p_{number}','width':width,'height':height,'nodes':[node],
+                      'modified':False,'rendered_only':True})
+    signature=sha256(','.join(path.name for path in paths.values()).encode()).hexdigest()[:24]
+    return {'schema_version':'1.0','revision':0,'title':title,'source_key':signature,
+            'pages':pages,'applied_operations':[]}
 
 def layer_dir(material_id:str,key:str,page_no:int)->Path:
     # key 参与目录拼接（来源含导入工程包的 source_key），必须拒绝路径分隔符与 ..。
@@ -62,8 +110,20 @@ def manifest_ready(manifest:dict)->bool:
     return not manifest.get('frozen_ids') or version>=EXPORTER_VERSION
 
 def hydrate_document(material_id:str,document:dict)->dict:
+    from .figure_service import asset_path, asset_url
+
     result=deepcopy(document);result.pop('applied_operations',None)
     for page in result['pages']:
+        for node in page['nodes']:
+            identifier=node.get('cleaned_asset_id')
+            if identifier and asset_path(material_id,page['page_no'],identifier):
+                node['cleaned_url']=asset_url(material_id,page['page_no'],identifier,'cleaned')
+        if page.get('rendered_only'):
+            page['preparation']={'status':'ready'}
+            for node in page['nodes']:
+                if node.get('render_file'):
+                    node['image_url']=f'/api/v1/materials/{material_id}/renders/{node["render_file"]}'
+            continue
         manifest=read_manifest(material_id,result['source_key'],page['page_no'])
         prefix=f'/api/v1/materials/{material_id}/document/assets/{result["source_key"]}/{page["page_no"]}/'
         page['preparation']={k:v for k,v in manifest.items() if k in ('status','message','errors','seconds','frozen_ids','exporter_version')}

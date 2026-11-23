@@ -203,31 +203,40 @@ def apply_document_specs(material_id:str,specs:list[dict])->list[dict]:
     return result
 
 def freeze_document(material_id:str)->dict|None:
+    from .figure_service import asset_path
+    from ..render import PAGE_IMAGE_PATTERN, pages_dir
+
     document=read_document(material_id)
     if not document or not any(p.get('modified') for p in document['pages']):return None
     for page in document['pages']:
         if not page.get('modified'):continue
         # Publishing must stay a short request: object preparation is an
         # explicit, pollable step handled before publish/download.
-        if not manifest_ready(read_manifest(material_id,document['source_key'],page['page_no'])):
+        if not page.get('rendered_only') and not manifest_ready(read_manifest(material_id,document['source_key'],page['page_no'])):
             raise ValueError(f'第{page["page_no"]}页对象仍在准备，请等待准备完成后再发布')
     document=hydrate_document(material_id,document)
     cache={};total=0
-    def embed(url,page):
+    def embed(target):
         nonlocal total
+        if target in cache:return cache[target]
+        remaining=64*1024*1024-total
+        if target.stat().st_size>remaining:raise ValueError('编辑页的资源超过64MB，暂无法打包')
+        blob=target.read_bytes();total+=len(blob)
+        if total>64*1024*1024:raise ValueError('编辑页的资源超过64MB，暂无法打包')
+        value='data:image/png;base64,'+base64.b64encode(blob).decode('ascii');cache[target]=value;return value
+
+    def embed_layer(url,page):
         if not url:return None
-        if url in cache:return cache[url]
         filename=url.rsplit('/',1)[-1]
         if not re.fullmatch(r'(background|n_\d+(_empty)?)\.png',filename):raise ValueError('页面资源名称不合法')
         target=layer_dir(material_id,document['source_key'],page['page_no'])/filename
-        blob=target.read_bytes();total+=len(blob)
-        if total>64*1024*1024:raise ValueError('编辑页的资源超过64MB，暂无法打包')
-        value='data:image/png;base64,'+base64.b64encode(blob).decode('ascii');cache[url]=value;return value
+        return embed(target)
+
     pages=[]
     for page in document['pages']:
         if not page.get('modified'):continue
         if page.get('preparation',{}).get('status')!='ready':raise ValueError(f'第{page["page_no"]}页尚未完成对象准备，暂不能发布')
-        page['background_url']=embed(page.get('background_url'),page)
+        page['background_url']=embed_layer(page.get('background_url'),page)
         page['nodes']=[n for n in page['nodes'] if not n.get('hidden') and not n.get('deleted')]
         for node in page['nodes']:
             text_changed=node.get('text')!=node.get('base_text')
@@ -238,8 +247,23 @@ def freeze_document(material_id:str)->dict|None:
               node.get('base_width',node['width'])!=node['width'] or node.get('base_height',node['height'])!=node['height'])) or \
               (node['type']=='table' and node.get('table')!=node.get('base_table')) or \
               (node['type']=='chart' and node.get('chart')!=node.get('base_chart'))
-            node['image_url']=None if raster_changed else embed(node.get('image_url'),page)
-            node['background_url']=embed(node.get('background_url'),page)
+            cleaned = asset_path(material_id,page['page_no'],node.get('cleaned_asset_id')) if node['type']=='image' else None
+            if cleaned is not None:
+                # Delivery uses the substitute as the ordinary image so existing players
+                # render it beneath the editable vectors without drawing the source ink.
+                node['image_url']=embed(cleaned)
+                node.pop('image_data',None)
+            elif raster_changed:
+                node['image_url']=None
+            elif page.get('rendered_only') and node.get('render_file'):
+                filename=node['render_file']
+                match=PAGE_IMAGE_PATTERN.fullmatch(filename) if isinstance(filename,str) else None
+                if not match or match.group('erased') or int(match.group('page_no'))!=page['page_no']:
+                    raise ValueError('页面原图标识无效')
+                node['image_url']=embed(pages_dir(material_id)/filename)
+            else:
+                node['image_url']=embed_layer(node.get('image_url'),page)
+            node['background_url']=embed_layer(node.get('background_url'),page)
             for kind in ('table','chart'):
                 if node.get(kind)!=node.get('base_'+kind):node.pop('base_'+kind,None)
         pages.append(page)
@@ -269,6 +293,14 @@ def public_document(raw)->dict|None:
             node={k:deepcopy(v) for k,v in source.items() if k in node_keys and (v is None or type(v) in (str,int,float,bool))}
             node.update(name=source.get('type','对象'),style=style(source.get('style')),base_style=style(source.get('base_style')),
               locked=False,hidden=False,deleted=False)
+            transform=source.get('text_transform')
+            if (source.get('type')=='text' and isinstance(transform,list) and len(transform)==4
+                and all(type(value) in (int,float) and -1e6<=value<=1e6 for value in transform)
+                and abs(transform[0]*transform[3]-transform[1]*transform[2])>1e-9):
+                node['text_transform']=list(transform)
+            provenance=source.get('figure_provenance')
+            if provenance in ('native','pixel','vision','user_confirmed'):
+                node['figure_provenance']=provenance
             basis = source.get('basis')
             if source.get('type') == 'vector' and isinstance(basis, dict):
                 ids = ('firstId', 'secondId', 'resultId')

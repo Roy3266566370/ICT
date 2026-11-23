@@ -2,7 +2,8 @@ import type {SceneDocument,SceneNode,ScenePage,NodePatch,NodeChange} from './typ
 import {defaultMathScene} from './mathScene.ts';
 import {defaultDiagram} from './inlineSystems.ts';
 export const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
-export const mutableKeys=['x','y','width','height','rotation','z','opacity','locked','hidden','deleted','text','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo'] as const;
+const figureKeys=['cleaned_asset_id','figure_scene'] as const;
+export const mutableKeys=['x','y','width','height','rotation','z','opacity','locked','hidden','deleted','text','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo',...figureKeys] as const;
 export function patchNodes(document:SceneDocument,pageNo:number,ids:string[],patch:NodePatch):SceneDocument {
   return {...document,pages:document.pages.map(page=>page.page_no!==pageNo?page:{...page,modified:true,nodes:page.nodes.map(node=>{
     if(!ids.includes(node.id))return node;
@@ -30,6 +31,12 @@ export function createPayload(node:SceneNode):Record<string,unknown> {
   }
   const payload:Record<string,unknown>={type:node.type,style:node.style,shape:node.shape};
   for(const key of [...mutableKeys,'image_data'] as const)if(node[key]!==undefined)payload[key]=node[key];
+  if(node.figure_source_id){
+    payload.name=node.name;
+    payload.figure_source_id=node.figure_source_id;
+    payload.figure_object_id=node.figure_object_id;
+    payload.figure_provenance=node.figure_provenance;
+  }
   return payload;
 }
 export function diffDocuments(base:SceneDocument,current:SceneDocument):NodeChange[] {
@@ -42,6 +49,10 @@ export function diffDocuments(base:SceneDocument,current:SceneDocument):NodeChan
       if(!old) {if(!node.deleted)changes.push({page_no:page.page_no,id:node.id,create:createPayload(node)});continue;}
       const patch:NodePatch={};
       for(const key of mutableKeys)if(node[key]!==undefined&&!same(node[key],old[key])) Object.assign(patch,{[key]:node[key]});
+      for(const key of figureKeys){
+        if(node[key]==null&&old[key]==null)delete patch[key];
+        else if(node[key]===undefined&&old[key]!=null)Object.assign(patch,{[key]:null});
+      }
       const style:Record<string,unknown>={};
       for(const key of Object.keys(node.style) as Array<keyof SceneNode['style']>)if(!same(node.style[key],old.style[key]))style[key]=node.style[key];
       if(Object.keys(style).length)patch.style=style;
@@ -54,7 +65,14 @@ export function diffDocuments(base:SceneDocument,current:SceneDocument):NodeChan
 export function applyChanges(document:SceneDocument,changes:NodeChange[],source?:SceneDocument):SceneDocument {
   let next=document;
   for(const change of changes) {
-    if(change.patch)next=patchNodes(next,change.page_no,[change.id],change.patch);
+    if(change.patch){
+      let patch:NodePatch&{cleaned_url?:SceneNode['cleaned_url']}=change.patch;
+      if('cleaned_asset_id' in patch){
+        const local=source?.pages.find(p=>p.page_no===change.page_no)?.nodes.find(n=>n.id===change.id);
+        patch={...patch,cleaned_url:local?.cleaned_url};
+      }
+      next=patchNodes(next,change.page_no,[change.id],patch);
+    }
     else if(change.create) {
       const node=source?.pages.find(p=>p.page_no===change.page_no)?.nodes.find(n=>n.id===change.id);
       if(node)next={...next,pages:next.pages.map(p=>p.page_no===change.page_no?{...p,modified:true,nodes:p.nodes.some(n=>n.id===node.id)?p.nodes.map(n=>n.id===node.id?{...n,...node}:n):[...p.nodes,node]}:p)};

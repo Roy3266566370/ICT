@@ -15,6 +15,7 @@ import styles from './FreeDeckEditor.module.css';
 interface Props {node:SceneNode|null;count:number;disabled:boolean;pageNo:number;materialId?:string;autoSpecs?:ISpec[];pageNodes?:SceneNode[];
   onPatch:(patch:NodePatch,key?:string)=>void;onDuplicate:()=>void;onDelete:()=>void;
   onDiagramBuild?:(text:string,ai:boolean)=>void|Promise<void>;onDemoGenerate?:()=>void;generating?:boolean;
+  onVectorize?:()=>void;figureCount?:number;
   onInteraction:(config:NodeInteraction|null)=>void;onReinteract?:()=>void;reinteracting?:boolean;onRestoreContent?:()=>void;}
 function VectorProperties({node,disabled,pageNodes=[],onPatch,onDuplicate,onDelete}:{node:SceneNode;disabled:boolean;pageNodes?:SceneNode[];
   onPatch:(patch:NodePatch,key?:string)=>void;onDuplicate:()=>void;onDelete:()=>void}){
@@ -93,7 +94,7 @@ function InlineSystemProperties({node,disabled,onPatch,onDuplicate,onDelete,onDi
       <button onClick={()=>onPatch({hidden:!node.hidden})}>{node.hidden?'显示对象':'隐藏对象'}</button><button onClick={onDelete}>删除对象</button></div></section></fieldset>
   </aside>;
 }
-export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=[],pageNodes=[],onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onDiagramBuild,onDemoGenerate,generating}:Props){
+export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=[],pageNodes=[],onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onDiagramBuild,onDemoGenerate,generating,onVectorize,figureCount}:Props){
   if(!node)return <aside className={styles.properties} aria-label="对象属性"><h2>对象属性</h2><p className={styles.hint}>点击画布中的对象，拖动调整位置。双击文字可直接输入，也可从左侧图层选择对象。</p></aside>;
   if(node.type==='vector')return <VectorProperties node={node} disabled={disabled} pageNodes={pageNodes} onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete}/>;
   if(node.type==='diagram'||node.type==='demo')return <InlineSystemProperties key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo}
@@ -104,9 +105,9 @@ export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=
   </aside>;
   return <NodePropertiesInner key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo} materialId={materialId} autoSpecs={autoSpecs} pageNodes={pageNodes}
     onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onInteraction={onInteraction} onReinteract={onReinteract}
-    reinteracting={reinteracting} onRestoreContent={onRestoreContent}/>;
+    reinteracting={reinteracting} onRestoreContent={onRestoreContent} onVectorize={onVectorize} figureCount={figureCount}/>;
 }
-function NodePropertiesInner({node,count,disabled,pageNo,materialId,autoSpecs,onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent}:Props&{node:SceneNode}){
+function NodePropertiesInner({node,count,disabled,pageNo,materialId,autoSpecs,onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onVectorize,figureCount}:Props&{node:SceneNode}){
   const [tab,setTab]=useState<'look'|'interact'>('look');
   const [config,setConfig]=useState<NodeInteraction>(()=>node.interaction??defaultInteraction(node));
   const [message,setMessage]=useState('');
@@ -200,6 +201,10 @@ function NodePropertiesInner({node,count,disabled,pageNo,materialId,autoSpecs,on
     {contentChanged&&auto.length>0&&<div className={styles.pauseBox} role="status"><b>来源内容已修改</b><p>原交互已停用，避免继续显示旧结果。可重新提取当前内容，或撤销这次内容修改。</p>
       <div>{onReinteract&&<button onClick={onReinteract} disabled={reinteracting}>{reinteracting?'提取中…':'重新提取本页交互'}</button>}
         {onRestoreContent&&<button onClick={onRestoreContent}>撤销内容修改</button>}</div></div>}
+    {tab==='look'&&node.type==='image'&&count===1&&!node.matrix_ocr&&<section><h3>图示矢量化</h3>
+      {node.cleaned_asset_id?<p className={styles.hint}>已应用 {figureCount??0} 个矢量化对象</p>:
+        <button type="button" className={styles.applyButton} disabled={!onVectorize} onClick={onVectorize}>矢量化此图</button>}
+    </section>}
     {tab==='look'?<fieldset disabled={disabled||node.locked}>
       <section><h3>位置与大小 <span>pt</span></h3><div className={styles.numberGrid}>
         {(['x','y','width','height','rotation'] as const).map((key,i)=><label key={key}>{['X','Y','宽度','高度','旋转 °'][i]}

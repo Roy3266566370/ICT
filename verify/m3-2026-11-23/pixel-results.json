@@ -1,0 +1,2248 @@
+{
+  "basis-alternate.png": {
+    "annotations": {
+      "left_x": [
+        [
+          85,
+          343
+        ],
+        [
+          431,
+          343
+        ]
+      ],
+      "left_y": [
+        [
+          191,
+          139
+        ],
+        [
+          191,
+          408
+        ]
+      ],
+      "left_e1": [
+        [
+          191,
+          343
+        ],
+        [
+          335,
+          343
+        ]
+      ],
+      "left_e2": [
+        [
+          191,
+          343
+        ],
+        [
+          191,
+          260
+        ]
+      ],
+      "left_v": [
+        [
+          191,
+          343
+        ],
+        [
+          335,
+          260
+        ]
+      ],
+      "left_coord": {
+        "at": [
+          285,
+          99
+        ],
+        "text": "(2, 1)"
+      },
+      "right_x": [
+        [
+          521,
+          343
+        ],
+        [
+          867,
+          343
+        ]
+      ],
+      "right_y": [
+        [
+          627,
+          139
+        ],
+        [
+          627,
+          408
+        ]
+      ],
+      "right_b1": [
+        [
+          627,
+          343
+        ],
+        [
+          700,
+          343
+        ]
+      ],
+      "right_b2": [
+        [
+          627,
+          343
+        ],
+        [
+          700,
+          260
+        ]
+      ],
+      "right_v": [
+        [
+          627,
+          343
+        ],
+        [
+          771,
+          260
+        ]
+      ],
+      "right_guide": [
+        [
+          700,
+          343
+        ],
+        [
+          771,
+          260
+        ]
+      ],
+      "right_coord": {
+        "at": [
+          705,
+          99
+        ],
+        "text": "(1, 1)"
+      }
+    },
+    "cold_ocr_engine": [
+      {
+        "error_px": {
+          "left_x": 1.12,
+          "left_y": 1.12,
+          "left_e1": 1.12,
+          "left_e2": 0.71,
+          "left_v": 1.45,
+          "left_coord": 0.71,
+          "right_x": 1.12,
+          "right_y": 1.12,
+          "right_b1": 2.06,
+          "right_b2": 2.06,
+          "right_v": 1.45,
+          "right_guide": 2.31,
+          "right_coord": 0.71
+        },
+        "passed": 13,
+        "total": 13,
+        "matched_ids": {
+          "left_coord": "figure-12",
+          "left_e2": "figure-3",
+          "right_coord": "figure-13",
+          "left_e1": "figure-5",
+          "left_x": "figure-1",
+          "left_y": "figure-2",
+          "right_x": "figure-6",
+          "right_y": "figure-7",
+          "left_v": "figure-4",
+          "right_v": "figure-10",
+          "right_b2": "figure-9",
+          "right_b1": "figure-8",
+          "right_guide": "figure-11"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 27.0,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              190.5,
+              342.5
+            ],
+            "unit_px": 77.2160752050511
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              626.5,
+              342.5
+            ],
+            "unit_px": 71.5023123427213
+          }
+        ],
+        "ocr_rows": 4,
+        "recognized_objects": 13,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.12,
+            "left_y": 1.12,
+            "left_e1": 1.12,
+            "left_e2": 0.71,
+            "left_v": 1.45,
+            "left_coord": 0.71,
+            "right_x": 1.12,
+            "right_y": 1.12,
+            "right_b1": 2.06,
+            "right_b2": 2.06,
+            "right_v": 1.45,
+            "right_guide": 2.31,
+            "right_coord": 0.71
+          },
+          "passed": 13,
+          "total": 13,
+          "matched_ids": {
+            "left_coord": "figure-12",
+            "left_e2": "figure-3",
+            "right_coord": "figure-13",
+            "left_e1": "figure-5",
+            "left_x": "figure-1",
+            "left_y": "figure-2",
+            "right_x": "figure-6",
+            "right_y": "figure-7",
+            "left_v": "figure-4",
+            "right_v": "figure-10",
+            "right_b2": "figure-9",
+            "right_b1": "figure-8",
+            "right_guide": "figure-11"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 27.0
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 1.9146,
+          "detection": 0.0784,
+          "cleanup": 0.0189,
+          "preview": 1.993
+        }
+      },
+      {
+        "error_px": {
+          "left_x": 1.12,
+          "left_y": 1.12,
+          "left_e1": 1.12,
+          "left_e2": 0.71,
+          "left_v": 1.45,
+          "left_coord": 0.71,
+          "right_x": 1.12,
+          "right_y": 1.12,
+          "right_b1": 2.06,
+          "right_b2": 2.06,
+          "right_v": 1.45,
+          "right_guide": 2.31,
+          "right_coord": 0.71
+        },
+        "passed": 13,
+        "total": 13,
+        "matched_ids": {
+          "left_coord": "figure-12",
+          "left_e2": "figure-3",
+          "right_coord": "figure-13",
+          "left_e1": "figure-5",
+          "left_x": "figure-1",
+          "left_y": "figure-2",
+          "right_x": "figure-6",
+          "right_y": "figure-7",
+          "left_v": "figure-4",
+          "right_v": "figure-10",
+          "right_b2": "figure-9",
+          "right_b1": "figure-8",
+          "right_guide": "figure-11"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 27.0,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              190.5,
+              342.5
+            ],
+            "unit_px": 77.2160752050511
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              626.5,
+              342.5
+            ],
+            "unit_px": 71.5023123427213
+          }
+        ],
+        "ocr_rows": 4,
+        "recognized_objects": 13,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.12,
+            "left_y": 1.12,
+            "left_e1": 1.12,
+            "left_e2": 0.71,
+            "left_v": 1.45,
+            "left_coord": 0.71,
+            "right_x": 1.12,
+            "right_y": 1.12,
+            "right_b1": 2.06,
+            "right_b2": 2.06,
+            "right_v": 1.45,
+            "right_guide": 2.31,
+            "right_coord": 0.71
+          },
+          "passed": 13,
+          "total": 13,
+          "matched_ids": {
+            "left_coord": "figure-12",
+            "left_e2": "figure-3",
+            "right_coord": "figure-13",
+            "left_e1": "figure-5",
+            "left_x": "figure-1",
+            "left_y": "figure-2",
+            "right_x": "figure-6",
+            "right_y": "figure-7",
+            "left_v": "figure-4",
+            "right_v": "figure-10",
+            "right_b2": "figure-9",
+            "right_b1": "figure-8",
+            "right_guide": "figure-11"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 27.0
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 1.671,
+          "detection": 0.0743,
+          "cleanup": 0.0156,
+          "preview": 1.7453
+        }
+      },
+      {
+        "error_px": {
+          "left_x": 1.12,
+          "left_y": 1.12,
+          "left_e1": 1.12,
+          "left_e2": 0.71,
+          "left_v": 1.45,
+          "left_coord": 0.71,
+          "right_x": 1.12,
+          "right_y": 1.12,
+          "right_b1": 2.06,
+          "right_b2": 2.06,
+          "right_v": 1.45,
+          "right_guide": 2.31,
+          "right_coord": 0.71
+        },
+        "passed": 13,
+        "total": 13,
+        "matched_ids": {
+          "left_coord": "figure-12",
+          "left_e2": "figure-3",
+          "right_coord": "figure-13",
+          "left_e1": "figure-5",
+          "left_x": "figure-1",
+          "left_y": "figure-2",
+          "right_x": "figure-6",
+          "right_y": "figure-7",
+          "left_v": "figure-4",
+          "right_v": "figure-10",
+          "right_b2": "figure-9",
+          "right_b1": "figure-8",
+          "right_guide": "figure-11"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 27.0,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              190.5,
+              342.5
+            ],
+            "unit_px": 77.2160752050511
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              626.5,
+              342.5
+            ],
+            "unit_px": 71.5023123427213
+          }
+        ],
+        "ocr_rows": 4,
+        "recognized_objects": 13,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.12,
+            "left_y": 1.12,
+            "left_e1": 1.12,
+            "left_e2": 0.71,
+            "left_v": 1.45,
+            "left_coord": 0.71,
+            "right_x": 1.12,
+            "right_y": 1.12,
+            "right_b1": 2.06,
+            "right_b2": 2.06,
+            "right_v": 1.45,
+            "right_guide": 2.31,
+            "right_coord": 0.71
+          },
+          "passed": 13,
+          "total": 13,
+          "matched_ids": {
+            "left_coord": "figure-12",
+            "left_e2": "figure-3",
+            "right_coord": "figure-13",
+            "left_e1": "figure-5",
+            "left_x": "figure-1",
+            "left_y": "figure-2",
+            "right_x": "figure-6",
+            "right_y": "figure-7",
+            "left_v": "figure-4",
+            "right_v": "figure-10",
+            "right_b2": "figure-9",
+            "right_b1": "figure-8",
+            "right_guide": "figure-11"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 27.0
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 1.7506,
+          "detection": 0.0833,
+          "cleanup": 0.0189,
+          "preview": 1.8339
+        }
+      }
+    ],
+    "warm_ocr_engine": [
+      {
+        "error_px": {
+          "left_x": 1.12,
+          "left_y": 1.12,
+          "left_e1": 1.12,
+          "left_e2": 0.71,
+          "left_v": 1.45,
+          "left_coord": 0.71,
+          "right_x": 1.12,
+          "right_y": 1.12,
+          "right_b1": 2.06,
+          "right_b2": 2.06,
+          "right_v": 1.45,
+          "right_guide": 2.31,
+          "right_coord": 0.71
+        },
+        "passed": 13,
+        "total": 13,
+        "matched_ids": {
+          "left_coord": "figure-12",
+          "left_e2": "figure-3",
+          "right_coord": "figure-13",
+          "left_e1": "figure-5",
+          "left_x": "figure-1",
+          "left_y": "figure-2",
+          "right_x": "figure-6",
+          "right_y": "figure-7",
+          "left_v": "figure-4",
+          "right_v": "figure-10",
+          "right_b2": "figure-9",
+          "right_b1": "figure-8",
+          "right_guide": "figure-11"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 27.0,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              190.5,
+              342.5
+            ],
+            "unit_px": 77.2160752050511
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              626.5,
+              342.5
+            ],
+            "unit_px": 71.5023123427213
+          }
+        ],
+        "ocr_rows": 4,
+        "recognized_objects": 13,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.12,
+            "left_y": 1.12,
+            "left_e1": 1.12,
+            "left_e2": 0.71,
+            "left_v": 1.45,
+            "left_coord": 0.71,
+            "right_x": 1.12,
+            "right_y": 1.12,
+            "right_b1": 2.06,
+            "right_b2": 2.06,
+            "right_v": 1.45,
+            "right_guide": 2.31,
+            "right_coord": 0.71
+          },
+          "passed": 13,
+          "total": 13,
+          "matched_ids": {
+            "left_coord": "figure-12",
+            "left_e2": "figure-3",
+            "right_coord": "figure-13",
+            "left_e1": "figure-5",
+            "left_x": "figure-1",
+            "left_y": "figure-2",
+            "right_x": "figure-6",
+            "right_y": "figure-7",
+            "left_v": "figure-4",
+            "right_v": "figure-10",
+            "right_b2": "figure-9",
+            "right_b1": "figure-8",
+            "right_guide": "figure-11"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 27.0
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.7279,
+          "detection": 0.0793,
+          "cleanup": 0.0164,
+          "preview": 0.8072
+        }
+      },
+      {
+        "error_px": {
+          "left_x": 1.12,
+          "left_y": 1.12,
+          "left_e1": 1.12,
+          "left_e2": 0.71,
+          "left_v": 1.45,
+          "left_coord": 0.71,
+          "right_x": 1.12,
+          "right_y": 1.12,
+          "right_b1": 2.06,
+          "right_b2": 2.06,
+          "right_v": 1.45,
+          "right_guide": 2.31,
+          "right_coord": 0.71
+        },
+        "passed": 13,
+        "total": 13,
+        "matched_ids": {
+          "left_coord": "figure-12",
+          "left_e2": "figure-3",
+          "right_coord": "figure-13",
+          "left_e1": "figure-5",
+          "left_x": "figure-1",
+          "left_y": "figure-2",
+          "right_x": "figure-6",
+          "right_y": "figure-7",
+          "left_v": "figure-4",
+          "right_v": "figure-10",
+          "right_b2": "figure-9",
+          "right_b1": "figure-8",
+          "right_guide": "figure-11"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 27.0,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              190.5,
+              342.5
+            ],
+            "unit_px": 77.2160752050511
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              626.5,
+              342.5
+            ],
+            "unit_px": 71.5023123427213
+          }
+        ],
+        "ocr_rows": 4,
+        "recognized_objects": 13,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.12,
+            "left_y": 1.12,
+            "left_e1": 1.12,
+            "left_e2": 0.71,
+            "left_v": 1.45,
+            "left_coord": 0.71,
+            "right_x": 1.12,
+            "right_y": 1.12,
+            "right_b1": 2.06,
+            "right_b2": 2.06,
+            "right_v": 1.45,
+            "right_guide": 2.31,
+            "right_coord": 0.71
+          },
+          "passed": 13,
+          "total": 13,
+          "matched_ids": {
+            "left_coord": "figure-12",
+            "left_e2": "figure-3",
+            "right_coord": "figure-13",
+            "left_e1": "figure-5",
+            "left_x": "figure-1",
+            "left_y": "figure-2",
+            "right_x": "figure-6",
+            "right_y": "figure-7",
+            "left_v": "figure-4",
+            "right_v": "figure-10",
+            "right_b2": "figure-9",
+            "right_b1": "figure-8",
+            "right_guide": "figure-11"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 27.0
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.7319,
+          "detection": 0.0767,
+          "cleanup": 0.0158,
+          "preview": 0.8086
+        }
+      },
+      {
+        "error_px": {
+          "left_x": 1.12,
+          "left_y": 1.12,
+          "left_e1": 1.12,
+          "left_e2": 0.71,
+          "left_v": 1.45,
+          "left_coord": 0.71,
+          "right_x": 1.12,
+          "right_y": 1.12,
+          "right_b1": 2.06,
+          "right_b2": 2.06,
+          "right_v": 1.45,
+          "right_guide": 2.31,
+          "right_coord": 0.71
+        },
+        "passed": 13,
+        "total": 13,
+        "matched_ids": {
+          "left_coord": "figure-12",
+          "left_e2": "figure-3",
+          "right_coord": "figure-13",
+          "left_e1": "figure-5",
+          "left_x": "figure-1",
+          "left_y": "figure-2",
+          "right_x": "figure-6",
+          "right_y": "figure-7",
+          "left_v": "figure-4",
+          "right_v": "figure-10",
+          "right_b2": "figure-9",
+          "right_b1": "figure-8",
+          "right_guide": "figure-11"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 27.0,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              190.5,
+              342.5
+            ],
+            "unit_px": 77.2160752050511
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              626.5,
+              342.5
+            ],
+            "unit_px": 71.5023123427213
+          }
+        ],
+        "ocr_rows": 4,
+        "recognized_objects": 13,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.12,
+            "left_y": 1.12,
+            "left_e1": 1.12,
+            "left_e2": 0.71,
+            "left_v": 1.45,
+            "left_coord": 0.71,
+            "right_x": 1.12,
+            "right_y": 1.12,
+            "right_b1": 2.06,
+            "right_b2": 2.06,
+            "right_v": 1.45,
+            "right_guide": 2.31,
+            "right_coord": 0.71
+          },
+          "passed": 13,
+          "total": 13,
+          "matched_ids": {
+            "left_coord": "figure-12",
+            "left_e2": "figure-3",
+            "right_coord": "figure-13",
+            "left_e1": "figure-5",
+            "left_x": "figure-1",
+            "left_y": "figure-2",
+            "right_x": "figure-6",
+            "right_y": "figure-7",
+            "left_v": "figure-4",
+            "right_v": "figure-10",
+            "right_b2": "figure-9",
+            "right_b1": "figure-8",
+            "right_guide": "figure-11"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 27.0
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.7526,
+          "detection": 0.0924,
+          "cleanup": 0.0164,
+          "preview": 0.845
+        }
+      }
+    ]
+  },
+  "basis-compressed.jpg": {
+    "annotations": {
+      "left_x": [
+        [
+          15,
+          270
+        ],
+        [
+          320,
+          270
+        ]
+      ],
+      "left_y": [
+        [
+          167,
+          118
+        ],
+        [
+          167,
+          377
+        ]
+      ],
+      "left_e1": [
+        [
+          167,
+          270
+        ],
+        [
+          273,
+          270
+        ]
+      ],
+      "left_e2": [
+        [
+          167,
+          270
+        ],
+        [
+          167,
+          220
+        ]
+      ],
+      "left_v": [
+        [
+          167,
+          270
+        ],
+        [
+          273,
+          217
+        ]
+      ],
+      "left_guide": [
+        [
+          276,
+          270
+        ],
+        [
+          276,
+          220
+        ]
+      ],
+      "left_coord": {
+        "at": [
+          232,
+          96
+        ],
+        "text": "(2, 1)"
+      },
+      "right_x": [
+        [
+          348,
+          270
+        ],
+        [
+          654,
+          270
+        ]
+      ],
+      "right_y": [
+        [
+          501,
+          118
+        ],
+        [
+          501,
+          377
+        ]
+      ],
+      "right_b1": [
+        [
+          501,
+          270
+        ],
+        [
+          554,
+          270
+        ]
+      ],
+      "right_b2": [
+        [
+          501,
+          270
+        ],
+        [
+          555,
+          219
+        ]
+      ],
+      "right_v": [
+        [
+          501,
+          270
+        ],
+        [
+          607,
+          217
+        ]
+      ],
+      "right_guide": [
+        [
+          555,
+          270
+        ],
+        [
+          605,
+          220
+        ]
+      ],
+      "right_coord": {
+        "at": [
+          556,
+          96
+        ],
+        "text": "(1, 1)"
+      }
+    },
+    "cold_ocr_engine": [
+      {
+        "error_px": {
+          "left_x": 1.0,
+          "left_y": 0.0,
+          "left_e1": 2.0,
+          "left_e2": 0.01,
+          "left_v": 1.38,
+          "left_guide": 2.04,
+          "left_coord": 0.5,
+          "right_x": 1.0,
+          "right_y": 0.5,
+          "right_b1": 2.97,
+          "right_b2": 2.92,
+          "right_v": 1.39,
+          "right_guide": 3.19,
+          "right_coord": 1.12
+        },
+        "passed": 14,
+        "total": 14,
+        "matched_ids": {
+          "left_y": "figure-2",
+          "left_e2": "figure-3",
+          "left_coord": "figure-13",
+          "right_y": "figure-8",
+          "left_x": "figure-1",
+          "right_x": "figure-7",
+          "right_coord": "figure-14",
+          "left_v": "figure-5",
+          "right_v": "figure-11",
+          "left_e1": "figure-4",
+          "left_guide": "figure-6",
+          "right_b2": "figure-10",
+          "right_b1": "figure-9",
+          "right_guide": "figure-12"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 20.04,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              167.0,
+              270.0
+            ],
+            "unit_px": 52.06819032744581
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              500.5,
+              270.0
+            ],
+            "unit_px": 50.53203902277642
+          }
+        ],
+        "ocr_rows": 9,
+        "recognized_objects": 14,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.0,
+            "left_y": 0.0,
+            "left_e1": 2.0,
+            "left_e2": 0.01,
+            "left_v": 1.38,
+            "left_guide": 2.04,
+            "left_coord": 0.5,
+            "right_x": 1.0,
+            "right_y": 0.5,
+            "right_b1": 2.97,
+            "right_b2": 2.92,
+            "right_v": 1.39,
+            "right_guide": 3.19,
+            "right_coord": 1.12
+          },
+          "passed": 14,
+          "total": 14,
+          "matched_ids": {
+            "left_y": "figure-2",
+            "left_e2": "figure-3",
+            "left_coord": "figure-13",
+            "right_y": "figure-8",
+            "left_x": "figure-1",
+            "right_x": "figure-7",
+            "right_coord": "figure-14",
+            "left_v": "figure-5",
+            "right_v": "figure-11",
+            "left_e1": "figure-4",
+            "left_guide": "figure-6",
+            "right_b2": "figure-10",
+            "right_b1": "figure-9",
+            "right_guide": "figure-12"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 20.04
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 2.1937,
+          "detection": 0.0484,
+          "cleanup": 0.0128,
+          "preview": 2.2421
+        }
+      },
+      {
+        "error_px": {
+          "left_x": 1.0,
+          "left_y": 0.0,
+          "left_e1": 2.0,
+          "left_e2": 0.01,
+          "left_v": 1.38,
+          "left_guide": 2.04,
+          "left_coord": 0.5,
+          "right_x": 1.0,
+          "right_y": 0.5,
+          "right_b1": 2.97,
+          "right_b2": 2.92,
+          "right_v": 1.39,
+          "right_guide": 3.19,
+          "right_coord": 1.12
+        },
+        "passed": 14,
+        "total": 14,
+        "matched_ids": {
+          "left_y": "figure-2",
+          "left_e2": "figure-3",
+          "left_coord": "figure-13",
+          "right_y": "figure-8",
+          "left_x": "figure-1",
+          "right_x": "figure-7",
+          "right_coord": "figure-14",
+          "left_v": "figure-5",
+          "right_v": "figure-11",
+          "left_e1": "figure-4",
+          "left_guide": "figure-6",
+          "right_b2": "figure-10",
+          "right_b1": "figure-9",
+          "right_guide": "figure-12"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 20.04,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              167.0,
+              270.0
+            ],
+            "unit_px": 52.06819032744581
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              500.5,
+              270.0
+            ],
+            "unit_px": 50.53203902277642
+          }
+        ],
+        "ocr_rows": 9,
+        "recognized_objects": 14,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.0,
+            "left_y": 0.0,
+            "left_e1": 2.0,
+            "left_e2": 0.01,
+            "left_v": 1.38,
+            "left_guide": 2.04,
+            "left_coord": 0.5,
+            "right_x": 1.0,
+            "right_y": 0.5,
+            "right_b1": 2.97,
+            "right_b2": 2.92,
+            "right_v": 1.39,
+            "right_guide": 3.19,
+            "right_coord": 1.12
+          },
+          "passed": 14,
+          "total": 14,
+          "matched_ids": {
+            "left_y": "figure-2",
+            "left_e2": "figure-3",
+            "left_coord": "figure-13",
+            "right_y": "figure-8",
+            "left_x": "figure-1",
+            "right_x": "figure-7",
+            "right_coord": "figure-14",
+            "left_v": "figure-5",
+            "right_v": "figure-11",
+            "left_e1": "figure-4",
+            "left_guide": "figure-6",
+            "right_b2": "figure-10",
+            "right_b1": "figure-9",
+            "right_guide": "figure-12"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 20.04
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 2.1652,
+          "detection": 0.0771,
+          "cleanup": 0.0132,
+          "preview": 2.2423
+        }
+      },
+      {
+        "error_px": {
+          "left_x": 1.0,
+          "left_y": 0.0,
+          "left_e1": 2.0,
+          "left_e2": 0.01,
+          "left_v": 1.38,
+          "left_guide": 2.04,
+          "left_coord": 0.5,
+          "right_x": 1.0,
+          "right_y": 0.5,
+          "right_b1": 2.97,
+          "right_b2": 2.92,
+          "right_v": 1.39,
+          "right_guide": 3.19,
+          "right_coord": 1.12
+        },
+        "passed": 14,
+        "total": 14,
+        "matched_ids": {
+          "left_y": "figure-2",
+          "left_e2": "figure-3",
+          "left_coord": "figure-13",
+          "right_y": "figure-8",
+          "left_x": "figure-1",
+          "right_x": "figure-7",
+          "right_coord": "figure-14",
+          "left_v": "figure-5",
+          "right_v": "figure-11",
+          "left_e1": "figure-4",
+          "left_guide": "figure-6",
+          "right_b2": "figure-10",
+          "right_b1": "figure-9",
+          "right_guide": "figure-12"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 20.04,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              167.0,
+              270.0
+            ],
+            "unit_px": 52.06819032744581
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              500.5,
+              270.0
+            ],
+            "unit_px": 50.53203902277642
+          }
+        ],
+        "ocr_rows": 9,
+        "recognized_objects": 14,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.0,
+            "left_y": 0.0,
+            "left_e1": 2.0,
+            "left_e2": 0.01,
+            "left_v": 1.38,
+            "left_guide": 2.04,
+            "left_coord": 0.5,
+            "right_x": 1.0,
+            "right_y": 0.5,
+            "right_b1": 2.97,
+            "right_b2": 2.92,
+            "right_v": 1.39,
+            "right_guide": 3.19,
+            "right_coord": 1.12
+          },
+          "passed": 14,
+          "total": 14,
+          "matched_ids": {
+            "left_y": "figure-2",
+            "left_e2": "figure-3",
+            "left_coord": "figure-13",
+            "right_y": "figure-8",
+            "left_x": "figure-1",
+            "right_x": "figure-7",
+            "right_coord": "figure-14",
+            "left_v": "figure-5",
+            "right_v": "figure-11",
+            "left_e1": "figure-4",
+            "left_guide": "figure-6",
+            "right_b2": "figure-10",
+            "right_b1": "figure-9",
+            "right_guide": "figure-12"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 20.04
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 2.1634,
+          "detection": 0.052,
+          "cleanup": 0.0122,
+          "preview": 2.2153
+        }
+      }
+    ],
+    "warm_ocr_engine": [
+      {
+        "error_px": {
+          "left_x": 1.0,
+          "left_y": 0.0,
+          "left_e1": 2.0,
+          "left_e2": 0.01,
+          "left_v": 1.38,
+          "left_guide": 2.04,
+          "left_coord": 0.5,
+          "right_x": 1.0,
+          "right_y": 0.5,
+          "right_b1": 2.97,
+          "right_b2": 2.92,
+          "right_v": 1.39,
+          "right_guide": 3.19,
+          "right_coord": 1.12
+        },
+        "passed": 14,
+        "total": 14,
+        "matched_ids": {
+          "left_y": "figure-2",
+          "left_e2": "figure-3",
+          "left_coord": "figure-13",
+          "right_y": "figure-8",
+          "left_x": "figure-1",
+          "right_x": "figure-7",
+          "right_coord": "figure-14",
+          "left_v": "figure-5",
+          "right_v": "figure-11",
+          "left_e1": "figure-4",
+          "left_guide": "figure-6",
+          "right_b2": "figure-10",
+          "right_b1": "figure-9",
+          "right_guide": "figure-12"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 20.04,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              167.0,
+              270.0
+            ],
+            "unit_px": 52.06819032744581
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              500.5,
+              270.0
+            ],
+            "unit_px": 50.53203902277642
+          }
+        ],
+        "ocr_rows": 9,
+        "recognized_objects": 14,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.0,
+            "left_y": 0.0,
+            "left_e1": 2.0,
+            "left_e2": 0.01,
+            "left_v": 1.38,
+            "left_guide": 2.04,
+            "left_coord": 0.5,
+            "right_x": 1.0,
+            "right_y": 0.5,
+            "right_b1": 2.97,
+            "right_b2": 2.92,
+            "right_v": 1.39,
+            "right_guide": 3.19,
+            "right_coord": 1.12
+          },
+          "passed": 14,
+          "total": 14,
+          "matched_ids": {
+            "left_y": "figure-2",
+            "left_e2": "figure-3",
+            "left_coord": "figure-13",
+            "right_y": "figure-8",
+            "left_x": "figure-1",
+            "right_x": "figure-7",
+            "right_coord": "figure-14",
+            "left_v": "figure-5",
+            "right_v": "figure-11",
+            "left_e1": "figure-4",
+            "left_guide": "figure-6",
+            "right_b2": "figure-10",
+            "right_b1": "figure-9",
+            "right_guide": "figure-12"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 20.04
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 1.0156,
+          "detection": 0.0475,
+          "cleanup": 0.0115,
+          "preview": 1.0631
+        }
+      },
+      {
+        "error_px": {
+          "left_x": 1.0,
+          "left_y": 0.0,
+          "left_e1": 2.0,
+          "left_e2": 0.01,
+          "left_v": 1.38,
+          "left_guide": 2.04,
+          "left_coord": 0.5,
+          "right_x": 1.0,
+          "right_y": 0.5,
+          "right_b1": 2.97,
+          "right_b2": 2.92,
+          "right_v": 1.39,
+          "right_guide": 3.19,
+          "right_coord": 1.12
+        },
+        "passed": 14,
+        "total": 14,
+        "matched_ids": {
+          "left_y": "figure-2",
+          "left_e2": "figure-3",
+          "left_coord": "figure-13",
+          "right_y": "figure-8",
+          "left_x": "figure-1",
+          "right_x": "figure-7",
+          "right_coord": "figure-14",
+          "left_v": "figure-5",
+          "right_v": "figure-11",
+          "left_e1": "figure-4",
+          "left_guide": "figure-6",
+          "right_b2": "figure-10",
+          "right_b1": "figure-9",
+          "right_guide": "figure-12"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 20.04,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              167.0,
+              270.0
+            ],
+            "unit_px": 52.06819032744581
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              500.5,
+              270.0
+            ],
+            "unit_px": 50.53203902277642
+          }
+        ],
+        "ocr_rows": 9,
+        "recognized_objects": 14,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.0,
+            "left_y": 0.0,
+            "left_e1": 2.0,
+            "left_e2": 0.01,
+            "left_v": 1.38,
+            "left_guide": 2.04,
+            "left_coord": 0.5,
+            "right_x": 1.0,
+            "right_y": 0.5,
+            "right_b1": 2.97,
+            "right_b2": 2.92,
+            "right_v": 1.39,
+            "right_guide": 3.19,
+            "right_coord": 1.12
+          },
+          "passed": 14,
+          "total": 14,
+          "matched_ids": {
+            "left_y": "figure-2",
+            "left_e2": "figure-3",
+            "left_coord": "figure-13",
+            "right_y": "figure-8",
+            "left_x": "figure-1",
+            "right_x": "figure-7",
+            "right_coord": "figure-14",
+            "left_v": "figure-5",
+            "right_v": "figure-11",
+            "left_e1": "figure-4",
+            "left_guide": "figure-6",
+            "right_b2": "figure-10",
+            "right_b1": "figure-9",
+            "right_guide": "figure-12"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 20.04
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 1.0893,
+          "detection": 0.0477,
+          "cleanup": 0.0115,
+          "preview": 1.1369
+        }
+      },
+      {
+        "error_px": {
+          "left_x": 1.0,
+          "left_y": 0.0,
+          "left_e1": 2.0,
+          "left_e2": 0.01,
+          "left_v": 1.38,
+          "left_guide": 2.04,
+          "left_coord": 0.5,
+          "right_x": 1.0,
+          "right_y": 0.5,
+          "right_b1": 2.97,
+          "right_b2": 2.92,
+          "right_v": 1.39,
+          "right_guide": 3.19,
+          "right_coord": 1.12
+        },
+        "passed": 14,
+        "total": 14,
+        "matched_ids": {
+          "left_y": "figure-2",
+          "left_e2": "figure-3",
+          "left_coord": "figure-13",
+          "right_y": "figure-8",
+          "left_x": "figure-1",
+          "right_x": "figure-7",
+          "right_coord": "figure-14",
+          "left_v": "figure-5",
+          "right_v": "figure-11",
+          "left_e1": "figure-4",
+          "left_guide": "figure-6",
+          "right_b2": "figure-10",
+          "right_b1": "figure-9",
+          "right_guide": "figure-12"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 20.04,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              167.0,
+              270.0
+            ],
+            "unit_px": 52.06819032744581
+          },
+          {
+            "id": "system-2",
+            "origin_px": [
+              500.5,
+              270.0
+            ],
+            "unit_px": 50.53203902277642
+          }
+        ],
+        "ocr_rows": 9,
+        "recognized_objects": 14,
+        "safe_to_apply": {
+          "error_px": {
+            "left_x": 1.0,
+            "left_y": 0.0,
+            "left_e1": 2.0,
+            "left_e2": 0.01,
+            "left_v": 1.38,
+            "left_guide": 2.04,
+            "left_coord": 0.5,
+            "right_x": 1.0,
+            "right_y": 0.5,
+            "right_b1": 2.97,
+            "right_b2": 2.92,
+            "right_v": 1.39,
+            "right_guide": 3.19,
+            "right_coord": 1.12
+          },
+          "passed": 14,
+          "total": 14,
+          "matched_ids": {
+            "left_y": "figure-2",
+            "left_e2": "figure-3",
+            "left_coord": "figure-13",
+            "right_y": "figure-8",
+            "left_x": "figure-1",
+            "right_x": "figure-7",
+            "right_coord": "figure-14",
+            "left_v": "figure-5",
+            "right_v": "figure-11",
+            "left_e1": "figure-4",
+            "left_guide": "figure-6",
+            "right_b2": "figure-10",
+            "right_b1": "figure-9",
+            "right_guide": "figure-12"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 20.04
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 1.0852,
+          "detection": 0.0495,
+          "cleanup": 0.0128,
+          "preview": 1.1348
+        }
+      }
+    ]
+  },
+  "single-projection.png": {
+    "annotations": {
+      "single_x": [
+        [
+          35,
+          238
+        ],
+        [
+          421,
+          238
+        ]
+      ],
+      "single_y": [
+        [
+          132,
+          55
+        ],
+        [
+          132,
+          307
+        ]
+      ],
+      "single_e1": [
+        [
+          132,
+          238
+        ],
+        [
+          243,
+          238
+        ]
+      ],
+      "single_e2": [
+        [
+          132,
+          238
+        ],
+        [
+          132,
+          164
+        ]
+      ],
+      "single_v": [
+        [
+          132,
+          238
+        ],
+        [
+          243,
+          164
+        ]
+      ],
+      "single_guide": [
+        [
+          243,
+          238
+        ],
+        [
+          243,
+          164
+        ]
+      ],
+      "single_coord": {
+        "at": [
+          228,
+          35
+        ],
+        "text": "(3, 2)"
+      }
+    },
+    "cold_ocr_engine": [
+      {
+        "error_px": {
+          "single_x": 0.5,
+          "single_y": 0.5,
+          "single_e1": 0.71,
+          "single_e2": 0.71,
+          "single_v": 0.71,
+          "single_guide": 0.26,
+          "single_coord": 0.0
+        },
+        "passed": 7,
+        "total": 7,
+        "matched_ids": {
+          "single_coord": "figure-7",
+          "single_guide": "figure-6",
+          "single_x": "figure-1",
+          "single_y": "figure-2",
+          "single_e1": "figure-5",
+          "single_e2": "figure-3",
+          "single_v": "figure-4"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              132.5,
+              238.5
+            ],
+            "unit_px": 37.22681533605488
+          }
+        ],
+        "ocr_rows": 1,
+        "recognized_objects": 7,
+        "safe_to_apply": {
+          "error_px": {
+            "single_x": 0.5,
+            "single_y": 0.5,
+            "single_e1": 0.71,
+            "single_e2": 0.71,
+            "single_v": 0.71,
+            "single_guide": 0.26,
+            "single_coord": 0.0
+          },
+          "passed": 7,
+          "total": 7,
+          "matched_ids": {
+            "single_coord": "figure-7",
+            "single_guide": "figure-6",
+            "single_x": "figure-1",
+            "single_y": "figure-2",
+            "single_e1": "figure-5",
+            "single_e2": "figure-3",
+            "single_v": "figure-4"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.7625,
+          "detection": 0.0291,
+          "cleanup": 0.0061,
+          "preview": 0.7915
+        }
+      },
+      {
+        "error_px": {
+          "single_x": 0.5,
+          "single_y": 0.5,
+          "single_e1": 0.71,
+          "single_e2": 0.71,
+          "single_v": 0.71,
+          "single_guide": 0.26,
+          "single_coord": 0.0
+        },
+        "passed": 7,
+        "total": 7,
+        "matched_ids": {
+          "single_coord": "figure-7",
+          "single_guide": "figure-6",
+          "single_x": "figure-1",
+          "single_y": "figure-2",
+          "single_e1": "figure-5",
+          "single_e2": "figure-3",
+          "single_v": "figure-4"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              132.5,
+              238.5
+            ],
+            "unit_px": 37.22681533605488
+          }
+        ],
+        "ocr_rows": 1,
+        "recognized_objects": 7,
+        "safe_to_apply": {
+          "error_px": {
+            "single_x": 0.5,
+            "single_y": 0.5,
+            "single_e1": 0.71,
+            "single_e2": 0.71,
+            "single_v": 0.71,
+            "single_guide": 0.26,
+            "single_coord": 0.0
+          },
+          "passed": 7,
+          "total": 7,
+          "matched_ids": {
+            "single_coord": "figure-7",
+            "single_guide": "figure-6",
+            "single_x": "figure-1",
+            "single_y": "figure-2",
+            "single_e1": "figure-5",
+            "single_e2": "figure-3",
+            "single_v": "figure-4"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.7715,
+          "detection": 0.0273,
+          "cleanup": 0.006,
+          "preview": 0.7988
+        }
+      },
+      {
+        "error_px": {
+          "single_x": 0.5,
+          "single_y": 0.5,
+          "single_e1": 0.71,
+          "single_e2": 0.71,
+          "single_v": 0.71,
+          "single_guide": 0.26,
+          "single_coord": 0.0
+        },
+        "passed": 7,
+        "total": 7,
+        "matched_ids": {
+          "single_coord": "figure-7",
+          "single_guide": "figure-6",
+          "single_x": "figure-1",
+          "single_y": "figure-2",
+          "single_e1": "figure-5",
+          "single_e2": "figure-3",
+          "single_v": "figure-4"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              132.5,
+              238.5
+            ],
+            "unit_px": 37.22681533605488
+          }
+        ],
+        "ocr_rows": 1,
+        "recognized_objects": 7,
+        "safe_to_apply": {
+          "error_px": {
+            "single_x": 0.5,
+            "single_y": 0.5,
+            "single_e1": 0.71,
+            "single_e2": 0.71,
+            "single_v": 0.71,
+            "single_guide": 0.26,
+            "single_coord": 0.0
+          },
+          "passed": 7,
+          "total": 7,
+          "matched_ids": {
+            "single_coord": "figure-7",
+            "single_guide": "figure-6",
+            "single_x": "figure-1",
+            "single_y": "figure-2",
+            "single_e1": "figure-5",
+            "single_e2": "figure-3",
+            "single_v": "figure-4"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.8382,
+          "detection": 0.0279,
+          "cleanup": 0.006,
+          "preview": 0.8661
+        }
+      }
+    ],
+    "warm_ocr_engine": [
+      {
+        "error_px": {
+          "single_x": 0.5,
+          "single_y": 0.5,
+          "single_e1": 0.71,
+          "single_e2": 0.71,
+          "single_v": 0.71,
+          "single_guide": 0.26,
+          "single_coord": 0.0
+        },
+        "passed": 7,
+        "total": 7,
+        "matched_ids": {
+          "single_coord": "figure-7",
+          "single_guide": "figure-6",
+          "single_x": "figure-1",
+          "single_y": "figure-2",
+          "single_e1": "figure-5",
+          "single_e2": "figure-3",
+          "single_v": "figure-4"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              132.5,
+              238.5
+            ],
+            "unit_px": 37.22681533605488
+          }
+        ],
+        "ocr_rows": 1,
+        "recognized_objects": 7,
+        "safe_to_apply": {
+          "error_px": {
+            "single_x": 0.5,
+            "single_y": 0.5,
+            "single_e1": 0.71,
+            "single_e2": 0.71,
+            "single_v": 0.71,
+            "single_guide": 0.26,
+            "single_coord": 0.0
+          },
+          "passed": 7,
+          "total": 7,
+          "matched_ids": {
+            "single_coord": "figure-7",
+            "single_guide": "figure-6",
+            "single_x": "figure-1",
+            "single_y": "figure-2",
+            "single_e1": "figure-5",
+            "single_e2": "figure-3",
+            "single_v": "figure-4"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.2669,
+          "detection": 0.0272,
+          "cleanup": 0.0063,
+          "preview": 0.2941
+        }
+      },
+      {
+        "error_px": {
+          "single_x": 0.5,
+          "single_y": 0.5,
+          "single_e1": 0.71,
+          "single_e2": 0.71,
+          "single_v": 0.71,
+          "single_guide": 0.26,
+          "single_coord": 0.0
+        },
+        "passed": 7,
+        "total": 7,
+        "matched_ids": {
+          "single_coord": "figure-7",
+          "single_guide": "figure-6",
+          "single_x": "figure-1",
+          "single_y": "figure-2",
+          "single_e1": "figure-5",
+          "single_e2": "figure-3",
+          "single_v": "figure-4"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              132.5,
+              238.5
+            ],
+            "unit_px": 37.22681533605488
+          }
+        ],
+        "ocr_rows": 1,
+        "recognized_objects": 7,
+        "safe_to_apply": {
+          "error_px": {
+            "single_x": 0.5,
+            "single_y": 0.5,
+            "single_e1": 0.71,
+            "single_e2": 0.71,
+            "single_v": 0.71,
+            "single_guide": 0.26,
+            "single_coord": 0.0
+          },
+          "passed": 7,
+          "total": 7,
+          "matched_ids": {
+            "single_coord": "figure-7",
+            "single_guide": "figure-6",
+            "single_x": "figure-1",
+            "single_y": "figure-2",
+            "single_e1": "figure-5",
+            "single_e2": "figure-3",
+            "single_v": "figure-4"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.2456,
+          "detection": 0.0284,
+          "cleanup": 0.0065,
+          "preview": 0.2741
+        }
+      },
+      {
+        "error_px": {
+          "single_x": 0.5,
+          "single_y": 0.5,
+          "single_e1": 0.71,
+          "single_e2": 0.71,
+          "single_v": 0.71,
+          "single_guide": 0.26,
+          "single_coord": 0.0
+        },
+        "passed": 7,
+        "total": 7,
+        "matched_ids": {
+          "single_coord": "figure-7",
+          "single_guide": "figure-6",
+          "single_x": "figure-1",
+          "single_y": "figure-2",
+          "single_e1": "figure-5",
+          "single_e2": "figure-3",
+          "single_v": "figure-4"
+        },
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [
+          {
+            "id": "system-1",
+            "origin_px": [
+              132.5,
+              238.5
+            ],
+            "unit_px": 37.22681533605488
+          }
+        ],
+        "ocr_rows": 1,
+        "recognized_objects": 7,
+        "safe_to_apply": {
+          "error_px": {
+            "single_x": 0.5,
+            "single_y": 0.5,
+            "single_e1": 0.71,
+            "single_e2": 0.71,
+            "single_v": 0.71,
+            "single_guide": 0.26,
+            "single_coord": 0.0
+          },
+          "passed": 7,
+          "total": 7,
+          "matched_ids": {
+            "single_coord": "figure-7",
+            "single_guide": "figure-6",
+            "single_x": "figure-1",
+            "single_y": "figure-2",
+            "single_e1": "figure-5",
+            "single_e2": "figure-3",
+            "single_v": "figure-4"
+          },
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.2477,
+          "detection": 0.0285,
+          "cleanup": 0.0073,
+          "preview": 0.2763
+        }
+      }
+    ]
+  },
+  "axis-like-negative.png": {
+    "annotations": {},
+    "cold_ocr_engine": [
+      {
+        "error_px": {},
+        "passed": 0,
+        "total": 0,
+        "matched_ids": {},
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [],
+        "ocr_rows": 1,
+        "recognized_objects": 0,
+        "safe_to_apply": {
+          "error_px": {},
+          "passed": 0,
+          "total": 0,
+          "matched_ids": {},
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.7612,
+          "detection": 0.0208,
+          "cleanup": 0.0014,
+          "preview": 0.782
+        }
+      },
+      {
+        "error_px": {},
+        "passed": 0,
+        "total": 0,
+        "matched_ids": {},
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [],
+        "ocr_rows": 1,
+        "recognized_objects": 0,
+        "safe_to_apply": {
+          "error_px": {},
+          "passed": 0,
+          "total": 0,
+          "matched_ids": {},
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.7666,
+          "detection": 0.0196,
+          "cleanup": 0.0007,
+          "preview": 0.7862
+        }
+      },
+      {
+        "error_px": {},
+        "passed": 0,
+        "total": 0,
+        "matched_ids": {},
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [],
+        "ocr_rows": 1,
+        "recognized_objects": 0,
+        "safe_to_apply": {
+          "error_px": {},
+          "passed": 0,
+          "total": 0,
+          "matched_ids": {},
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.7976,
+          "detection": 0.023,
+          "cleanup": 0.0008,
+          "preview": 0.8206
+        }
+      }
+    ],
+    "warm_ocr_engine": [
+      {
+        "error_px": {},
+        "passed": 0,
+        "total": 0,
+        "matched_ids": {},
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [],
+        "ocr_rows": 1,
+        "recognized_objects": 0,
+        "safe_to_apply": {
+          "error_px": {},
+          "passed": 0,
+          "total": 0,
+          "matched_ids": {},
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.2766,
+          "detection": 0.0203,
+          "cleanup": 0.0008,
+          "preview": 0.2969
+        }
+      },
+      {
+        "error_px": {},
+        "passed": 0,
+        "total": 0,
+        "matched_ids": {},
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [],
+        "ocr_rows": 1,
+        "recognized_objects": 0,
+        "safe_to_apply": {
+          "error_px": {},
+          "passed": 0,
+          "total": 0,
+          "matched_ids": {},
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.2483,
+          "detection": 0.0204,
+          "cleanup": 0.0009,
+          "preview": 0.2687
+        }
+      },
+      {
+        "error_px": {},
+        "passed": 0,
+        "total": 0,
+        "matched_ids": {},
+        "missing": [],
+        "duplicates": [],
+        "extras": [],
+        "threshold_px": 13.799999999999999,
+        "systems": [],
+        "ocr_rows": 1,
+        "recognized_objects": 0,
+        "safe_to_apply": {
+          "error_px": {},
+          "passed": 0,
+          "total": 0,
+          "matched_ids": {},
+          "missing": [],
+          "duplicates": [],
+          "extras": [],
+          "threshold_px": 13.799999999999999
+        },
+        "raster_preserved_ids": [],
+        "vision_calls": 0,
+        "seconds": {
+          "ocr": 0.2602,
+          "detection": 0.0203,
+          "cleanup": 0.0007,
+          "preview": 0.2805
+        }
+      }
+    ]
+  }
+}

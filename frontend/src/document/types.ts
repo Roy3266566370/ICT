@@ -47,6 +47,32 @@ export interface MathScene {
   progress: number; animation_step: number;
   viewer_parameters: Array<'vector'|'matrix'|'progress'|'radius'|'style'>;
 }
+export type FigureProvenance='native'|'pixel'|'vision'|'user_confirmed';
+export interface FigureScene {
+  version:1;
+  frame:{width:number;height:number};
+  systems:Array<{id:string;origin_px:[number,number];unit_px:number}>;
+  objects:Array<{
+    id:string;type:'axis'|'segment'|'vector'|'polyline'|'dashed'|'text';points:Array<[number,number]>;
+    system_id:string|null;text:string|null;style:{stroke:string;width:number};provenance:FigureProvenance;
+    evidence:string[];confidence:number|null;bbox:[number,number,number,number]|null;label_id:string|null;
+    role?:'basis_vector'|'result_vector'|'coordinate_axis'|'guide'|'coordinate_label'|null;
+  }>;
+  warnings:string[];
+  relations:Array<{kind:string;objects:string[]}>;
+}
+export interface FigureVectorization {
+  preview_id:string;
+  source_node_id:string;
+  source_revision:number;
+  scene:FigureScene;
+  nodes:SceneNode[];
+  cleaned_asset_id:string|null;
+  cleaned_url:string|null;
+  source_url?:string|null;
+  vision_available:boolean;
+  diagnostics?:{elapsed_ms:number;cache_hit:boolean;warnings?:string[];vision_status?:'applied'|'skipped'|'failed'};
+}
 export interface SceneNode {
   diagram?: import('../living/diagram').DiagramDoc;
   demo?: import('../ppt-ai/pageLabTypes').PageLab|null;
@@ -62,6 +88,8 @@ export interface SceneNode {
   source_element_id?:string|null;source_shape_id?:number|null;whole_group?:boolean;content_changed?:boolean;
   paragraphs?:Array<{text:string;align?:TextStyle['align'];line_height?:number;line_spacing_pt?:number;space_before?:number;space_after?:number;runs:Array<{text:string;style:Partial<TextStyle>}>}>;
   image_url?:string|null;background_url?:string|null;image_data?:string;asset_id?:string|null;background_asset_id?:string|null;
+  cleaned_asset_id?:string|null;cleaned_url?:string|null;figure_scene?:FigureScene|null;
+  figure_source_id?:string;figure_object_id?:string;figure_provenance?:FigureProvenance;text_transform?:[number,number,number,number];
   image_frame?:[number,number];image_scale?:number;image_size?:[number,number];
   background_frame?:[number,number];background_scale?:number;background_size?:[number,number];word_wrap?:boolean;
   shape?:'rect'|'ellipse';duplicate_from?:string;table?:string[][];base_table?:string[][];chart?:ChartData|null;base_chart?:ChartData|null;
@@ -69,8 +97,9 @@ export interface SceneNode {
 }
 export interface ScenePage {
   page_no:number;id?:string;width:number;height:number;nodes:SceneNode[];modified?:boolean;auto_vectors?:boolean;background_url?:string;
+  figure_scenes?:Record<string,FigureScene>;
   preparation?:{status:'unprepared'|'queued'|'preparing'|'ready'|'failed';message?:string;errors?:string[];frozen_ids?:string[];seconds?:number};
 }
 export interface SceneDocument {schema_version:string;revision:number;title:string;source_key?:string;pages:ScenePage[];}
-export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'table'|'chart'|'crop'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'math_scene'|'matrix_ocr'|'diagram'|'demo'>> & {style?:Partial<TextStyle>};
+export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'table'|'chart'|'crop'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'math_scene'|'matrix_ocr'|'diagram'|'demo'|'cleaned_asset_id'|'figure_scene'>> & {style?:Partial<TextStyle>};
 export interface NodeChange {page_no:number;id:string;patch?:NodePatch;create?:Record<string,unknown>;}

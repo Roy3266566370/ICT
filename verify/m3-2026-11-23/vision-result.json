@@ -1,0 +1,25 @@
+{
+  "model": "Qwen/Qwen3-VL-32B-Instruct",
+  "pixel_ms": 2359,
+  "warm_ms": 0,
+  "candidate_objects": 13,
+  "applicable_objects": 13,
+  "vision_elapsed_seconds": 32.313,
+  "vision": {
+    "cache_hit": true,
+    "elapsed_ms": 32313,
+    "ocr_ms": 2203,
+    "warnings": [
+      "视觉增强暂不可用，已保留本地候选"
+    ],
+    "vision_status": "failed"
+  },
+  "raw_diagnostics": [
+    {
+      "rejected": [],
+      "responses": [],
+      "error": "transport",
+      "elapsed_ms": 32313
+    }
+  ]
+}

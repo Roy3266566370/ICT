@@ -1,13 +1,15 @@
 """Fast webpage editing: content/layout patches never enqueue PPT or OCR jobs."""
 from __future__ import annotations
 import json,re,time
+from typing import Literal
 from fastapi import APIRouter,BackgroundTasks,Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel,ConfigDict,Field
 from . import API_PREFIX,DBDep,SessionDep,WriteDep,ok,owned_material
 from ..documents.store import DocumentConflict,patch_document,read_document,reinteract_page
-from ..documents.layers import ensure_document,hydrate_document,layer_dir,manifest_ready,prepare_page,read_manifest
+from ..documents.layers import ensure_document,has_rendered_pages,hydrate_document,layer_dir,manifest_ready,prepare_page,read_manifest
 from ..documents.capabilities import layer_editor_available
+from ..schemas.common import is_expired
 from ..schemas.errors import missing_field,resource_unavailable,version_conflict
 
 router=APIRouter(prefix=API_PREFIX,tags=['documents'])
@@ -26,6 +28,49 @@ class DiagramRequest(BaseModel):
     model_config=ConfigDict(extra='forbid')
     text:str=Field(default='',max_length=6000)
     ai:bool=False
+
+class VectorizeRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    stage:Literal['pixel','vision']='pixel'
+    expected_revision:int=Field(ge=0)
+    preview_id:str|None=Field(default=None,pattern=r'^[a-f0-9]{64}$')
+
+@router.post('/materials/{material_id}/pages/{page_no}/figures/{element_id}/vectorize')
+def vectorize_document_figure(material_id:str,page_no:int,element_id:str,payload:VectorizeRequest,
+                               request:Request,ctx:WriteDep,db:DBDep):
+    from ..documents.figure_service import vectorize
+    material=owned_material(db,ctx,material_id)
+    if is_expired(material.expires_at):
+        raise resource_unavailable()
+    if material.status=='processing':
+        raise missing_field('材料正在处理，请等待原页就绪')
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,96}',element_id):
+        raise missing_field('图片标识无效')
+    try:
+        ensure_document(material_id,material.title)
+        result=vectorize(material_id,page_no,element_id,**payload.model_dump())
+    except DocumentConflict as error:
+        current=read_document(material_id) or {}
+        raise version_conflict(str(error),current_revision=current.get('revision')) from error
+    except OSError as error:
+        raise missing_field('图片无法读取，原图仍可继续使用') from error
+    except ValueError as error:
+        raise missing_field(str(error)) from error
+    return ok(request,result)
+
+@router.get('/materials/{material_id}/pages/{page_no}/figures/assets/{asset_id}/{kind}.png')
+def document_figure_asset(material_id:str,page_no:int,asset_id:str,kind:Literal['source','cleaned'],
+                          ctx:SessionDep,db:DBDep):
+    from ..documents.figure_service import asset_path
+    material=owned_material(db,ctx,material_id)
+    if is_expired(material.expires_at):
+        raise resource_unavailable()
+    if not 1<=page_no<=10000:
+        raise resource_unavailable()
+    path=asset_path(material_id,page_no,asset_id,kind)
+    if not path:
+        raise resource_unavailable()
+    return FileResponse(path,media_type='image/png',headers={'Cache-Control':'private, max-age=31536000, immutable'})
 
 @router.post('/materials/{material_id}/document/pages/{page_no}/diagram')
 def create_inline_diagram(material_id:str,page_no:int,payload:DiagramRequest,request:Request,ctx:WriteDep,db:DBDep):
@@ -71,6 +116,8 @@ def prepare_document_page(material_id:str,page_no:int,request:Request,ctx:WriteD
     material=owned_material(db,ctx,material_id)
     document=ensure_document(material_id,material.title)
     if page_no not in [p['page_no'] for p in document['pages']]:raise missing_field('页面不存在')
+    if any(page['page_no']==page_no and page.get('rendered_only') for page in document['pages']):
+        return ok(request,{'status':'ready'},status_code=202)
     manifest=read_manifest(material_id,document['source_key'],page_no)
     if manifest_ready(manifest):
         status='ready'
@@ -103,7 +150,13 @@ def reinteract_document_page(material_id:str,page_no:int,payload:ReinteractReque
 @router.get('/materials/{material_id}/document/capabilities')
 def document_capabilities(material_id:str,request:Request,ctx:SessionDep,db:DBDep):
     owned_material(db,ctx,material_id)
+    from ..editing import working_path
+    current=read_document(material_id)
     available,reason,engine=layer_editor_available()
+    if ((current and any(page.get('rendered_only') for page in current['pages']))
+            or (not current and (not available or not working_path(material_id).is_file())
+                and has_rendered_pages(material_id))):
+        return ok(request,{'free_editing':True,'engine':'rendered_page','reason':None})
     return ok(request,{'free_editing':available,'engine':engine,'reason':reason})
 
 @router.get('/materials/{material_id}/document/assets/{key}/{page_no}/{filename}')

@@ -32,7 +32,8 @@ def validate_patch(patch:dict)->dict:
     normalized=deepcopy(patch)
     numeric={'x':(-20000,20000),'y':(-20000,20000),'width':(.1,20000),'height':(.1,20000),
       'rotation':(-36000,36000),'z':(-10000,10000),'opacity':(0,1)}
-    allowed=set(numeric)|{'locked','hidden','deleted','text','style','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo'}
+    allowed=set(numeric)|{'locked','hidden','deleted','text','style','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo',
+        'cleaned_asset_id','figure_scene','figure_source_id','figure_object_id','figure_provenance'}
     if set(patch)-allowed:raise ValueError('修改包含不可编辑字段')
     for key,value in patch.items():
         if key in numeric:_number(value,*numeric[key])
@@ -42,6 +43,19 @@ def validate_patch(patch:dict)->dict:
             if (not isinstance(value,list) or len(value)>3 or any(k not in ('geometry','style','flow') for k in value)
                     or len(set(value))!=len(value)):
                 raise ValueError('观众可编辑线条参数不合法')
+        elif key=='cleaned_asset_id':
+            if value is not None and (not isinstance(value,str) or not re.fullmatch(r'[a-f0-9]{64}',value)):
+                raise ValueError('清底资产标识不合法')
+        elif key=='figure_scene':
+            if value is not None:
+                from .figure_scene import FigureScene
+                normalized[key]=FigureScene.model_validate(value).model_dump(mode='json')
+        elif key in ('figure_source_id','figure_object_id'):
+            if value is not None and (not isinstance(value,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,96}',value)):
+                raise ValueError('图示来源标识不合法')
+        elif key=='figure_provenance':
+            if value not in (None,'pixel','vision','user_confirmed'):
+                raise ValueError('图示来源类型不可写入')
         elif key=='math_scene':
             from .math_scene import validate_math_scene
             validate_math_scene(value)
@@ -120,12 +134,14 @@ def _create(page,identifier,data):
         original=next((n for n in page['nodes'] if n['id']==source),None)
         if original is None:raise ValueError('复制源对象不存在')
         node=deepcopy(original)
+        for key in ('cleaned_asset_id','figure_scene','figure_source_id','figure_object_id','figure_provenance'):
+            node.pop(key,None)
         node.update(id=identifier,source_element_id=None,source_shape_id=None,duplicate_from=source,
                     name=original['name']+' 副本',deleted=False,locked=False)
         update={k:v for k,v in data.items() if k!='duplicate_from'}
         update=validate_patch(update);node.update(update)
     else:
-        if set(data)-{'type','text','x','y','width','height','rotation','z','style','image_data','shape','opacity','locked','hidden','deleted','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo'}:raise ValueError('新增对象包含不可用字段')
+        if set(data)-{'type','name','text','x','y','width','height','rotation','z','style','image_data','shape','opacity','locked','hidden','deleted','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo','figure_provenance','figure_source_id','figure_object_id'}:raise ValueError('新增对象包含不可用字段')
         kind=data.get('type','text')
         if kind not in ('text','shape','image','vector','math_scene','diagram','demo'):raise ValueError('对象类型不支持新增')
         if kind=='diagram' and 'diagram' not in data:raise ValueError('流程图缺少节点和连线')
@@ -138,7 +154,11 @@ def _create(page,identifier,data):
           'text':data.get('text','新文字'),'base_text':None,'style':style,'base_style':{},'paragraphs':[],
           'opacity':1,'locked':False,'hidden':False,'deleted':False,'source_element_id':None,'source_shape_id':None,
           'asset_id':None,'background_asset_id':None,'shape':data.get('shape','rect')}
-        update={k:v for k,v in data.items() if k not in ('type','image_data','shape')}
+        if 'name' in data:
+            if not isinstance(data['name'],str) or not data['name'].strip() or len(data['name'])>100:
+                raise ValueError('对象名称不合法')
+            node['name']=data['name']
+        update={k:v for k,v in data.items() if k not in ('type','image_data','shape','name')}
         update=validate_patch(update)
         node.update(update);node['style']=style
         if 'interaction' in update:
@@ -228,6 +248,12 @@ def patch_document(material_id:str,expected_revision:int,operation_id:str,change
                 patch=change.get('patch')
                 if not isinstance(patch,dict):raise ValueError('修改字段缺失')
                 patch=validate_patch(patch)
+                if patch.get('cleaned_asset_id'):
+                    if node['type']!='image':
+                        raise ValueError('清底资产只能应用于图片')
+                    from .figure_service import validate_asset_binding
+                    validate_asset_binding(material_id,page['page_no'],document['source_key'],
+                                           {**node,**patch},patch['cleaned_asset_id'])
                 if 'style' in patch:
                     node['style']={**node['style'],**patch['style']}
                     node['style_modified']=list(set(node.get('style_modified',[]))|set(patch['style']))

@@ -626,10 +626,9 @@ def apply_user_interactions(specs, parsed, metadata):
                 if spec['kind']=='geometric' and source_element['bbox']['w']*source_element['bbox']['h'] < page.get('width',1)*page.get('height',1)*.08:
                     source_element=max(pictures,key=lambda e:e['bbox']['w']*e['bbox']['h'])
                 _anchor(spec,page,source_element)
-        result.extend(_spatial_specs(page))
         concepts=_concept_specs(page)
         if concepts:
-            # 行列式页的四格面积比单个轴向伸缩更完整，替换掉旧的 scale 占位交互。
+            # 已保存的轴向伸缩规格仍沿用原有优先级。
             page_no=page.get('page_no')
             result=[spec for spec in result if not (
                 spec.get('parameters') and spec['parameters'][0]['source']['page']==page_no
