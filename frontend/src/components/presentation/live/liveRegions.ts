@@ -98,15 +98,21 @@ export function planLive(spec: ISpec, pageNo: number): LivePlan {
     };
   }
 
+  const suppressClusters = (recognized.length > 0 || figure !== null) && (
+    spec.object_id.startsWith('concept_') ||
+    numeric.some(p => /^cells_\d+_/.test(p.id))
+  );
   const byElement = new Map<string, { bbox: EmuBox; ids: string[] }>();
-  for (const parameter of numeric) {
-    if (boundIds.has(parameter.id)) continue;
-    const { page, element_id: elementId, bbox } = parameter.source;
-    if (page !== pageNo || !elementId || !validBox(bbox)) continue;
-    if (figure && elementId === figure.elementId) continue;
-    const group = byElement.get(elementId) ?? { bbox, ids: [] };
-    group.ids.push(parameter.id);
-    byElement.set(elementId, group);
+  if (!suppressClusters) {
+    for (const parameter of numeric) {
+      if (boundIds.has(parameter.id)) continue;
+      const { page, element_id: elementId, bbox } = parameter.source;
+      if (page !== pageNo || !elementId || !validBox(bbox)) continue;
+      if (figure && elementId === figure.elementId) continue;
+      const group = byElement.get(elementId) ?? { bbox, ids: [] };
+      group.ids.push(parameter.id);
+      byElement.set(elementId, group);
+    }
   }
   const clusters = [...byElement].map(([elementId, group]) => ({
     key: `${spec.object_id}:${elementId}`, specId: spec.object_id, elementId, bbox: group.bbox, paramIds: group.ids,

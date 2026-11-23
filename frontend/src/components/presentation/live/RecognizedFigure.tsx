@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, useCallback, useLayoutEffect, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useMemo, useRef, useState, useCallback, useLayoutEffect, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import type { FigureScene, ISpec } from '@/ispec/types';
 import { isOffBaseline, type RecognizedRegion } from './liveRegions';
 import { useRingBackground } from './bgSample';
@@ -142,13 +142,8 @@ function Caption({ scene, text, shared, cover }: {
 function RecognizedFigureInner({ region, spec, cells, shared, reducedMotion }: Props) {
   const scene = region.scene;
   const bind = scene.bind!;
-  const [hover, setHover] = useState(false);
-  const [pinned, setPinned] = useState(false);
   const [dragging, setDragging] = useState<0 | 1 | 2>(0);
   const svgRef = useRef<SVGSVGElement>(null);
-  const timer = useRef<number | null>(null);
-
-  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
 
   const m: [number, number, number, number] = [
     num(cells[bind.a], scene.baseline[0]), num(cells[bind.b], scene.baseline[1]),
@@ -156,7 +151,7 @@ function RecognizedFigureInner({ region, spec, cells, shared, reducedMotion }: P
   ];
   const dirty = spec.parameters.some(p => (p.id === bind.a || p.id === bind.b || p.id === bind.c || p.id === bind.d)
     && isOffBaseline(p, cells[p.id]));
-  const active = hover || pinned || dirty;
+  const active = true;
   const det = m[0] * m[3] - m[1] * m[2];
 
   const fraction = useMemo(() => ({
@@ -183,9 +178,6 @@ function RecognizedFigureInner({ region, spec, cells, shared, reducedMotion }: P
   };
   const h1 = handleAt(tip1, [1, 0]);
   const h2 = handleAt(tip2, [0, 1]);
-
-  const checks = (scene.checks ?? []).filter(c => c.pass).length;
-  const checksTotal = (scene.checks ?? []).length;
 
   const toImage = useCallback((event: { clientX: number; clientY: number }): Vec | null => {
     const node = svgRef.current;
@@ -216,9 +208,6 @@ function RecognizedFigureInner({ region, spec, cells, shared, reducedMotion }: P
   };
   const up = () => setDragging(0);
 
-  const enter = () => { if (!timer.current) timer.current = window.setTimeout(() => { timer.current = null; setHover(true); }, 140); };
-  const leave = () => { if (timer.current) { window.clearTimeout(timer.current); timer.current = null; } setHover(false); };
-
   const keyNudge = (which: 1 | 2, dx: number, dy: number) => {
     const [x, y] = which === 1 ? [m[0], m[2]] : [m[1], m[3]];
     const nx = Math.round((x + dx) * 50) / 50, ny = Math.round((y + dy) * 50) / 50;
@@ -234,17 +223,21 @@ function RecognizedFigureInner({ region, spec, cells, shared, reducedMotion }: P
   const caption = captionText(scene, m);
   const captionChanged = caption !== null && caption.parts.map(p => p.text).join('') !== (scene.caption?.text ?? '');
 
+  const resetPanel = () => {
+    shared.onChange(spec, bind.a, scene.baseline[0]);
+    shared.onChange(spec, bind.b, scene.baseline[1]);
+    shared.onChange(spec, bind.c, scene.baseline[2]);
+    shared.onChange(spec, bind.d, scene.baseline[3]);
+  };
+
   return <>
     <div className={styles.figureHost} data-active={active} data-reduced={reducedMotion}
       data-live-region={region.key} data-live-kind="figure" data-live-title={spec.title ?? '图形'}
       data-live-params={[bind.a, bind.b, bind.c, bind.d].join('、')} data-flash={shared.flashKey === region.key}
       data-recognized="true" data-no-pan
-      style={shared.place(region.bbox, region.elementId)}
-      onPointerEnter={enter} onPointerLeave={leave}>
-      <div className={styles.figureBadge}>
-        <span>{active ? `活图 · 校验 ${checks}/${checksTotal}` : '◈ 可交互图形'}</span>
-        <button type="button" aria-pressed={pinned} onClick={() => setPinned(v => !v)}
-          title={pinned ? '取消固定' : '固定显示活图'}>{pinned ? '已固定' : '固定'}</button>
+      style={shared.place(region.bbox, region.elementId)}>
+      <div className={styles.figureCornerActions}>
+        {dirty && <button type="button" onClick={resetPanel} title="恢复本图原稿">重置</button>}
         <button type="button" onClick={() => shared.onExpand(spec.object_id)}
           aria-label={`展开实验页：${spec.title ?? '交互'}`} title="展开为完整实验页">↗</button>
       </div>

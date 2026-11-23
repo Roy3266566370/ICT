@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { FigureSpecView } from '@/components/ispec/views/FigureSpecView';
 import { evaluateSpec } from '@/ispec/evaluate';
 import { formatNumberSmart } from '@/ispec/format';
@@ -89,15 +89,12 @@ const Figure = memo(function Figure({ figure, spec, plan, cells, evaluation, bas
   figure: LiveFigureRegion; spec: ISpec; plan: LivePlan; cells: Cells; evaluation: SpecEvaluation; base: SpecEvaluation;
   shared: Pick<Props, 'place' | 'disabled' | 'onChange' | 'onExpand' | 'flashKey' | 'pageSize' | 'pageImageUrl'>; reducedMotion: boolean;
 }) {
-  const [hover, setHover] = useState(false);
-  const [pinned, setPinned] = useState(false);
   const [stage, setStage] = useState<0 | 1 | 2>(2);
   const [size, setSize] = useState({ w: 0, h: 0, natural: 0 });
   const host = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
-  const timer = useRef<number | null>(null);
   const isStep = figure.view.spec_ref === 'step_diagram';
-  const active = hover || pinned;
+  const active = true;
   const NATURAL_W = 640;
 
   const fraction = useMemo(() => ({
@@ -106,7 +103,6 @@ const Figure = memo(function Figure({ figure, spec, plan, cells, evaluation, bas
   }), [figure.bbox, shared.pageSize.width, shared.pageSize.height]);
   const surfaceBg = useRingBackground(shared.pageImageUrl, fraction, true);
 
-  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
   useLayoutEffect(() => {
     const node = host.current;
     if (!node) return;
@@ -116,49 +112,46 @@ const Figure = memo(function Figure({ figure, spec, plan, cells, evaluation, bas
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [active]);
+  }, []);
   useLayoutEffect(() => {
-    if (active && inner.current) setSize(current => ({ ...current, natural: inner.current!.offsetHeight }));
-  }, [active, cells, stage]);
+    if (inner.current) setSize(current => ({ ...current, natural: inner.current!.offsetHeight }));
+  }, [cells, stage]);
 
   const scale = size.natural > 0 && size.w > 0 ? Math.min(size.w / NATURAL_W, size.h / size.natural) : 0;
   const params = figure.paramIds.map(id => spec.parameters.find(p => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p);
-  const enter = () => { if (!timer.current) timer.current = window.setTimeout(() => { timer.current = null; setHover(true); }, 100); };
-  const leave = () => { if (timer.current) { window.clearTimeout(timer.current); timer.current = null; } setHover(false); };
+  const dirty = spec.parameters.some(p => isOffBaseline(p, cells[p.id]));
+  const resetFigure = () => {
+    for (const p of spec.parameters) {
+      const baseVal = baselineValue(p);
+      if (typeof baseVal === 'number') shared.onChange(spec, p.id, baseVal);
+    }
+  };
   const placed = shared.place(figure.bbox, figure.elementId);
   return <div ref={host} className={styles.figureHost} data-active={active} data-reduced={reducedMotion}
     data-live-region={figure.key} data-live-kind="figure" data-live-title={spec.title ?? '图形'}
     data-live-params={spec.parameters.map(p => p.id).join('、')} data-flash={shared.flashKey === figure.key} data-no-pan
-    style={{ ...placed, ['--live-fig-bg' as string]: surfaceBg ?? undefined }}
-    onClick={(event) => {
-      if ((event.target as Element).closest('button,input,select,[role="slider"]')) return;
-      if (!pinned) setPinned(true);
-    }}
-    onPointerEnter={enter} onPointerLeave={leave}>
-    <div className={styles.figureBadge}>
-      <span>{active ? '活图' : '◈ 点击常驻交互'}</span>
-      {active && isStep && <span className={styles.stagePills} role="group" aria-label="步骤切换">
-        {(['输入', '中间态', '最终'] as const).map((label, idx) => (
-          <button key={label} type="button" aria-pressed={stage === idx}
-            onClick={() => { setPinned(true); setStage(idx as 0 | 1 | 2); }}>{label}</button>
-        ))}
-      </span>}
-      <button type="button" aria-pressed={pinned} onClick={() => setPinned(value => !value)}
-        title={pinned ? '取消固定' : '固定显示活图'}>{pinned ? '收起' : '常驻'}</button>
+    style={{ ...placed, ['--live-fig-bg' as string]: surfaceBg ?? undefined }}>
+    {isStep && <div className={styles.stepBar} role="group" aria-label="步骤切换">
+      {(['输入', '中间态', '最终'] as const).map((label, idx) => (
+        <button key={label} type="button" aria-pressed={stage === idx}
+          onClick={() => setStage(idx as 0 | 1 | 2)}>{label}</button>
+      ))}
+    </div>}
+    <div className={styles.figureCornerActions}>
+      {dirty && <button type="button" onClick={resetFigure} title="恢复原稿数值">重置</button>}
       <button type="button" onClick={() => shared.onExpand(spec.object_id)} aria-label={`展开实验页：${spec.title ?? '交互'}`}
         title="展开为完整实验页">↗</button>
     </div>
-    {active && scale > 0 && <div ref={inner} className={styles.figureInner}
+    {scale > 0 && <div ref={inner} className={styles.figureInner}
       style={{ width: NATURAL_W, transform: `translate(${(size.w - NATURAL_W * scale) / 2}px, ${(size.h - size.natural * scale) / 2}px) scale(${scale})` }}>
       <FigureSpecView view={figure.view} spec={spec} evaluation={evaluation} stage={isStep ? stage : 2} reducedMotion={reducedMotion}
         draggable={figure.draggable && !shared.disabled}
         onParamChange={(id, value) => shared.onChange(spec, id, value)}/>
     </div>}
-    {active && scale === 0 && <div ref={inner} className={styles.figureInner} style={{ width: NATURAL_W, visibility: 'hidden' }}>
+    {scale === 0 && <div ref={inner} className={styles.figureInner} style={{ width: NATURAL_W, visibility: 'hidden' }}>
       <FigureSpecView view={figure.view} spec={spec} evaluation={evaluation} stage={isStep ? stage : 2} reducedMotion={reducedMotion}/>
     </div>}
     {(params.length > 0 || (!plan.clusters.length && plan.results.length > 0)) &&
-      (active || params.some(p => isOffBaseline(p, cells[p.id]))) &&
       <div className={styles.figureBar} data-no-pan>
         {params.map(parameter => <LiveNumber key={parameter.id} parameter={parameter} value={cells[parameter.id]}
           disabled={shared.disabled} onCommit={(id, value) => shared.onChange(spec, id, value)}/>)}

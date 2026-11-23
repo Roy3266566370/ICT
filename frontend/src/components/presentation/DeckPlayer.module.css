@@ -1539,13 +1539,17 @@
 .formulaReviewHotspot {
   position: absolute;
   z-index: 15;
-  border: 1px dashed #a96121;
-  border-radius: 4px;
-  background: rgba(255, 243, 218, .24);
-  color: #6d350d;
+  width: auto !important;
+  height: auto !important;
+  border: 1px solid rgba(169, 97, 33, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 248, 235, 0.92);
+  color: #7c3f12;
   cursor: pointer;
-  font-size: 12px;
-  padding: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 2px 8px;
+  box-shadow: 0 2px 8px rgba(30, 41, 59, 0.12);
 }
 
 .formulaReviewBackdrop {

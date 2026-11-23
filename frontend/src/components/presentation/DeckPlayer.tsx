@@ -86,6 +86,16 @@ function boxStyle(bbox: {x: number; y: number; w: number; h: number}, page: Deck
     width: `${100*bbox.w/width}%`, height: `${100*bbox.h/height}%` };
 }
 
+/** 过滤 Pix2Text 对几何示意图误识别出的非公式噪声（如方框 \fbox、箭头 \downarrow、孤立标点/符号）。 */
+function isDiagramNoiseFormula(mathText: string): boolean {
+  const s = (mathText || '').trim();
+  if (!s) return true;
+  if (/\\fbox\b|\\(?:down|up|left|right)arrow\b|\\overbrace\b|\\underbrace\b|\\imath\b|\\jmath\b/.test(s)) return true;
+  const hasFormulaStructure = /=|\\frac\b|\\int\b|\\begin\{(?:b|p|B|small)?(?:matrix|array)\}/.test(s);
+  if (!hasFormulaStructure) return true;
+  return false;
+}
+
 export function DeckPlayer({title, pages, specs, identity, materialId, fidelity, extraActions, onRefresh,sceneDocument,aiSnapshot,formulaReviews}: Props) {
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [search, setSearch] = useSearchParams();
@@ -741,7 +751,14 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   }, [pages, go]);
 
   if (!page) return <div className={styles.empty}>页面正在生成，请稍后重新载入。</div>;
-  const reviewElements = (page.elements ?? []).filter(element => formulaReviews?.[element.element_id]?.page_no === page.page_no);
+  // 已由图层活图（auto_vectors / math_scene / matrix_ocr）接管的页面（如 P11/P14/P22）不再盖“公式待核对”遮罩；
+  // 其余页面也跳过明显属于几何图噪声（\fbox/\overbrace/无等号孤立符号）的误报。
+  const reviewElements = scenePage?.auto_vectors
+    ? []
+    : (page.elements ?? []).filter(element => {
+        const item = formulaReviews?.[element.element_id];
+        return item?.page_no === page.page_no && !isDiagramNoiseFormula(item.math_text);
+      });
   const reviewElement = reviewElements.find(element => element.element_id === reviewId);
   const review = reviewId ? formulaReviews?.[reviewId] : undefined;
 

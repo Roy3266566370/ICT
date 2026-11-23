@@ -138,8 +138,18 @@ def _recognize_image(blob: bytes, target) -> dict:
         from .formula_review import review_image_rows, review_reason
         formula_rows = [row for row in rows if row.get('type') == 'formula']
         status, reason = 'recognized', None
+        # 过滤几何示意图里的明显非公式噪声（如方框 \fbox、箭头串、孤立标点/符号），避免误标“公式待核对”遮挡原图。
+        def _is_diagram_noise(expr: str) -> bool:
+            s = (expr or '').strip()
+            if not s:
+                return True
+            if re.search(r'\\fbox\b|\\(?:down|up|left|right)arrow\b|\\overbrace\b|\\underbrace\b|\\imath\b|\\jmath\b', s):
+                return True
+            return False
+
         suspects = [(i, issue) for i, row in enumerate(formula_rows)
-                    if (issue := review_reason(row['text'], row['score'])) is not None]
+                    if not _is_diagram_noise(row['text'])
+                    and (issue := review_reason(row['text'], row['score'])) is not None]
         if suspects:
             original = io.BytesIO()
             image.save(original, format='PNG')

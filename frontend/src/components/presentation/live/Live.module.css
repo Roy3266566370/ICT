@@ -221,16 +221,20 @@
   pointer-events: auto;
   box-sizing: border-box;
   overflow: visible;
-  border: 1.5px dashed rgba(79, 70, 229, 0.55);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 6px;
-  background: rgba(99, 102, 241, 0.04);
+  background: var(--live-fig-bg, #ffffff);
+  box-shadow: 0 2px 10px rgba(22, 35, 58, 0.04);
 }
 
-.figureHost[data-active='true'] {
-  border-style: solid;
-  border-color: rgba(79, 70, 229, 0.52);
-  background: var(--live-fig-bg, #fffdf7);
-  box-shadow: 0 4px 18px rgba(22, 35, 58, 0.08);
+.figureHost[data-recognized='true'] {
+  border-color: transparent;
+  box-shadow: none;
+  background: transparent;
+}
+
+.figureHost[data-recognized='true']:hover {
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 .figureInner figure,
@@ -238,25 +242,32 @@
   background: transparent !important;
 }
 
-.stagePills {
+.stepBar {
+  position: absolute;
+  z-index: 4;
+  left: 8px;
+  top: 8px;
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  margin-right: 4px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.1);
 }
 
-.stagePills button {
-  padding: 1px 6px;
+.stepBar button {
+  padding: 2px 8px;
   border: 0;
-  border-radius: 8px;
-  background: rgba(79, 70, 229, 0.08);
-  color: #3730a3;
-  font-size: 10px;
+  border-radius: 999px;
+  background: transparent;
+  color: #334155;
+  font-size: 11px;
   cursor: pointer;
 }
 
-.stagePills button[aria-pressed='true'] {
-  background: #c4622d;
+.stepBar button[aria-pressed='true'] {
+  background: #2563eb;
   color: #fff;
 }
 
@@ -271,36 +282,38 @@
   margin: 0;
 }
 
-.figureBadge {
+.figureCornerActions {
   position: absolute;
-  z-index: 4;
+  z-index: 5;
   right: 6px;
   top: 6px;
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 4px 2px 8px;
-  border-radius: 12px;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.figureHost:hover .figureCornerActions,
+.figureHost:focus-within .figureCornerActions {
+  opacity: 1;
+}
+
+.figureCornerActions button {
+  padding: 2px 7px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.94);
-  border: 1px solid #c7d2fe;
-  color: #4338ca;
+  color: #334155;
   font-size: 11px;
-  box-shadow: 0 2px 8px rgba(30, 41, 59, 0.12);
-}
-
-.figureBadge button {
-  padding: 1px 7px;
-  border: 0;
-  border-radius: 10px;
-  background: #eef2ff;
-  color: #4338ca;
-  font-size: 11px;
+  line-height: 1.4;
   cursor: pointer;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
 }
 
-.figureBadge button[aria-pressed='true'] {
-  background: #4f46e5;
-  color: #fff;
+.figureCornerActions button:hover {
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .figureBar {
