@@ -12,9 +12,12 @@
 
 from __future__ import annotations
 
+import base64
+from io import BytesIO
 import json
 import logging
 import math
+from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -33,7 +36,7 @@ from .util import hash_json, now_iso
 
 logger = logging.getLogger(__name__)
 
-PAGE_LAB_VERSION = "ppt-ai.page-lab.2"
+PAGE_LAB_VERSION = "ppt-ai.page-lab.3"
 CACHE_DIR = DATA_DIR / "ppt-ai" / "page-lab"
 MAX_PARAMS = 6
 MAX_OUTPUT_TOKENS = 12000
@@ -62,13 +65,19 @@ OUTPUT_CONTRACT = """只输出一个 JSON 对象：
  {id,type:'rect',x,y,w,h,style:{fill,stroke,strokeWidth,opacity}}
  {id,type:'circle',cx,cy,r,style:{fill,stroke,strokeWidth,opacity}}
  {id,type:'line',x1,y1,x2,y2,style:{stroke,strokeWidth,opacity,dash:[4,3],arrowStart:false,arrowEnd:true}}
+ {id,type:'arrow',x1,y1,x2,y2,label:'可选标签',style:{stroke,strokeWidth,opacity,dash:[4,3]}}  (向量/力/方向优先使用，自带箭头与中点标签)
  {id,type:'polyline',points:[[x,y],...],style:{fill,stroke,strokeWidth}}
+ {id,type:'polygon',points:[[x,y],...](3~64点),style:{fill,stroke,strokeWidth,opacity}}  (闭合几何区域/平行四边形/积分阴影优先使用)
+ {id,type:'formula',x,y,tex:'LaTeX表达式(<=240字)',style:{fill,fontSize,align:'left|center|right'}}  (数学公式标注优先使用，严禁 HTML/链接宏)
  {id,type:'curve',series:[[x,y],...],x_min:0,x_max:720,y_min:0,y_max:420,style:{stroke,strokeWidth}}
  {id,type:'point',x,y,r,style:{fill,opacity}}
  {id,type:'mermaid',x,y,w,h,mermaid:{code:'flowchart LR\\nA[步骤1]-->B[步骤2]',activeNodes:['A']}}  (算法流程/状态机/时序图/架构图优先使用，随 input.step 切换 activeNodes 高亮当前步骤；禁止 click/href/script)
  {id,type:'chart',x,y,w,h,chart:{chartType:'bar|line|area|scatter|pie',title,xLabel,yLabel,categories:['A','B'],series:[{name:'S1',values:[1,2],color:'#c4622d'}],yDomain:[0,5]}}  (统计分布/函数对比/多系列数值变化优先使用，scatter 时 values 为 [[x,y],...]，无需手算柱状图坐标)
-5. 实验必须忠实于本页讲的概念：用本页出现的符号/公式命名变量，数据用小规模教学数值（自行设定固定的示例数据，不要声称来自原稿）；
-   图中直接标注关键数值(用 text 节点)，让学习者看到「播放过程或改变参数 → 结果如何变化」。时间轴必须演示本页机制，例如逐步叠加分量、更新迭代状态或移动采样点，不能把所有页面都套成无关的柱状图。
+5. interactions 支持画布直接拖动手柄（几何/向量/函数采样页面强烈建议至少提供 1 个）：
+ {type:'drag-handle',id:'h1',label:'拖动提示',x,y,xParam:'可选参数id',yParam:'可选参数id',bounds:{xMin,xMax,yMin,yMax},valueRange:{x:[min,max],y:[min,max]}}
+ 其中 xParam/yParam 必须来自 params，且至少绑定一个。
+6. 实验必须忠实于本页讲的概念：用本页出现的符号/公式命名变量，若 page 提供了 figure_summary / relations_summary 或页面截图，请优先还原原页图示几何结构与联动语义；数据用小规模教学数值（自行设定固定的示例数据，不要声称来自原稿）；
+   图中直接标注关键数值(用 text 或 formula 节点)，让学习者看到「播放过程或拖动参数 → 结果如何变化」。时间轴必须演示本页机制，例如逐步叠加分量、更新迭代状态或移动采样点，不能把所有页面都套成无关的柱状图。
 6. 本页没有可交互的数学/算法内容时，仍做一个与本页概念最贴近的示意实验，不要返回空程序。
 7. 程序保持精简（<=4000 字符，一个核心实验、2~3个参数即可），只输出JSON，不输出推理。用循环生成采样点，不要展开大量字面量。
    优先使用 polyline 画折线/曲线，它只需要 points；用 curve 时必须给出 x_min/x_max/y_min/y_max。
@@ -164,6 +173,97 @@ def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
+def _summarize_figure_scenes(scene_page: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """从页面 figure_scenes 与矢量节点中提取精简结构摘要（不含任何 base64 图片数据）。"""
+    summary: list[dict[str, Any]] = []
+    scenes = scene_page.get("figure_scenes")
+    if isinstance(scenes, Mapping):
+        for scene in scenes.values():
+            if not isinstance(scene, Mapping):
+                continue
+            for obj in (scene.get("objects") or [])[:24]:
+                if not isinstance(obj, Mapping):
+                    continue
+                item: dict[str, Any] = {
+                    "id": str(obj.get("id") or "")[:48],
+                    "kind": str(obj.get("kind") or "")[:24],
+                }
+                if obj.get("role"):
+                    item["role"] = str(obj["role"])[:24]
+                if obj.get("label"):
+                    item["label"] = _clip(str(obj["label"]), 48)
+                if obj.get("color"):
+                    item["color"] = str(obj["color"])[:16]
+                if obj.get("start") and obj.get("end"):
+                    item["start"] = obj["start"]
+                    item["end"] = obj["end"]
+                summary.append(item)
+                if len(summary) >= 24:
+                    return summary
+    if not summary:
+        for node in scene_page.get("nodes", []):
+            if not isinstance(node, Mapping) or node.get("deleted") or node.get("hidden"):
+                continue
+            if node.get("type") == "vector":
+                summary.append(
+                    {
+                        "id": str(node.get("id") or "")[:48],
+                        "kind": "vector",
+                        "label": _clip(str(node.get("name") or ""), 48),
+                        "x": node.get("x"),
+                        "y": node.get("y"),
+                        "width": node.get("width"),
+                        "height": node.get("height"),
+                    }
+                )
+                if len(summary) >= 24:
+                    break
+    return summary
+
+
+def _summarize_relations(scene_page: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """提取页面已建立的动态关系摘要，帮助整页演示还原联动逻辑。"""
+    items: list[dict[str, Any]] = []
+    for rel in (scene_page.get("relations") or [])[:12]:
+        if not isinstance(rel, Mapping) or rel.get("enabled") is False:
+            continue
+        entry: dict[str, Any] = {
+            "id": str(rel.get("id") or "")[:48],
+            "kind": str(rel.get("kind") or "")[:32],
+        }
+        for key in ("firstId", "secondId", "resultId", "targetId", "targetProperty", "expression", "labelTemplate"):
+            if rel.get(key) is not None:
+                entry[key] = _clip(str(rel[key]), 120)
+        items.append(entry)
+    return items
+
+
+def _encode_page_image_data_uri(page: PageRecord, *, max_side: int = 1024) -> str | None:
+    """将当前页底图缩放至 max_side 以内并编码为 data URI，供视觉模型看图生成演示。"""
+    raw_path = getattr(page, "image_path", None)
+    if not raw_path:
+        return None
+    path = Path(str(raw_path))
+    if not path.is_file():
+        return None
+    try:
+        from PIL import Image
+
+        with Image.open(path) as img:
+            rgb = img.convert("RGB")
+            w, h = rgb.size
+            longest = max(w, h)
+            if longest > max_side and longest > 0:
+                scale = max_side / float(longest)
+                rgb = rgb.resize((max(1, int(round(w * scale))), max(1, int(round(h * scale)))), Image.Resampling.LANCZOS)
+            buf = BytesIO()
+            rgb.save(buf, format="JPEG", quality=82)
+            encoded = base64.b64encode(buf.getvalue()).decode("ascii")
+            return f"data:image/jpeg;base64,{encoded}"
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def collect_page_context(db: Session, material_id: str, page_no: int, material_title: str = "") -> dict[str, Any]:
     pages = {
         row.page_no: row
@@ -189,11 +289,15 @@ def collect_page_context(db: Session, material_id: str, page_no: int, material_t
     page_title = page.title or ""
     if not body:
         body = "\n".join(page.paragraphs or [])[:MAX_TEXT_CHARS]
+    figure_summary: list[dict[str, Any]] = []
+    relations_summary: list[dict[str, Any]] = []
     try:
         from ..documents.store import read_document
         scene_doc = read_document(material_id)
         scene_page = next((p for p in (scene_doc or {}).get("pages", []) if p.get("page_no") == page_no), None)
         if isinstance(scene_page, Mapping):
+            figure_summary = _summarize_figure_scenes(scene_page)
+            relations_summary = _summarize_relations(scene_page)
             scene_texts = [
                 _clip(str(n.get("text") or ""), 400)
                 for n in scene_page.get("nodes", [])
@@ -221,22 +325,30 @@ def collect_page_context(db: Session, material_id: str, page_no: int, material_t
                 body = f"{body}\n{vec_note}".strip()[:MAX_TEXT_CHARS]
     except Exception:  # noqa: BLE001
         pass
+    image_data_uri = _encode_page_image_data_uri(page)
     neighbours = {
         "previous_title": _clip(pages[page_no - 1].title, 60) if page_no - 1 in pages else "",
         "next_title": _clip(pages[page_no + 1].title, 60) if page_no + 1 in pages else "",
     }
-    if not body.strip() and not page_title.strip():
+    if not body.strip() and not page_title.strip() and not figure_summary and not relations_summary and not image_data_uri:
         if material_title.strip():
             body = _clip(material_title, 200)
         else:
             raise PageLabError("本页没有可读取的文字，无法据此生成交互；请换一页，或先在自由编辑里补充文字")
-    return {
+    result: dict[str, Any] = {
         "material_title": _clip(material_title, 80),
         "page_no": page_no,
         "page_title": _clip(page_title, 80),
         "page_text": body,
         **neighbours,
     }
+    if figure_summary:
+        result["figure_summary"] = figure_summary
+    if relations_summary:
+        result["relations_summary"] = relations_summary
+    if image_data_uri:
+        result["_image_data_uri"] = image_data_uri
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -379,12 +491,19 @@ def dry_run(program: str, params: list[dict[str, Any]], timeline: Mapping[str, A
     asts = result.get("asts")
     if not isinstance(asts, list) or len(asts) != len(inputs):
         raise PageLabError("程序试运行未返回全部样本的 ViewAST")
+    valid_param_ids = {p["id"] for p in params}
     for ast in asts:
         try:
             validate_view_ast(ast)
             _check_ast_colors(ast)
         except ContractError as exc:
             raise PageLabError(f"ViewAST 未通过校验：{exc}") from exc
+        for interaction in ast.get("interactions") or []:
+            if isinstance(interaction, Mapping) and interaction.get("type") == "drag-handle":
+                for axis_key in ("xParam", "yParam"):
+                    param_ref = interaction.get(axis_key)
+                    if param_ref is not None and param_ref not in valid_param_ids:
+                        raise PageLabError(f"drag-handle 引用了未定义的参数 {axis_key}={param_ref!r}")
     if timeline is not None:
         sample_count = len(inputs) // (1 + 2 * len(params))
         # Progress captions alone do not demonstrate a changing mechanism.
@@ -451,10 +570,20 @@ def generate_page_lab(
     budget = CallBudget(max_calls=max_attempts)
     feedback = ""
     last_error = ""
+    image_uri = context.get("_image_data_uri") if isinstance(context.get("_image_data_uri"), str) else None
+    clean_page = {k: v for k, v in context.items() if not str(k).startswith("_")}
+    use_vision = False
+    if image_uri:
+        try:
+            from ..model_profiles import vision_profile
+
+            use_vision = bool(vision_profile(client.settings).available)
+        except Exception:  # noqa: BLE001
+            use_vision = False
     for _ in range(max_attempts):
-        example = _timeline_example(context)
+        example = _timeline_example(clean_page)
         payload: dict[str, Any] = {
-            "page": dict(context),
+            "page": clean_page,
             "output_contract": OUTPUT_CONTRACT,
             "example_program": example["program"],
             "example_params": [{"id": "gain", "min": 0.5, "max": 2, "step": 0.1, "default": 1}],
@@ -473,6 +602,7 @@ def generate_page_lab(
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 timeout_s=LLM_TIMEOUT_S,
                 thinking=False,
+                image_urls=[image_uri] if use_vision and image_uri else None,
             )
         except PPTAIError as exc:
             if exc.kind not in ("invalid_json", "truncated", "schema") or budget.remaining <= 0:
@@ -512,7 +642,7 @@ def load_cached_lab(material_id: str, page_no: int) -> dict[str, Any] | None:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    return data if isinstance(data, dict) and data.get("version") in {PAGE_LAB_VERSION, "ppt-ai.page-lab.1"} else None
+    return data if isinstance(data, dict) and data.get("version") in {PAGE_LAB_VERSION, "ppt-ai.page-lab.2", "ppt-ai.page-lab.1"} else None
 
 
 def save_cached_lab(material_id: str, page_no: int, lab: Mapping[str, Any]) -> None:

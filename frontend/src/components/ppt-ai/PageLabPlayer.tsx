@@ -29,7 +29,14 @@ export function PageLabPlayer({lab,identity,values,onValues,editable=true}:{lab:
       event.stopPropagation();
       if (event.code === 'Space' && event.target === event.currentTarget && timeline) {event.preventDefault();toggle();}
     }}>
-    <LabCanvas key={`${identity}-${lab.content_hash}-${playback.playing}-${runId}`} lab={lab} values={input} identity={identity} />
+    <LabCanvas
+      key={`${identity}-${lab.content_hash}-${playback.playing}-${runId}`}
+      lab={lab}
+      values={input}
+      identity={identity}
+      editable={editable}
+      onParamChange={editable ? (patch) => onValues({ ...values, ...patch }) : undefined}
+    />
     {timeline && <div className={styles.playback}>
       <button type="button" onClick={toggle}>{playback.playing ? '暂停' : '播放'}</button>
       <button type="button" disabled={playback.t >= 1} onClick={() => seek(nextStop(timeline,playback.t))}>下一步</button>

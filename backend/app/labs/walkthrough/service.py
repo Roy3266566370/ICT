@@ -13,6 +13,7 @@ from ...structured_llm import StructuredOutput, complete_json
 from .double_slice import generate_double
 from .limit_approach import generate_limit_approach
 from .pattern_router import Expression, Surface, confirmed_conditions, detect_mode, eligible, matches_source, source_conditions
+from .program_sandbox import generate_program_sandbox
 from .volume_slice import generate_volume
 from .walkthrough_builder import build
 from .walkthrough_verifier import derive, verify
@@ -76,6 +77,8 @@ def generate(problem):
         return {**generate_double(problem), 'input_hash': input_hash(problem)}
     if mode == 'limit_approach':
         return {**generate_limit_approach(problem), 'input_hash': input_hash(problem)}
+    if mode == 'program_sandbox':
+        return {**generate_program_sandbox(problem), 'input_hash': input_hash(problem)}
 
     settings = get_settings()
     confirmed = confirmed_conditions(problem)

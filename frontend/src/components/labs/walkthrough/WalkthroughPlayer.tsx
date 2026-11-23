@@ -5,6 +5,7 @@ import { MathText } from '../ProblemText';
 import { Formula } from '../primitives/Formula';
 import { LabSlider } from '../primitives/controls';
 import { LimitApproachPlayer } from './LimitApproachPlayer';
+import { ProgramSandboxPlayer } from './ProgramSandboxPlayer';
 import { WalkthroughStage } from './WalkthroughStage';
 import styles from './WalkthroughPlayer.module.css';
 
@@ -25,6 +26,9 @@ function Verification({ status, detail }: { status: WalkthroughVerificationStatu
 export function WalkthroughPlayer({ walkthrough }: { walkthrough: Walkthrough }) {
   if (walkthrough.pattern === 'limit_approach') {
     return <LimitApproachPlayer walkthrough={walkthrough} />;
+  }
+  if (walkthrough.pattern === 'program_sandbox') {
+    return <ProgramSandboxPlayer walkthrough={walkthrough} />;
   }
   return <SliceWalkthroughPlayer walkthrough={walkthrough} />;
 }

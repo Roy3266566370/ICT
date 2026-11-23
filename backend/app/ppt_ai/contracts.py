@@ -49,6 +49,9 @@ _VALID_NODE_TYPES = {
     "point",
     "line",
     "polyline",
+    "arrow",
+    "polygon",
+    "formula",
     "rect",
     "circle",
     "axes",
@@ -58,6 +61,11 @@ _VALID_NODE_TYPES = {
     "mermaid",
     "chart",
 }
+_FORMULA_FORBIDDEN_RE = re.compile(
+    r"(?:<script\b|<iframe\b|<img\b|javascript:|\\href\b|\\url\b|\\html[A-Za-z]*\b|\\includegraphics\b)",
+    re.I,
+)
+_PARAM_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,47}$")
 _MERMAID_HEAD_RE = re.compile(
     r"^\s*(?:flowchart|graph|sequenceDiagram|stateDiagram(?:-v2)?|classDiagram|erDiagram|mindmap)\b",
     re.I,
@@ -195,6 +203,60 @@ def _validate_chart_node(node: Mapping[str, Any]) -> None:
             raise ContractError("chart.yDomain 必须满足 [min, max] 且 min < max")
 
 
+def _validate_polygon_node(node: Mapping[str, Any]) -> None:
+    points = node.get("points")
+    if not isinstance(points, list) or not (3 <= len(points) <= 64):
+        raise ContractError("polygon.points 必须包含 3~64 个顶点")
+
+
+def _validate_formula_node(node: Mapping[str, Any]) -> None:
+    tex = node.get("tex")
+    if not isinstance(tex, str) or not tex.strip() or len(tex) > 240:
+        raise ContractError("formula.tex 必须为 1~240 字符")
+    if _FORMULA_FORBIDDEN_RE.search(tex):
+        raise ContractError("formula.tex 包含禁止的 HTML 或外部链接宏")
+
+
+def _validate_interactions(ast: Mapping[str, Any]) -> None:
+    interactions = ast.get("interactions")
+    if not isinstance(interactions, list):
+        return
+    seen_handles: set[str] = set()
+    for item in interactions:
+        if not isinstance(item, Mapping) or item.get("type") != "drag-handle":
+            continue
+        hid = item.get("id")
+        if not isinstance(hid, str) or not hid:
+            raise ContractError("drag-handle 缺少 id")
+        if hid in seen_handles:
+            raise ContractError(f"drag-handle id 重复：{hid}")
+        seen_handles.add(hid)
+        x_param = item.get("xParam")
+        y_param = item.get("yParam")
+        if not x_param and not y_param:
+            raise ContractError("drag-handle 至少需要绑定 xParam 或 yParam")
+        bounds = item.get("bounds")
+        value_range = item.get("valueRange")
+        if not isinstance(bounds, Mapping) or not isinstance(value_range, Mapping):
+            raise ContractError("drag-handle 缺少 bounds 或 valueRange")
+        if x_param:
+            if not isinstance(x_param, str) or not _PARAM_IDENT_RE.fullmatch(x_param):
+                raise ContractError(f"drag-handle xParam 非法：{x_param}")
+            if float(bounds["xMax"]) <= float(bounds["xMin"]):
+                raise ContractError("drag-handle bounds.xMax 必须大于 xMin")
+            xr = value_range.get("x")
+            if not isinstance(xr, list) or len(xr) != 2 or float(xr[1]) <= float(xr[0]):
+                raise ContractError("drag-handle 绑定 xParam 时必须提供合法 valueRange.x")
+        if y_param:
+            if not isinstance(y_param, str) or not _PARAM_IDENT_RE.fullmatch(y_param):
+                raise ContractError(f"drag-handle yParam 非法：{y_param}")
+            if float(bounds["yMax"]) <= float(bounds["yMin"]):
+                raise ContractError("drag-handle bounds.yMax 必须大于 yMin")
+            yr = value_range.get("y")
+            if not isinstance(yr, list) or len(yr) != 2 or float(yr[1]) <= float(yr[0]):
+                raise ContractError("drag-handle 绑定 yParam 时必须提供合法 valueRange.y")
+
+
 def validate_view_ast(ast: Any, *, registered_bindings: Iterable[str] = ()) -> None:
     """校验 ViewAST 的 Schema、节点唯一性、节点数、白名单键与绑定。"""
 
@@ -232,6 +294,10 @@ def validate_view_ast(ast: Any, *, registered_bindings: Iterable[str] = ()) -> N
                 _validate_mermaid_node(node)
             elif node_type == "chart":
                 _validate_chart_node(node)
+            elif node_type == "polygon":
+                _validate_polygon_node(node)
+            elif node_type == "formula":
+                _validate_formula_node(node)
             children = node.get("children")
             if isinstance(children, list):
                 if len(seen) + len(children) > MAX_VIEW_NODES:
@@ -239,6 +305,7 @@ def validate_view_ast(ast: Any, *, registered_bindings: Iterable[str] = ()) -> N
                 walk(children)
 
     walk(nodes)
+    _validate_interactions(ast)
     encoded = json.dumps(ast, ensure_ascii=False, separators=(",", ":"))
     if len(encoded.encode("utf-8")) > MAX_VIEW_MESSAGE_BYTES:
         raise ContractError("ViewAST 消息超过 256KB")

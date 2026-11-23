@@ -11,8 +11,10 @@ export const MAX_NODES = 2000;
 export const MAX_MESSAGE_BYTES = 256 * 1024;
 
 const NODE_TYPES = new Set([
-  'group', 'text', 'point', 'line', 'polyline', 'rect', 'circle', 'axes', 'curve', 'heatmap', 'scene3d', 'mermaid', 'chart',
+  'group', 'text', 'point', 'line', 'polyline', 'arrow', 'polygon', 'formula', 'rect', 'circle', 'axes', 'curve', 'heatmap', 'scene3d', 'mermaid', 'chart',
 ]);
+const FORMULA_FORBIDDEN_RE = /(?:<script\b|<iframe\b|<img\b|javascript:|\\href\b|\\url\b|\\html[A-Za-z]*\b|\\includegraphics\b)/i;
+const PARAM_IDENT_RE = /^[A-Za-z_][A-Za-z0-9_]{0,47}$/;
 const MERMAID_HEAD_RE = /^\s*(?:flowchart|graph|sequenceDiagram|stateDiagram(?:-v2)?|classDiagram|erDiagram|mindmap)\b/i;
 const MERMAID_FORBIDDEN_RE = /(?:^\s*click\s+|\bjavascript:|<script\b|\bhref\s*=|\bonclick\s*=|\bforeignObject\b)/im;
 const MERMAID_NODE_ID_RE = /^[A-Za-z0-9_-]{1,48}$/;
@@ -109,6 +111,18 @@ export function validateViewAst(ast: unknown, bindings: string[] = []): string[]
       if (typeof item.binding === 'string' && item.binding && !allowedBindings.has(item.binding)) {
         errors.push(`绑定未登记：${item.binding}`);
       }
+      if (item.type === 'polygon') {
+        if (!Array.isArray(item.points) || item.points.length < 3 || item.points.length > 64) {
+          errors.push('polygon.points 必须包含 3~64 个顶点');
+        }
+      }
+      if (item.type === 'formula') {
+        if (typeof item.tex !== 'string' || !item.tex.trim() || item.tex.length > 240) {
+          errors.push('formula.tex 必须为 1~240 字符');
+        } else if (FORMULA_FORBIDDEN_RE.test(item.tex)) {
+          errors.push('formula.tex 包含禁止的 HTML 或外部链接宏');
+        }
+      }
       if (item.type === 'mermaid') {
         const m = item.mermaid;
         if (!isRecord(m) || typeof m.code !== 'string' || !m.code.trim() || m.code.length > 4000) {
@@ -156,6 +170,41 @@ export function validateViewAst(ast: unknown, bindings: string[] = []): string[]
     }
   };
   walk(nodes);
+  if (Array.isArray(ast.interactions)) {
+    const seenHandles = new Set<string>();
+    for (const item of ast.interactions) {
+      if (!isRecord(item) || item.type !== 'drag-handle') continue;
+      if (typeof item.id !== 'string' || !item.id) { errors.push('drag-handle 缺少 id'); continue; }
+      if (seenHandles.has(item.id)) errors.push(`drag-handle id 重复：${item.id}`);
+      seenHandles.add(item.id);
+      const xParam = typeof item.xParam === 'string' ? item.xParam : '';
+      const yParam = typeof item.yParam === 'string' ? item.yParam : '';
+      if (!xParam && !yParam) errors.push('drag-handle 至少需要绑定 xParam 或 yParam');
+      const bounds = isRecord(item.bounds) ? item.bounds : null;
+      const valueRange = isRecord(item.valueRange) ? item.valueRange : null;
+      if (!bounds || !valueRange) { errors.push('drag-handle 缺少 bounds 或 valueRange'); continue; }
+      if (xParam) {
+        if (!PARAM_IDENT_RE.test(xParam)) errors.push(`drag-handle xParam 非法：${xParam}`);
+        if (typeof bounds.xMin !== 'number' || typeof bounds.xMax !== 'number' || bounds.xMax <= bounds.xMin) {
+          errors.push('drag-handle bounds.xMax 必须大于 xMin');
+        }
+        const xr = valueRange.x;
+        if (!Array.isArray(xr) || xr.length !== 2 || typeof xr[0] !== 'number' || typeof xr[1] !== 'number' || xr[1] <= xr[0]) {
+          errors.push('drag-handle 绑定 xParam 时必须提供合法 valueRange.x');
+        }
+      }
+      if (yParam) {
+        if (!PARAM_IDENT_RE.test(yParam)) errors.push(`drag-handle yParam 非法：${yParam}`);
+        if (typeof bounds.yMin !== 'number' || typeof bounds.yMax !== 'number' || bounds.yMax <= bounds.yMin) {
+          errors.push('drag-handle bounds.yMax 必须大于 yMin');
+        }
+        const yr = valueRange.y;
+        if (!Array.isArray(yr) || yr.length !== 2 || typeof yr[0] !== 'number' || typeof yr[1] !== 'number' || yr[1] <= yr[0]) {
+          errors.push('drag-handle 绑定 yParam 时必须提供合法 valueRange.y');
+        }
+      }
+    }
+  }
   const encoded = new TextEncoder().encode(JSON.stringify(ast));
   if (encoded.length > MAX_MESSAGE_BYTES) errors.push('ViewAST 消息超过 256KB');
   return errors.slice(0, 20);

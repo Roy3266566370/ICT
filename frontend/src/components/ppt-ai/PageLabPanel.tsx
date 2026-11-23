@@ -23,7 +23,19 @@ function defaultsOf(lab: PageLab): Values {
 }
 
 /** One in-flight Worker per canvas; intermediate playback frames collapse to the latest input. */
-export function LabCanvas({ lab, values, identity }: { lab: PageLab; values: Values; identity?: string }) {
+export function LabCanvas({
+  lab,
+  values,
+  identity,
+  editable = true,
+  onParamChange,
+}: {
+  lab: PageLab;
+  values: Values;
+  identity?: string;
+  editable?: boolean;
+  onParamChange?: (patch: Values) => void;
+}) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const nonceRef = useRef('');
   const timerRef = useRef<number | null>(null);
@@ -80,7 +92,7 @@ export function LabCanvas({ lab, values, identity }: { lab: PageLab; values: Val
     {!failed && <iframe ref={iframeRef} className={styles.iframe} sandbox="allow-scripts"
       referrerPolicy="no-referrer" title="AI 交互隔离沙箱" tabIndex={-1} aria-hidden="true"
       srcDoc={SANDBOX_SRCDOC} onLoad={() => setLoaded(true)} />}
-    {ast ? <ViewAstRenderer ast={ast} className={styles.view} /> : <p className={styles.stageNote} role="status">正在运行…</p>}
+    {ast ? <ViewAstRenderer ast={ast} className={styles.view} interactive={editable} onParamChange={editable ? onParamChange : undefined} /> : <p className={styles.stageNote} role="status">正在运行…</p>}
     {error && <p className={styles.error} role="alert">{error}</p>}
   </div>;
 }

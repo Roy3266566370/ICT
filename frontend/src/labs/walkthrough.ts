@@ -109,7 +109,50 @@ export interface LimitApproachWalkthrough {
   conditions_source: 'problem' | 'model';
 }
 
-export type Walkthrough = SliceWalkthrough | LimitApproachWalkthrough;
+export interface ProgramSandboxParam {
+  id: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  default: number;
+  unit?: string;
+}
+
+export interface ProgramSandboxStep {
+  id: string;
+  title: string;
+  explain: string;
+  controls: string[];
+  preset?: Record<string, number>;
+  view: { kind: 'sandbox'; name: 'program_view' };
+  formulas: { tex: string; check?: string }[];
+  checkpoint?: { type: 'predict'; prompt: string; options: string[]; answer: number };
+  final?: boolean;
+}
+
+export interface ProgramSandboxWalkthrough {
+  version: 1;
+  pattern: 'program_sandbox';
+  title: string;
+  strategy: { why: string; alternatives: string[] };
+  source: 'authored' | 'model';
+  sandbox: {
+    program: string;
+    content_hash: string;
+    params: ProgramSandboxParam[];
+  };
+  params: { id: string; label: string; min: number; max: number; default: number; source: 'teaching' | 'problem' }[];
+  steps: ProgramSandboxStep[];
+  verification: {
+    engine: 'sympy';
+    status: WalkthroughVerificationStatus;
+    checks: { id: string; status: WalkthroughVerificationStatus; detail?: string }[];
+  };
+  conditions_source: 'problem' | 'model';
+}
+
+export type Walkthrough = SliceWalkthrough | LimitApproachWalkthrough | ProgramSandboxWalkthrough;
 
 export interface SliceBand {
   index: number;

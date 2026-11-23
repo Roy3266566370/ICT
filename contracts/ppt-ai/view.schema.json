@@ -14,19 +14,57 @@
       "type": "array",
       "maxItems": 100,
       "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["event", "action", "target"],
-        "properties": {
-          "event": {"enum": ["set_parameter", "seek", "select"]},
-          "action": {"enum": ["set_parameter", "seek", "select"]},
-          "target": {"type": "string", "maxLength": 96},
-          "value": {
-            "oneOf": [
-              {"type": "number"}, {"type": "boolean"}, {"type": "string"}
-            ]
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["event", "action", "target"],
+            "properties": {
+              "event": {"enum": ["set_parameter", "seek", "select"]},
+              "action": {"enum": ["set_parameter", "seek", "select"]},
+              "target": {"type": "string", "maxLength": 96},
+              "value": {
+                "oneOf": [
+                  {"type": "number"}, {"type": "boolean"}, {"type": "string"}
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "id", "x", "y", "bounds", "valueRange"],
+            "properties": {
+              "type": {"const": "drag-handle"},
+              "id": {"type": "string", "minLength": 1, "maxLength": 96},
+              "targetNodeId": {"type": "string", "maxLength": 96},
+              "label": {"type": "string", "maxLength": 48},
+              "x": {"type": "number"},
+              "y": {"type": "number"},
+              "xParam": {"type": "string", "minLength": 1, "maxLength": 48},
+              "yParam": {"type": "string", "minLength": 1, "maxLength": 48},
+              "bounds": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["xMin", "xMax", "yMin", "yMax"],
+                "properties": {
+                  "xMin": {"type": "number"},
+                  "xMax": {"type": "number"},
+                  "yMin": {"type": "number"},
+                  "yMax": {"type": "number"}
+                }
+              },
+              "valueRange": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "x": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
+                  "y": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
+                }
+              }
+            }
           }
-        }
+        ]
       }
     },
     "nodes": {
@@ -65,7 +103,7 @@
       "required": ["id", "type"],
       "properties": {
         "id": {"type": "string", "minLength": 1, "maxLength": 96},
-        "type": {"enum": ["group", "text", "point", "line", "polyline", "rect", "circle", "axes", "curve", "heatmap", "scene3d", "mermaid", "chart"]},
+        "type": {"enum": ["group", "text", "point", "line", "polyline", "arrow", "polygon", "formula", "rect", "circle", "axes", "curve", "heatmap", "scene3d", "mermaid", "chart"]},
         "binding": {"type": ["string", "null"], "maxLength": 96},
         "x": {"type": "number"}, "y": {"type": "number"},
         "w": {"type": "number", "minimum": 0}, "h": {"type": "number", "minimum": 0},
@@ -74,6 +112,8 @@
         "cx": {"type": "number"}, "cy": {"type": "number"},
         "r": {"type": "number", "minimum": 0},
         "text": {"type": "string", "maxLength": 2000},
+        "label": {"type": "string", "maxLength": 120},
+        "tex": {"type": "string", "minLength": 1, "maxLength": 240},
         "points": {"type": "array", "maxItems": 5000, "items": {"$ref": "#/$defs/point"}},
         "series": {"type": "array", "maxItems": 5000, "items": {"$ref": "#/$defs/point"}},
         "x_min": {"type": "number"}, "x_max": {"type": "number"},
@@ -161,6 +201,9 @@
         {"if": {"properties": {"type": {"const": "point"}}}, "then": {"required": ["x", "y"]}},
         {"if": {"properties": {"type": {"const": "line"}}}, "then": {"required": ["x1", "y1", "x2", "y2"]}},
         {"if": {"properties": {"type": {"const": "polyline"}}}, "then": {"required": ["points"]}},
+        {"if": {"properties": {"type": {"const": "arrow"}}}, "then": {"required": ["x1", "y1", "x2", "y2"]}},
+        {"if": {"properties": {"type": {"const": "polygon"}}}, "then": {"required": ["points"]}},
+        {"if": {"properties": {"type": {"const": "formula"}}}, "then": {"required": ["x", "y", "tex"]}},
         {"if": {"properties": {"type": {"const": "rect"}}}, "then": {"required": ["x", "y", "w", "h"]}},
         {"if": {"properties": {"type": {"const": "circle"}}}, "then": {"required": ["cx", "cy", "r"]}},
         {"if": {"properties": {"type": {"const": "axes"}}}, "then": {"required": ["x_min", "x_max", "y_min", "y_max"]}},
