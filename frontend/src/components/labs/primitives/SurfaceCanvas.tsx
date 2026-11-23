@@ -18,6 +18,7 @@ type Drag = { id: number; x: number; y: number } & ({ view: View } | { h: number
 
 const FAMILY_LABEL = {
   sphere: '球面', hemisphere: '半球面', cylinder: '柱面', cone: '锥面', paraboloid: '抛物面',
+  volume_solid: '旋转体', double_region: '积分区域',
 } as const;
 const TURN = 2 * Math.PI;
 const SECTORS = 36;
@@ -164,12 +165,26 @@ export function SurfaceCanvas({ model, bands, band, h, onMoveSlice, showAreaElem
     }
 
     const plane = circle(h);
+    const innerR = model.innerRadius(h);
     trace(ctx, plane, true);
-    ctx.fillStyle = 'rgba(112, 205, 255, 0.11)';
-    ctx.strokeStyle = 'rgba(132, 221, 255, 0.76)';
-    ctx.lineWidth = 1.6;
+    ctx.fillStyle = family === 'volume_solid' ? 'rgba(255, 168, 128, 0.28)' : 'rgba(112, 205, 255, 0.11)';
+    ctx.strokeStyle = family === 'volume_solid' ? 'rgba(255, 184, 148, 0.92)' : 'rgba(132, 221, 255, 0.76)';
+    ctx.lineWidth = family === 'volume_solid' ? 2 : 1.6;
     ctx.fill();
     ctx.stroke();
+
+    if (family === 'volume_solid' && innerR > extent * 1e-4) {
+      const innerPlane = Array.from({ length: SECTORS + 1 }, (_, step) => {
+        const theta = (step / SECTORS) * TURN;
+        return project({ x: innerR * Math.cos(theta), y: innerR * Math.sin(theta), z: h });
+      });
+      trace(ctx, innerPlane, true);
+      ctx.fillStyle = 'rgba(19, 32, 54, 0.72)';
+      ctx.strokeStyle = 'rgba(132, 221, 255, 0.85)';
+      ctx.lineWidth = 1.5;
+      ctx.fill();
+      ctx.stroke();
+    }
 
     const axisTop = project({ x: 0, y: 0, z: upper + span * 0.08 });
     const axisBottom = project({ x: 0, y: 0, z: lower - span * 0.08 });
@@ -179,7 +194,7 @@ export function SurfaceCanvas({ model, bands, band, h, onMoveSlice, showAreaElem
     ctx.stroke();
     ctx.font = '12px Consolas, monospace';
     ctx.fillStyle = '#c4d8f5';
-    ctx.fillText('z', axisTop.x + 6, axisTop.y + 4);
+    ctx.fillText(model.geometry.axis ?? 'z', axisTop.x + 6, axisTop.y + 4);
 
     const radius = model.radius(h);
     const theta = Math.PI / 4 - view.yaw;

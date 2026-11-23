@@ -58,7 +58,7 @@ function SurfaceWorkbench({ problem, configured, ready, onGenerate, children }: 
         </>
       ) : tab === 'process' ? (
         <div className={styles.feedback} role="status">
-          {pending ? '正在生成并验算曲面积分过程…' : !configured ? '未配置文本模型，可查看原题结果。' :
+          {pending ? '正在生成并验算解题过程…' : !configured ? '未配置文本模型，可查看原题结果。' :
             error || '正在同步题目条件…'}
           {configured && error ? <button type="button" disabled={!ready} onClick={() => void generate(false)}>重试</button> : null}
         </div>

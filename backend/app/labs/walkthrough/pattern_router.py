@@ -23,7 +23,7 @@ class Surface(BaseModel):
     orientation: Literal[1, -1] = 1
 
 
-def eligible(problem):
+def surface_eligible(problem):
     model = problem.get('model') or {}
     if problem.get('subject') not in {None, 'calculus', 'unknown', 'general'}:
         return False
@@ -39,6 +39,40 @@ def eligible(problem):
                           text, re.I | re.S))
 
 
+def detect_mode(problem) -> Literal['surface_slice', 'volume_slice', 'double_slice', 'limit_approach'] | None:
+    if problem.get('subject') not in {None, 'calculus', 'unknown', 'general'}:
+        return None
+    model = problem.get('model') or {}
+    task = model.get('task')
+    if task == 'surface_integral':
+        return 'surface_slice' if surface_eligible(problem) else None
+    if task == 'integral_applications':
+        conditions = model.get('conditions') or {}
+        if conditions.get('kind') in (None, 'volume', 'washer', 'disk'):
+            return 'volume_slice'
+        return None
+    if task == 'double_integral':
+        return 'double_slice'
+    if task in ('limits', 'derivatives'):
+        return 'limit_approach'
+    text = problem.get('text') or ''
+    if re.search(r'二重积分|double\s+integral', text, re.I) and not re.search(r'曲面积分|通量|dS|dσ', text, re.I):
+        return 'double_slice'
+    if surface_eligible(problem):
+        return 'surface_slice'
+    if re.search(r'旋转体.*体积|绕\s*[xyz]\s*轴.*体积|圆盘法|垫圈法|volume\s+of\s+revolution', text, re.I | re.S):
+        return 'volume_slice'
+    if re.search(r'∬', text) and not re.search(r'曲面积分|通量|dS|dσ', text, re.I):
+        return 'double_slice'
+    if re.search(r'极限|\\lim\b|\blim\s*_|\blimit\b|导数定义|割线斜率|在\s*x\s*=\s*[-+]?\d.*导数', text, re.I):
+        return 'limit_approach'
+    return None
+
+
+def eligible(problem):
+    return detect_mode(problem) is not None
+
+
 def radius_squared(family, scale):
     if family in ('sphere', 'hemisphere'):
         return scale**2 - Z**2
@@ -51,7 +85,9 @@ def radius_squared(family, scale):
 
 def source_conditions(problem):
     model = problem.get('model') or {}
-    return model.get('conditions') if model.get('task') == 'surface_integral' else None
+    if model.get('task') in ('surface_integral', 'integral_applications', 'double_integral', 'limits', 'derivatives'):
+        return model.get('conditions')
+    return None
 
 
 def confirmed_conditions(problem):

@@ -1,12 +1,18 @@
 import { useId, useMemo, useState } from 'react';
 import { clamp, formatNumber } from '../../../labs/expr';
-import { createSliceModel, type Walkthrough, type WalkthroughVerificationStatus } from '../../../labs/walkthrough';
+import { createSliceModel, type SliceWalkthrough, type Walkthrough, type WalkthroughSliceKind, type WalkthroughVerificationStatus } from '../../../labs/walkthrough';
 import { MathText } from '../ProblemText';
-import { CumulativeChart } from '../primitives/CumulativeChart';
 import { Formula } from '../primitives/Formula';
-import { SurfaceCanvas } from '../primitives/SurfaceCanvas';
-import { LabSlider, Stat } from '../primitives/controls';
+import { LabSlider } from '../primitives/controls';
+import { LimitApproachPlayer } from './LimitApproachPlayer';
+import { WalkthroughStage } from './WalkthroughStage';
 import styles from './WalkthroughPlayer.module.css';
+
+const SLICE_TITLES: Record<WalkthroughSliceKind, { heading: string; aria: string; sliceUnit: string; deltaSymbol: string }> = {
+  surface: { heading: '沿高度切片', aria: '曲面积分解题过程', sliceUnit: '环带', deltaSymbol: '\\Delta I' },
+  volume: { heading: '沿旋转轴薄片累加', aria: '旋转体体积解题过程', sliceUnit: '薄片', deltaSymbol: '\\Delta V' },
+  double: { heading: '沿积分区域条带切片', aria: '二重积分解题过程', sliceUnit: '条带', deltaSymbol: '\\Delta I' },
+};
 
 function Verification({ status, detail }: { status: WalkthroughVerificationStatus; detail?: string }) {
   return (
@@ -17,6 +23,13 @@ function Verification({ status, detail }: { status: WalkthroughVerificationStatu
 }
 
 export function WalkthroughPlayer({ walkthrough }: { walkthrough: Walkthrough }) {
+  if (walkthrough.pattern === 'limit_approach') {
+    return <LimitApproachPlayer walkthrough={walkthrough} />;
+  }
+  return <SliceWalkthroughPlayer walkthrough={walkthrough} />;
+}
+
+function SliceWalkthroughPlayer({ walkthrough }: { walkthrough: SliceWalkthrough }) {
   const { geometry, params, steps, strategy, verification } = walkthrough;
   const titleId = useId();
   const checkpointId = useId();
@@ -44,8 +57,13 @@ export function WalkthroughPlayer({ walkthrough }: { walkthrough: Walkthrough })
   }
 
   const checks = new Map(verification.checks.map((check) => [check.id, check]));
+  const sliceKind: WalkthroughSliceKind = walkthrough.slice_kind
+    ?? (geometry.family === 'volume_solid' ? 'volume' : geometry.family === 'double_region' ? 'double' : 'surface');
+  const sliceMeta = SLICE_TITLES[sliceKind];
   const chartVerified = checks.get('primitive')?.status === 'verified';
-  const bandVerified = checks.get('density')?.status === 'verified';
+  const bandVerified = (
+    checks.get('density') ?? checks.get('cross_section_area') ?? checks.get('inner_integral')
+  )?.status === 'verified';
   const canMoveSlice = step.controls.includes('h');
   const moveSlice = (next: number) => {
     if (canMoveSlice) setHeight(clamp(next, minH, maxH));
@@ -58,13 +76,13 @@ export function WalkthroughPlayer({ walkthrough }: { walkthrough: Walkthrough })
   const wholeApprox = bands[bands.length - 1]!.cumulative;
   const wholeExact = model.exactPoints[model.exactPoints.length - 1]!.value;
   const deltaZ = band.upper - band.lower;
-  const showingArea = step.formulas.some(({ check }) => check === 'metric');
+  const showingArea = sliceKind === 'surface' && step.formulas.some(({ check }) => check === 'metric');
 
   return (
-    <section className={styles.player} aria-label="曲面积分解题过程">
+    <section className={styles.player} aria-label={sliceMeta.aria}>
       <header className={styles.header}>
         <div>
-          <h2>沿高度切片</h2>
+          <h2>{sliceMeta.heading}</h2>
           <p><MathText text={strategy.why} /></p>
           {strategy.alternatives.length > 0 && (
             <details className={styles.alternatives}>
@@ -98,20 +116,21 @@ export function WalkthroughPlayer({ walkthrough }: { walkthrough: Walkthrough })
       </nav>
 
       <div className={styles.layout}>
-        <div className={styles.stage}>
-          <SurfaceCanvas model={model} bands={bands} band={band} h={h} showAreaElement={showingArea} onMoveSlice={canMoveSlice ? moveSlice : undefined} />
-          <div className={styles.metrics}>
-            <Stat compact label="截面半径 r" value={formatNumber(model.radius(h), 4)} />
-            <Stat compact label="环带贡献 ΔI" value={formatNumber(band.contribution, 4)} tone={bandVerified ? 'accent' : 'bad'} />
-            {revealCumulative && <Stat compact label="累加至 h" value={formatNumber(approx, 4)} />}
-          </div>
-          {step.view.name === 'cumulative_chart' && (
-            <div className={styles.chart}>
-              <CumulativeChart exactPoints={model.exactPoints} bands={bands} band={band} h={h} exact={exact} approx={approx}
-                verified={chartVerified} revealValue={revealCumulative} />
-            </div>
-          )}
-        </div>
+        <WalkthroughStage
+          sliceKind={sliceKind}
+          step={step}
+          model={model}
+          bands={bands}
+          band={band}
+          h={h}
+          exact={exact}
+          approx={approx}
+          bandVerified={bandVerified}
+          chartVerified={chartVerified}
+          revealCumulative={revealCumulative}
+          showingArea={showingArea}
+          onMoveSlice={canMoveSlice ? moveSlice : undefined}
+        />
 
         <section className={styles.lesson} aria-labelledby={titleId}>
           <div>
@@ -153,9 +172,9 @@ export function WalkthroughPlayer({ walkthrough }: { walkthrough: Walkthrough })
 
           {!final && !showingArea && step.controls.includes('n') && (
             <div className={styles.currentBand}>
-              <div>第 {band.index + 1} 个环带 · 中点 {formatNumber(band.midpoint, 4)}</div>
+              <div>第 {band.index + 1} 个{sliceMeta.sliceUnit} · 中点 {formatNumber(band.midpoint, 4)}</div>
               <div className={styles.formula}>
-                <Formula tex={`\\Delta I\\approx (${formatNumber(band.density, 5)})\\times ${formatNumber(deltaZ, 5)}\\approx ${formatNumber(band.contribution, 5)}`} />
+                <Formula tex={`${sliceMeta.deltaSymbol}\\approx (${formatNumber(band.density, 5)})\\times ${formatNumber(deltaZ, 5)}\\approx ${formatNumber(band.contribution, 5)}`} />
               </div>
             </div>
           )}

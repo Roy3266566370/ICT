@@ -10,7 +10,10 @@ from pydantic import Field
 from ...ppt_ai.client import HttpxTransport, PPTAIError
 from ...settings import get_settings
 from ...structured_llm import StructuredOutput, complete_json
-from .pattern_router import Expression, Surface, confirmed_conditions, eligible, matches_source, source_conditions
+from .double_slice import generate_double
+from .limit_approach import generate_limit_approach
+from .pattern_router import Expression, Surface, confirmed_conditions, detect_mode, eligible, matches_source, source_conditions
+from .volume_slice import generate_volume
 from .walkthrough_builder import build
 from .walkthrough_verifier import derive, verify
 
@@ -51,15 +54,28 @@ def configured():
 
 
 def input_hash(problem):
-    data = [problem.get('text'), problem.get('subject'), source_conditions(problem), bool(confirmed_conditions(problem))]
+    data = [
+        detect_mode(problem),
+        problem.get('text'),
+        problem.get('subject'),
+        source_conditions(problem),
+        bool(confirmed_conditions(problem)),
+    ]
     return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 def generate(problem):
-    if not eligible(problem):
-        raise ValueError('当前题目未进入曲面积分过程试用范围')
+    mode = detect_mode(problem)
+    if not mode:
+        raise ValueError('当前题目未进入解题过程试用范围')
     if not configured():
         raise ValueError('未配置文本模型，可继续查看原题结果')
+    if mode == 'volume_slice':
+        return {**generate_volume(problem), 'input_hash': input_hash(problem)}
+    if mode == 'double_slice':
+        return {**generate_double(problem), 'input_hash': input_hash(problem)}
+    if mode == 'limit_approach':
+        return {**generate_limit_approach(problem), 'input_hash': input_hash(problem)}
 
     settings = get_settings()
     confirmed = confirmed_conditions(problem)

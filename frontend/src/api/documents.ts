@@ -1,5 +1,5 @@
 import {requestJson} from './client';
-import type {FigureVectorization,NodeChange,SceneDocument} from '@/document/types';
+import type {FigureVectorization,NodeChange,RelationSuggestion,SceneDocument} from '@/document/types';
 export const getDocument=(id:string)=>requestJson<SceneDocument>(`/api/v1/materials/${encodeURIComponent(id)}/document`);
 export const createSceneDiagram=(id:string,page:number,text:string,ai=false)=>requestJson<{diagram:import('@/living/diagram').DiagramDoc}>(
   `/api/v1/materials/${encodeURIComponent(id)}/document/pages/${page}/diagram`,{method:'POST',body:JSON.stringify({text,ai})});
@@ -15,3 +15,13 @@ export const reinteractDocumentPage=(id:string,page:number,revision:number)=>req
 export const vectorizeFigure=(id:string,page:number,nodeId:string,revision:number,stage:'pixel'|'vision',signal:AbortSignal,previewId?:string)=>
   requestJson<FigureVectorization>(`/api/v1/materials/${encodeURIComponent(id)}/pages/${page}/figures/${encodeURIComponent(nodeId)}/vectorize`,
     {method:'POST',signal,body:JSON.stringify({stage,expected_revision:revision,preview_id:previewId})});
+
+export const suggestPageRelations=(
+  id:string,
+  page:number,
+  payload:{instruction:string;selected_node_ids?:string[];expected_revision:number;force?:boolean},
+  signal?:AbortSignal,
+)=>requestJson<RelationSuggestion>(
+  `/api/v1/materials/${encodeURIComponent(id)}/document/pages/${page}/relations/suggest`,
+  {method:'POST',signal,body:JSON.stringify(payload)},
+);

@@ -77,6 +77,19 @@ export interface ExprRelation {
   bindings?:Record<string,ExprBindingSource>;formatTemplate?:string;precision?:number;
 }
 export type SceneRelation=BasisDecomposeRelation|LinearComboRelation|GuideBindRelation|ExprRelation;
+export interface RelationViewerUpdate {
+  nodeId:string;
+  viewer_editable?:boolean;
+  viewer_parameters?:ViewerParameter[];
+}
+export interface RelationSuggestion {
+  summary:string;
+  relations:SceneRelation[];
+  viewer_updates:RelationViewerUpdate[];
+  warnings:string[];
+  source_revision:number;
+  diagnostics?:{elapsed_ms:number;attempts:number;cache_hit:boolean};
+}
 export interface FigureScene {
   version:1;
   frame:{width:number;height:number};

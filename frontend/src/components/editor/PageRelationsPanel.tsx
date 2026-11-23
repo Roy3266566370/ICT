@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { errorMessage } from '@/api/client';
 import {
   detectRelationCycles,
   evaluatePageRelations,
@@ -7,9 +8,11 @@ import {
 } from '@/document/relations';
 import type {
   GuideAnchor,
+  RelationSuggestion,
   RelationTargetProperty,
   SceneNode,
   SceneRelation,
+  ViewerParameter,
 } from '@/document/types';
 import styles from './FreeDeckEditor.module.css';
 
@@ -19,7 +22,22 @@ interface Props {
   selectedNode?: SceneNode | null;
   disabled?: boolean;
   onChange?: (relations: SceneRelation[], key?: string) => void;
+  onSuggestRelations?: (instruction: string) => Promise<RelationSuggestion>;
+  onApplySuggestion?: (suggestion: RelationSuggestion) => string | null;
 }
+
+const VIEWER_PARAM_LABELS: Record<ViewerParameter, string> = {
+  geometry: '几何拖动',
+  style: '外观样式',
+  flow: '流动动画',
+  start: '拖动起点',
+  end: '拖动终点',
+  length: '调节线长',
+  angle: '调节角度',
+  color: '修改颜色',
+  line_style: '修改线型',
+  stroke_width: '修改线宽',
+};
 
 const TARGET_PROP_LABELS: Record<RelationTargetProperty, string> = {
   text: '文字内容 (text)',
@@ -56,6 +74,8 @@ export function PageRelationsPanel({
   selectedNode,
   disabled = false,
   onChange,
+  onSuggestRelations,
+  onApplySuggestion,
 }: Props) {
   const visibleNodes = useMemo(
     () => pageNodes.filter((n) => !n.deleted && !n.hidden),
@@ -117,6 +137,55 @@ export function PageRelationsPanel({
   const [toAnchor, setToAnchor] = useState<GuideAnchor>('end');
 
   const [formError, setFormError] = useState<string>('');
+  const [nlInput, setNlInput] = useState<string>('');
+  const [nlBusy, setNlBusy] = useState<boolean>(false);
+  const [nlError, setNlError] = useState<string>('');
+  const [proposal, setProposal] = useState<RelationSuggestion | null>(null);
+
+  const proposalCheck = useMemo(() => {
+    if (!proposal) return null;
+    const proposedIds = new Set(proposal.relations.map((r) => r.id));
+    const merged = [
+      ...relations.filter((r) => !proposedIds.has(r.id)),
+      ...proposal.relations,
+    ];
+    const cycles = detectRelationCycles(merged);
+    const previewEval = evaluatePageRelations(visibleNodes, merged);
+    const errors: string[] = [];
+    for (const rel of proposal.relations) {
+      const err = validateRelation(rel, visibleNodes);
+      if (err) errors.push(`${rel.id}：${err}`);
+      else if (cycles.has(rel.id)) errors.push(`${rel.id}：存在循环依赖`);
+    }
+    return { merged, previewEval, errors };
+  }, [proposal, relations, visibleNodes]);
+
+  const requestSuggestion = async () => {
+    if (!onSuggestRelations || !nlInput.trim() || nlBusy) return;
+    setNlBusy(true);
+    setNlError('');
+    setProposal(null);
+    try {
+      const next = await onSuggestRelations(nlInput.trim());
+      setProposal(next);
+    } catch (cause) {
+      setNlError(errorMessage(cause));
+    } finally {
+      setNlBusy(false);
+    }
+  };
+
+  const confirmProposal = () => {
+    if (!proposal || !onApplySuggestion || proposalCheck?.errors.length) return;
+    const applyError = onApplySuggestion(proposal);
+    if (applyError) {
+      setNlError(applyError);
+      return;
+    }
+    setProposal(null);
+    setNlInput('');
+    setNlError('');
+  };
 
   useEffect(() => {
     if (!editingId && selectedNode && !visibleNodes.some((n) => n.id === targetId)) {
@@ -252,6 +321,140 @@ export function PageRelationsPanel({
       <p className={styles.hint}>
         定义对象之间的几何或表达式联动关系；拖动源向量时目标文字、虚线与属性实时更新，并在分享页与离线网页中同步生效。
       </p>
+
+      {onSuggestRelations && (
+        <div
+          aria-label="自然语言生成动态关系"
+          style={{
+            border: '1px solid #d5ccb9',
+            borderRadius: 6,
+            padding: 8,
+            margin: '8px 0',
+            background: '#fdfbf7',
+          }}
+        >
+          <label className={styles.fullField}>
+            用一句话添加动态关系
+            <textarea
+              aria-label="自然语言关系指令"
+              rows={2}
+              placeholder="例如：让 b2 可拖动终点并实时显示 v 的坐标，或让文字显示向量长度"
+              value={nlInput}
+              disabled={disabled || nlBusy}
+              onChange={(e) => {
+                setNlInput(e.target.value);
+                setNlError('');
+              }}
+            />
+          </label>
+          <div className={styles.objectButtons} style={{ marginTop: 6 }}>
+            <button
+              type="button"
+              disabled={disabled || nlBusy}
+              onClick={() => setNlInput('让斜基向量终点可拖动，并实时显示合向量在当前基下的坐标')}
+            >
+              示例：换基拖动联动
+            </button>
+            <button
+              type="button"
+              disabled={disabled || nlBusy}
+              onClick={() => setNlInput('让文字节点实时显示选中向量的长度（四舍五入）')}
+            >
+              示例：文字显示线长
+            </button>
+          </div>
+          <div className={styles.interactionActions} style={{ marginTop: 6 }}>
+            <button
+              type="button"
+              className={styles.applyButton}
+              disabled={disabled || nlBusy || !nlInput.trim()}
+              onClick={() => void requestSuggestion()}
+            >
+              {nlBusy ? '正在生成关系预览…' : '生成关系预览'}
+            </button>
+          </div>
+          {nlError && (
+            <p role="alert" style={{ color: '#b42318', fontSize: 12, margin: '6px 0 0' }}>
+              {nlError}
+            </p>
+          )}
+
+          {proposal && proposalCheck && (
+            <div
+              aria-label="动态关系预览确认"
+              data-nl-relation-preview
+              style={{
+                marginTop: 8,
+                padding: 8,
+                borderRadius: 6,
+                border: '1px solid #9ec5e8',
+                background: '#f2f8fd',
+                fontSize: 12,
+              }}
+            >
+              <strong>提案预览：{proposal.summary}</strong>
+              <ul style={{ margin: '6px 0', paddingLeft: 16 }}>
+                {proposal.relations.map((rel) => {
+                  const diag = proposalCheck.previewEval.diagnostics[rel.id];
+                  const statusLabel =
+                    diag?.status === 'ok'
+                      ? '试算正常'
+                      : diag?.status === 'degenerate'
+                        ? '斜基退化'
+                        : '校验异常';
+                  return (
+                    <li key={rel.id} data-preview-relation-id={rel.id}>
+                      <span>{summarizeRelation(rel)}</span>{' '}
+                      <strong data-preview-relation-status={diag?.status ?? 'error'}>
+                        [{statusLabel}]
+                      </strong>
+                    </li>
+                  );
+                })}
+              </ul>
+              {proposal.viewer_updates.length > 0 && (
+                <div style={{ margin: '6px 0', color: '#2f3a49' }}>
+                  <span>观众权限调整：</span>
+                  {proposal.viewer_updates.map((u) => (
+                    <div key={u.nodeId} data-preview-viewer-update={u.nodeId}>
+                      {nodeLabel(u.nodeId)}：
+                      {u.viewer_editable === false ? '只读' : '允许观众操作'}
+                      {u.viewer_parameters?.length
+                        ? `（${u.viewer_parameters.map((p) => VIEWER_PARAM_LABELS[p] ?? p).join('、')}）`
+                        : ''}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {proposalCheck.errors.length > 0 && (
+                <p role="alert" style={{ color: '#b42318', margin: '4px 0' }}>
+                  {proposalCheck.errors.join('；')}
+                </p>
+              )}
+              <div className={styles.interactionActions} style={{ marginTop: 6 }}>
+                <button
+                  type="button"
+                  className={styles.applyButton}
+                  disabled={disabled || !onApplySuggestion || proposalCheck.errors.length > 0}
+                  onClick={confirmProposal}
+                >
+                  确认应用
+                </button>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => {
+                    setProposal(null);
+                    setNlError('');
+                  }}
+                >
+                  取消预览
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {relations.length > 0 ? (
         <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0', display: 'grid', gap: 6 }}>

@@ -35,6 +35,13 @@ class VectorizeRequest(BaseModel):
     expected_revision:int=Field(ge=0)
     preview_id:str|None=Field(default=None,pattern=r'^[a-f0-9]{64}$')
 
+class RelationSuggestRequest(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    instruction:str=Field(min_length=1,max_length=1000)
+    selected_node_ids:list[str]=Field(default_factory=list,max_length=20)
+    expected_revision:int=Field(ge=0)
+    force:bool=False
+
 @router.post('/materials/{material_id}/pages/{page_no}/figures/{element_id}/vectorize')
 def vectorize_document_figure(material_id:str,page_no:int,element_id:str,payload:VectorizeRequest,
                                request:Request,ctx:WriteDep,db:DBDep):
@@ -91,6 +98,36 @@ def create_inline_diagram(material_id:str,page_no:int,payload:DiagramRequest,req
     except PPTAIError as error:raise model_unavailable(str(error)) from error
     except (ValueError,PageLabError) as error:raise missing_field(str(error),field='text') from error
     return ok(request,{'diagram':diagram})
+
+@router.post('/materials/{material_id}/document/pages/{page_no}/relations/suggest')
+def suggest_document_relations(material_id:str,page_no:int,payload:RelationSuggestRequest,
+                               request:Request,ctx:WriteDep,db:DBDep):
+    from ..documents.relation_generation import suggest_relations
+    from ..ppt_ai.client import PPTAIError
+    from ..schemas.errors import model_unavailable
+    material=owned_material(db,ctx,material_id)
+    if is_expired(material.expires_at):
+        raise resource_unavailable()
+    if material.status=='processing':
+        raise missing_field('材料正在处理，请等待原页就绪')
+    try:
+        ensure_document(material_id,material.title)
+        result=suggest_relations(
+            material_id,
+            page_no,
+            instruction=payload.instruction,
+            selected_node_ids=payload.selected_node_ids,
+            expected_revision=payload.expected_revision,
+            force=payload.force,
+        )
+    except DocumentConflict as error:
+        current=read_document(material_id) or {}
+        raise version_conflict(str(error),current_revision=current.get('revision')) from error
+    except PPTAIError as error:
+        raise model_unavailable(str(error)) from error
+    except ValueError as error:
+        raise missing_field(str(error),field='instruction') from error
+    return ok(request,result)
 
 @router.get('/materials/{material_id}/document')
 def get_document(material_id:str,request:Request,ctx:SessionDep,db:DBDep):

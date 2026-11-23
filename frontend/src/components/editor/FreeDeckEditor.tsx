@@ -2,14 +2,14 @@ import {useCallback,useEffect,useRef,useState,useSyncExternalStore,type PointerE
 import {useNavigate,useSearchParams,Link} from 'react-router-dom';
 import {useQueryClient} from '@tanstack/react-query';
 import type {MaterialDetail} from '@/api/types';
-import {getDocument,prepareDocumentPage,reinteractDocumentPage,createSceneDiagram} from '@/api/documents';
+import {getDocument,prepareDocumentPage,reinteractDocumentPage,createSceneDiagram,suggestPageRelations} from '@/api/documents';
 import {createPageLab} from '@/api/pptAI';
 import {errorMessage} from '@/api/client';
 import {useScopedQueryKeys} from '@/api/queryKeys';
 import type {DocumentController} from '@/document/controller';
 import {newNode,patchNodes,distributeNodes} from '@/document/model';
 import {resolveMatrixSource} from '@/document/mathScene';
-import type {SceneNode,NodePatch,NodeInteraction} from '@/document/types';
+import type {SceneNode,NodePatch,NodeInteraction,RelationSuggestion,SceneRelation} from '@/document/types';
 import type {ISpec} from '@/ispec/types';
 import {ZoomControl} from '@/components/ui/ZoomControl';
 import {fitZoom,wheelZoom} from '@/components/ui/zoom';
@@ -163,6 +163,53 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
       controller.patch(pageNo,[id],patch);setMessage('已生成到当前图框，可直接演示。');
     }catch(error){if(mounted.current)setMessage(errorMessage(error));}
     finally{if(mounted.current)setGenerating(current=>({...current,[id]:false}));}
+  };
+  const suggestRelations=async(instruction:string):Promise<RelationSuggestion>=>{
+    const targetPageNo=page.page_no;
+    if(!canEdit)throw new Error('当前页面暂不可编辑，无法生成动态关系。');
+    if(!await controller.save())throw new Error('请先完成当前修改的同步，再生成动态关系。');
+    const latest=controller.getSnapshot().document;
+    return suggestPageRelations(materialId,targetPageNo,{
+      instruction,
+      selected_node_ids:selected,
+      expected_revision:latest.revision,
+    });
+  };
+  const applyRelationSuggestion=(suggestion:RelationSuggestion):string|null=>{
+    if(!canEdit)return '当前页面暂不可编辑。';
+    const targetPageNo=page.page_no;
+    const latest=controller.getSnapshot().document;
+    if(latest.revision!==suggestion.source_revision){
+      return '页面在生成预览后已发生变化，请重新生成动态关系预览。';
+    }
+    const targetPage=latest.pages.find(item=>item.page_no===targetPageNo);
+    if(!targetPage)return '未找到当前页面，请刷新后重试。';
+    const mergedRelations:SceneRelation[]=[...(targetPage.relations??[])];
+    for(const proposed of suggestion.relations){
+      const existingIndex=mergedRelations.findIndex(item=>item.id===proposed.id);
+      if(existingIndex>=0)mergedRelations[existingIndex]=proposed;
+      else mergedRelations.push(proposed);
+    }
+    const updatesByNode=new Map(suggestion.viewer_updates.map(item=>[item.nodeId,item]));
+    const next={
+      ...latest,
+      pages:latest.pages.map(item=>item.page_no!==targetPageNo?item:{
+        ...item,
+        modified:true,
+        relations:mergedRelations,
+        nodes:item.nodes.map(node=>{
+          const update=updatesByNode.get(node.id);
+          if(!update)return node;
+          const nextNode:SceneNode={...node};
+          if(typeof update.viewer_editable==='boolean')nextNode.viewer_editable=update.viewer_editable;
+          if(Array.isArray(update.viewer_parameters))nextNode.viewer_parameters=[...update.viewer_parameters];
+          return nextNode;
+        }),
+      }),
+    };
+    controller.replace(next,'relations.nl.apply');
+    setMessage(`已应用 ${suggestion.relations.length} 条动态关系，可按 Ctrl+Z 一次性撤销。`);
+    return null;
   };
   const armInsert=(kind:'diagram'|'demo')=>{setInsertMode(current=>current===kind?null:kind);setPanMode(false);setSelected([]);setEditingId(null);setMessage('在幻灯片上拖出图框；按 Esc 取消。');};
   const addImage=async(image:File)=>{
@@ -427,6 +474,8 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
       </main>
       <NodeProperties node={primary?.math_scene?{...primary,math_scene:resolveMatrixSource(primary.math_scene,page.nodes)}:primary} count={selectedNodes.length} pageNo={page.page_no} materialId={materialId} autoSpecs={autoSpecs} pageNodes={page.nodes}
         pageRelations={page.relations} onRelationsChange={(relations,key)=>controller.patchRelations(page.page_no,relations,key)}
+        onSuggestRelations={online&&canEdit?suggestRelations:undefined}
+        onApplyRelationSuggestion={canEdit?applyRelationSuggestion:undefined}
         generating={!!(primary&&generating[primary.id])} onDemoGenerate={()=>primary&&void generateNode(primary.id,'demo')}
         onVectorize={canVectorize?()=>setFigureTarget({pageNo:page.page_no,nodeId:primary.id}):undefined}
         figureCount={countFigureObjects(vectorized.filter(node=>node.figure_source_id===primary?.id))}

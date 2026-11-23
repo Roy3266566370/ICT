@@ -3,7 +3,7 @@ import {MathSceneControls} from './MathSceneView';
 import {DynamicStyleControls} from './DynamicStyleControls';
 import {PageRelationsPanel} from './PageRelationsPanel';
 import {useEffect,useMemo,useState} from 'react';
-import type {NodeInteraction,SceneNode,SceneRelation,NodePatch,TextStyle,InteractionTemplate} from '@/document/types';
+import type {NodeInteraction,RelationSuggestion,SceneNode,SceneRelation,NodePatch,TextStyle,InteractionTemplate} from '@/document/types';
 import type {ISpec,SpecEvaluation} from '@/ispec/types';
 import {initialValues} from '@/ispec/types';
 import {evaluateSpec} from '@/ispec/evaluate';
@@ -15,12 +15,16 @@ import {FIGURE_TEMPLATE_OPTIONS,defaultInteraction,formulaPreview,matrixPreview,
 import styles from './FreeDeckEditor.module.css';
 interface Props {node:SceneNode|null;count:number;disabled:boolean;pageNo:number;materialId?:string;autoSpecs?:ISpec[];pageNodes?:SceneNode[];
   pageRelations?:SceneRelation[];onRelationsChange?:(relations:SceneRelation[],key?:string)=>void;
+  onSuggestRelations?:(instruction:string)=>Promise<RelationSuggestion>;
+  onApplyRelationSuggestion?:(suggestion:RelationSuggestion)=>string|null;
   onPatch:(patch:NodePatch,key?:string)=>void;onDuplicate:()=>void;onDelete:()=>void;
   onDiagramBuild?:(text:string,ai:boolean)=>void|Promise<void>;onDemoGenerate?:()=>void;generating?:boolean;
   onVectorize?:()=>void;figureCount?:number;
   onInteraction:(config:NodeInteraction|null)=>void;onReinteract?:()=>void;reinteracting?:boolean;onRestoreContent?:()=>void;}
-function VectorProperties({node,disabled,pageNodes=[],pageRelations=[],onRelationsChange,onPatch,onDuplicate,onDelete}:{node:SceneNode;disabled:boolean;pageNodes?:SceneNode[];
+function VectorProperties({node,disabled,pageNodes=[],pageRelations=[],onRelationsChange,onSuggestRelations,onApplyRelationSuggestion,onPatch,onDuplicate,onDelete}:{node:SceneNode;disabled:boolean;pageNodes?:SceneNode[];
   pageRelations?:SceneRelation[];onRelationsChange?:(relations:SceneRelation[],key?:string)=>void;
+  onSuggestRelations?:(instruction:string)=>Promise<RelationSuggestion>;
+  onApplyRelationSuggestion?:(suggestion:RelationSuggestion)=>string|null;
   onPatch:(patch:NodePatch,key?:string)=>void;onDuplicate:()=>void;onDelete:()=>void}){
   const peers=useMemo(()=>pageNodes.filter(item=>item.type==='vector'&&!item.deleted&&!item.hidden&&item.id!==node.id),[pageNodes,node.id]);
   const [firstId,setFirstId]=useState(()=>node.basis?.firstId??peers[0]?.id??'');
@@ -51,7 +55,8 @@ function VectorProperties({node,disabled,pageNodes=[],pageRelations=[],onRelatio
           {node.basis&&<button type="button" onClick={()=>onPatch({basis:null},'vector.basis')}>解除换基联动</button>}
         </div>
       </section>}
-      <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={node} disabled={disabled} onChange={onRelationsChange}/>
+      <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={node} disabled={disabled} onChange={onRelationsChange}
+        onSuggestRelations={onSuggestRelations} onApplySuggestion={onApplyRelationSuggestion}/>
     </fieldset>
     <fieldset disabled={disabled}>
       <section><h3>对象操作</h3><div className={styles.objectButtons}>
@@ -98,11 +103,13 @@ function InlineSystemProperties({node,disabled,onPatch,onDuplicate,onDelete,onDi
       <button onClick={()=>onPatch({hidden:!node.hidden})}>{node.hidden?'显示对象':'隐藏对象'}</button><button onClick={onDelete}>删除对象</button></div></section></fieldset>
   </aside>;
 }
-export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=[],pageNodes=[],pageRelations=[],onRelationsChange,onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onDiagramBuild,onDemoGenerate,generating,onVectorize,figureCount}:Props){
+export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=[],pageNodes=[],pageRelations=[],onRelationsChange,onSuggestRelations,onApplyRelationSuggestion,onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onDiagramBuild,onDemoGenerate,generating,onVectorize,figureCount}:Props){
   if(!node)return <aside className={styles.properties} aria-label="对象属性"><h2>对象属性</h2><p className={styles.hint}>点击画布中的对象，拖动调整位置。双击文字可直接输入，也可从左侧图层选择对象。</p>
-    <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={null} disabled={disabled} onChange={onRelationsChange}/>
+    <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={null} disabled={disabled} onChange={onRelationsChange}
+      onSuggestRelations={onSuggestRelations} onApplySuggestion={onApplyRelationSuggestion}/>
   </aside>;
-  if(node.type==='vector')return <VectorProperties node={node} disabled={disabled} pageNodes={pageNodes} pageRelations={pageRelations} onRelationsChange={onRelationsChange} onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete}/>;
+  if(node.type==='vector')return <VectorProperties node={node} disabled={disabled} pageNodes={pageNodes} pageRelations={pageRelations} onRelationsChange={onRelationsChange}
+    onSuggestRelations={onSuggestRelations} onApplyRelationSuggestion={onApplyRelationSuggestion} onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete}/>;
   if(node.type==='diagram'||node.type==='demo')return <InlineSystemProperties key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo}
     onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onInteraction={onInteraction} onDiagramBuild={onDiagramBuild} onDemoGenerate={onDemoGenerate} generating={generating}/>;
   if(node.type==='math_scene')return <aside className={styles.properties} aria-label="对象属性"><h2>数学图属性</h2>
@@ -110,11 +117,11 @@ export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=
     <fieldset disabled={disabled}><button onClick={onDuplicate}>复制对象</button><button onClick={()=>onPatch({locked:!node.locked})}>{node.locked?'解锁对象':'锁定对象'}</button><button onClick={onDelete}>删除对象</button></fieldset>
   </aside>;
   return <NodePropertiesInner key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo} materialId={materialId} autoSpecs={autoSpecs} pageNodes={pageNodes}
-    pageRelations={pageRelations} onRelationsChange={onRelationsChange}
+    pageRelations={pageRelations} onRelationsChange={onRelationsChange} onSuggestRelations={onSuggestRelations} onApplyRelationSuggestion={onApplyRelationSuggestion}
     onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onInteraction={onInteraction} onReinteract={onReinteract}
     reinteracting={reinteracting} onRestoreContent={onRestoreContent} onVectorize={onVectorize} figureCount={figureCount}/>;
 }
-function NodePropertiesInner({node,count,disabled,pageNo,materialId,autoSpecs,pageNodes=[],pageRelations=[],onRelationsChange,onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onVectorize,figureCount}:Props&{node:SceneNode}){
+function NodePropertiesInner({node,count,disabled,pageNo,materialId,autoSpecs,pageNodes=[],pageRelations=[],onRelationsChange,onSuggestRelations,onApplyRelationSuggestion,onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onVectorize,figureCount}:Props&{node:SceneNode}){
   const [tab,setTab]=useState<'look'|'interact'>('look');
   const [config,setConfig]=useState<NodeInteraction>(()=>node.interaction??defaultInteraction(node));
   const [message,setMessage]=useState('');
@@ -336,7 +343,8 @@ function NodePropertiesInner({node,count,disabled,pageNo,materialId,autoSpecs,pa
         {node.interaction&&<button onClick={()=>{onInteraction(null);setMessage('已移除该对象上的用户交互。');}} disabled={disabled}>移除用户交互</button>}
         {onReinteract&&<button onClick={onReinteract} disabled={disabled||reinteracting}>{reinteracting?'识别中…':'重新提取本页交互'}</button>}
       </div>}
-      <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={node} disabled={disabled} onChange={onRelationsChange}/>
+      <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={node} disabled={disabled} onChange={onRelationsChange}
+        onSuggestRelations={onSuggestRelations} onApplySuggestion={onApplyRelationSuggestion}/>
     </div>}
     <fieldset disabled={disabled}>
       <section><h3>对象操作</h3><div className={styles.objectButtons}>
