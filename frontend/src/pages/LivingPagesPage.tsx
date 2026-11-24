@@ -7,6 +7,7 @@ import { importProjectPackage } from '@/api/projectPackage';
 import { uploadTeachingMaterial, WORKBENCH_UPLOAD_ACCEPT } from '@/api/teachingUpload';
 import type { MaterialSummary } from '@/api/types';
 import { SiteNav } from '@/components/home/SiteNav';
+import { LivingIntroBanner } from '@/components/intros/LivingIntroBanner';
 import styles from './LivingPage.module.css';
 
 function UploadGlyph(): JSX.Element {
@@ -145,6 +146,8 @@ export default function LivingPagesPage(): ReactNode {
             <Link to="/workshop" className={styles.headNoteLink}>去万象工坊挑仪器 ↗</Link>
           </aside>
         </header>
+
+        <LivingIntroBanner />
 
         <section className={styles.createSection} aria-labelledby="living-create-title">
           <div className={styles.sectionHead}>

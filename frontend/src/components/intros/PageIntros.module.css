@@ -1,0 +1,977 @@
+/* 三大主页面（万象工坊 / 万象活页 / 个人主页）顶部动态功能引入区统一样式 */
+
+.introShell {
+  position: relative;
+  background: #fffdf8;
+  border: 1px solid rgba(17, 19, 18, 0.11);
+  border-radius: 20px;
+  box-shadow: 0 12px 32px rgba(17, 19, 18, 0.06);
+  overflow: hidden;
+  margin-bottom: 24px;
+  transition: box-shadow 0.25s ease;
+}
+
+.introShell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(17, 19, 18, 0.055) 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.introHead {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(17, 19, 18, 0.1);
+  background: rgba(255, 253, 248, 0.88);
+  flex-wrap: wrap;
+}
+
+.isCollapsed .introHead {
+  border-bottom-color: transparent;
+}
+
+.introHeadLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.eyebrowPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  border: 1px solid rgba(17, 19, 18, 0.11);
+  background: #faf8f2;
+  color: #4b4f4c;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #de421f;
+  animation: pulseDot 2.2s ease-in-out infinite;
+}
+
+.dotCobalt {
+  background: #2234d4;
+}
+
+.dotTeal {
+  background: #0f766e;
+}
+
+@keyframes pulseDot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.55;
+  }
+}
+
+.introHeadTitle {
+  font-family: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111312;
+}
+
+.introHeadSub {
+  font-size: 12.5px;
+  color: #83867f;
+}
+
+.collapseBtn {
+  border: 1px solid rgba(17, 19, 18, 0.12);
+  background: transparent;
+  color: #4b4f4c;
+  font-size: 12px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.collapseBtn:hover {
+  background: #f3f0e7;
+  color: #111312;
+  border-color: rgba(17, 19, 18, 0.24);
+}
+
+.introBody {
+  position: relative;
+  z-index: 2;
+  padding: 20px 22px 22px;
+}
+
+/* ==================== 01 万象工坊：活体电路标本 ==================== */
+.circuitGrid {
+  display: grid;
+  grid-template-columns: minmax(215px, 1fr) 44px minmax(225px, 1fr) 44px minmax(275px, 1.25fr);
+  align-items: center;
+}
+
+.cNode {
+  background: #fffdf8;
+  border: 1px solid rgba(17, 19, 18, 0.11);
+  border-radius: 15px;
+  padding: 14px 16px;
+  box-shadow: 0 2px 10px rgba(17, 19, 18, 0.04);
+  transition: border-color 0.2s ease;
+}
+
+.cNode:hover {
+  border-color: rgba(34, 52, 212, 0.28);
+}
+
+.cNodeHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.cStep {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: #2234d4;
+  background: rgba(34, 52, 212, 0.08);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.cStepVermilion {
+  color: #de421f;
+  background: rgba(222, 66, 31, 0.09);
+}
+
+.cStepTeal {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.1);
+}
+
+.cBadge {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.1);
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+
+.cHint {
+  font-size: 11px;
+  color: #83867f;
+}
+
+.cTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #111312;
+  margin-bottom: 8px;
+}
+
+.presetPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.presetPill {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(17, 19, 18, 0.12);
+  background: #faf8f2;
+  color: #4b4f4c;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.presetPill:hover {
+  border-color: rgba(17, 19, 18, 0.25);
+  color: #111312;
+}
+
+.presetPillActive {
+  background: #111312;
+  color: #fff;
+  border-color: #111312;
+}
+
+.promptPreview {
+  font-size: 12px;
+  color: #4b4f4c;
+  background: #faf8f2;
+  border: 1px dashed rgba(17, 19, 18, 0.2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  line-height: 1.45;
+}
+
+.cursorBlink {
+  display: inline-block;
+  width: 1.5px;
+  height: 13px;
+  background: #2234d4;
+  margin-left: 3px;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.miniControl {
+  margin-bottom: 10px;
+}
+
+.miniControl:last-of-type {
+  margin-bottom: 0;
+}
+
+.miniControlTop {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #4b4f4c;
+  margin-bottom: 5px;
+}
+
+.miniControlTop output {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-weight: 600;
+  color: #2234d4;
+}
+
+.paperRange {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(17, 19, 18, 0.13);
+  outline: none;
+  cursor: pointer;
+}
+
+.paperRange::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #111312;
+  border: 2.5px solid #fff;
+  box-shadow: 0 2px 6px rgba(17, 19, 18, 0.25);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.paperRange::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  background: #2234d4;
+}
+
+.codePillHint {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(17, 19, 18, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: #83867f;
+}
+
+.codePillHint code {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10.5px;
+  color: #4b4f4c;
+  background: #faf8f2;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+.wireSlot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+}
+
+.wireSvg {
+  width: 100%;
+  height: 26px;
+  overflow: visible;
+}
+
+.wireBase {
+  stroke: rgba(17, 19, 18, 0.16);
+  stroke-width: 1.8;
+  fill: none;
+}
+
+.wireFlow {
+  stroke: #2234d4;
+  stroke-width: 2.2;
+  stroke-dasharray: 5 10;
+  stroke-linecap: round;
+  fill: none;
+  animation: flowDash 1.2s linear infinite;
+}
+
+.wireFlowTeal {
+  stroke: #0f766e;
+}
+
+@keyframes flowDash {
+  from {
+    stroke-dashoffset: 30;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.stageCanvasBox {
+  background: #faf8f2;
+  border: 1px solid rgba(17, 19, 18, 0.1);
+  border-radius: 11px;
+  padding: 8px;
+  margin-bottom: 9px;
+}
+
+.stageSvg {
+  width: 100%;
+  height: 116px;
+  display: block;
+}
+
+.stageFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  color: #4b4f4c;
+}
+
+.stageMetric {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  color: #111312;
+}
+
+.miniAction {
+  border: none;
+  background: #111312;
+  color: #fff;
+  font-size: 11.5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.miniAction:hover {
+  background: #2234d4;
+  transform: translateY(-1px);
+}
+
+/* ==================== 02 万象活页：死 PPT 瞬间通电 ==================== */
+.livingLayout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.92fr) minmax(320px, 1.25fr);
+  gap: 24px;
+  align-items: center;
+}
+
+.livingSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.livingStepBtn {
+  text-align: left;
+  border: 1px solid rgba(17, 19, 18, 0.11);
+  background: #faf8f2;
+  border-radius: 14px;
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.livingStepBtn:hover {
+  border-color: rgba(17, 19, 18, 0.22);
+  background: #fffdf8;
+}
+
+.livingStepActive {
+  background: #fffdf8;
+  border-color: rgba(34, 52, 212, 0.35);
+  box-shadow: 0 2px 10px rgba(17, 19, 18, 0.05);
+  transform: translateX(4px);
+}
+
+.stepNum {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: #f3f0e7;
+  color: #4b4f4c;
+  border: 1px solid rgba(17, 19, 18, 0.12);
+  margin-top: 1px;
+}
+
+.livingStepActive .stepNum {
+  background: #2234d4;
+  color: #fff;
+  border-color: #2234d4;
+}
+
+.stepText strong {
+  display: block;
+  font-size: 13.5px;
+  color: #111312;
+  margin-bottom: 2px;
+}
+
+.stepText span {
+  font-size: 12px;
+  color: #4b4f4c;
+}
+
+.powerRow {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.powerToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid #111312;
+  background: #111312;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.powerToggle:hover {
+  background: #2234d4;
+  border-color: #2234d4;
+}
+
+.powerToggleLive {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.powerHint {
+  font-size: 12px;
+  color: #83867f;
+}
+
+.slideStageWrap {
+  perspective: 1100px;
+  padding: 10px 6px;
+}
+
+.slideDeckStack {
+  position: relative;
+  aspect-ratio: 16 / 9.4;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid rgba(17, 19, 18, 0.2);
+  box-shadow:
+    0 10px 0 -4px #f5f2ea,
+    0 10px 0 -3px rgba(17, 19, 18, 0.08),
+    0 20px 0 -8px #ede9de,
+    0 20px 0 -7px rgba(17, 19, 18, 0.06),
+    0 22px 46px rgba(17, 19, 18, 0.11);
+  transform: rotateY(-5deg) rotateX(2.5deg);
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s ease;
+  overflow: hidden;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.slideDeckLive {
+  transform: rotateY(-1deg) rotateX(0.5deg);
+}
+
+.slideTopBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #83867f;
+  font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.slideTitleMock {
+  font-family: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+  font-size: 16.5px;
+  font-weight: 700;
+  color: #111312;
+  margin: 5px 0 10px;
+}
+
+.slideContentCols {
+  display: grid;
+  grid-template-columns: 0.9fr 1.25fr;
+  gap: 14px;
+  flex: 1;
+  align-items: stretch;
+}
+
+.slideTextMock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+}
+
+.mockLine {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(17, 19, 18, 0.11);
+}
+
+.mockLineMid {
+  width: 84%;
+}
+
+.mockLineShort {
+  width: 65%;
+}
+
+.mockFormulaBox {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #faf8f2;
+  border: 1px solid rgba(17, 19, 18, 0.11);
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11.5px;
+  color: #4b4f4c;
+  transition: all 0.3s ease;
+}
+
+.slideDeckLive .mockFormulaBox {
+  border-color: rgba(34, 52, 212, 0.25);
+  color: #2234d4;
+  background: rgba(34, 52, 212, 0.08);
+}
+
+.slideWidgetSlot {
+  position: relative;
+  border-radius: 12px;
+  border: 1.5px dashed rgba(17, 19, 18, 0.2);
+  background: #f6f5f1;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.slideDeckLive .slideWidgetSlot {
+  border: 1.5px solid rgba(34, 52, 212, 0.38);
+  background: #fffdf8;
+  box-shadow: 0 12px 26px rgba(34, 52, 212, 0.13);
+  transform: translateY(-4px) scale(1.02);
+}
+
+.widgetSlotHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #83867f;
+}
+
+.slideDeckLive .widgetSlotHead {
+  color: #2234d4;
+}
+
+.widgetLivePill {
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10px;
+  background: rgba(17, 19, 18, 0.07);
+  color: #83867f;
+}
+
+.slideDeckLive .widgetLivePill {
+  background: rgba(15, 118, 110, 0.1);
+  color: #0f766e;
+}
+
+.slideWidgetSvg {
+  width: 100%;
+  height: 74px;
+  display: block;
+  margin: 4px 0;
+}
+
+.slideWidgetCtrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: #4b4f4c;
+  opacity: 0.35;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.slideDeckLive .slideWidgetCtrl {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.slideWidgetOut {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-weight: 700;
+  color: #2234d4;
+}
+
+.scanBeam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, transparent, #de421f, transparent);
+  box-shadow: 0 0 14px rgba(222, 66, 31, 0.55);
+  left: -10%;
+  animation: scanSweep 3.4s ease-in-out infinite;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.slideDeckLive .scanBeam {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes scanSweep {
+  0% {
+    left: 8%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    left: 94%;
+    opacity: 0;
+  }
+}
+
+.offlineStamp {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: #0f766e;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.28);
+  transform: translateY(-10px) scale(0.92);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.showOffline .offlineStamp {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+/* ==================== 03 个人主页：创作闭环罗盘 ==================== */
+.pulseTopRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.pulseGreeting {
+  font-size: 13.5px;
+  color: #4b4f4c;
+}
+
+.pulseGreeting strong {
+  color: #111312;
+  font-family: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+  font-size: 15px;
+}
+
+.pulseCountBadge {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11.5px;
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.1);
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.compassTrack {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.compassLineBg {
+  position: absolute;
+  top: 28px;
+  left: 12%;
+  right: 12%;
+  height: 2px;
+  background: rgba(17, 19, 18, 0.1);
+  z-index: 0;
+}
+
+.compassLineFill {
+  position: absolute;
+  top: 28px;
+  left: 12%;
+  height: 2px;
+  background: linear-gradient(90deg, #0f766e, #2234d4);
+  z-index: 1;
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.compassNode {
+  position: relative;
+  z-index: 2;
+  background: #fffdf8;
+  border: 1px solid rgba(17, 19, 18, 0.11);
+  border-radius: 15px;
+  padding: 14px 15px;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  text-align: left;
+}
+
+.compassNode:hover {
+  transform: translateY(-2px);
+  border-color: rgba(17, 19, 18, 0.24);
+  box-shadow: 0 4px 12px rgba(17, 19, 18, 0.05);
+}
+
+.compassNodeDone {
+  border-color: rgba(15, 118, 110, 0.28);
+  background: linear-gradient(180deg, rgba(15, 118, 110, 0.03), #fffdf8);
+}
+
+.compassNodeNext {
+  border-color: rgba(222, 66, 31, 0.38);
+  box-shadow: 0 8px 22px rgba(222, 66, 31, 0.08);
+}
+
+.compassNodeTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.compassDot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  background: #faf8f2;
+  color: #83867f;
+  border: 1px solid rgba(17, 19, 18, 0.12);
+}
+
+.compassNodeDone .compassDot {
+  background: #0f766e;
+  color: #fff;
+  border-color: #0f766e;
+}
+
+.compassNodeNext .compassDot {
+  background: #de421f;
+  color: #fff;
+  border-color: #de421f;
+  animation: pulseRing 2s ease-in-out infinite;
+}
+
+@keyframes pulseRing {
+  0%, 100% {
+    box-shadow: 0 0 0 4px rgba(222, 66, 31, 0.16);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(222, 66, 31, 0.04);
+  }
+}
+
+.statusStamp {
+  font-family: "JetBrains Mono", Consolas, monospace;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-weight: 600;
+  color: #83867f;
+  background: #faf8f2;
+}
+
+.statusStampDone {
+  color: #0f766e;
+  background: rgba(15, 118, 110, 0.1);
+  border: 1px solid rgba(15, 118, 110, 0.25);
+}
+
+.statusStampNext {
+  color: #de421f;
+  background: rgba(222, 66, 31, 0.09);
+}
+
+.compassNode h4 {
+  font-size: 13.5px;
+  color: #111312;
+  margin: 0 0 4px;
+}
+
+.compassNode p {
+  font-size: 12px;
+  color: #4b4f4c;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.pulseAdviceBar {
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-radius: 13px;
+  background: #faf8f2;
+  border: 1px solid rgba(17, 19, 18, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.pulseAdviceText {
+  font-size: 12.5px;
+  color: #4b4f4c;
+}
+
+.pulseAdviceText strong {
+  color: #111312;
+}
+
+.pulseCta {
+  border: none;
+  background: #111312;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.pulseCta:hover {
+  background: #2234d4;
+}
+
+@media (max-width: 960px) {
+  .circuitGrid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .wireSlot {
+    height: 22px;
+    transform: rotate(90deg);
+  }
+  .livingLayout {
+    grid-template-columns: 1fr;
+  }
+  .compassTrack {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .compassLineBg,
+  .compassLineFill {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot,
+  .cursorBlink,
+  .wireFlow,
+  .scanBeam,
+  .compassNodeNext .compassDot {
+    animation: none;
+  }
+}

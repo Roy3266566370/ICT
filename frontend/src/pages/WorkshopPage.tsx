@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { SiteNav } from '@/components/home/SiteNav';
+import { WorkshopIntroBanner } from '@/components/intros/WorkshopIntroBanner';
 import { worksApi, type ShareSummary, type WorkSummary } from '@/api/works';
 import {
   CALCULUS_TEMPLATES,
@@ -1000,6 +1001,8 @@ export function WorkshopPage(): JSX.Element {
             </Link>
           </div>
         </header>
+
+        <WorkshopIntroBanner />
 
         <section className={styles.section} aria-labelledby="workshop-catalog-title">
           <div className={styles.sectionHead}>

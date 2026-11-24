@@ -767,7 +767,7 @@ export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[
   { label: '高数 · 一元与级数', types: ['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor', 'ftcView', 'fourierLab', 'odeSlopeField', 'funcCombineOp', 'probDistSource'] },
   { label: '高数 · 多元与线代', types: ['func2dSource', 'gradientContour', 'doubleIntegralView', 'matrixSource', 'transformView', 'eigRead', 'svdDecomposeOp', 'linearSolveView'] },
   { label: '408', types: ['cacheSimLab', 'pipelineLab', 'ieee754Lab', 'cpuScheduleLab', 'bankerLab',
-    'tcpCongestionLab', 'slidingWindowLab', 'dsStepLab', 'lab408Workbench', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet',
+    'tcpCongestionLab', 'slidingWindowLab', 'dsStepLab', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet',
     'arraySource', 'sortCompareView', 'graphSource', 'shortestPathView', 'memAddrSource', 'addrTranslateView', 'cacheMapView'] },
   { label: '办公 · 数据与决策', types: ['bizTableSource', 'bizGrowthSource', 'bizScenarioFork', 'bizDiscountOp', 'bizDecisionMatrix', 'bizWaterfallView'] },
   { label: 'AI · 创作引擎', types: ['aiRuleBlock', 'universalStageView'] },

@@ -7,6 +7,7 @@ import { worksApi, type WorkSummary } from '@/api/works';
 import { SUBJECT_LABELS } from '@/labs/types';
 import { StatusBadge } from '@/components/ui';
 import { SiteNav } from '@/components/home/SiteNav';
+import { SpaceIntroBanner } from '@/components/intros/SpaceIntroBanner';
 import { AccountAvatar } from '@/components/account/AccountAvatar';
 import { ErrorNotice } from '@/components/upload/ErrorNotice';
 import { readApiError, type NoticeState } from '@/components/upload/errorCopy';
@@ -671,6 +672,13 @@ export function SpacePage(): JSX.Element {
             </span>
           </div>
 
+          <SpaceIntroBanner
+            displayName="访客"
+            worksCount={(works ?? []).length}
+            materialsCount={materials.length}
+            interactiveObjectsCount={objectCount}
+          />
+
           <section className={styles.guestHero} aria-labelledby="space-guest-title">
             <div className={styles.guestMain}>
               <h1 id="space-guest-title" className={styles.heroTitle}>
@@ -877,6 +885,13 @@ export function SpacePage(): JSX.Element {
             ACCOUNT · {username ? `@${username}` : user.email} · 默认入口：{defaultEntryLabel}
           </span>
         </div>
+
+        <SpaceIntroBanner
+          displayName={displayName}
+          worksCount={(works ?? []).length}
+          materialsCount={materials.length}
+          interactiveObjectsCount={objectCount}
+        />
 
         {/* 个人档案卡片 */}
         <section className={styles.dossierCard} aria-labelledby="space-profile-title">

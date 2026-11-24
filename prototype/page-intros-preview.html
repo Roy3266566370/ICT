@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>万象 · 三大页面动态功能引入设计预览</title>
+<style>
+  :root {
+    --paper: #f3f0e7;
+    --paper-soft: #faf8f2;
+    --card: #fffdf8;
+    --ink: #111312;
+    --ink-2: #4b4f4c;
+    --ink-3: #83867f;
+    --line: rgba(17, 19, 18, 0.11);
+    --line-strong: rgba(17, 19, 18, 0.22);
+    --cobalt: #2234d4;
+    --cobalt-soft: rgba(34, 52, 212, 0.08);
+    --vermilion: #de421f;
+    --vermilion-soft: rgba(222, 66, 31, 0.09);
+    --teal: #0f766e;
+    --teal-soft: rgba(15, 118, 110, 0.10);
+    --serif: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+    --sans: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    --radius: 20px;
+    --shadow-sm: 0 2px 10px rgba(17, 19, 18, 0.04);
+    --shadow-md: 0 12px 32px rgba(17, 19, 18, 0.07);
+    --shadow-lg: 0 22px 48px rgba(17, 19, 18, 0.11);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    color: var(--ink);
+    background:
+      radial-gradient(900px 520px at 12% 4%, rgba(222, 66, 31, 0.065), transparent 60%),
+      radial-gradient(820px 520px at 88% 12%, rgba(34, 52, 212, 0.055), transparent 62%),
+      radial-gradient(700px 520px at 50% 95%, rgba(15, 118, 110, 0.05), transparent 65%),
+      var(--paper);
+    min-height: 100vh;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* 顶部预览导览栏 */
+  .preview-bar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    backdrop-filter: blur(12px);
+    background: rgba(243, 240, 231, 0.84);
+    border-bottom: 1px solid var(--line);
+  }
+  .preview-bar-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .preview-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .preview-brand strong {
+    font-family: var(--serif);
+    font-size: 16px;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+  }
+  .preview-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--vermilion);
+    box-shadow: 0 0 0 4px var(--vermilion-soft);
+  }
+  .preview-nav {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .preview-nav a {
+    text-decoration: none;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink-2);
+    padding: 6px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    transition: all 0.2s ease;
+  }
+  .preview-nav a:hover {
+    color: var(--ink);
+    border-color: var(--line-strong);
+    transform: translateY(-1px);
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 36px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 54px;
+  }
+
+  /* 通用模块外壳 */
+  .section-meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .section-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    color: var(--ink-3);
+    text-transform: uppercase;
+  }
+  .section-tag i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--cobalt);
+    display: inline-block;
+  }
+  .section-hint {
+    font-size: 12.5px;
+    color: var(--ink-3);
+  }
+
+  /* 公共引入卡片容器 */
+  .intro-shell {
+    position: relative;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    transition: box-shadow 0.25s ease;
+  }
+  .intro-shell::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(17, 19, 18, 0.055) 1px, transparent 1px);
+    background-size: 20px 20px;
+    opacity: 0.55;
+    pointer-events: none;
+  }
+  .intro-head {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 20px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255, 253, 248, 0.85);
+    flex-wrap: wrap;
+  }
+  .intro-head-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .eyebrow-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    border: 1px solid var(--line);
+    background: var(--paper-soft);
+    color: var(--ink-2);
+  }
+  .eyebrow-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--vermilion);
+    animation: pulse-dot 2.2s ease-in-out infinite;
+  }
+  .eyebrow-pill .dot.cobalt { background: var(--cobalt); }
+  .eyebrow-pill .dot.teal { background: var(--teal); }
+  @keyframes pulse-dot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.35); opacity: 0.55; }
+  }
+  .intro-head-title {
+    font-family: var(--serif);
+    font-size: 15.5px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .intro-head-sub {
+    font-size: 12.5px;
+    color: var(--ink-3);
+  }
+  .collapse-btn {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink-2);
+    font-size: 12px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: var(--sans);
+  }
+  .collapse-btn:hover {
+    background: var(--paper);
+    color: var(--ink);
+    border-color: var(--line-strong);
+  }
+  .intro-body {
+    position: relative;
+    z-index: 2;
+    padding: 22px 22px 24px;
+    transition: all 0.28s ease;
+  }
+  .intro-shell.is-collapsed .intro-head {
+    border-bottom-color: transparent;
+  }
+  .intro-shell.is-collapsed .intro-body {
+    display: none;
+  }
+
+  /* =========================================================
+     模块 1：万象工坊 · 迷你活体电路带
+     ========================================================= */
+  .circuit-grid {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 48px minmax(230px, 1fr) 48px minmax(280px, 1.25fr);
+    align-items: center;
+    gap: 0;
+  }
+  .c-node {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    padding: 15px 16px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+  }
+  .c-node:hover {
+    border-color: rgba(34, 52, 212, 0.28);
+  }
+  .c-node-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .c-step {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    color: var(--cobalt);
+    background: var(--cobalt-soft);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  .c-step.vermilion { color: var(--vermilion); background: var(--vermilion-soft); }
+  .c-step.teal { color: var(--teal); background: var(--teal-soft); }
+  .c-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--teal);
+    background: var(--teal-soft);
+    padding: 2px 7px;
+    border-radius: 6px;
+  }
+  .c-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  /* 预设胶囊 */
+  .preset-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .preset-pill {
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--paper-soft);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: all 0.18s ease;
+    font-family: var(--sans);
+  }
+  .preset-pill:hover {
+    border-color: var(--line-strong);
+    color: var(--ink);
+  }
+  .preset-pill.active {
+    background: var(--ink);
+    color: #fff;
+    border-color: var(--ink);
+  }
+  .prompt-preview {
+    font-size: 12px;
+    color: var(--ink-2);
+    background: var(--paper-soft);
+    border: 1px dashed var(--line-strong);
+    border-radius: 10px;
+    padding: 8px 10px;
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+  }
+  .cursor-blink {
+    display: inline-block;
+    width: 1.5px;
+    height: 13px;
+    background: var(--cobalt);
+    margin-left: 3px;
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* 节点 2：滑杆控制 */
+  .mini-control {
+    margin-bottom: 10px;
+  }
+  .mini-control:last-child { margin-bottom: 0; }
+  .mini-control-top {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--ink-2);
+    margin-bottom: 5px;
+  }
+  .mini-control-top output {
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--cobalt);
+  }
+  input[type="range"].paper-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 999px;
+    background: rgba(17, 19, 18, 0.12);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"].paper-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--ink);
+    border: 2.5px solid #fff;
+    box-shadow: 0 2px 6px rgba(17, 19, 18, 0.25);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  input[type="range"].paper-range::-webkit-slider-thumb:hover {
+    transform: scale(1.16);
+    background: var(--cobalt);
+  }
+  .code-pill-hint {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: var(--ink-3);
+  }
+  .code-pill-hint code {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--ink-2);
+    background: var(--paper-soft);
+    padding: 2px 6px;
+    border-radius: 5px;
+  }
+
+  /* 导线动画 */
+  .wire-slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+  }
+  .wire-svg {
+    width: 100%;
+    height: 26px;
+    overflow: visible;
+  }
+  .wire-base {
+    stroke: rgba(17, 19, 18, 0.16);
+    stroke-width: 1.8;
+    fill: none;
+  }
+  .wire-flow {
+    stroke: var(--cobalt);
+    stroke-width: 2.2;
+    stroke-dasharray: 5 10;
+    stroke-linecap: round;
+    fill: none;
+    animation: flow-dash 1.2s linear infinite;
+  }
+  .wire-flow.teal { stroke: var(--teal); }
+  @keyframes flow-dash {
+    from { stroke-dashoffset: 30; }
+    to { stroke-dashoffset: 0; }
+  }
+
+  /* 节点 3：实时舞台 */
+  .stage-canvas-box {
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 8px;
+    margin-bottom: 9px;
+  }
+  .stage-svg {
+    width: 100%;
+    height: 118px;
+    display: block;
+  }
+  .stage-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--ink-2);
+  }
+  .stage-metric {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink);
+  }
+  .mini-action {
+    border: none;
+    background: var(--ink);
+    color: #fff;
+    font-size: 11.5px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    font-family: var(--sans);
+  }
+  .mini-action:hover { background: var(--cobalt); transform: translateY(-1px); }
+
+  /* =========================================================
+     模块 2：万象活页 · 死 PPT 瞬间通电透视窗
+     ========================================================= */
+  .living-layout {
+    display: grid;
+    grid-template-columns: minmax(270px, 0.92fr) minmax(340px, 1.25fr);
+    gap: 26px;
+    align-items: center;
+  }
+  .living-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .living-step-btn {
+    text-align: left;
+    border: 1px solid var(--line);
+    background: var(--paper-soft);
+    border-radius: 14px;
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: all 0.22s ease;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-family: var(--sans);
+  }
+  .living-step-btn:hover {
+    border-color: var(--line-strong);
+    background: var(--card);
+  }
+  .living-step-btn.active {
+    background: var(--card);
+    border-color: rgba(34, 52, 212, 0.35);
+    box-shadow: var(--shadow-sm);
+    transform: translateX(4px);
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 700;
+    background: var(--paper);
+    color: var(--ink-2);
+    border: 1px solid var(--line);
+    margin-top: 1px;
+  }
+  .living-step-btn.active .step-num {
+    background: var(--cobalt);
+    color: #fff;
+    border-color: var(--cobalt);
+  }
+  .step-text strong {
+    display: block;
+    font-size: 13.5px;
+    color: var(--ink);
+    margin-bottom: 2px;
+  }
+  .step-text span {
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .power-row {
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .power-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: var(--sans);
+  }
+  .power-toggle:hover { background: var(--cobalt); border-color: var(--cobalt); }
+  .power-toggle.is-live {
+    background: var(--teal);
+    border-color: var(--teal);
+  }
+  .power-hint {
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+
+  /* 微缩 16:9 幻灯片舞台 */
+  .slide-stage-wrap {
+    perspective: 1100px;
+    padding: 10px 6px;
+  }
+  .slide-deck-stack {
+    position: relative;
+    aspect-ratio: 16 / 9.4;
+    border-radius: 16px;
+    background: #fff;
+    border: 1px solid var(--line-strong);
+    box-shadow:
+      0 10px 0 -4px #f5f2ea,
+      0 10px 0 -3px rgba(17, 19, 18, 0.08),
+      0 20px 0 -8px #ede9de,
+      0 20px 0 -7px rgba(17, 19, 18, 0.06),
+      var(--shadow-lg);
+    transform: rotateY(-5deg) rotateX(2.5deg);
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.45s ease;
+    overflow: hidden;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .slide-deck-stack.is-live {
+    transform: rotateY(-1deg) rotateX(0.5deg);
+  }
+  .slide-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--ink-3);
+    font-family: var(--mono);
+  }
+  .slide-title-mock {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 6px 0 10px;
+  }
+  .slide-content-cols {
+    display: grid;
+    grid-template-columns: 0.9fr 1.25fr;
+    gap: 14px;
+    flex: 1;
+    align-items: stretch;
+  }
+  .slide-text-mock {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    justify-content: center;
+  }
+  .mock-line {
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(17, 19, 18, 0.11);
+  }
+  .mock-line.short { width: 65%; }
+  .mock-line.mid { width: 84%; }
+  .mock-formula-box {
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--ink-2);
+    transition: all 0.3s ease;
+  }
+  .slide-deck-stack.is-live .mock-formula-box {
+    border-color: rgba(34, 52, 212, 0.25);
+    color: var(--cobalt);
+    background: var(--cobalt-soft);
+  }
+
+  /* 幻灯片里的互动仪器区域 */
+  .slide-widget-slot {
+    position: relative;
+    border-radius: 12px;
+    border: 1.5px dashed rgba(17, 19, 18, 0.2);
+    background: #f6f5f1;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .slide-deck-stack.is-live .slide-widget-slot {
+    border: 1.5px solid rgba(34, 52, 212, 0.38);
+    background: #fffdf8;
+    box-shadow: 0 12px 26px rgba(34, 52, 212, 0.13);
+    transform: translateY(-4px) scale(1.02);
+  }
+  .widget-slot-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .slide-deck-stack.is-live .widget-slot-head {
+    color: var(--cobalt);
+  }
+  .widget-live-pill {
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-size: 10px;
+    background: rgba(17, 19, 18, 0.07);
+    color: var(--ink-3);
+  }
+  .slide-deck-stack.is-live .widget-live-pill {
+    background: var(--teal-soft);
+    color: var(--teal);
+  }
+  .slide-widget-svg {
+    width: 100%;
+    height: 76px;
+    display: block;
+    margin: 4px 0;
+  }
+  .slide-widget-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10.5px;
+    color: var(--ink-2);
+    opacity: 0.35;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .slide-deck-stack.is-live .slide-widget-ctrl {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* 扫描光束（未通电时缓缓扫过） */
+  .scan-beam {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, transparent, var(--vermilion), transparent);
+    box-shadow: 0 0 14px rgba(222, 66, 31, 0.55);
+    left: -10%;
+    animation: scan-sweep 3.4s ease-in-out infinite;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+  .slide-deck-stack.is-live .scan-beam {
+    opacity: 0;
+    animation: none;
+  }
+  @keyframes scan-sweep {
+    0% { left: 8%; opacity: 0; }
+    15% { opacity: 0.9; }
+    85% { opacity: 0.9; }
+    100% { left: 94%; opacity: 0; }
+  }
+
+  /* 离线单文件印章 */
+  .offline-stamp {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: var(--teal);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 6px 16px rgba(15, 118, 110, 0.28);
+    transform: translateY(-10px) scale(0.92);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .slide-deck-stack.show-offline .offline-stamp {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+
+  /* =========================================================
+     模块 3：个人主页 · 创作闭环脉搏条
+     ========================================================= */
+  .pulse-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .pulse-greeting {
+    font-size: 13.5px;
+    color: var(--ink-2);
+  }
+  .pulse-greeting strong {
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 15px;
+  }
+  .sim-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--paper-soft);
+    padding: 4px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+  }
+  .sim-switcher span {
+    font-size: 11px;
+    color: var(--ink-3);
+    padding: 0 6px;
+  }
+  .sim-btn {
+    border: none;
+    background: transparent;
+    color: var(--ink-2);
+    font-size: 11.5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: all 0.18s ease;
+  }
+  .sim-btn.active {
+    background: var(--ink);
+    color: #fff;
+  }
+
+  .compass-track {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .compass-line-bg {
+    position: absolute;
+    top: 28px;
+    left: 12%;
+    right: 12%;
+    height: 2px;
+    background: rgba(17, 19, 18, 0.1);
+    z-index: 0;
+  }
+  .compass-line-fill {
+    position: absolute;
+    top: 28px;
+    left: 12%;
+    height: 2px;
+    background: linear-gradient(90deg, var(--teal), var(--cobalt));
+    z-index: 1;
+    transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .compass-node {
+    position: relative;
+    z-index: 2;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    padding: 14px 15px;
+    cursor: pointer;
+    transition: all 0.22s ease;
+    text-align: left;
+    font-family: var(--sans);
+  }
+  .compass-node:hover {
+    transform: translateY(-2px);
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-sm);
+  }
+  .compass-node.is-next {
+    border-color: rgba(222, 66, 31, 0.36);
+    box-shadow: 0 8px 22px rgba(222, 66, 31, 0.08);
+  }
+  .compass-node.is-done {
+    border-color: rgba(15, 118, 110, 0.28);
+    background: linear-gradient(180deg, rgba(15, 118, 110, 0.03), var(--card));
+  }
+  .compass-node-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .compass-dot {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--paper-soft);
+    color: var(--ink-3);
+    border: 1px solid var(--line);
+  }
+  .compass-node.is-done .compass-dot {
+    background: var(--teal);
+    color: #fff;
+    border-color: var(--teal);
+  }
+  .compass-node.is-next .compass-dot {
+    background: var(--vermilion);
+    color: #fff;
+    border-color: var(--vermilion);
+    box-shadow: 0 0 0 5px var(--vermilion-soft);
+    animation: pulse-ring 2s ease-in-out infinite;
+  }
+  @keyframes pulse-ring {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(222, 66, 31, 0.16); }
+    50% { box-shadow: 0 0 0 9px rgba(222, 66, 31, 0.04); }
+  }
+  .status-stamp {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-weight: 600;
+  }
+  .status-stamp.done {
+    color: var(--teal);
+    background: var(--teal-soft);
+    border: 1px solid rgba(15, 118, 110, 0.25);
+  }
+  .status-stamp.next {
+    color: var(--vermilion);
+    background: var(--vermilion-soft);
+  }
+  .status-stamp.todo {
+    color: var(--ink-3);
+    background: var(--paper-soft);
+  }
+  .compass-node h4 {
+    font-size: 13.5px;
+    color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .compass-node p {
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+
+  .pulse-advice-bar {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 13px;
+    background: var(--paper-soft);
+    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .pulse-advice-text {
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  .pulse-advice-text strong {
+    color: var(--ink);
+  }
+  .pulse-cta {
+    border: none;
+    background: var(--ink);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    font-family: var(--sans);
+  }
+  .pulse-cta:hover { background: var(--cobalt); }
+
+  /* 响应式适配 */
+  @media (max-width: 960px) {
+    .circuit-grid {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .wire-slot {
+      height: 22px;
+      transform: rotate(90deg);
+    }
+    .living-layout {
+      grid-template-columns: 1fr;
+    }
+    .compass-track {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .compass-line-bg, .compass-line-fill { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="preview-bar">
+  <div class="preview-bar-inner">
+    <div class="preview-brand">
+      <span class="preview-dot"></span>
+      <strong>万象 · 动态功能引入区预览</strong>
+      <span>仅独立原型，未改动项目代码 · 全部支持真实交互</span>
+    </div>
+    <nav class="preview-nav">
+      <a href="#intro-workshop">01 万象工坊</a>
+      <a href="#intro-living">02 万象活页</a>
+      <a href="#intro-space">03 个人主页</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ==================== 01 万象工坊 ==================== -->
+  <section id="intro-workshop">
+    <div class="section-meta">
+      <span class="section-tag"><i></i> 01 · 万象工坊顶部引入区（放置于「万象工坊」标题上方）</span>
+      <span class="section-hint">试着切换预设、拖动中间滑杆，看右侧舞台实时变化</span>
+    </div>
+
+    <div class="intro-shell" id="shell-workshop">
+      <div class="intro-head">
+        <div class="intro-head-left">
+          <span class="eyebrow-pill"><span class="dot cobalt"></span>活体电路标本</span>
+          <span class="intro-head-title">拖积木连线，或用一句话让 AI 造出真计算实验</span>
+          <span class="intro-head-sub">沙箱实时计算 · 零预设动画</span>
+        </div>
+        <button class="collapse-btn" data-toggle="shell-workshop">收起导览 ▴</button>
+      </div>
+
+      <div class="intro-body">
+        <div class="circuit-grid">
+          <!-- 节点 1 -->
+          <div class="c-node">
+            <div class="c-node-head">
+              <span class="c-step">01 灵感输入</span>
+              <span style="font-size:11px;color:var(--ink-3)">点选切换</span>
+            </div>
+            <div class="c-title">自然语言 / 学科预设</div>
+            <div class="preset-pills" id="ws-presets">
+              <button class="preset-pill active" data-preset="scan">磁盘调度 SCAN</button>
+              <button class="preset-pill" data-preset="damping">二阶欠阻尼</button>
+              <button class="preset-pill" data-preset="gd">梯度下降</button>
+            </div>
+            <div class="prompt-preview">
+              <span id="ws-prompt-text"></span><span class="cursor-blink"></span>
+            </div>
+          </div>
+
+          <!-- 导线 1 -->
+          <div class="wire-slot" aria-hidden="true">
+            <svg class="wire-svg" viewBox="0 0 48 26">
+              <path class="wire-base" d="M 0 13 C 16 13, 32 13, 48 13" />
+              <path class="wire-flow" d="M 0 13 C 16 13, 32 13, 48 13" />
+            </svg>
+          </div>
+
+          <!-- 节点 2 -->
+          <div class="c-node">
+            <div class="c-node-head">
+              <span class="c-step vermilion">02 AI 计算方块</span>
+              <span class="c-badge" id="ws-perf">✓ 24 帧 · 1.1ms</span>
+            </div>
+            <div class="c-title">实时调参 · 安全沙箱</div>
+            <div class="mini-control">
+              <div class="mini-control-top">
+                <span id="ws-label-1">初始磁头位置</span>
+                <output id="ws-val-1">53</output>
+              </div>
+              <input class="paper-range" id="ws-slider-1" type="range" min="10" max="180" step="1" value="53" />
+            </div>
+            <div class="mini-control">
+              <div class="mini-control-top">
+                <span id="ws-label-2">扫描方向</span>
+                <output id="ws-val-2">向高磁道 (+)</output>
+              </div>
+              <input class="paper-range" id="ws-slider-2" type="range" min="0" max="1" step="1" value="1" />
+            </div>
+            <div class="code-pill-hint">
+              <span>可展开手改纯函数</span>
+              <code>run({ params })</code>
+            </div>
+          </div>
+
+          <!-- 导线 2 -->
+          <div class="wire-slot" aria-hidden="true">
+            <svg class="wire-svg" viewBox="0 0 48 26">
+              <path class="wire-base" d="M 0 13 C 16 13, 32 13, 48 13" />
+              <path class="wire-flow teal" d="M 0 13 C 16 13, 32 13, 48 13" />
+            </svg>
+          </div>
+
+          <!-- 节点 3 -->
+          <div class="c-node">
+            <div class="c-node-head">
+              <span class="c-step teal">03 通用舞台</span>
+              <span style="font-size:11px;color:var(--ink-3)" id="ws-stage-tag">磁头轨迹对比</span>
+            </div>
+            <div class="stage-canvas-box">
+              <svg class="stage-svg" id="ws-stage-svg" viewBox="0 0 280 118"></svg>
+            </div>
+            <div class="stage-foot">
+              <span class="stage-metric" id="ws-metric">SCAN 总寻道：236</span>
+              <button class="mini-action" id="ws-replay">重播演化 ↻</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 02 万象活页 ==================== -->
+  <section id="intro-living">
+    <div class="section-meta">
+      <span class="section-tag"><i></i> 02 · 万象活页顶部引入区（放置于「万象活页」标题上方）</span>
+      <span class="section-hint">点击左侧步骤或「通电演示」，体验“死 PPT 瞬间变活”</span>
+    </div>
+
+    <div class="intro-shell" id="shell-living">
+      <div class="intro-head">
+        <div class="intro-head-left">
+          <span class="eyebrow-pill"><span class="dot"></span>PPT 活化透视</span>
+          <span class="intro-head-title">保留原版式，让最难讲的那几页当场“通电”</span>
+          <span class="intro-head-sub">支持 PPTX / PDF / 图片</span>
+        </div>
+        <button class="collapse-btn" data-toggle="shell-living">收起导览 ▴</button>
+      </div>
+
+      <div class="intro-body">
+        <div class="living-layout">
+          <div class="living-steps">
+            <button class="living-step-btn active" data-living-step="1">
+              <span class="step-num">1</span>
+              <div class="step-text">
+                <strong>原稿高清保真导入</strong>
+                <span>熟悉排版完整保留，文字与原生图表/表格随时可改。</span>
+              </div>
+            </button>
+            <button class="living-step-btn" data-living-step="2">
+              <span class="step-num">2</span>
+              <div class="step-text">
+                <strong>任意页嵌入工坊活仪器</strong>
+                <span>从「我的作品」或「公开画廊」挑一台仪器，直接贴进幻灯片。</span>
+              </div>
+            </button>
+            <button class="living-step-btn" data-living-step="3">
+              <span class="step-num">3</span>
+              <div class="step-text">
+                <strong>单文件 HTML 断网演播</strong>
+                <span>拷进 U 盘双击即讲，教室断网也能实时拖参数、播动画。</span>
+              </div>
+            </button>
+
+            <div class="power-row">
+              <button class="power-toggle" id="living-power-btn">⚡ 点击给幻灯片通电</button>
+              <span class="power-hint" id="living-power-hint">当前：静态原稿态</span>
+            </div>
+          </div>
+
+          <div class="slide-stage-wrap">
+            <div class="slide-deck-stack" id="living-slide">
+              <div class="scan-beam"></div>
+              <div class="offline-stamp">✓ 单文件 HTML · 断网可用</div>
+
+              <div>
+                <div class="slide-top-bar">
+                  <span>SLIDE 06 / 18 · 课堂原稿</span>
+                  <span id="living-slide-mode">STATIC</span>
+                </div>
+                <div class="slide-title-mock">傅里叶级数：方波的谐波叠加</div>
+              </div>
+
+              <div class="slide-content-cols">
+                <div class="slide-text-mock">
+                  <div class="mock-line"></div>
+                  <div class="mock-line mid"></div>
+                  <div class="mock-line short"></div>
+                  <div class="mock-formula-box" id="living-formula">
+                    N = 5 阶谐波 · 静态配图
+                  </div>
+                </div>
+
+                <div class="slide-widget-slot">
+                  <div class="widget-slot-head">
+                    <span id="living-slot-title">静态插图占位</span>
+                    <span class="widget-live-pill" id="living-slot-pill">未通电</span>
+                  </div>
+                  <svg class="slide-widget-svg" id="living-wave-svg" viewBox="0 0 220 76"></svg>
+                  <div class="slide-widget-ctrl">
+                    <span>谐波阶数</span>
+                    <input class="paper-range" id="living-n-slider" type="range" min="1" max="15" step="2" value="5" />
+                    <output id="living-n-val" style="font-family:var(--mono);font-weight:700;color:var(--cobalt)">5</output>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 03 个人主页 ==================== -->
+  <section id="intro-space">
+    <div class="section-meta">
+      <span class="section-tag"><i></i> 03 · 个人主页顶部引入区（放置于个人名片卡片上方）</span>
+      <span class="section-hint">点击右上角模拟不同用户进度，看印章、流光与引导文案的联动变化</span>
+    </div>
+
+    <div class="intro-shell" id="shell-space">
+      <div class="intro-head">
+        <div class="intro-head-left">
+          <span class="eyebrow-pill"><span class="dot teal"></span>创作闭环罗盘</span>
+          <span class="intro-head-title">从灵感到课堂，四步点亮你的教学工作室</span>
+        </div>
+        <button class="collapse-btn" data-toggle="shell-space">收起导览 ▴</button>
+      </div>
+
+      <div class="intro-body">
+        <div class="pulse-top-row">
+          <div class="pulse-greeting" id="space-greeting">
+            <strong>晚上好，admin</strong> · 你的创作闭环已点亮 <span id="space-count">1 / 4</span> 站
+          </div>
+          <div class="sim-switcher" role="group" aria-label="模拟账号进度">
+            <span>预览状态</span>
+            <button class="sim-btn" data-sim="0">新用户 (0/0)</button>
+            <button class="sim-btn active" data-sim="1">当前截图 (1/0)</button>
+            <button class="sim-btn" data-sim="4">全闭环 (3/2)</button>
+          </div>
+        </div>
+
+        <div class="compass-track">
+          <div class="compass-line-bg"></div>
+          <div class="compass-line-fill" id="compass-fill" style="width: 26%;"></div>
+
+          <button class="compass-node" data-station="0">
+            <div class="compass-node-top">
+              <span class="compass-dot">01</span>
+              <span class="status-stamp"></span>
+            </div>
+            <h4>在工坊造仪器</h4>
+            <p>拖积木连线或一句话让 AI 生成真计算实验</p>
+          </button>
+
+          <button class="compass-node" data-station="1">
+            <div class="compass-node-top">
+              <span class="compass-dot">02</span>
+              <span class="status-stamp"></span>
+            </div>
+            <h4>存入个人积木库</h4>
+            <p>框选封装常用子模块，跨画布随时拖出复用</p>
+          </button>
+
+          <button class="compass-node" data-station="2">
+            <div class="compass-node-top">
+              <span class="compass-dot">03</span>
+              <span class="status-stamp"></span>
+            </div>
+            <h4>嵌进活页 PPT</h4>
+            <p>上传原有课件，在重点页贴上刚造好的活仪器</p>
+          </button>
+
+          <button class="compass-node" data-station="3">
+            <div class="compass-node-top">
+              <span class="compass-dot">04</span>
+              <span class="status-stamp"></span>
+            </div>
+            <h4>导出离线课件</h4>
+            <p>打包单文件 HTML 带去教室，断网也能流畅演播</p>
+          </button>
+        </div>
+
+        <div class="pulse-advice-bar">
+          <div class="pulse-advice-text" id="space-advice"></div>
+          <button class="pulse-cta" id="space-cta">去试试下一步 →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  /* ================= 通用折叠交互 ================= */
+  document.querySelectorAll('[data-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const shell = document.getElementById(btn.dataset.toggle);
+      const collapsed = shell.classList.toggle('is-collapsed');
+      btn.textContent = collapsed ? '展开导览 ▾' : '收起导览 ▴';
+    });
+  });
+
+  /* ================= 01 万象工坊：真实计算驱动的迷你电路 ================= */
+  const wsPresets = {
+    scan: {
+      prompt: '“演示电梯磁盘调度 SCAN 的磁头轨迹，并对比 FCFS 总寻道长度”',
+      tag: '磁头轨迹 · SCAN vs FCFS',
+      perf: '✓ 18 帧 · 0.9ms',
+      c1: { label: '初始磁头位置', min: 10, max: 180, step: 1, val: 53 },
+      c2: { label: '扫描方向', min: 0, max: 1, step: 1, val: 1, fmt: v => v == 1 ? '向高磁道 (+)' : '向低磁道 (-)' },
+      render(v1, v2, progress) {
+        const reqs = [98, 183, 37, 122, 14, 124, 65, 67];
+        const left = reqs.filter(r => r < v1).sort((a, b) => b - a);
+        const right = reqs.filter(r => r >= v1).sort((a, b) => a - b);
+        const seq = v2 == 1 ? [v1, ...right, 199, ...left] : [v1, ...left, 0, ...right];
+        let total = 0;
+        for (let i = 1; i < seq.length; i++) total += Math.abs(seq[i] - seq[i - 1]);
+        const pts = seq.map((cyl, i) => [14 + (cyl / 200) * 252, 14 + (i / (seq.length - 1)) * 90]);
+        const showCount = Math.max(2, Math.round(pts.length * progress));
+        const visPts = pts.slice(0, showCount);
+        const poly = visPts.map(p => p.join(',')).join(' ');
+        const circles = visPts.map((p, i) =>
+          `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === visPts.length - 1 ? 4.2 : 2.8}" fill="${i === 0 ? '#de421f' : '#2234d4'}" />`
+        ).join('');
+        return {
+          metric: `SCAN 总寻道：${total} 磁道`,
+          svg: `
+            <line x1="14" y1="14" x2="266" y2="14" stroke="rgba(17,19,18,0.14)" stroke-dasharray="3 3"/>
+            <line x1="14" y1="104" x2="266" y2="104" stroke="rgba(17,19,18,0.14)" stroke-dasharray="3 3"/>
+            <polyline points="${poly}" fill="none" stroke="#2234d4" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+            ${circles}
+            <text x="14" y="115" font-size="9" fill="#83867f" font-family="monospace">0</text>
+            <text x="248" y="115" font-size="9" fill="#83867f" font-family="monospace">199</text>
+          `
+        };
+      }
+    },
+    damping: {
+      prompt: '“展示二阶阻尼振子 y\'\' + 2ζωy\' + ω²y = 0 在不同阻尼比下的响应”',
+      tag: '实时 ODE 数值积分',
+      perf: '✓ 60 帧 · 1.2ms',
+      c1: { label: '阻尼比 ζ', min: 0.05, max: 1.4, step: 0.05, val: 0.25 },
+      c2: { label: '固有频率 ω', min: 1.5, max: 6.0, step: 0.25, val: 3.5, fmt: v => `${Number(v).toFixed(2)} rad/s` },
+      render(zeta, omega, progress) {
+        const pts = [];
+        const envTop = [], envBot = [];
+        const N = 80;
+        const maxI = Math.max(4, Math.round(N * progress));
+        for (let i = 0; i <= maxI; i++) {
+          const t = (i / N) * 6;
+          const x = 14 + (i / N) * 252;
+          let yVal;
+          if (zeta < 1) {
+            const wd = omega * Math.sqrt(1 - zeta * zeta);
+            yVal = Math.exp(-zeta * omega * t) * Math.cos(wd * t);
+          } else {
+            yVal = Math.exp(-omega * t) * (1 + omega * t);
+          }
+          const y = 59 - yVal * 42;
+          pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+          const env = Math.exp(-zeta * omega * t) * 42;
+          envTop.push(`${x.toFixed(1)},${(59 - env).toFixed(1)}`);
+          envBot.push(`${x.toFixed(1)},${(59 + env).toFixed(1)}`);
+        }
+        const regime = zeta < 0.98 ? '欠阻尼振荡' : zeta > 1.05 ? '过阻尼衰减' : '临界阻尼';
+        return {
+          metric: `当前模态：${regime}`,
+          svg: `
+            <line x1="14" y1="59" x2="266" y2="59" stroke="rgba(17,19,18,0.16)" />
+            ${zeta < 1 ? `<polyline points="${envTop.join(' ')}" fill="none" stroke="rgba(222,66,31,0.35)" stroke-dasharray="3 3" stroke-width="1.2"/>
+            <polyline points="${envBot.join(' ')}" fill="none" stroke="rgba(222,66,31,0.35)" stroke-dasharray="3 3" stroke-width="1.2"/>` : ''}
+            <polyline points="${pts.join(' ')}" fill="none" stroke="#0f766e" stroke-width="2.3" stroke-linecap="round"/>
+          `
+        };
+      }
+    },
+    gd: {
+      prompt: '“对比不同学习率 η 下梯度下降在二次凸面上的收敛与震荡行为”',
+      tag: '优化步进轨迹',
+      perf: '✓ 14 步 · 0.6ms',
+      c1: { label: '学习率 η', min: 0.08, max: 0.98, step: 0.02, val: 0.36 },
+      c2: { label: '初始起点 x₀', min: -2.6, max: 2.6, step: 0.2, val: -2.2, fmt: v => Number(v).toFixed(1) },
+      render(lr, x0, progress) {
+        const curve = [];
+        for (let i = 0; i <= 60; i++) {
+          const x = -3 + (i / 60) * 6;
+          const px = 14 + ((x + 3) / 6) * 252;
+          const py = 104 - (x * x / 9) * 86;
+          curve.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+        }
+        const steps = [];
+        let cur = Number(x0);
+        for (let k = 0; k < 12; k++) {
+          const px = 14 + ((Math.max(-3, Math.min(3, cur)) + 3) / 6) * 252;
+          const py = 104 - (Math.min(9, cur * cur) / 9) * 86;
+          steps.push([px, py]);
+          cur = cur - lr * 2 * cur;
+        }
+        const vis = steps.slice(0, Math.max(2, Math.round(steps.length * progress)));
+        const jump = vis.map(p => p.join(',')).join(' ');
+        const dots = vis.map((p, i) =>
+          `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${i === vis.length - 1 ? 4.2 : 2.6}" fill="${lr > 0.85 ? '#de421f' : '#2234d4'}" />`
+        ).join('');
+        const state = lr < 0.2 ? '收敛偏慢' : lr > 0.85 ? '剧烈震荡' : '稳健收敛';
+        return {
+          metric: `η=${Number(lr).toFixed(2)} · ${state}`,
+          svg: `
+            <polyline points="${curve.join(' ')}" fill="none" stroke="rgba(17,19,18,0.22)" stroke-width="1.8"/>
+            <polyline points="${jump}" fill="none" stroke="${lr > 0.85 ? '#de421f' : '#2234d4'}" stroke-width="2" stroke-dasharray="4 3"/>
+            ${dots}
+          `
+        };
+      }
+    }
+  };
+
+  let activePreset = 'scan';
+  let wsAnimFrame = null;
+  let wsProgress = 1;
+  let typeTimer = null;
+
+  const s1 = document.getElementById('ws-slider-1');
+  const s2 = document.getElementById('ws-slider-2');
+  const v1Out = document.getElementById('ws-val-1');
+  const v2Out = document.getElementById('ws-val-2');
+  const l1 = document.getElementById('ws-label-1');
+  const l2 = document.getElementById('ws-label-2');
+  const stageSvg = document.getElementById('ws-stage-svg');
+  const wsMetric = document.getElementById('ws-metric');
+  const wsStageTag = document.getElementById('ws-stage-tag');
+  const wsPerf = document.getElementById('ws-perf');
+  const wsPromptEl = document.getElementById('ws-prompt-text');
+
+  function typePrompt(text) {
+    clearInterval(typeTimer);
+    wsPromptEl.textContent = '';
+    let idx = 0;
+    typeTimer = setInterval(() => {
+      idx += 2;
+      wsPromptEl.textContent = text.slice(0, idx);
+      if (idx >= text.length) clearInterval(typeTimer);
+    }, 24);
+  }
+
+  function renderWorkshop() {
+    const p = wsPresets[activePreset];
+    const val1 = Number(s1.value);
+    const val2 = Number(s2.value);
+    v1Out.textContent = p.c1.step < 1 ? val1.toFixed(2) : val1;
+    v2Out.textContent = p.c2.fmt ? p.c2.fmt(val2) : val2;
+    const out = p.render(val1, val2, wsProgress);
+    stageSvg.innerHTML = out.svg;
+    wsMetric.textContent = out.metric;
+  }
+
+  function animateWorkshop() {
+    cancelAnimationFrame(wsAnimFrame);
+    const start = performance.now();
+    const dur = 750;
+    function tick(now) {
+      wsProgress = Math.min(1, (now - start) / dur);
+      renderWorkshop();
+      if (wsProgress < 1) wsAnimFrame = requestAnimationFrame(tick);
+    }
+    wsAnimFrame = requestAnimationFrame(tick);
+  }
+
+  function loadPreset(key) {
+    activePreset = key;
+    const p = wsPresets[key];
+    document.querySelectorAll('#ws-presets .preset-pill').forEach(b => b.classList.toggle('active', b.dataset.preset === key));
+    l1.textContent = p.c1.label;
+    s1.min = p.c1.min; s1.max = p.c1.max; s1.step = p.c1.step; s1.value = p.c1.val;
+    l2.textContent = p.c2.label;
+    s2.min = p.c2.min; s2.max = p.c2.max; s2.step = p.c2.step; s2.value = p.c2.val;
+    wsStageTag.textContent = p.tag;
+    wsPerf.textContent = p.perf;
+    typePrompt(p.prompt);
+    animateWorkshop();
+  }
+
+  document.querySelectorAll('#ws-presets .preset-pill').forEach(btn => {
+    btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
+  });
+  s1.addEventListener('input', () => { wsProgress = 1; renderWorkshop(); });
+  s2.addEventListener('input', () => { wsProgress = 1; renderWorkshop(); });
+  document.getElementById('ws-replay').addEventListener('click', animateWorkshop);
+  loadPreset('scan');
+
+  /* ================= 02 万象活页：死 PPT 瞬间通电 ================= */
+  const livingSlide = document.getElementById('living-slide');
+  const livingPowerBtn = document.getElementById('living-power-btn');
+  const livingPowerHint = document.getElementById('living-power-hint');
+  const livingSlideMode = document.getElementById('living-slide-mode');
+  const livingFormula = document.getElementById('living-formula');
+  const livingSlotTitle = document.getElementById('living-slot-title');
+  const livingSlotPill = document.getElementById('living-slot-pill');
+  const livingWaveSvg = document.getElementById('living-wave-svg');
+  const livingNSlider = document.getElementById('living-n-slider');
+  const livingNVal = document.getElementById('living-n-val');
+
+  let livingStep = 1;
+  let livingLive = false;
+  let wavePhase = 0;
+
+  function drawFourierWave() {
+    const N = Number(livingNSlider.value);
+    livingNVal.textContent = N;
+    const pts = [];
+    for (let i = 0; i <= 90; i++) {
+      const x = 6 + (i / 90) * 208;
+      const theta = (i / 90) * Math.PI * 2 + (livingLive ? wavePhase : 0);
+      let sum = 0;
+      for (let k = 1; k <= N; k += 2) {
+        sum += (4 / (Math.PI * k)) * Math.sin(k * theta);
+      }
+      const y = 38 - sum * 22;
+      pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+    }
+    const color = livingLive ? '#2234d4' : '#a4a6a0';
+    livingWaveSvg.innerHTML = `
+      <line x1="6" y1="38" x2="214" y2="38" stroke="rgba(17,19,18,0.12)" stroke-dasharray="3 3"/>
+      <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="${livingLive ? 2.2 : 1.6}" stroke-linecap="round"/>
+    `;
+  }
+
+  function waveLoop() {
+    if (livingLive) {
+      wavePhase += 0.025;
+      drawFourierWave();
+    }
+    requestAnimationFrame(waveLoop);
+  }
+  waveLoop();
+
+  function syncLivingUI() {
+    document.querySelectorAll('[data-living-step]').forEach(b => {
+      b.classList.toggle('active', Number(b.dataset.livingStep) === livingStep);
+    });
+    livingSlide.classList.toggle('is-live', livingLive);
+    livingSlide.classList.toggle('show-offline', livingStep === 3);
+    livingPowerBtn.classList.toggle('is-live', livingLive);
+    livingPowerBtn.textContent = livingLive ? '✓ 已通电 · 点击还原静页' : '⚡ 点击给幻灯片通电';
+    livingPowerHint.textContent = livingLive
+      ? (livingStep === 3 ? '已打包离线 HTML，断网照常拖动下方滑杆' : '试着拖动幻灯片里的「谐波阶数」滑杆')
+      : '当前：静态原稿态';
+    livingSlideMode.textContent = livingLive ? 'LIVE PLUGIN' : 'STATIC';
+    livingSlotTitle.textContent = livingLive ? '万象工坊 · 傅里叶活仪器' : '静态插图占位';
+    livingSlotPill.textContent = livingLive ? '实时演化中' : '未通电';
+    livingFormula.textContent = livingLive
+      ? `N = ${livingNSlider.value} 阶谐波 · 与右图实时联动`
+      : `N = ${livingNSlider.value} 阶谐波 · 静态配图`;
+    drawFourierWave();
+  }
+
+  document.querySelectorAll('[data-living-step]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      livingStep = Number(btn.dataset.livingStep);
+      livingLive = livingStep >= 2;
+      syncLivingUI();
+    });
+  });
+  livingPowerBtn.addEventListener('click', () => {
+    livingLive = !livingLive;
+    if (livingLive && livingStep === 1) livingStep = 2;
+    if (!livingLive) livingStep = 1;
+    syncLivingUI();
+  });
+  livingNSlider.addEventListener('input', () => {
+    livingFormula.textContent = `N = ${livingNSlider.value} 阶谐波 · 与右图实时联动`;
+    drawFourierWave();
+  });
+  syncLivingUI();
+
+  /* ================= 03 个人主页：创作闭环脉搏条 ================= */
+  const simProfiles = {
+    0: {
+      doneCount: 0,
+      advice: '<strong>刚来到万象？</strong> 先去工坊挑一个现成实验，或用一句话让 AI 帮你生成第一台活仪器。',
+      cta: '去万象工坊造第 1 台仪器 →'
+    },
+    1: {
+      doneCount: 1,
+      advice: '<strong>你已有 1 件工坊作品！</strong> 下一步可以把常用模块存进「我的积木库」，或者直接上传一份 PPT 把它嵌进去。',
+      cta: '去万象活页导入 PPT →'
+    },
+    4: {
+      doneCount: 4,
+      advice: '<strong>全闭环已达成！</strong> 你已经掌握从造仪器到离线演播的完整流程，随时可以继续沉淀个人积木库。',
+      cta: '+ 新建空白画布 →'
+    }
+  };
+
+  const stationHints = [
+    { advice: '<strong>01 在工坊造仪器：</strong>65+ 真内核模板 + AI 智能计算方块，一句话就能生成可调参实验。', cta: '打开万象工坊 →' },
+    { advice: '<strong>02 存入个人积木库：</strong>框选多个积木一键封装并持久化，以后在任何画布都能拖出来用。', cta: '新建画布试试封装 →' },
+    { advice: '<strong>03 嵌进活页 PPT：</strong>上传原稿 PPTX / PDF，在最难讲的那几页直接贴上活仪器。', cta: '打开万象活页 →' },
+    { advice: '<strong>04 导出离线课件：</strong>打包成单个 HTML 文件拷进 U 盘，教室断网也能流畅演播。', cta: '查看我的活页课件 →' }
+  ];
+
+  const compassFill = document.getElementById('compass-fill');
+  const spaceCount = document.getElementById('space-count');
+  const spaceAdvice = document.getElementById('space-advice');
+  const spaceCta = document.getElementById('space-cta');
+  const nodes = document.querySelectorAll('.compass-node');
+
+  function applySim(doneCount) {
+    document.querySelectorAll('.sim-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.sim) === doneCount));
+    spaceCount.textContent = `${doneCount} / 4`;
+    const widths = { 0: '0%', 1: '26%', 2: '52%', 3: '76%', 4: '76%' };
+    compassFill.style.width = widths[doneCount] || '0%';
+    nodes.forEach((node, idx) => {
+      const stamp = node.querySelector('.status-stamp');
+      const dot = node.querySelector('.compass-dot');
+      node.classList.remove('is-done', 'is-next');
+      if (idx < doneCount) {
+        node.classList.add('is-done');
+        dot.textContent = '✓';
+        stamp.className = 'status-stamp done';
+        stamp.textContent = '已点亮';
+      } else if (idx === doneCount) {
+        node.classList.add('is-next');
+        dot.textContent = `0${idx + 1}`;
+        stamp.className = 'status-stamp next';
+        stamp.textContent = '建议下一步';
+      } else {
+        dot.textContent = `0${idx + 1}`;
+        stamp.className = 'status-stamp todo';
+        stamp.textContent = '待解锁';
+      }
+    });
+    const prof = simProfiles[doneCount];
+    spaceAdvice.innerHTML = prof.advice;
+    spaceCta.textContent = prof.cta;
+  }
+
+  document.querySelectorAll('.sim-btn').forEach(btn => {
+    btn.addEventListener('click', () => applySim(Number(btn.dataset.sim)));
+  });
+  nodes.forEach((node, idx) => {
+    node.addEventListener('click', () => {
+      spaceAdvice.innerHTML = stationHints[idx].advice;
+      spaceCta.textContent = stationHints[idx].cta;
+    });
+  });
+  applySim(1);
+</script>
+</body>
+</html>
