@@ -1,10 +1,9 @@
 import type {SceneDocument,SceneNode,ScenePage,SceneRelation,NodePatch,NodeChange,PageAction,PageMetadata,TextStyle} from './types';
-import {defaultMathScene} from './mathScene.ts';
 import {defaultDiagram} from './inlineSystems.ts';
 import {currentParagraphs,inheritRunStyle,preserveTextRuns} from './richText.ts';
 export const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
 const figureKeys=['cleaned_asset_id','figure_scene'] as const;
-export const mutableKeys=['x','y','width','height','rotation','z','opacity','locked','hidden','deleted','text','paragraphs','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo','workshop_plugin',...figureKeys] as const;
+export const mutableKeys=['x','y','width','height','rotation','z','opacity','locked','hidden','deleted','text','paragraphs','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','diagram','demo','workshop_plugin',...figureKeys] as const;
 export function patchNodes(document:SceneDocument,pageNo:number,ids:string[],patch:NodePatch):SceneDocument {
   return {...document,pages:document.pages.map(page=>page.page_no!==pageNo?page:{...page,modified:true,nodes:page.nodes.map(node=>{
     if(!ids.includes(node.id))return node;
@@ -235,11 +234,11 @@ export function newNode(page:ScenePage,id:string,type:SceneNode['type']='text'):
   // 位置放在页面中央——左上角往往压着标题，用户第一眼会以为写错了地方。
   const reference=[...page.nodes].filter(n=>n.type==='text'&&!n.deleted&&!n.hidden&&n.text.trim())
     .sort((a,b)=>(b.style.font_size??0)-(a.style.font_size??0))[0];
-  const width=type==='workshop_plugin'?760:type==='diagram'?640:type==='demo'?620:type==='math_scene'?480:type==='text'||type==='table'?320:type==='chart'?400:200,
-    height=type==='workshop_plugin'?460:type==='diagram'?280:type==='demo'?360:type==='math_scene'?360:type==='chart'?250:type==='text'?70:type==='vector'?16:140;
+  const width=type==='workshop_plugin'?760:type==='diagram'?640:type==='demo'?620:type==='text'||type==='table'?320:type==='chart'?400:200,
+    height=type==='workshop_plugin'?460:type==='diagram'?280:type==='demo'?360:type==='chart'?250:type==='text'?70:type==='vector'?16:140;
   return {id,type,name:type==='text'?'新文字':type==='image'?'新图片':type==='vector'?'线条':type==='workshop_plugin'?'万象工坊插件':'新图形',
     x:Math.round((page.width-width)/2),y:Math.round((page.height-height)/2),
-    width,height,...(type==='math_scene'?{math_scene:defaultMathScene(),viewer_editable:true,name:'矩阵变换图'}:{}),
+    width,height,
     ...(type==='diagram'?{diagram:defaultDiagram(),viewer_editable:true,name:'原位流程图',flow:{enabled:true,speed:1}}:{}),
     ...(type==='demo'?{demo:null,viewer_editable:true,name:'AI 演示框'}:{}),
     ...(type==='workshop_plugin'?{workshop_plugin:{template_kind:'taylor-error',title:'Taylor 展开与余项',category:'高等数学'},viewer_editable:true,name:'Taylor 展开与余项'}:{}),

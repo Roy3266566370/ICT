@@ -22,7 +22,20 @@
 .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 10px; }
 .field { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 10px; color: var(--ink-500, #5e6878); }
 .field.wide { grid-column: 1 / -1; }
-.textarea { min-height: 68px; resize: vertical; line-height: 1.55; }
+.textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 68px;
+  padding: 5px 6px;
+  color: inherit;
+  background: var(--paper-0, #fff);
+  border: 1px solid var(--hairline, #dedfd6);
+  border-radius: 5px;
+  font: 10px/1.55 var(--font-family-mono, monospace);
+  resize: vertical;
+}
+.codeArea { min-height: 220px; overflow: auto; white-space: pre; tab-size: 2; }
 .presets { display: flex; flex-wrap: wrap; gap: 5px; }
 .presets button { padding: 4px 7px; color: #4f46e5; background: #4f46e50c; border: 1px solid #4f46e530; border-radius: 4px; cursor: pointer; font: inherit; font-size: 10px; }
 .presets button[aria-pressed='true'] { color: #fff; background: #4f46e5; border-color: #4f46e5; }

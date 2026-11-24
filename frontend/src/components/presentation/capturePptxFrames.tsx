@@ -9,7 +9,7 @@ interface Snapshot {
 }
 
 const selector = '[data-presentation-snapshot]';
-const types = new Set(['workshop_plugin', 'math_scene', 'demo', 'diagram']);
+const types = new Set(['workshop_plugin', 'demo', 'diagram']);
 
 export async function capturePptxFrames(pages: ScenePage[], slide: HTMLElement | null, pageNo: number): Promise<Snapshot[]> {
   const candidates = pages.filter(page => page.preparation?.status === 'ready' &&

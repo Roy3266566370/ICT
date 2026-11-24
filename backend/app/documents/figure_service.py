@@ -497,7 +497,7 @@ def vectorize(material_id, page_no, element_id, *, expected_revision, stage='pix
     page = next((page for page in document['pages'] if page['page_no'] == page_no), None)
     node = next((item for item in (page or {}).get('nodes', []) if
                  element_id in (item['id'], item.get('source_element_id'))), None)
-    if not node or node['type'] != 'image' or node.get('deleted') or node.get('hidden') or node.get('matrix_ocr'):
+    if not node or node['type'] != 'image' or node.get('deleted') or node.get('hidden'):
         raise ValueError('请选择页面上的普通图片')
     original, image, box, entry, source_digest = _source(material_id, page_no, document['source_key'], node)
     fingerprint = node_fingerprint(document['source_key'], node)

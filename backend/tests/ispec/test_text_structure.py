@@ -179,7 +179,5 @@ def test_ocr_formula_uses_inferred_source_status() -> None:
         ]
     }
     result = build_ispecs_detailed(payload, material_id="mat_ocr_formula")
-    assert len(result.ispecs) == 1
-    parameter = result.ispecs[0]["parameters"][0]
-    assert parameter["source"]["status"] == "inferred"
-    assert result.recognition["coverage"]["pages_with_interactions"] == 1
+    assert result.ispecs == []
+    assert result.recognition["coverage"]["pages_with_interactions"] == 0

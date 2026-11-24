@@ -63,6 +63,8 @@ export interface NodeBodyProps {
   onPayload?: (payload: string | undefined) => void;
   /** composite：请求展开（解封装）回本层 */
   onExplode?: () => void;
+  /** composite：存入跨画布个人积木库 */
+  onSaveBlock?: () => void;
   onLive?: (outputs: Record<string, PortValue>) => void;
   timeline?: { step: number; last: number; onStep: (step: number) => void };
 }
@@ -579,7 +581,7 @@ function HiddenPortBody(): JSX.Element {
   return <></>;
 }
 
-function CompositeBody({ node, onText, onExplode }: NodeBodyProps): JSX.Element {
+function CompositeBody({ node, onText, onExplode, onSaveBlock }: NodeBodyProps): JSX.Element {
   const sub = node.sub;
   if (!sub) return unconnected('自制积木');
   const ins = sub.ports.filter((p) => p.dir === 'in');
@@ -613,6 +615,11 @@ function CompositeBody({ node, onText, onExplode }: NodeBodyProps): JSX.Element 
           <span className={styles.dim}>内含：{innerKinds.slice(0, 4).join(' · ')}{innerKinds.length > 4 ? ` +${innerKinds.length - 4}` : ''}</span>
         </div>
       ) : null}
+      <div className={styles.miniRead}>
+        <button type="button" className={styles.tbtn} onClick={() => onSaveBlock?.()}>
+          💾 存入我的积木库
+        </button>
+      </div>
       <button type="button" className={styles.tbtn} onClick={() => onExplode?.()}>
         ↩ 展开积木
       </button>

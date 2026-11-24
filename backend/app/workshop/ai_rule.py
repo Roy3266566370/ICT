@@ -19,8 +19,9 @@ MAX_PRESETS = 4
 KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,39}$")
 FORBIDDEN_CODE = re.compile(
     r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|importScripts|indexedDB|BroadcastChannel|"
-    r"localStorage|sessionStorage|document|window|parent|top|globalThis|postMessage|eval|async|await|"
-    r"Date|performance)\b|Math\.random|import\s*\(|new\s+Function\s*\("
+    r"localStorage|sessionStorage|document|window|parent|top|globalThis|self|postMessage|eval|async|await|"
+    r"Date|performance|crypto|Worker|SharedWorker|MessageChannel|MessagePort|WebTransport|caches)\b|"
+    r"Math\.random|import\s*\(|new\s+Function\s*\("
 )
 VIEWS = {"auto", "chart", "graph", "timeline", "table"}
 
@@ -109,7 +110,7 @@ def normalize_rule_payload(raw: Any, fallback_prompt: str = "") -> dict[str, Any
     for item in (raw.get("presets") or [])[:MAX_PRESETS]:
         if not isinstance(item, dict):
             continue
-        label = _text(item.get("label"), 24)
+        label = _text(item.get("label") or item.get("name") or item.get("title"), 24)
         if not label:
             continue
         params: dict[str, float] = {}
@@ -154,7 +155,7 @@ SYSTEM_PROMPT = """你是万象工坊的 AI 规则方块生成器。只输出一
 2. 禁止 DOM、网络、定时器、localStorage、eval、new Function、import、require、async/await；只能使用普通 JavaScript、Number、String、Math 等纯计算能力。
 3. frames 为 2–20 帧数组，每帧至少包含中文 title 和 summary；可包含 columns+rows、series、timeline、graph（graph.nodes/edges）。
 4. controls 为 1–6 个参数，每项含 key、label、value；数值型可带 min/max/step，离散型带 options。
-5. presets 为 2–3 组教学情景，params 的 key 必须来自 controls；可带 text。
+5. presets 为 2–3 组教学情景，每项必须含 label（不要用 name），params 的 key 必须来自 controls；可带 text。
 6. preferredView 只能是 auto/chart/graph/timeline/table。
 7. verificationNote 写一条可手算核对的具体算例。
 8. 只做确定性计算，禁止 Math.random、当前时间或外部数据。"""

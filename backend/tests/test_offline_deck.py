@@ -206,7 +206,7 @@ def test_export_preserves_dynamic_scene_nodes_through_public_whitelist():
     assert nodes['vec_1']['viewer_parameters'] == ['end', 'color', 'line_style', 'stroke_width']
     assert data['document']['pages'][0]['relations'][0]['id'] == 'rel_len_1'
     assert data['document']['pages'][0]['relations'][0]['expression'] == 'round(vec_1.length)'
-    assert nodes['math_1']['math_scene']['matrix'] == [[2, 1], [1, 2]]
-    assert nodes['mat_img_1']['matrix_ocr']['matrices'][0]['values'] == [[1, 2], [0, 1]]
+    assert 'math_scene' not in nodes['math_1']
+    assert 'matrix_ocr' not in nodes['mat_img_1']
     assert len(nodes['diag_1']['diagram']['nodes']) == 2
     assert nodes['demo_1']['demo']['timeline']['duration_s'] == 6

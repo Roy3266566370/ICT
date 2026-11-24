@@ -424,3 +424,18 @@
 .objectSubcategories { display: flex; gap: 4px; flex-wrap: wrap; position: sticky; top: -10px; z-index: 1; padding-block: 5px 9px; background: var(--paper-0, #fffdf8); }
 .objectSubcategories button { padding: 4px 8px; border: 1px solid var(--hairline); border-radius: 6px; background: transparent; color: var(--ink-700); font-size: 12px; cursor: pointer; }
 .objectSubcategories button:hover, .objectSubcategories button[aria-pressed="true"] { background: var(--color-indigo-softer, #eeedff); color: var(--color-indigo, #3830a4); }
+.paletteEmpty { margin: 0; color: var(--ink-500); font-size: 12.5px; line-height: 1.65; }
+.customBlockRow { display: flex; align-items: stretch; gap: 4px; min-width: 0; }
+.customBlockRow .objectItem { flex: 1; }
+.customBlockRemove {
+  flex-shrink: 0;
+  width: 30px;
+  border: 1px solid var(--hairline);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-400);
+  font: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+.customBlockRemove:hover { border-color: #d9a4a0; background: #fff4f2; color: #b42318; }

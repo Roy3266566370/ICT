@@ -406,9 +406,7 @@ def test_offline_html_export_and_reimport_roundtrip(tmp_path, monkeypatch) -> No
         assert hydrated["pages"][0]["preparation"]["status"] == "ready"
         assert hydrated["pages"][1]["preparation"]["status"] == "ready"
         nodes_by_id = {n["id"]: n for n in hydrated["pages"][0]["nodes"]}
-        assert nodes_by_id["math_1"]["math_scene"]["matrix"] == [[2, 0], [0, 1]]
         assert nodes_by_id["math_1"]["flow"] == {"enabled": True, "speed": 2.0}
-        assert nodes_by_id["mat_1"]["matrix_ocr"]["matrices"][0]["values"] == [[1, 2], [0, 1]]
         assert nodes_by_id["mat_1"]["image_url"].endswith("/n_1.png")
         assert nodes_by_id[plugin_id]["type"] == "workshop_plugin"
         assert nodes_by_id[plugin_id]["workshop_plugin"] == saved_plugin

@@ -13,6 +13,7 @@ import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
 import { PALETTE_GROUPS, NODE_DEFS, defaultParams } from '@/canvas/nodes.tsx';
 import { buildTemplateDoc } from '@/canvas/templateCatalog.ts';
 import { defaultAiRuleParams, defaultAiRulePayload, serializeAiRulePayload } from '@/canvas/aiRuleBlock.ts';
+import { instantiateCustomBlock, listCustomBlocks, removeCustomBlock, type CustomBlockRecord } from '@/canvas/customBlocks.ts';
 import { applyAutoLayout } from '@/canvas/layout.ts';
 import { nextId, clamp } from '@/canvas/math.ts';
 import type { CanvasDoc, CanvasTool, InkStroke, NodeType } from '@/canvas/types.ts';
@@ -186,6 +187,8 @@ export function CanvasPage(): JSX.Element {
   const deepPaletteGroups = ['输入', '算子', '训练与更新', '观察'];
   const [lastPaletteItem, setLastPaletteItem] = useState('');
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [customBlocks, setCustomBlocks] = useState<CustomBlockRecord[]>([]);
+  useEffect(() => { if (paletteOpen) setCustomBlocks(listCustomBlocks()); }, [paletteOpen]);
   const [dockHidden, setDockHidden] = useState(() => {
     try { return localStorage.getItem(DOCK_KEY) === '1'; } catch { return false; }
   });
@@ -202,7 +205,7 @@ export function CanvasPage(): JSX.Element {
     paletteButton.current?.focus();
   };
   const paletteSearch = useRef<HTMLInputElement>(null);
-  const paletteCategories = ['常用', 'AI', '深度学习', '高数', '408', '办公', '基础积木', '物理', '文字'];
+  const paletteCategories = ['常用', 'AI', '我的积木', '深度学习', '高数', '408', '办公', '基础积木', '物理', '文字'];
   const commonTypes: readonly NodeType[] = ['slider', 'matrixSource', 'functionSource', 'textNote',
     'dataset2dSource', 'linearOp', 'activationOp', 'matrixHeatmapView'];
   const query = paletteQuery.trim().toLowerCase();
@@ -217,6 +220,9 @@ export function CanvasPage(): JSX.Element {
       .map((group) => ({ ...group, types: group.types.filter((type) =>
         `${group.label} ${NODE_DEFS[type].title} ${type}`.toLowerCase().includes(query)) }))
       .filter(({ types }) => types.length);
+  const matchingCustomBlocks = query
+    ? customBlocks.filter((block) => block.title.toLowerCase().includes(query))
+    : paletteCategory === '我的积木' ? customBlocks : [];
 
   /* 工作台判定只看面板本身：任何学科只要预置了有效 panel（视图或外露参数），
      打开即进入左右停靠的仪器工作台；取消勾选「设为仪器面板」立即回到自由画布。 */
@@ -841,6 +847,12 @@ export function CanvasPage(): JSX.Element {
 
       <CanvasBoard workId={workId} doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor}
         onAddNode={addNode} onInkExtract={recognizeInk} onInkFit={recognizeCurves}
+        onAddCustomBlock={(blockId, x, y) => {
+          const block = customBlocks.find((item) => item.id === blockId);
+          if (!block) return;
+          setDoc((current) => ({ ...current, nodes: [...current.nodes, instantiateCustomBlock(block, x, y)] }));
+          setLastPaletteItem(block.title);
+        }}
         templateKind={templateParam ?? undefined} mode={activeMode} onCompose={() => setMode('compose')}
         renderTools={({ fitAll, tidyLayout, zoomBy, spawnPoint }) => <>
           {dockHidden ? (
@@ -886,7 +898,8 @@ export function CanvasPage(): JSX.Element {
                   </nav>
                 )}
                 {query && <h3>搜索结果</h3>}
-                {visiblePaletteGroups.length === 0 && <p role="status">没有匹配的积木。</p>}
+                {visiblePaletteGroups.length === 0 && matchingCustomBlocks.length === 0
+                  && !(!query && paletteCategory === '我的积木') && <p role="status">没有匹配的积木。</p>}
                 {visiblePaletteGroups.map(({ label, types }) => <section key={label}>
                   <h3>{!query && paletteCategory === '深度学习' ? label.split(' · ')[1] : label}</h3>
                   <div className={styles.objectGrid}>
@@ -899,6 +912,44 @@ export function CanvasPage(): JSX.Element {
                     </button>)}
                   </div>
                 </section>)}
+                {(!query && paletteCategory === '我的积木') || matchingCustomBlocks.length > 0 ? (
+                  <section>
+                    <h3>{query ? '我的积木' : '我的积木库'}</h3>
+                    {matchingCustomBlocks.length === 0 ? (
+                      <p role="status" className={styles.paletteEmpty}>
+                        还没有保存过积木。在画布中选中至少 2 个对象，点击「封装成积木」，再点「存入我的积木库」。
+                      </p>
+                    ) : (
+                      <div className={styles.objectGrid}>
+                        {matchingCustomBlocks.map((block) => (
+                          <div key={block.id} className={styles.customBlockRow}>
+                            <button type="button" className={styles.objectItem}
+                              aria-label={`添加 ${block.title}`} draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('application/x-wanxiang-custom-block', block.id);
+                                e.dataTransfer.effectAllowed = 'copy';
+                              }}
+                              onClick={() => {
+                                const point = spawnPoint();
+                                const offset = (spawn.current % 5) * 18;
+                                setDoc((current) => ({
+                                  ...current,
+                                  nodes: [...current.nodes, instantiateCustomBlock(block, point.x + offset, point.y + offset)],
+                                }));
+                                setLastPaletteItem(block.title);
+                              }}>
+                              <span>{block.title}</span>
+                              <small>{block.sub.ports.length} 端口</small>
+                            </button>
+                            <button type="button" className={styles.customBlockRemove}
+                              aria-label={`删除 ${block.title}`}
+                              onClick={() => { removeCustomBlock(block.id); setCustomBlocks(listCustomBlocks()); }}>×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                ) : null}
               </div>
             </div>
             <footer className={styles.objectPickerFoot} aria-live="polite">

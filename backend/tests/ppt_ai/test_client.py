@@ -257,7 +257,7 @@ def test_httpx_transport_falls_back_to_physical_nic_only_on_fake_ip(monkeypatch:
 
     status, payload = client_mod.HttpxTransport().post(
         "https://api.modelarts-maas.com/v2/chat/completions",
-        headers={"Authorization": "Bearer test"},
+        headers={"Authorization": "Bearer test", "host": "api.modelarts-maas.com", "content-length": "999"},
         json_body={"model": "x"},
         timeout=5.0,
     )
@@ -265,8 +265,54 @@ def test_httpx_transport_falls_back_to_physical_nic_only_on_fake_ip(monkeypatch:
     assert payload == {"ok": True}
     assert len(calls) == 2
     assert calls[0]["url"] == "https://api.modelarts-maas.com/v2/chat/completions"
+    assert "host" not in calls[0]["headers"]
+    assert "content-length" not in calls[0]["headers"]
     assert calls[1]["url"] == "https://1.95.59.212/v2/chat/completions"
     assert calls[1]["headers"]["Host"] == "api.modelarts-maas.com"
+    assert "host" not in calls[1]["headers"]
+    assert "content-length" not in calls[1]["headers"]
     assert calls[1]["extensions"] == {"sni_hostname": "api.modelarts-maas.com"}
     assert calls[1]["trust_env"] is False
     client_mod._DIRECT_ROUTE_CACHE.clear()
+
+
+def test_httpx_transport_ignores_unparseable_proxy_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    import httpx
+    import app.ppt_ai.client as client_mod
+
+    calls: list[dict] = []
+
+    class DummyResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"ok": True}
+
+    class EnvAwareClient:
+        def __init__(self, *, trust_env=True, **kwargs):
+            if trust_env:
+                raise httpx.InvalidURL("Invalid port: ':1]'")
+            self.trust_env = trust_env
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def post(self, url, *, headers=None, json=None):
+            calls.append({"url": url, "trust_env": self.trust_env})
+            return DummyResponse()
+
+    monkeypatch.setattr(httpx, "Client", EnvAwareClient)
+
+    status, payload = client_mod.HttpxTransport().post(
+        "https://api.modelarts-maas.com/v2/chat/completions",
+        headers={"Authorization": "Bearer test"},
+        json_body={"model": "x"},
+        timeout=5.0,
+    )
+    assert status == 200
+    assert payload == {"ok": True}
+    assert calls == [{"url": "https://api.modelarts-maas.com/v2/chat/completions", "trust_env": False}]

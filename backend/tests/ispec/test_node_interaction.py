@@ -103,16 +103,6 @@ def test_content_change_without_replacement_pauses_the_old_spec(monkeypatch):
     assert validate_ispec(specs[0]) == []
 
 
-def test_edited_formula_is_rederived_and_old_relation_removed(monkeypatch):
-    changed = node(text='y = x^2 + 3*x', content_changed=True)
-    monkeypatch.setattr(presentation, 'read_document', lambda _: document([changed]))
-    specs = presentation.apply_document_specs('mat', [auto_spec()])
-    assert all(spec['object_id'] != 'native_test_p1_formula' for spec in specs)
-    derived = [spec for spec in specs if spec.get('node_id') == 'n_5']
-    assert derived and any('3' in spec['expressions'][0]['expr'] and 'x' in spec['expressions'][0]['expr']
-                           for spec in derived if spec.get('expressions'))
-
-
 def test_user_interaction_replaces_automatic_spec(monkeypatch):
     config = {'kind': 'formula', 'formula': 'y = x^2 + 2*x', 'defaults': {'x': 2}, 'allowed': ['x']}
     configured = node(interaction=config)
@@ -121,29 +111,3 @@ def test_user_interaction_replaces_automatic_spec(monkeypatch):
     assert [spec['object_id'] for spec in specs] == ['node_spec_n_5']
     assert specs[0]['parameters'][0]['default'] == 2
     assert specs[0]['generated_by'] == 'user'
-
-
-def test_page_reinteraction_uses_current_visible_text(monkeypatch):
-    edited = node(text='y = 2*x + 1', base_text='旧内容', content_changed=True)
-    monkeypatch.setattr(presentation, 'read_document', lambda _: document([edited], reinteraction=True))
-    specs = presentation.apply_document_specs('mat', [auto_spec()])
-    assert all(spec['object_id'] != 'native_test_p1_formula' for spec in specs)
-    assert any('2*x + 1' in (spec.get('notes') or '') or
-               any('2*x + 1' in (parameter.get('source', {}).get('excerpt') or '')
-                   for parameter in spec.get('parameters', []))
-               for spec in specs)
-    assert all(validate_ispec(spec) == [] for spec in specs)
-
-
-def test_reinteraction_anchors_matrix_to_the_figure_not_a_side_label(monkeypatch):
-    picture = node(id='n_pic', type='image', text='', source_element_id='p01_s01',
-                   x=40.0, y=80.0, width=520.0, height=300.0,
-                   base_x=40.0, base_y=80.0, base_width=520.0, base_height=300.0)
-    matrix = node(id='n_matrix', type='text', text='[[2.0, 1.0], [1.0, 2.0]]',
-                  source_element_id='p01_s02', x=600.0, y=90.0, width=80.0, height=30.0)
-    monkeypatch.setattr(presentation, 'read_document', lambda _: document([picture, matrix], reinteraction=True))
-    specs = presentation.apply_document_specs('mat', [])
-    geometric = [spec for spec in specs if spec.get('kind') == 'geometric' and spec.get('anchor')]
-    assert geometric
-    anchor = geometric[0]['anchor']['bbox']
-    assert anchor['w'] * anchor['h'] > 200 * 12700 * 100 * 12700

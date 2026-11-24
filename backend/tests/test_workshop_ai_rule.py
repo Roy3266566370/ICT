@@ -27,8 +27,9 @@ def test_normalize_rule_payload_keeps_contract_and_filters_unknown_preset_params
             {"key": "bad key", "label": "坏", "value": 1},
         ],
         "presets": [
-            {"label": "小规模", "params": {"n": 2}, "text": "1 2"},
-            {"label": "未知参数", "params": {"unknown": 1}},
+            {"name": "小规模", "params": {"n": 2}, "text": "1 2"},
+            {"title": "未知参数", "params": {"unknown": 1}},
+            {"label": "无参数", "params": {"n": 3}},
         ],
         "preferredView": "timeline",
         "code": VALID_CODE,
@@ -39,7 +40,10 @@ def test_normalize_rule_payload_keeps_contract_and_filters_unknown_preset_params
     assert result["controls"] == [
         {"key": "n", "label": "次数", "value": 3.0, "min": 1.0, "max": 9.0, "step": 1.0}
     ]
-    assert result["presets"] == [{"label": "小规模", "params": {"n": 2.0}, "text": "1 2"}]
+    assert result["presets"] == [
+        {"label": "小规模", "params": {"n": 2.0}, "text": "1 2"},
+        {"label": "无参数", "params": {"n": 3.0}},
+    ]
     assert result["verificationNote"] == "n=2 时两帧"
 
 

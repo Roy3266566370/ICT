@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { runInNewContext } from 'node:vm';
 import { RuleSandboxError, runRuleInSandbox, sanitizePipelineResult, RULE_WORKER_SOURCE } from './ruleSandbox.ts';
 
 function resultOf(frames: number, rows = 1, nodes = 1): unknown {
@@ -94,4 +95,41 @@ test('Worker 成功结果经过校验后返回，运行时错误拒绝', async (
       return worker;
     },
   }), (error) => error instanceof RuleSandboxError && error.code === 'runtime' && /测试运行错误/.test(error.message));
+});
+
+test('Worker 顶层移除网络与构造器入口，原型链也拿不到 fetch', () => {
+  const messages: Array<Record<string, unknown>> = [];
+  const sandbox: Record<string, unknown> = {
+    performance: { now: () => 2 },
+    fetch: () => { throw new Error('fetch must be removed'); },
+    XMLHttpRequest: class {},
+    WebSocket: class {},
+    postMessage(message: unknown) { messages.push(message as Record<string, unknown>); },
+  };
+  sandbox.self = sandbox;
+  runInNewContext(RULE_WORKER_SOURCE, sandbox);
+  const workerSelf = sandbox.self as Record<string, unknown>;
+  for (const name of ['fetch', 'XMLHttpRequest', 'WebSocket', 'postMessage', 'setTimeout', 'Function', 'Date', 'performance', 'crypto']) {
+    assert.equal(workerSelf[name], undefined, `${name} 应从 Worker 全局移除`);
+  }
+  const onmessage = workerSelf.onmessage as (event: { data: unknown }) => void;
+  assert.equal(typeof onmessage, 'function');
+
+  onmessage({ data: {
+    type: 'run',
+    code: 'function run(){ return { frames: [{ title: "ok", summary: "s" }] }; }',
+    input: { text: '', params: {}, upstream: [] },
+    nonce: 'normal',
+  } });
+  assert.equal(messages[0]?.type, 'result');
+  assert.deepEqual((messages[0]?.output as { frames: Array<{ title: string }> }).frames[0]?.title, 'ok');
+
+  onmessage({ data: {
+    type: 'run',
+    code: 'function run(){ return { frames: [{ title: String(({}).constructor.constructor("return self.fetch")()) }] }; }',
+    input: { text: '', params: {}, upstream: [] },
+    nonce: 'prototype',
+  } });
+  assert.equal(messages[1]?.type, 'result');
+  assert.equal((messages[1]?.output as { frames: Array<{ title: string }> }).frames[0]?.title, 'undefined');
 });

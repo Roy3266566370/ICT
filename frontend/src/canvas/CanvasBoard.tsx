@@ -19,6 +19,7 @@ import { findBusinessStage } from './businessPipeline.ts';
 import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasDoc, CanvasNode, CanvasTool, InkStroke, NodeType, PortValue, Wire } from './types.ts';
 import { nextId, clamp } from './math.ts';
+import { saveCustomBlock } from './customBlocks.ts';
 import { isStudyStage } from './studyStages';
 import { NODE_DEFS, nodePorts, type NodeBodyProps } from './nodes.tsx';
 import { AiRuleLive } from './AiRuleBlockNode.tsx';
@@ -50,6 +51,8 @@ interface BoardProps {
   inkColor: string;
   /** 双击空白时请求加节点（由页面决定默认参数） */
   onAddNode?: (type: NodeType, x: number, y: number) => void;
+  /** 从「我的积木库」拖入画布 */
+  onAddCustomBlock?: (blockId: string, x: number, y: number) => void;
   /** 嵌入活页等固定高度容器时，视口撑满父级而不是占满整屏。 */
   embedded?: boolean;
   mode?: 'instrument' | 'compose';
@@ -125,7 +128,7 @@ function portKindOf(ctx: ReturnType<typeof makeCtx>, nodeId: string, isOut: bool
   return spec?.kind;
 }
 
-export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, mode: requestedMode, onCompose, templateKind, renderTools, workId, focusContent, readOnly, interactivePanel, slideInstrument, workshopEmbed, onPreviewPreset, presentationKey, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
+export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCustomBlock, embedded, mode: requestedMode, onCompose, templateKind, renderTools, workId, focusContent, readOnly, interactivePanel, slideInstrument, workshopEmbed, onPreviewPreset, presentationKey, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
   const mode = embedded || visibleNodeIds ? undefined : requestedMode;
   const innerRef = useRef<HTMLDivElement>(null);
   const vpRef = useRef<HTMLDivElement>(null);
@@ -956,6 +959,17 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
       },
       onPayload: readOnly || audienceParams ? undefined : (payload) => patchNode(n.id, { payload }),
       onExplode: !readOnly && !audienceParams && n.type === 'composite' ? () => explode(n.id) : undefined,
+      onSaveBlock: !readOnly && !audienceParams && n.type === 'composite' ? () => {
+        if (!n.sub) return;
+        const title = window.prompt('给这个积木起个名字', n.text || '我的自制积木');
+        if (title === null) return;
+        try {
+          saveCustomBlock(title, n.sub);
+          window.alert('已存入「我的积木库」，可在任意画布从积木库拖出复用。');
+        } catch (error) {
+          window.alert(error instanceof Error ? error.message : '积木保存失败');
+        }
+      } : undefined,
       ...(pipeline ? { timeline: {
         step: Math.floor(pipelineCursors[cursorKey] ?? 0),
         last: pipelineEnds.get(pipeline) ?? 0,
@@ -1003,12 +1017,21 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
       ref={vpRef} data-canvas-viewport
       onPointerDown={composing ? onInnerPointerDown : undefined}
       onDoubleClick={composing ? onInnerDoubleClick : undefined}
-      onDragOver={composing ? (e) => { if (e.dataTransfer.types.includes('application/x-wanxiang-node')) e.preventDefault(); } : undefined}
+      onDragOver={composing ? (e) => {
+        if (e.dataTransfer.types.includes('application/x-wanxiang-node')
+          || e.dataTransfer.types.includes('application/x-wanxiang-custom-block')) e.preventDefault();
+      } : undefined}
       onDrop={composing ? (e) => {
+        const customId = e.dataTransfer.getData('application/x-wanxiang-custom-block');
+        const point = toInner(e.clientX, e.clientY);
+        if (customId) {
+          e.preventDefault();
+          onAddCustomBlock?.(customId, Math.max(0, point.x), Math.max(0, point.y));
+          return;
+        }
         const type = e.dataTransfer.getData('application/x-wanxiang-node') as NodeType;
         if (!Object.hasOwn(NODE_DEFS, type)) return;
         e.preventDefault();
-        const point = toInner(e.clientX, e.clientY);
         onAddNode?.(type, Math.max(0, point.x), Math.max(0, point.y));
       } : undefined}>
       {composing && <div className={styles.canvasSurface} aria-hidden="true" />}

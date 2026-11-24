@@ -205,5 +205,3 @@ export const LiveLayer = memo(function LiveLayer(props: Props) {
     })}
   </div>;
 });
-
-export {MatrixImageLayer} from './MatrixImageLayer';

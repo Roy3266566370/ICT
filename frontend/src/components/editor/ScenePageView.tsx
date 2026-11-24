@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { VectorLine, VectorControls } from './VectorLine';
-import {MathSceneView,MathSceneControls} from './MathSceneView';
 import {SlideDiagramNode} from './SlideDiagramNode';
 import {SlideDemoNode} from './SlideDemoNode';
 import {standaloneDemos} from './standaloneDemos';
@@ -16,8 +15,6 @@ import {InlineRichText} from './InlineRichText';
 import {Formula} from '@/components/showcase/Formula';
 import {resizeVector} from '@/document/vectorGeometry';
 import {same} from '@/document/model';
-import {resolveMatrixSource} from '@/document/mathScene';
-import {MatrixImageLayer} from '@/components/presentation/live/LiveLayer';
 import {VegaSpecView} from '@/components/ispec/views/VegaSpecView';
 import type {ISpec} from '@/ispec/types';
 import styles from './ScenePageView.module.css';
@@ -188,10 +185,6 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
         if (rotated) current = { ...current, ...rotated };
       }
     }
-    if(current.math_scene){
-      const sources=page.nodes.map(source=>presentVectors&&overrides[source.id]?{...source,...overrides[source.id],style:{...source.style,...overrides[source.id]?.style}}:source);
-      current={...current,math_scene:resolveMatrixSource(current.math_scene,sources)};
-    }
     return current;
   };
   const normalizedRelations = normalizePageRelations(rawVisible, page.relations);
@@ -205,10 +198,8 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
   );
   const visible = relationEval.nodes;
   const vectors = visible.filter(node=>node.type==='vector');
-  const mathNodes = visible.filter(node=>node.type==='math_scene');
   const separateIds = new Set(inlineAllDemos ? [] : standaloneDemos(page).map(node=>node.id));
   const richNodes = visible.filter(node=>node.type==='diagram'||(node.type==='demo'&&!separateIds.has(node.id))||node.type==='workshop_plugin');
-  const matrixImages = visible.filter(node=>node.type==='image'&&node.matrix_ocr);
   const basisActive = relationEval.overlays.length > 0;
   const basisLabelIds = new Set(
     normalizedRelations
@@ -239,7 +230,6 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
   const animSteps = [...new Set(vectors.map(node => node.style.anim_step ?? 0).filter(step => step >= 1))].sort((a, b) => a - b);
   const defaultMovable = primaryBasisRel ? vectors.find(node => node.id === primaryBasisRel.secondId && !fixed(node)) : undefined;
   const selected = vectors.find(node=>node.id===choice && !fixed(node)) ?? defaultMovable ?? vectors.find(node=>!fixed(node)) ?? vectors[0];
-  const selectedMath = mathNodes.find(node=>node.id===choice)??mathNodes[0];
   const vectorProgress = (node: SceneNode) => {
     const step = node.style.anim_step ?? 0;
     if (!presentVectors || !step || stepState.target === null) return 1;
@@ -268,11 +258,9 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
   return <div className={styles.canvas} style={{width:page.width,height:page.height,backgroundColor:page.background_color??'#fff',transform:`scale(${scale})`}} data-scene-page={page.page_no}>
     <div className={styles.contentLayer} data-editing={editing || undefined}>
       {page.background_url&&!page.background_modified&&<img className={styles.pageBackground} src={page.background_url} alt="" draggable={false}/>}
-      {visible.filter(node=>node.type!=='vector'&&node.type!=='math_scene'&&node.type!=='diagram'&&node.type!=='demo'&&node.type!=='workshop_plugin').map(node=><NodeView key={node.id} node={node} pageWidth={page.width} pageHeight={page.height}
+      {visible.filter(node=>node.type!=='vector'&&node.type!=='diagram'&&node.type!=='demo'&&node.type!=='workshop_plugin').map(node=><NodeView key={node.id} node={node} pageWidth={page.width} pageHeight={page.height}
         basisCoordLabel={basisLabelIds.has(node.id)}
         editing={editing} editingText={editingId===node.id} selectable={editing} proofFigures={proofFigures} onText={onText} onCompose={onCompose} onTextBlur={onTextBlur}/>)}
-      {matrixImages.map(node=><MatrixImageLayer key={node.id} node={node} interactive={presentVectors||editing}
-        onPatch={(patch,key)=>change(node.id,patch,key)}/>)}
       {vectors.map(node=>{
         const canEditVector = !node.locked && (
           (!!presentVectors && !fixed(node) && canChangeGeometry(node)) ||
@@ -288,11 +276,6 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
           onPreview={canEditVector ? patch => updateLiveDraft(node.id, patch) : undefined}
           onCommit={canEditVector ? patch => { updateLiveDraft(node.id, null); change(node.id, patch); } : undefined}/>;
       })}
-      {mathNodes.map(node=><div key={node.id} data-node-id={node.id} data-node-type="math_scene" style={{display:'contents'}}
-        onPointerDown={event=>{if(editing)onVectorSelect?.(node.id);else {setChoice(node.id);event.stopPropagation();}}}>
-        <MathSceneView key={`${node.id}:${resetVersion}`} node={node}
-          editing={editing} interactive={(presentVectors&&editableVector(node))|| (editing&&vectorId===node.id&&!node.locked)} onPatch={(patch,key)=>change(node.id,patch,key)}/>
-      </div>)}
       {richNodes.map(node=>{
         const props={node,editing,interactive:!!presentVectors||(editing&&vectorId===node.id),onPatch:(patch:NodePatch,key?:string)=>change(node.id,patch,key)};
         return <div key={node.id} data-node-id={node.id} data-node-type={node.type} style={{display:'contents'}}
@@ -321,27 +304,18 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
         <button type="button" disabled={!!playback.animation || playback.completed<1} onClick={()=>playback.play(2)}>第 2 步：沿 b₂</button>
       </>}
     </div>}
-    {editing&&visible.find(node=>node.id===vectorId&&(node.type==='vector'||node.type==='math_scene')&&!node.locked)&&(()=>{
+    {editing&&visible.find(node=>node.id===vectorId&&node.type==='vector'&&!node.locked)&&(()=>{
       const node=visible.find(node=>node.id===vectorId)!;
       const toolbarWidth=Math.min(530,page.width*scale-16);
       const left=Math.max(8/scale,Math.min(node.x,page.width-(toolbarWidth+8)/scale));
-      const top=node.type==='math_scene'?node.y+node.height+12/scale:
-        node.y>=132/scale?node.y-132/scale:node.y+node.height+16/scale;
+      const top=node.y>=132/scale?node.y-132/scale:node.y+node.height+16/scale;
       return <div className={styles.inlineControls} data-no-pan aria-label="原位图形属性"
         style={{left,top,width:toolbarWidth,transform:`scale(${1/scale})`,transformOrigin:'top left'}}
         onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>e.stopPropagation()}>
-        {node.type==='vector'?<VectorControls node={node} onPatch={(patch,key)=>onVectorPatch?.(node.id,patch,key)} author/>:
-          <MathSceneControls key={node.id} node={node} onPatch={(patch,key)=>onVectorPatch?.(node.id,patch,key)} author compact hidePlayback/>}
+        <VectorControls node={node} onPatch={(patch,key)=>onVectorPatch?.(node.id,patch,key)} author/>
       </div>;
     })()}
-    {presentVectors&&selectedMath&&<div className={styles.mathPresentationControls} data-no-pan aria-label="放映数学图控制">
-      <details open={selectedMath.math_scene?.template?undefined:true}>
-      <summary>图形参数</summary>
-      {mathNodes.length>1&&<select aria-label="选择数学图" value={selectedMath.id} onChange={e=>setChoice(e.target.value)}>{mathNodes.map(node=><option key={node.id} value={node.id}>{node.name}</option>)}</select>}
-      {editableVector(selectedMath)&&<MathSceneControls key={`${selectedMath.id}:${resetVersion}`} node={selectedMath} onPatch={patch=>change(selectedMath.id,patch)} hidePlayback={!!selectedMath.math_scene?.template}/>}
-      </details>
-    </div>}
-    {presentVectors&&resetHost&&(vectors.length>0||mathNodes.length>0||matrixImages.length>0||richNodes.length>0)&&createPortal(<button type="button" onClick={()=>{
+    {presentVectors&&resetHost&&(vectors.length>0||richNodes.length>0)&&createPortal(<button type="button" onClick={()=>{
       setOverrides({});setLiveDrafts({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});setResetVersion(v=>v+1);
     }}>一键重置</button>,resetHost)}
     {children}

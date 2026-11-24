@@ -194,7 +194,7 @@ def test_group_text_is_not_lost(parsed: dict) -> None:
 
 
 def test_empty_material_returns_empty_list(repo_root: Path) -> None:
-    """无原生图表/表格/公式 → 空列表，绝不回退到公共示例区域。"""
+    """无原生图表/表格 → 空列表，绝不回退到公共示例区域，也不再自动识别纯公式文本。"""
     assert build_ispecs({}) == []
     assert build_ispecs({"material_id": "mat_x", "slides": []}) == []
 
@@ -203,9 +203,8 @@ def test_empty_material_returns_empty_list(repo_root: Path) -> None:
         pytest.skip("课程件 pptx 不在仓库中")
     _material, slides = parse_pptx(str(courseware), material_id="mat_matrix_courseware")
     result = build_ispecs_detailed(slides, material_id="mat_matrix_courseware")
-    assert result.ispecs
-    assert result.recognition["found"] is True
-    assert all(spec["object_id"].startswith("native_") for spec in result.ispecs)
+    assert result.ispecs == []
+    assert result.recognition["found"] is False
 
 
 def test_candidates_prefer_ispec_for_non_matrix(parsed: dict) -> None:

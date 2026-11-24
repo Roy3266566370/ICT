@@ -144,7 +144,6 @@ export function FigureVectorizationDialog({materialId,pageNo,node,controller,onC
   const backdrop:SceneNode={...source,x:source.x-x,y:source.y-y,opacity:mode==='overlay'&&result?.scene.objects.length?0.35:1,
     cleaned_asset_id:mode==='demo'?result?.cleaned_asset_id:null,cleaned_url:result?.cleaned_url,
     ...(useCrop?{image_data:undefined,image_url:result?.source_url,crop:undefined,image_frame:source.crop?undefined:source.image_frame}:{}),
-    matrix_ocr:undefined,
   };
   const overlays=mode==='original'?[]:(result?.nodes??[]).map(item=>({...item,x:item.x-x,y:item.y-y}));
   const warnings=[...new Set([...(result?.scene.warnings??[]),...(result?.diagnostics?.warnings??[])])];

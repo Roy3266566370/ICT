@@ -7,7 +7,6 @@ import {errorMessage} from '@/api/client';
 import {useScopedQueryKeys} from '@/api/queryKeys';
 import type {DocumentController} from '@/document/controller';
 import {newNode,patchNodes,distributeNodes} from '@/document/model';
-import {resolveMatrixSource} from '@/document/mathScene';
 import {SHAPE_CATALOG} from '@/document/shapeCatalog';
 import type {SceneNode,ScenePage,NodePatch,NodeInteraction,RelationSuggestion,SceneRelation,SceneParagraph} from '@/document/types';
 import type {ISpec} from '@/ispec/types';
@@ -94,7 +93,7 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
   const hasAppliedFigures=page.nodes.some(node=>node.cleaned_asset_id&&!node.deleted);
   const figureNode=figureTarget?.pageNo===page.page_no&&figureTarget.nodeId===primary?.id&&selectedNodes.length===1?primary:null;
   const canVectorize=canEdit&&online&&selectedNodes.length===1&&primary?.type==='image'&&!primary.hidden&&!primary.cleaned_asset_id&&
-    !primary.matrix_ocr&&!page.preparation?.frozen_ids?.includes(primary.id);
+    !page.preparation?.frozen_ids?.includes(primary.id);
   const shown=selectedNodes.filter(n=>!n.hidden).map(n=>preview[n.id]?{...n,...preview[n.id]}:n);
   const box=shown.length?(shown.length===1?bounds(shown):rotatedBounds(shown)):null;
   const canTransform=canEdit&&unlocked.length===shown.length&&!editingId&&(shown.length>1||primary?.type!=='vector');
@@ -183,7 +182,7 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
     controller.replace(next);setSelected(ids);setEditingId(null);
   };
   const remove=()=>{if(canEdit){controller.patch(page.page_no,unlocked.map(n=>n.id),{deleted:true});setSelected([]);setEditingId(null);}};
-  const add=(type:'text'|'shape'|'math_scene'|'table'|'chart',shape:SceneNode['shape']='rect')=>{
+  const add=(type:'text'|'shape'|'table'|'chart',shape:SceneNode['shape']='rect')=>{
     if(!canEdit)return;
     const node={...newNode(page,identifier(),type),shape};
     if(type==='shape')node.name=SHAPE_CATALOG.find(item=>item.id===shape)?.label??node.name;
@@ -584,7 +583,6 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
         </select></div>
       <div className={styles.toolGroup}><button onClick={()=>addVector(false)} disabled={!canEdit}>＋ 线条</button><button onClick={()=>addVector(true)} disabled={!canEdit}>＋ 箭头</button></div>
       <div className={styles.toolGroup}><button className={styles.primary} onClick={()=>setPluginPickerOpen(true)} disabled={!canEdit}>🎛️ 插入工坊插件</button></div>
-      <div className={styles.toolGroup}><button onClick={()=>add('math_scene')} disabled={!canEdit}>＋ 矩阵图</button></div>
       <div className={styles.toolGroup}><button aria-pressed={insertMode==='diagram'} onClick={()=>armInsert('diagram')} disabled={!canEdit}>＋ 流程图</button>
         <button aria-pressed={insertMode==='demo'} onClick={()=>armInsert('demo')} disabled={!canEdit}>＋ AI 演示框</button>
         <button aria-pressed={insertMode==='ai'} onClick={()=>armInsert('ai')} disabled={!canEdit} aria-keyshortcuts="A" title="圈选本页要处理的对象（A）">AI 圈选</button></div>
@@ -723,7 +721,7 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
         {!ready&&<div className={styles.preparing} role="status">{status==='failed'?page.preparation?.message??'本页对象准备失败':'正在准备本页可编辑对象，首次需要几秒；后续输入和拖动即时显示。'}
           {status==='failed'&&<button onClick={()=>setRetry(n=>n+1)}>重新准备本页</button>}</div>}
       </main>
-      <NodeProperties node={primary?.math_scene?{...primary,math_scene:resolveMatrixSource(primary.math_scene,page.nodes)}:primary} count={selectedNodes.length} pageNo={page.page_no} materialId={materialId} autoSpecs={autoSpecs} pageNodes={page.nodes}
+      <NodeProperties node={primary} count={selectedNodes.length} pageNo={page.page_no} materialId={materialId} autoSpecs={autoSpecs} pageNodes={page.nodes}
         pageRelations={page.relations} onRelationsChange={(relations,key)=>controller.patchRelations(page.page_no,relations,key)}
         onSuggestRelations={online&&canEdit?suggestRelations:undefined}
         onApplyRelationSuggestion={canEdit?applyRelationSuggestion:undefined}

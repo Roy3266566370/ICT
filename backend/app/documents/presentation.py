@@ -358,18 +358,6 @@ def public_document(raw)->dict|None:
             if (isinstance(fl,dict) and set(fl)=={'enabled','speed'} and type(fl['enabled']) is bool
                     and type(fl['speed']) in (int,float) and math.isfinite(fl['speed']) and .1<=fl['speed']<=10):
                 node['flow']={'enabled':fl['enabled'],'speed':float(fl['speed'])}
-            if isinstance(source.get('math_scene'),dict):
-                from .math_scene import validate_math_scene
-                ms=deepcopy(source['math_scene'])
-                try:validate_math_scene(ms)
-                except (ValueError,TypeError):pass
-                else:node['math_scene']=ms
-            if isinstance(source.get('matrix_ocr'),dict):
-                from .math_scene import validate_matrix_ocr
-                mo=deepcopy(source['matrix_ocr'])
-                try:validate_matrix_ocr(mo)
-                except (ValueError,TypeError):pass
-                else:node['matrix_ocr']=mo
             if isinstance(source.get('diagram'),dict):
                 from .inline_systems import validate_scene_diagram
                 try:node['diagram']=validate_scene_diagram(deepcopy(source['diagram']))

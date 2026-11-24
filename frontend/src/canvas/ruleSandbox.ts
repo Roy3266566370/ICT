@@ -40,18 +40,35 @@ const SHADOWED_API = [
   'fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'importScripts', 'navigator', 'location',
   'indexedDB', 'BroadcastChannel', 'localStorage', 'sessionStorage', 'document', 'window', 'parent',
   'top', 'self', 'globalThis', 'postMessage', 'setTimeout', 'setInterval', 'queueMicrotask',
-  'requestAnimationFrame', 'Function', 'Deno', 'process',
+  'requestAnimationFrame', 'Function', 'Deno', 'process', 'performance', 'crypto',
 ];
 
 const WORKER_PARAMS = `'input', 'Math', ${SHADOWED_API.map((name) => `'${name}'`).join(', ')}`;
 
+const HARDENED_GLOBALS = [
+  ...SHADOWED_API.filter((name) => name !== 'self' && name !== 'globalThis'),
+  'eval', 'Worker', 'SharedWorker', 'MessageChannel', 'MessagePort', 'WebTransport', 'caches',
+];
+
 export const RULE_WORKER_SOURCE = String.raw`
 'use strict';
+var __post = self.postMessage.bind(self);
+var __now = self.performance && typeof self.performance.now === 'function'
+  ? self.performance.now.bind(self.performance)
+  : Date.now.bind(Date);
+var __compile = Function;
+${JSON.stringify(HARDENED_GLOBALS)}.forEach(function (name) {
+  try {
+    Object.defineProperty(self, name, { value: undefined, writable: false, configurable: false });
+  } catch (error) {
+    try { self[name] = undefined; } catch (ignored) {}
+  }
+});
 self.onmessage = function (event) {
   var data = event.data || {};
   if (data.type !== 'run') return;
   try {
-    var started = performance.now();
+    var started = __now();
     var safeMath = {};
     Object.getOwnPropertyNames(Math).forEach(function (key) {
       var value = Math[key];
@@ -65,7 +82,7 @@ self.onmessage = function (event) {
       get: function (target, property) { throw new Error('沙箱禁止访问 ' + String(property)); },
       set: function (target, property) { throw new Error('沙箱禁止修改 ' + String(property)); }
     });
-    var runner = new Function(
+    var runner = new __compile(
       ${WORKER_PARAMS},
       '"use strict";\n' + data.code + '\nreturn run(input);'
     );
@@ -76,15 +93,15 @@ self.onmessage = function (event) {
       deny('importScripts'), denied, denied, denied, denied, denied, denied, denied, denied,
       denied, denied, denied, denied, denied, denied, deny('postMessage'), deny('setTimeout'),
       deny('setInterval'), deny('queueMicrotask'), deny('requestAnimationFrame'), deny('Function'),
-      denied, denied
+      denied, denied, deny('performance'), deny('crypto')
     );
     if (output && typeof output.then === 'function') throw new Error('规则必须是同步计算，不能返回 Promise');
     if (!output || typeof output !== 'object' || !Array.isArray(output.frames)) {
       throw new Error('run 必须返回 { data, frames }');
     }
-    self.postMessage({ type: 'result', nonce: data.nonce, output: output, elapsedMs: performance.now() - started });
+    __post({ type: 'result', nonce: data.nonce, output: output, elapsedMs: __now() - started });
   } catch (error) {
-    self.postMessage({ type: 'error', nonce: data.nonce, message: String((error && error.message) || error) });
+    __post({ type: 'error', nonce: data.nonce, message: String((error && error.message) || error) });
   }
 };
 `;
@@ -204,7 +221,7 @@ function nonce(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-const FORBIDDEN_CODE = /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|importScripts|indexedDB|BroadcastChannel|localStorage|sessionStorage|document|window|parent|top|globalThis|postMessage|eval|async|await|Date|performance)\b|Math\.random|import\s*\(|new\s+Function\s*\(/;
+const FORBIDDEN_CODE = /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|importScripts|indexedDB|BroadcastChannel|localStorage|sessionStorage|document|window|parent|top|globalThis|self|postMessage|eval|async|await|Date|performance|crypto|Worker|SharedWorker|MessageChannel|MessagePort|WebTransport|caches)\b|Math\.random|import\s*\(|new\s+Function\s*\(/;
 
 export async function runRuleInSandbox(
   code: string,

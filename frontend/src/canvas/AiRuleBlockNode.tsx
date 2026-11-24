@@ -218,7 +218,8 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
       {payload.verificationNote ? <p className={styles.tip}>核对：{payload.verificationNote}</p> : null}
       <details className={styles.tip} open={draftOpen} onToggle={(event) => setDraftOpen(event.currentTarget.open)}>
         <summary>查看 / 编辑规则代码</summary>
-        <textarea className={styles.textarea} rows={12} value={codeDraft} spellCheck={false} aria-label="规则代码"
+        <textarea className={`${styles.textarea} ${styles.codeArea}`} rows={12} value={codeDraft}
+          spellCheck={false} wrap="off" aria-label="规则代码"
           readOnly={!onPayload} onChange={(event) => setCodeDraft(event.currentTarget.value)} />
         {onPayload ? <button type="button" className={styles.tag} onClick={() => void applyCode()}>应用并校验</button> : null}
         {applyError ? <p className={styles.fileStatus} data-error="true" role="alert">{applyError}</p> : null}

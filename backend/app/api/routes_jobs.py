@@ -670,11 +670,6 @@ def _run_upload_pipeline(
         raise parse_failed("解析结果为 0 页，无法进入确认阶段", stage="extracting")
     if native_changed:
         try:
-            from ..documents.auto_math import prepare_source_math
-            prepare_source_math(material.id, material.title)
-        except Exception:
-            logger.exception('PPT 数学活图准备失败，保留原稿 material=%s', material.id)
-        try:
             from ..documents.auto_vectors import prepare_source_vectors
             prepare_source_vectors(material.id, material.title)
         except Exception:

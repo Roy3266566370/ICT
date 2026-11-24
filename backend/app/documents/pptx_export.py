@@ -23,7 +23,7 @@ from .importer import shape_path_steps, valid_shape_paths
 from .layers import layer_dir, native_asset_path, source_page_number
 from ..render import PAGE_IMAGE_PATTERN, pages_dir
 
-INTERACTIVE_TYPES = {'workshop_plugin', 'demo', 'math_scene', 'diagram'}
+INTERACTIVE_TYPES = {'workshop_plugin', 'demo', 'diagram'}
 PRESETS = {item.xml_value:item for item in MSO_AUTO_SHAPE_TYPE}
 ALIGN = {'left':PP_ALIGN.LEFT, 'center':PP_ALIGN.CENTER, 'right':PP_ALIGN.RIGHT, 'justify':PP_ALIGN.JUSTIFY}
 ANCHOR = {'top':MSO_ANCHOR.TOP, 'middle':MSO_ANCHOR.MIDDLE, 'bottom':MSO_ANCHOR.BOTTOM}
@@ -277,7 +277,7 @@ def _interactive(shapes,box,node,snapshot):
         return shapes.add_picture(BytesIO(snapshot),*box)
     kind=node['type']
     data=node.get(kind) or {}
-    title=data.get('title') or {'diagram':'流程图','math_scene':'数学图','demo':'AI 动态演示',
+    title=data.get('title') or {'diagram':'流程图','demo':'AI 动态演示',
                                'workshop_plugin':'万象工坊插件'}[kind]
     if kind=='diagram':
         extra=' → '.join(str(entry.get('label','')) for entry in data.get('nodes',[])[:6])

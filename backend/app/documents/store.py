@@ -61,7 +61,7 @@ def validate_patch(patch:dict)->dict:
     normalized=deepcopy(patch)
     numeric={'x':(-20000,20000),'y':(-20000,20000),'width':(.1,20000),'height':(.1,20000),
       'rotation':(-36000,36000),'z':(-10000,10000),'opacity':(0,1)}
-    allowed=set(numeric)|{'locked','hidden','deleted','text','paragraphs','style','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo','workshop_plugin',
+    allowed=set(numeric)|{'locked','hidden','deleted','text','paragraphs','style','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','diagram','demo','workshop_plugin',
         'cleaned_asset_id','figure_scene','figure_source_id','figure_object_id','figure_provenance'}
     if set(patch)-allowed:raise ValueError('修改包含不可编辑字段')
     for key,value in patch.items():
@@ -87,9 +87,6 @@ def validate_patch(patch:dict)->dict:
         elif key=='figure_provenance':
             if value not in (None,'pixel','vision','user_confirmed'):
                 raise ValueError('图示来源类型不可写入')
-        elif key=='math_scene':
-            from .math_scene import validate_math_scene
-            validate_math_scene(value)
         elif key=='diagram':
             from .inline_systems import validate_scene_diagram
             normalized[key]=validate_scene_diagram(value)
@@ -99,9 +96,6 @@ def validate_patch(patch:dict)->dict:
         elif key=='workshop_plugin':
             if value is not None:
                 normalized[key]=validate_workshop_plugin(value)
-        elif key=='matrix_ocr':
-            from .math_scene import validate_matrix_ocr
-            validate_matrix_ocr(value)
         elif key=='flow':
             if not isinstance(value,dict) or set(value)!={'enabled','speed'} or type(value['enabled']) is not bool:
                 raise ValueError('流动动画配置不合法')
@@ -178,19 +172,18 @@ def _create(page,identifier,data):
         update={k:v for k,v in data.items() if k!='duplicate_from'}
         update=validate_patch(update);node.update(update)
     else:
-        if set(data)-{'type','name','text','paragraphs','table','chart','x','y','width','height','rotation','z','style','image_data','shape','opacity','locked','hidden','deleted','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo','workshop_plugin','figure_provenance','figure_source_id','figure_object_id'}:raise ValueError('新增对象包含不可用字段')
+        if set(data)-{'type','name','text','paragraphs','table','chart','x','y','width','height','rotation','z','style','image_data','shape','opacity','locked','hidden','deleted','crop','interaction','basis','flow','viewer_editable','viewer_parameters','diagram','demo','workshop_plugin','figure_provenance','figure_source_id','figure_object_id'}:raise ValueError('新增对象包含不可用字段')
         kind=data.get('type','text')
         shape=data.get('shape','rect')
         if shape is not None and (not isinstance(shape,str) or shape not in SHAPES):raise ValueError('图形类型不合法')
-        if kind not in ('text','shape','image','vector','math_scene','diagram','demo','workshop_plugin','table','chart'):raise ValueError('对象类型不支持新增')
+        if kind not in ('text','shape','image','vector','diagram','demo','workshop_plugin','table','chart'):raise ValueError('对象类型不支持新增')
         if kind in ('table','chart') and not data.get(kind):raise ValueError('表格或图表缺少数据')
         if kind=='diagram' and 'diagram' not in data:raise ValueError('流程图缺少节点和连线')
-        if kind=='math_scene' and 'math_scene' not in data:raise ValueError('数学图缺少配置')
         if kind=='workshop_plugin' and 'workshop_plugin' not in data:raise ValueError('工坊插件缺少模板配置')
         style={'font_size':28,'font_family':'Arial','color':'#18233D','align':'left','vertical_align':'top','line_height':1.15,
                'padding_left':0,'padding_right':0,'padding_top':0,'padding_bottom':0}
         style.update(data.get('style',{}))
-        node={'id':identifier,'type':kind,'name':{'text':'新文字','shape':'新图形','vector':'线条','math_scene':'矩阵变换图','diagram':'原位流程图','demo':'AI 演示框','workshop_plugin':'万象工坊插件','table':'教学表格','chart':'教学图表'}.get(kind,'新图片'),
+        node={'id':identifier,'type':kind,'name':{'text':'新文字','shape':'新图形','vector':'线条','diagram':'原位流程图','demo':'AI 演示框','workshop_plugin':'万象工坊插件','table':'教学表格','chart':'教学图表'}.get(kind,'新图片'),
           'x':80,'y':80,'width':300,'height':70,'rotation':0,'z':max((n['z'] for n in page['nodes']),default=0)+1,
           'text':data.get('text','新文字'),'base_text':None,'style':style,'base_style':{},'paragraphs':[],
           'opacity':1,'locked':False,'hidden':False,'deleted':False,'source_element_id':None,'source_shape_id':None,

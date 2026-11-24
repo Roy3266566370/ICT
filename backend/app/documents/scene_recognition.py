@@ -12,9 +12,7 @@ import re
 from copy import deepcopy
 
 from ..ispec.builder import _chart_ispec, _table_ispec
-from ..ispec.native_math import build_native_math_specs
 from ..ispec.validator import validate_ispec
-from ..ispec.user_config import _concept_anchor, _concept_specs, _spatial_specs
 
 EMU_PER_POINT = 12700
 
@@ -74,27 +72,10 @@ def _anchor_spec(spec: dict, element: dict) -> dict:
 
 def build_scene_specs(page: dict, material_id: str, nodes: list[dict] | None = None,
                       concepts: bool = True) -> list[dict]:
-    """Build specs from a scene page (all visible nodes by default)."""
+    """Build specs from a scene page (native charts and tables only)."""
+    del concepts
     parsed = scene_page({**page, 'nodes': nodes} if nodes is not None else page)
-    by_id = {element['element_id']: element for element in parsed['elements']}
-    page_area = float(parsed['width']) * float(parsed['height'])
-    visual_element, visual_bbox = _concept_anchor(parsed, parsed['elements'])
     generated: list[dict] = []
-    for spec in build_native_math_specs(parsed, f'{material_id}_scene'):
-        source_element = next((by_id.get(parameter.get('source', {}).get('element_id'))
-                               for parameter in spec.get('parameters', [])
-                               if by_id.get(parameter.get('source', {}).get('element_id'))), None)
-        if source_element:
-            _anchor_spec(spec, source_element)
-            bbox = source_element.get('bbox') or {}
-            tiny = bbox.get('w', 0) * bbox.get('h', 0) < page_area * .02
-            if tiny and visual_element is not None and visual_element.get('kind') in ('picture', 'shape'):
-                # A matrix written in a small side label still belongs to the
-                # figure the reader is looking at; keep the original upload
-                # behaviour instead of anchoring to that label.
-                spec['anchor'] = {'page': parsed['page_no'], 'element_id': visual_element['element_id'],
-                                  'bbox': deepcopy(visual_bbox)}
-        generated.append(spec)
     for element in parsed['elements']:
         if element['kind'] == 'chart':
             spec, _ = _chart_ispec(element=element, page=parsed['page_no'], material_id=f'{material_id}_scene')
@@ -109,13 +90,6 @@ def build_scene_specs(page: dict, material_id: str, nodes: list[dict] | None = N
                 for parameter in spec.get('parameters', []):
                     parameter['source']['bbox'] = element['bbox']
                 generated.append(_anchor_spec(spec, element))
-    if concepts:
-        # Concept templates need the whole page's visual context.  A single
-        # edited node cannot reliably choose a figure anchor, so automatic
-        # content-change refresh only re-derives native formulas/charts/tables;
-        # concept pages wait for an explicit page re-recognition.
-        generated.extend(_spatial_specs(parsed))
-        generated.extend(_concept_specs(parsed))
     # Attach the stable scene-node id so the client can follow moves without
     # relying on element ids from the original PPTX.
     scene_nodes = nodes if nodes is not None else page.get('nodes', [])

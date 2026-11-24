@@ -36,7 +36,6 @@ from .llm.provider import LLMResponseInvalid
 from .shared import apply_shared_keys, assign_shared_keys
 from .text_structure import build_text_structure_specs
 from .validator import validate_ispec
-from .native_math import build_native_math_specs
 
 #: iSpec 版本（Schema 冻结为 1.0）。
 SPEC_VERSION = "1.0"
@@ -999,9 +998,6 @@ def build_ispecs_detailed(
         page_no = page.get("page_no")
         if not isinstance(page_no, int) or page_no < 1:
             continue
-        native_specs = build_native_math_specs(page, resolved_material)
-        generated.extend((spec, _ORIGIN_FORMULA) for spec in native_specs)
-        native_element_ids = {p['source']['element_id'] for spec in native_specs for p in spec['parameters']}
         page_title = str(page.get("title") or "")
         raw_elements = page.get("elements")
         if not isinstance(raw_elements, list):
@@ -1039,10 +1035,7 @@ def build_ispecs_detailed(
                     skipped.append(f"{element_id}: 表格缺少非空表头")
                     continue
             elif element.get("math_text"):
-                if element_id in native_element_ids:
-                    continue
-                # 不再生成无图形、不执行求值的 OMML 降级空壳交互，直接保留原页阅读。
-                skipped.append(f"{element_id}: OMML 公式未解析出可求值模型，已保留原文")
+                # 不再自动识别公式文本框，直接保留原页阅读。
                 continue
             else:
                 continue
@@ -1114,16 +1107,6 @@ def build_ispecs_detailed(
         for spec in valid
         if spec.get("parameters") and isinstance(spec["parameters"][0].get("source"), Mapping)
     }
-    try:
-        from .user_config import _concept_specs, _spatial_specs
-
-        for page in pages:
-            pno = page.get("page_no")
-            if isinstance(pno, int) and not isinstance(pno, bool) and pno not in page_owner:
-                if _spatial_specs(page) or _concept_specs(page):
-                    page_owner.add(pno)
-    except Exception:  # noqa: BLE001
-        pass
 
     def _record(llm_errors: list[dict[str, Any]], code: str, message: str) -> None:
         llm_errors.append({"object_id": None, "code": code, "errors": [message]})

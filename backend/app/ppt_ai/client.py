@@ -192,6 +192,17 @@ def _probe_direct_route(host: str) -> tuple[str, str] | None:
     return None
 
 
+def _clean_json_headers(headers: Mapping[str, str], *, extra_host: str | None = None) -> dict[str, str]:
+    """移除上游请求透传的 hop-by-hop/host/content-length 头，避免大小写重复或长度失配。"""
+    cleaned = {
+        k: v for k, v in headers.items()
+        if k.lower() not in {"host", "content-length", "transfer-encoding"}
+    }
+    if extra_host:
+        cleaned["Host"] = extra_host
+    return cleaned
+
+
 def _post_direct_with_sni(
     url: str,
     host: str,
@@ -209,7 +220,7 @@ def _post_direct_with_sni(
     netloc = f"{real_ip}:{parsed.port}" if parsed.port else real_ip
     direct_url = urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
     host_header = f"{host}:{parsed.port}" if parsed.port else host
-    merged_headers = {**dict(headers), "Host": host_header}
+    merged_headers = _clean_json_headers(headers, extra_host=host_header)
     transport = httpx.HTTPTransport(local_address=local_ip)
     with httpx.Client(transport=transport, trust_env=False, timeout=timeout, follow_redirects=False) as client:
         return client.post(
@@ -218,6 +229,15 @@ def _post_direct_with_sni(
             json=dict(json_body),
             extensions={"sni_hostname": host},
         )
+
+
+def _new_http_client(*, timeout: float) -> "httpx.Client":
+    """创建客户端；环境代理配置畸形时忽略代理直连，避免请求发出前就崩溃。"""
+    try:
+        return httpx.Client(timeout=timeout, follow_redirects=False)
+    except httpx.InvalidURL:
+        logger.warning("环境代理配置无法被 httpx 解析，已忽略代理直连模型端点")
+        return httpx.Client(timeout=timeout, follow_redirects=False, trust_env=False)
 
 
 class HttpxTransport:
@@ -251,8 +271,8 @@ class HttpxTransport:
 
         if response is None:
             try:
-                with httpx.Client(timeout=timeout, follow_redirects=False) as client:
-                    response = client.post(url, headers=dict(headers), json=dict(json_body))
+                with _new_http_client(timeout=timeout) as client:
+                    response = client.post(url, headers=_clean_json_headers(headers), json=dict(json_body))
             except httpx.TransportError as primary_exc:
                 if not is_https or not _host_resolves_to_fake_ip(host):
                     raise

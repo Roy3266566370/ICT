@@ -31,6 +31,9 @@ import {
 import { workshopFormula } from '@/canvas/templateCatalog';
 import { BUSINESS_TEMPLATES, BUSINESS_TOPICS } from '@/canvas/businessTemplates';
 import type { BusinessTemplateKind } from '@/canvas/businessPipelineTypes';
+import {
+  readTopicAliases, topicDisplayName, writeTopicAlias, type TopicAliases,
+} from './workshopTopics';
 import styles from './WorkshopPage.module.css';
 
 type TemplateKind = string;
@@ -864,6 +867,8 @@ export function WorkshopPage(): JSX.Element {
       ? subject : 'calculus';
   });
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
+  const [topicFilter, setTopicFilter] = useState(() => searchParams.get('topic') ?? '');
+  const [topicAliases, setTopicAliases] = useState<TopicAliases>(() => readTopicAliases());
 
   const [loadError, setLoadError] = useState('');
   const loadWorks = (): void => {
@@ -879,9 +884,21 @@ export function WorkshopPage(): JSX.Element {
 
   const selectCategory = useCallback((key: TemplateCategory) => {
     setCategory(key);
+    setTopicFilter('');
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('subject', key);
+      next.delete('topic');
+      if (query.trim()) next.set('q', query); else next.delete('q');
+      return next;
+    }, { replace: true });
+  }, [query, setSearchParams]);
+
+  const selectTopic = useCallback((id: string) => {
+    setTopicFilter(id);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('topic', id);
       if (query.trim()) next.set('q', query); else next.delete('q');
       return next;
     }, { replace: true });
@@ -895,9 +912,30 @@ export function WorkshopPage(): JSX.Element {
           : category === 'business' ? { topics: BUSINESS_TOPICS, items: BUSINESS_ITEMS }
             : { topics: ALL_TOPICS, items: ALL_ITEMS };
   const knownTopicIds = new Set(view.topics.map((topic) => topic.id));
-  const shownItems = view.items.filter((item) => knownTopicIds.has(item.topic) && matchesQuery(item, normalizedQuery));
+  const searchedItems = view.items.filter((item) => knownTopicIds.has(item.topic) && matchesQuery(item, normalizedQuery));
+  const selectedTopicId = topicFilter === 'all' ? 'all'
+    : view.topics.some((topic) => topic.id === topicFilter) ? topicFilter
+      : category === 'all' ? 'all' : view.topics[0]?.id ?? 'all';
+  const activeTopicId = normalizedQuery ? 'all' : selectedTopicId;
+  const shownItems = activeTopicId === 'all'
+    ? searchedItems : searchedItems.filter((item) => item.topic === activeTopicId);
+  const shownTopics = (activeTopicId === 'all'
+    ? view.topics : view.topics.filter((topic) => topic.id === activeTopicId))
+    .map((topic) => ({ ...topic, name: topicDisplayName(topic, topicAliases) }));
+  const selectedTopic = selectedTopicId === 'all'
+    ? null : view.topics.find((topic) => topic.id === selectedTopicId) ?? null;
+  const topicMatches = (topicId: string): number =>
+    view.items.filter((item) => item.topic === topicId && matchesQuery(item, normalizedQuery)).length;
   const shownCount = shownItems.length;
   const totalTemplates = ALL_ITEMS.length;
+
+  const renameTopic = useCallback(() => {
+    if (!selectedTopic || normalizedQuery) return;
+    const current = topicDisplayName(selectedTopic, topicAliases);
+    const next = window.prompt('自定义专题名字（留空恢复原名）', current);
+    if (next === null) return;
+    setTopicAliases(writeTopicAlias(selectedTopic.id, next, topicAliases));
+  }, [normalizedQuery, selectedTopic, topicAliases]);
 
   const openWork = useCallback((wid: string) => {
     navigate(`/canvas?work=${encodeURIComponent(wid)}`);
@@ -972,42 +1010,66 @@ export function WorkshopPage(): JSX.Element {
             <span className={styles.countPill}>当前显示 {shownCount} / {totalTemplates} 个</span>
           </div>
 
-          <div className={styles.templateFilters} role="group" aria-label="模板分类">
-            <div className={styles.filterPills}>
-              {([
-                ['calculus', `高等数学 · ${CALCULUS_ITEMS.length}`],
-                ['mechanics', `大学物理 · ${PHYSICS_ITEMS.length}`],
-                ['lab408', `408 专题 · ${LAB408_ITEMS.length}`],
-                ['deep', `深度学习 · ${DEEP_ITEMS.length}`],
-                ['business', `办公决策 · ${BUSINESS_ITEMS.length}`],
-                ['all', `全部模板 · ${totalTemplates}`],
-              ] as const).map(([key, label]) => (
-                <button type="button" key={key} aria-pressed={category === key} onClick={() => selectCategory(key)}>
-                  {label}
-                </button>
-              ))}
+          <div className={styles.templateFilters} role="group" aria-label="模板筛选">
+            <div className={styles.filterTop}>
+              <div className={styles.filterPills} role="group" aria-label="学科分类">
+                {([
+                  ['calculus', `高等数学 · ${CALCULUS_ITEMS.length}`],
+                  ['mechanics', `大学物理 · ${PHYSICS_ITEMS.length}`],
+                  ['lab408', `408 专题 · ${LAB408_ITEMS.length}`],
+                  ['deep', `深度学习 · ${DEEP_ITEMS.length}`],
+                  ['business', `办公决策 · ${BUSINESS_ITEMS.length}`],
+                  ['all', `全部模板 · ${totalTemplates}`],
+                ] as const).map(([key, label]) => (
+                  <button type="button" key={key} aria-pressed={category === key} onClick={() => selectCategory(key)}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <label className={styles.templateSearch}>
+                <span>搜索</span>
+                <input
+                  type="search"
+                  value={query}
+                  placeholder="双缝、Taylor、Cache、盈亏、甘特图…"
+                  aria-label="按学科、算法或关键词搜索模板"
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </label>
             </div>
-            <label className={styles.templateSearch}>
-              <span>搜索</span>
-              <input
-                type="search"
-                value={query}
-                placeholder="双缝、Taylor、Cache、盈亏、甘特图…"
-                aria-label="按学科、算法或关键词搜索模板"
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
+            <div className={styles.topicFilters}>
+              <span className={styles.filterLabel}>专题</span>
+              <div className={styles.topicPills} role="group" aria-label="专题筛选">
+                <button type="button" aria-pressed={normalizedQuery ? true : selectedTopicId === 'all'}
+                  onClick={() => selectTopic('all')}>
+                  全部专题 <small>{searchedItems.length}</small>
+                </button>
+                {view.topics.map((topic) => (
+                  <button type="button" key={topic.id}
+                    aria-pressed={!normalizedQuery && selectedTopicId === topic.id}
+                    onClick={() => selectTopic(topic.id)}>
+                    {topicDisplayName(topic, topicAliases)} <small>{topicMatches(topic.id)}</small>
+                  </button>
+                ))}
+              </div>
+              <button type="button" className={styles.topicRename}
+                disabled={!selectedTopic || Boolean(normalizedQuery)}
+                title={selectedTopic ? '给当前专题起一个本地显示名' : '请先选择一个具体专题'}
+                onClick={renameTopic}>✎ 自定义专题名</button>
+            </div>
           </div>
 
           <TopicCatalog
-            topics={view.topics}
+            topics={shownTopics}
             items={shownItems}
             disabled={false}
             creatingKey={null}
             actionLabel="打开实验 →"
             onCreate={(item) => fromTemplate(item.key)}
           />
-          {!shownCount ? <p className={styles.emptyLead} role="status">没有匹配“{query.trim()}”的模板；清空搜索或切换分类。</p> : null}
+          {!shownCount ? <p className={styles.emptyLead} role="status">
+            {normalizedQuery ? `没有匹配“${query.trim()}”的模板；清空搜索或切换专题。` : '这个专题暂时没有可打开的模板。'}
+          </p> : null}
         </section>
 
         {loadError ? <p className={styles.loadError} role="status">{loadError} <button type="button" onClick={loadWorks}>重试</button></p> : null}

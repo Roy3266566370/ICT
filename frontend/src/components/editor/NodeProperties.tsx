@@ -1,5 +1,4 @@
 import { VectorControls } from './VectorLine';
-import {MathSceneControls} from './MathSceneView';
 import {DynamicStyleControls} from './DynamicStyleControls';
 import {PageRelationsPanel} from './PageRelationsPanel';
 import {useEffect,useMemo,useState} from 'react';
@@ -141,10 +140,6 @@ export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=
       <button type="button" className={styles.danger} onClick={onDelete}>删除插件</button>
     </div></section></fieldset>
   </aside>;
-  if(node.type==='math_scene')return <aside className={styles.properties} aria-label="对象属性"><h2>数学图属性</h2>
-    <fieldset disabled={disabled||node.locked}><MathSceneControls key={node.id} node={node} onPatch={onPatch} author/></fieldset>
-    <fieldset disabled={disabled}><button onClick={onDuplicate}>复制对象</button><button onClick={()=>onPatch({locked:!node.locked})}>{node.locked?'解锁对象':'锁定对象'}</button><button onClick={onDelete}>删除对象</button></fieldset>
-  </aside>;
   return <NodePropertiesInner key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo} materialId={materialId} autoSpecs={autoSpecs} pageNodes={pageNodes}
     pageRelations={pageRelations} onRelationsChange={onRelationsChange} onSuggestRelations={onSuggestRelations} onApplyRelationSuggestion={onApplyRelationSuggestion}
     onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onInteraction={onInteraction} onReinteract={onReinteract}
@@ -244,7 +239,7 @@ function NodePropertiesInner({node,count,disabled,pageNo,materialId,autoSpecs,pa
     {contentChanged&&auto.length>0&&<div className={styles.pauseBox} role="status"><b>来源内容已修改</b><p>原交互已停用，避免继续显示旧结果。可重新提取当前内容，或撤销这次内容修改。</p>
       <div>{onReinteract&&<button onClick={onReinteract} disabled={reinteracting}>{reinteracting?'提取中…':'重新提取本页交互'}</button>}
         {onRestoreContent&&<button onClick={onRestoreContent}>撤销内容修改</button>}</div></div>}
-    {tab==='look'&&node.type==='image'&&count===1&&!node.matrix_ocr&&<section><h3>图示矢量化</h3>
+    {tab==='look'&&node.type==='image'&&count===1&&<section><h3>图示矢量化</h3>
       {node.cleaned_asset_id?<p className={styles.hint}>已应用 {figureCount??0} 个矢量化对象</p>:
         <button type="button" className={styles.applyButton} disabled={!onVectorize} onClick={onVectorize}>矢量化此图</button>}
     </section>}

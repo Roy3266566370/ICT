@@ -34,26 +34,6 @@ export interface NodeInteraction {
 export interface BasisOverlay {
   firstId: string; secondId: string; resultId: string; title: [number, number]; fontSize: number;
 }
-export type Matrix2 = [[number, number], [number, number]];
-export interface MatrixOCR {
-  matrices: Array<{values:number[][]; cells:Array<{row:number;col:number;bbox:[number,number,number,number]}>}>;
-  operation?: 'add'; operands?: [number,number]; result?: number;
-}
-export interface MathScene {
-  template?: 'matrix_vector'|'circle_ellipse'|'det_area'|'basis_change'|'composition'|'svd';
-  vectors?: [number,number][];
-  polygon?: [number,number][];
-  comparison_matrix?: Matrix2;
-  basis?: Matrix2;
-  steps?: Array<{label:string;matrix:Matrix2}>;
-  matrix_source?: {node_id:string;matrix_index:number};
-  view_box: {x: [number, number]; y: [number, number]};
-  matrix: [[number, number], [number, number]];
-  vector: [number, number];
-  show_grid: boolean; show_circle: boolean; radius: number;
-  progress: number; animation_step: number;
-  viewer_parameters: Array<'vector'|'matrix'|'progress'|'radius'|'style'>;
-}
 export type FigureProvenance='native'|'pixel'|'vision'|'user_confirmed';
 export type RelationProvenance='auto'|'user'|'legacy';
 export type ViewerParameter='geometry'|'style'|'flow'|'start'|'end'|'length'|'angle'|'color'|'line_style'|'stroke_width';
@@ -150,10 +130,8 @@ export interface SceneNode {
   flow?: {enabled: boolean; speed: number};
   viewer_editable?: boolean;
   viewer_parameters?: ViewerParameter[];
-  math_scene?: MathScene;
-  matrix_ocr?: MatrixOCR;
   basis?: BasisOverlay | null;
-  id:string;name:string;type:'text'|'image'|'shape'|'chart'|'table'|'vector'|'math_scene'|'diagram'|'demo'|'workshop_plugin';x:number;y:number;width:number;height:number;
+  id:string;name:string;type:'text'|'image'|'shape'|'chart'|'table'|'vector'|'diagram'|'demo'|'workshop_plugin';x:number;y:number;width:number;height:number;
   rotation:number;z:number;opacity:number;locked:boolean;hidden:boolean;deleted:boolean;text:string;
   style:TextStyle;base_style:TextStyle;base_text:string|null;base_x?:number;base_y?:number;base_width?:number;base_height?:number;
   source_element_id?:string|null;source_shape_id?:number|null;whole_group?:boolean;content_changed?:boolean;
@@ -175,7 +153,7 @@ export interface ScenePage {
   preparation?:{status:'unprepared'|'queued'|'preparing'|'ready'|'failed';fallback_status?:'unprepared'|'queued'|'preparing'|'ready'|'failed'|'unavailable';message?:string;errors?:string[];frozen_ids?:string[];seconds?:number};
 }
 export interface SceneDocument {schema_version:string;revision:number;title:string;source_key?:string;pages:ScenePage[];archived_pages?:ScenePage[];structure_modified?:boolean;}
-export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'paragraphs'|'table'|'chart'|'crop'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'math_scene'|'matrix_ocr'|'diagram'|'demo'|'workshop_plugin'|'cleaned_asset_id'|'figure_scene'>> & {style?:Partial<TextStyle>};
+export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'paragraphs'|'table'|'chart'|'crop'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'diagram'|'demo'|'workshop_plugin'|'cleaned_asset_id'|'figure_scene'>> & {style?:Partial<TextStyle>};
 export type PageMetadata=Pick<ScenePage,'notes'|'background_color'>;
 export type PageAction=
   | {kind:'add_page';width:number;height:number}
