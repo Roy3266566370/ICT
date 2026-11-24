@@ -18,7 +18,7 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from .figure_scene import FigureScene, make_scene
-from .layers import layer_dir, manifest_ready, read_manifest
+from .layers import layer_dir, manifest_ready, native_asset_path, read_manifest, source_page_number
 from .store import DocumentConflict, document_root, read_document
 from ..ispec.image_text import engine
 from ..living.vision import LivingVisionClient
@@ -107,6 +107,10 @@ def validate_asset_binding(material_id, page_no, source_key, node, asset_id):
 def _source_blob(material_id, page_no, source_key, node):
     data = node.get('image_data')
     entry = {}
+    document = read_document(material_id)
+    page = next((p for p in (document or {}).get('pages',[]) if p['page_no']==page_no),None)
+    asset_page = source_page_number(page) if page is not None else page_no
+    native = native_asset_path(material_id,source_key,asset_page,node.get('native_file'))
     if data:
         try:
             blob = base64.b64decode(data.split(',', 1)[1], validate=True)
@@ -115,18 +119,22 @@ def _source_blob(material_id, page_no, source_key, node):
     elif node.get('render_file'):
         filename = node['render_file']
         match = PAGE_IMAGE_PATTERN.fullmatch(filename)
-        if not match or match.group('erased') or int(match.group('page_no')) != page_no:
+        if not match or match.group('erased') or int(match.group('page_no')) != asset_page:
             raise ValueError('页面原图标识无效')
         blob = (pages_dir(material_id) / filename).read_bytes()
+    elif native is not None:
+        blob = native.read_bytes()
     else:
-        manifest = read_manifest(material_id, source_key, page_no)
+        if asset_page is None:
+            raise ValueError('图片没有可读取的源文件')
+        manifest = read_manifest(material_id, source_key, asset_page)
         if node['id'] in manifest.get('frozen_ids', []):
             raise ValueError('该图未与页面背景分离，请选择可编辑图片')
         entry = manifest.get('objects', {}).get(node.get('asset_id'), {})
         filename = entry.get('asset')
         if not manifest_ready(manifest) or not isinstance(filename, str) or not re.fullmatch(r'n_\d+\.png', filename):
             raise ValueError('图片图层尚未就绪，请等待自由编辑准备完成')
-        blob = (layer_dir(material_id, source_key, page_no) / filename).read_bytes()
+        blob = (layer_dir(material_id, source_key, asset_page) / filename).read_bytes()
     if len(blob) > 24_000_000:
         raise ValueError('图片资产过大，请缩小图片后再试')
     return blob, entry

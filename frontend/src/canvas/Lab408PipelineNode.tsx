@@ -125,12 +125,16 @@ function FrameGantt({ timeline }: { timeline: NonNullable<PipelineFrame['timelin
   );
 }
 
-function FrameDetails({ frame }: { frame: PipelineFrame }): JSX.Element {
+export function PipelineFrameDetails({ frame, showTitle = true, compact = false }: {
+  frame: PipelineFrame; showTitle?: boolean; compact?: boolean;
+}): JSX.Element {
   const state = frame.title.startsWith('Hit') ? 'hit' : frame.title.startsWith('Miss') ? 'miss' : undefined;
+  const graphOnly = !!frame.graph && !frame.rows?.length && !frame.series?.length && !frame.timeline?.length;
   return (
-    <div className={styles.frame} data-cache-state={state}>
-      <h4>{frame.title}</h4>
-      {frame.summary && <p>{frame.summary}</p>}
+    <div className={styles.frame} data-cache-state={state} data-pipeline-graph={graphOnly || undefined}
+      data-compact={compact || undefined}>
+      {showTitle && <h4>{frame.title}</h4>}
+      {frame.summary && frame.summary !== frame.title && <p>{frame.summary}</p>}
       {frame.graph && <FrameGraph graph={frame.graph} />}
       {frame.series?.length ? <FrameChart series={frame.series} /> : null}
       {frame.timeline?.length ? <FrameGantt timeline={frame.timeline} /> : null}
@@ -150,9 +154,13 @@ function FrameDetails({ frame }: { frame: PipelineFrame }): JSX.Element {
 
 const subjects = {
   dsTraversal: 'algorithm', avl: 'algorithm', kmpSort: 'algorithm', graphAlgo: 'algorithm',
+  btreeLab: 'algorithm', hashTableLab: 'algorithm',
   cacheSimLab: 'computer_organization', pipelineLab: 'computer_organization', ieee754Lab: 'computer_organization',
+  cpuDatapathLab: 'computer_organization', aluBoothLab: 'computer_organization',
   cpuScheduleLab: 'operating_system', pageReplace: 'operating_system', pageReplaceOriginal: 'operating_system', bankerLab: 'operating_system',
+  diskScheduleLab: 'operating_system', pvSyncLab: 'operating_system',
   tcpCongestionLab: 'computer_network', slidingWindowLab: 'computer_network', ipSubnet: 'computer_network',
+  csmaCdLab: 'computer_network', routingLab: 'computer_network',
 } as const;
 
 function OriginalQuestion({ pipeline }: { pipeline: keyof typeof subjects }): JSX.Element {
@@ -163,7 +171,7 @@ function OriginalQuestion({ pipeline }: { pipeline: keyof typeof subjects }): JS
       <textarea rows={4} value={raw} onChange={(event) => setRaw(event.target.value)} />
     </label>
     <CheckOriginalButton key={raw} subject={subjects[pipeline]} text={raw} />
-    <a href="/labs">从截图或文件导入题目 →</a>
+    <a href="/workshop">返回万象工坊目录 →</a>
   </details>;
 }
 
@@ -180,7 +188,7 @@ function NumericControl({ spec, value, onChange }: {
     }} />;
 }
 
-export function Lab408PipelineNode({ node, self, onParams, onText, timeline }: NodeBodyProps): JSX.Element {
+export function Lab408PipelineNode({ node, self, onParams, onText, timeline, controlsOnly }: NodeBodyProps & { controlsOnly?: boolean }): JSX.Element {
   const [localStep, setLocalStep] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [importError, setImportError] = useState('');
@@ -231,9 +239,9 @@ export function Lab408PipelineNode({ node, self, onParams, onText, timeline }: N
           setStep(timeline ? timeline.last + 1 : frames.length);
         }}>{label}</button>)}</div> : null}
       {output?.error ? <p className={styles.error} role="status">{output.error}</p> : null}
-      {frame ? <>
+      {frame && !controlsOnly ? <>
         <Timeline total={frames.length} index={index} playing={playing} onIndex={setStep} onPlaying={setPlaying} />
-        <FrameDetails frame={frame} />
+        <PipelineFrameDetails frame={frame} />
       </> : null}
       {onText && !stage.inputs?.length && Object.hasOwn(subjects, pipeline) && <OriginalQuestion pipeline={pipeline as keyof typeof subjects} />}
     </div>

@@ -18,7 +18,7 @@ test('M6 活页 L3 演示框新 ViewAST 原语、drag-handle 画布拖动与断�
   expect(materialMatch).toBeTruthy();
   const materialId = materialMatch![1]!;
 
-  const editLink = page.getByRole('link', { name: '编辑内容 / 交互' });
+  const editLink = page.getByRole('button', { name: '编辑课件' });
   await expect(editLink).toBeVisible({ timeout: 60_000 });
   await editLink.click();
 
@@ -87,7 +87,8 @@ test('M6 活页 L3 演示框新 ViewAST 原语、drag-handle 画布拖动与断�
   await expect(editor.locator('[data-ast-drag-handle="h_b2"]')).toBeVisible();
 
   // 4. 保存并返回放映态，验证公式节点与 drag-handle 画布拖动实时改参
-  await editor.getByRole('button', { name: '保存并返回演示' }).click();
+  await expect(editor.getByText('已保存到服务端', {exact: true})).toBeVisible();
+  await page.getByRole('button', { name: '互动预览' }).click();
   await expect(page).toHaveURL(/\/work/, { timeout: 60_000 });
 
   const slide = page.getByLabel('幻灯片第 1 页', { exact: true });

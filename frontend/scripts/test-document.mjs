@@ -119,4 +119,42 @@ const relRebase=rebaseDocument(original,relEditor.getSnapshot().document,remoteW
 assert.ok(relRebase.conflicts.includes('1/__page__/relations'),'Concurrent page relation changes must report conflict');
 relEditor.dispose();
 
-console.log('PASS: instant immutable edits, atomic history, serialized saves, edits during save, offline drafts and field conflict detection');
+const pagesEditor=new DocumentController(original,{save:async(revision)=>({revision:revision+1}),autosaveDelay:100000});
+const blank=pagesEditor.addPage(1,'lesson');
+const copy=pagesEditor.duplicatePage(1);
+pagesEditor.movePage(copy,0);
+pagesEditor.patchPage(copy,{notes:'讲稿',background_color:'#EEEEFF'});
+const arranged=pagesEditor.getSnapshot().document;
+assert.deepEqual(Array.from(arranged.pages,p=>p.page_no),[copy,1,blank]);
+assert.deepEqual(Array.from(arranged.pages.find(p=>p.page_no===blank).nodes,n=>n.text),['课程标题','教学要点']);
+assert.equal(arranged.pages[0].source_page_no,1);
+assert.equal(arranged.pages[0].notes,'讲稿');
+const changeKinds=diffDocuments(original,arranged).flatMap(change=>change.page_action?.kind??[]);
+assert.ok(changeKinds.includes('duplicate_page')&&changeKinds.includes('reorder_pages'));
+const remotePage={...arranged.pages.find(p=>p.page_no===blank),notes:'同一新页编号，来自另一个窗口'};
+const concurrent=rebaseDocument(original,arranged,{...original,pages:[original.pages[0],remotePage]});
+assert.ok(concurrent.conflicts.some(message=>message.includes('新增页面')));
+assert.equal(concurrent.document.pages.length,4,'Concurrent inserts retain both versions for conflict recovery');
+assert.equal(concurrent.document.pages.find(p=>p.page_no===blank).notes,remotePage.notes);
+await pagesEditor.save();
+pagesEditor.deletePage(1);
+const deleted=pagesEditor.getSnapshot().document;
+assert.equal(deleted.pages.some(p=>p.page_no===1),false);
+await pagesEditor.save();
+pagesEditor.undo();
+assert.equal(pagesEditor.getSnapshot().document.pages[1].nodes[0].id,'one');
+assert.equal(diffDocuments(deleted,pagesEditor.getSnapshot().document)[0].page_action?.kind,'restore_page');
+pagesEditor.dispose();
+
+const formatted={...node('rich',0),text:'bold and color',paragraphs:[{text:'bold and color',runs:[
+  {text:'bold',style:{bold:true}},{text:' and ',style:{}},{text:'color',style:{color:'#FF0000'}},
+]}]};
+const richDoc={...original,pages:[{...original.pages[0],nodes:[formatted]}]};
+const richEditor=new DocumentController(richDoc,{save:async()=>({revision:1}),autosaveDelay:100000});
+richEditor.patch(1,['rich'],{text:'bold and new color'});
+const richChange=diffDocuments(richDoc,richEditor.getSnapshot().document)[0].patch;
+assert.equal(richChange.paragraphs[0].runs[0].style.bold,true);
+assert.equal(richChange.paragraphs[0].runs.at(-1).style.color,'#FF0000');
+richEditor.dispose();
+
+console.log('PASS: immutable edits, page actions, rich text recovery, history, serialized saves, offline drafts and conflict detection');

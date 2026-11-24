@@ -112,31 +112,47 @@ export default function LivingPagesPage(): ReactNode {
       <main className={styles.listPage}>
         <header className={styles.pageHead}>
           <div className={styles.headText}>
-            <p className={styles.eyebrow}>万象活页 · 动态 PPT 工作台</p>
-            <h1 className={styles.pageTitle}>把静态 PPT 变成动态活页</h1>
+            <div className={styles.eyebrow}>
+              <i aria-hidden="true" /> WANXIANG LIVING PAGES · 动态课件与工坊插件演播舞台
+            </div>
+            <h1 className={styles.pageTitle}>
+              万象<span className={styles.titleHighlight}>活页</span>
+            </h1>
             <p className={styles.lead}>
-              上传静态 PPTX、PDF 或图片，直接进入横向幻灯片工作台。
-              在原页位置实时调节线条长短、线型与颜色，原位交互公式、图表与流程图，并可打包成独立 HTML 分享。
+              上传静态 PPTX、PDF 或图片，直接进入高保真横向幻灯片工作台。
+              保留原稿排版的同时，在任意一页原地嵌入「万象工坊」50+ 学科交互插件，并可打包为单文件 HTML 断网演播。
             </p>
-            <p className={styles.headMeta}>
-              <span><b>{materials === null ? '—' : materials.length}</b> 份课件</span>
-              <span><b>{totalSlides === null ? '—' : totalSlides}</b> 页幻灯片</span>
-              <span><b>{totalObjects === null ? '—' : totalObjects}</b> 个交互对象</span>
-            </p>
+            <div className={styles.headMeta}>
+              <div className={styles.headMetric}>
+                <b>{materials === null ? '—' : materials.length}</b>
+                <span>份动态课件</span>
+              </div>
+              <div className={styles.headMetric}>
+                <b>{totalSlides === null ? '—' : totalSlides}</b>
+                <span>页幻灯片</span>
+              </div>
+              <div className={styles.headMetric}>
+                <b>{totalObjects === null ? '—' : totalObjects}</b>
+                <span>个交互对象</span>
+              </div>
+            </div>
           </div>
+
           <aside className={styles.headNote}>
-            <span>统一工作台</span>
-            <p>所有 PPTX、PDF 与图片均进入横向幻灯片舞台，默认开启原位交互，无需跳转或弹窗。</p>
+            <span className={styles.headNoteTag}>ECOSYSTEM · 双向贯通</span>
+            <strong>与万象工坊无缝联动</strong>
+            <p>所有 PPTX、PDF 与图片均进入横向幻灯片舞台，默认开启原位交互；随时把工坊里搭好的活仪器装进任意页面。</p>
+            <Link to="/workshop" className={styles.headNoteLink}>去万象工坊挑仪器 ↗</Link>
           </aside>
         </header>
 
         <section className={styles.createSection} aria-labelledby="living-create-title">
           <div className={styles.sectionHead}>
             <div>
-              <p className={styles.sectionEyebrow}>01 · New</p>
+              <p className={styles.sectionEyebrow}><span className={styles.secNo}>§ 01</span> NEW OR IMPORT / 开始制作</p>
               <h2 id="living-create-title" className={styles.sectionTitle}>新建或导入动态 PPT</h2>
             </div>
-            <p className={styles.sectionNote}>上传即入工作台 · 原位编辑与演示</p>
+            <p className={styles.sectionNote}>上传即入工作台 · 原位编辑与现场演播</p>
           </div>
 
           <div className={styles.createRow}>
@@ -164,7 +180,7 @@ export default function LivingPagesPage(): ReactNode {
               }}
             >
               <span className={styles.dropIcon} aria-hidden="true"><UploadGlyph /></span>
-              <strong>{busy === 'upload' ? '正在解析并打开幻灯片工作台，请稍候…' : '上传 PPT / PDF / 图片'}</strong>
+              <strong>{busy === 'upload' ? '正在解析并打开幻灯片工作台，请稍候…' : '上传 PPTX / PDF / 图片'}</strong>
               <span className={styles.dropHint}>拖入或点击选择 1 份文件，直接生成横向动态 PPT</span>
               <span className={styles.dropFormats} aria-hidden="true">
                 <i>PPTX</i><i>PDF</i><i>PNG</i><i>JPG</i>
@@ -180,21 +196,22 @@ export default function LivingPagesPage(): ReactNode {
 
             <div className={styles.pasteCard}>
               <div className={styles.pasteHead}>
-                <span className={styles.pasteLabel}>导入已有动态工程 / 离线网页</span>
+                <span className={styles.pasteLabel}>OFFLINE & PROJECT · 资产恢复</span>
                 <span className={styles.charCount}>.xsproj / .html</span>
               </div>
-              <p className={styles.lead} style={{ margin: '0.25rem 0 auto', fontSize: '0.88rem' }}>
-                从本地恢复之前导出的工程包或单文件交互 HTML，保留所有原位矢量图形、颜色线型、数学画布、流程图与 AI 演示框，导入后立即回到 PPT 工作台继续修改。
+              <h3 className={styles.pasteTitle}>导入已有工程包或离线网页</h3>
+              <p className={styles.pasteLead}>
+                从本地恢复之前导出的工程包或单文件交互 HTML，完整保留所有原位矢量图形、工坊插件、数学画布与流程图，导入后立即回到工作台继续编辑。
               </p>
               <div className={styles.pasteFoot}>
-                <span className={styles.pasteHint}>支持 .xsproj 工程存档与万象导出的单文件 .html 直接导回</span>
+                <span className={styles.pasteHint}>支持 .xsproj 工程存档与万象单文件 .html 直接导回</span>
                 <button
                   type="button"
                   className={styles.generateBtn}
                   disabled={busy === 'import'}
                   onClick={() => importRef.current?.click()}
                 >
-                  {busy === 'import' ? '导入中…' : '选择 .xsproj / .html 导入'}
+                  {busy === 'import' ? '导入中…' : '选择文件导入 ↗'}
                 </button>
                 <input
                   ref={importRef}
@@ -208,13 +225,13 @@ export default function LivingPagesPage(): ReactNode {
           </div>
         </section>
 
-        {loadError ? <p role="alert">{loadError} <button onClick={loadData}>重试</button></p> : null}
+        {loadError ? <p className={styles.uploadError} role="alert">{loadError} <button type="button" onClick={loadData}>重试</button></p> : null}
         {error ? <p className={styles.uploadError} role="alert">{error}</p> : null}
 
         <section className={styles.listSection} aria-labelledby="living-mine-title">
           <div className={styles.sectionHead}>
             <div>
-              <p className={styles.sectionEyebrow}>02 · Library</p>
+              <p className={styles.sectionEyebrow}><span className={styles.secNo}>§ 02</span> LIBRARY / 个人活课件库</p>
               <h2 id="living-mine-title" className={styles.sectionTitle}>我的动态 PPT</h2>
             </div>
             <span className={styles.countPill}>{materials === null ? '载入中' : `${materials.length} 份`}</span>
@@ -256,16 +273,19 @@ export default function LivingPagesPage(): ReactNode {
 
         <section className={styles.tips} aria-label="工作台能力说明">
           <div>
-            <strong>01 导入</strong>
-            <p>上传静态 PPTX、PDF 或图片直接进入横向工作台，保留原始排版。</p>
+            <strong>01 · IMPORT</strong>
+            <h3>原稿保真导入</h3>
+            <p>上传静态 PPTX、PDF 或图片直接进入横向工作台，保留原有排版结构，无需重做整套课件。</p>
           </div>
           <div>
-            <strong>02 原位交互</strong>
-            <p>在幻灯片原位拖动向量、调整线长与颜色、交互图表、流程图和 AI 演示。</p>
+            <strong>02 · LIVE STAGE</strong>
+            <h3>原位交互与工坊插件</h3>
+            <p>在幻灯片原位插入万象工坊交互仪器，现场调参、切换情景预设，告别讲课来回切软件。</p>
           </div>
           <div>
-            <strong>03 分享与导回</strong>
-            <p>导出独立 HTML 离线网页分享，也可打包工程随时恢复继续编辑。</p>
+            <strong>03 · OFFLINE</strong>
+            <h3>离线演播与无损导回</h3>
+            <p>导出独立单文件 HTML，教室断网照常跑真实计算；也可打包工程随时导回继续修订。</p>
           </div>
         </section>
       </main>

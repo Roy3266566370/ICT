@@ -852,83 +852,85 @@ def download_project_package(
     )
 
 
-@router.get("/materials/{material_id}/export-pptx", summary="导出修改后的标准 .pptx 课件")
-def export_material_pptx(
-    material_id: str,
-    request: Request,
-    ctx: SessionDep,
-    db: DBDep,
-) -> Response:
-    from io import BytesIO
-    from pptx import Presentation
-    from pptx.util import Emu, Pt
+def _pptx_interactive_url(db: Session, request: Request, material_id: str, revision: int) -> str:
+    base = str(request.base_url).rstrip('/')
+    share_id = db.scalar(select(ShareRecord.share_id).where(
+        ShareRecord.material_id == material_id,
+        ShareRecord.revoked_at.is_(None),
+        ShareRecord.snapshot_json['scene_document']['revision'].as_integer() == revision,
+    ).order_by(ShareRecord.created_at.desc()).limit(1))
+    return f'{base}/p/{share_id}' if share_id else f'{base}/materials/{material_id}/work'
+
+
+def _pptx_response(material_id: str, request: Request, db: Session, revision=None, snapshots=()) -> Response:
+    from ..documents.pptx_export import INTERACTIVE_TYPES, export_pptx, snapshot_png
+    from ..documents.store import document_root
     from ..editing import working_path
-    from ..parsers.pptx_parser import _walk_shapes
 
-    material = owned_material(db, ctx, material_id)
-    source = working_path(material.id)
-    if not source.is_file():
+    doc = current_document(material_id)
+    source = working_path(material_id)
+    frozen_source = document_root(material_id) / 'source.pptx'
+    if doc and frozen_source.is_file() and (not source.is_file() or doc.get('structure_modified')
+            or any(page.get('modified') for page in doc['pages'])):
+        source = frozen_source
+    if not source.is_file() and not (doc and doc['pages']):
         raise resource_unavailable("原始 PPTX 文件已不存在")
-
-    doc = current_document(material.id)
-    if not doc or not any(p.get("modified") for p in doc.get("pages", [])):
-        data = source.read_bytes()
-    else:
-        deck = Presentation(source)
-        slide_w = int(deck.slide_width)
-        slide_h = int(deck.slide_height)
-        for doc_page in doc.get("pages", []):
-            if not doc_page.get("modified"):
+    captures = {}
+    allowed = {(page['page_no'], node['id']) for page in (doc or {}).get('pages',[]) for node in page['nodes']
+               if node['type'] in INTERACTIVE_TYPES and not node.get('hidden') and not node.get('deleted')}
+    if allowed and doc['revision'] == revision:
+        for snapshot in snapshots:
+            key = (snapshot.page_no, snapshot.id)
+            if key not in allowed or key in captures:
                 continue
-            page_no = int(doc_page.get("page_no") or 0)
-            if not (1 <= page_no <= len(deck.slides)):
+            try:
+                captures[key] = snapshot_png(snapshot.image_data)
+            except ValueError:
+                # A capture is optional. Preserve the named, in-slide placeholder.
                 continue
-            slide = deck.slides[page_no - 1]
-            pw = float(doc_page.get("width") or 960) or 960.0
-            ph = float(doc_page.get("height") or 540) or 540.0
-            by_eid = {
-                eid: shape
-                for shape, _, eid, _, _ in _walk_shapes(
-                    slide.shapes, page_no=page_no, parent_transform=(1.0, 1.0, 0.0, 0.0)
-                )
-            }
-            for node in doc_page.get("nodes", []):
-                if node.get("type") != "text" or node.get("deleted") or node.get("hidden"):
-                    continue
-                src_eid = node.get("source_element_id")
-                text_val = str(node.get("text") or "")
-                if src_eid and src_eid in by_eid:
-                    shape = by_eid[src_eid]
-                    if getattr(shape, "has_text_frame", False):
-                        if shape.text_frame.text != text_val:
-                            shape.text_frame.text = text_val
-                    try:
-                        shape.left = Emu(int(round(float(node.get("x", 0)) / pw * slide_w)))
-                        shape.top = Emu(int(round(float(node.get("y", 0)) / ph * slide_h)))
-                        shape.width = Emu(max(1, int(round(float(node.get("width", 100)) / pw * slide_w))))
-                        shape.height = Emu(max(1, int(round(float(node.get("height", 30)) / ph * slide_h))))
-                    except Exception:  # noqa: BLE001 - 组合内形状不可直接改坐标时跳过
-                        pass
-                elif not src_eid and text_val.strip():
-                    left = Emu(int(round(float(node.get("x", 40)) / pw * slide_w)))
-                    top = Emu(int(round(float(node.get("y", 40)) / ph * slide_h)))
-                    width = Emu(max(1, int(round(float(node.get("width", 240)) / pw * slide_w))))
-                    height = Emu(max(1, int(round(float(node.get("height", 40)) / ph * slide_h))))
-                    box = slide.shapes.add_textbox(left, top, width, height)
-                    box.text_frame.text = text_val
-                    font_size = (node.get("style") or {}).get("font_size")
-                    if isinstance(font_size, (int, float)) and font_size > 0 and box.text_frame.paragraphs:
-                        box.text_frame.paragraphs[0].font.size = Pt(float(font_size))
-        out = BytesIO()
-        deck.save(out)
-        data = out.getvalue()
-
-    filename = f"{material.id}.pptx"
+    work_url = _pptx_interactive_url(db, request, material_id, doc['revision']) if allowed else ''
+    data = export_pptx(material_id, source, doc, work_url=work_url, snapshots=captures)
     return Response(
         content=data,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'attachment; filename="{material_id}.pptx"'},
     )
+
+
+class PptxSnapshot(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    page_no: int = Field(ge=1, le=10000, strict=True)
+    id: str = Field(pattern=r'^[A-Za-z0-9_-]{1,96}$')
+    image_data: str = Field(max_length=5_600_050)
+
+
+class PptxExportRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    revision: int = Field(ge=0, strict=True)
+    snapshots: list[PptxSnapshot] = Field(max_length=40)
+
+
+@router.get("/materials/{material_id}/export-pptx", summary="导出修改后的标准 .pptx 课件")
+def export_material_pptx(material_id: str, request: Request, ctx: SessionDep, db: DBDep) -> Response:
+    material = owned_material(db, ctx, material_id)
+    return _pptx_response(material.id, request, db)
+
+
+@router.post("/materials/{material_id}/export-pptx", summary="导出包含当前交互快照的 .pptx 课件")
+async def export_material_pptx_with_snapshots(material_id: str, request: Request, ctx: SessionDep, db: DBDep) -> Response:
+    from starlette.concurrency import run_in_threadpool
+
+    material = owned_material(db, ctx, material_id)
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > 20 * 1024 * 1024:
+            raise limit_exceeded('交互快照合计不能超过 20 MB')
+        body.extend(chunk)
+    try:
+        payload = PptxExportRequest.model_validate_json(body)
+    except ValidationError as error:
+        raise missing_field('交互快照请求格式无效') from error
+    return await run_in_threadpool(_pptx_response, material.id, request, db, payload.revision, payload.snapshots)
 
 
 @router.post("/project-packages/import", status_code=201, summary="导入 .xsproj 工程包或单文件交互 .html")

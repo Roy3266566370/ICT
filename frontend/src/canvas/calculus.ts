@@ -1,5 +1,5 @@
 /** 一元实函数数值实验。复用受限解析器，不进行动态代码执行。 */
-import { compileExpression } from '../labs/expr.ts';
+import { compileExpression, type ExpressionNode } from '../labs/expr.ts';
 import type { LabModel } from '../labs/types.ts';
 import { evaluateSandboxRegion, evaluatePolarSandbox, type SandboxRegionResult, type PolarSandboxResult } from '../labs/doubleIntegral.ts';
 import type { PortValue } from './types.ts';
@@ -9,13 +9,62 @@ export type { SandboxRegionResult, PolarSandboxResult };
 
 export type FunctionValue = Extract<PortValue, { kind: 'function' }>;
 export type RealFunction = ((x: number) => number | null) & { series?: (center: number, order: number) => number[] };
+const FUNCTION_VARIABLES = ['x', 'a', 'b', 'c'] as const;
 
 export function compileFunction(value: FunctionValue): RealFunction {
   if (value.expression.length > 500) throw new Error('表达式请控制在 500 字以内');
-  const compiled = compileExpression(value.expression, ['x', 'a', 'b', 'c']);
+  const compiled = compileExpression(value.expression, FUNCTION_VARIABLES);
   return Object.assign((x: number) => compiled.evalOrNull({ x, a: value.a, b: value.b, c: value.c }), {
     series: (center: number, order: number) => localSeries(compiled.ast, { x: center, a: value.a, b: value.b, c: value.c }, order),
   });
+}
+
+const texCommand: Readonly<Record<string, string>> = {
+  asin: '\\arcsin', acos: '\\arccos', atan: '\\arctan',
+  acot: '\\operatorname{arccot}', asec: '\\operatorname{arcsec}', acsc: '\\operatorname{arccsc}',
+  log: '\\ln', ln: '\\ln', exp: '\\exp',
+  sin: '\\sin', cos: '\\cos', tan: '\\tan', cot: '\\cot', sec: '\\sec', csc: '\\csc',
+  arcsin: '\\arcsin', arccos: '\\arccos', arctan: '\\arctan',
+  sinh: '\\sinh', cosh: '\\cosh', tanh: '\\tanh',
+};
+
+function expressionTex(node: ExpressionNode, parentPrecedence = 0): string {
+  const group = (value: string) => '\\left(' + value + '\\right)';
+  if (node.type === 'number') {
+    if (node.value === Math.PI) return '\\pi';
+    if (node.value === Math.E) return 'e';
+    const value = String(node.value);
+    const tex = value.replace(/e([+-]?\d+)$/, '\\cdot 10^{$1}');
+    return tex !== value && parentPrecedence > 2 ? group(tex) : tex;
+  }
+  if (node.type === 'variable') return node.name === 'pi' ? '\\pi' : node.name;
+  if (node.type === 'unary') {
+    const tex = node.op + expressionTex(node.arg, 3);
+    return parentPrecedence > 3 ? group(tex) : tex;
+  }
+  if (node.type === 'call') {
+    const arg = node.args.map((child) => expressionTex(child)).join(', ');
+    if (node.name === 'sqrt') return '\\sqrt{' + arg + '}';
+    if (node.name === 'abs') return '\\left|' + arg + '\\right|';
+    if (node.name === 'factorial') {
+      const tex = expressionTex(node.args[0]!, 5) + '!';
+      return parentPrecedence > 4 ? group(tex) : tex;
+    }
+    return (texCommand[node.name] ?? '\\operatorname{' + node.name + '}') + group(arg);
+  }
+  if (node.op === '/') return '\\frac{' + expressionTex(node.left) + '}{' + expressionTex(node.right) + '}';
+  if (node.op === '^') return expressionTex(node.left, 5) + '^{' + expressionTex(node.right) + '}';
+  const precedence = node.op === '*' ? 2 : 1;
+  const separator = node.op === '*' ? '\\cdot ' : node.op;
+  const tex = expressionTex(node.left, precedence) + separator + expressionTex(
+    node.right, node.op === '-' ? precedence + 1 : precedence,
+  );
+  return parentPrecedence > precedence ? group(tex) : tex;
+}
+
+export function functionExpressionLatex(expression: string): string {
+  if (expression.length > 500) throw new Error('表达式请控制在 500 字以内');
+  return expressionTex(compileExpression(expression, FUNCTION_VARIABLES).ast);
 }
 
 export function functionValue(expression: string, params: Record<string, number>): FunctionValue {

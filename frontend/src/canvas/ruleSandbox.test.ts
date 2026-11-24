@@ -1,0 +1,97 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { RuleSandboxError, runRuleInSandbox, sanitizePipelineResult, RULE_WORKER_SOURCE } from './ruleSandbox.ts';
+
+function resultOf(frames: number, rows = 1, nodes = 1): unknown {
+  return {
+    data: { ok: true },
+    frames: Array.from({ length: frames }, (_, index) => ({
+      title: `第 ${index} 帧`,
+      summary: '测试帧',
+      columns: ['x', 'y'],
+      rows: Array.from({ length: rows }, (_, row) => [row, row * 2]),
+      graph: {
+        nodes: Array.from({ length: nodes }, (_, node) => ({ id: `n${node}`, label: `N${node}`, x: node, y: node, active: node === 0 })),
+        edges: Array.from({ length: Math.max(0, nodes - 1) }, (_, node) => ({ from: `n${node}`, to: `n${node + 1}` })),
+      },
+    })),
+  };
+}
+
+test('规则输出会截断超大帧、行与节点，并清洗非有限数值', () => {
+  const result = sanitizePipelineResult({
+    ...resultOf(260, 260, 140),
+    frames: [{
+      title: '非有限值',
+      summary: '测试',
+      rows: [[Number.NaN, Number.POSITIVE_INFINITY, true]],
+      series: [{ label: 's', values: [1, Number.NaN, 3] }],
+    }],
+  });
+  assert.equal(result.frames.length, 1);
+  assert.deepEqual(result.frames[0]!.rows, [['—', '—', '是']]);
+  assert.deepEqual(result.frames[0]!.series?.[0]?.values, [1, 0, 3]);
+  const capped = sanitizePipelineResult(resultOf(260, 260, 140));
+  assert.equal(capped.frames.length, 200);
+  assert.equal(capped.frames[0]!.rows?.length, 200);
+  assert.equal(capped.frames[0]!.graph?.nodes.length, 120);
+});
+
+test('沙箱拒绝浏览器、网络与异步能力，并给出明确错误', async () => {
+  await assert.rejects(runRuleInSandbox('function run(){ return fetch("/") }', { text: '', params: {}, upstream: [] }), (error) => {
+    return error instanceof RuleSandboxError && error.code === 'runtime' && /禁用/.test(error.message);
+  });
+  await assert.rejects(runRuleInSandbox('async function run(){ return {} }', { text: '', params: {}, upstream: [] }), (error) => {
+    return error instanceof RuleSandboxError && error.code === 'runtime';
+  });
+  assert.match(RULE_WORKER_SOURCE, /沙箱禁止访问/);
+});
+
+test('Worker 超时会终止并返回 计算超时', async () => {
+  let terminated = false;
+  await assert.rejects(runRuleInSandbox('function run(){ return { frames: [] } }', { text: '', params: {}, upstream: [] }, {
+    timeoutMs: 25,
+    workerFactory: () => ({
+      onmessage: null,
+      onerror: null,
+      postMessage() { /* never reply */ },
+      terminate() { terminated = true; },
+    }),
+  }), (error) => error instanceof RuleSandboxError && error.code === 'timeout' && /计算超时/.test(error.message));
+  assert.equal(terminated, true);
+});
+
+test('Worker 成功结果经过校验后返回，运行时错误拒绝', async () => {
+  const success = await runRuleInSandbox('function run(){ return { data: {}, frames: [] } }', { text: '', params: {}, upstream: [] }, {
+    timeoutMs: 100,
+    workerFactory: () => {
+      const worker = {
+        onmessage: null as ((event: MessageEvent) => void) | null,
+        onerror: null as ((event: ErrorEvent) => void) | null,
+        postMessage(message: unknown) {
+          const token = (message as { nonce: string }).nonce;
+          queueMicrotask(() => worker.onmessage?.({ data: { type: 'result', nonce: token, output: resultOf(2), elapsedMs: 1.2 } } as MessageEvent));
+        },
+        terminate() {},
+      };
+      return worker;
+    },
+  });
+  assert.equal(success.result.frames.length, 2);
+  assert.equal(success.elapsedMs, 1.2);
+  await assert.rejects(runRuleInSandbox('function run(){ return { frames: [] } }', { text: '', params: {}, upstream: [] }, {
+    timeoutMs: 100,
+    workerFactory: () => {
+      const worker = {
+        onmessage: null as ((event: MessageEvent) => void) | null,
+        onerror: null as ((event: ErrorEvent) => void) | null,
+        postMessage(message: unknown) {
+          const token = (message as { nonce: string }).nonce;
+          queueMicrotask(() => worker.onmessage?.({ data: { type: 'error', nonce: token, message: '测试运行错误' } } as MessageEvent));
+        },
+        terminate() {},
+      };
+      return worker;
+    },
+  }), (error) => error instanceof RuleSandboxError && error.code === 'runtime' && /测试运行错误/.test(error.message));
+});

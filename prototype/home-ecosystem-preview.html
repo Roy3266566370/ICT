@@ -1,0 +1,2308 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万象 WANXIANG · 万象工坊 × 万象活页 主页预览 v2</title>
+  <style>
+    :root {
+      --paper: #f3f0e7;
+      --paper-hi: #fbf9f2;
+      --paper-card: #fffdf8;
+      --paper-dim: #e7e2d4;
+      --ink: #111312;
+      --ink-2: #32362e;
+      --muted: #696c61;
+      --line: #dad4c5;
+      --line-strong: #c2bba8;
+      --blue: #2234d4;
+      --blue-deep: #111b5e;
+      --blue-night: #0c122e;
+      --blue-soft: #eef1ff;
+      --red: #de421f;
+      --red-soft: #fff1ed;
+      --teal: #0f766e;
+      --teal-bright: #2dd4bf;
+      --teal-soft: #ebfbf8;
+      --serif: "Songti SC", "Noto Serif SC", "STSong", Georgia, serif;
+      --sans: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+      --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+      --max: 1280px;
+      --gutter: clamp(20px, 3.2vw, 44px);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(900px 520px at 85% -6%, rgba(34, 52, 212, .06), transparent 60%),
+        radial-gradient(700px 420px at 8% 12%, rgba(222, 66, 31, .05), transparent 55%),
+        var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 15px;
+      line-height: 1.68;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+    code, .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+    /* 顶部导航 */
+    .site-nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(243, 240, 231, .86);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(17, 19, 18, .08);
+    }
+    .site-nav__inner {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 var(--gutter);
+      height: 68px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+    .brand__seal {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      background: var(--ink);
+      color: var(--paper-hi);
+      display: grid;
+      place-items: center;
+      font-family: var(--serif);
+      font-size: 16px;
+      box-shadow: 0 4px 12px rgba(17, 19, 18, .18);
+    }
+    .brand small { font-weight: 400; color: var(--muted); font-size: 12px; margin-left: 4px; }
+    .nav-links { display: flex; align-items: center; gap: 26px; font-size: 14px; color: var(--ink-2); }
+    .nav-links a { position: relative; padding: 4px 0; transition: color .15s; }
+    .nav-links a:hover, .nav-links a.is-active { color: var(--ink); font-weight: 600; }
+    .nav-links a.is-active::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; bottom: -2px;
+      height: 2px; border-radius: 99px;
+      background: var(--red);
+    }
+    .nav-actions { display: flex; align-items: center; gap: 10px; }
+
+    /* 通用按钮 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 11px 20px;
+      border-radius: 10px;
+      border: 1px solid rgba(17, 19, 18, .18);
+      background: var(--paper-card);
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 600;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(17, 19, 18, .1); border-color: var(--ink); }
+    .btn--primary {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: var(--paper-hi);
+      box-shadow: 0 6px 18px rgba(17, 19, 18, .18);
+    }
+    .btn--primary:hover { background: var(--blue-deep); border-color: var(--blue-deep); color: #fff; }
+    .btn--light {
+      background: #fff;
+      border-color: #fff;
+      color: var(--ink);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, .24);
+    }
+    .btn--light:hover { background: #fff4f1; border-color: #ffd0c4; color: var(--red); }
+    .btn--sm { padding: 7px 14px; font-size: 13px; border-radius: 8px; }
+
+    /* 通用版式 */
+    .container { max-width: var(--max); margin: 0 auto; padding: 0 var(--gutter); }
+    .section { padding: clamp(64px, 8vw, 108px) 0; border-top: 1px solid rgba(17, 19, 18, .08); }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 12px;
+    }
+    .eyebrow .sec-no { color: var(--red); font-weight: 700; }
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 40px;
+    }
+    .section-head h2 {
+      font-family: var(--serif);
+      font-size: clamp(28px, 3.4vw, 44px);
+      line-height: 1.18;
+      margin: 0;
+      letter-spacing: -.015em;
+    }
+    .section-head p { margin: 0; color: var(--ink-2); font-size: 15px; }
+
+    /* ================= 1. HERO（纯粹优雅的视觉引入，不堆砌具体例子） ================= */
+    .hero {
+      position: relative;
+      padding: clamp(46px, 6.5vw, 84px) 0 clamp(54px, 7vw, 86px);
+      overflow: hidden;
+    }
+    .hero__grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+      gap: clamp(28px, 4vw, 56px);
+      align-items: center;
+    }
+    .hero__badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(17, 19, 18, .12);
+      background: rgba(255, 253, 248, .8);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink-2);
+      margin-bottom: 20px;
+    }
+    .hero__badge i {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 0 4px rgba(222, 66, 31, .16);
+    }
+    .hero__title {
+      font-family: var(--serif);
+      font-size: clamp(40px, 5vw, 66px);
+      line-height: 1.12;
+      margin: 0 0 22px;
+      letter-spacing: -.025em;
+    }
+    .hero__title .highlight {
+      position: relative;
+      color: var(--blue-deep);
+      display: inline-block;
+    }
+    .hero__title .highlight::after {
+      content: "";
+      position: absolute;
+      left: 0; right: 0; bottom: 5px;
+      height: 10px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, rgba(222, 66, 31, .28), rgba(34, 52, 212, .2));
+      z-index: -1;
+    }
+    .hero__lead {
+      font-size: 17px;
+      line-height: 1.75;
+      color: var(--ink-2);
+      margin: 0 0 30px;
+      max-width: 46ch;
+    }
+    .hero__lead strong { color: var(--ink); font-weight: 600; }
+    .hero__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .hero__metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      padding-top: 22px;
+      border-top: 1px solid rgba(17, 19, 18, .1);
+    }
+    .hero__metric strong {
+      display: block;
+      font-family: var(--serif);
+      font-size: 20px;
+      color: var(--ink);
+    }
+    .hero__metric span { font-size: 12px; color: var(--muted); }
+
+    /* Hero 右侧：高质感 2.5D 立体悬浮生态架构（默认无字，悬停浮现说明） */
+    .hero-emblem {
+      position: relative;
+      border-radius: 24px;
+      border: 1px solid rgba(17, 19, 18, .1);
+      background:
+        radial-gradient(460px 320px at 26% 22%, rgba(34, 52, 212, .07), transparent 62%),
+        radial-gradient(420px 300px at 78% 78%, rgba(222, 66, 31, .06), transparent 60%),
+        linear-gradient(150deg, #fffdf9 0%, #f4efe3 100%);
+      padding: 18px 18px 16px;
+      box-shadow:
+        0 28px 64px rgba(17, 19, 18, .09),
+        0 2px 6px rgba(17, 19, 18, .04),
+        inset 0 1px 0 rgba(255, 255, 255, .95);
+      overflow: hidden;
+    }
+    .iso-stage {
+      position: relative;
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 1px 1px, rgba(17, 19, 18, .06) 1px, transparent 0) 0 0 / 20px 20px,
+        rgba(255, 253, 248, .65);
+      border: 1px solid rgba(17, 19, 18, .07);
+      overflow: hidden;
+    }
+    .iso-stage__bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 16px;
+      border-bottom: 1px solid rgba(17, 19, 18, .06);
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      background: rgba(255, 253, 248, .75);
+    }
+    .iso-stage__bar b { color: var(--ink); font-weight: 700; letter-spacing: .04em; }
+    .iso-stage__pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--teal);
+      font-weight: 600;
+    }
+    .iso-stage__pill i {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, .16);
+    }
+    .iso-stage svg { display: block; width: 100%; height: auto; }
+    .iso-layer {
+      transition: transform .22s ease-out, opacity .28s ease;
+      will-change: transform, opacity;
+    }
+    .iso-hit { cursor: pointer; transition: filter .25s ease, opacity .28s ease; }
+    .iso-stage.has-focus .iso-hit { opacity: .34; }
+    .iso-stage.has-focus .iso-hit.is-focused { opacity: 1; filter: drop-shadow(0 14px 24px rgba(17, 27, 94, .22)); }
+    .iso-tag-rect { transition: stroke .2s ease, fill .2s ease; }
+    .iso-hit.is-focused .iso-tag-rect { stroke: var(--ink); fill: #fff; }
+
+    .iso-float-1 { animation: isoFloat 6s ease-in-out infinite; }
+    .iso-float-2 { animation: isoFloat 6s ease-in-out -2s infinite; }
+    .iso-float-3 { animation: isoFloat 6s ease-in-out -4s infinite; }
+    @keyframes isoFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+    .beam-flow { stroke-dasharray: 6 9; animation: beamFlow 2.6s linear infinite; }
+    .beam-flow-slow { stroke-dasharray: 5 9; animation: beamFlow 4.2s linear infinite; }
+    @keyframes beamFlow { from { stroke-dashoffset: 60; } to { stroke-dashoffset: 0; } }
+
+    /* 悬停浮现的磨砂玻璃说明卡 */
+    .iso-tooltip {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(17, 19, 18, .12);
+      background: rgba(255, 253, 248, .92);
+      backdrop-filter: blur(14px);
+      padding: 13px 16px;
+      box-shadow: 0 14px 34px rgba(17, 19, 18, .12);
+      display: grid;
+      gap: 4px;
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: opacity .22s ease, transform .22s ease;
+    }
+    .iso-tooltip.is-show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .iso-tooltip__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .iso-tooltip__badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--blue);
+      letter-spacing: .04em;
+    }
+    .iso-tooltip__title {
+      font-family: var(--serif);
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--ink);
+      margin: 0;
+    }
+    .iso-tooltip__desc {
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--ink-2);
+    }
+    .hero-emblem__foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      padding: 2px 4px 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ================= 2. §01 新人引导式动态剧场（层层递进展示项目作用，统一纸面风格） ================= */
+    .loop-section {
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .tour-shell {
+      display: grid;
+      grid-template-columns: minmax(290px, 0.86fr) minmax(0, 1.34fr);
+      gap: 24px;
+      align-items: stretch;
+    }
+    .tour-rail {
+      border-radius: 20px;
+      border: 1px solid rgba(17, 19, 18, .12);
+      background: var(--paper-card);
+      box-shadow: 0 14px 36px rgba(17, 19, 18, .05);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .tour-rail__top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .tour-progress {
+      height: 4px;
+      border-radius: 99px;
+      background: var(--paper-dim);
+      overflow: hidden;
+    }
+    .tour-progress__fill {
+      height: 100%;
+      width: 25%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, var(--blue), var(--teal));
+      transition: width .35s ease;
+    }
+
+    .tour-steps { display: grid; gap: 10px; flex: 1; align-content: start; }
+    .tour-step {
+      text-align: left;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: var(--paper-hi);
+      padding: 13px 15px;
+      color: var(--ink-2);
+      display: grid;
+      gap: 5px;
+      transition: all .22s ease;
+    }
+    .tour-step:hover { border-color: var(--line-strong); background: #fff; }
+    .tour-step.is-done { border-color: rgba(15, 118, 110, .3); }
+    .tour-step.is-active {
+      border-color: var(--ink);
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(17, 19, 18, .08);
+      color: var(--ink);
+    }
+    .tour-step__head {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .tour-step__badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--paper-dim);
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .tour-step.is-done .tour-step__badge { background: var(--teal-soft); color: var(--teal); font-weight: 700; }
+    .tour-step.is-active .tour-step__badge { background: var(--ink); color: #fff; font-weight: 700; }
+    .tour-step__desc {
+      margin: 0;
+      padding-left: 31px;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: var(--muted);
+      display: none;
+    }
+    .tour-step.is-active .tour-step__desc { display: block; color: var(--ink-2); }
+
+    .tour-nav {
+      display: flex;
+      gap: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+    .tour-prev {
+      border-radius: 10px;
+      border: 1px solid var(--line-strong);
+      background: var(--paper-hi);
+      color: var(--ink-2);
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .tour-prev:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
+    .tour-prev:disabled { opacity: .4; cursor: default; }
+    .tour-next {
+      flex: 1;
+      border-radius: 10px;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: var(--paper-hi);
+      padding: 10px 16px;
+      font-size: 13.5px;
+      font-weight: 600;
+      box-shadow: 0 6px 16px rgba(17, 19, 18, .15);
+      transition: transform .15s, background .15s, border-color .15s;
+    }
+    .tour-next:hover { transform: translateY(-1px); background: var(--blue-deep); border-color: var(--blue-deep); }
+
+    /* 右侧：一镜到底拟真产品舞台（统一温润纸面质感） */
+    .tour-stage {
+      border-radius: 20px;
+      border: 1px solid rgba(17, 19, 18, .14);
+      background:
+        radial-gradient(circle at 1px 1px, rgba(17, 19, 18, .08) 1px, transparent 0) 0 0 / 22px 22px,
+        var(--paper-card);
+      box-shadow: 0 20px 50px rgba(17, 19, 18, .08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 450px;
+    }
+    .tour-window-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      background: var(--paper-hi);
+      border-bottom: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .tour-stage-body {
+      position: relative;
+      flex: 1;
+      padding: 24px;
+      display: grid;
+      align-content: center;
+    }
+    .tour-scene {
+      display: none;
+      animation: sceneEnter .36s ease;
+    }
+    .tour-scene.is-active { display: grid; gap: 18px; }
+    @keyframes sceneEnter {
+      from { opacity: 0; transform: translateY(10px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* 聚光灯高亮框与新人引导气泡（浅色高对比度） */
+    .spotlight-box {
+      border-radius: 14px;
+      border: 1.5px solid var(--blue);
+      box-shadow: 0 0 0 4px rgba(34, 52, 212, .12), 0 12px 28px rgba(17, 19, 18, .08);
+      animation: pulseRing 2.6s ease-in-out infinite;
+    }
+    @keyframes pulseRing {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(34, 52, 212, .11), 0 12px 28px rgba(17, 19, 18, .08); }
+      50% { box-shadow: 0 0 0 7px rgba(34, 52, 212, .2), 0 12px 28px rgba(17, 19, 18, .08); }
+    }
+    .guide-callout {
+      border-radius: 12px;
+      background: var(--blue-soft);
+      border: 1px solid rgba(34, 52, 212, .22);
+      padding: 13px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      font-size: 13px;
+      color: var(--ink-2);
+      flex-wrap: wrap;
+    }
+    .guide-callout strong { color: var(--blue-deep); }
+
+    /* 各幕内部拟真 UI */
+    .mock-paper {
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink-2);
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 18px;
+      align-items: center;
+    }
+    .mock-dead-box {
+      border-radius: 10px;
+      border: 2px dashed #b2ab9a;
+      background: #e5e0d3;
+      padding: 16px;
+      text-align: center;
+      display: grid;
+      gap: 8px;
+      position: relative;
+    }
+    .mock-workshop-grid {
+      display: grid;
+      grid-template-columns: 0.88fr 1.12fr;
+      gap: 16px;
+      align-items: center;
+    }
+    .mini-node {
+      border-radius: 12px;
+      border: 1px solid rgba(34, 52, 212, .24);
+      background: #fff;
+      padding: 12px 14px;
+      font-size: 12px;
+      box-shadow: 0 6px 16px rgba(17, 19, 18, .05);
+    }
+    .mini-node strong { display: block; color: var(--ink); font-size: 13px; margin-bottom: 4px; }
+    .mini-wire {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--blue);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .live-wave-card {
+      border-radius: 12px;
+      background: #fff;
+      color: var(--ink);
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+    }
+    .live-wave-svg {
+      display: block;
+      width: 100%;
+      height: 128px;
+      border-radius: 8px;
+      background: var(--paper-hi);
+      border: 1px solid var(--line);
+    }
+    .mock-living-slide {
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 18px;
+      display: grid;
+      grid-template-columns: 0.82fr 1.18fr;
+      gap: 16px;
+      align-items: center;
+      box-shadow: 0 8px 22px rgba(17, 19, 18, .05);
+    }
+    .mock-share-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .share-pass {
+      border-radius: 14px;
+      border: 1px solid var(--line-strong);
+      background: #fff;
+      padding: 18px;
+      display: grid;
+      gap: 8px;
+      box-shadow: 0 8px 22px rgba(17, 19, 18, .05);
+    }
+    .share-pass__tag {
+      width: fit-content;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--teal-soft);
+      color: var(--teal);
+    }
+    .share-pass h4 { margin: 2px 0 0; font-size: 16px; color: var(--ink); }
+    .share-pass p { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+    /* ================= 3. §02 万象工坊：精选 3 个真交互实验室 ================= */
+    .lab-switcher {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .lab-tab {
+      text-align: left;
+      border-radius: 14px;
+      border: 1px solid var(--line-strong);
+      background: var(--paper-card);
+      padding: 16px 18px;
+      display: grid;
+      gap: 4px;
+      transition: transform .18s, border-color .18s, box-shadow .18s;
+    }
+    .lab-tab:hover { transform: translateY(-2px); border-color: var(--ink); }
+    .lab-tab.is-active {
+      border-color: var(--ink);
+      background: var(--ink);
+      color: var(--paper-hi);
+      box-shadow: 0 12px 26px rgba(17, 19, 18, .16);
+    }
+    .lab-tab span { font-family: var(--mono); font-size: 11px; color: var(--red); font-weight: 700; }
+    .lab-tab.is-active span { color: #ff9c82; }
+    .lab-tab strong { font-size: 16px; }
+    .lab-tab small { font-size: 12px; color: var(--muted); }
+    .lab-tab.is-active small { color: #c7c4b8; }
+
+    .lab-stage {
+      border-radius: 18px;
+      border: 1px solid rgba(17, 19, 18, .15);
+      background: var(--paper-card);
+      box-shadow: 0 20px 50px rgba(17, 19, 18, .08);
+      overflow: hidden;
+    }
+    .lab-stage__head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper-hi);
+      flex-wrap: wrap;
+    }
+    .mode-pills {
+      display: inline-flex;
+      padding: 3px;
+      border-radius: 10px;
+      background: var(--paper-dim);
+      gap: 4px;
+    }
+    .mode-pills button {
+      border: 0;
+      background: transparent;
+      padding: 6px 14px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-2);
+    }
+    .mode-pills button.is-active {
+      background: var(--ink);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(17, 19, 18, .18);
+    }
+    .lab-live-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--teal);
+    }
+    .lab-live-dot i { width: 7px; height: 7px; border-radius: 50%; background: var(--teal); }
+
+    .lab-panel { display: none; padding: 22px; }
+    .lab-panel.is-active { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.85fr); gap: 24px; align-items: center; }
+    .lab-canvas-box {
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 14px;
+    }
+    .lab-svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      background: var(--paper-hi);
+      border: 1px solid var(--line);
+    }
+    .lab-svg.is-pickable { cursor: crosshair; }
+    .lab-svg text { font: 9px var(--mono); fill: var(--muted); }
+    .lab-control-box { display: grid; gap: 14px; align-content: start; }
+    .lab-control-box h3 { font-family: var(--serif); font-size: 24px; margin: 0; line-height: 1.25; }
+    .lab-control-box p { margin: 0; font-size: 13px; color: var(--muted); }
+    .formula-pill {
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--blue-soft);
+      border-left: 3px solid var(--blue);
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--blue-deep);
+      font-weight: 600;
+    }
+    .preset-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .preset-btn {
+      border: 1px solid var(--line-strong);
+      background: var(--paper-hi);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+    }
+    .preset-btn.is-active {
+      border-color: var(--blue);
+      background: var(--blue-soft);
+      color: var(--blue-deep);
+      font-weight: 600;
+    }
+    .slider-row { display: grid; gap: 4px; font-size: 12px; }
+    .slider-row__top { display: flex; justify-content: space-between; font-family: var(--mono); }
+    .slider-row output { color: var(--blue); font-weight: 700; }
+    .slider-row input[type="range"] { width: 100%; accent-color: var(--blue); }
+    .readout-box {
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--teal-soft);
+      border: 1px solid rgba(15, 118, 110, .2);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--teal);
+    }
+
+    /* 工坊蓝图覆盖层 */
+    .lab-blueprint {
+      display: none;
+      padding: 22px;
+      background: linear-gradient(155deg, #0d1433, #152154);
+      color: #e8edff;
+      gap: 14px;
+    }
+    .lab-blueprint.is-active { display: grid; }
+    .lab-blueprint svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      border: 1px solid rgba(164, 182, 255, .2);
+      background: radial-gradient(circle at 1px 1px, rgba(164, 182, 255, .16) 1px, transparent 0) 0 0 / 22px 22px, #10183d;
+    }
+
+    /* ================= 4. §03 万象活页：可拖拽卷帘 Before/After 实景对比 ================= */
+    .compare-shell {
+      border-radius: 20px;
+      border: 1px solid rgba(17, 19, 18, .14);
+      background: var(--paper-card);
+      box-shadow: 0 24px 60px rgba(17, 19, 18, .1);
+      overflow: hidden;
+    }
+    .compare-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper-hi);
+      flex-wrap: wrap;
+    }
+    .window-dots { display: inline-flex; gap: 6px; align-items: center; }
+    .window-dots i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .window-dots i:nth-child(1) { background: #ef6a5b; }
+    .window-dots i:nth-child(2) { background: #f5bf4f; }
+    .window-dots i:nth-child(3) { background: #62c554; }
+    .window-dots span { margin-left: 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+    .compare-viewport {
+      position: relative;
+      height: 440px;
+      user-select: none;
+      overflow: hidden;
+      background: #fff;
+    }
+    .compare-layer {
+      position: absolute;
+      inset: 0;
+      padding: 26px 30px;
+      display: grid;
+      grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+      gap: 24px;
+      align-items: center;
+    }
+    /* 底层：万象活页（鲜活交互态） */
+    .layer-after {
+      background:
+        radial-gradient(600px 300px at 85% 20%, rgba(34, 52, 212, .07), transparent 60%),
+        linear-gradient(135deg, #fffdf8 0%, #f6f4ec 100%);
+    }
+    .after-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--teal-soft);
+      color: var(--teal);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .slide-title { font-family: var(--serif); font-size: 26px; margin: 0 0 10px; line-height: 1.25; }
+    .slide-desc { font-size: 13px; color: var(--ink-2); margin: 0 0 14px; }
+    .taylor-card {
+      border-radius: 14px;
+      border: 1px solid rgba(17, 19, 18, .12);
+      background: #fff;
+      padding: 16px;
+      box-shadow: 0 12px 30px rgba(17, 19, 18, .08);
+      display: grid;
+      gap: 10px;
+    }
+    .taylor-card__top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+    }
+    .taylor-svg {
+      display: block;
+      width: 100%;
+      height: 185px;
+      border-radius: 8px;
+      background: var(--paper-hi);
+      border: 1px solid var(--line);
+    }
+    .taylor-controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: center;
+      padding-top: 4px;
+    }
+
+    /* 顶层：传统静态 PPT（被卷帘裁剪） */
+    .layer-before {
+      background: #e9e6dc;
+      filter: saturate(.32) contrast(.95);
+      clip-path: inset(0 54% 0 0);
+      pointer-events: none;
+    }
+    .before-tag {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #d5d0c3;
+      color: #555249;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .static-png-box {
+      border: 2px dashed #b4ae9e;
+      border-radius: 12px;
+      background: #dfdacf;
+      padding: 18px;
+      height: 290px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+    .pain-note {
+      border-radius: 8px;
+      background: #fff3f0;
+      border: 1px solid #f5b4a4;
+      color: #9e2a12;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* 卷帘拖拽手柄 */
+    .compare-divider {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 46%;
+      width: 3px;
+      background: var(--blue);
+      box-shadow: 0 0 18px rgba(34, 52, 212, .5);
+      z-index: 15;
+      cursor: ew-resize;
+    }
+    .compare-handle {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      border: 2px solid #fff;
+      box-shadow: 0 8px 24px rgba(17, 19, 18, .35);
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -1px;
+    }
+    .compare-hint {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--line);
+      background: var(--paper-hi);
+      font-size: 13px;
+      color: var(--ink-2);
+      flex-wrap: wrap;
+    }
+
+    /* ================= 5. §04 精致原则 + 建筑感双子收口 ================= */
+    .principles-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin-bottom: 44px;
+    }
+    .principle-card {
+      border-radius: 16px;
+      border: 1px solid rgba(17, 19, 18, .1);
+      background: var(--paper-card);
+      padding: 22px 22px 24px;
+      box-shadow: 0 10px 26px rgba(17, 19, 18, .04);
+      display: grid;
+      gap: 8px;
+      align-content: start;
+    }
+    .principle-card__no {
+      display: inline-flex;
+      width: fit-content;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--red-soft);
+      color: var(--red);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .principle-card h3 { font-size: 18px; margin: 4px 0 0; }
+    .principle-card p { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+    .dual-cta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    .cta-card {
+      border-radius: 22px;
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 22px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-card--workshop {
+      background:
+        radial-gradient(420px 240px at 100% 0%, rgba(45, 212, 191, .2), transparent 60%),
+        radial-gradient(circle at 1px 1px, rgba(164, 182, 255, .14) 1px, transparent 0) 0 0 / 22px 22px,
+        linear-gradient(145deg, #0d1433 0%, #162259 100%);
+      color: #f4f6ff;
+      box-shadow: 0 22px 48px rgba(13, 20, 51, .24);
+    }
+    .cta-card--workshop p { color: #c1ccef; }
+    .cta-card--living {
+      border: 1px solid rgba(17, 19, 18, .12);
+      background:
+        radial-gradient(420px 240px at 100% 100%, rgba(222, 66, 31, .08), transparent 60%),
+        var(--paper-card);
+      box-shadow: 0 22px 48px rgba(17, 19, 18, .08);
+    }
+    .cta-card h3 {
+      font-family: var(--serif);
+      font-size: 28px;
+      line-height: 1.24;
+      margin: 0 0 10px;
+    }
+    .cta-card p { margin: 0; font-size: 14.5px; }
+    .cta-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .cta-chips span {
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid rgba(180, 196, 255, .28);
+      background: rgba(255, 255, 255, .07);
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #dde5ff;
+    }
+    .drop-zone {
+      border-radius: 14px;
+      border: 1.5px dashed var(--line-strong);
+      background: var(--paper-hi);
+      padding: 18px;
+      text-align: center;
+      transition: border-color .2s, background .2s;
+    }
+    .drop-zone:hover { border-color: var(--blue); background: var(--blue-soft); }
+    .file-badges { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .file-badges span {
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: #fff;
+      border: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--ink-2);
+    }
+
+    /* 页脚 */
+    .site-foot {
+      border-top: 1px solid rgba(17, 19, 18, .08);
+      padding: 30px 0 46px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .site-foot__inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .site-foot__links { display: flex; gap: 22px; }
+    .site-foot__links a:hover { color: var(--ink); }
+
+    @media (max-width: 980px) {
+      .hero__grid, .section-head, .tour-shell, .lab-panel.is-active, .dual-cta {
+        grid-template-columns: 1fr;
+      }
+      .mock-paper, .mock-workshop-grid, .mock-living-slide, .mock-share-grid { grid-template-columns: 1fr; }
+      .lab-switcher, .principles-grid { grid-template-columns: 1fr; }
+      .compare-viewport { height: 540px; }
+      .compare-layer { grid-template-columns: 1fr; align-content: start; }
+    }
+    @media (max-width: 640px) {
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-nav">
+    <div class="site-nav__inner">
+      <a class="brand" href="#top">
+        <span class="brand__seal">象</span>
+        <span>万象 <small>WANXIANG</small></span>
+      </a>
+      <nav class="nav-links" aria-label="主导航">
+        <a class="is-active" href="#top">首页</a>
+        <a href="#loop">生态闭环</a>
+        <a href="#workshop">万象工坊</a>
+        <a href="#living">万象活页</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn--sm" href="#living">导入课件</a>
+        <a class="btn btn--primary btn--sm" href="#workshop">进入工坊 ↗</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ================= 1. HERO（纯粹优雅的视觉引入） ================= -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero__grid">
+          <div>
+            <div class="hero__badge"><i aria-hidden="true"></i> 万象工坊 × 万象活页 · 双引擎教学与推演生态</div>
+            <h1 class="hero__title">
+              在工坊造<span class="highlight">活仪器</span>，<br />
+              在活页把课讲活。
+            </h1>
+            <p class="hero__lead">
+              <strong>万象工坊</strong>把公式、算法与沙盘连成可调参的真实计算模型；
+              <strong>万象活页</strong>把静态 PPT 与 PDF 变成能现场推演的动态课件。
+              一次建模，随处嵌入，让讲台与思考真正流动起来。
+            </p>
+            <div class="hero__actions">
+              <a class="btn btn--primary" href="#workshop">进入万象工坊 ↗</a>
+              <a class="btn" href="#living">把课件做成活页 ↗</a>
+            </div>
+            <div class="hero__metrics">
+              <div class="hero__metric"><strong>真内核</strong><span>实时数值与符号计算</span></div>
+              <div class="hero__metric"><strong>双向贯通</strong><span>工坊与活页一键互转</span></div>
+              <div class="hero__metric"><strong>离线可演</strong><span>单文件断网照常推演</span></div>
+            </div>
+          </div>
+
+          <!-- 右侧：高质感 2.5D 立体悬浮三层生态架构（图文结合铭牌 + 悬停展开详细作用） -->
+          <div class="hero-emblem" aria-label="万象三层生态架构交互装置">
+            <div class="iso-stage" id="hero-iso-stage">
+              <div class="iso-stage__bar">
+                <span><b>WANXIANG STACK</b> · 三层生态架构</span>
+                <span class="iso-stage__pill"><i aria-hidden="true"></i>悬停查看各层作用</span>
+              </div>
+              <svg viewBox="0 0 600 420" role="img" aria-label="底层计算内核、中层万象工坊、顶层万象活页及右侧回流闭环">
+                <defs>
+                  <!-- 材质渐变 -->
+                  <linearGradient id="mat-kernel-top" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#1b265c" />
+                    <stop offset="100%" stop-color="#0d1333" />
+                  </linearGradient>
+                  <linearGradient id="mat-workshop-top" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#f4f6ff" stop-opacity=".96" />
+                    <stop offset="100%" stop-color="#dce2ff" stop-opacity=".92" />
+                  </linearGradient>
+                  <linearGradient id="mat-living-top" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#ffffff" />
+                    <stop offset="100%" stop-color="#f2ede1" />
+                  </linearGradient>
+                  <linearGradient id="mat-loop-stroke" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#de421f" />
+                    <stop offset="50%" stop-color="#0f766e" />
+                    <stop offset="100%" stop-color="#2234d4" />
+                  </linearGradient>
+                  <radialGradient id="floor-shadow" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stop-color="#111312" stop-opacity=".14" />
+                    <stop offset="100%" stop-color="#111312" stop-opacity="0" />
+                  </radialGradient>
+                  <filter id="soft-elev" x="-20%" y="-20%" width="140%" height="150%">
+                    <feDropShadow dx="0" dy="14" stdDeviation="11" flood-color="#11162c" flood-opacity="0.14" />
+                  </filter>
+                </defs>
+
+                <!-- 柔和地面投影 -->
+                <ellipse cx="326" cy="390" rx="164" ry="28" fill="url(#floor-shadow)" />
+
+                <!-- ===== 01 底层：真计算内核层 ===== -->
+                <g class="iso-layer" data-depth="0.45">
+                  <g class="iso-float-3 iso-hit" data-part="kernel" filter="url(#soft-elev)" tabindex="0">
+                    <!-- 左侧常驻铭牌 + 细引线 -->
+                    <line x1="152" y1="312" x2="118" y2="312" stroke="#4c62d6" stroke-width="1.2" stroke-dasharray="2 3" />
+                    <rect class="iso-tag-rect" x="14" y="294" width="104" height="36" rx="10" fill="rgba(255,253,248,.92)" stroke="rgba(17,19,18,.14)" />
+                    <circle cx="28" cy="312" r="3.5" fill="#0f766e" />
+                    <text x="38" y="310" font-size="11.5" font-weight="700" fill="#111312">计算内核</text>
+                    <text x="38" y="323" font-size="9" font-family="monospace" fill="#696c61">01 · KERNEL</text>
+
+                    <!-- 厚度斜边 -->
+                    <polygon points="152,312 326,370 326,385 152,327" fill="#090d24" />
+                    <polygon points="500,312 326,370 326,385 500,327" fill="#172254" />
+                    <!-- 顶面 -->
+                    <polygon points="326,254 500,312 326,370 152,312" fill="url(#mat-kernel-top)" stroke="#4c62d6" stroke-width="1.3" />
+                    <!-- 内部精密算力网格 -->
+                    <g stroke="#5b73e8" stroke-width="0.8" opacity="0.42">
+                      <line x1="196" y1="297" x2="370" y2="355" />
+                      <line x1="239" y1="283" x2="413" y2="341" />
+                      <line x1="283" y1="268" x2="457" y2="326" />
+                      <line x1="196" y1="327" x2="370" y2="269" />
+                      <line x1="239" y1="341" x2="413" y2="283" />
+                      <line x1="283" y1="355" x2="457" y2="297" />
+                    </g>
+                    <!-- 4 颗微光算力核心 -->
+                    <circle cx="268" cy="312" r="4.8" fill="#60a5fa" />
+                    <circle cx="326" cy="292" r="5.2" fill="#2dd4bf" />
+                    <circle cx="384" cy="312" r="4.8" fill="#fb923c" />
+                    <circle cx="326" cy="332" r="4.5" fill="#a78bfa" />
+                  </g>
+                </g>
+
+                <!-- 底层 → 中层 发光上升光束与流动粒子 -->
+                <g fill="none" stroke-width="1.8" opacity=".82">
+                  <path id="path-k1" d="M268 308 L268 214" stroke="#60a5fa" class="beam-flow" />
+                  <path id="path-k2" d="M326 288 L326 196" stroke="#2dd4bf" class="beam-flow" />
+                  <path id="path-k3" d="M384 308 L384 214" stroke="#fb923c" class="beam-flow" />
+                </g>
+                <circle r="3" fill="#60a5fa"><animateMotion dur="2.1s" repeatCount="indefinite"><mpath href="#path-k1" /></animateMotion></circle>
+                <circle r="3.2" fill="#2dd4bf"><animateMotion dur="1.9s" repeatCount="indefinite" begin="0.4s"><mpath href="#path-k2" /></animateMotion></circle>
+                <circle r="3" fill="#fb923c"><animateMotion dur="2.3s" repeatCount="indefinite" begin="0.8s"><mpath href="#path-k3" /></animateMotion></circle>
+
+                <!-- ===== 02 中层：万象工坊层 ===== -->
+                <g class="iso-layer" data-depth="0.95">
+                  <g class="iso-float-2 iso-hit" data-part="workshop" filter="url(#soft-elev)" tabindex="0">
+                    <!-- 左侧常驻铭牌 + 细引线 -->
+                    <line x1="152" y1="204" x2="118" y2="204" stroke="#2234d4" stroke-width="1.2" stroke-dasharray="2 3" />
+                    <rect class="iso-tag-rect" x="14" y="186" width="104" height="36" rx="10" fill="rgba(255,253,248,.92)" stroke="rgba(34,52,212,.24)" />
+                    <circle cx="28" cy="204" r="3.5" fill="#2234d4" />
+                    <text x="38" y="202" font-size="11.5" font-weight="700" fill="#111b5e">万象工坊</text>
+                    <text x="38" y="215" font-size="9" font-family="monospace" fill="#696c61">02 · BUILD</text>
+
+                    <polygon points="152,204 326,262 326,273 152,215" fill="#bdc7f7" />
+                    <polygon points="500,204 326,262 326,273 500,215" fill="#d3dafd" />
+                    <polygon points="326,146 500,204 326,262 152,204" fill="url(#mat-workshop-top)" stroke="#2234d4" stroke-width="1.5" />
+                    <!-- 3 块立体悬浮积木 -->
+                    <g>
+                      <polygon points="224,200 262,213 262,222 224,209" fill="#101a63" />
+                      <polygon points="300,200 262,213 262,222 300,209" fill="#1c2ecb" />
+                      <polygon points="262,187 300,200 262,213 224,200" fill="#3b50f0" />
+
+                      <polygon points="288,182 326,195 326,204 288,191" fill="#0b5550" />
+                      <polygon points="364,182 326,195 326,204 364,191" fill="#0f766e" />
+                      <polygon points="326,169 364,182 326,195 288,182" fill="#14b8a6" />
+
+                      <polygon points="352,204 390,217 390,226 352,213" fill="#9c2a11" />
+                      <polygon points="428,204 390,217 390,226 428,213" fill="#de421f" />
+                      <polygon points="390,191 428,204 390,217 352,204" fill="#f36544" />
+
+                      <path d="M282 194 L304 186 M348 188 L370 198" stroke="#111b5e" stroke-width="2" stroke-dasharray="4 3" />
+                    </g>
+                  </g>
+                </g>
+
+                <!-- 中层 → 顶层 发光上升光束与流动粒子 -->
+                <g fill="none" stroke-width="2" opacity=".86">
+                  <path id="path-w1" d="M292 178 L292 106" stroke="#2234d4" class="beam-flow" />
+                  <path id="path-w2" d="M362 186 L362 108" stroke="#de421f" class="beam-flow" />
+                </g>
+                <circle r="3.2" fill="#2234d4"><animateMotion dur="1.8s" repeatCount="indefinite"><mpath href="#path-w1" /></animateMotion></circle>
+                <circle r="3.2" fill="#de421f"><animateMotion dur="2.0s" repeatCount="indefinite" begin="0.6s"><mpath href="#path-w2" /></animateMotion></circle>
+
+                <!-- ===== 03 顶层：万象活页层 ===== -->
+                <g class="iso-layer" data-depth="1.5">
+                  <g class="iso-float-1 iso-hit" data-part="living" filter="url(#soft-elev)" tabindex="0">
+                    <!-- 左侧常驻铭牌 + 细引线 -->
+                    <line x1="152" y1="96" x2="118" y2="96" stroke="#de421f" stroke-width="1.2" stroke-dasharray="2 3" />
+                    <rect class="iso-tag-rect" x="14" y="78" width="104" height="36" rx="10" fill="rgba(255,253,248,.94)" stroke="rgba(222,66,31,.28)" />
+                    <circle cx="28" cy="96" r="3.5" fill="#de421f" />
+                    <text x="38" y="94" font-size="11.5" font-weight="700" fill="#de421f">万象活页</text>
+                    <text x="38" y="107" font-size="9" font-family="monospace" fill="#696c61">03 · LIVE PPT</text>
+
+                    <!-- 象牙纸板厚度 -->
+                    <polygon points="152,96 326,154 326,164 152,106" fill="#d7d0be" />
+                    <polygon points="500,96 326,154 326,164 500,106" fill="#e8e2d3" />
+                    <!-- 顶面 -->
+                    <polygon points="326,38 500,96 326,154 152,96" fill="url(#mat-living-top)" stroke="#111312" stroke-width="1.6" />
+                    <!-- 活页极简排版骨架 -->
+                    <g stroke="#8e8a7d" stroke-width="2.2" stroke-linecap="round">
+                      <line x1="220" y1="96" x2="276" y2="77" stroke="#111312" />
+                      <line x1="238" y1="105" x2="286" y2="88" opacity=".55" />
+                      <line x1="256" y1="114" x2="296" y2="100" opacity=".4" />
+                    </g>
+                    <!-- 活页内嵌交互仪器的立体窗 -->
+                    <polygon points="332,64 430,97 372,118 274,85" fill="#eef1ff" stroke="#2234d4" stroke-width="1.3" />
+                    <path d="M294 88 Q336 67 366 96 T410 95" fill="none" stroke="#de421f" stroke-width="2.4" stroke-linecap="round" />
+                    <circle cx="350" cy="84" r="4.5" fill="#0f766e" stroke="#fff" stroke-width="1.5" />
+                  </g>
+                </g>
+
+                <!-- ===== 04 右侧：课后反钻与资产回流闭环轨 ===== -->
+                <g class="iso-layer" data-depth="0.8">
+                  <g class="iso-hit" data-part="loop" tabindex="0">
+                    <!-- 透明加宽热区，方便鼠标悬停 -->
+                    <path d="M506 100 C578 124, 578 292, 506 314" fill="none" stroke="transparent" stroke-width="30" />
+                    <path id="path-return" d="M506 100 C578 124, 578 292, 506 314" fill="none" stroke="url(#mat-loop-stroke)" stroke-width="2.4" class="beam-flow-slow" />
+                    <polygon points="502,314 514,307 512,319" fill="#2234d4" />
+                    <circle r="4" fill="#0f766e" stroke="#fff" stroke-width="1.4">
+                      <animateMotion dur="3.6s" repeatCount="indefinite"><mpath href="#path-return" /></animateMotion>
+                    </circle>
+                    <!-- 右侧竖排极简铭牌 -->
+                    <rect class="iso-tag-rect" x="518" y="186" width="70" height="40" rx="10" fill="rgba(235,251,248,.94)" stroke="rgba(15,118,110,.3)" />
+                    <text x="553" y="203" text-anchor="middle" font-size="11" font-weight="700" fill="#0f766e">↺ 闭环</text>
+                    <text x="553" y="218" text-anchor="middle" font-size="9" font-family="monospace" fill="#32362e">反钻复用</text>
+                  </g>
+                </g>
+              </svg>
+
+              <!-- 悬停时浮现的磨砂玻璃详细作用说明卡 -->
+              <div class="iso-tooltip" id="hero-iso-tooltip" role="status" aria-live="polite">
+                <div class="iso-tooltip__head">
+                  <h3 class="iso-tooltip__title" id="iso-tip-title"></h3>
+                  <span class="iso-tooltip__badge" id="iso-tip-badge"></span>
+                </div>
+                <p class="iso-tooltip__desc" id="iso-tip-desc"></p>
+              </div>
+            </div>
+            <div class="hero-emblem__foot">
+              <span id="hero-iso-hint">移动鼠标到任意铭牌或立体层级，展开详细作用</span>
+              <span>3D PARALLAX · LIVE</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 2. §01 新人引导式动态剧场 ================= -->
+    <section class="section loop-section" id="loop">
+      <div class="container">
+        <header class="section-head">
+          <div>
+            <p class="eyebrow"><span class="sec-no">§ 01</span> GUIDED WALKTHROUGH / 30 秒看懂万象能干什么</p>
+            <h2>跟着这四步，<br />看一份死课件如何一步步活起来。</h2>
+          </div>
+          <p>
+            第一次来不用背概念。像过新手引导一样点「下一步」，在右侧的模拟工作台里亲眼看万象怎么帮你把公式变仪器、把 PPT 变活页、再沉淀成可复用的资产。
+          </p>
+        </header>
+
+        <div class="tour-shell">
+          <!-- 左侧：新人递进引导卡 -->
+          <div class="tour-rail">
+            <div class="tour-rail__top">
+              <span id="tour-counter">新人引导 · 第 1 / 4 步</span>
+              <span class="mono" style="font-size:11px; color:var(--teal);">手动逐步探索</span>
+            </div>
+            <div class="tour-progress"><div class="tour-progress__fill" id="tour-progress-fill"></div></div>
+
+            <div class="tour-steps" role="tablist" aria-label="新人引导步骤">
+              <button type="button" class="tour-step is-active" data-tour="0">
+                <span class="tour-step__head"><span class="tour-step__badge">1</span> 起点：手里只有一份静态课件</span>
+                <p class="tour-step__desc">传统 PPT 或讲义里的图都是写死的截图，讲到关键处学生问“把频率调大点会怎样”，只能干讲。</p>
+              </button>
+              <button type="button" class="tour-step" data-tour="1">
+                <span class="tour-step__head"><span class="tour-step__badge">2</span> 用万象工坊，把公式连成“活仪器”</span>
+                <p class="tour-step__desc">拖两块积木接上线，数学公式立刻变成可调参、真内核实时重算的交互波形——你现在就能拖右边的滑杆试试。</p>
+              </button>
+              <button type="button" class="tour-step" data-tour="2">
+                <span class="tour-step__head"><span class="tour-step__badge">3</span> 装进万象活页，原地升级你的 PPT</span>
+                <p class="tour-step__desc">不用推翻原稿。把造好的活仪器直接嵌进刚才那页幻灯片，讲台一键切情景预设，不用切出 PPT 找别的软件。</p>
+              </button>
+              <button type="button" class="tour-step" data-tour="3">
+                <span class="tour-step__head"><span class="tour-step__badge">4</span> 发出去或存离线包，课后还能反钻探究</span>
+                <p class="tour-step__desc">导成单文件 HTML 断网也能演播；发给学生后，他们不仅能动手试，还能一键点回工坊改公式，沉淀为长期资产。</p>
+              </button>
+            </div>
+
+            <div class="tour-nav">
+              <button type="button" class="tour-prev" id="tour-prev" disabled>← 上一步</button>
+              <button type="button" class="tour-next" id="tour-next">下一步：用工坊让它活起来 →</button>
+            </div>
+          </div>
+
+          <!-- 右侧：一镜到底拟真产品舞台 -->
+          <div class="tour-stage" aria-live="polite">
+            <div class="tour-window-bar">
+              <div class="window-dots">
+                <i></i><i></i><i></i>
+                <span id="tour-win-title">01 · 传统静态讲义（第 03 页 · 简谐波）</span>
+              </div>
+              <span class="mono" style="color:var(--blue); font-weight:700;" id="tour-win-tag">BEFORE</span>
+            </div>
+
+            <div class="tour-stage-body">
+              <!-- 第 1 幕：静态死课件痛点 -->
+              <div class="tour-scene is-active" id="tour-scene-0">
+                <div class="mock-paper">
+                  <div>
+                    <div class="mono" style="font-size:11px; color:#777265; margin-bottom:6px;">SLIDE 03 · 物理与微积分</div>
+                    <h4 style="font-family:var(--serif); font-size:21px; margin:0 0 8px;">简谐波与角频率 ω</h4>
+                    <p style="font-size:12.5px; margin:0; color:#5a574d;">公式：y = sin(ω·x)<br/>当 ω 增大时，波形周期缩短、振荡变密。</p>
+                  </div>
+                  <div class="mock-dead-box spotlight-box">
+                    <span class="mono" style="font-size:11px; color:#7a2e1d; font-weight:700;">🔒 静态截图 · 无法拖动参数</span>
+                    <svg viewBox="0 0 240 84" style="width:100%; height:84px; opacity:.55;">
+                      <line x1="8" y1="42" x2="232" y2="42" stroke="#857f70"/>
+                      <path d="M10 42 Q38 8 66 42 T122 42 T178 42 T232 42" fill="none" stroke="#444" stroke-width="2"/>
+                    </svg>
+                    <span style="font-size:11px; color:#6c675a;">ω = 2 写死在图片里</span>
+                  </div>
+                </div>
+                <div class="guide-callout">
+                  <span><strong>引导提示：</strong> 平时我们手里大多是这样的静态页——公式和图是割裂的、死的。点击「下一步」，看看万象工坊怎么把它变活。</span>
+                </div>
+              </div>
+
+              <!-- 第 2 幕：万象工坊连线造活仪器（真实可调！） -->
+              <div class="tour-scene" id="tour-scene-1">
+                <div class="mock-workshop-grid">
+                  <div>
+                    <div class="mini-node">
+                      <strong>① 函数源积木</strong>
+                      <code style="color:var(--blue); font-weight:700;">y = sin(ω · x)</code>
+                      <div style="margin-top:6px; color:var(--muted); font-size:11px;">已勾选外露参数：ω</div>
+                    </div>
+                    <div class="mini-wire">↓ 实时数据流连接 ↓</div>
+                    <div class="mini-node" style="border-color:rgba(15,118,110,.38);">
+                      <strong>② 波形仪器视图</strong>
+                      <span style="color:var(--muted);">自动绑定滑杆 · 真内核采样</span>
+                    </div>
+                  </div>
+                  <div class="live-wave-card spotlight-box">
+                    <div style="display:flex; justify-content:space-between; font-size:12px;">
+                      <strong>万象工坊 · 实时波形仪器</strong>
+                      <span class="mono" style="color:var(--teal); font-weight:700;" id="tour-w-readout">ω = 2.0 · 周期 T = 3.14</span>
+                    </div>
+                    <svg id="tour-wave-svg-1" class="live-wave-svg" viewBox="0 0 300 128"></svg>
+                    <label class="slider-row" style="margin:0;">
+                      <span class="slider-row__top"><span>动手试一试：拖动角频率 ω</span><output id="tour-w-out-1">2.0</output></span>
+                      <input type="range" id="tour-w-slider-1" min="0.5" max="5.0" step="0.1" value="2.0" />
+                    </label>
+                  </div>
+                </div>
+                <div class="guide-callout">
+                  <span><strong>引导提示：</strong> 这不是假动画！你可以直接拖动上面高光框里的 <strong>ω 滑杆</strong>，公式会实时重算波形。</span>
+                </div>
+              </div>
+
+              <!-- 第 3 幕：装进万象活页，原地升级原稿 -->
+              <div class="tour-scene" id="tour-scene-2">
+                <div class="mock-living-slide">
+                  <div>
+                    <span class="mono" style="font-size:11px; color:var(--red); font-weight:700;">万象活页 · SLIDE 03（已激活）</span>
+                    <h4 style="font-family:var(--serif); font-size:20px; margin:6px 0 8px;">简谐波与角频率 ω</h4>
+                    <p style="font-size:12px; color:var(--muted); margin:0 0 12px;">原有版式一字未动，右侧死截图已替换为工坊活仪器。讲台上点一下预设即可对比：</p>
+                    <div class="preset-row spotlight-box" style="padding:8px; background:var(--paper-hi);">
+                      <button type="button" class="preset-btn tour-preset-btn" data-w="1.0">低频 ω=1</button>
+                      <button type="button" class="preset-btn tour-preset-btn is-active" data-w="2.0">标准 ω=2</button>
+                      <button type="button" class="preset-btn tour-preset-btn" data-w="4.2">高频 ω=4.2</button>
+                    </div>
+                  </div>
+                  <div class="live-wave-card" style="border:1px solid var(--line);">
+                    <div style="display:flex; justify-content:space-between; font-size:11.5px;">
+                      <strong>嵌入插件 · 波形仪器</strong>
+                      <span class="mono" style="color:var(--blue);" id="tour-w-out-2">ω = 2.0</span>
+                    </div>
+                    <svg id="tour-wave-svg-2" class="live-wave-svg" viewBox="0 0 300 128"></svg>
+                    <div style="font-size:11px; color:var(--muted); display:flex; justify-content:space-between;">
+                      <span>讲台免切软件 · 直接推演</span>
+                      <span style="color:var(--blue); font-weight:600;">拆开积木 ↗</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="guide-callout">
+                  <span><strong>引导提示：</strong> 点一下左侧高光框里的<strong>情景预设</strong>，就像老师在讲台上直接切幻灯片状态一样丝滑。</span>
+                </div>
+              </div>
+
+              <!-- 第 4 幕：课后分享、离线包与反钻闭环 -->
+              <div class="tour-scene" id="tour-scene-3">
+                <div class="mock-share-grid">
+                  <div class="share-pass spotlight-box">
+                    <span class="share-pass__tag">OFFLINE · 单文件离线包</span>
+                    <h4>教室断网，照样现场重算</h4>
+                    <p>把整套活页与工坊内核打包成单个 HTML 或 .zip 工程包，拷进 U 盘就能在任何教室电脑上离线流畅演播。</p>
+                  </div>
+                  <div class="share-pass" style="border-color:rgba(222,66,31,.35);">
+                    <span class="share-pass__tag" style="background:var(--red-soft); color:var(--red);">REVERSE · 课后反钻工坊</span>
+                    <h4>学生不仅能看，还能拆开改</h4>
+                    <p>拿到分享链接后，在活页里调完参数，点击「拆开积木」即可回到万象工坊自己改公式、加节点，沉淀到个人空间。</p>
+                  </div>
+                </div>
+                <div class="guide-callout">
+                  <span><strong>闭环达成：</strong> 从「静态原稿」→「工坊建模」→「活页演播」→「课后反钻沉淀」，这就是万象能为你做的完整闭环。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 3. §02 万象工坊：精选 3 个真交互例子 ================= -->
+    <section class="section" id="workshop">
+      <div class="container">
+        <header class="section-head">
+          <div>
+            <p class="eyebrow"><span class="sec-no">§ 02</span> WANXIANG WORKSHOP / 万象工坊精选实验</p>
+            <h2>不用看假截图，<br />亲手调这三个真内核例子。</h2>
+          </div>
+          <p>
+            这里精选了 3 个代表性实验室——每个都能直接拖动参数实时重算，还能一键切换查看它背后的<strong>工坊积木连线蓝图</strong>。
+          </p>
+        </header>
+
+        <div class="lab-switcher" role="tablist" aria-label="切换精选实验">
+          <button type="button" class="lab-tab is-active" data-lab="ode">
+            <span>EXAMPLE 01 · 高等数学</span>
+            <strong>斜率场与 RK4 数值积分</strong>
+            <small>支持点击平面设初值、切换情景预设</small>
+          </button>
+          <button type="button" class="lab-tab" data-lab="riemann">
+            <span>EXAMPLE 02 · 微积分</span>
+            <strong>黎曼和与定积分收敛</strong>
+            <small>实时调节分割数 n 与端点采样方式</small>
+          </button>
+          <button type="button" class="lab-tab" data-lab="grad">
+            <span>EXAMPLE 03 · 深度学习 / 优化</span>
+            <strong>梯度下降与学习率地形</strong>
+            <small>直观感受学习率过小缓慢与过大震荡</small>
+          </button>
+        </div>
+
+        <div class="lab-stage">
+          <div class="lab-stage__head">
+            <div class="mode-pills" role="tablist">
+              <button type="button" id="lab-mode-run" class="is-active">仪表台演播态</button>
+              <button type="button" id="lab-mode-bp">查看背后工坊积木</button>
+            </div>
+            <span class="lab-live-dot"><i aria-hidden="true"></i> 浏览器本地真内核实时计算</span>
+          </div>
+
+          <!-- 例子 1：优化后的斜率场 -->
+          <div class="lab-panel is-active" id="panel-ode">
+            <div class="lab-canvas-box">
+              <svg id="ode-svg" class="lab-svg is-pickable" viewBox="0 0 380 225" role="img" aria-label="斜率场与双向 RK4 积分曲线"></svg>
+            </div>
+            <div class="lab-control-box">
+              <h3>一阶微分方程与斜率场</h3>
+              <p>点击左侧平面任意位置重设初值 (x₀, y₀)，观察朱砂正向解与靛蓝反向解如何沿斜率场延伸。</p>
+              <div class="formula-pill" id="ode-eq">y′ = 0.4·x − 0.8·y</div>
+              <div class="preset-row">
+                <button type="button" class="preset-btn is-active" data-ode-preset="decay">指数衰减</button>
+                <button type="button" class="preset-btn" data-ode-preset="parabola">抛物线场</button>
+                <button type="button" class="preset-btn" data-ode-preset="saddle">鞍点分岔</button>
+              </div>
+              <label class="slider-row">
+                <span class="slider-row__top"><span>系数 a</span><output id="ode-out-a">0.4</output></span>
+                <input type="range" id="ode-a" min="-1.5" max="1.5" step="0.1" value="0.4" />
+              </label>
+              <label class="slider-row">
+                <span class="slider-row__top"><span>初值 y₀</span><output id="ode-out-y0">1.2</output></span>
+                <input type="range" id="ode-y0" min="-2.2" max="2.2" step="0.1" value="1.2" />
+              </label>
+              <div class="readout-box" id="ode-readout">当前初值 (0.00, 1.20) · 步长 h = 0.04</div>
+            </div>
+          </div>
+
+          <!-- 例子 2：黎曼和 -->
+          <div class="lab-panel" id="panel-riemann">
+            <div class="lab-canvas-box">
+              <svg id="riemann-svg" class="lab-svg" viewBox="0 0 380 225" role="img" aria-label="黎曼和与定积分面积"></svg>
+            </div>
+            <div class="lab-control-box">
+              <h3>黎曼和与定积分收敛</h3>
+              <p>把区间 [0, 1] 切成 n 份薄片，比较左端点、中点、右端点采样如何逼近真实面积 1/3。</p>
+              <div class="formula-pill">∫₀¹ x² dx = 1/3 ≈ 0.333333</div>
+              <div class="preset-row">
+                <button type="button" class="preset-btn" data-rm-rule="left">左端点和</button>
+                <button type="button" class="preset-btn is-active" data-rm-rule="mid">中点法则</button>
+                <button type="button" class="preset-btn" data-rm-rule="right">右端点和</button>
+              </div>
+              <label class="slider-row">
+                <span class="slider-row__top"><span>分割数 n</span><output id="rm-out-n">12</output></span>
+                <input type="range" id="rm-n" min="3" max="48" step="1" value="12" />
+              </label>
+              <div class="readout-box" id="rm-readout">黎曼和 ≈ 0.332755 · 绝对误差 0.000579</div>
+            </div>
+          </div>
+
+          <!-- 例子 3：梯度下降 -->
+          <div class="lab-panel" id="panel-grad">
+            <div class="lab-canvas-box">
+              <svg id="grad-svg" class="lab-svg" viewBox="0 0 380 225" role="img" aria-label="梯度下降等高线迭代轨迹"></svg>
+            </div>
+            <div class="lab-control-box">
+              <h3>梯度下降与学习率地形</h3>
+              <p>在狭长椭圆谷底 f(x,y) = 0.5x² + 3.5y² 上调节学习率 η，亲眼看“稳步收敛”如何变成“剧烈震荡”。</p>
+              <div class="formula-pill">θₜ₊₁ = θₜ − η · ∇f(θₜ)</div>
+              <div class="preset-row">
+                <button type="button" class="preset-btn" data-gd-lr="0.06">保守 η=0.06</button>
+                <button type="button" class="preset-btn is-active" data-gd-lr="0.22">均衡 η=0.22</button>
+                <button type="button" class="preset-btn" data-gd-lr="0.28">震荡 η=0.28</button>
+              </div>
+              <label class="slider-row">
+                <span class="slider-row__top"><span>学习率 η</span><output id="gd-out-lr">0.22</output></span>
+                <input type="range" id="gd-lr" min="0.03" max="0.30" step="0.01" value="0.22" />
+              </label>
+              <label class="slider-row">
+                <span class="slider-row__top"><span>迭代步数</span><output id="gd-out-steps">18</output></span>
+                <input type="range" id="gd-steps" min="2" max="30" step="1" value="18" />
+              </label>
+              <div class="readout-box" id="gd-readout">终点损失 f(x,y) = 0.0042 · 状态：平稳收敛</div>
+            </div>
+          </div>
+
+          <!-- 工坊积木蓝图态 -->
+          <div class="lab-blueprint" id="panel-blueprint">
+            <svg viewBox="0 0 820 220" role="img" aria-label="工坊积木数据流连线图">
+              <g stroke="#7c93ff" stroke-width="2.2" fill="none">
+                <path d="M210 110 C255 110, 255 68, 296 68" />
+                <path d="M210 110 C255 110, 255 154, 296 154" />
+                <path d="M510 68 C550 68, 550 110, 594 110" />
+                <path d="M510 154 C550 154, 550 110, 594 110" />
+              </g>
+              <g transform="translate(26,64)">
+                <rect width="184" height="92" rx="8" fill="#1a2760" stroke="#99adff" stroke-width="1.6" />
+                <text x="16" y="28" fill="#fff" font-size="14" font-weight="700">表达式 / 地形源</text>
+                <text id="bp-node-1" x="16" y="54" fill="#8df5e4" font-size="12" font-family="monospace">y′ = 0.4x − 0.8y</text>
+                <text x="16" y="76" fill="#9fb2f5" font-size="11">外露参数已绑定滑杆</text>
+              </g>
+              <g transform="translate(296,26)">
+                <rect width="214" height="84" rx="8" fill="#1a2760" stroke="#99adff" stroke-width="1.6" />
+                <text x="16" y="28" fill="#fff" font-size="14" font-weight="700">数值内核计算节点</text>
+                <text id="bp-node-2" x="16" y="52" fill="#cfd8ff" font-size="12" font-family="monospace">RK4 / 黎曼切片 / 梯度步进</text>
+                <text x="16" y="72" fill="#9fb2f5" font-size="11">纯前端实时重算，零延迟</text>
+              </g>
+              <g transform="translate(296,116)">
+                <rect width="214" height="78" rx="8" fill="#1a2760" stroke="#ff9a80" stroke-width="1.6" />
+                <text x="16" y="28" fill="#fff" font-size="14" font-weight="700">实时读数与误差监测</text>
+                <text x="16" y="52" fill="#ffd2c4" font-size="12" font-family="monospace">自动输出结论与校验状态</text>
+              </g>
+              <g transform="translate(594,56)">
+                <rect width="198" height="108" rx="8" fill="#0f3e40" stroke="#4fd1c5" stroke-width="2" />
+                <text x="16" y="30" fill="#fff" font-size="14" font-weight="700">活页插件封装出口</text>
+                <text x="16" y="56" fill="#9cf3e9" font-size="12">✓ 可直接拖入万象活页</text>
+                <text x="16" y="78" fill="#b4e8e2" font-size="11">✓ 支持情景预设与离线包</text>
+                <text x="16" y="96" fill="#b4e8e2" font-size="11">✓ 听众可一键反钻工坊</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 4. §03 万象活页：可拖拽卷帘实景 Before/After ================= -->
+    <section class="section" id="living">
+      <div class="container">
+        <header class="section-head">
+          <div>
+            <p class="eyebrow"><span class="sec-no">§ 03</span> WANXIANG LIVING PAGES / 万象活页</p>
+            <h2>拉动中间手柄，<br />看静态 PPT 如何当场“复活”。</h2>
+          </div>
+          <p>
+            不用重做整套课件。保留你原本的页面结构，把写死的截图原地替换成工坊活仪器——课堂上不用切软件，拖动滑杆就能现场回应追问。
+          </p>
+        </header>
+
+        <div class="compare-shell">
+          <div class="compare-bar">
+            <div class="window-dots">
+              <i></i><i></i><i></i>
+              <span>高等数学 · 第 07 页 · 泰勒展开误差分析.pptx</span>
+            </div>
+            <span class="mono" style="font-size:12px; color:var(--blue);">◀ 左右拖动中间卷帘 · 也可以直接拖动右图阶数滑杆 ▶</span>
+          </div>
+
+          <div class="compare-viewport" id="compare-viewport">
+            <!-- 底层：万象活页（复活后的实时交互页） -->
+            <div class="compare-layer layer-after">
+              <div>
+                <span class="after-tag">AFTER · 万象活页（动态激活）</span>
+                <h3 class="slide-title">sin(x) 的泰勒多项式逼近</h3>
+                <p class="slide-desc">保留原稿讲解文字与公式，右侧配图已替换为工坊真实内核。讲台上直接把阶数从 1 推到 9，看多项式如何贴合正弦波。</p>
+                <div class="formula-pill" id="taylor-formula" style="font-size:12.5px;">P₅(x) = x − x³/3! + x⁵/5!</div>
+              </div>
+
+              <div class="taylor-card">
+                <div class="taylor-card__top">
+                  <strong>嵌入仪器 · 泰勒近似</strong>
+                  <span class="mono" style="color:var(--teal); font-weight:700;" id="taylor-err">x=2 处误差：0.0425</span>
+                </div>
+                <svg id="taylor-svg" class="taylor-svg" viewBox="0 0 360 185" role="img" aria-label="正弦函数与泰勒多项式动态逼近"></svg>
+                <div class="taylor-controls">
+                  <label class="slider-row" style="margin:0;">
+                    <span class="slider-row__top"><span>展开阶数 N（现场可调）</span><output id="taylor-n-out">5 阶</output></span>
+                    <input type="range" id="taylor-n" min="1" max="9" step="2" value="5" />
+                  </label>
+                  <span class="mono" style="font-size:11px; color:var(--teal); background:var(--teal-soft); padding:4px 8px; border-radius:6px;">离线可算</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 顶层：传统静态 PPT（被卷帘裁剪） -->
+            <div class="compare-layer layer-before" id="layer-before">
+              <div>
+                <span class="before-tag">BEFORE · 传统静态 PPT</span>
+                <h3 class="slide-title" style="color:#4b483f;">sin(x) 的泰勒多项式逼近</h3>
+                <p class="slide-desc" style="color:#6d6a60;">从教材里截了一张固定 N=3 的静态图片贴在页面上。一旦有同学问“N=7 会偏到哪里去”，老师只能口头比划。</p>
+                <div class="pain-note">× 痛点：公式与配图彻底写死，改一个参数就要切软件重画</div>
+              </div>
+
+              <div class="static-png-box">
+                <div style="display:flex; justify-content:space-between; font-family:var(--mono); font-size:11px; color:#6b6659;">
+                  <span>taylor_static_n3.png</span><span>锁定 · 不可交互</span>
+                </div>
+                <svg viewBox="0 0 320 140" style="width:100%; height:140px; opacity:.55;">
+                  <line x1="16" y1="70" x2="304" y2="70" stroke="#8a8474" />
+                  <path d="M20 70 Q90 10 160 70 T300 70" fill="none" stroke="#555" stroke-width="2" />
+                  <path d="M20 120 Q90 0 160 70 T300 10" fill="none" stroke="#888" stroke-width="2" stroke-dasharray="4 4" />
+                </svg>
+                <div class="pain-note">× 课后发给学生的 PDF 也是死图，无法动手验证</div>
+              </div>
+            </div>
+
+            <!-- 中间卷帘分隔线与手柄 -->
+            <div class="compare-divider" id="compare-divider" role="slider" aria-label="拖动对比静态课件与万象活页" aria-valuemin="0" aria-valuemax="100" aria-valuenow="46" tabindex="0">
+              <div class="compare-handle">◀ ▶</div>
+            </div>
+          </div>
+
+          <div class="compare-hint">
+            <span><strong>原稿保真</strong>：不破坏原有 PPTX / PDF 排版</span>
+            <span><strong>三种形态</strong>：完整仪表台 / 精简调参 / 纯舞台浮层</span>
+            <span><strong>离线演播</strong>：导出单文件 HTML，教室断网照常推演</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 5. §04 精致原则 + 建筑感双子收口 ================= -->
+    <section class="section">
+      <div class="container">
+        <div class="principles-grid">
+          <article class="principle-card">
+            <span class="principle-card__no">01 · TRUTH</span>
+            <h3>真内核计算，不靠假动画</h3>
+            <p>页面里的每一条曲线和读数都来自实时数值内核；修改表达式与边界，结果即时重算，不画写死的演示动画。</p>
+          </article>
+          <article class="principle-card">
+            <span class="principle-card__no">02 · VERIFY</span>
+            <h3>原稿留痕，核对之后再算</h3>
+            <p>导入课件或公式图片时保留原稿对照，不凭空补全缺失条件，也不把数值近似当作严格数学证明。</p>
+          </article>
+          <article class="principle-card">
+            <span class="principle-card__no">03 · PORTABLE</span>
+            <h3>属于你的活课件资产</h3>
+            <p>支持工程包与单文件离线导出，分享链接随时可撤，隐私信息与本地路径绝不随快照带出。</p>
+          </article>
+        </div>
+
+        <div class="dual-cta">
+          <div class="cta-card cta-card--workshop">
+            <div>
+              <p class="eyebrow" style="color:#9eb0f0;"><span class="sec-no" style="color:#5eead4;">TRACK A</span> 从万象工坊出发</p>
+              <h3>搭一个能亲手推演的活仪器</h3>
+              <p>挑选学科模板或空白画布，连线、调参、封装成你的第一块可复用积木与活页插件。</p>
+            </div>
+            <div class="cta-chips">
+              <span>斜率场与 RK4</span><span>黎曼和收敛</span><span>CPU 调度</span><span>梯度下降</span><span>盈亏沙盘</span>
+            </div>
+            <div>
+              <a class="btn btn--light" href="#workshop">进入万象工坊 ↗</a>
+            </div>
+          </div>
+
+          <div class="cta-card cta-card--living">
+            <div>
+              <p class="eyebrow"><span class="sec-no">TRACK B</span> 从万象活页出发</p>
+              <h3>把手头现成的课件变成活页</h3>
+              <p>拖入你已有的 PPTX、PDF 或讲义图片，保留原有版式，几分钟内挂载工坊交互仪器。</p>
+            </div>
+            <div class="drop-zone">
+              <div class="file-badges">
+                <span>PPTX</span><span>PDF</span><span>PNG / JPG</span><span>.ZIP 工程包</span>
+              </div>
+              <span style="font-size:12.5px; color:var(--muted);">点击或拖拽文件到此，直接进入横向动态活页工作台</span>
+            </div>
+            <div>
+              <a class="btn btn--primary" href="#living">进入万象活页工作台 ↗</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <div class="container site-foot__inner">
+      <div><strong>万象 WANXIANG</strong> · 万象工坊 × 万象活页 · 纸 / 墨 / 真计算内核</div>
+      <nav class="site-foot__links" aria-label="页脚导航">
+        <a href="#loop">生态闭环</a>
+        <a href="#workshop">万象工坊</a>
+        <a href="#living">万象活页</a>
+        <a href="#top">返回顶部 ↑</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    // ================= 0. 首屏 2.5D 立体生态架构：视差 + 悬停说明卡 =================
+    (function () {
+      const stage = document.getElementById('hero-iso-stage');
+      const layers = stage.querySelectorAll('.iso-layer');
+      const hits = stage.querySelectorAll('.iso-hit');
+      const tooltip = document.getElementById('hero-iso-tooltip');
+      const tipTitle = document.getElementById('iso-tip-title');
+      const tipBadge = document.getElementById('iso-tip-badge');
+      const tipDesc = document.getElementById('iso-tip-desc');
+
+      const info = {
+        living: {
+          title: '万象活页 · 动态课件演播层',
+          badge: 'TOP · PRESENT',
+          desc: '承接原有 PPTX / PDF 版式，把静态配图原地替换成可交互仪器；讲台现场直接推演，支持离线单文件分发。'
+        },
+        workshop: {
+          title: '万象工坊 · 积木编排与封装层',
+          badge: 'MID · WORKSHOP',
+          desc: '通过可视化节点连线把抽象公式与算法搭成“活仪器”，自由勾选外露参数、保存情景预设并一键封装为活页插件。'
+        },
+        kernel: {
+          title: '真计算内核 · 多学科算力底座',
+          badge: 'BASE · KERNEL',
+          desc: '内置高数、408 算法、深度学习与商业沙盘的实时数值计算引擎，不播假动画，改一个参数即刻重算真实结果。'
+        },
+        loop: {
+          title: '课后反钻与资产回流闭环',
+          badge: 'LOOP · COMPOUND',
+          desc: '听众收到活页分享或离线包后，点击即可反钻回工坊改公式、做延伸实验，并沉淀到个人空间跨学期复用。'
+        }
+      };
+
+      stage.addEventListener('pointermove', (e) => {
+        const r = stage.getBoundingClientRect();
+        const nx = ((e.clientX - r.left) / r.width - 0.5) * 2;
+        const ny = ((e.clientY - r.top) / r.height - 0.5) * 2;
+        layers.forEach((layer) => {
+          const d = parseFloat(layer.dataset.depth || '1');
+          layer.style.transform = `translate(${(nx * 8 * d).toFixed(1)}px, ${(ny * 6 * d).toFixed(1)}px)`;
+        });
+      });
+
+      function clearFocus() {
+        stage.classList.remove('has-focus');
+        hits.forEach((h) => h.classList.remove('is-focused'));
+        tooltip.classList.remove('is-show');
+      }
+
+      stage.addEventListener('pointerleave', () => {
+        layers.forEach((layer) => { layer.style.transform = 'translate(0px, 0px)'; });
+        clearFocus();
+      });
+
+      hits.forEach((el) => {
+        const show = () => {
+          const d = info[el.dataset.part];
+          if (!d) return;
+          stage.classList.add('has-focus');
+          hits.forEach((h) => h.classList.toggle('is-focused', h === el));
+          tipTitle.textContent = d.title;
+          tipBadge.textContent = d.badge;
+          tipDesc.textContent = d.desc;
+          tooltip.classList.add('is-show');
+        };
+        el.addEventListener('pointerenter', show);
+        el.addEventListener('focus', show);
+        el.addEventListener('pointerleave', clearFocus);
+        el.addEventListener('blur', clearFocus);
+      });
+    })();
+
+    // ================= 1. 新人引导剧场（4 幕层层递进 + 真实正弦波内核联动） =================
+    (function () {
+      const meta = [
+        { win: '01 · 传统静态讲义（第 03 页 · 简谐波）', tag: 'BEFORE', next: '下一步：用工坊让它活起来 →' },
+        { win: '02 · 万象工坊：积木连线与实时重算', tag: 'WORKSHOP', next: '下一步：一键装进刚才的 PPT →' },
+        { win: '03 · 万象活页：原稿原地升级为动态课件', tag: 'LIVING PAGES', next: '下一步：看课后如何分享与沉淀 →' },
+        { win: '04 · 分享、离线包与课后反钻闭环', tag: 'ECOSYSTEM', next: '重头再看一遍 ↺' }
+      ];
+      const stepBtns = document.querySelectorAll('.tour-step');
+      const scenes = [0, 1, 2, 3].map((i) => document.getElementById(`tour-scene-${i}`));
+      const counter = document.getElementById('tour-counter');
+      const fill = document.getElementById('tour-progress-fill');
+      const winTitle = document.getElementById('tour-win-title');
+      const winTag = document.getElementById('tour-win-tag');
+      const prevBtn = document.getElementById('tour-prev');
+      const nextBtn = document.getElementById('tour-next');
+
+      let current = 0;
+
+      function go(idx) {
+        current = idx;
+        stepBtns.forEach((btn, i) => {
+          btn.classList.toggle('is-active', i === idx);
+          btn.classList.toggle('is-done', i < idx);
+          const badge = btn.querySelector('.tour-step__badge');
+          badge.textContent = i < idx ? '✓' : String(i + 1);
+        });
+        scenes.forEach((sc, i) => sc.classList.toggle('is-active', i === idx));
+        counter.textContent = `新人引导 · 第 ${idx + 1} / 4 步`;
+        fill.style.width = `${((idx + 1) / 4) * 100}%`;
+        winTitle.textContent = meta[idx].win;
+        winTag.textContent = meta[idx].tag;
+        prevBtn.disabled = idx === 0;
+        nextBtn.textContent = meta[idx].next;
+      }
+
+      stepBtns.forEach((btn) => btn.addEventListener('click', () => go(Number(btn.dataset.tour))));
+      prevBtn.addEventListener('click', () => { if (current > 0) go(current - 1); });
+      nextBtn.addEventListener('click', () => go((current + 1) % 4));
+
+      // 舞台内实时正弦波（第 2 幕与第 3 幕共享同一个 ω 参数，真正体现一镜到底！）
+      const svg1 = document.getElementById('tour-wave-svg-1');
+      const svg2 = document.getElementById('tour-wave-svg-2');
+      const slider1 = document.getElementById('tour-w-slider-1');
+      const out1 = document.getElementById('tour-w-out-1');
+      const out2 = document.getElementById('tour-w-out-2');
+      const readout = document.getElementById('tour-w-readout');
+      const presetBtns = document.querySelectorAll('.tour-preset-btn');
+
+      function renderWave(w) {
+        slider1.value = w;
+        out1.textContent = w.toFixed(1);
+        out2.textContent = `ω = ${w.toFixed(1)}`;
+        readout.textContent = `ω = ${w.toFixed(1)} · 周期 T = ${(2 * Math.PI / w).toFixed(2)}`;
+        let d = '';
+        for (let i = 0; i <= 120; i++) {
+          const t = i / 120;
+          const x = 14 + t * 272;
+          const y = 64 - Math.sin(w * (t * 2 * Math.PI)) * 44;
+          d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y.toFixed(1) + ' ';
+        }
+        const inner =
+          `<line x1="14" y1="64" x2="286" y2="64" stroke="#cdc7b6"/>` +
+          `<line x1="150" y1="12" x2="150" y2="116" stroke="#cdc7b6"/>` +
+          `<path d="${d}" fill="none" stroke="#2234d4" stroke-width="2.5"/>`;
+        svg1.innerHTML = inner;
+        svg2.innerHTML = inner;
+      }
+
+      slider1.addEventListener('input', () => {
+        renderWave(parseFloat(slider1.value));
+      });
+      presetBtns.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          presetBtns.forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+          renderWave(parseFloat(btn.dataset.w));
+        });
+      });
+
+      renderWave(2.0);
+    })();
+
+    // ================= 2. 万象工坊精选 3 例子切换与真内核计算 =================
+    (function () {
+      let activeLab = 'ode';
+      let showBlueprint = false;
+      const labTabs = document.querySelectorAll('.lab-tab');
+      const panels = {
+        ode: document.getElementById('panel-ode'),
+        riemann: document.getElementById('panel-riemann'),
+        grad: document.getElementById('panel-grad')
+      };
+      const bpPanel = document.getElementById('panel-blueprint');
+      const btnRun = document.getElementById('lab-mode-run');
+      const btnBp = document.getElementById('lab-mode-bp');
+      const bpNode1 = document.getElementById('bp-node-1');
+      const bpNode2 = document.getElementById('bp-node-2');
+
+      const bpInfo = {
+        ode: ['y′ = a·x − b·y（斜率场方程源）', 'RK4 双向数值积分器'],
+        riemann: ['f(x) = x²，区间 [0, 1]', '黎曼矩形切片与误差求值'],
+        grad: ['f(x,y) = 0.5x² + 3.5y²', '梯度 ∇f 迭代与收敛检测']
+      };
+
+      function syncVisibility() {
+        Object.entries(panels).forEach(([k, el]) => {
+          el.classList.toggle('is-active', !showBlueprint && k === activeLab);
+        });
+        bpPanel.classList.toggle('is-active', showBlueprint);
+        btnRun.classList.toggle('is-active', !showBlueprint);
+        btnBp.classList.toggle('is-active', showBlueprint);
+        bpNode1.textContent = bpInfo[activeLab][0];
+        bpNode2.textContent = bpInfo[activeLab][1];
+      }
+
+      labTabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          labTabs.forEach((t) => t.classList.remove('is-active'));
+          tab.classList.add('is-active');
+          activeLab = tab.dataset.lab;
+          showBlueprint = false;
+          syncVisibility();
+        });
+      });
+      btnRun.addEventListener('click', () => { showBlueprint = false; syncVisibility(); });
+      btnBp.addEventListener('click', () => { showBlueprint = true; syncVisibility(); });
+
+      // --- 例子 1：斜率场与 RK4 ---
+      const odeSvg = document.getElementById('ode-svg');
+      const odeA = document.getElementById('ode-a');
+      const odeY0 = document.getElementById('ode-y0');
+      const odeOutA = document.getElementById('ode-out-a');
+      const odeOutY0 = document.getElementById('ode-out-y0');
+      const odeEq = document.getElementById('ode-eq');
+      const odeReadout = document.getElementById('ode-readout');
+      const odeState = { a: 0.4, b: 0.8, x0: 0, y0: 1.2 };
+
+      function renderOde() {
+        const W = 380, H = 225, L = 32, R = 14, T = 14, B = 24;
+        const IW = W - L - R, IH = H - T - B;
+        const XMIN = -3, XMAX = 3, YMIN = -2.5, YMAX = 2.5;
+        const px = (x) => L + (x - XMIN) / (XMAX - XMIN) * IW;
+        const py = (y) => (H - B) - (y - YMIN) / (YMAX - YMIN) * IH;
+        const f = (x, y) => odeState.a * x - odeState.b * y;
+        const rk4 = (h) => {
+          const pts = [{ x: odeState.x0, y: odeState.y0 }];
+          let x = odeState.x0, y = odeState.y0;
+          for (let i = 0; i < 150; i++) {
+            const k1 = f(x, y), k2 = f(x + h / 2, y + h * k1 / 2), k3 = f(x + h / 2, y + h * k2 / 2), k4 = f(x + h, y + h * k3);
+            x += h; y += (h / 6) * (k1 + 2 * k2 + 2 * k3 + k4);
+            if (!Number.isFinite(y) || Math.abs(y) > 8) break;
+            pts.push({ x, y });
+          }
+          return pts;
+        };
+        const toPath = (pts) => {
+          let d = '', open = false;
+          for (const p of pts) {
+            if (p.x < XMIN || p.x > XMAX || p.y < YMIN || p.y > YMAX) { open = false; continue; }
+            d += (open ? 'L' : 'M') + px(p.x).toFixed(1) + ',' + py(p.y).toFixed(1) + ' ';
+            open = true;
+          }
+          return d;
+        };
+        const sign = odeState.b >= 0 ? '−' : '+';
+        odeEq.textContent = `y′ = ${odeState.a.toFixed(1)}·x ${sign} ${Math.abs(odeState.b).toFixed(1)}·y`;
+        odeOutA.textContent = odeState.a.toFixed(1);
+        odeOutY0.textContent = odeState.y0.toFixed(1);
+        odeA.value = odeState.a; odeY0.value = odeState.y0;
+        odeReadout.textContent = `当前初值 (${odeState.x0.toFixed(2)}, ${odeState.y0.toFixed(2)}) · 步长 h = 0.04`;
+
+        let html = `<line x1="${L}" y1="${py(0)}" x2="${W - R}" y2="${py(0)}" stroke="#c2bba8"/>`;
+        html += `<line x1="${px(0)}" y1="${T}" x2="${px(0)}" y2="${H - B}" stroke="#c2bba8"/>`;
+        for (let i = 0; i <= 15; i++) {
+          const gx = XMIN + (XMAX - XMIN) * (i / 15);
+          for (let j = 0; j <= 10; j++) {
+            const gy = YMIN + (YMAX - YMIN) * (j / 10);
+            const s = f(gx, gy), len = 0.15, n = Math.hypot(1, s);
+            const dx = len / n, dy = len * s / n;
+            html += `<line x1="${px(gx - dx).toFixed(1)}" y1="${py(gy - dy).toFixed(1)}" x2="${px(gx + dx).toFixed(1)}" y2="${py(gy + dy).toFixed(1)}" stroke="#b9b2a0" stroke-width="1.15"/>`;
+          }
+        }
+        html += `<path d="${toPath(rk4(-0.04))}" fill="none" stroke="#2234d4" stroke-width="2" stroke-dasharray="5 4"/>`;
+        html += `<path d="${toPath(rk4(0.04))}" fill="none" stroke="#de421f" stroke-width="2.6"/>`;
+        html += `<circle cx="${px(odeState.x0).toFixed(1)}" cy="${py(odeState.y0).toFixed(1)}" r="5" fill="#0f766e" stroke="#fff" stroke-width="1.8"/>`;
+        html += `<text x="${L}" y="${H - 7}">-3</text><text x="${px(0)}" y="${H - 7}" text-anchor="middle">0</text><text x="${W - R}" y="${H - 7}" text-anchor="end">3</text>`;
+        html += `<text x="${L - 5}" y="${T + 5}" text-anchor="end">2.5</text><text x="${L - 5}" y="${H - B}" text-anchor="end">-2.5</text>`;
+        odeSvg.innerHTML = html;
+      }
+      odeA.addEventListener('input', () => { odeState.a = parseFloat(odeA.value); renderOde(); });
+      odeY0.addEventListener('input', () => { odeState.y0 = parseFloat(odeY0.value); renderOde(); });
+      odeSvg.addEventListener('click', (e) => {
+        const r = odeSvg.getBoundingClientRect();
+        const vx = (e.clientX - r.left) / r.width * 380, vy = (e.clientY - r.top) / r.height * 225;
+        odeState.x0 = Math.max(-3, Math.min(3, -3 + (vx - 32) / 334 * 6));
+        odeState.y0 = Math.max(-2.5, Math.min(2.5, -2.5 + (201 - vy) / 187 * 5));
+        renderOde();
+      });
+      const odePresets = { decay: { a: 0.4, b: 0.8, x0: 0, y0: 1.2 }, parabola: { a: 1.0, b: 0, x0: -1.1, y0: -0.5 }, saddle: { a: 0.9, b: -0.6, x0: -0.4, y0: 0.3 } };
+      document.querySelectorAll('[data-ode-preset]').forEach((b) => {
+        b.addEventListener('click', () => {
+          document.querySelectorAll('[data-ode-preset]').forEach((x) => x.classList.remove('is-active'));
+          b.classList.add('is-active');
+          Object.assign(odeState, odePresets[b.dataset.odePreset]);
+          renderOde();
+        });
+      });
+      renderOde();
+
+      // --- 例子 2：黎曼和 ---
+      const rmSvg = document.getElementById('riemann-svg');
+      const rmN = document.getElementById('rm-n');
+      const rmOutN = document.getElementById('rm-out-n');
+      const rmReadout = document.getElementById('rm-readout');
+      let rmRule = 'mid';
+
+      function renderRiemann() {
+        const n = parseInt(rmN.value, 10);
+        rmOutN.textContent = n;
+        const W = 380, H = 225, L = 38, R = 18, T = 18, B = 28;
+        const IW = W - L - R, IH = H - T - B;
+        const px = (x) => L + x * IW, py = (y) => (H - B) - y * IH;
+        let sum = 0, rects = '';
+        for (let i = 0; i < n; i++) {
+          const x0 = i / n, x1 = (i + 1) / n;
+          const xs = rmRule === 'left' ? x0 : rmRule === 'right' ? x1 : (x0 + x1) / 2;
+          const hVal = xs * xs;
+          sum += hVal / n;
+          rects += `<rect x="${px(x0).toFixed(1)}" y="${py(hVal).toFixed(1)}" width="${(IW / n).toFixed(1)}" height="${(hVal * IH).toFixed(1)}" fill="rgba(34,52,212,.14)" stroke="#2234d4" stroke-width="0.9"/>`;
+        }
+        let curve = '';
+        for (let i = 0; i <= 80; i++) {
+          const x = i / 80;
+          curve += (i === 0 ? 'M' : 'L') + px(x).toFixed(1) + ',' + py(x * x).toFixed(1) + ' ';
+        }
+        rmSvg.innerHTML =
+          `<line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="#9a9586"/>` +
+          `<line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="#9a9586"/>` +
+          rects +
+          `<path d="${curve}" fill="none" stroke="#de421f" stroke-width="2.5"/>` +
+          `<text x="${L}" y="${H - 9}">0</text><text x="${W - R}" y="${H - 9}" text-anchor="end">1</text><text x="${L - 6}" y="${T + 5}" text-anchor="end">1.0</text>`;
+        const err = Math.abs(sum - 1 / 3);
+        rmReadout.textContent = `黎曼和 ≈ ${sum.toFixed(6)} · 绝对误差 ${err.toFixed(6)}`;
+      }
+      rmN.addEventListener('input', renderRiemann);
+      document.querySelectorAll('[data-rm-rule]').forEach((b) => {
+        b.addEventListener('click', () => {
+          document.querySelectorAll('[data-rm-rule]').forEach((x) => x.classList.remove('is-active'));
+          b.classList.add('is-active');
+          rmRule = b.dataset.rmRule;
+          renderRiemann();
+        });
+      });
+      renderRiemann();
+
+      // --- 例子 3：梯度下降 ---
+      const gdSvg = document.getElementById('grad-svg');
+      const gdLr = document.getElementById('gd-lr');
+      const gdSteps = document.getElementById('gd-steps');
+      const gdOutLr = document.getElementById('gd-out-lr');
+      const gdOutSteps = document.getElementById('gd-out-steps');
+      const gdReadout = document.getElementById('gd-readout');
+
+      function renderGrad() {
+        const lr = parseFloat(gdLr.value), steps = parseInt(gdSteps.value, 10);
+        gdOutLr.textContent = lr.toFixed(2);
+        gdOutSteps.textContent = steps;
+        const W = 380, H = 225, cx = 205, cy = 114, sx = 75, sy = 75;
+        let x = -1.9, y = 0.85;
+        const pts = [[x, y]];
+        for (let i = 0; i < steps; i++) {
+          const gx = x, gy = 7 * y;
+          x -= lr * gx; y -= lr * gy;
+          pts.push([x, y]);
+          if (Math.hypot(x, y) > 12) break;
+        }
+        const loss = 0.5 * x * x + 3.5 * y * y;
+        let contours = '';
+        [0.15, 0.5, 1.1, 2.0, 3.2].forEach((c) => {
+          const rx = Math.sqrt(2 * c) * sx, ry = Math.sqrt(c / 3.5) * sy;
+          contours += `<ellipse cx="${cx}" cy="${cy}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" fill="none" stroke="#cdc6b5" stroke-width="1"/>`;
+        });
+        const poly = pts.map(([pxv, pyv]) => `${(cx + pxv * sx).toFixed(1)},${(cy - pyv * sy).toFixed(1)}`).join(' ');
+        const dotsHtml = pts.map(([pxv, pyv], i) => `<circle cx="${(cx + pxv * sx).toFixed(1)}" cy="${(cy - pyv * sy).toFixed(1)}" r="${i === pts.length - 1 ? 4.5 : 2.5}" fill="${i === pts.length - 1 ? '#0f766e' : '#de421f'}"/>`).join('');
+        gdSvg.innerHTML =
+          contours +
+          `<circle cx="${cx}" cy="${cy}" r="3.5" fill="#2234d4"/>` +
+          `<polyline points="${poly}" fill="none" stroke="#de421f" stroke-width="2"/>` +
+          dotsHtml +
+          `<text x="${cx + 8}" y="${cy + 4}">极小值 (0, 0)</text>`;
+        const status = loss > 4 ? '发散 / 严重震荡' : lr > 0.25 ? '高频震荡收敛' : '平稳收敛';
+        gdReadout.textContent = `终点损失 f(x,y) = ${loss.toFixed(4)} · 状态：${status}`;
+      }
+      gdLr.addEventListener('input', renderGrad);
+      gdSteps.addEventListener('input', renderGrad);
+      document.querySelectorAll('[data-gd-lr]').forEach((b) => {
+        b.addEventListener('click', () => {
+          document.querySelectorAll('[data-gd-lr]').forEach((x) => x.classList.remove('is-active'));
+          b.classList.add('is-active');
+          gdLr.value = b.dataset.gdLr;
+          renderGrad();
+        });
+      });
+      renderGrad();
+    })();
+
+    // ================= 3. 万象活页 Before/After 拖拽卷帘 + 真实泰勒级数 =================
+    (function () {
+      const viewport = document.getElementById('compare-viewport');
+      const beforeLayer = document.getElementById('layer-before');
+      const divider = document.getElementById('compare-divider');
+      let dragging = false;
+
+      function setSplit(pct) {
+        const clamped = Math.max(0, Math.min(100, pct));
+        divider.style.left = clamped + '%';
+        beforeLayer.style.clipPath = `inset(0 ${(100 - clamped).toFixed(2)}% 0 0)`;
+        divider.setAttribute('aria-valuenow', String(Math.round(clamped)));
+      }
+      function updateFromClientX(clientX) {
+        const rect = viewport.getBoundingClientRect();
+        setSplit(((clientX - rect.left) / rect.width) * 100);
+      }
+
+      divider.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        divider.setPointerCapture(e.pointerId);
+      });
+      divider.addEventListener('pointermove', (e) => { if (dragging) updateFromClientX(e.clientX); });
+      divider.addEventListener('pointerup', () => { dragging = false; });
+      divider.addEventListener('keydown', (e) => {
+        const cur = Number(divider.getAttribute('aria-valuenow'));
+        if (e.key === 'ArrowLeft') setSplit(cur - 5);
+        if (e.key === 'ArrowRight') setSplit(cur + 5);
+      });
+
+      // 真实泰勒展开绘图
+      const taylorSvg = document.getElementById('taylor-svg');
+      const taylorN = document.getElementById('taylor-n');
+      const taylorOut = document.getElementById('taylor-n-out');
+      const taylorErr = document.getElementById('taylor-err');
+      const taylorFormula = document.getElementById('taylor-formula');
+
+      const fact = (k) => { let r = 1; for (let i = 2; i <= k; i++) r *= i; return r; };
+      function evalTaylor(x, n) {
+        let s = 0, sign = 1;
+        for (let k = 1; k <= n; k += 2) { s += sign * Math.pow(x, k) / fact(k); sign = -sign; }
+        return s;
+      }
+      const formulas = {
+        1: 'P₁(x) = x',
+        3: 'P₃(x) = x − x³/3!',
+        5: 'P₅(x) = x − x³/3! + x⁵/5!',
+        7: 'P₇(x) = x − x³/3! + x⁵/5! − x⁷/7!',
+        9: 'P₉(x) = x − x³/3! + x⁵/5! − x⁷/7! + x⁹/9!'
+      };
+
+      function renderTaylor() {
+        const n = parseInt(taylorN.value, 10);
+        taylorOut.textContent = `${n} 阶`;
+        taylorFormula.textContent = formulas[n];
+        const err = Math.abs(Math.sin(2) - evalTaylor(2, n));
+        taylorErr.textContent = `x=2 处误差：${err.toFixed(4)}`;
+
+        const W = 360, H = 185, L = 24, R = 16, T = 16, B = 20;
+        const IW = W - L - R, IH = H - T - B;
+        const XMIN = -4.2, XMAX = 4.2, YMIN = -2.0, YMAX = 2.0;
+        const px = (x) => L + (x - XMIN) / (XMAX - XMIN) * IW;
+        const py = (y) => (H - B) - (y - YMIN) / (YMAX - YMIN) * IH;
+
+        let sinD = '', tayD = '', tayOpen = false;
+        for (let i = 0; i <= 120; i++) {
+          const x = XMIN + (XMAX - XMIN) * (i / 120);
+          const ys = Math.sin(x), yt = evalTaylor(x, n);
+          sinD += (i === 0 ? 'M' : 'L') + px(x).toFixed(1) + ',' + py(ys).toFixed(1) + ' ';
+          if (yt >= YMIN - 0.3 && yt <= YMAX + 0.3) {
+            tayD += (tayOpen ? 'L' : 'M') + px(x).toFixed(1) + ',' + py(yt).toFixed(1) + ' ';
+            tayOpen = true;
+          } else { tayOpen = false; }
+        }
+        taylorSvg.innerHTML =
+          `<line x1="${L}" y1="${py(0)}" x2="${W - R}" y2="${py(0)}" stroke="#ccc5b4"/>` +
+          `<line x1="${px(0)}" y1="${T}" x2="${px(0)}" y2="${H - B}" stroke="#ccc5b4"/>` +
+          `<path d="${sinD}" fill="none" stroke="#2234d4" stroke-width="2.2"/>` +
+          `<path d="${tayD}" fill="none" stroke="#de421f" stroke-width="2.4" stroke-dasharray="6 4"/>` +
+          `<circle cx="${px(2).toFixed(1)}" cy="${py(Math.sin(2)).toFixed(1)}" r="4" fill="#0f766e"/>`;
+      }
+      taylorN.addEventListener('input', renderTaylor);
+      renderTaylor();
+    })();
+  </script>
+</body>
+</html>

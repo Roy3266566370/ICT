@@ -25,6 +25,27 @@ import { deepAdvancedOutput } from './deepAdvanced.ts';
 import { evaluate408Stage } from './lab408Pipeline.ts';
 import { evaluatePhysicsStage } from './physicsPipeline.ts';
 import { evaluateCalculusStage } from './calculusPipeline.ts';
+import { evaluateBusinessStage } from './businessPipeline.ts';
+import {
+  businessTableSeries,
+  discountSeries,
+  growthSeries,
+  scenarioSeries,
+  weightedDecision,
+} from './officeBlocks.ts';
+import { emFieldFromParams, opticsField, rlcWaveform, thermoCycle } from './physicsBlocks.ts';
+import { combineFunctions, probabilitySeries, svd2x2 } from './calculusBlocks.ts';
+import { arrayFromParams, graphFromText, memoryAddressStream } from './lab408Blocks.ts';
+import {
+  DEFAULT_LORA_MATRIX,
+  DEFAULT_LOSS_PREDICTIONS,
+  DEFAULT_QUANT_MATRIX,
+  loraApprox,
+  lossProbe,
+  probabilityVector,
+  quantizeMatrix,
+  sanitizeMatrix,
+} from './deepModernBlocks.ts';
 
 export interface EvalCtx {
   doc: CanvasDoc;
@@ -125,6 +146,8 @@ function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | nu
       return portId === 'out' ? evaluatePhysicsStage(node, (id) => evalInput(ctx, node, id)) : null;
     case 'calculusStage':
       return portId === 'out' ? evaluateCalculusStage(node, (id) => evalInput(ctx, node, id)) : null;
+    case 'businessStage':
+      return portId === 'out' ? evaluateBusinessStage(node, (id) => evalInput(ctx, node, id)) : null;
     case 'functionSource': {
       try { return functionValue(node.text ?? 'a*x^2+b*x+c', node.params); } catch { return null; }
     }
@@ -150,6 +173,130 @@ function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | nu
         return taylorPolynomial(f, node.params.center ?? 0, node.params.degree ?? 3).value;
       } catch { return null; }
     }
+    case 'bizTableSource':
+      try { return businessTableSeries(node.text ?? '', node.params.sample ?? 0); } catch { return null; }
+    case 'bizGrowthSource': {
+      const growth = evalInput(ctx, node, 'growth');
+      try {
+        return growthSeries({
+          initial: node.params.initial ?? 100,
+          monthlyRate: node.params.rate ?? 0.06,
+          months: node.params.months ?? 12,
+          seasonality: node.params.seasonality ?? 0.08,
+          overrideRate: growth?.kind === 'scalar' ? growth.v : undefined,
+        });
+      } catch { return null; }
+    }
+    case 'bizScenarioFork': {
+      const input = evalInput(ctx, node, 'in');
+      if (input?.kind !== 'series') return null;
+      try {
+        return scenarioSeries(input, { spread: node.params.spread ?? 0.2, drift: node.params.drift ?? 0.02 });
+      } catch { return null; }
+    }
+    case 'bizDiscountOp': {
+      const input = evalInput(ctx, node, 'in');
+      if (input?.kind !== 'series') return null;
+      const rate = evalInput(ctx, node, 'rate');
+      try {
+        const result = discountSeries(input, {
+          annualRate: rate?.kind === 'scalar' ? rate.v : node.params.rate ?? 0.08,
+          initialInvestment: node.params.investment ?? 0,
+        });
+        if (portId === 'npv') return { kind: 'scalar', v: result.npv };
+        return portId === 'out' ? result.series : null;
+      } catch { return null; }
+    }
+    case 'bizDecisionMatrix': {
+      const weight = (id: string, fallback: number): number => {
+        const value = evalInput(ctx, node, id);
+        return value?.kind === 'scalar' && Number.isFinite(value.v) ? value.v : fallback;
+      };
+      try {
+        return weightedDecision([
+          weight('cost', node.params.costWeight ?? 0.25),
+          weight('time', node.params.timeWeight ?? 0.25),
+          weight('risk', node.params.riskWeight ?? 0.25),
+          weight('benefit', node.params.benefitWeight ?? 0.25),
+        ]).series;
+      } catch { return null; }
+    }
+    case 'emFieldSource':
+      try { return emFieldFromParams(node.params); } catch { return null; }
+    case 'opticsBench':
+      try { return opticsField(node.params); } catch { return null; }
+    case 'rlcCircuitLab': {
+      const frequency = evalInput(ctx, node, 'freq');
+      try {
+        return rlcWaveform(node.params, frequency?.kind === 'scalar' ? frequency.v : undefined).series;
+      } catch { return null; }
+    }
+    case 'thermoCycle':
+      try { return thermoCycle(node.params).series; } catch { return null; }
+    case 'funcCombineOp': {
+      const f = evalInput(ctx, node, 'f');
+      if (f?.kind !== 'function') return null;
+      const wiredG = evalInput(ctx, node, 'g');
+      try {
+        const g = wiredG?.kind === 'function' ? wiredG : functionValue(node.text ?? 'sin(x)', node.params);
+        return combineFunctions(f, g, node.params.op ?? 0);
+      } catch { return null; }
+    }
+    case 'svdDecomposeOp': {
+      const input = evalInput(ctx, node, 'in');
+      if (input?.kind !== 'matrix2') return null;
+      try {
+        const result = svd2x2({ a: input.a, b: input.b, c: input.c, d: input.d });
+        if (portId === 'u') return { kind: 'matrix2', ...result.u };
+        if (portId === 'sigma') return { kind: 'matrix2', ...result.sigma };
+        if (portId === 'vt') return { kind: 'matrix2', ...result.vt };
+        return null;
+      } catch { return null; }
+    }
+    case 'probDistSource':
+      try {
+        return probabilitySeries({
+          distribution: node.params.distribution ?? 0,
+          samples: node.params.samples ?? 400,
+          bins: node.params.bins ?? 24,
+          seed: node.params.seed ?? 7,
+        }).series;
+      } catch { return null; }
+    case 'arraySource':
+      try { return arrayFromParams(node.params, node.text ?? ''); } catch { return null; }
+    case 'graphSource':
+      try { return graphFromText(node.text ?? ''); } catch { return null; }
+    case 'memAddrSource':
+      try { return memoryAddressStream(node.params, node.text ?? ''); } catch { return null; }
+    case 'lossProbeOp': {
+      const input = evalInput(ctx, node, 'in');
+      const matrix = input?.kind === 'tensor2d' ? sanitizeMatrix(input.data) : null;
+      const probabilities = probabilityVector(matrix ?? [DEFAULT_LOSS_PREDICTIONS]);
+      try {
+        const result = lossProbe(probabilities, node.params.target ?? 0, node.params.gamma ?? 2);
+        if (portId === 'loss') {
+          const metric = Math.round(node.params.metric ?? 1);
+          return { kind: 'scalar', v: metric === 0 ? result.losses.mse : metric === 2 ? result.losses.focal : result.losses.ce };
+        }
+        return { kind: 'tensor2d', data: [[result.losses.mse, result.losses.ce, result.losses.focal]] };
+      } catch { return null; }
+    }
+    case 'loraAdapterOp': {
+      const input = evalInput(ctx, node, 'in');
+      const matrix = input?.kind === 'tensor2d' ? sanitizeMatrix(input.data) : null;
+      try {
+        return { kind: 'tensor2d', data: loraApprox(matrix ?? DEFAULT_LORA_MATRIX, node.params.rank ?? 2).approx };
+      } catch { return null; }
+    }
+    case 'quantProbeOp': {
+      const input = evalInput(ctx, node, 'in');
+      const matrix = input?.kind === 'tensor2d' ? sanitizeMatrix(input.data) : null;
+      try {
+        return { kind: 'tensor2d', data: quantizeMatrix(matrix ?? DEFAULT_QUANT_MATRIX, node.params.precision ?? 2).quantized };
+      } catch { return null; }
+    }
+    case 'aiRuleBlock':
+      return ctx.live.get(`${node.id}|${portId}`) ?? null;
     case 'matrixSource':
       return { kind: 'matrix2', ...paramsM(node.params) };
     case 'slider':

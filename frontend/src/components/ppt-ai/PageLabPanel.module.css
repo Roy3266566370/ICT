@@ -202,3 +202,9 @@
 .playback input { flex:1; min-width:70px; }
 .player button { cursor:pointer; border:1px solid #cbd5e1; background:white; color:#334155; border-radius:5px; padding:4px 8px; }
 .player button[aria-pressed='true'] { background:#dbeafe; border-color:#3b82f6; }
+[data-standalone] > .stage { align-self:center; }
+@media (min-width: 661px) {
+  .player[data-standalone] {display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,31%);gap:12px;align-items:start;align-content:start}
+  .player[data-standalone] > .stage {grid-column:1;grid-row:1 / span 3;justify-self:center;align-self:start;max-width:100%}
+  .player[data-standalone] > :not(.stage) {grid-column:2;min-width:0}
+}

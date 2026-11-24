@@ -51,6 +51,9 @@ const FN_MAP: Record<string, string> = {
   Arcsin: 'arcsin',
   Arccos: 'arccos',
   Arctan: 'arctan',
+  Arccot: 'arccot',
+  Arcsec: 'arcsec',
+  Arccsc: 'arccsc',
   Sinh: 'sinh',
   Cosh: 'cosh',
   Tanh: 'tanh',
@@ -59,9 +62,11 @@ const FN_MAP: Record<string, string> = {
   Exp: 'exp',
   Sqrt: 'sqrt',
   Abs: 'abs',
+  Factorial: 'factorial',
 };
 
-function mathJsonToPlain(node: unknown): string | null {
+function mathJsonToPlain(node: unknown, implicitProduct: boolean): string | null {
+  const convert = (child: unknown) => mathJsonToPlain(child, implicitProduct);
   if (typeof node === 'number') {
     if (!Number.isFinite(node)) return node > 0 ? 'oo' : '-oo';
     return String(node);
@@ -78,41 +83,41 @@ function mathJsonToPlain(node: unknown): string | null {
   if (node && typeof node === 'object' && !Array.isArray(node)) {
     const obj = node as Record<string, unknown>;
     if (typeof obj.num === 'string') return obj.num;
-    if (typeof obj.sym === 'string') return mathJsonToPlain(obj.sym);
+    if (typeof obj.sym === 'string') return convert(obj.sym);
     return null;
   }
   if (!Array.isArray(node) || node.length === 0) return null;
   const [head, ...args] = node;
   if (typeof head !== 'string') return null;
 
-  if (head === 'Error' || head === 'Sequence' || head === 'InvisibleOperator') return null;
+  if (head === 'Error' || head === 'Sequence') return null;
 
   if (head === 'Delimiter') {
-    const inner = mathJsonToPlain(args[0]);
+    const inner = convert(args[0]);
     return inner ? `(${inner})` : null;
   }
   if (head === 'Negate') {
-    const inner = mathJsonToPlain(args[0]);
+    const inner = convert(args[0]);
     if (!inner) return null;
     return /^[A-Za-z0-9_.()]+$/.test(inner) ? `-${inner}` : `-(${inner})`;
   }
   if (head === 'Add') {
-    const parts = args.map(mathJsonToPlain);
+    const parts = args.map(convert);
     if (parts.some((p) => p === null)) return null;
     return (parts as string[])
       .map((part, idx) => (idx > 0 && !part.startsWith('-') ? `+${part}` : part))
       .join('');
   }
   if (head === 'Subtract') {
-    const a = mathJsonToPlain(args[0]);
-    const b = mathJsonToPlain(args[1]);
+    const a = convert(args[0]);
+    const b = convert(args[1]);
     if (!a || !b) return null;
     const rhs = /[+-]/.test(b) && !b.startsWith('(') ? `(${b})` : b;
     return `${a}-${rhs}`;
   }
-  if (head === 'Multiply') {
+  if (head === 'Multiply' || head === 'InvisibleOperator' && implicitProduct) {
     const parts = args.map((arg) => {
-      const text = mathJsonToPlain(arg);
+      const text = convert(arg);
       if (!text) return null;
       return Array.isArray(arg) && (arg[0] === 'Add' || arg[0] === 'Subtract')
         ? `(${text})`
@@ -122,16 +127,16 @@ function mathJsonToPlain(node: unknown): string | null {
     return (parts as string[]).join('*');
   }
   if (head === 'Divide' || head === 'Rational') {
-    const a = mathJsonToPlain(args[0]);
-    const b = mathJsonToPlain(args[1]);
+    const a = convert(args[0]);
+    const b = convert(args[1]);
     if (!a || !b) return null;
     const lhs = /^[A-Za-z0-9_.]+$/.test(a) ? a : `(${a})`;
     const rhs = /^[A-Za-z0-9_.]+$/.test(b) ? b : `(${b})`;
     return `${lhs}/${rhs}`;
   }
   if (head === 'Power') {
-    const base = mathJsonToPlain(args[0]);
-    const exp = mathJsonToPlain(args[1]);
+    const base = convert(args[0]);
+    const exp = convert(args[1]);
     if (!base || !exp) return null;
     if (base === 'e') return `exp(${exp})`;
     const lhs = /^[A-Za-z0-9_.]+$/.test(base) ? base : `(${base})`;
@@ -139,18 +144,18 @@ function mathJsonToPlain(node: unknown): string | null {
     return `${lhs}^${rhs}`;
   }
   if (head === 'Root') {
-    const base = mathJsonToPlain(args[0]);
-    const degree = mathJsonToPlain(args[1]);
+    const base = convert(args[0]);
+    const degree = convert(args[1]);
     if (!base || !degree) return null;
     return degree === '2' ? `sqrt(${base})` : `(${base})^(1/(${degree}))`;
   }
   if (head === 'Equal') {
-    const a = mathJsonToPlain(args[0]);
-    const b = mathJsonToPlain(args[1]);
+    const a = convert(args[0]);
+    const b = convert(args[1]);
     return a && b ? `${a}=${b}` : null;
   }
-  if (head in FN_MAP) {
-    const arg = mathJsonToPlain(args[0]);
+  if (Object.hasOwn(FN_MAP, head)) {
+    const arg = convert(args[0]);
     return arg ? `${FN_MAP[head]}(${arg})` : null;
   }
   return null;
@@ -167,6 +172,7 @@ function fallbackLatexToPlain(latex: string): string {
     .replace(/\\(?:displaystyle|textstyle|quad|qquad|,|;|!)/g, '')
     .replace(/\\cdot|\\times/g, '*')
     .replace(/\\div/g, '/')
+    .replace(/\\operatorname\{([a-z]+)\}/g, '$1')
     .replace(/\\pi\b/g, 'pi')
     .replace(/\\theta\b/g, 'theta')
     .replace(/\\infty\b/g, 'oo')
@@ -180,7 +186,7 @@ function fallbackLatexToPlain(latex: string): string {
 }
 
 /** 把 MathLive 输出的 LaTeX 转换为实验室标准纯文本表达式。 */
-export function latexToPlain(latex: string): string {
+export function latexToPlain(latex: string, implicitProduct = false): string {
   const trimmed = latex.trim();
   if (!trimmed) return '';
   if (/^[+-]?\\infty$/.test(trimmed)) {
@@ -194,7 +200,7 @@ export function latexToPlain(latex: string): string {
   if (ce) {
     try {
       const expr = ce.parse(trimmed, { form: 'raw' });
-      const converted = mathJsonToPlain(expr.json);
+      const converted = mathJsonToPlain(expr.json, implicitProduct);
       if (converted && !converted.includes('Error')) {
         return converted;
       }

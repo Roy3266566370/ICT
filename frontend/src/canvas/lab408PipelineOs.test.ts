@@ -66,3 +66,24 @@ test('Banker distinguishes excess need from insufficient availability before ten
   assert.equal(unavailable.decision!.data.status, 'unavailable');
   assert.deepEqual(unavailable.decision!.data.available, [1]);
 });
+
+test('磁盘调度轨迹与四种算法寻道长度对照', () => {
+  const results = run('diskScheduleLab', { requests: { params: { head: 53, dir: 0, algo: 1 } } });
+  assert.equal(results.trace?.data.total, 236);
+  assert.equal(results.trace?.frames.length, 8);
+  assert.deepEqual(results.compare?.frames[0]?.rows?.map(row => row[0]), ['FCFS', 'SSTF', 'SCAN', 'C-SCAN']);
+  assert.equal(results.compare?.frames[0]?.rows?.[0]?.[1], 640);
+  assert.throws(() => run('diskScheduleLab', { requests: { text: '250' } }), /0–199/);
+});
+
+test('PV 正确顺序完成生产消费，错误顺序在持锁等待处死锁', () => {
+  const correct = run('pvSyncLab', { script: { text: 'P,P,P,P,C,C', params: { capacity: 3, orderMode: 0 } } });
+  assert.equal(correct.audit?.data.produced, 3);
+  assert.equal(correct.audit?.data.consumed, 2);
+  assert.equal(correct.audit?.data.deadlock, false);
+  const wrong = run('pvSyncLab', { script: { text: 'P,P,P,P,C,C', params: { capacity: 3, orderMode: 1 } } });
+  assert.equal(wrong.audit?.data.deadlock, true);
+  assert.equal(wrong.audit?.data.consumed, 0);
+  assert.match(String(wrong.audit?.frames[0]?.summary), /死锁/);
+  assert.throws(() => run('pvSyncLab', { script: { text: 'P,X' } }), /P \/ C/);
+});

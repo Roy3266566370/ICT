@@ -214,9 +214,9 @@ const huffmanCodes: PipelineStage = {
   },
 };
 
-function numberInput(id: string, title: string, text: string, actions?: PipelineStage['actions']): PipelineStage {
+function numberInput(id: string, title: string, text: string, actions?: PipelineStage['actions'], presets?: PipelineStage['presets']): PipelineStage {
   return {
-    id, title, diagram: 'array', text, textLabel: '整数序列（用空格或逗号分隔）', actions,
+    id, title, diagram: 'array', text, textLabel: '整数序列（用空格或逗号分隔）', actions, presets,
     run({ text }) {
       const values = tokens(text).map(Number);
       if (!values.length || values.length > 31 || values.some(value => !Number.isSafeInteger(value))) {
@@ -690,6 +690,446 @@ const graphRun: PipelineStage = {
   },
 };
 
+/* ---------- B 树 / B+ 树 ---------- */
+
+type BTreeNode = { keys: number[]; children: BTreeNode[]; leaf: boolean };
+type BTreeSplit = { before: BTreeNode; keys: number[]; promote: number };
+
+function cloneBTree(node: BTreeNode): BTreeNode {
+  return { keys: [...node.keys], children: node.children.map(cloneBTree), leaf: node.leaf };
+}
+
+function btreeHeight(node: BTreeNode): number {
+  return 1 + Math.max(0, ...node.children.map(btreeHeight));
+}
+
+function btreeNodeCount(node: BTreeNode): number {
+  return 1 + node.children.reduce((sum, child) => sum + btreeNodeCount(child), 0);
+}
+
+function btreeLeafCount(node: BTreeNode): number {
+  return node.leaf ? 1 : node.children.reduce((sum, child) => sum + btreeLeafCount(child), 0);
+}
+
+function btreeFrame(root: BTreeNode, active: Set<BTreeNode>, title: string, summary: string, order: number, variant: number): PipelineFrame {
+  const leaves = Math.max(1, btreeLeafCount(root));
+  let cursor = 0;
+  let sequence = 0;
+  const positions = new Map<BTreeNode, { id: string; x: number; y: number; depth: number }>();
+  function place(node: BTreeNode, depth: number): number {
+    const id = `n${sequence++}`;
+    let x: number;
+    if (node.leaf) {
+      x = leaves === 1 ? 50 : 8 + cursor * 84 / (leaves - 1);
+      cursor += 1;
+    } else {
+      const xs = node.children.map((child) => place(child, depth + 1));
+      x = xs.reduce((sum, value) => sum + value, 0) / Math.max(1, xs.length);
+    }
+    positions.set(node, { id, x, y: 12 + depth * 22, depth });
+    return x;
+  }
+  place(root, 0);
+  const nodes = Array.from(positions.entries()).map(([node, position]) => ({
+    id: position.id,
+    label: `[${node.keys.join('|')}]`,
+    x: position.x,
+    y: position.y,
+    active: active.has(node),
+  }));
+  const edges: NonNullable<PipelineFrame['graph']>['edges'] = [];
+  for (const [node, position] of positions.entries()) {
+    for (const child of node.children) {
+      const target = positions.get(child);
+      if (target) edges.push({ from: position.id, to: target.id, active: active.has(node) && active.has(child) });
+    }
+  }
+  const rows = Array.from(positions.entries())
+    .sort((left, right) => left[1].depth - right[1].depth || left[1].x - right[1].x)
+    .map(([node, position], index) => [
+      +position.depth,
+      `[${node.keys.join('|')}]`,
+      variant ? (node.leaf ? 'B+ 叶' : 'B+ 内部') : (node.leaf ? 'B 叶' : 'B 内部'),
+      node.children.length,
+      index,
+    ]);
+  return {
+    title, summary, graph: { nodes, edges },
+    columns: ['深度', '关键字', '节点类型', '子节点', '序号'],
+    rows,
+  };
+}
+
+function btreeSearch(root: BTreeNode, target: number, variant: number): { path: string[]; comparisons: number; found: boolean } {
+  const path: string[] = [];
+  let comparisons = 0;
+  let node: BTreeNode | undefined = root;
+  while (node) {
+    path.push(`[${node.keys.join('|')}]`);
+    if (node.leaf) {
+      for (const key of node.keys) {
+        comparisons += 1;
+        if (key === target) return { path, comparisons, found: true };
+      }
+      return { path, comparisons, found: false };
+    }
+    let index = 0;
+    while (index < node.keys.length) {
+      comparisons += 1;
+      const key = node.keys[index]!;
+      if (!variant && key === target) return { path, comparisons, found: true };
+      if (target < key) break;
+      index += 1;
+    }
+    node = node.children[Math.min(index, node.children.length - 1)];
+  }
+  return { path, comparisons, found: false };
+}
+
+function btreePath(root: BTreeNode, key: number): Set<BTreeNode> {
+  const path = new Set<BTreeNode>();
+  let node: BTreeNode | undefined = root;
+  while (node) {
+    path.add(node);
+    if (node.leaf) break;
+    let index = 0;
+    while (index < node.keys.length && key >= node.keys[index]!) index += 1;
+    node = node.children[Math.min(index, node.children.length - 1)];
+  }
+  return path;
+}
+
+function btreeInsertOnce(start: BTreeNode, key: number, order: number, variant: number): { root: BTreeNode; splits: BTreeSplit[] } {
+  let root = start;
+  const splits: BTreeSplit[] = [];
+  function split(node: BTreeNode): { promote: number; right: BTreeNode } {
+    const middle = Math.floor(node.keys.length / 2);
+    if (node.leaf && variant === 1) {
+      const promote = node.keys[middle]!;
+      const right: BTreeNode = { keys: node.keys.slice(middle), children: [], leaf: true };
+      node.keys = node.keys.slice(0, middle);
+      return { promote, right };
+    }
+    const promote = node.keys[middle]!;
+    const right: BTreeNode = {
+      keys: node.keys.slice(middle + 1),
+      children: node.children.slice(middle + 1),
+      leaf: node.leaf,
+    };
+    node.keys = node.keys.slice(0, middle);
+    node.children = node.children.slice(0, middle + 1);
+    return { promote, right };
+  }
+  function insert(node: BTreeNode): { promote: number; right: BTreeNode } | null {
+    if (node.leaf) {
+      node.keys.push(key);
+      node.keys.sort((left, right) => left - right);
+    } else {
+      let index = 0;
+      while (index < node.keys.length && key >= node.keys[index]!) index += 1;
+      const child = node.children[Math.min(index, node.children.length - 1)] ?? node;
+      const carried = insert(child);
+      if (carried) {
+        node.keys.splice(index, 0, carried.promote);
+        node.children.splice(index + 1, 0, carried.right);
+      }
+    }
+    if (node.keys.length <= order - 1) return null;
+    splits.push({ before: cloneBTree(root), keys: [...node.keys], promote: node.keys[Math.floor(node.keys.length / 2)]! });
+    return split(node);
+  }
+  const carried = insert(root);
+  if (carried) root = { keys: [carried.promote], children: [root, carried.right], leaf: false };
+  return { root, splits };
+}
+
+const btreeInput: PipelineStage = {
+  id: 'input', title: 'B 树插入序列', diagram: 'source',
+  text: '10,20,5,6,12,30,7,17,25,3',
+  textLabel: '插入关键字（逗号或空格分隔，1–20 个唯一整数）',
+  controls: [
+    { key: 'order', label: '阶数 m', value: 0, options: [{ value: 0, label: '3 阶' }, { value: 1, label: '4 阶' }, { value: 2, label: '5 阶' }] },
+    { key: 'variant', label: '结构模式', value: 0, options: [{ value: 0, label: 'B 树' }, { value: 1, label: 'B+ 树' }] },
+    { key: 'target', label: '查找关键字', value: 17, min: 1, max: 999, step: 1 },
+  ],
+  presets: [
+    { label: 'B 树经典分裂', text: '10,20,5,6,12,30,7,17,25,3', params: { order: 0, variant: 0, target: 17 } },
+    { label: '4 阶 B+ 树', text: '10,20,5,6,12,30,7,17,25,3', params: { order: 1, variant: 1, target: 20 } },
+    { label: '高分支因子', text: '1,2,3,4,5,6,7,8,9,10,11,12', params: { order: 2, variant: 0, target: 9 } },
+  ],
+  run({ text, params }) {
+    const values = tokens(text).map(Number);
+    if (!values.length || values.length > 20 || values.some((value) => !Number.isInteger(value) || value < 1 || value > 999)) {
+      throw new Error('请输入 1–20 个 1–999 的整数关键字。');
+    }
+    if (new Set(values).size !== values.length) throw new Error('B 树插入关键字不能重复。');
+    const order = 3 + Math.max(0, Math.min(2, Math.round(params.order ?? 0)));
+    const variant = Math.round(params.variant ?? 0) === 1 ? 1 : 0;
+    const target = Math.round(params.target ?? 17);
+    if (!Number.isInteger(target) || target < 1 || target > 999) throw new Error('查找关键字需为 1–999 的整数。');
+    return {
+      data: { values, order, variant, target },
+      frames: [{
+        title: '插入关键字序列', columns: ['序号', '关键字', '阶数', '结构', '目标'],
+        rows: values.map((value, index) => [index + 1, value, `${order} 阶`, variant ? 'B+ 树' : 'B 树', index === 0 ? target : '—']),
+        summary: `按顺序插入 ${values.length} 个关键字；每次超过 ${order - 1} 个关键字时分裂。`,
+      }],
+    };
+  },
+};
+
+const btreeInsertStage: PipelineStage = {
+  id: 'insert', title: '逐次插入与分裂', diagram: 'tree', inputs: ['input'],
+  run({ upstream }) {
+    const source = upstream[0];
+    if (!source) return invalid('等待插入序列', '连接 B 树输入后生成插入过程。');
+    const values = source.values as number[] | undefined;
+    if (!values?.length) return invalid('等待插入序列', '连接 B 树输入后生成插入过程。');
+    const order = Number(source.order);
+    const variant = Number(source.variant);
+    const target = Number(source.target);
+    let root: BTreeNode = { keys: [], children: [], leaf: true };
+    const frames: PipelineFrame[] = [];
+    let splitCount = 0;
+    for (const key of values) {
+      const active = btreePath(root, key);
+      const result = btreeInsertOnce(root, key, order, variant);
+      root = result.root;
+      splitCount += result.splits.length;
+      for (const [index, split] of result.splits.entries()) {
+        frames.push(btreeFrame(split.before, new Set(), `分裂 ${index + 1}：分裂前`, `节点 [${split.keys.join('|')}] 超过 ${order - 1} 个关键字。`, order, variant));
+        frames.push(btreeFrame(result.root, new Set(), `分裂 ${index + 1}：分裂后`, `中间键 ${split.promote} 上移到父节点。`, order, variant));
+      }
+      frames.push(btreeFrame(root, active, `插入 ${key} 完成`, `插入后树高 ${btreeHeight(root)} · 节点 ${btreeNodeCount(root)}`, order, variant));
+    }
+    const search = btreeSearch(root, target, variant);
+    return {
+      data: { root, values, order, variant, target, splitCount, search, height: btreeHeight(root), nodeCount: btreeNodeCount(root) },
+      frames,
+    };
+  },
+};
+
+const btreeMetrics: PipelineStage = {
+  id: 'metrics', title: '树指标与查找路径', diagram: 'summary', inputs: ['insert'],
+  run({ upstream }) {
+    const data = upstream[0];
+    if (!data?.root) return invalid('等待插入结果', '连接 B 树插入模块后查看指标。');
+    const search = data.search as { path: string[]; comparisons: number; found: boolean };
+    const target = Number(data.target);
+    return {
+      data,
+      frames: [{
+        title: 'B 树指标与查找',
+        summary: `目标 ${target} ${search.found ? '命中' : '未命中'} · 查找路径 ${search.path.join(' → ') || '空'} · 比较 ${search.comparisons} 次。`,
+        columns: ['指标', '值'],
+        rows: [
+          ['阶数', Number(data.order)],
+          ['结构', Number(data.variant) ? 'B+ 树' : 'B 树'],
+          ['树高', Number(data.height)],
+          ['节点总数', Number(data.nodeCount)],
+          ['分裂次数', Number(data.splitCount)],
+          ['查找路径', search.path.join(' → ') || '—'],
+          ['路径长度', search.path.length],
+          ['关键字比较', search.comparisons],
+          ['查找结果', search.found ? '命中' : '未命中'],
+        ],
+      }],
+    };
+  },
+};
+
+/* ---------- 散列表 ---------- */
+
+type HashStrategy = 'linear' | 'quadratic' | 'chaining';
+const hashStrategies: readonly { id: HashStrategy; label: string }[] = [
+  { id: 'linear', label: '线性探测' },
+  { id: 'quadratic', label: '二次探测' },
+  { id: 'chaining', label: '链地址法' },
+];
+
+interface HashMetrics { success: number; failure: number; maxProbe: number; alpha: number; }
+
+function hashProbeSlots(key: number, tableSize: number, modP: number, strategy: HashStrategy): { slots: number[]; probes: number } {
+  const home = key % modP;
+  if (strategy === 'chaining') return { slots: [home], probes: 0 };
+  const visited = new Set<number>();
+  const slots: number[] = [];
+  for (let step = 0; step < tableSize; step += 1) {
+    const offset = strategy === 'linear' ? step : step === 0 ? 0 : (Math.ceil(step / 2) ** 2) * (step % 2 ? 1 : -1);
+    const slot = ((home + offset) % tableSize + tableSize) % tableSize;
+    slots.push(slot);
+    if (visited.has(slot)) break;
+    visited.add(slot);
+    if (slots.length > tableSize) break;
+  }
+  return { slots, probes: slots.length };
+}
+
+function hashTableFrames(keys: number[], tableSize: number, modP: number, strategy: HashStrategy): { frames: PipelineFrame[]; metrics: HashMetrics } {
+  if (strategy === 'chaining') {
+    const buckets = Array.from({ length: tableSize }, () => [] as number[]);
+    const frames: PipelineFrame[] = [];
+    let maxProbe = 1;
+    const probes: number[] = [];
+    for (const key of keys) {
+      const home = key % modP;
+      const bucket = buckets[home]!;
+      bucket.push(key);
+      probes.push(bucket.length);
+      maxProbe = Math.max(maxProbe, bucket.length);
+      frames.push({
+        title: `插入 ${key} · 链地址法`,
+        summary: `H(${key}) = ${home}，挂到第 ${home} 槽链表末尾；当前链长 ${bucket.length}。`,
+        columns: ['槽位', '链地址内容', '链长'],
+        rows: buckets.map((items, index) => [index, items.length ? items.join(' → ') : '—', items.length]),
+        highlightRows: [home],
+      });
+    }
+    return {
+      frames,
+      metrics: {
+        success: keys.reduce((sum, key) => sum + (buckets[key % modP]!.indexOf(key) + 1), 0) / Math.max(1, keys.length),
+        failure: buckets.reduce((sum, bucket) => sum + bucket.length, 0) / Math.max(1, modP),
+        maxProbe,
+        alpha: keys.length / tableSize,
+      },
+    };
+  }
+  const table: (number | null)[] = Array(tableSize).fill(null);
+  const probeCounts = new Map<number, number>();
+  const frames: PipelineFrame[] = [];
+  let maxProbe = 1;
+  for (const key of keys) {
+    const { slots } = hashProbeSlots(key, tableSize, modP, strategy);
+    let placed = -1;
+    let probes = 0;
+    for (const slot of slots) {
+      probes += 1;
+      if (table[slot] === null) {
+        table[slot] = key;
+        placed = slot;
+        break;
+      }
+    }
+    if (placed < 0) throw new Error('散列表已满，无法继续插入；请增大表长或减少关键字。');
+    probeCounts.set(key, probes);
+    maxProbe = Math.max(maxProbe, probes);
+    frames.push({
+      title: `插入 ${key} · ${hashStrategies.find((item) => item.id === strategy)!.label}`,
+      summary: `H(${key}) = ${key % modP}，探测 ${probes} 次后落位第 ${placed} 槽。`,
+      columns: ['槽位', '关键字', '本次探测次数'],
+      rows: table.map((value, index) => [index, value ?? '—', index === placed ? probes : '—']),
+      highlightRows: [placed],
+    });
+  }
+  const successes = keys.map((key) => probeCounts.get(key) ?? 1);
+  const failureProbes: number[] = [];
+  for (let home = 0; home < modP; home += 1) {
+    let probes = 0;
+    const visited = new Set<number>();
+    for (let step = 0; step < tableSize; step += 1) {
+      const offset = strategy === 'linear' ? step : step === 0 ? 0 : (Math.ceil(step / 2) ** 2) * (step % 2 ? 1 : -1);
+      const slot = ((home + offset) % tableSize + tableSize) % tableSize;
+      if (visited.has(slot)) break;
+      visited.add(slot);
+      probes += 1;
+      if (table[slot] === null) break;
+    }
+    failureProbes.push(probes);
+  }
+  return {
+    frames,
+    metrics: {
+      success: successes.reduce((sum, value) => sum + value, 0) / Math.max(1, successes.length),
+      failure: failureProbes.reduce((sum, value) => sum + value, 0) / Math.max(1, failureProbes.length),
+      maxProbe,
+      alpha: keys.length / tableSize,
+    },
+  };
+}
+
+const hashInput: PipelineStage = {
+  id: 'input', title: '关键字序列', diagram: 'source',
+  text: '19,14,23,1,68,20,84,27,55,11,10,79',
+  textLabel: '散列关键字（逗号或空格分隔，1–24 个唯一整数）',
+  controls: [
+    { key: 'tableSize', label: '表长 m', value: 13, min: 7, max: 19, step: 1 },
+    { key: 'modP', label: '除留余数 p', value: 13, min: 5, max: 17, step: 1 },
+    { key: 'strategy', label: '冲突策略', value: 0, options: hashStrategies.map((item) => ({ value: hashStrategies.indexOf(item), label: item.label })) },
+  ],
+  presets: [
+    { label: '线性探测高负载', text: '19,14,23,1,68,20,84,27,55,11,10,79', params: { tableSize: 13, modP: 13, strategy: 0 } },
+    { label: '二次探测', text: '19,14,23,1,68,20,84,27,55,11,10,79', params: { tableSize: 13, modP: 13, strategy: 1 } },
+    { label: '链地址法', text: '19,14,23,1,68,20,84,27,55,11,10,79', params: { tableSize: 13, modP: 13, strategy: 2 } },
+  ],
+  run({ text, params }) {
+    const keys = tokens(text).map(Number);
+    if (!keys.length || keys.length > 24 || keys.some((key) => !Number.isInteger(key) || key < 0 || key > 9999)) {
+      throw new Error('请输入 1–24 个 0–9999 的整数关键字。');
+    }
+    if (new Set(keys).size !== keys.length) throw new Error('散列关键字不能重复。');
+    const tableSize = Math.max(7, Math.min(19, Math.round(params.tableSize ?? 13)));
+    const modP = Math.max(5, Math.min(17, Math.round(params.modP ?? 13)));
+    if (modP > tableSize) throw new Error('除留余数 p 不能大于表长 m。');
+    const strategy = hashStrategies[Math.max(0, Math.min(2, Math.round(params.strategy ?? 0)))]!.id;
+    return {
+      data: { keys, tableSize, modP, strategy },
+      frames: [{
+        title: '散列表输入', columns: ['关键字', 'H(key)=key mod p'],
+        rows: keys.map((key) => [key, key % modP]),
+        summary: `表长 ${tableSize} · p = ${modP} · ${hashStrategies.find((item) => item.id === strategy)!.label}`,
+      }],
+    };
+  },
+};
+
+const hashProbe: PipelineStage = {
+  id: 'probe', title: '逐个插入与探测', diagram: 'array', inputs: ['input'],
+  run({ upstream }) {
+    const source = upstream[0];
+    const keys = source?.keys as number[] | undefined;
+    if (!source || !keys?.length) return invalid('等待关键字序列', '连接散列表输入后生成探测过程。');
+    const strategy = source.strategy as HashStrategy;
+    const result = hashTableFrames(keys, Number(source.tableSize), Number(source.modP), strategy);
+    return { data: { ...source, metrics: result.metrics }, frames: result.frames };
+  },
+};
+
+const hashCompare: PipelineStage = {
+  id: 'compare', title: '三种策略 ASL 对照', diagram: 'chart', inputs: ['input'],
+  run({ upstream }) {
+    const source = upstream[0];
+    const keys = source?.keys as number[] | undefined;
+    if (!source || !keys?.length) return invalid('等待关键字序列', '连接散列表输入后计算三种策略。');
+    const tableSize = Number(source.tableSize);
+    const modP = Number(source.modP);
+    const results = hashStrategies.map((strategy) => {
+      try {
+        return { label: strategy.label, metrics: hashTableFrames(keys, tableSize, modP, strategy.id).metrics, error: '' };
+      } catch (error) {
+        return { label: strategy.label, metrics: null, error: error instanceof Error ? error.message : '无法完成插入' };
+      }
+    });
+    const failed = results.filter((item) => !item.metrics);
+    return {
+      data: { results },
+      frames: [{
+        title: '线性 / 二次 / 链地址 ASL',
+        summary: `同一组关键字在表长 ${tableSize}、p = ${modP} 下的成功与失败查找长度。${failed.length ? ` ${failed.map((item) => item.label).join('、')}在当前表长下无法全部落位。` : ''}`,
+        columns: ['策略', '成功 ASL', '失败 ASL', '最大探测次数', '装填因子 α'],
+        rows: results.map(({ label, metrics }) => metrics
+          ? [label, metrics.success.toFixed(3), metrics.failure.toFixed(3), metrics.maxProbe, metrics.alpha.toFixed(3)]
+          : [label, '表满', '表满', '—', (keys.length / tableSize).toFixed(3)]),
+        series: [
+          { label: '成功 ASL', values: results.map(({ metrics }) => metrics?.success ?? 0) },
+          { label: '失败 ASL', values: results.map(({ metrics }) => metrics?.failure ?? 0) },
+        ],
+      }],
+    };
+  },
+};
+
 export const dsPipelines: Record<string, PipelineDefinition> = {
   dsTraversal: { stages: [
     treeInput, traversal,
@@ -698,7 +1138,11 @@ export const dsPipelines: Record<string, PipelineDefinition> = {
     weights, huffmanMerge, huffmanCodes,
   ] },
   avl: { stages: [
-    numberInput('avlInput', 'AVL 插入序列', '30 10 20 40 50 25', [{ label: '插入 45', append: '45' }]),
+    numberInput('avlInput', 'AVL 插入序列', '30 10 20 40 50 25', [{ label: '插入 45', append: '45' }], [
+      { label: 'LL 右单旋 (30,20,10)', text: '30 20 10', params: {} },
+      { label: 'LR 双旋 (30,10,20)', text: '30 10 20', params: {} },
+      { label: 'RL 双旋 (10,30,20)', text: '10 30 20', params: {} },
+    ]),
     avlInsert,
     avlView('avlBalance', '平衡因子检查', 'avlInsert', 'balance'),
     avlView('avlRotate', 'LL / RR / LR / RL 旋转', 'avlBalance', 'rotate'),
@@ -712,4 +1156,6 @@ export const dsPipelines: Record<string, PipelineDefinition> = {
     traceView('graphColor', '图上选点与边高亮', 'graph', 'graphRun', true),
     traceView('graphState', '距离 / 接入边权 / 入度', 'grid', 'graphRun', false),
   ] },
+  btreeLab: { stages: [btreeInput, btreeInsertStage, btreeMetrics] },
+  hashTableLab: { stages: [hashInput, hashProbe, hashCompare] },
 };

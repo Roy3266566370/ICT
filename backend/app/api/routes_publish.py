@@ -630,11 +630,15 @@ def build_snapshot(
             # An edited page is delivered exclusively through its current scene.
             page.update(image=None,erased_image=None,elements=[],title=next((n['text'][:80] for n in scene['nodes'] if n.get('text')),f'第 {page["page_no"]} 页'))
     regions=[r for r in regions if r.get('page') not in edited]
-    pages.sort(key=lambda page: page['page_no'])
-
-    page_count = max(1, material.page_count, region_page_count)
-    if pages:
-        page_count = max(page_count, max(item["page_no"] for item in pages))
+    order=(scene_document or {}).get('page_order')
+    if order:
+        pages_by_no={page['page_no']:page for page in pages}
+        pages=[pages_by_no.get(n,{'page_no':n,'image':None,'erased_image':None}) for n in order]
+        regions=[region for region in regions if region.get('page') in pages_by_no and region.get('page') in order]
+        page_count=len(order)
+    else:
+        pages.sort(key=lambda page: page['page_no'])
+        page_count=max(1,material.page_count,region_page_count,*(item["page_no"] for item in pages))
 
     return {
         "schema_version": SNAPSHOT_SCHEMA_VERSION,

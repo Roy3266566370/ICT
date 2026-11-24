@@ -1,0 +1,12 @@
+.settings { margin-top: 8px; font-size: 12px; }
+.settings summary { cursor: pointer; }
+.settings > details, .paste { margin-top: 7px; }
+.settings label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(6ch, 54%); gap: 6px; align-items: center; margin-top: 5px; }
+.settings :is(input, textarea) {
+  box-sizing: border-box; width: 100%; min-width: 0; padding: 4px 5px; border: 1px solid var(--hairline-strong);
+  border-radius: 5px; background: var(--paper-subtle); color: inherit; font: inherit;
+}
+.paste label { display: grid; grid-template-columns: 1fr; }
+.paste textarea { resize: vertical; }
+.paste p { margin: 5px 0; color: var(--ink-500); }
+.paste [data-error], .settings [aria-invalid='true'] { color: #a33125; }

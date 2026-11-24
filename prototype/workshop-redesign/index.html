@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>函数与导数三联图 · 万象工坊（重设计原型）</title>
+<style>
+  :root {
+    --paper-0: #fbf9f2;
+    --paper-1: #f6f3ea;
+    --paper-2: #f2f0e8;
+    --paper-3: #e9e5d9;
+    --ink-900: #101211;
+    --ink-700: #34372f;
+    --ink-500: #5f6257;
+    --ink-400: #7f8175;
+    --ink-300: #9a9b8f;
+    --hairline: #d8d3c4;
+    --hairline-strong: #c5c0b0;
+    --coral: #de421f;
+    --coral-ink: #ac2c10;
+    --coral-soft: #fbe9e3;
+    --indigo: #1c2ecb;
+
+    --plot-main: var(--ink-900);
+    --plot-current: var(--coral);
+    --plot-compare: var(--indigo);
+    --plot-aux: var(--ink-400);
+    --plot-grid: rgba(16, 18, 17, 0.06);
+    --plot-axis: rgba(16, 18, 17, 0.28);
+
+    --font-sans: 'Inter', 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+    --font-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', serif;
+    --font-mono: 'JetBrains Mono', 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+
+    --r-sm: 3px;
+    --r-md: 5px;
+    --r-lg: 7px;
+    --r-xl: 9px;
+    --ease: cubic-bezier(.2, .7, .2, 1);
+    --shadow-sm: 0 1px 2px rgba(16, 18, 17, .04), 0 6px 16px rgba(16, 18, 17, .05);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-700);
+    background: var(--paper-1);
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  .app { display: grid; grid-template-rows: 56px 1fr; height: 100vh; }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 16px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--paper-0);
+  }
+  .crumbs { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .back {
+    display: inline-flex; align-items: center; gap: 4px;
+    height: 32px; padding: 0 8px; margin-left: -8px;
+    border: 0; border-radius: var(--r-md); background: none;
+    color: var(--ink-500); font-size: 13px; text-decoration: none;
+  }
+  .back:hover { background: var(--paper-2); color: var(--ink-900); }
+  .sep { width: 1px; height: 20px; background: var(--hairline); }
+  .title { margin: 0; font-family: var(--font-serif); font-size: 18px; font-weight: 600; color: var(--ink-900); white-space: nowrap; }
+  .subtitle { color: var(--ink-400); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--paper-2); }
+  .seg button {
+    height: 28px; padding: 0 16px; border: 0; border-radius: var(--r-md);
+    background: none; color: var(--ink-500); font-size: 13px;
+    transition: background-color 120ms var(--ease), color 120ms var(--ease);
+  }
+  .seg button[aria-pressed="true"] { background: var(--paper-0); color: var(--ink-900); box-shadow: 0 0 0 1px var(--hairline), 0 1px 2px rgba(16,18,17,.06); }
+
+  .actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .icon-btn {
+    display: inline-grid; place-items: center;
+    width: 32px; height: 32px; border: 0; border-radius: var(--r-md);
+    background: none; color: var(--ink-500);
+  }
+  .icon-btn:hover:not(:disabled) { background: var(--paper-2); color: var(--ink-900); }
+  .icon-btn:disabled { color: var(--ink-300); cursor: default; }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; margin: 0 8px; color: var(--ink-400); font-size: 12px; white-space: nowrap; }
+  .status i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-300); }
+  .status[data-state="saving"] i { background: var(--coral); }
+  .btn {
+    height: 32px; padding: 0 12px; border: 1px solid var(--hairline-strong); border-radius: var(--r-md);
+    background: var(--paper-0); color: var(--ink-700); font-size: 13px; white-space: nowrap;
+    transition: background-color 120ms var(--ease), border-color 120ms var(--ease);
+  }
+  .btn:hover { background: var(--paper-2); border-color: var(--ink-300); }
+  .btn-primary { border-color: var(--ink-900); background: var(--ink-900); color: var(--paper-0); }
+  .btn-primary:hover { background: var(--ink-700); border-color: var(--ink-700); }
+  .btn:active { transform: scale(.98); }
+
+  .more { position: relative; }
+  .menu {
+    position: absolute; right: 0; top: 40px; z-index: 20;
+    min-width: 180px; padding: 4px;
+    border: 1px solid var(--hairline); border-radius: var(--r-lg);
+    background: var(--paper-0); box-shadow: var(--shadow-sm);
+    opacity: 0; transform: translateY(-4px); pointer-events: none;
+    transition: opacity 120ms var(--ease), transform 120ms var(--ease);
+  }
+  .menu[data-open="true"] { opacity: 1; transform: none; pointer-events: auto; }
+  .menu button { display: flex; justify-content: space-between; width: 100%; height: 32px; padding: 0 8px; border: 0; border-radius: var(--r-sm); background: none; font-size: 13px; text-align: left; }
+  .menu button:hover { background: var(--paper-2); }
+  .menu kbd { font-family: var(--font-mono); font-size: 12px; color: var(--ink-400); }
+  .menu hr { margin: 4px 0; border: 0; border-top: 1px solid var(--hairline); }
+
+  /* ---------- 主体 ---------- */
+  .body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 0; }
+  .stage { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .stage-scroll { flex: 1; overflow: auto; padding: 20px 24px 24px; }
+
+  .question {
+    display: flex; align-items: baseline; gap: 12px;
+    margin-bottom: 16px; color: var(--ink-700); font-size: 14px;
+  }
+  .question b { font-weight: 500; color: var(--ink-900); }
+  .question .q-label { flex: none; color: var(--ink-400); font-size: 13px; }
+  .question button { flex: none; margin-left: auto; border: 0; background: none; color: var(--ink-500); font-size: 13px; }
+  .question button:hover { color: var(--ink-900); }
+  .steps { display: none; margin: -4px 0 16px; padding: 12px 16px; border-left: 2px solid var(--hairline-strong); color: var(--ink-500); font-size: 13px; }
+  .steps[data-open="true"] { display: block; }
+  .steps ol { margin: 0; padding-left: 20px; }
+  .steps li + li { margin-top: 4px; }
+
+  .card {
+    border: 1px solid var(--hairline); border-radius: var(--r-xl);
+    background: var(--paper-0);
+  }
+  .card-head { display: flex; align-items: center; gap: 16px; padding: 12px 16px 4px; }
+  .card-title { white-space: nowrap; }
+  .card-title { margin: 0; font-size: 14px; font-weight: 500; color: var(--ink-900); }
+  .card-hint { margin-left: auto; color: var(--ink-400); font-size: 12px; }
+  .legend { display: flex; gap: 16px; color: var(--ink-500); font-size: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend svg { flex: none; width: 20px; height: 8px; }
+
+  .main-plot > svg { display: block; width: 100%; height: auto; touch-action: none; cursor: ew-resize; user-select: none; }
+
+  .conclusion {
+    display: flex; align-items: baseline; gap: 12px;
+    margin: 12px 0 16px; padding: 0 4px;
+    color: var(--ink-700); font-size: 14px;
+  }
+  .conclusion .label { flex: none; color: var(--ink-400); font-size: 13px; }
+
+  .minis { display: grid; grid-template-columns: 1.25fr 1fr 0.9fr; gap: 12px; }
+  .mini svg { display: block; width: 100%; height: auto; }
+  .mini .card-head { padding-bottom: 4px; }
+  .mini-foot { padding: 0 16px 12px; color: var(--ink-500); font-size: 12px; }
+
+  .readout { width: 100%; border-collapse: collapse; margin: 4px 0 8px; }
+  .readout td { padding: 6px 16px; border-top: 1px solid var(--paper-3); font-size: 13px; }
+  .readout tr:first-child td { border-top: 0; }
+  .readout td:first-child { color: var(--ink-500); }
+  .readout td:last-child { text-align: right; color: var(--ink-900); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .readout tr.current td:last-child { color: var(--coral-ink); }
+
+  /* ---------- 时间轴 ---------- */
+  .timeline {
+    display: flex; align-items: center; gap: 4px;
+    height: 52px; padding: 0 24px;
+    border-top: 1px solid var(--hairline); background: var(--paper-0);
+  }
+  .timeline .icon-btn { color: var(--ink-700); }
+  .scrub { flex: 1; margin: 0 16px; }
+  .t-read { min-width: 180px; color: var(--ink-500); font-size: 12px; text-align: right; }
+  .t-read b { font-weight: 500; color: var(--ink-900); }
+
+  /* ---------- 滑杆（统一组件） ---------- */
+  input[type="range"] {
+    --fill: 50%;
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 20px; margin: 0; background: none;
+  }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 3px; border-radius: 2px;
+    background: linear-gradient(to right, var(--ink-700) var(--fill), var(--paper-3) var(--fill));
+  }
+  input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: var(--paper-3); }
+  input[type="range"]::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--ink-700); }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px;
+    border: 2px solid var(--paper-0); border-radius: 50%; background: var(--coral);
+    box-shadow: 0 0 0 1px var(--coral-ink);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 10px; height: 10px; border: 2px solid var(--paper-0); border-radius: 50%; background: var(--coral);
+    box-shadow: 0 0 0 1px var(--coral-ink);
+  }
+  input[type="range"]:focus-visible { outline: none; }
+  input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--coral-ink), 0 0 0 4px var(--coral-soft); }
+
+  /* ---------- 右侧参数栏 ---------- */
+  .panel {
+    display: flex; flex-direction: column; min-height: 0;
+    border-left: 1px solid var(--hairline); background: var(--paper-0);
+  }
+  .panel-scroll { flex: 1; overflow: auto; padding: 8px 20px 20px; }
+  .group { padding: 16px 0; border-top: 1px solid var(--paper-3); }
+  .group:first-child { border-top: 0; }
+  .group h3 { margin: 0 0 8px; font-size: 13px; font-weight: 500; color: var(--ink-900); }
+  .formula { margin: 0 0 12px; font-family: var(--font-serif); font-size: 16px; color: var(--ink-900); }
+  .formula i { font-style: italic; }
+  .param { display: grid; grid-template-columns: 1fr auto; align-items: center; row-gap: 0; padding: 4px 0; }
+  .param label { color: var(--ink-500); font-size: 13px; }
+  .param output { font-family: var(--font-mono); font-size: 13px; color: var(--ink-900); font-variant-numeric: tabular-nums; }
+  .param output small { margin-left: 4px; color: var(--ink-400); font-size: 12px; }
+  .param input { grid-column: 1 / -1; }
+  .range-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+  .range-row span { color: var(--ink-400); font-size: 12px; }
+  .num {
+    width: 100%; height: 32px; padding: 0 8px;
+    border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--paper-1);
+    font-family: var(--font-mono); font-size: 13px; text-align: center;
+  }
+  .num:focus { border-color: var(--ink-400); outline: none; background: var(--paper-0); }
+  textarea {
+    width: 100%; min-height: 96px; padding: 8px 12px; resize: vertical;
+    border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--paper-1);
+    font-size: 13px; line-height: 1.6;
+  }
+  textarea:focus { border-color: var(--ink-400); outline: none; background: var(--paper-0); }
+  .panel-foot { padding: 12px 20px; border-top: 1px solid var(--paper-3); color: var(--ink-400); font-size: 12px; }
+
+  /* ---------- 架构视图 ---------- */
+  .arch { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .app[data-view="arch"] .stage-scroll, .app[data-view="arch"] .timeline { display: none; }
+  .app[data-view="arch"] .arch { display: flex; }
+  .arch-tools { display: flex; align-items: center; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--hairline); background: var(--paper-0); }
+  .arch-tools .hint { margin-left: auto; color: var(--ink-400); font-size: 12px; }
+  .arch-board {
+    position: relative; flex: 1; overflow: auto;
+    background-color: var(--paper-1);
+    background-image: radial-gradient(circle, rgba(16,18,17,.12) 1px, transparent 1.2px);
+    background-size: 20px 20px;
+  }
+  .arch-inner { position: relative; width: 1240px; height: 560px; }
+  .arch-inner svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .node {
+    position: absolute; width: 200px;
+    border: 1px solid var(--hairline-strong); border-radius: var(--r-lg);
+    background: var(--paper-0); box-shadow: 0 1px 2px rgba(16,18,17,.04);
+    text-align: left; padding: 0;
+    transition: border-color 120ms var(--ease), box-shadow 120ms var(--ease);
+  }
+  .node:hover { border-color: var(--ink-400); }
+  .node[aria-pressed="true"] { border-color: var(--coral); box-shadow: 0 0 0 3px var(--coral-soft); }
+  .node-head { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--paper-3); }
+  .node-head b { font-size: 13px; font-weight: 500; color: var(--ink-900); }
+  .node-head span { color: var(--ink-400); font-size: 12px; }
+  .node-body { display: grid; gap: 2px; padding: 8px 12px 10px; font-size: 12px; color: var(--ink-500); }
+  .node-body div { display: flex; justify-content: space-between; gap: 8px; }
+  .node-body .mono { color: var(--ink-900); font-size: 12px; }
+  .port { position: absolute; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border: 1.5px solid var(--ink-400); border-radius: 50%; background: var(--paper-0); }
+  .port.in { left: -5px; }
+  .port.out { right: -5px; }
+
+  @media (max-width: 1100px) {
+    .minis { grid-template-columns: 1fr 1fr; }
+    .minis .mini:last-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 900px) {
+    .app { height: auto; min-height: 100vh; }
+    .body { grid-template-columns: 1fr; }
+    .panel { border-left: 0; border-top: 1px solid var(--hairline); }
+    .topbar { grid-template-columns: 1fr auto; height: auto; padding: 8px 16px; }
+    .topbar .seg { grid-column: 1 / -1; justify-self: start; }
+    .subtitle, .status, .actions .btn:not(.btn-primary) { display: none; }
+    .minis { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app" data-view="exp">
+  <header class="topbar">
+    <div class="crumbs">
+      <a class="back" href="#" aria-label="返回万象工坊">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>
+        工坊
+      </a>
+      <span class="sep" aria-hidden="true"></span>
+      <h1 class="title">函数与导数三联图</h1>
+      <span class="subtitle">高等数学 · 导数 · 约 10 分钟</span>
+    </div>
+
+    <div class="seg" role="group" aria-label="视图">
+      <button type="button" data-view="exp" aria-pressed="true">实验</button>
+      <button type="button" data-view="arch" aria-pressed="false">架构</button>
+    </div>
+
+    <div class="actions">
+      <button class="icon-btn" id="undo" type="button" aria-label="撤销" title="撤销  Ctrl+Z" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4 2.5 7l3 3"/><path d="M2.5 7h7a4 4 0 0 1 0 8H8"/></svg>
+      </button>
+      <button class="icon-btn" id="redo" type="button" aria-label="重做" title="重做  Ctrl+Shift+Z" disabled>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 4l3 3-3 3"/><path d="M13.5 7h-7a4 4 0 0 0 0 8H8"/></svg>
+      </button>
+      <span class="status" id="status" data-state="saved" role="status"><i aria-hidden="true"></i><span>已保存</span></span>
+      <button class="btn" type="button">分享</button>
+      <button class="btn btn-primary" type="button">保存到工坊</button>
+      <div class="more">
+        <button class="icon-btn" id="moreBtn" type="button" aria-label="更多操作" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="1.25"/><circle cx="8" cy="8" r="1.25"/><circle cx="12.5" cy="8" r="1.25"/></svg>
+        </button>
+        <div class="menu" id="menu" role="menu">
+          <button type="button" role="menuitem">导出图片 <kbd>PNG</kbd></button>
+          <button type="button" role="menuitem">导出离线网页 <kbd>HTML</kbd></button>
+          <button type="button" role="menuitem">嵌入到活页</button>
+          <hr>
+          <button type="button" role="menuitem">新建空白画布</button>
+          <button type="button" role="menuitem" id="resetBtn">恢复模板默认值</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="body">
+    <main class="stage">
+      <!-- 实验视图 -->
+      <div class="stage-scroll">
+        <div class="question">
+          <span class="q-label">探究</span>
+          <span><b>f′ 的正负怎样决定 f 的增减？f″ 又对应曲线的什么形状？</b></span>
+          <button type="button" id="stepsBtn" aria-expanded="false" aria-controls="steps">步骤与观察 ▾</button>
+        </div>
+        <div class="steps" id="steps">
+          <ol>
+            <li>在主图上拖动，或调节右侧 x₀，观察三条曲线在同一竖线上的取值。</li>
+            <li>点播放，让割线步长 h 逐步缩小，看割线斜率怎样逼近 f′(x₀)。</li>
+            <li>改变系数 b、c，留意驻点、拐点与下方增减、凹凸条带的对应关系。</li>
+          </ol>
+        </div>
+
+        <section class="card main-plot" aria-labelledby="mainTitle">
+          <div class="card-head">
+            <h2 class="card-title" id="mainTitle">三曲线同轴</h2>
+            <div class="legend" aria-hidden="true">
+              <span><svg viewBox="0 0 20 8"><line x1="0" y1="4" x2="20" y2="4" stroke="var(--plot-main)" stroke-width="2.25"/></svg>f</span>
+              <span><svg viewBox="0 0 20 8"><line x1="0" y1="4" x2="20" y2="4" stroke="var(--plot-current)" stroke-width="2"/></svg>f′</span>
+              <span><svg viewBox="0 0 20 8"><line x1="0" y1="4" x2="20" y2="4" stroke="var(--plot-compare)" stroke-width="1.5" stroke-dasharray="4 3"/></svg>f″</span>
+            </div>
+            <span class="card-hint">在图上左右拖动可移动 x₀</span>
+          </div>
+          <svg id="mainSvg" viewBox="0 0 880 368" role="img" aria-label="f、f′、f″ 在同一坐标系中的图像"></svg>
+        </section>
+
+        <p class="conclusion" aria-live="polite"><span class="label">当前结论</span><span id="conclusion"></span></p>
+
+        <div class="minis">
+          <section class="card mini" aria-labelledby="m1">
+            <div class="card-head"><h2 class="card-title" id="m1">割线趋向切线</h2><span class="card-hint mono" id="m1hint"></span></div>
+            <svg id="secantSvg" viewBox="0 0 400 220" role="img" aria-label="x₀ 附近的割线与切线"></svg>
+          </section>
+          <section class="card mini" aria-labelledby="m2">
+            <div class="card-head"><h2 class="card-title" id="m2">割线斜率收敛</h2></div>
+            <svg id="convSvg" viewBox="0 0 320 220" role="img" aria-label="割线斜率随 h 缩小的变化"></svg>
+          </section>
+          <section class="card mini" aria-labelledby="m3">
+            <div class="card-head"><h2 class="card-title" id="m3">读数</h2></div>
+            <table class="readout" id="readout"></table>
+          </section>
+        </div>
+      </div>
+
+      <div class="timeline" role="group" aria-label="时间轴">
+        <button class="icon-btn" id="tBack" type="button" aria-label="上一帧">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 3h1.5v10H4zM13 3.5v9L6.5 8z"/></svg>
+        </button>
+        <button class="icon-btn" id="tPlay" type="button" aria-label="播放">
+          <svg id="playIcon" viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 3v10l8-5z"/></svg>
+        </button>
+        <button class="icon-btn" id="tFwd" type="button" aria-label="下一帧">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M10.5 3H12v10h-1.5zM3 3.5v9L9.5 8z"/></svg>
+        </button>
+        <button class="icon-btn" id="tReset" type="button" aria-label="回到开头">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 8a5 5 0 1 0 1.5-3.5"/><path d="M3 2.5V5h2.5"/></svg>
+        </button>
+        <input class="scrub" id="scrub" type="range" min="0" max="60" step="1" value="0" aria-label="时间轴位置">
+        <span class="t-read mono" id="tRead"></span>
+      </div>
+
+      <!-- 架构视图 -->
+      <div class="arch">
+        <div class="arch-tools">
+          <button class="btn" type="button">添加对象</button>
+          <button class="btn" type="button">手写</button>
+          <button class="btn" type="button">橡皮</button>
+          <span class="sep" aria-hidden="true"></span>
+          <button class="btn" type="button">整理排版</button>
+          <button class="btn" type="button">适应全图</button>
+          <span class="hint">点击模块查看它的实时输出；参数仍在右侧调节</span>
+        </div>
+        <div class="arch-board">
+          <div class="arch-inner" id="archInner"></div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="panel" aria-label="参数">
+      <div class="panel-scroll">
+        <div class="group">
+          <h3>函数</h3>
+          <p class="formula" id="formula"></p>
+          <div class="param"><label for="p-a">系数 a</label><output for="p-a" id="o-a"></output><input id="p-a" data-key="a" type="range" min="-2" max="2" step="0.1"></div>
+          <div class="param"><label for="p-b">系数 b</label><output for="p-b" id="o-b"></output><input id="p-b" data-key="b" type="range" min="-3" max="3" step="0.1"></div>
+          <div class="param"><label for="p-c">系数 c</label><output for="p-c" id="o-c"></output><input id="p-c" data-key="c" type="range" min="-5" max="5" step="0.1"></div>
+        </div>
+        <div class="group">
+          <h3>观察点</h3>
+          <div class="param"><label for="p-x0">切点 x₀</label><output for="p-x0" id="o-x0"></output><input id="p-x0" data-key="x0" type="range" min="-2" max="2" step="0.01"></div>
+          <div class="param"><label for="p-h0">初始割线步长 h</label><output for="p-h0" id="o-h0"></output><input id="p-h0" data-key="h0" type="range" min="0.1" max="1.5" step="0.05"></div>
+        </div>
+        <div class="group">
+          <h3>观察区间</h3>
+          <div class="range-row">
+            <input class="num" id="p-lo" data-key="lo" type="number" step="0.5" aria-label="区间左端">
+            <span>到</span>
+            <input class="num" id="p-hi" data-key="hi" type="number" step="0.5" aria-label="区间右端">
+          </div>
+        </div>
+        <div class="group">
+          <h3>我的观察</h3>
+          <textarea placeholder="例如：x₀ 越过 −1 时 f′ 由正变负，f 在这里取极大值"></textarea>
+        </div>
+      </div>
+      <div class="panel-foot">在浏览器内按公式计算。数值和图像是探究证据，不替代证明</div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  const DEFAULTS = { a: 1, b: 0, c: -3, x0: 0.5, h0: 0.5, lo: -2, hi: 2 };
+  const FRAMES = 61;
+  let S = { ...DEFAULTS };
+  let frame = 0, playing = false, timer = null, view = 'exp', selectedNode = 'n3';
+  const undoStack = [], redoStack = [];
+
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const minus = (s) => s.replace(/-/g, '−');
+  const fmt = (v, d = 2) => Number.isFinite(v) ? minus((Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d)) : '—';
+
+  const f = (x) => S.a * x ** 3 + S.b * x ** 2 + S.c * x;
+  const d1 = (x) => 3 * S.a * x ** 2 + 2 * S.b * x + S.c;
+  const d2 = (x) => 6 * S.a * x + 2 * S.b;
+  const hAt = (k) => S.h0 * Math.pow(0.02, k / (FRAMES - 1));
+  const secant = (h) => (f(S.x0 + h) - f(S.x0)) / h;
+
+  function stationary() {
+    const A = 3 * S.a, B = 2 * S.b, C = S.c, out = [];
+    if (Math.abs(A) < 1e-9) { if (Math.abs(B) > 1e-9) out.push(-C / B); }
+    else {
+      const D = B * B - 4 * A * C;
+      if (D > 1e-12) { const r = Math.sqrt(D); out.push((-B - r) / (2 * A), (-B + r) / (2 * A)); }
+      else if (Math.abs(D) <= 1e-12) out.push(-B / (2 * A));
+    }
+    return out.filter((x) => x >= S.lo && x <= S.hi).sort((p, q) => p - q);
+  }
+  function inflection() {
+    if (Math.abs(S.a) < 1e-9) return [];
+    const x = -S.b / (3 * S.a);
+    return x >= S.lo && x <= S.hi ? [x] : [];
+  }
+
+  function niceStep(span, target) {
+    const raw = span / target, mag = 10 ** Math.floor(Math.log10(raw)), n = raw / mag;
+    return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * mag;
+  }
+  function el(tag, attrs = {}, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function pathFrom(fn, lo, hi, X, Y, yLo, yHi) {
+    let d = '', pen = false;
+    for (let i = 0; i <= 240; i++) {
+      const x = lo + (hi - lo) * i / 240, y = fn(x);
+      if (!Number.isFinite(y) || y < yLo - (yHi - yLo) || y > yHi + (yHi - yLo)) { pen = false; continue; }
+      d += (pen ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(y).toFixed(1);
+      pen = true;
+    }
+    return d;
+  }
+
+  /* ---------- 主图 ---------- */
+  const M = { W: 880, H: 368, l: 48, r: 56, t: 16, plotB: 284 };
+  let mainX = null;
+  function drawMain() {
+    const svg = $('mainSvg'); svg.textContent = '';
+    const { W, l, r, t, plotB } = M, lo = S.lo, hi = S.hi;
+    let ys = [];
+    for (let i = 0; i <= 200; i++) { const x = lo + (hi - lo) * i / 200; ys.push(f(x), d1(x), d2(x)); }
+    ys.sort((p, q) => p - q);
+    let yLo = Math.min(ys[Math.floor(ys.length * 0.03)], 0), yHi = Math.max(ys[Math.ceil(ys.length * 0.97) - 1], 0);
+    if (yHi - yLo < 1) { yHi += 0.5; yLo -= 0.5; }
+    const pad = (yHi - yLo) * 0.1; yLo -= pad; yHi += pad;
+    const X = (x) => l + (x - lo) / (hi - lo) * (W - l - r);
+    const Y = (y) => t + (yHi - y) / (yHi - yLo) * (plotB - t);
+    mainX = (px) => lo + (px - l) / (W - l - r) * (hi - lo);
+
+    const clip = el('clipPath', { id: 'mainClip' }); clip.appendChild(el('rect', { x: l, y: t, width: W - l - r, height: plotB - t }));
+    const defs = el('defs'); defs.appendChild(clip); svg.appendChild(defs);
+
+    const gx = niceStep(hi - lo, 8), gy = niceStep(yHi - yLo, 6);
+    for (let x = Math.ceil(lo / gx) * gx; x <= hi + 1e-9; x += gx) {
+      svg.appendChild(el('line', { x1: X(x), x2: X(x), y1: t, y2: plotB, stroke: 'var(--plot-grid)' }));
+      svg.appendChild(el('text', { x: X(x), y: plotB + 16, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--ink-400)', 'font-family': 'var(--font-mono)' }, fmt(x, gx < 1 ? 1 : 0)));
+    }
+    for (let y = Math.ceil(yLo / gy) * gy; y <= yHi + 1e-9; y += gy) {
+      svg.appendChild(el('line', { x1: l, x2: W - r, y1: Y(y), y2: Y(y), stroke: 'var(--plot-grid)' }));
+      svg.appendChild(el('text', { x: l - 8, y: Y(y) + 4, 'text-anchor': 'end', 'font-size': 12, fill: 'var(--ink-400)', 'font-family': 'var(--font-mono)' }, fmt(y, gy < 1 ? 1 : 0)));
+    }
+    if (yLo < 0 && yHi > 0) svg.appendChild(el('line', { x1: l, x2: W - r, y1: Y(0), y2: Y(0), stroke: 'var(--plot-axis)' }));
+    if (lo < 0 && hi > 0) svg.appendChild(el('line', { x1: X(0), x2: X(0), y1: t, y2: plotB, stroke: 'var(--plot-axis)' }));
+
+    const g = el('g', { 'clip-path': 'url(#mainClip)' }); svg.appendChild(g);
+    // 切线（辅助）
+    const k = d1(S.x0), y0 = f(S.x0);
+    g.appendChild(el('line', { x1: X(lo), y1: Y(y0 + k * (lo - S.x0)), x2: X(hi), y2: Y(y0 + k * (hi - S.x0)), stroke: 'var(--plot-aux)', 'stroke-width': 1, 'stroke-dasharray': '2 4' }));
+    g.appendChild(el('path', { d: pathFrom(d2, lo, hi, X, Y, yLo, yHi), fill: 'none', stroke: 'var(--plot-compare)', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' }));
+    g.appendChild(el('path', { d: pathFrom(d1, lo, hi, X, Y, yLo, yHi), fill: 'none', stroke: 'var(--plot-current)', 'stroke-width': 2 }));
+    g.appendChild(el('path', { d: pathFrom(f, lo, hi, X, Y, yLo, yHi), fill: 'none', stroke: 'var(--plot-main)', 'stroke-width': 2.25 }));
+
+    // 曲线名
+    const endLabel = (fn, name, color) => {
+      const y = fn(hi); if (y < yLo || y > yHi) return;
+      svg.appendChild(el('text', { x: W - r + 8, y: Y(y) + 4, 'font-size': 13, fill: color, 'font-family': 'var(--font-serif)', 'font-style': 'italic' }, name));
+    };
+    endLabel(f, 'f', 'var(--ink-900)'); endLabel(d1, 'f′', 'var(--coral-ink)'); endLabel(d2, 'f″', 'var(--indigo)');
+
+    // 驻点 / 拐点
+    stationary().forEach((x) => {
+      const y = f(x); if (y < yLo || y > yHi) return;
+      const kind = d2(x) < -1e-9 ? '极大' : d2(x) > 1e-9 ? '极小' : '驻点';
+      svg.appendChild(el('circle', { cx: X(x), cy: Y(y), r: 4, fill: 'var(--paper-0)', stroke: 'var(--ink-900)', 'stroke-width': 1.5 }));
+      svg.appendChild(el('text', { x: X(x), y: Y(y) + (kind === '极小' ? 20 : -10), 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--ink-500)' }, kind));
+    });
+    inflection().forEach((x) => {
+      const y = f(x); if (y < yLo || y > yHi) return;
+      svg.appendChild(el('rect', { x: X(x) - 3.5, y: Y(y) - 3.5, width: 7, height: 7, fill: 'var(--paper-0)', stroke: 'var(--indigo)', 'stroke-width': 1.5, transform: `rotate(45 ${X(x)} ${Y(y)})` }));
+    });
+
+    // x₀ 竖线与三点
+    const px = X(S.x0);
+    svg.appendChild(el('line', { x1: px, x2: px, y1: t, y2: plotB, stroke: 'var(--ink-300)', 'stroke-dasharray': '3 3' }));
+    [[d2, 'var(--indigo)', 3], [f, 'var(--ink-900)', 3.5]].forEach(([fn, c, rr]) => {
+      const y = fn(S.x0); if (y >= yLo && y <= yHi) svg.appendChild(el('circle', { cx: px, cy: Y(y), r: rr, fill: c }));
+    });
+
+    // 读数引线（标志细节：只给当前追踪量）
+    const ky = Math.min(Math.max(Y(k), t + 6), plotB - 6);
+    const text = `f′(x₀) = ${fmt(k)}`, tw = text.length * 7.6 + 16;
+    const right = px + 24 + tw < W - r;
+    const lx = right ? px + 28 : px - 28 - tw, ly = Math.max(t + 4, Math.min(ky - 44, plotB - 30));
+    svg.appendChild(el('path', { d: `M${px} ${ky} L${right ? lx : lx + tw} ${ly + 13}`, stroke: 'var(--ink-500)', 'stroke-width': 0.75, fill: 'none' }));
+    svg.appendChild(el('rect', { x: lx, y: ly, width: tw, height: 26, rx: 3, fill: 'var(--paper-0)', stroke: 'var(--hairline-strong)' }));
+    svg.appendChild(el('text', { x: lx + 8, y: ly + 17.5, 'font-size': 13, fill: 'var(--coral-ink)', 'font-family': 'var(--font-mono)' }, text));
+    svg.appendChild(el('circle', { cx: px, cy: ky, r: 4.5, fill: 'var(--coral)', stroke: 'var(--paper-0)', 'stroke-width': 1.5 }));
+
+    // 增减 / 凹凸条带
+    const strip = (fn, y, label, pos, neg) => {
+      svg.appendChild(el('text', { x: l - 8, y: y + 15, 'text-anchor': 'end', 'font-size': 12, fill: 'var(--ink-500)' }, label));
+      const cuts = [lo];
+      for (let i = 1; i <= 400; i++) {
+        const a = lo + (hi - lo) * (i - 1) / 400, b = lo + (hi - lo) * i / 400;
+        if (Math.sign(fn(a)) !== Math.sign(fn(b)) && fn(b) !== 0) cuts.push((a + b) / 2);
+      }
+      cuts.push(hi);
+      for (let i = 0; i < cuts.length - 1; i++) {
+        const m = (cuts[i] + cuts[i + 1]) / 2, up = fn(m) > 0, x1 = X(cuts[i]), x2 = X(cuts[i + 1]);
+        svg.appendChild(el('rect', { x: x1 + 1, y, width: Math.max(0, x2 - x1 - 2), height: 22, rx: 3, fill: up ? 'rgba(16,18,17,.08)' : 'var(--paper-0)', stroke: up ? 'none' : 'var(--hairline)' }));
+        if (x2 - x1 > 44) svg.appendChild(el('text', { x: (x1 + x2) / 2, y: y + 15, 'text-anchor': 'middle', 'font-size': 12, fill: up ? 'var(--ink-900)' : 'var(--ink-500)' }, up ? pos : neg));
+      }
+      svg.appendChild(el('line', { x1: px, x2: px, y1: y - 2, y2: y + 24, stroke: 'var(--coral)', 'stroke-width': 1.5 }));
+    };
+    strip(d1, 308, 'f′', '递增 ↗', '递减 ↘');
+    strip(d2, 338, 'f″', '凹 ∪', '凸 ∩');
+  }
+
+  /* ---------- 割线小图 ---------- */
+  function drawSecant() {
+    const svg = $('secantSvg'); svg.textContent = '';
+    const W = 400, H = 220, l = 16, r = 16, t = 12, b = 20, h = hAt(frame);
+    const w = Math.max(S.h0 * 1.4, 0.5), lo = S.x0 - w, hi = S.x0 + w;
+    let ys = [];
+    for (let i = 0; i <= 80; i++) ys.push(f(lo + (hi - lo) * i / 80));
+    let yLo = Math.min(...ys), yHi = Math.max(...ys);
+    if (yHi - yLo < 0.5) { yHi += 0.25; yLo -= 0.25; }
+    const p = (yHi - yLo) * 0.15; yLo -= p; yHi += p;
+    const X = (x) => l + (x - lo) / (hi - lo) * (W - l - r);
+    const Y = (y) => t + (yHi - y) / (yHi - yLo) * (H - t - b);
+    const clip = el('clipPath', { id: 'secClip' }); clip.appendChild(el('rect', { x: l, y: t, width: W - l - r, height: H - t - b }));
+    const defs = el('defs'); defs.appendChild(clip); svg.appendChild(defs);
+    const g = el('g', { 'clip-path': 'url(#secClip)' }); svg.appendChild(g);
+    for (let i = 1; i < 8; i++) g.appendChild(el('line', { x1: l + (W - l - r) * i / 8, x2: l + (W - l - r) * i / 8, y1: t, y2: H - b, stroke: 'var(--plot-grid)' }));
+    const k = d1(S.x0), s = secant(h), y0 = f(S.x0);
+    g.appendChild(el('path', { d: pathFrom(f, lo, hi, X, Y, yLo, yHi), fill: 'none', stroke: 'var(--plot-main)', 'stroke-width': 2 }));
+    g.appendChild(el('line', { x1: X(lo), y1: Y(y0 + k * (lo - S.x0)), x2: X(hi), y2: Y(y0 + k * (hi - S.x0)), stroke: 'var(--plot-current)', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' }));
+    g.appendChild(el('line', { x1: X(lo), y1: Y(y0 + s * (lo - S.x0)), x2: X(hi), y2: Y(y0 + s * (hi - S.x0)), stroke: 'var(--ink-500)', 'stroke-width': 1.25 }));
+    const P = [X(S.x0), Y(y0)], Q = [X(S.x0 + h), Y(f(S.x0 + h))];
+    g.appendChild(el('line', { x1: P[0], x2: Q[0], y1: H - b, y2: H - b, stroke: 'var(--ink-700)', 'stroke-width': 2 }));
+    svg.appendChild(el('circle', { cx: Q[0], cy: Q[1], r: 3.5, fill: 'var(--paper-0)', stroke: 'var(--ink-700)', 'stroke-width': 1.5 }));
+    svg.appendChild(el('circle', { cx: P[0], cy: P[1], r: 4, fill: 'var(--coral)', stroke: 'var(--paper-0)', 'stroke-width': 1.5 }));
+    svg.appendChild(el('text', { x: P[0] - 8, y: P[1] - 8, 'text-anchor': 'end', 'font-size': 12, fill: 'var(--ink-700)', 'font-family': 'var(--font-mono)' }, 'P'));
+    svg.appendChild(el('text', { x: Q[0] + 8, y: Q[1] - 8, 'font-size': 12, fill: 'var(--ink-700)', 'font-family': 'var(--font-mono)' }, 'Q'));
+    svg.appendChild(el('text', { x: (P[0] + Q[0]) / 2, y: H - 4, 'text-anchor': 'middle', 'font-size': 12, fill: 'var(--ink-500)', 'font-family': 'var(--font-mono)' }, 'h'));
+    $('m1hint').textContent = `斜率 ${fmt(s, 3)} → ${fmt(k, 3)}`;
+  }
+
+  /* ---------- 收敛小图 ---------- */
+  function drawConv() {
+    const svg = $('convSvg'); svg.textContent = '';
+    const W = 320, H = 220, l = 48, r = 16, t = 16, b = 32, k = d1(S.x0);
+    const vals = Array.from({ length: FRAMES }, (_, i) => secant(hAt(i)));
+    let yLo = Math.min(k, ...vals), yHi = Math.max(k, ...vals);
+    if (yHi - yLo < 0.2) { yHi += 0.1; yLo -= 0.1; }
+    const p = (yHi - yLo) * 0.12; yLo -= p; yHi += p;
+    const X = (i) => l + i / (FRAMES - 1) * (W - l - r);
+    const Y = (y) => t + (yHi - y) / (yHi - yLo) * (H - t - b);
+    const gy = niceStep(yHi - yLo, 4);
+    for (let y = Math.ceil(yLo / gy) * gy; y <= yHi + 1e-9; y += gy) {
+      svg.appendChild(el('line', { x1: l, x2: W - r, y1: Y(y), y2: Y(y), stroke: 'var(--plot-grid)' }));
+      svg.appendChild(el('text', { x: l - 8, y: Y(y) + 4, 'text-anchor': 'end', 'font-size': 12, fill: 'var(--ink-400)', 'font-family': 'var(--font-mono)' }, fmt(y, gy < 1 ? (gy < 0.1 ? 2 : 1) : 0)));
+    }
+    svg.appendChild(el('line', { x1: l, x2: W - r, y1: Y(k), y2: Y(k), stroke: 'var(--plot-current)', 'stroke-width': 1.25, 'stroke-dasharray': '5 4' }));
+    svg.appendChild(el('text', { x: W - r, y: Y(k) - 6, 'text-anchor': 'end', 'font-size': 12, fill: 'var(--coral-ink)', 'font-family': 'var(--font-mono)' }, 'f′(x₀)'));
+    let d = '';
+    for (let i = 0; i <= frame; i++) d += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(vals[i]).toFixed(1);
+    svg.appendChild(el('path', { d, fill: 'none', stroke: 'var(--ink-700)', 'stroke-width': 1.75 }));
+    svg.appendChild(el('circle', { cx: X(frame), cy: Y(vals[frame]), r: 3.5, fill: 'var(--ink-900)' }));
+    svg.appendChild(el('text', { x: l, y: H - 8, 'font-size': 12, fill: 'var(--ink-400)' }, 'h 大'));
+    svg.appendChild(el('text', { x: W - r, y: H - 8, 'text-anchor': 'end', 'font-size': 12, fill: 'var(--ink-400)' }, 'h → 0'));
+  }
+
+  /* ---------- 读数 / 结论 ---------- */
+  function drawReadout() {
+    const h = hAt(frame), k = d1(S.x0), s = secant(h), st = stationary(), inf = inflection();
+    const rows = [
+      ['f(x₀)', fmt(f(S.x0), 3)],
+      ['f′(x₀)', fmt(k, 3), 'current'],
+      ['f″(x₀)', fmt(d2(S.x0), 3)],
+      ['割线斜率', fmt(s, 3)],
+      ['误差 |k − f′|', fmt(Math.abs(s - k), 4)],
+      ['驻点', st.length ? st.map((x) => fmt(x)).join(', ') : '无'],
+      ['拐点', inf.length ? inf.map((x) => fmt(x)).join(', ') : '无'],
+    ];
+    $('readout').innerHTML = rows.map(([a, b, c]) => `<tr class="${c || ''}"><td>${a}</td><td>${b}</td></tr>`).join('');
+    const k2 = d2(S.x0), eps = 1e-6;
+    const mono = Math.abs(k) < 0.01 ? 'f′ ≈ 0，x₀ 接近驻点' : k > 0 ? 'f′ > 0，f 在此递增' : 'f′ < 0，f 在此递减';
+    const conc = Math.abs(k2) < eps + 0.01 ? 'f″ ≈ 0，接近拐点' : k2 > 0 ? 'f″ > 0，曲线是凹的' : 'f″ < 0，曲线是凸的';
+    $('conclusion').innerHTML = `<span class="mono">x₀ = ${fmt(S.x0)}</span>：${mono}；${conc}`;
+    $('tRead').innerHTML = `h = <b>${fmt(h, 3)}</b>　${String(frame + 1).padStart(2, '0')} / ${FRAMES}`;
+  }
+
+  function formulaText() {
+    const terms = [[S.a, 'x³'], [S.b, 'x²'], [S.c, 'x']].filter(([v]) => Math.abs(v) > 1e-9);
+    if (!terms.length) return '<i>f</i>(<i>x</i>) = 0';
+    return '<i>f</i>(<i>x</i>) = ' + terms.map(([v, p], i) => {
+      const abs = Math.abs(v), coef = Math.abs(abs - 1) < 1e-9 ? '' : String(+abs.toFixed(1));
+      const sign = v < 0 ? (i ? ' − ' : '−') : (i ? ' + ' : '');
+      return sign + coef + '<i>' + p.replace('x', 'x</i>');
+    }).join('');
+  }
+
+  /* ---------- 架构视图 ---------- */
+  const NODES = [
+    { id: 'n1', name: '函数源', kind: '源', x: 40, y: 200, rows: () => [['f(x)', minus(formulaText().replace(/<[^>]+>/g, '').replace('f(x) = ', ''))], ['区间', `[${fmt(S.lo, 1)}, ${fmt(S.hi, 1)}]`]] },
+    { id: 'n2', name: '割线构造', kind: '变换', x: 300, y: 80, rows: () => [['h', fmt(hAt(frame), 3)], ['割线斜率', fmt(secant(hAt(frame)), 3)]] },
+    { id: 'n3', name: '一阶导数与切线', kind: '变换', x: 300, y: 320, rows: () => [['x₀', fmt(S.x0)], ['f′(x₀)', fmt(d1(S.x0), 3)]] },
+    { id: 'n4', name: '三曲线同轴', kind: '视图', x: 580, y: 200, rows: () => [['f″(x₀)', fmt(d2(S.x0), 3)], ['曲线', 'f · f′ · f″']] },
+    { id: 'n5', name: '驻点与拐点', kind: '分析', x: 860, y: 120, rows: () => [['驻点', String(stationary().length)], ['拐点', String(inflection().length)]] },
+    { id: 'n6', name: '读数表', kind: '视图', x: 860, y: 300, rows: () => [['误差', fmt(Math.abs(secant(hAt(frame)) - d1(S.x0)), 4)], ['帧', `${frame + 1} / ${FRAMES}`]] },
+  ];
+  const WIRES = [['n1', 'n2'], ['n1', 'n3'], ['n2', 'n4'], ['n3', 'n4'], ['n4', 'n5'], ['n4', 'n6']];
+  function drawArch() {
+    const host = $('archInner'); host.textContent = '';
+    const svg = el('svg', { viewBox: '0 0 1240 560' });
+    const defs = el('defs'), mk = el('marker', { id: 'arr', viewBox: '0 0 8 8', refX: 7, refY: 4, markerWidth: 8, markerHeight: 8, orient: 'auto' });
+    mk.appendChild(el('path', { d: 'M0 0 8 4 0 8z', fill: 'var(--ink-400)' })); defs.appendChild(mk); svg.appendChild(defs);
+    const H = 88;
+    WIRES.forEach(([a, b]) => {
+      const A = NODES.find((n) => n.id === a), B = NODES.find((n) => n.id === b);
+      const x1 = A.x + 200, y1 = A.y + H / 2, x2 = B.x - 6, y2 = B.y + H / 2, mx = (x1 + x2) / 2;
+      const active = a === selectedNode || b === selectedNode;
+      svg.appendChild(el('path', { d: `M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`, fill: 'none', stroke: active ? 'var(--coral)' : 'var(--ink-300)', 'stroke-width': active ? 1.5 : 1.25, 'marker-end': 'url(#arr)' }));
+    });
+    host.appendChild(svg);
+    NODES.forEach((n) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'node'; b.style.left = n.x + 'px'; b.style.top = n.y + 'px';
+      b.setAttribute('aria-pressed', String(n.id === selectedNode));
+      b.innerHTML = `<div class="node-head"><b>${n.name}</b><span>${n.kind}</span></div><div class="node-body">${n.rows().map(([k, v]) => `<div><span>${k}</span><span class="mono">${v}</span></div>`).join('')}</div>${n.kind !== '源' ? '<i class="port in"></i>' : ''}${WIRES.some(([a]) => a === n.id) ? '<i class="port out"></i>' : ''}`;
+      b.addEventListener('click', () => { selectedNode = n.id; drawArch(); });
+      host.appendChild(b);
+    });
+  }
+
+  /* ---------- 同步 ---------- */
+  function syncInputs() {
+    document.querySelectorAll('[data-key]').forEach((input) => {
+      const key = input.dataset.key;
+      if (key === 'x0') { input.min = S.lo; input.max = S.hi; }
+      input.value = S[key];
+      if (input.type === 'range') input.style.setProperty('--fill', ((S[key] - input.min) / (input.max - input.min) * 100) + '%');
+      const out = $('o-' + key);
+      if (out) out.innerHTML = key === 'x0' || key === 'h0' ? fmt(S[key]) : fmt(S[key], 1);
+    });
+    $('scrub').value = frame;
+    $('scrub').style.setProperty('--fill', (frame / (FRAMES - 1) * 100) + '%');
+    $('formula').innerHTML = formulaText();
+    $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
+  }
+  let raf = 0;
+  function render() {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      syncInputs();
+      if (view === 'exp') { drawMain(); drawSecant(); drawConv(); drawReadout(); } else drawArch();
+    });
+  }
+
+  let saveTimer = 0;
+  function markDirty() {
+    const st = $('status'); st.dataset.state = 'saving'; st.lastChild.textContent = '保存中…';
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => { st.dataset.state = 'saved'; st.lastChild.textContent = '已保存'; }, 700);
+  }
+  let pending = null;
+  function beginEdit() { if (!pending) pending = { ...S }; }
+  function commitEdit() {
+    if (!pending) return;
+    if (JSON.stringify(pending) !== JSON.stringify(S)) { undoStack.push(pending); redoStack.length = 0; markDirty(); }
+    pending = null; render();
+  }
+  function setParam(key, v) {
+    S[key] = v;
+    if (key === 'lo' || key === 'hi') {
+      if (S.hi - S.lo < 0.5) { if (key === 'lo') S.lo = S.hi - 0.5; else S.hi = S.lo + 0.5; }
+      S.x0 = Math.min(Math.max(S.x0, S.lo), S.hi);
+    }
+    render();
+  }
+
+  document.querySelectorAll('[data-key]').forEach((input) => {
+    const key = input.dataset.key;
+    input.addEventListener('pointerdown', beginEdit);
+    input.addEventListener('keydown', beginEdit);
+    input.addEventListener('input', () => { beginEdit(); const v = parseFloat(input.value); if (Number.isFinite(v)) setParam(key, v); });
+    input.addEventListener('change', commitEdit);
+  });
+  $('undo').addEventListener('click', () => { if (!undoStack.length) return; redoStack.push({ ...S }); S = undoStack.pop(); markDirty(); render(); });
+  $('redo').addEventListener('click', () => { if (!redoStack.length) return; undoStack.push({ ...S }); S = redoStack.pop(); markDirty(); render(); });
+  $('resetBtn').addEventListener('click', () => { beginEdit(); S = { ...DEFAULTS }; frame = 0; commitEdit(); toggleMenu(false); });
+
+  // 主图拖动 x₀
+  const mainSvg = $('mainSvg');
+  const toX = (e) => {
+    const r = mainSvg.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * M.W;
+    return Math.round(Math.min(Math.max(mainX(px), S.lo), S.hi) * 100) / 100;
+  };
+  mainSvg.addEventListener('pointerdown', (e) => { beginEdit(); mainSvg.setPointerCapture(e.pointerId); setParam('x0', toX(e)); });
+  mainSvg.addEventListener('pointermove', (e) => { if (mainSvg.hasPointerCapture(e.pointerId)) setParam('x0', toX(e)); });
+  mainSvg.addEventListener('pointerup', commitEdit);
+
+  // 时间轴
+  function setPlaying(on) {
+    playing = on; clearInterval(timer);
+    $('tPlay').setAttribute('aria-label', on ? '暂停' : '播放');
+    $('playIcon').innerHTML = on ? '<path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z"/>' : '<path d="M4.5 3v10l8-5z"/>';
+    if (on) {
+      if (frame >= FRAMES - 1) frame = 0;
+      timer = setInterval(() => { if (frame >= FRAMES - 1) { setPlaying(false); return; } frame++; render(); }, 60);
+    }
+  }
+  $('tPlay').addEventListener('click', () => setPlaying(!playing));
+  $('tBack').addEventListener('click', () => { setPlaying(false); frame = Math.max(0, frame - 1); render(); });
+  $('tFwd').addEventListener('click', () => { setPlaying(false); frame = Math.min(FRAMES - 1, frame + 1); render(); });
+  $('tReset').addEventListener('click', () => { setPlaying(false); frame = 0; render(); });
+  $('scrub').addEventListener('input', (e) => { setPlaying(false); frame = +e.target.value; render(); });
+
+  // 视图切换 / 步骤 / 菜单
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+    view = b.dataset.view; $('app').dataset.view = view;
+    document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  }));
+  $('stepsBtn').addEventListener('click', () => {
+    const open = $('steps').dataset.open !== 'true';
+    $('steps').dataset.open = String(open); $('stepsBtn').setAttribute('aria-expanded', String(open));
+    $('stepsBtn').textContent = open ? '步骤与观察 ▴' : '步骤与观察 ▾';
+  });
+  function toggleMenu(open) { $('menu').dataset.open = String(open); $('moreBtn').setAttribute('aria-expanded', String(open)); }
+  $('moreBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu($('menu').dataset.open !== 'true'); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('.more')) toggleMenu(false); });
+
+  document.addEventListener('keydown', (e) => {
+    const typing = e.target.matches('input[type="number"], textarea');
+    if (e.key === 'Escape') toggleMenu(false);
+    if (typing) return;
+    if (e.key === ' ' && !e.target.matches('button, input')) { e.preventDefault(); setPlaying(!playing); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $(e.shiftKey ? 'redo' : 'undo').click(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>

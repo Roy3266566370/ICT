@@ -12,12 +12,16 @@ import { studyStages, type StudyStage } from './studyStages';
  *
  * 新增对象类型 = 在 `NODE_DEFS` 里注册一项（端口、徽标、组件），画布其余部分不需要改动。
  */
-import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Formula } from '@/components/showcase/Formula';
 import type { CanvasNode, NodeType, PortSpec, PortValue } from './types.ts';
 import { det, tr, eigen, rankOf, fmt, clamp, paramsM, type M2 } from './math.ts';
-import { FunctionSourceBody, FunctionPlotBody, DerivativeBody, LimitBody, IntegralBody, TaylorBody } from './CalculusNodes';
+import {
+  FunctionSourceBody, FunctionPlotBody, DerivativeBody, LimitBody, IntegralBody, TaylorBody,
+  CALCULUS_BLOCK_DEFS, CALCULUS_BLOCK_DEFAULTS,
+} from './CalculusNodes';
 import { DoubleIntegralBody, FourierLabBody, FtcViewBody, Func2dSourceBody, GradientContourBody, OdeSlopeFieldBody } from './CalculusAdvancedNodes';
+import { PHYSICS_BLOCK_DEFS, PHYSICS_BLOCK_DEFAULTS } from './PhysicsBlockNodes';
 import {
   CollisionBody, EnergyBody, InclineBody, PendulumBody, ProjectileBody, ResonanceBody, SpringBody, TrailBody, WaveBody,
 } from './PhysicsNodes';
@@ -30,7 +34,14 @@ import { PhysicsPipelineNode } from './PhysicsPipelineNode';
 import { physicsPipelinePorts } from './physicsPipeline.ts';
 import { CalculusPipelineNode } from './CalculusPipelineNode';
 import { calculusPipelinePorts } from './calculusPipeline.ts';
+import { BusinessPipelineNode } from './BusinessPipelineNode.tsx';
+import { businessPipelinePorts } from './businessPipeline.ts';
 import { AttentionSimBody, PageLabSimBody } from './SimNodes';
+import { AI_RULE_DEFS } from './AiRuleBlockNode';
+import { UNIVERSAL_STAGE_DEFS } from './UniversalStageView';
+import { OFFICE_BLOCK_DEFS, OFFICE_DEFAULTS } from './OfficeBlockNodes';
+import { DEEP_MODERN_DEFS, DEEP_MODERN_DEFAULTS } from './DeepModernNodes';
+import { LAB408_BLOCK_DEFS, LAB408_BLOCK_DEFAULTS } from './Lab408BlockNodes';
 import { DEEP_FIRST_DEFS, deepFirstDefaults } from './DeepFirstNodes';
 import { DEEP_CORE_DEFS, deepCoreDefaults } from './DeepCoreNodes';
 import { DEEP_ADVANCED_DEFS, deepAdvancedDefaults } from './DeepAdvancedNodes';
@@ -38,6 +49,8 @@ import styles from './canvas.module.css';
 
 export interface NodeBodyProps {
   node: CanvasNode;
+  /** 渲染在画布卡片内为 true（检查器/仪器台复用同一 Body 时为缺省 false），供卡片精简内容用 */
+  inCard?: boolean;
   /** 各输入端口的当前值（键 = 端口 id），无输入节点为空对象 */
   values: Record<string, PortValue | null>;
   /** 本节点输出的求值结果（无输出为 null），供源/变换节点自显 */
@@ -89,7 +102,7 @@ const asM2 = (v: PortValue | null | undefined): M2 | null =>
 
 /* ============================== 源 ============================== */
 
-function MatrixSourceBody({ node, onParams }: NodeBodyProps): JSX.Element {
+function MatrixSourceBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
   const m = paramsM(node.params);
   const set = (k: keyof M2, raw: string): void => {
     const v = parseFloat(raw);
@@ -99,22 +112,24 @@ function MatrixSourceBody({ node, onParams }: NodeBodyProps): JSX.Element {
     <div>
       <div className={styles.matgrid}>
         {(['a', 'b', 'c', 'd'] as const).map((k) => (
-          <input
-            key={k}
-            aria-label={`矩阵元素 ${k}`}
-            inputMode="decimal"
-            value={fmt(m[k], 2)}
-            onChange={(e) => set(k, e.target.value)}
-          />
+          inCard
+            ? <div key={k} className={styles.rocell}>{fmt(m[k])}</div>
+            : <input
+                key={k}
+                aria-label={`矩阵元素 ${k}`}
+                inputMode="decimal"
+                value={fmt(m[k], 2)}
+                onChange={(e) => set(k, e.target.value)}
+              />
         ))}
       </div>
-      <div className={styles.presets}>
+      {!inCard && <div className={styles.presets}>
         {MATRIX_PRESETS.map((p) => (
           <button key={p.label} type="button" onClick={() => onParams?.({ ...p.m })}>
             {p.label}
           </button>
         ))}
-      </div>
+      </div>}
       <div className={styles.miniRead}>
         det <b className={styles.live}>{fmt(det(m))}</b> · tr <b className={styles.live}>{fmt(tr(m))}</b>
       </div>
@@ -143,7 +158,7 @@ function SliderBody({ node, onParams }: NodeBodyProps): JSX.Element {
   );
 }
 
-function TickerBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
+function TickerBody({ node, self, onParams, inCard }: NodeBodyProps): JSX.Element {
   const running = (node.params.running ?? 1) !== 0;
   const period = Math.max(0.5, node.params.period ?? 6);
   const t = self && self.kind === 'scalar' ? self.v : 0;
@@ -165,12 +180,12 @@ function TickerBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
           <span className={styles.dim}>t = {fmt(t, 2)}</span>
         </div>
       </div>
-      <input
+      {!inCard && <input
         type="range" className={styles.slider}
         min={1} max={20} step={0.5} value={period}
         aria-label="周期（秒/圈）"
         onChange={(e) => onParams?.({ period: parseFloat(e.target.value) })}
-      />
+      />}
       <div className={styles.miniRead}>周期 <b className={styles.live}>{fmt(period, 1)}s</b>/圈 → 输出 t ∈ [0,1)</div>
     </div>
   );
@@ -178,12 +193,12 @@ function TickerBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
 
 /* ============================== 变换 ============================== */
 
-function RotorBody({ node, values, onParams }: NodeBodyProps): JSX.Element {
+function RotorBody({ node, values, onParams, inCard }: NodeBodyProps): JSX.Element {
   const wired = values.in != null;
   const t = wired && values.in!.kind === 'scalar' ? values.in!.v : node.params.theta ?? 0;
   return (
     <div>
-      {!wired ? (
+      {!wired && !inCard ? (
         <input
           type="range" className={styles.slider}
           min={0} max={1} step={0.005} value={node.params.theta ?? 0}
@@ -497,26 +512,23 @@ function TextNoteBody({ node, onText }: NodeBodyProps): JSX.Element {
   );
 }
 
+const FormulaCardEditor = lazy(() => import('./FormulaCardEditor'));
+
 function LatexNoteBody({ node, onText }: NodeBodyProps): JSX.Element {
+  const [editing, setEditing] = useState(false);
   const tex = (node.text ?? '').trim();
-  return (
-    <div>
-      <textarea
-        className={styles.note}
-        value={node.text ?? ''}
-        placeholder="输入 LaTeX，如 A^TA = I 或 e^{i\pi}+1=0"
-        spellCheck={false}
-        rows={2}
-        onChange={(e) => onText?.(e.target.value)}
-      />
-      <div className={styles.texview}>
-        {tex ? <Formula tex={tex} block label={tex} /> : <span className={styles.dim}>公式会渲染在这里</span>}
-      </div>
-    </div>
-  );
+  if (editing && onText) return <Suspense fallback={<p role="status">正在打开公式编辑器…</p>}>
+    <FormulaCardEditor initialValue={tex}
+      onComplete={(next) => { if (next !== tex) onText(next); setEditing(false); }}
+      onCancel={() => setEditing(false)} />
+  </Suspense>;
+  return <div className={styles.formulaCard}>
+    {tex && <div className={styles.texview}><Formula tex={tex} block /></div>}
+    {onText && <button type="button" className={styles.editFormula} onClick={() => setEditing(true)}>编辑公式</button>}
+  </div>;
 }
 
-function CobwebBody({ node, onParams }: NodeBodyProps): JSX.Element {
+function CobwebBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
   const r = node.params.r ?? 3.2;
   const W = 210, H = 170, S = 150;
   const px = (x: number): number => 8 + x * S;
@@ -548,12 +560,12 @@ function CobwebBody({ node, onParams }: NodeBodyProps): JSX.Element {
         <path d={parab} fill="none" stroke="#4F46E5" strokeWidth={1.6} />
         <path d={web} fill="none" stroke="#FF7A59" strokeWidth={1} opacity={0.85} />
       </svg>
-      <input
+      {!inCard && <input
         type="range" className={styles.slider}
         min={2.5} max={4} step={0.01} value={r}
         aria-label="增长率 r"
         onChange={(e) => onParams?.({ r: parseFloat(e.target.value) })}
-      />
+      />}
       <div className={styles.miniRead}>
         r = <b className={styles.live}>{fmt(r)}</b> · <span className={styles.dim}>{mode}</span>
       </div>
@@ -613,6 +625,7 @@ export function nodePorts(node: CanvasNode, dir: 'in' | 'out'): readonly PortSpe
   if (node.type === 'lab408Stage') return pipelinePorts(node, dir);
   if (node.type === 'physicsStage') return physicsPipelinePorts(node, dir);
   if (node.type === 'calculusStage') return calculusPipelinePorts(node, dir);
+  if (node.type === 'businessStage') return businessPipelinePorts(node, dir);
   if (node.type === 'composite') {
     return (node.sub?.ports ?? [])
       .filter((p) => p.dir === dir)
@@ -627,6 +640,13 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   ...DEEP_FIRST_DEFS,
   ...DEEP_CORE_DEFS,
   ...DEEP_ADVANCED_DEFS,
+  ...OFFICE_BLOCK_DEFS,
+  ...PHYSICS_BLOCK_DEFS,
+  ...CALCULUS_BLOCK_DEFS,
+  ...LAB408_BLOCK_DEFS,
+  ...DEEP_MODERN_DEFS,
+  ...AI_RULE_DEFS,
+  ...UNIVERSAL_STAGE_DEFS,
   functionSource: { title: '函数源', badge: '源', width: 280, outputs: [{ id: 'out', label: 'f(x)', kind: 'function' }], Body: FunctionSourceBody },
   functionPlot: { title: '函数图像', badge: '视图', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], Body: FunctionPlotBody },
   limitProbe: { title: '极限观察', badge: '实验', width: 310, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], outputs: [{ id: 'out', label: '数值候选', kind: 'scalar' }], Body: LimitBody },
@@ -711,6 +731,7 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   lab408Stage: { title: '408 模块', badge: '实验', width: 400, Body: Lab408PipelineNode },
   physicsStage: { title: '大学物理模块', badge: '实验', width: 400, Body: PhysicsPipelineNode },
   calculusStage: { title: '高等数学模块', badge: '实验', width: 400, Body: CalculusPipelineNode },
+  businessStage: { title: '办公决策模块', badge: '实验', width: 400, Body: BusinessPipelineNode },
   cacheSimLab: { title: 'Cache 组相联', badge: '实验', width: 380, Body: CacheSimBody },
   pipelineLab: { title: '流水线时空图', badge: '实验', width: 400, Body: PipelineBody },
   ieee754Lab: { title: 'IEEE754 解码', badge: '实验', width: 330, Body: Ieee754Body },
@@ -732,19 +753,23 @@ export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[
   { label: '深度学习 · 输入', types: ['dataset2dSource', 'pixelGridSource', 'tokenSeqSource', 'studyTokens'] },
   { label: '深度学习 · 算子', types: ['linearOp', 'activationOp', 'residualJoin', 'normOp', 'conv2dOp', 'attentionOp',
     ...(Object.keys(studyStages) as StudyStage[]).filter((type) => type !== 'studyTokens' && studyStages[type].outputs.length > 0)] },
-  { label: '深度学习 · 训练与更新', types: ['mlpTrainer', 'optimizerArena', 'svmLab', 'qLearningLab'] },
+  { label: '深度学习 · 训练与更新', types: ['mlpTrainer', 'optimizerArena', 'svmLab', 'qLearningLab', 'lossProbeOp', 'loraAdapterOp', 'quantProbeOp'] },
   { label: '深度学习 · 观察', types: ['boundaryView', 'matrixHeatmapView', 'gradFlowMeter',
     ...(Object.keys(studyStages) as StudyStage[]).filter((type) => studyStages[type].outputs.length === 0), 'activationProbe', 'attentionAB',
-    'kvCache', 'resnetLab', 'sequenceMemory', 'multiheadLab', 'autoencoderLab', 'diffusionLab'] },
-  { label: '高数 · 一元与级数', types: ['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor', 'ftcView', 'fourierLab', 'odeSlopeField'] },
-  { label: '高数 · 多元与线代', types: ['func2dSource', 'gradientContour', 'doubleIntegralView', 'matrixSource', 'transformView', 'eigRead'] },
+    'kvCache', 'resnetLab', 'sequenceMemory', 'multiheadLab', 'autoencoderLab', 'diffusionLab', 'samplingDecoderView'] },
+  { label: '高数 · 一元与级数', types: ['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor', 'ftcView', 'fourierLab', 'odeSlopeField', 'funcCombineOp', 'probDistSource'] },
+  { label: '高数 · 多元与线代', types: ['func2dSource', 'gradientContour', 'doubleIntegralView', 'matrixSource', 'transformView', 'eigRead', 'svdDecomposeOp', 'linearSolveView'] },
   { label: '408', types: ['cacheSimLab', 'pipelineLab', 'ieee754Lab', 'cpuScheduleLab', 'bankerLab',
-    'tcpCongestionLab', 'slidingWindowLab', 'dsStepLab', 'lab408Workbench', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet'] },
+    'tcpCongestionLab', 'slidingWindowLab', 'dsStepLab', 'lab408Workbench', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet',
+    'arraySource', 'sortCompareView', 'graphSource', 'shortestPathView', 'memAddrSource', 'addrTranslateView', 'cacheMapView'] },
+  { label: '办公 · 数据与决策', types: ['bizTableSource', 'bizGrowthSource', 'bizScenarioFork', 'bizDiscountOp', 'bizDecisionMatrix', 'bizWaterfallView'] },
+  { label: 'AI · 创作引擎', types: ['aiRuleBlock', 'universalStageView'] },
   { label: '源', types: ['slider', 'ticker'] },
   { label: '变换', types: ['rotor', 'matmul'] },
   { label: '视图', types: ['fieldView', 'detGauge', 'squareView', 'cobweb'] },
   { label: '学习', types: ['quiz', 'spark', 'attentionSim'] },
-  { label: '力学', types: ['projectile', 'springOsc', 'pendulum', 'trailView', 'energyMeter', 'inclineLab', 'collisionLab', 'resonanceLab', 'waveLab'] },
+  { label: '大学物理 · 力学', types: ['projectile', 'springOsc', 'pendulum', 'trailView', 'energyMeter', 'inclineLab', 'collisionLab', 'resonanceLab', 'waveLab'] },
+  { label: '大学物理 · 电磁光学热学', types: ['emFieldSource', 'emFieldView', 'rlcCircuitLab', 'opticsBench', 'thermoCycle'] },
   { label: '文字', types: ['textNote', 'latexNote'] },
 ];
 
@@ -752,6 +777,17 @@ export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[
 export function defaultParams(type: NodeType): Record<string, number> {
   const deep = deepFirstDefaults(type) ?? deepCoreDefaults(type) ?? deepAdvancedDefaults(type);
   if (deep) return deep;
+  const office = OFFICE_DEFAULTS[type];
+  if (office) return { ...office };
+  const physics = PHYSICS_BLOCK_DEFAULTS[type];
+  if (physics) return { ...physics };
+  const calculus = CALCULUS_BLOCK_DEFAULTS[type];
+  if (calculus) return { ...calculus };
+  const lab408 = LAB408_BLOCK_DEFAULTS[type];
+  if (lab408) return { ...lab408 };
+  const deepModern = DEEP_MODERN_DEFAULTS[type];
+  if (deepModern) return { ...deepModern };
+  if (type === 'aiRuleBlock') return { a: 1, b: 0, c: 0 };
   switch (type) {
     case 'functionSource': return { a: 1, b: 0, c: 0 };
     case 'functionPlot': return { min: -3, max: 3, x: 0 };

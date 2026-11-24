@@ -4,6 +4,7 @@ from pathlib import Path
 import json,math,os,re,threading
 from uuid import uuid4
 from ..settings import UPLOAD_DIR
+from .workshop_plugin import validate_workshop_plugin
 
 LOCK=threading.RLock()
 class DocumentConflict(ValueError):pass
@@ -28,11 +29,39 @@ def _number(value,minimum,maximum):
     if type(value) not in (float,int) or not math.isfinite(value) or not minimum<=value<=maximum:
         raise ValueError('位置、大小和样式须为允许范围内的有限数值')
 
+SHAPES = frozenset('rect ellipse roundRect diamond parallelogram trapezoid triangle rtTriangle hexagon octagon pentagon star5 chevron rightArrow leftArrow upArrow downArrow leftRightArrow leftBrace rightBrace wedgeRectCallout plus cloud'.split())
+_RUN_STYLE = frozenset('font_size font_family color bold italic underline letter_spacing baseline highlight'.split())
+
+def _validate_paragraphs(value):
+    if not isinstance(value,list) or len(value)>1000:raise ValueError('文字段落过多')
+    chars=0
+    run_count=0
+    for paragraph in value:
+        if not isinstance(paragraph,dict) or set(paragraph)-{'text','runs','align','line_height','line_spacing_pt','space_before','space_after','bullet'}:
+            raise ValueError('段落格式不合法')
+        text=paragraph.get('text')
+        runs=paragraph.get('runs')
+        if not isinstance(text,str) or not isinstance(runs,list):raise ValueError('段落须包含文字和文字样式')
+        chars+=len(text)
+        run_count+=len(runs)
+        if chars>20000 or run_count>4000:raise ValueError('富文本过长')
+        if 'align' in paragraph and paragraph['align'] not in ('left','center','right','justify'):raise ValueError('段落对齐方式不合法')
+        if 'bullet' in paragraph and type(paragraph['bullet']) is not bool:raise ValueError('段落项目符号不合法')
+        for key in ('line_spacing_pt','space_before','space_after'):
+            if key in paragraph:_number(paragraph[key],0,2000)
+        if 'line_height' in paragraph:_number(paragraph['line_height'],.1,20)
+        for run in runs:
+            if not isinstance(run,dict) or set(run)!={'text','style'} or not isinstance(run['text'],str) or not isinstance(run['style'],dict):
+                raise ValueError('文字样式不合法')
+            if run['style'].keys()-_RUN_STYLE:raise ValueError('未知文字样式字段')
+            validate_patch({'style':run['style']})
+        if runs and ''.join(run['text'] for run in runs)!=text:raise ValueError('段落与文字片段内容不一致')
+
 def validate_patch(patch:dict)->dict:
     normalized=deepcopy(patch)
     numeric={'x':(-20000,20000),'y':(-20000,20000),'width':(.1,20000),'height':(.1,20000),
       'rotation':(-36000,36000),'z':(-10000,10000),'opacity':(0,1)}
-    allowed=set(numeric)|{'locked','hidden','deleted','text','style','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo',
+    allowed=set(numeric)|{'locked','hidden','deleted','text','paragraphs','style','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo','workshop_plugin',
         'cleaned_asset_id','figure_scene','figure_source_id','figure_object_id','figure_provenance'}
     if set(patch)-allowed:raise ValueError('修改包含不可编辑字段')
     for key,value in patch.items():
@@ -67,6 +96,9 @@ def validate_patch(patch:dict)->dict:
         elif key=='demo':
             from .inline_systems import validate_scene_demo
             normalized[key]=validate_scene_demo(value)
+        elif key=='workshop_plugin':
+            if value is not None:
+                normalized[key]=validate_workshop_plugin(value)
         elif key=='matrix_ocr':
             from .math_scene import validate_matrix_ocr
             validate_matrix_ocr(value)
@@ -76,14 +108,17 @@ def validate_patch(patch:dict)->dict:
             _number(value['speed'],.1,10)
         elif key=='text':
             if not isinstance(value,str) or len(value)>20000:raise ValueError('文字过长')
+        elif key=='paragraphs':
+            _validate_paragraphs(value)
         elif key=='style':
             if not isinstance(value,dict):raise ValueError('样式类型不合法')
             for name,item in value.items():
                 if name=='font_size':_number(item,1,500)
                 elif name=='line_height':_number(item,.5,5)
                 elif name=='letter_spacing':_number(item,-20,100)
+                elif name=='baseline':_number(item,-100,100)
                 elif name.startswith('padding_') and name[8:] in ('left','right','top','bottom'):_number(item,0,500)
-                elif name in ('color','fill','stroke'):
+                elif name in ('color','fill','stroke','highlight'):
                     if item!='transparent' and not (isinstance(item,str) and re.fullmatch(r'#[0-9a-fA-F]{6}',item)):raise ValueError('颜色须为十六进制值')
                 elif name=='font_family':
                     if not isinstance(item,str) or len(item)>100 or re.search(r'[<>;{}]',item):raise ValueError('字体名称不合法')
@@ -143,19 +178,23 @@ def _create(page,identifier,data):
         update={k:v for k,v in data.items() if k!='duplicate_from'}
         update=validate_patch(update);node.update(update)
     else:
-        if set(data)-{'type','name','text','x','y','width','height','rotation','z','style','image_data','shape','opacity','locked','hidden','deleted','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo','figure_provenance','figure_source_id','figure_object_id'}:raise ValueError('新增对象包含不可用字段')
+        if set(data)-{'type','name','text','paragraphs','table','chart','x','y','width','height','rotation','z','style','image_data','shape','opacity','locked','hidden','deleted','crop','interaction','basis','flow','viewer_editable','viewer_parameters','math_scene','matrix_ocr','diagram','demo','workshop_plugin','figure_provenance','figure_source_id','figure_object_id'}:raise ValueError('新增对象包含不可用字段')
         kind=data.get('type','text')
-        if kind not in ('text','shape','image','vector','math_scene','diagram','demo'):raise ValueError('对象类型不支持新增')
+        shape=data.get('shape','rect')
+        if shape is not None and (not isinstance(shape,str) or shape not in SHAPES):raise ValueError('图形类型不合法')
+        if kind not in ('text','shape','image','vector','math_scene','diagram','demo','workshop_plugin','table','chart'):raise ValueError('对象类型不支持新增')
+        if kind in ('table','chart') and not data.get(kind):raise ValueError('表格或图表缺少数据')
         if kind=='diagram' and 'diagram' not in data:raise ValueError('流程图缺少节点和连线')
         if kind=='math_scene' and 'math_scene' not in data:raise ValueError('数学图缺少配置')
+        if kind=='workshop_plugin' and 'workshop_plugin' not in data:raise ValueError('工坊插件缺少模板配置')
         style={'font_size':28,'font_family':'Arial','color':'#18233D','align':'left','vertical_align':'top','line_height':1.15,
                'padding_left':0,'padding_right':0,'padding_top':0,'padding_bottom':0}
         style.update(data.get('style',{}))
-        node={'id':identifier,'type':kind,'name':{'text':'新文字','shape':'新图形','vector':'线条','math_scene':'矩阵变换图','diagram':'原位流程图','demo':'AI 演示框'}.get(kind,'新图片'),
+        node={'id':identifier,'type':kind,'name':{'text':'新文字','shape':'新图形','vector':'线条','math_scene':'矩阵变换图','diagram':'原位流程图','demo':'AI 演示框','workshop_plugin':'万象工坊插件','table':'教学表格','chart':'教学图表'}.get(kind,'新图片'),
           'x':80,'y':80,'width':300,'height':70,'rotation':0,'z':max((n['z'] for n in page['nodes']),default=0)+1,
           'text':data.get('text','新文字'),'base_text':None,'style':style,'base_style':{},'paragraphs':[],
           'opacity':1,'locked':False,'hidden':False,'deleted':False,'source_element_id':None,'source_shape_id':None,
-          'asset_id':None,'background_asset_id':None,'shape':data.get('shape','rect')}
+          'asset_id':None,'background_asset_id':None,'shape':shape}
         if 'name' in data:
             if not isinstance(data['name'],str) or not data['name'].strip() or len(data['name'])>100:
                 raise ValueError('对象名称不合法')
@@ -163,6 +202,8 @@ def _create(page,identifier,data):
         update={k:v for k,v in data.items() if k not in ('type','image_data','shape','name')}
         update=validate_patch(update)
         node.update(update);node['style']=style
+        if node['paragraphs'] and '\n'.join(p['text'] for p in node['paragraphs'])!=node['text']:
+            raise ValueError('富文本与纯文本内容不一致')
         if 'interaction' in update:
             from ..ispec.node_interaction import validate_node_interaction
             validate_node_interaction(update['interaction'])
@@ -179,6 +220,70 @@ def _create(page,identifier,data):
             except (OSError,ValueError) as error:raise ValueError('图片内容无法读取，请使用有效的PNG、JPEG或WebP图片') from error
             node['image_data']=raw
     return node
+
+def _apply_page_action(document,change):
+    page_no=change.get('page_no')
+    action=change['page_action']
+    if change.get('id')!='__page__' or set(change)!={'id','page_no','page_action'} or not isinstance(action,dict):
+        raise ValueError('页面操作格式不合法')
+    kind=action.get('kind')
+    pages=document['pages']
+    if kind=='reorder_pages':
+        order=action.get('order')
+        by_no={page['page_no']:page for page in pages}
+        if (not isinstance(order,list) or len(order)!=len(pages) or any(type(n) is not int for n in order)
+                or set(order)!=by_no.keys()):
+            raise ValueError('页面顺序须包含每个页面一次')
+        document['pages']=[by_no[n] for n in order]
+        document['structure_modified']=True
+        return
+    if type(page_no) is not int or not 1<=page_no<=10000:raise ValueError('页面编号不合法')
+    page=next((item for item in pages if item['page_no']==page_no),None)
+    if kind=='page_metadata':
+        patch=action.get('patch')
+        if page is None or not isinstance(patch,dict) or patch.keys()-{'notes','background_color','background_modified'}:
+            raise ValueError('页面设置不合法')
+        if 'notes' in patch and (not isinstance(patch['notes'],str) or len(patch['notes'])>20000):raise ValueError('讲稿备注过长')
+        color=patch.get('background_color')
+        if color is not None and (not isinstance(color,str) or re.fullmatch(r'#[a-fA-F0-9]{6}',color) is None):
+            raise ValueError('背景颜色须为十六进制值')
+        if 'background_modified' in patch and (type(patch['background_modified']) is not bool or 'background_color' not in patch):
+            raise ValueError('背景设置不合法')
+        page.update(patch)
+        if 'background_color' in patch:page['background_modified']=color is not None and patch.get('background_modified',True)
+        page['modified']=True
+        return
+    archive=document.setdefault('archived_pages',[])
+    archived=next((item for item in archive if item['page_no']==page_no),None)
+    if kind=='delete_page':
+        if page is None or len(pages)==1:raise ValueError('课件至少保留一页')
+        pages.remove(page)
+        archive.append(page)
+    elif kind in ('add_page','duplicate_page','restore_page'):
+        if page is not None or (archived is not None and kind!='restore_page'):raise ValueError('页面编号已使用')
+        if len(pages)>=1000:raise ValueError('课件页面过多')
+        if kind=='restore_page':
+            if archived is None:raise ValueError('未找到已删除页面')
+            archive.remove(archived)
+            page=archived
+        elif kind=='duplicate_page':
+            source=action.get('from')
+            if type(source) is not int:raise ValueError('复制源页面不合法')
+            original=next((item for item in [*pages,*archive] if item['page_no']==source),None)
+            if original is None:raise ValueError('复制源页面不存在')
+            page=deepcopy(original)
+            page.update(page_no=page_no,id=f'p_{page_no}',source_page_no=original.get('source_page_no',source),copy_from_page_no=source,modified=True)
+            for node in page['nodes']:
+                if node.get('cleaned_asset_id'):node.setdefault('cleaned_asset_page_no',source)
+        else:
+            width,height=action.get('width'),action.get('height')
+            _number(width,.1,20000);_number(height,.1,20000)
+            page={'page_no':page_no,'id':f'p_{page_no}','source_page_no':None,'width':width,'height':height,'nodes':[],
+                  'modified':True,'preparation':{'status':'ready'}}
+        pages.append(page)
+    else:
+        raise ValueError('未知页面操作')
+    document['structure_modified']=True
 
 def reinteract_page(material_id:str,expected_revision:int,page_no:int)->dict:
     """Mark a page to be recognised from its current scene content.
@@ -231,6 +336,9 @@ def patch_document(material_id:str,expected_revision:int,operation_id:str,change
         document=deepcopy(original)
         pending_relations:dict[int,list[dict]]={}
         for change in changes:
+            if 'page_action' in change:
+                _apply_page_action(document,change)
+                continue
             page=next((p for p in document['pages'] if p['page_no']==change.get('page_no')),None)
             if page is None:raise ValueError('页面不存在')
             if 'relations' in change and 'patch' not in change and 'create' not in change:
@@ -246,8 +354,9 @@ def patch_document(material_id:str,expected_revision:int,operation_id:str,change
             identifier=change.get('id','')
             if not isinstance(identifier,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,96}',identifier):raise ValueError('对象标识不合法')
             node=next((n for n in page['nodes'] if n['id']==identifier),None)
-            manifest_path=document_root(material_id)/'layers'/document['source_key']/f'p{page["page_no"]:02d}'/'manifest.json'
-            manifest=json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.exists() else {}
+            source_page_no=page.get('source_page_no',page['page_no'])
+            manifest_path=document_root(material_id)/'layers'/document['source_key']/f'p{source_page_no:02d}'/'manifest.json' if source_page_no is not None else None
+            manifest=json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path and manifest_path.exists() else {}
             if identifier in manifest.get('frozen_ids',[]):raise ValueError('该对象未能独立分离，暂不支持编辑')
             if 'create' in change:
                 if not identifier.startswith('u_'):raise ValueError('新增对象标识须使用u_前缀')
@@ -261,6 +370,12 @@ def patch_document(material_id:str,expected_revision:int,operation_id:str,change
                 patch=change.get('patch')
                 if not isinstance(patch,dict):raise ValueError('修改字段缺失')
                 patch=validate_patch(patch)
+                if 'paragraphs' in patch:
+                    if patch['paragraphs'] and '\n'.join(p['text'] for p in patch['paragraphs'])!=patch.get('text',node['text']):
+                        raise ValueError('富文本与纯文本内容不一致')
+                    node.setdefault('base_paragraphs',deepcopy(node.get('paragraphs',[])))
+                if 'cleaned_asset_id' in patch:
+                    node.pop('cleaned_asset_page_no',None)
                 if patch.get('cleaned_asset_id'):
                     if node['type']!='image':
                         raise ValueError('清底资产只能应用于图片')
@@ -277,7 +392,7 @@ def patch_document(material_id:str,expected_revision:int,operation_id:str,change
         if pending_relations:
             from .relations import validate_page_relations
             for page_no,raw_rels in pending_relations.items():
-                page=next(p for p in document['pages'] if p['page_no']==page_no)
+                page=next(p for p in [*document['pages'],*document.get('archived_pages',[])] if p['page_no']==page_no)
                 page['relations']=validate_page_relations(raw_rels,page['nodes'])
         document['revision']+=1
         document['applied_operations']=(document.get('applied_operations',[])+[operation_id])[-100:]

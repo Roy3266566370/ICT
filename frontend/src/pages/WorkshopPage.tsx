@@ -21,8 +21,6 @@ import {
 import {
   LAB408_TOPICS,
   LAB408_TEMPLATES,
-  LAB408_WORKBENCH_TEMPLATES,
-  isLab408Kind,
   type Lab408Preview as Lab408PreviewKind,
 } from '@/canvas/lab408Templates';
 import {
@@ -30,10 +28,13 @@ import {
   DEEP_TOPICS,
   type DeepTemplate,
 } from '@/canvas/deepTemplates';
+import { workshopFormula } from '@/canvas/templateCatalog';
+import { BUSINESS_TEMPLATES, BUSINESS_TOPICS } from '@/canvas/businessTemplates';
+import type { BusinessTemplateKind } from '@/canvas/businessPipelineTypes';
 import styles from './WorkshopPage.module.css';
 
 type TemplateKind = string;
-type TemplateCategory = 'calculus' | 'mechanics' | 'lab408' | 'deep' | 'all';
+type TemplateCategory = 'calculus' | 'mechanics' | 'lab408' | 'deep' | 'business' | 'all';
 
 /* ---------- 统一专题目录：数据形状（C-TOPIC-CATALOG@1） ---------- */
 
@@ -49,10 +50,7 @@ export interface CatalogItem {
   name: string;
   desc: string;
   tag: string;
-  meta?: string;
   formula?: string;
-  recipe?: string;
-  note?: string;
   preview: JSX.Element;
 }
 
@@ -588,6 +586,97 @@ function Lab408Preview({ kind }: { kind: Lab408PreviewKind }): JSX.Element {
       <path d="M150 104q16 12 30 0" fill="none" stroke="var(--ink-400)" strokeWidth="1.2" />
     </svg>;
   }
+  if (kind === 'btree') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <path d="M130 24V62M130 62 82 96M130 62 178 96" fill="none" stroke="var(--hairline-strong)" strokeWidth="1.4" />
+      <rect x="92" y="10" width="76" height="28" rx="5" fill="var(--color-coral)" fillOpacity=".12" stroke="var(--color-coral)" />
+      <text x="130" y="29" textAnchor="middle" fontSize="8" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">[17]</text>
+      {[82, 178].map((x) => <g key={x}>
+        <rect x={x - 32} y="90" width="64" height="26" rx="5" fill="var(--paper-0)" stroke="var(--hairline-strong)" />
+        <text x={x} y="108" textAnchor="middle" fontSize="7.5" fill="var(--ink-500)" fontFamily="var(--font-family-mono)">[5|7]</text>
+      </g>)}
+      <text x="30" y="132" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">分裂 · 中间键上移 · B / B+ 对照</text>
+    </svg>;
+  }
+  if (kind === 'hash') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {[0, 1, 2, 3, 4].map((index) => <g key={index}>
+        <rect x="30" y={22 + index * 19} width="34" height="15" rx="3" fill={index === 2 ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={index === 2 ? .18 : 1} stroke={index === 2 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />
+        <text x="47" y={33 + index * 19} textAnchor="middle" fontSize="7" fill="var(--ink-500)" fontFamily="var(--font-family-mono)">{index}</text>
+      </g>)}
+      <path d="M64 60h28M92 60h28" stroke="var(--hairline-strong)" strokeDasharray="3 3" />
+      {[19, 27].map((value, index) => <g key={value}>
+        <rect x={94 + index * 34} y="52" width="28" height="16" rx="3" fill="var(--color-indigo)" fillOpacity=".16" stroke="var(--color-indigo)" />
+        <text x={108 + index * 34} y="63" textAnchor="middle" fontSize="7" fill="var(--ink-500)" fontFamily="var(--font-family-mono)">{value}</text>
+      </g>)}
+      <text x="30" y="126" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">探测 / 链地址 · ASL 对比</text>
+    </svg>;
+  }
+  if (kind === 'datapath') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {[['PC', 34, 42], ['IMEM', 88, 24], ['Reg', 88, 82], ['ALU', 158, 54], ['DMEM', 216, 24], ['WB', 216, 94]].map(([label, x, y]) => <g key={String(label)}>
+        <rect x={Number(x) - 22} y={Number(y) - 12} width="44" height="24" rx="4" fill={label === 'ALU' ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={label === 'ALU' ? .16 : 1} stroke={label === 'ALU' ? 'var(--color-coral)' : 'var(--hairline-strong)'} />
+        <text x={Number(x)} y={Number(y) + 3} textAnchor="middle" fontSize="7" fill="var(--ink-500)" fontFamily="var(--font-family-mono)">{label}</text>
+      </g>)}
+      <path d="M56 42h10M110 24h30M110 82h26M180 54h14M158 66v18h36M216 36v46" fill="none" stroke="var(--color-indigo)" strokeWidth="1.3" strokeDasharray="3 3" />
+      <text x="26" y="128" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">IF · ID · EX · MEM · WB</text>
+    </svg>;
+  }
+  if (kind === 'booth') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {['A', 'Q', 'Q₋₁'].map((label, index) => <g key={label}>
+        <rect x={34 + index * 62} y="30" width="52" height="30" rx="4" fill={index === 1 ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={index === 1 ? .16 : 1} stroke={index === 1 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />
+        <text x={60 + index * 62} y="49" textAnchor="middle" fontSize="7.5" fill="var(--ink-500)" fontFamily="var(--font-family-mono)">{label}</text>
+      </g>)}
+      <path d="M34 76h196M34 76v-8M230 76v-8" stroke="var(--hairline-strong)" />
+      <text x="42" y="94" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">01 → +X · 10 → −X · 00/11 → 右移</text>
+      <text x="34" y="120" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">双符号位 01 / 10 判溢出</text>
+    </svg>;
+  }
+  if (kind === 'disk') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <line x1="24" y1="92" x2="236" y2="92" stroke="var(--hairline-strong)" />
+      {[53, 65, 67, 98, 122, 124, 183].map((track, index) => <g key={track}>
+        <line x1={24 + track} y1="86" x2={24 + track} y2="98" stroke="var(--hairline-strong)" />
+        <circle cx={24 + track} cy={index === 0 ? 72 : 50 - index * 3} r="3" fill={index === 0 ? 'var(--color-coral)' : 'var(--color-indigo)'} />
+      </g>)}
+      <path d="M77 72 89 50 91 47 122 41 146 29 148 26 207 14" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" />
+      <text x="26" y="126" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">FCFS · SSTF · SCAN · C-SCAN</text>
+    </svg>;
+  }
+  if (kind === 'pv') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {[0, 1, 2].map((index) => <rect key={index} x={68 + index * 42} y="44" width="36" height="30" rx="4"
+        fill={index < 2 ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={index < 2 ? .16 : 1}
+        stroke={index < 2 ? 'var(--color-coral)' : 'var(--hairline-strong)'} />)}
+      <text x="130" y="30" textAnchor="middle" fontSize="8" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">缓冲区</text>
+      <text x="30" y="96" fontSize="7.5" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">P(empty) · P(mutex)</text>
+      <text x="30" y="112" fontSize="7.5" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">顺序写反 → 持锁等待死锁</text>
+      <path d="M44 72h18M198 72h18" stroke="var(--color-indigo)" strokeWidth="1.4" />
+    </svg>;
+  }
+  if (kind === 'csma') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <line x1="26" y1="76" x2="234" y2="76" stroke="var(--ink-500)" strokeWidth="1.8" />
+      <circle cx="34" cy="76" r="5" fill="var(--color-coral)" /><text x="34" y="62" textAnchor="middle" fontSize="7" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">A</text>
+      <circle cx="226" cy="76" r="5" fill="var(--color-indigo)" /><text x="226" y="62" textAnchor="middle" fontSize="7" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">B</text>
+      <path d="M42 68 112 70M218 68 132 70" stroke="var(--color-coral)" strokeWidth="2" />
+      <path d="M122 56 132 70 122 84" fill="none" stroke="var(--color-coral)" strokeWidth="2" />
+      <text x="112" y="44" fontSize="7" fill="var(--color-coral-ink)" fontFamily="var(--font-family-mono)">碰撞点</text>
+      <text x="26" y="110" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">Ttrans ≥ 2τ 才能可靠检测</text>
+    </svg>;
+  }
+  if (kind === 'routing') {
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {['R1', 'R2', 'R3', 'R4', 'R5'].map((label, index) => <g key={label}>
+        <circle cx={36 + index * 47} cy="72" r="15" fill={index === 0 ? 'var(--color-coral)' : 'var(--paper-0)'} fillOpacity={index === 0 ? .18 : 1} stroke={index === 0 ? 'var(--color-coral)' : 'var(--hairline-strong)'} strokeWidth="1.4" />
+        <text x={36 + index * 47} y="76" textAnchor="middle" fontSize="7" fill="var(--ink-600)" fontFamily="var(--font-family-mono)">{label}</text>
+      </g>)}
+      <line x1="54" y1="72" x2="64" y2="72" stroke="var(--color-coral)" strokeWidth="2" strokeDasharray="4 3" />
+      <path d="M58 62 68 82M68 62 58 82" stroke="var(--color-coral)" strokeWidth="1.5" />
+      <text x="30" y="116" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">RIP 计数到 16 · OSPF 重算</text>
+    </svg>;
+  }
   return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
     <text x="30" y="34" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">192.168.1.0/24</text>
     {[0, 1, 2, 3].map((index) => <g key={index}>
@@ -609,10 +698,7 @@ const CALCULUS_ITEMS: readonly CatalogItem[] = CALCULUS_TEMPLATES.map((t) => ({
   name: t.name,
   desc: t.desc,
   tag: t.tag,
-  meta: `${t.level} / ${t.minutes} 分钟`,
   formula: t.formula,
-  recipe: t.question,
-  note: '已预设仪器面板 · 可嵌入活页',
   preview: <CalculusPreview template={t} />,
 }));
 
@@ -622,19 +708,15 @@ const PHYSICS_ITEMS: readonly CatalogItem[] = PHYSICS_TEMPLATES.map((t) => ({
   name: t.name,
   desc: t.desc,
   tag: t.tag,
-  recipe: t.question,
-  note: '已预设仪器面板 · 可嵌入活页',
   preview: <PhysicsPreview template={t} />,
 }));
 
-const LAB408_ITEMS: readonly CatalogItem[] = [...LAB408_TEMPLATES, ...LAB408_WORKBENCH_TEMPLATES].map((t) => ({
+const LAB408_ITEMS: readonly CatalogItem[] = LAB408_TEMPLATES.map((t) => ({
   key: t.kind,
   topic: t.topic,
   name: t.name,
   desc: t.desc,
   tag: t.tag,
-  recipe: t.question,
-  note: isLab408Kind(t.kind) ? '模块流水线 · 可编辑输入' : '支持粘贴原题并核对',
   preview: <Lab408Preview kind={t.preview} />,
 }));
 
@@ -644,25 +726,39 @@ const DEEP_ITEMS: readonly CatalogItem[] = DEEP_TEMPLATES.map((t) => ({
   name: t.name,
   desc: t.desc,
   tag: t.tag,
-  recipe: t.question,
-  note: '已预设仪器面板 · 可嵌入活页',
   preview: <DeepPreview template={t} />,
 }));
 
-const ALL_TOPICS: readonly WorkshopTopic[] = [...CALCULUS_TOPICS, ...PHYSICS_TOPICS, ...LAB408_TOPICS, ...DEEP_TOPICS];
-const ALL_ITEMS: readonly CatalogItem[] = [...CALCULUS_ITEMS, ...PHYSICS_ITEMS, ...LAB408_ITEMS, ...DEEP_ITEMS];
+const businessPreviewPaths: Record<BusinessTemplateKind, readonly string[]> = {
+  'biz-breakeven': ['M29 74L150 16', 'M29 57L150 35'],
+  'biz-funnel': ['M25 20H152M43 33H134M56 46H121M68 59H109M77 72H100'],
+  'biz-cpm': ['M30 24H54M54 47H111M111 70H150', 'M54 36H101M54 59H84'],
+  'biz-abtest': ['M24 74C48 74 44 27 66 27S85 74 111 74', 'M64 74C88 74 84 22 106 22S125 74 152 74'],
+};
+
+const BUSINESS_ITEMS: readonly CatalogItem[] = BUSINESS_TEMPLATES.map((t) => ({
+  key: t.kind, topic: t.topic, name: t.name, desc: t.desc, tag: t.tag, formula: t.formula,
+  preview: <svg viewBox="0 0 176 88" fill="none">
+    <path d="M16 78H160M16 12V78" stroke="var(--hairline)" />
+    {businessPreviewPaths[t.kind].map((path, i) => <path key={path} d={path} stroke={i ? '#b15236' : '#13746d'}
+      strokeWidth={t.kind === 'biz-funnel' || t.kind === 'biz-cpm' ? 6 : 2.5} strokeLinecap="round" />)}
+  </svg>,
+}));
+
+const ALL_TOPICS: readonly WorkshopTopic[] = [...CALCULUS_TOPICS, ...PHYSICS_TOPICS, ...LAB408_TOPICS, ...DEEP_TOPICS, ...BUSINESS_TOPICS];
+const ALL_ITEMS: readonly CatalogItem[] = [...CALCULUS_ITEMS, ...PHYSICS_ITEMS, ...LAB408_ITEMS, ...DEEP_ITEMS, ...BUSINESS_ITEMS];
 
 const EXTRA_SEARCH: ReadonlyMap<string, string> = new Map([
   ...CALCULUS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
   ...DEEP_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
   ...PHYSICS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
   ...LAB408_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
-  ...LAB408_WORKBENCH_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation}`] as const),
+  ...BUSINESS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
 ]);
 
 function matchesQuery(item: CatalogItem, normalizedQuery: string): boolean {
   if (!normalizedQuery) return true;
-  return [item.name, item.desc, item.tag, item.recipe ?? '', EXTRA_SEARCH.get(item.key) ?? '']
+  return [item.name, item.desc, item.tag, EXTRA_SEARCH.get(item.key) ?? '']
     .some((text) => text.toLowerCase().includes(normalizedQuery));
 }
 
@@ -677,16 +773,21 @@ export interface CatalogCardProps {
 }
 
 export function CatalogCard({ item, disabled, creating, actionLabel, onCreate }: CatalogCardProps): JSX.Element {
-  return <button type="button" className={styles.tplCard} disabled={disabled} onClick={onCreate}>
-    <span className={styles.tplPreview} aria-hidden="true">{item.preview}</span>
+  const subject = item.tag.split(' · ')[0] ?? '';
+  const tone = item.topic.startsWith('dl') ? 'deep' : item.topic.startsWith('p') ? 'physics'
+    : item.topic.startsWith('biz-') ? 'business' : subject === '高数' || subject === '线代' ? 'math' : 'pipeline';
+  const formula = item.formula ?? workshopFormula(item.key);
+  return <button type="button" className={styles.tplCard} data-subject={tone} disabled={disabled} onClick={onCreate}>
+    <span className={styles.tplPreview}><span className={styles.tplArt} aria-hidden="true">{item.preview}</span>
+      <span className={styles.tplMeta}>{subject}</span>
+    </span>
     <span className={styles.tplBody}>
-      <span className={styles.tplMeta}>{item.tag}{item.meta ? ` · ${item.meta}` : ''}</span>
       <span className={styles.tplName}>{item.name}</span>
       <span className={styles.tplDesc}>{item.desc}</span>
-      {item.formula ? <span className={styles.templateFormula}>{item.formula}</span> : null}
-      {item.recipe ? <span className={styles.templateRecipe}>探究：{item.recipe}</span> : null}
-      {item.note ? <span className={styles.templateRecipe}>{item.note}</span> : null}
-      <span className={styles.tplGo}>{creating ? '创建中…' : actionLabel}</span>
+      <span className={styles.tplFoot}>
+        <span className={styles.templateFormula} title={formula}>{formula}</span>
+        <span className={styles.tplGo}>{creating ? '创建中…' : actionLabel}</span>
+      </span>
     </span>
   </button>;
 }
@@ -716,7 +817,7 @@ export function TopicCatalog({
       if (!grouped.length) return null;
       return <section key={topic.id} className={styles.topicGroup} aria-labelledby={`topic-${topic.id}`}>
         <header className={styles.topicHead}>
-          <div><h3 id={`topic-${topic.id}`}>{topic.name}</h3><p>{topic.lead}</p></div>
+          <h3 id={`topic-${topic.id}`}>{topic.name}</h3>
           <span className={styles.countPill}>{grouped.length} 个实验</span>
         </header>
         <div className={styles.tplGrid}>
@@ -759,7 +860,8 @@ export function WorkshopPage(): JSX.Element {
   const [gallery, setGallery] = useState<ShareSummary[] | null>(null);
   const [category, setCategory] = useState<TemplateCategory>(() => {
     const subject = searchParams.get('subject');
-    return subject === 'mechanics' || subject === 'lab408' || subject === 'deep' || subject === 'all' ? subject : 'calculus';
+    return subject === 'mechanics' || subject === 'lab408' || subject === 'deep' || subject === 'business' || subject === 'all'
+      ? subject : 'calculus';
   });
   const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
 
@@ -790,11 +892,12 @@ export function WorkshopPage(): JSX.Element {
     : category === 'mechanics' ? { topics: PHYSICS_TOPICS, items: PHYSICS_ITEMS }
       : category === 'lab408' ? { topics: LAB408_TOPICS, items: LAB408_ITEMS }
         : category === 'deep' ? { topics: DEEP_TOPICS, items: DEEP_ITEMS }
-          : { topics: ALL_TOPICS, items: ALL_ITEMS };
+          : category === 'business' ? { topics: BUSINESS_TOPICS, items: BUSINESS_ITEMS }
+            : { topics: ALL_TOPICS, items: ALL_ITEMS };
   const knownTopicIds = new Set(view.topics.map((topic) => topic.id));
   const shownItems = view.items.filter((item) => knownTopicIds.has(item.topic) && matchesQuery(item, normalizedQuery));
   const shownCount = shownItems.length;
-  const totalTemplates = CALCULUS_ITEMS.length + PHYSICS_ITEMS.length + LAB408_ITEMS.length + DEEP_ITEMS.length;
+  const totalTemplates = ALL_ITEMS.length;
 
   const openWork = useCallback((wid: string) => {
     navigate(`/canvas?work=${encodeURIComponent(wid)}`);
@@ -815,78 +918,105 @@ export function WorkshopPage(): JSX.Element {
   }, []);
 
   return (
-    <div className={`${styles.page} studio-scope`}>
+    <div className={`${styles.catalogPage} studio-scope`}>
       <SiteNav current="canvas" appearance="studio" />
 
       <main className={styles.main}>
-        {loadError ? <p role="alert">{loadError} <button onClick={loadWorks}>重试</button></p> : null}
         <header className={styles.pageHead}>
-          <div className={styles.headText}>
-            <p className={styles.eyebrow}>万象工坊 · Workshop</p>
-            <h1 className={styles.title}>把实验摆上画布</h1>
+          <div className={styles.headCopy}>
+            <div className={styles.headBadge}>
+              <i aria-hidden="true" /> WANXIANG WORKSHOP · 真计算内核与积木编排舞台
+            </div>
+            <h1 className={styles.title}>
+              万象<span className={styles.titleHighlight}>工坊</span>
+            </h1>
             <p className={styles.lead}>
-              大学物理 × 高等数学 × 计算专题：摆下活对象、连线出行为、发布成作品。
-              物理四专题贯通运动受力、电磁电路、光学与热学近代，高数四专题覆盖微积分、级数 ODE、多元场论与线代几何；也可以继续探索 408 和深度学习实验。
+              挑一个学科实验即开即玩，或从空白画布拖拽积木连线。所有模型均由真实数值内核驱动，支持外露参数、情景预设并一键封装为「万象活页」交互插件。
             </p>
-            <p className={styles.headMeta}>
-              <span><b>{CALCULUS_ITEMS.length}</b> 个高数实验</span>
-              <span><b>{PHYSICS_ITEMS.length}</b> 个大学物理实验</span>
-              <span><b>{LAB408_ITEMS.length}</b> 个 408 实验</span>
-              <span><b>{DEEP_ITEMS.length}</b> 个深度学习实验</span>
-              <span><b>{totalTemplates}</b> 个模板</span>
-              {works && works.length > 0 ? <span><b>{works.length}</b> 件我的作品</span> : null}
-              <span><b>{gallery === null ? '—' : gallery.length}</b> 件公开作品</span>
-            </p>
+            <div className={styles.headMetrics}>
+              <div className={styles.headMetric}>
+                <strong>{totalTemplates}</strong>
+                <span>学科真内核模板</span>
+              </div>
+              <div className={styles.headMetric}>
+                <strong>5 大领域</strong>
+                <span>高数 / 物理 / 408 / DL / 决策</span>
+              </div>
+              <div className={styles.headMetric}>
+                <strong>{works === null ? '—' : works.length}</strong>
+                <span>我的已存作品</span>
+              </div>
+              <div className={styles.headMetric}>
+                <strong>活页插件</strong>
+                <span>一键挂载至动态 PPT</span>
+              </div>
+            </div>
           </div>
-          <aside className={styles.headNote}>
-            <span>打开即玩，随时能改</span>
-            <p>每个模板都附带探究问题、搭建步骤和观察记录。物理与高数模板已连接 4–6 个计算环节，源参数集中暴露在仪器面板，共享时间轴联动场景、读数与表格；打开即可嵌入活页，各分类均按二级专题组织。</p>
-            <button type="button" onClick={blank}>新建空白画布</button>
-          </aside>
+
+          <div className={styles.headActions}>
+            <button type="button" className={styles.blankButton} onClick={blank}>
+              ＋ 新建空白画布
+            </button>
+            <Link to="/living" className={styles.secondaryButton}>
+              去万象活页挂载插件 ↗
+            </Link>
+          </div>
         </header>
 
-        <section className={styles.section} aria-labelledby="workshop-templates">
+        <section className={styles.section} aria-labelledby="workshop-catalog-title">
           <div className={styles.sectionHead}>
             <div>
-              <p className={styles.sectionEyebrow}>01 · Templates</p>
-              <h2 id="workshop-templates" className={styles.sectionTitle}>从模板新建</h2>
+              <p className={styles.sectionEyebrow}><span className={styles.secNo}>§ 01</span> TEMPLATE LIBRARY / 学科实验模板库</p>
+              <h2 id="workshop-catalog-title" className={styles.sectionTitle}>即开即玩的真内核实验室</h2>
             </div>
-            <p className={styles.sectionNote}>已连好线 · 打开即运行{normalizedQuery ? ` · ${shownCount} 个匹配` : ''}</p>
+            <span className={styles.countPill}>当前显示 {shownCount} / {totalTemplates} 个</span>
           </div>
+
           <div className={styles.templateFilters} role="group" aria-label="模板分类">
-            {([
-              ['calculus', `高等数学 · ${CALCULUS_ITEMS.length}`],
-              ['mechanics', `大学物理 · ${PHYSICS_ITEMS.length}`],
-              ['lab408', `408 专题 · ${LAB408_ITEMS.length}`],
-              ['deep', `深度学习 · ${DEEP_ITEMS.length}`],
-              ['all', `全部模板 · ${totalTemplates}`],
-            ] as const).map(([key, label]) => <button type="button" key={key} aria-pressed={category === key} onClick={() => selectCategory(key)}>{label}</button>)}
+            <div className={styles.filterPills}>
+              {([
+                ['calculus', `高等数学 · ${CALCULUS_ITEMS.length}`],
+                ['mechanics', `大学物理 · ${PHYSICS_ITEMS.length}`],
+                ['lab408', `408 专题 · ${LAB408_ITEMS.length}`],
+                ['deep', `深度学习 · ${DEEP_ITEMS.length}`],
+                ['business', `办公决策 · ${BUSINESS_ITEMS.length}`],
+                ['all', `全部模板 · ${totalTemplates}`],
+              ] as const).map(([key, label]) => (
+                <button type="button" key={key} aria-pressed={category === key} onClick={() => selectCategory(key)}>
+                  {label}
+                </button>
+              ))}
+            </div>
             <label className={styles.templateSearch}>
-              <span>搜索模板</span>
-              <input type="search" value={query} placeholder="双缝、Taylor、Cache、Attention…" aria-label="按学科、算法或关键词搜索模板" onChange={(e) => setQuery(e.target.value)} />
+              <span>搜索</span>
+              <input
+                type="search"
+                value={query}
+                placeholder="双缝、Taylor、Cache、盈亏、甘特图…"
+                aria-label="按学科、算法或关键词搜索模板"
+                onChange={(e) => setQuery(e.target.value)}
+              />
             </label>
-            <a href="#workshop-guide">第一次搭建？看三步指南 ↓</a>
           </div>
-          <TopicCatalog topics={view.topics} items={shownItems} disabled={false} creatingKey={null}
-            actionLabel="打开实验 →" onCreate={(item) => fromTemplate(item.key)} />
+
+          <TopicCatalog
+            topics={view.topics}
+            items={shownItems}
+            disabled={false}
+            creatingKey={null}
+            actionLabel="打开实验 →"
+            onCreate={(item) => fromTemplate(item.key)}
+          />
           {!shownCount ? <p className={styles.emptyLead} role="status">没有匹配“{query.trim()}”的模板；清空搜索或切换分类。</p> : null}
         </section>
 
-        <section id="workshop-guide" className={styles.section} aria-labelledby="workshop-guide-title">
-          <div className={styles.sectionHead}><div><p className={styles.sectionEyebrow}>Build · Learn · Explore</p><h2 id="workshop-guide-title" className={styles.sectionTitle}>从问题到实验，只要三步</h2></div></div>
-          <div className={styles.guideGrid}>
-            <article><span>01 / 定义</span><h3>选择实验源</h3><p>从大学物理或高数专题打开模板，在仪器面板调整源参数、函数或矩阵，先写下你想验证的问题。</p></article>
-            <article><span>02 / 连线</span><h3>沿管线同步观察</h3><p>源环节将参数和文本送入模型、分析与对照环节；共享时间轴让轨迹、几何、读数和表格同步推进。</p></article>
-            <article><span>03 / 验证</span><h3>先预测，再复算和记录</h3><p>比较守恒量、近似误差与不同数值方法，用便签记录发现。保存后可继续编辑，发布后别人可以复制改造。</p></article>
-          </div>
-          <details className={styles.mathBoundary}><summary>这些实验如何计算？</summary><p>物理与高数管线均在浏览器内按确定性公式计算，并输出中间量、读数与误差。无效定义域、无实解或低于截止频率时会明确提示，不伪造曲线；数值表和动画是探究证据，不替代解析推导与证明。</p></details>
-        </section>
+        {loadError ? <p className={styles.loadError} role="status">{loadError} <button type="button" onClick={loadWorks}>重试</button></p> : null}
 
         {works && works.length > 0 ? (
           <section className={styles.section} aria-labelledby="workshop-mine">
             <div className={styles.sectionHead}>
               <div>
-                <p className={styles.sectionEyebrow}>02 · My Works</p>
+                <p className={styles.sectionEyebrow}><span className={styles.secNo}>§ 02</span> MY WORKS / 个人沉淀</p>
                 <h2 id="workshop-mine" className={styles.sectionTitle}>我的作品</h2>
               </div>
               <span className={styles.countPill}>{`${works.length} 件`}</span>
@@ -922,8 +1052,8 @@ export function WorkshopPage(): JSX.Element {
         <section className={styles.section} aria-labelledby="workshop-gallery">
           <div className={styles.sectionHead}>
             <div>
-              <p className={styles.sectionEyebrow}>03 · Gallery</p>
-              <h2 id="workshop-gallery" className={styles.sectionTitle}>作品墙（公开画廊）</h2>
+              <p className={styles.sectionEyebrow}><span className={styles.secNo}>{works && works.length > 0 ? '§ 03' : '§ 02'}</span> COMMUNITY GALLERY / 公开画廊</p>
+              <h2 id="workshop-gallery" className={styles.sectionTitle}>公开作品</h2>
             </div>
             <span className={styles.countPill}>{gallery === null ? '载入中' : `${gallery.length} 件`}</span>
           </div>

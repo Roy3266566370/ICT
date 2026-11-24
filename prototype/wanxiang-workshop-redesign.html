@@ -1,0 +1,1935 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万象工坊 · 连续过程与交互重塑原型 (UI/UX Redesign v2)</title>
+  <style>
+    :root {
+      /* 现代科学仪器配色体系 (Warm Paper & Precision Ink) */
+      --paper-bg: #F6F4EE;
+      --paper-card: #FFFFFF;
+      --paper-subtle: #FAF8F5;
+      --paper-glass: rgba(255, 255, 255, 0.90);
+      --ink-900: #181D24;
+      --ink-700: #333C4A;
+      --ink-500: #5E6878;
+      --ink-400: #8C95A4;
+      --ink-200: #DCE0E6;
+      --hairline: rgba(24, 29, 36, 0.08);
+      --hairline-strong: rgba(24, 29, 36, 0.14);
+
+      /* 四大语义色 */
+      --c-source: #EA580C;      /* 数据源 / 追踪高亮：琥珀珊瑚 */
+      --c-source-bg: #FFF7ED;
+      --c-op: #4F46E5;          /* 算子变换 / 主逼近：靛蓝紫 */
+      --c-op-bg: #EEF2FF;
+      --c-view: #0D9488;        /* 观察视图 / 展开中心：青翠绿 */
+      --c-view-bg: #F0FDFA;
+      --c-pipe: #0284C7;        /* 流水线 / 辅助比较：深海蓝 */
+
+      --shadow-sm: 0 2px 6px rgba(24, 29, 36, 0.04), 0 1px 2px rgba(24, 29, 36, 0.03);
+      --shadow-md: 0 10px 30px -5px rgba(24, 29, 36, 0.07), 0 4px 10px -2px rgba(24, 29, 36, 0.04);
+      --shadow-lg: 0 20px 45px -10px rgba(24, 29, 36, 0.12), 0 6px 16px -4px rgba(24, 29, 36, 0.06);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-pill: 999px;
+
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      --font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Georgia, serif;
+      --font-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--paper-bg);
+      color: var(--ink-900);
+      height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ==================== 1. 三段式极简顶栏 ==================== */
+    .topbar {
+      height: 56px;
+      background: var(--paper-glass);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--hairline);
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 20px;
+      z-index: 100;
+      flex-shrink: 0;
+    }
+
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .back-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 11px; border-radius: var(--radius-sm);
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-card); color: var(--ink-700);
+      font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    .back-btn:hover { background: var(--paper-subtle); border-color: var(--ink-400); }
+    .back-btn.active { background: var(--ink-900); color: #fff; border-color: var(--ink-900); }
+
+    .divider-v { width: 1px; height: 18px; background: var(--hairline-strong); }
+
+    .doc-title-wrap { display: flex; align-items: center; gap: 8px; }
+    .doc-title {
+      font-size: 15px; font-weight: 700; color: var(--ink-900);
+      border: 1px solid transparent; background: transparent;
+      padding: 4px 8px; border-radius: 6px; width: 230px; outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .doc-title:hover, .doc-title:focus {
+      background: var(--paper-card); border-color: var(--hairline-strong);
+    }
+    .sync-dot {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11.5px; color: var(--ink-400); font-weight: 500;
+    }
+    .sync-dot::before {
+      content: ''; width: 7px; height: 7px; border-radius: 50%;
+      background: #10B981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+
+    /* 中央：双模式分段切换器 */
+    .mode-switcher {
+      display: inline-flex; background: #EAE6DF; padding: 3.5px;
+      border-radius: var(--radius-pill); border: 1px solid rgba(24, 29, 36, 0.06);
+    }
+    .mode-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 6px 16px; border-radius: var(--radius-pill); border: none;
+      background: transparent; color: var(--ink-500);
+      font-size: 12.5px; font-weight: 700; cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .mode-btn.active {
+      background: var(--paper-card); color: var(--ink-900);
+      box-shadow: 0 2px 8px rgba(24, 29, 36, 0.08);
+    }
+    .mode-badge {
+      font-size: 10px; padding: 1px 6px; border-radius: var(--radius-pill);
+      background: var(--c-op-bg); color: var(--c-op); font-family: var(--font-mono);
+    }
+
+    .topbar-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .icon-btn {
+      padding: 6px 10px; border-radius: var(--radius-sm);
+      border: 1px solid var(--hairline); background: var(--paper-card);
+      color: var(--ink-700); font-size: 12.5px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .icon-btn:hover { background: var(--paper-subtle); border-color: var(--hairline-strong); }
+    .primary-btn {
+      padding: 6px 14px; border-radius: var(--radius-pill); border: none;
+      background: var(--c-op); color: #fff; font-size: 12.5px; font-weight: 600;
+      cursor: pointer; box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25); transition: all 0.15s;
+    }
+    .primary-btn:hover { background: #4338CA; transform: translateY(-1px); }
+
+    /* ==================== 主体容器 ==================== */
+    .workspace { flex: 1; position: relative; overflow: hidden; display: flex; }
+    .view-layer { position: absolute; inset: 0; display: none; }
+    .view-layer.active { display: flex; }
+
+    /* ==================== 视图 1：🎛️ 交互仪器态 (融合连续演化过程) ==================== */
+    .instrument-layout {
+      width: 100%; height: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      background: var(--paper-bg);
+      min-height: 0;
+    }
+
+    /* 左侧主实验区：上方可滚动舞台 + 底部固定连续时间轴 */
+    .stage-column {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+    }
+
+    .stage-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 22px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* 顶部探究问题与可折叠步骤引导 */
+    .inquiry-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: var(--paper-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+      font-size: 13.5px;
+    }
+    .inquiry-tag {
+      font-size: 11px; font-weight: 700; padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background: var(--c-source-bg); color: var(--c-source);
+      flex-shrink: 0;
+    }
+    .inquiry-bar b { color: var(--ink-900); font-weight: 600; }
+    .steps-toggle {
+      margin-left: auto; border: none; background: var(--paper-subtle);
+      padding: 4px 10px; border-radius: var(--radius-pill);
+      font-size: 12px; font-weight: 600; color: var(--ink-500); cursor: pointer;
+      border: 1px solid var(--hairline);
+    }
+    .steps-toggle:hover { color: var(--ink-900); border-color: var(--hairline-strong); }
+
+    .steps-drawer {
+      display: none;
+      padding: 12px 18px;
+      background: var(--paper-subtle);
+      border: 1px solid var(--hairline-strong);
+      border-left: 3px solid var(--c-op);
+      border-radius: var(--radius-md);
+      font-size: 12.5px;
+      color: var(--ink-700);
+      line-height: 1.75;
+    }
+    .steps-drawer.open { display: block; }
+    .steps-drawer ol { padding-left: 18px; }
+
+    /* 主图卡片 */
+    .stage-card {
+      background: var(--paper-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .inquiry-bar, .conclusion-strip, .minis-grid, .steps-drawer {
+      flex-shrink: 0;
+    }
+
+    .card-header {
+      padding: 11px 18px;
+      border-bottom: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--paper-subtle);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .card-title-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .card-title-group h2 { font-size: 14.5px; font-weight: 700; color: var(--ink-900); }
+    .legend-inline {
+      display: flex; align-items: center; gap: 14px;
+      font-size: 12px; color: var(--ink-500); font-weight: 600;
+    }
+    .legend-inline span { display: inline-flex; align-items: center; gap: 5px; }
+    .card-hint { font-size: 11.5px; color: var(--ink-400); font-weight: 500; }
+
+    .main-svg-wrap {
+      position: relative;
+      padding: 8px 14px 10px;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(79, 70, 229, 0.025), transparent 72%);
+    }
+    #mainPlotSvg {
+      display: block;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 860 / 326;
+      max-height: 360px;
+      margin: 0 auto;
+      cursor: ew-resize;
+      touch-action: none;
+    }
+
+    /* 动态自然语言结论条 */
+    .conclusion-strip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 16px;
+      background: var(--paper-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      color: var(--ink-700);
+    }
+    .conclusion-strip .c-label {
+      font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 6px;
+      background: var(--c-view-bg); color: var(--c-view);
+      flex-shrink: 0;
+    }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    /* 下方三联过程副图 (吸收 index.html 的核心优势：拆解连续变化过程) */
+    .minis-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1.05fr 0.95fr;
+      gap: 12px;
+    }
+    .mini-card {
+      background: var(--paper-card);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .mini-head {
+      padding: 9px 14px 6px;
+      border-bottom: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--paper-subtle);
+    }
+    .mini-head h3 { font-size: 13px; font-weight: 700; color: var(--ink-900); }
+    .mini-head span { font-size: 11.5px; color: var(--c-source); font-weight: 600; }
+    .mini-card svg { display: block; width: 100%; height: auto; padding: 6px 8px; }
+
+    /* 紧凑对照读数表 */
+    .readout-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .readout-table td {
+      padding: 6.5px 14px;
+      border-top: 1px solid var(--hairline);
+    }
+    .readout-table tr:first-child td { border-top: none; }
+    .readout-table td:first-child { color: var(--ink-500); font-weight: 500; }
+    .readout-table td:last-child {
+      text-align: right;
+      font-family: var(--font-mono);
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: var(--ink-900);
+    }
+    .readout-table tr.row-highlight td {
+      background: var(--c-source-bg);
+    }
+    .readout-table tr.row-highlight td:last-child {
+      color: var(--c-source);
+      font-weight: 700;
+    }
+
+    /* 底部连续过程时间轴播放栏 (Timeline Scrub Bar) */
+    .timeline-bar {
+      height: 54px;
+      padding: 0 22px;
+      background: var(--paper-card);
+      border-top: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .tl-btn {
+      width: 32px; height: 32px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-subtle);
+      color: var(--ink-700);
+      display: inline-grid;
+      place-items: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tl-btn:hover { background: var(--c-op-bg); color: var(--c-op); border-color: var(--c-op); }
+    .tl-btn.play-primary {
+      width: 36px; height: 34px;
+      background: var(--c-op);
+      color: #fff;
+      border-color: var(--c-op);
+      box-shadow: 0 2px 8px rgba(79, 70, 229, 0.28);
+    }
+    .tl-btn.play-primary:hover { background: #4338CA; }
+    .tl-btn svg { width: 15px; height: 15px; }
+
+    .tl-scrubber-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 0 12px;
+    }
+    .tl-ticks {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10.5px;
+      font-family: var(--font-mono);
+      color: var(--ink-400);
+      padding: 0 4px;
+    }
+    .tl-ticks span.active-tick {
+      color: var(--c-op);
+      font-weight: 700;
+    }
+
+    /* 带进度填充的滑杆 */
+    input[type="range"].fill-slider {
+      --fill: 30%;
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 18px;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"].fill-slider::-webkit-slider-runnable-track {
+      height: 5px;
+      border-radius: 999px;
+      background: linear-gradient(to right, var(--c-op) var(--fill), #E2E8F0 var(--fill));
+    }
+    input[type="range"].fill-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      margin-top: -5.5px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2.5px solid var(--c-op);
+      box-shadow: 0 2px 5px rgba(24, 29, 36, 0.2);
+      transition: transform 0.12s;
+    }
+    input[type="range"].fill-slider::-webkit-slider-thumb:hover { transform: scale(1.18); }
+
+    .tl-readout {
+      min-width: 215px;
+      text-align: right;
+      font-size: 12px;
+      color: var(--ink-500);
+    }
+    .tl-readout b {
+      color: var(--c-op);
+      font-weight: 700;
+    }
+
+    /* 右侧精密控制舱 */
+    .control-pod {
+      border-left: 1px solid var(--hairline);
+      background: var(--paper-card);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .pod-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .pod-group {
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--hairline);
+    }
+    .pod-group:last-child { border-bottom: none; padding-bottom: 0; }
+    .pod-group-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .pod-group-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ink-400);
+    }
+
+    .serif-formula {
+      font-family: var(--font-serif);
+      font-size: 15px;
+      color: var(--ink-900);
+      background: var(--paper-subtle);
+      border: 1px solid var(--hairline-strong);
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+    .serif-formula em {
+      color: var(--c-source);
+      font-style: normal;
+      font-weight: 700;
+    }
+
+    .func-pills {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .func-pill {
+      padding: 6px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-subtle);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-700);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+    }
+    .func-pill.active {
+      background: var(--c-op-bg);
+      color: var(--c-op);
+      border-color: var(--c-op);
+    }
+
+    .param-list { display: flex; flex-direction: column; gap: 12px; }
+    .param-item { display: flex; flex-direction: column; gap: 3px; }
+    .param-top {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12.5px; font-weight: 600; color: var(--ink-700);
+    }
+    .param-readout {
+      font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+      color: var(--c-op); background: var(--c-op-bg);
+      padding: 1px 7px; border-radius: 5px; font-variant-numeric: tabular-nums;
+    }
+
+    .preset-pills {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+    }
+    .preset-pill {
+      padding: 4px 10px; border-radius: var(--radius-pill);
+      border: 1px solid var(--hairline-strong); background: var(--paper-subtle);
+      font-size: 11.5px; font-weight: 600; color: var(--ink-700);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .preset-pill:hover {
+      border-color: var(--c-op); color: var(--c-op); background: var(--c-op-bg);
+    }
+
+    .obs-note {
+      width: 100%; min-height: 74px; padding: 8px 10px;
+      border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm);
+      background: var(--paper-subtle); font-family: inherit; font-size: 12.5px;
+      line-height: 1.55; color: var(--ink-900); resize: vertical; outline: none;
+    }
+    .obs-note:focus { border-color: var(--c-op); background: #fff; }
+
+    .mini-topo {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--paper-subtle); border: 1px solid var(--hairline);
+      border-radius: var(--radius-sm); padding: 8px 10px; margin-top: 8px;
+    }
+    .topo-chain { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; }
+    .topo-chip { padding: 2px 6px; border-radius: 5px; }
+    .topo-chip.src { background: var(--c-source-bg); color: var(--c-source); }
+    .topo-chip.op { background: var(--c-op-bg); color: var(--c-op); }
+    .topo-chip.view { background: var(--c-view-bg); color: var(--c-view); }
+
+    .pod-foot {
+      padding: 10px 18px;
+      border-top: 1px solid var(--hairline);
+      font-size: 11.5px;
+      color: var(--ink-400);
+      background: var(--paper-subtle);
+    }
+
+    /* ==================== 视图 2：🧩 积木编排画布态 (Infinite Canvas Mode) ==================== */
+    .canvas-layout {
+      width: 100%; height: 100%; position: relative;
+      overflow: hidden; background: var(--paper-bg); cursor: grab;
+    }
+    .canvas-layout.Panning { cursor: grabbing; }
+
+    .canvas-world {
+      position: absolute; top: 0; left: 0;
+      width: 3200px; height: 2000px; transform-origin: 0 0;
+      background-image: radial-gradient(circle, #CEC8BC 1.35px, transparent 1.35px);
+      background-size: 26px 26px;
+    }
+
+    .palette-drawer {
+      position: absolute; top: 16px; left: 16px; bottom: 80px; width: 260px;
+      background: var(--paper-glass); backdrop-filter: blur(16px);
+      border: 1px solid var(--hairline-strong); border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md); z-index: 30;
+      display: flex; flex-direction: column; overflow: hidden;
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s;
+    }
+    .palette-drawer.collapsed {
+      transform: translateX(-280px); opacity: 0; pointer-events: none;
+    }
+    .drawer-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--hairline); }
+    .drawer-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .drawer-title-row h3 { font-size: 14px; font-weight: 700; }
+    .drawer-search {
+      width: 100%; padding: 7px 10px; border-radius: var(--radius-sm);
+      border: 1px solid var(--hairline-strong); background: var(--paper-card);
+      font-size: 12px; outline: none;
+    }
+    .drawer-cats { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--hairline); overflow-x: auto; }
+    .drawer-cat {
+      padding: 4px 9px; border-radius: var(--radius-pill); border: none;
+      background: transparent; font-size: 11.5px; font-weight: 600;
+      color: var(--ink-500); cursor: pointer; white-space: nowrap;
+    }
+    .drawer-cat.active { background: var(--ink-900); color: #fff; }
+    .drawer-list { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .brick-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 12px; border-radius: var(--radius-md);
+      background: var(--paper-card); border: 1px solid var(--hairline);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .brick-item:hover { border-color: var(--c-op); transform: translateX(2px); box-shadow: var(--shadow-sm); }
+    .brick-info { display: flex; align-items: center; gap: 9px; }
+    .brick-dot { width: 9px; height: 9px; border-radius: 50%; }
+    .brick-name { font-size: 12.5px; font-weight: 600; color: var(--ink-900); }
+    .brick-tag { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: var(--radius-pill); }
+
+    .wires-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+    .wire-base { fill: none; stroke: rgba(79, 70, 229, 0.22); stroke-width: 3.5; }
+    .wire-flow {
+      fill: none; stroke: var(--c-op); stroke-width: 2.2;
+      stroke-dasharray: 7 7; animation: wireFlow 0.9s linear infinite;
+    }
+    .wire-flow.src-wire { stroke: var(--c-source); }
+    @keyframes wireFlow { to { stroke-dashoffset: -14; } }
+
+    .c-node {
+      position: absolute; width: 280px; background: var(--paper-card);
+      border-radius: var(--radius-lg); border: 1px solid var(--hairline-strong);
+      box-shadow: var(--shadow-md); z-index: 2;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+    .c-node:hover, .c-node.selected {
+      border-color: var(--c-op);
+      box-shadow: var(--shadow-lg), 0 0 0 3px rgba(79, 70, 229, 0.12);
+    }
+    .c-node::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0; background: var(--c-op);
+    }
+    .c-node.type-source::before { background: var(--c-source); }
+    .c-node.type-view::before { background: var(--c-view); }
+
+    .c-node-head {
+      padding: 12px 14px 9px; border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: center; justify-content: space-between; cursor: grab;
+    }
+    .c-node-head:active { cursor: grabbing; }
+    .c-node-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--ink-900); }
+    .c-node-actions { display: flex; align-items: center; gap: 4px; }
+    .pin-btn {
+      border: 1px solid var(--hairline); background: var(--paper-subtle);
+      color: var(--ink-400); font-size: 11px; font-weight: 600;
+      padding: 2px 7px; border-radius: 6px; cursor: pointer; transition: all 0.15s;
+    }
+    .pin-btn.pinned { background: var(--c-view-bg); color: var(--c-view); border-color: rgba(13, 148, 136, 0.3); }
+    .pin-btn:hover { border-color: var(--ink-400); }
+    .c-node-body { padding: 12px 14px; font-size: 12.5px; }
+
+    .c-port {
+      position: absolute; top: 52%; width: 14px; height: 14px; border-radius: 50%;
+      background: #fff; border: 3px solid var(--c-op); z-index: 4;
+      cursor: crosshair; transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .c-port.in { left: -8px; }
+    .c-port.out {
+      right: -8px; border-color: var(--c-source);
+      background: var(--c-source); box-shadow: 0 0 0 2px #fff inset;
+    }
+    .c-port:hover { transform: scale(1.35); box-shadow: 0 0 0 5px rgba(79, 70, 229, 0.18); }
+    .port-tag {
+      position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+      background: var(--ink-900); color: #fff; font-family: var(--font-mono);
+      font-size: 10px; padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+      opacity: 0; pointer-events: none; transition: opacity 0.15s;
+    }
+    .c-port:hover .port-tag { opacity: 1; }
+
+    .floating-dock {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: rgba(24, 29, 36, 0.92); backdrop-filter: blur(16px); color: #fff;
+      padding: 6px 10px; border-radius: var(--radius-pill);
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.12);
+      display: flex; align-items: center; gap: 6px; z-index: 40;
+    }
+    .dock-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 13px; border-radius: var(--radius-pill); border: none;
+      background: transparent; color: rgba(255, 255, 255, 0.78);
+      font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+    }
+    .dock-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+    .dock-btn.active { background: var(--c-op); color: #fff; box-shadow: 0 2px 10px rgba(79, 70, 229, 0.45); }
+    .dock-sep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.18); margin: 0 4px; }
+    .zoom-readout { font-family: var(--font-mono); font-size: 12px; min-width: 46px; text-align: center; color: rgba(255, 255, 255, 0.9); }
+
+    /* ==================== 视图 3：工坊目录抽屉/门面预览 ==================== */
+    .catalog-modal {
+      position: absolute; inset: 0; background: var(--paper-bg);
+      z-index: 80; overflow-y: auto; padding: 36px 48px 80px; display: none;
+    }
+    .catalog-modal.active { display: block; }
+    .catalog-inner { max-width: 1240px; margin: 0 auto; }
+    .cat-hero {
+      display: flex; align-items: flex-end; justify-content: space-between;
+      margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--hairline-strong);
+    }
+    .cat-hero h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; margin-top: 6px; }
+    .cat-hero p { color: var(--ink-500); font-size: 13.5px; margin-top: 6px; }
+    .cat-filter-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; }
+    .cat-pill {
+      padding: 7px 16px; border-radius: var(--radius-pill);
+      border: 1px solid var(--hairline-strong); background: var(--paper-card);
+      font-size: 12.5px; font-weight: 600; color: var(--ink-700); cursor: pointer;
+    }
+    .cat-pill.active { background: var(--ink-900); color: #fff; border-color: var(--ink-900); }
+    .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+    .tpl-card {
+      background: var(--paper-card); border: 1px solid var(--hairline);
+      border-radius: var(--radius-lg); overflow: hidden; box-shadow: var(--shadow-sm);
+      cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column;
+    }
+    .tpl-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--c-op); }
+    .tpl-thumb {
+      height: 150px; background: linear-gradient(135deg, #FAF8F5 0%, #F0EDE4 100%);
+      border-bottom: 1px solid var(--hairline); display: flex; align-items: center;
+      justify-content: center; position: relative; padding: 16px;
+    }
+    .tpl-badge {
+      position: absolute; top: 12px; left: 12px; font-size: 10.5px; font-weight: 700;
+      padding: 3px 9px; border-radius: var(--radius-pill);
+      background: rgba(255,255,255,0.9); backdrop-filter: blur(4px);
+      color: var(--ink-700); border: 1px solid var(--hairline);
+    }
+    .tpl-body { padding: 16px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+    .tpl-body h3 { font-size: 15px; font-weight: 700; color: var(--ink-900); }
+    .tpl-body p { font-size: 12.5px; color: var(--ink-500); line-height: 1.6; }
+    .tpl-foot {
+      margin-top: auto; padding-top: 10px; display: flex; align-items: center;
+      justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--c-source);
+    }
+
+    .toast-banner {
+      position: fixed; top: 68px; right: 20px; background: var(--ink-900); color: #fff;
+      padding: 12px 18px; border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+      font-size: 13px; z-index: 200; display: none; align-items: center; gap: 10px;
+    }
+    .toast-banner.show { display: flex; }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== 1. 三段式极简顶栏 ==================== -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button type="button" class="back-btn" id="btnToggleCatalog" onclick="toggleCatalog()">
+        <span>❖</span> 工坊目录
+      </button>
+      <div class="divider-v"></div>
+      <div class="doc-title-wrap">
+        <input class="doc-title" value="泰勒展开与局部多项式逼近" aria-label="实验标题" />
+        <span class="sync-dot" title="工坊与本地双轨自动保存">已保存</span>
+      </div>
+    </div>
+
+    <!-- 中央：双模式切换器 -->
+    <div class="mode-switcher" role="tablist" aria-label="工坊视图模式">
+      <button type="button" class="mode-btn active" id="tabInstrument" onclick="switchMode('instrument')">
+        <span>🎛️ 交互仪器态</span>
+        <span class="mode-badge">连续演化视图</span>
+      </button>
+      <button type="button" class="mode-btn" id="tabCanvas" onclick="switchMode('canvas')">
+        <span>🧩 积木编排态</span>
+        <span class="mode-badge" style="background:#FFF7ED;color:#EA580C">4 节点</span>
+      </button>
+    </div>
+
+    <div class="topbar-right">
+      <button type="button" class="icon-btn" title="恢复默认并回到第 1 帧" onclick="resetDefaults()">↺ 重置</button>
+      <button type="button" class="primary-btn" onclick="showEmbedToast()">
+        ⚡ 作为插件嵌入活页 / 题目
+      </button>
+    </div>
+  </header>
+
+  <!-- ==================== 主工作区 ==================== -->
+  <main class="workspace">
+
+    <!-- ======== 模式 A：🎛️ 交互仪器态 (融合连续时间轴 + 三联过程副图 + 画布直接拖拽) ======== -->
+    <section class="view-layer active" id="layerInstrument">
+      <div class="instrument-layout">
+
+        <!-- 左侧主实验区：滚动舞台 + 底部连续播放时间轴 -->
+        <div class="stage-column">
+          <div class="stage-scroll">
+
+            <!-- 1. 探究问题与折叠步骤引导 -->
+            <div class="inquiry-bar">
+              <span class="inquiry-tag">探究问题</span>
+              <b>高阶导数项是如何一步步消除局部曲率误差、把多项式“贴”到原函数上的？</b>
+              <button type="button" class="steps-toggle" id="btnSteps" onclick="toggleSteps()">步骤与观察 ▾</button>
+            </div>
+            <div class="steps-drawer" id="stepsDrawer">
+              <ol>
+                <li>点击底部 <b>▶ 播放</b>（或按空格键），观察泰勒多项式从 <b>0 阶常数 → 1 阶切线 → 9 阶曲线</b> 连续生长并包裹原函数 <span class="mono">f(x)</span> 的动态过程（浅紫虚线为上一阶残影对照）。</li>
+                <li><b>直接在主图上左右拖动鼠标</b>，实时移动误差探针 <span class="mono">x</span>，看引线标牌与下方「逐阶误差收敛图」如何同步响应。</li>
+                <li>观察主图底部的 <b>保号性与有效逼近带</b>：在多宽的邻域内误差 <span class="mono">|Rₙ(x)| &lt; 0.05</span>？</li>
+              </ol>
+            </div>
+
+            <!-- 2. 主观察画布（支持直接在图上左右拖动探针 + 连续阶数形态插值 + 引线读数牌 + 底部逼近有效带） -->
+            <section class="stage-card">
+              <div class="card-header">
+                <div class="card-title-group">
+                  <h2>主视图 · 连续展开过程与历史阶残影</h2>
+                  <div class="legend-inline">
+                    <span><svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#181D24" stroke-width="2.2" stroke-dasharray="4 3" stroke-opacity="0.45"/></svg>原函数 f(x)</span>
+                    <span><svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#4F46E5" stroke-width="3"/></svg>当前逼近 P(x)</span>
+                    <span><svg width="20" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#818CF8" stroke-width="1.6" stroke-dasharray="3 3"/></svg>上一阶对照 Pₙ₋₁</span>
+                  </div>
+                </div>
+                <span class="card-hint">💡 在图上直接左右拖动可移动探针 x · 空格键播放/暂停</span>
+              </div>
+
+              <div class="main-svg-wrap">
+                <svg id="mainPlotSvg" viewBox="0 0 860 326" role="img" aria-label="泰勒展开连续演化主图"></svg>
+              </div>
+            </section>
+
+            <!-- 3. 实时自然语言结论条 -->
+            <div class="conclusion-strip" aria-live="polite">
+              <span class="c-label">当前结论</span>
+              <span id="liveConclusionText"></span>
+            </div>
+
+            <!-- 4. 三联过程副图：新项涌现分解 + 逐阶误差收敛轨迹 + 精确读数表 -->
+            <div class="minis-grid">
+              <section class="mini-card">
+                <div class="mini-head">
+                  <h3>① 当前生长项分解 ΔTₙ(x)</h3>
+                  <span class="mono" id="mini1Hint"></span>
+                </div>
+                <svg id="termSvg" viewBox="0 0 380 188" role="img" aria-label="当前新增高阶项波形与合成权重"></svg>
+              </section>
+
+              <section class="mini-card">
+                <div class="mini-head">
+                  <h3>② 探针处误差随阶数收敛</h3>
+                  <span class="mono" id="mini2Hint"></span>
+                </div>
+                <svg id="convSvg" viewBox="0 0 340 188" role="img" aria-label="余项误差随展开进程的变化曲线"></svg>
+              </section>
+
+              <section class="mini-card">
+                <div class="mini-head">
+                  <h3>③ 实时观测读数</h3>
+                  <span class="mono" style="color:var(--ink-400)" id="mini3Hint"></span>
+                </div>
+                <table class="readout-table" id="readoutTable"></table>
+              </section>
+            </div>
+
+          </div>
+
+          <!-- 5. 底部连续时间轴播放栏 (Timeline Scrub Bar) -->
+          <div class="timeline-bar" role="group" aria-label="连续演化时间轴">
+            <button type="button" class="tl-btn" title="退回上一阶" onclick="stepOrder(-1)">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 3h1.5v10H3.5zM12.5 3.5v9L6 8z"/></svg>
+            </button>
+            <button type="button" class="tl-btn play-primary" id="btnPlay" title="连续播放展开过程 (空格键)" onclick="togglePlay()">
+              <svg id="playSvgIcon" viewBox="0 0 16 16" fill="currentColor"><path d="M4.5 3v10l8-5z"/></svg>
+            </button>
+            <button type="button" class="tl-btn" title="前进下一阶" onclick="stepOrder(1)">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11 3h1.5v10H11zM3.5 3.5v9L10 8z"/></svg>
+            </button>
+            <button type="button" class="tl-btn" title="回到 0 阶起点" onclick="scrubTo(0)">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 8a5 5 0 1 0 1.5-3.5"/><path d="M3 2.5V5h2.5"/></svg>
+            </button>
+
+            <div class="tl-scrubber-wrap">
+              <input type="range" class="fill-slider" id="timelineScrub" min="0" max="9" step="0.02" value="3" aria-label="连续展开阶数时间轴" />
+              <div class="tl-ticks" id="timelineTicks">
+                <span data-k="0">0阶(常数)</span>
+                <span data-k="1">1阶(切线)</span>
+                <span data-k="2">2阶</span>
+                <span data-k="3">3阶</span>
+                <span data-k="5">5阶</span>
+                <span data-k="7">7阶</span>
+                <span data-k="9">9阶(高精)</span>
+              </div>
+            </div>
+
+            <div class="tl-readout mono" id="timelineReadout"></div>
+          </div>
+        </div>
+
+        <!-- 右侧精密参数控制舱 -->
+        <aside class="control-pod" aria-label="参数与笔记">
+          <div class="pod-scroll">
+
+            <!-- 1. 目标函数与动态展开式 -->
+            <div class="pod-group">
+              <div class="pod-group-head">
+                <span class="pod-group-title">目标函数与展开式</span>
+              </div>
+              <div class="func-pills">
+                <button type="button" class="func-pill active" id="pillSin" onclick="setTargetFunc('sin')">sin(x)</button>
+                <button type="button" class="func-pill" id="pillCos" onclick="setTargetFunc('cos')">cos(x)</button>
+                <button type="button" class="func-pill" id="pillExp" onclick="setTargetFunc('exp')">e^(0.4x)cos(x)</button>
+              </div>
+              <div class="serif-formula" id="formulaDisplay"></div>
+            </div>
+
+            <!-- 2. 核心参数滑杆 (带进度条填充) -->
+            <div class="pod-group">
+              <div class="pod-group-head">
+                <span class="pod-group-title">外露交互参数</span>
+                <span style="font-size:11px;color:var(--c-view);font-weight:700">活页学生可调</span>
+              </div>
+
+              <div class="param-list">
+                <div class="param-item">
+                  <div class="param-top">
+                    <span>连续展开进程 τ (阶数)</span>
+                    <span class="param-readout" id="valTau">3.00 阶</span>
+                  </div>
+                  <input type="range" class="fill-slider" id="sliderTau" min="0" max="9" step="0.05" value="3" />
+                </div>
+
+                <div class="param-item">
+                  <div class="param-top">
+                    <span>展开中心 x₀ (绿点)</span>
+                    <span class="param-readout" id="valCenter">0.00</span>
+                  </div>
+                  <input type="range" class="fill-slider" id="sliderCenter" min="-2.0" max="2.0" step="0.05" value="0" />
+                </div>
+
+                <div class="param-item">
+                  <div class="param-top">
+                    <span>观测探针位置 x (橙点)</span>
+                    <span class="param-readout" id="valProbe">1.85</span>
+                  </div>
+                  <input type="range" class="fill-slider" id="sliderProbe" min="-3.6" max="3.6" step="0.02" value="1.85" />
+                </div>
+              </div>
+
+              <div class="preset-pills">
+                <button type="button" class="preset-pill" onclick="playFromZero()">▶ 从 0→9 阶连续生长</button>
+                <button type="button" class="preset-pill" onclick="applyPreset(1, 0, 1.2)">一阶切线</button>
+                <button type="button" class="preset-pill" onclick="applyPreset(3, 0, 1.85)">三阶拐点包络</button>
+                <button type="button" class="preset-pill" onclick="applyPreset(5, 1.0, 2.4)">中心偏移 x₀=1</button>
+              </div>
+            </div>
+
+            <!-- 3. 我的观察记录 & 拓扑跳转 -->
+            <div class="pod-group">
+              <div class="pod-group-head">
+                <span class="pod-group-title">我的实验观察</span>
+              </div>
+              <textarea class="obs-note" placeholder="记录你的观察：例如当播放时间轴经过奇数阶（1→3→5→7）时，sin(x) 在 x=1.85 处的误差阶梯式下降…"></textarea>
+
+              <div class="mini-topo">
+                <div class="topo-chain">
+                  <span class="topo-chip src">函数源</span>
+                  <span>→</span>
+                  <span class="topo-chip op">泰勒算子</span>
+                  <span>→</span>
+                  <span class="topo-chip view">三联视图</span>
+                </div>
+                <button type="button" class="back-btn" style="padding:3px 8px;font-size:11px" onclick="switchMode('canvas')">
+                  积木连线 →
+                </button>
+              </div>
+            </div>
+
+          </div>
+          <div class="pod-foot">
+            纯浏览器端确定性实时计算 · 图像与数值是直觉探究证据
+          </div>
+        </aside>
+
+      </div>
+    </section>
+
+    <!-- ======== 模式 B：🧩 积木编排画布态 (100% 沉浸无限画布 + 底部悬浮工具坞) ======== -->
+    <section class="view-layer" id="layerCanvas">
+      <div class="canvas-layout" id="canvasViewport">
+
+        <!-- 左侧可折叠积木库抽屉 -->
+        <aside class="palette-drawer" id="paletteDrawer">
+          <div class="drawer-head">
+            <div class="drawer-title-row">
+              <h3>🧩 积木组件库</h3>
+              <button type="button" class="pin-btn" onclick="toggleDrawer()">收起 ✕</button>
+            </div>
+            <input type="search" class="drawer-search" placeholder="搜索积木（如：泰勒、卷积、矩阵）" />
+          </div>
+          <div class="drawer-cats">
+            <button type="button" class="drawer-cat active">高等数学</button>
+            <button type="button" class="drawer-cat">线性代数</button>
+            <button type="button" class="drawer-cat">深度学习</button>
+            <button type="button" class="drawer-cat">408</button>
+          </div>
+          <div class="drawer-list">
+            <div class="brick-item" onclick="spawnDemoNode('functionSource', '函数源 f(x)', 'source')">
+              <div class="brick-info">
+                <span class="brick-dot" style="background:var(--c-source)"></span>
+                <span class="brick-name">函数源 f(x)</span>
+              </div>
+              <span class="brick-tag" style="background:var(--c-source-bg);color:var(--c-source)">数据源</span>
+            </div>
+            <div class="brick-item" onclick="spawnDemoNode('ticker', '连续时间源 τ', 'source')">
+              <div class="brick-info">
+                <span class="brick-dot" style="background:var(--c-source)"></span>
+                <span class="brick-name">连续时间演化源</span>
+              </div>
+              <span class="brick-tag" style="background:var(--c-source-bg);color:var(--c-source)">数据源</span>
+            </div>
+            <div class="brick-item" onclick="spawnDemoNode('taylor', '泰勒展开算子', 'op')">
+              <div class="brick-info">
+                <span class="brick-dot" style="background:var(--c-op)"></span>
+                <span class="brick-name">泰勒级数展开</span>
+              </div>
+              <span class="brick-tag" style="background:var(--c-op-bg);color:var(--c-op)">算子</span>
+            </div>
+            <div class="brick-item" onclick="spawnDemoNode('integral', '黎曼定积分', 'op')">
+              <div class="brick-info">
+                <span class="brick-dot" style="background:var(--c-op)"></span>
+                <span class="brick-name">黎曼和与定积分</span>
+              </div>
+              <span class="brick-tag" style="background:var(--c-op-bg);color:var(--c-op)">算子</span>
+            </div>
+            <div class="brick-item" onclick="spawnDemoNode('functionPlot', '三联过程观察仪', 'view')">
+              <div class="brick-info">
+                <span class="brick-dot" style="background:var(--c-view)"></span>
+                <span class="brick-name">三联过程观察仪</span>
+              </div>
+              <span class="brick-tag" style="background:var(--c-view-bg);color:var(--c-view)">视图</span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- 无限画布世界 -->
+        <div class="canvas-world" id="canvasWorld">
+          <svg class="wires-svg" id="wiresSvg"></svg>
+
+          <!-- 节点 1：函数源 -->
+          <div class="c-node type-source" id="node_src" data-x="330" data-y="110" style="left:330px;top:110px;">
+            <div class="c-node-head">
+              <div class="c-node-title">
+                <span class="brick-dot" style="background:var(--c-source)"></span>
+                <span>函数源 f(x)</span>
+              </div>
+              <div class="c-node-actions">
+                <span class="brick-tag" style="background:var(--c-source-bg);color:var(--c-source)">源</span>
+              </div>
+            </div>
+            <div class="c-node-body">
+              <div style="font-family:var(--font-mono);background:var(--paper-subtle);padding:8px 10px;border-radius:8px;border:1px solid var(--hairline-strong);font-weight:700;color:var(--ink-900);margin-bottom:8px;" id="canvasFuncText">
+                f(x) = sin(x)
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-500);">
+                <span>定义域: [-3.8, 3.8]</span>
+                <span style="color:var(--c-source);font-weight:600">实时广播 ●</span>
+              </div>
+            </div>
+            <div class="c-port out"><span class="port-tag">输出: function f(x)</span></div>
+          </div>
+
+          <!-- 节点 2：展开中心滑杆源 -->
+          <div class="c-node type-source" id="node_slider" data-x="330" data-y="310" style="left:330px;top:310px;">
+            <div class="c-node-head">
+              <div class="c-node-title">
+                <span class="brick-dot" style="background:var(--c-source)"></span>
+                <span>展开中心滑杆 x₀</span>
+              </div>
+              <div class="c-node-actions">
+                <button type="button" class="pin-btn pinned" onclick="togglePin(this)">👁️ 已外露</button>
+              </div>
+            </div>
+            <div class="c-node-body">
+              <div class="param-top" style="margin-bottom:6px;">
+                <span>当前值 x₀</span>
+                <span class="param-readout" id="canvasCenterVal">0.00</span>
+              </div>
+              <input type="range" class="fill-slider" id="canvasSliderCenter" min="-2.0" max="2.0" step="0.05" value="0" />
+            </div>
+            <div class="c-port out"><span class="port-tag">输出: scalar x₀</span></div>
+          </div>
+
+          <!-- 节点 3：泰勒展开算子 -->
+          <div class="c-node type-op selected" id="node_taylor" data-x="700" data-y="175" style="left:700px;top:175px;">
+            <div class="c-node-head">
+              <div class="c-node-title">
+                <span class="brick-dot" style="background:var(--c-op)"></span>
+                <span>连续泰勒展开算子</span>
+              </div>
+              <div class="c-node-actions">
+                <button type="button" class="pin-btn pinned" onclick="togglePin(this)">👁️ 外露 τ</button>
+              </div>
+            </div>
+            <div class="c-node-body">
+              <div class="param-top" style="margin-bottom:6px;">
+                <span>连续演化阶数 τ</span>
+                <span class="param-readout" id="canvasDegreeVal">3.00 阶</span>
+              </div>
+              <input type="range" class="fill-slider" id="canvasSliderTau" min="0" max="9" step="0.05" value="3" />
+              <div style="margin-top:10px;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-700);background:var(--c-op-bg);padding:6px 9px;border-radius:6px;" id="canvasTaylorFormula">
+                P₃(x) @ x₀=0.0
+              </div>
+            </div>
+            <div class="c-port in" style="top:38%"><span class="port-tag">输入: f(x)</span></div>
+            <div class="c-port in" style="top:72%"><span class="port-tag">输入: 中心 x₀</span></div>
+            <div class="c-port out"><span class="port-tag">输出: P_τ(x) 曲线族</span></div>
+          </div>
+
+          <!-- 节点 4：三联观察视图 -->
+          <div class="c-node type-view" id="node_view" data-x="1075" data-y="150" style="left:1075px;top:150px;width:310px;">
+            <div class="c-node-head">
+              <div class="c-node-title">
+                <span class="brick-dot" style="background:var(--c-view)"></span>
+                <span>三联过程观察仪</span>
+              </div>
+              <div class="c-node-actions">
+                <button type="button" class="pin-btn pinned" onclick="togglePin(this)">📌 主舞台视图</button>
+              </div>
+            </div>
+            <div class="c-node-body">
+              <div style="background:var(--paper-subtle);border:1px solid var(--hairline);border-radius:10px;padding:10px;text-align:center;">
+                <svg id="miniCanvasPlot" viewBox="0 0 260 120" style="width:100%;height:110px;overflow:visible"></svg>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:11.5px;color:var(--ink-500);">
+                <span>探针误差 |R|: <b style="color:var(--c-source);font-family:var(--font-mono)" id="canvasMiniErr">0.1458</b></span>
+                <a href="javascript:void(0)" onclick="switchMode('instrument')" style="color:var(--c-view);font-weight:700;text-decoration:none;">进入连续仪器态 ↗</a>
+              </div>
+            </div>
+            <div class="c-port in"><span class="port-tag">输入: P_τ(x) & f(x)</span></div>
+          </div>
+
+        </div>
+
+        <!-- 底部居中悬浮工具坞 -->
+        <div class="floating-dock" role="toolbar" aria-label="画布工具坞">
+          <button type="button" class="dock-btn active" onclick="toggleDrawer()">
+            <span>➕</span> 积木库
+          </button>
+          <button type="button" class="dock-btn" onclick="alert('原型提示：直接左键拖动空白处即可平移画布，拖动卡片顶部移动节点。')">
+            <span>✋</span> 拖拽平移
+          </button>
+          <button type="button" class="dock-btn" onclick="alert('原型提示：手写公式与曲线拟合收纳于此，不再挤占顶栏。')">
+            <span>✒️</span> 手写识别
+          </button>
+          <div class="dock-sep"></div>
+          <button type="button" class="dock-btn" onclick="changeCanvasZoom(-0.1)">−</button>
+          <span class="zoom-readout" id="zoomReadout">100%</span>
+          <button type="button" class="dock-btn" onclick="changeCanvasZoom(0.1)">＋</button>
+          <button type="button" class="dock-btn" onclick="resetCanvasView()">适应</button>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ======== 视图 3：工坊策展目录页 ======== -->
+    <section class="catalog-modal" id="catalogModal">
+      <div class="catalog-inner">
+        <div class="cat-hero">
+          <div>
+            <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--c-source);letter-spacing:0.12em;">WANXIANG CURATED WORKSHOP</span>
+            <h1>万象工坊 · 策展式交互实验库</h1>
+            <p>每个实验既支持底部时间轴连续播放推演过程，也可切换到「积木编排态」自由拆改，或一键作为插件嵌入活页 PPT。</p>
+          </div>
+          <button type="button" class="primary-btn" onclick="toggleCatalog()">返回当前实验 →</button>
+        </div>
+
+        <div class="cat-filter-bar">
+          <button type="button" class="cat-pill active">全部精选 (18)</button>
+          <button type="button" class="cat-pill">高等数学 · 微元与逼近</button>
+          <button type="button" class="cat-pill">线性代数 · 空间变换</button>
+          <button type="button" class="cat-pill">深度学习 · 训练动力学</button>
+          <button type="button" class="cat-pill">408 · 状态机与流水线</button>
+        </div>
+
+        <div class="tpl-grid">
+          <article class="tpl-card" onclick="toggleCatalog()">
+            <div class="tpl-thumb">
+              <span class="tpl-badge">高等数学 · 当前打开</span>
+              <svg viewBox="0 0 220 100" style="width:85%;height:85%">
+                <line x1="10" y1="50" x2="210" y2="50" stroke="#CBD5E1" />
+                <path d="M 10 80 Q 60 10, 110 50 T 210 20" fill="none" stroke="#94A3B8" stroke-width="2" stroke-dasharray="4 3" />
+                <path d="M 30 88 C 70 5, 150 95, 190 12" fill="none" stroke="#4F46E5" stroke-width="3" />
+                <circle cx="110" cy="50" r="4.5" fill="#0D9488" />
+              </svg>
+            </div>
+            <div class="tpl-body">
+              <h3>泰勒展开与局部近似（连续生长）</h3>
+              <p>通过时间轴连续播放 0→9 阶多项式生长过程，配合高阶项波形分解与逐阶误差收敛图直观理解逼近原理。</p>
+              <div class="tpl-foot">
+                <span>Pₙ(x) = ∑ f⁽ᵏ⁾(x₀)/k! · (x-x₀)ᵏ</span>
+                <span>进入实验 →</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="tpl-card" onclick="toggleCatalog()">
+            <div class="tpl-thumb">
+              <span class="tpl-badge">高等数学 · 导数三联</span>
+              <svg viewBox="0 0 220 100" style="width:85%;height:85%">
+                <line x1="10" y1="55" x2="210" y2="55" stroke="#CBD5E1" />
+                <path d="M 20 85 C 70 5, 150 95, 200 15" fill="none" stroke="#181D24" stroke-width="2.4" />
+                <path d="M 20 25 Q 110 85, 200 25" fill="none" stroke="#EA580C" stroke-width="2" />
+              </svg>
+            </div>
+            <div class="tpl-body">
+              <h3>函数与导数三联图（割线趋向切线）</h3>
+              <p>同轴对比 f、f′、f″ 与单调/凹凸区间条带，播放步长 h→0 的连续过程，观察割线斜率如何收敛到导数。</p>
+              <div class="tpl-foot">
+                <span>f′(x₀) = lim [f(x₀+h)−f(x₀)]/h</span>
+                <span>进入实验 →</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="tpl-card" onclick="toggleCatalog()">
+            <div class="tpl-thumb">
+              <span class="tpl-badge">高等数学 · 空间微元</span>
+              <svg viewBox="0 0 220 100" style="width:85%;height:85%">
+                <ellipse cx="110" cy="55" rx="65" ry="22" fill="rgba(13,148,136,0.12)" stroke="#0D9488" stroke-width="1.5" />
+                <path d="M 45 55 A 65 50 0 0 1 175 55" fill="rgba(79,70,229,0.12)" stroke="#4F46E5" stroke-width="2" />
+                <ellipse cx="110" cy="34" rx="52" ry="14" fill="rgba(234,88,12,0.25)" stroke="#EA580C" stroke-width="2" />
+              </svg>
+            </div>
+            <div class="tpl-body">
+              <h3>曲面积分与旋转体环带切片</h3>
+              <p>拖动截面高度 h 与环带数 n，同步观察三维环带面积微元 dS 与右侧积分累积曲线的收敛过程。</p>
+              <div class="tpl-foot">
+                <span>∬_Σ f(z) dS = ∫ 2πR·f(z) dz</span>
+                <span>进入实验 →</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="tpl-card" onclick="toggleCatalog()">
+            <div class="tpl-thumb">
+              <span class="tpl-badge">深度学习 · 卷积透视</span>
+              <svg viewBox="0 0 220 100" style="width:85%;height:85%">
+                <rect x="25" y="18" width="64" height="64" rx="6" fill="#fff" stroke="#94A3B8" stroke-width="1.5" />
+                <rect x="40" y="32" width="28" height="28" rx="3" fill="rgba(234,88,12,0.2)" stroke="#EA580C" stroke-width="2" />
+                <path d="M 98 50 L 124 50" stroke="#4F46E5" stroke-width="2" />
+                <rect x="134" y="26" width="48" height="48" rx="6" fill="rgba(79,70,229,0.12)" stroke="#4F46E5" stroke-width="2" />
+              </svg>
+            </div>
+            <div class="tpl-body">
+              <h3>CNN 卷积核与感受野透视仪</h3>
+              <p>支持手绘或上传真实图片，逐格播放 3×3 卷积核滑窗乘加过程，反溯高亮多层感受野。</p>
+              <div class="tpl-foot">
+                <span>Y[i,j] = ∑∑ X[i+u,j+v]·K[u,v]</span>
+                <span>进入实验 →</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="toast-banner" id="embedToast">
+    <span>✅</span>
+    <span>已生成包含<b>连续时间轴与三联视图</b>的 <b>CanvasPanel 插件</b>！可一键插入「万象活页 PPT」或「题目实验室」。</span>
+  </div>
+
+  <script>
+    // ==================== 连续数学引擎 (Continuous Morphing Taylor Engine) ====================
+    // 核心亮点：tau (0.00 ~ 9.00) 是连续实数！
+    // 整数部分 N = floor(tau)，小数部分 alpha = tau - N。
+    // P_tau(x) = P_{N-1}(x) + alpha * T_N(x)（平滑展现每一阶高次项是如何“长出来”把曲线压向原函数的！）
+    const state = {
+      func: 'sin',     // 'sin' | 'cos' | 'exp'
+      tau: 3.0,        // 连续展开阶数 0.00 ~ 9.00
+      center: 0.0,     // 展开中心 x0 in [-2, 2]
+      probe: 1.85,     // 观测探针 x in [-3.6, 3.6]
+      playing: false,
+      zoom: 1.0,
+      panX: 0,
+      panY: 0,
+    };
+
+    const NS = 'http://www.w3.org/2000/svg';
+    function svgEl(tag, attrs = {}, text) {
+      const e = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+      if (text !== undefined) e.textContent = text;
+      return e;
+    }
+
+    function factorial(n) {
+      let r = 1;
+      for (let i = 2; i <= n; i++) r *= i;
+      return r;
+    }
+
+    function evalTrueFunc(x) {
+      if (state.func === 'sin') return Math.sin(x);
+      if (state.func === 'cos') return Math.cos(x);
+      return 0.55 * Math.exp(0.35 * x) * Math.cos(x);
+    }
+
+    function evalDerivative(x0, k) {
+      if (state.func === 'sin') {
+        const m = ((k % 4) + 4) % 4;
+        return m === 0 ? Math.sin(x0) : m === 1 ? Math.cos(x0) : m === 2 ? -Math.sin(x0) : -Math.cos(x0);
+      }
+      if (state.func === 'cos') {
+        const m = ((k % 4) + 4) % 4;
+        return m === 0 ? Math.cos(x0) : m === 1 ? -Math.sin(x0) : m === 2 ? -Math.cos(x0) : Math.sin(x0);
+      }
+      const r = Math.hypot(0.35, 1);
+      const theta = Math.atan2(1, 0.35);
+      return 0.55 * Math.exp(0.35 * x0) * Math.pow(r, k) * Math.cos(x0 + k * theta);
+    }
+
+    // 第 k 阶单项 T_k(x)
+    function evalTerm(x, x0, k) {
+      return (evalDerivative(x0, k) / factorial(k)) * Math.pow(x - x0, k);
+    }
+
+    // 离散整数阶泰勒多项式 P_n(x)
+    function evalTaylorDiscrete(x, x0, n) {
+      let s = 0;
+      for (let k = 0; k <= n; k++) s += evalTerm(x, x0, k);
+      return s;
+    }
+
+    // 连续阶插值泰勒多项式 P_tau(x)：让变化过程 100% 连续可见！
+    function evalTaylorContinuous(x, x0, tau) {
+      const baseN = Math.floor(tau);
+      const alpha = tau - baseN;
+      let sum = evalTaylorDiscrete(x, x0, baseN);
+      if (alpha > 1e-4 && baseN < 9) {
+        sum += alpha * evalTerm(x, x0, baseN + 1);
+      }
+      return sum;
+    }
+
+    function setSliderFill(el) {
+      const min = parseFloat(el.min || 0);
+      const max = parseFloat(el.max || 100);
+      const val = parseFloat(el.value || 0);
+      el.style.setProperty('--fill', `${((val - min) / (max - min)) * 100}%`);
+    }
+
+    // ==================== 1. 绘制主图（含历史阶残影 + 引线读数牌 + 底部有效逼近条带） ====================
+    const MAIN_BOX = { W: 860, H: 326, l: 48, r: 28, t: 16, plotB: 256, xMin: -3.8, xMax: 3.8, yMin: -2.1, yMax: 2.1 };
+    const toMainX = (x) => MAIN_BOX.l + ((x - MAIN_BOX.xMin) / (MAIN_BOX.xMax - MAIN_BOX.xMin)) * (MAIN_BOX.W - MAIN_BOX.l - MAIN_BOX.r);
+    const toMainY = (y) => MAIN_BOX.t + ((MAIN_BOX.yMax - y) / (MAIN_BOX.yMax - MAIN_BOX.yMin)) * (MAIN_BOX.plotB - MAIN_BOX.t);
+    const fromMainPx = (px) => MAIN_BOX.xMin + ((px - MAIN_BOX.l) / (MAIN_BOX.W - MAIN_BOX.l - MAIN_BOX.r)) * (MAIN_BOX.xMax - MAIN_BOX.xMin);
+
+    function drawMainStage() {
+      const svg = document.getElementById('mainPlotSvg');
+      svg.textContent = '';
+      const { W, l, r, t, plotB, xMin, xMax, yMin, yMax } = MAIN_BOX;
+      const { tau, center, probe } = state;
+      const activeN = Math.ceil(tau);
+      const prevN = Math.max(0, activeN - 1);
+
+      // Defs: 裁剪区与面积渐变
+      const defs = svgEl('defs');
+      const clip = svgEl('clipPath', { id: 'mainPlotClip' });
+      clip.appendChild(svgEl('rect', { x: l, y: t, width: W - l - r, height: plotB - t }));
+      defs.appendChild(clip);
+
+      const grad = svgEl('linearGradient', { id: 'errFillGrad', x1: '0', y1: '0', x2: '0', y2: '1' });
+      grad.appendChild(svgEl('stop', { offset: '0%', 'stop-color': '#EA580C', 'stop-opacity': '0.18' }));
+      grad.appendChild(svgEl('stop', { offset: '100%', 'stop-color': '#EA580C', 'stop-opacity': '0.02' }));
+      defs.appendChild(grad);
+      svg.appendChild(defs);
+
+      // 坐标网格
+      for (let x = -3; x <= 3; x++) {
+        const sx = toMainX(x);
+        svg.appendChild(svgEl('line', { x1: sx, x2: sx, y1: t, y2: plotB, stroke: x === 0 ? 'rgba(24,29,36,0.22)' : 'rgba(24,29,36,0.06)' }));
+        svg.appendChild(svgEl('text', { x: sx, y: plotB + 15, 'text-anchor': 'middle', 'font-size': 11, fill: '#8C95A4', 'font-family': 'var(--font-mono)' }, x));
+      }
+      for (let y = -2; y <= 2; y++) {
+        const sy = toMainY(y);
+        svg.appendChild(svgEl('line', { x1: l, x2: W - r, y1: sy, y2: sy, stroke: y === 0 ? 'rgba(24,29,36,0.22)' : 'rgba(24,29,36,0.06)' }));
+        svg.appendChild(svgEl('text', { x: l - 8, y: sy + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#8C95A4', 'font-family': 'var(--font-mono)' }, y));
+      }
+
+      const gClip = svgEl('g', { 'clip-path': 'url(#mainPlotClip)' });
+      svg.appendChild(gClip);
+
+      // 采样生成曲线
+      const N_SAMPLES = 200;
+      let dTrue = '', dPrev = '', dCurr = '';
+      const ptsTrue = [], ptsCurr = [];
+
+      for (let i = 0; i <= N_SAMPLES; i++) {
+        const x = xMin + (i / N_SAMPLES) * (xMax - xMin);
+        const yt = evalTrueFunc(x);
+        const yPrev = Math.max(-5, Math.min(5, evalTaylorDiscrete(x, center, prevN)));
+        const yCurr = Math.max(-5, Math.min(5, evalTaylorContinuous(x, center, tau)));
+        const sx = toMainX(x).toFixed(1);
+        const syt = toMainY(yt).toFixed(1);
+        const syp = toMainY(yPrev).toFixed(1);
+        const syc = toMainY(yCurr).toFixed(1);
+
+        dTrue += (i === 0 ? 'M' : 'L') + `${sx} ${syt}`;
+        dPrev += (i === 0 ? 'M' : 'L') + `${sx} ${syp}`;
+        dCurr += (i === 0 ? 'M' : 'L') + `${sx} ${syc}`;
+        ptsTrue.push(`${sx} ${syt}`);
+        ptsCurr.push(`${sx} ${syc}`);
+      }
+
+      // 误差阴影包络
+      gClip.appendChild(svgEl('path', {
+        d: `M ${ptsTrue.join(' L ')} L ${ptsCurr.reverse().join(' L ')} Z`,
+        fill: 'url(#errFillGrad)',
+      }));
+
+      // 上一阶历史残影曲线 Pn-1 (帮助肉眼看清当前阶相比上一阶是怎么弯曲过去的)
+      if (tau > 0.05) {
+        gClip.appendChild(svgEl('path', {
+          d: dPrev, fill: 'none', stroke: '#818CF8', 'stroke-width': 1.6, 'stroke-dasharray': '4 3', 'stroke-opacity': 0.75,
+        }));
+      }
+
+      // 原函数 f(x)
+      gClip.appendChild(svgEl('path', {
+        d: dTrue, fill: 'none', stroke: '#181D24', 'stroke-width': 2.2, 'stroke-dasharray': '5 4', 'stroke-opacity': 0.45,
+      }));
+
+      // 当前连续逼近曲线 P_tau(x)
+      gClip.appendChild(svgEl('path', {
+        d: dCurr, fill: 'none', stroke: '#4F46E5', 'stroke-width': 3.2, 'stroke-linecap': 'round',
+      }));
+
+      // 展开中心点 x0 (青翠绿)
+      const cx = toMainX(center), cy = toMainY(evalTrueFunc(center));
+      svg.appendChild(svgEl('circle', { cx, cy, r: 5.5, fill: '#0D9488', stroke: '#fff', 'stroke-width': 2 }));
+
+      // 探针竖线与误差段
+      const px = toMainX(probe);
+      const ytProbe = evalTrueFunc(probe);
+      const ycProbe = evalTaylorContinuous(probe, center, tau);
+      const sytP = toMainY(ytProbe);
+      const sycP = Math.max(t + 6, Math.min(plotB - 6, toMainY(ycProbe)));
+
+      svg.appendChild(svgEl('line', { x1: px, x2: px, y1: t, y2: plotB, stroke: 'rgba(24,29,36,0.2)', 'stroke-dasharray': '3 3' }));
+      svg.appendChild(svgEl('line', { x1: px, x2: px, y1: sytP, y2: sycP, stroke: '#EA580C', 'stroke-width': 2.5 }));
+      svg.appendChild(svgEl('circle', { cx: px, cy: sytP, r: 4.5, fill: '#181D24', stroke: '#fff', 'stroke-width': 1.5 }));
+      svg.appendChild(svgEl('circle', { cx: px, cy: sycP, r: 5.5, fill: '#EA580C', stroke: '#fff', 'stroke-width': 2 }));
+
+      // 吸收自 index.html 的标志性细节：动态跟随引线读数牌 (Callout Box)
+      const errVal = Math.abs(ytProbe - ycProbe);
+      const labelText = `|R| = ${errVal.toFixed(4)}`;
+      const boxW = labelText.length * 7.5 + 18;
+      const placeRight = px + 26 + boxW < W - r;
+      const bx = placeRight ? px + 24 : px - 24 - boxW;
+      const by = Math.max(t + 6, Math.min((sytP + sycP) / 2 - 14, plotB - 32));
+
+      svg.appendChild(svgEl('path', {
+        d: `M ${px} ${(sytP + sycP) / 2} L ${placeRight ? bx : bx + boxW} ${by + 13}`,
+        stroke: '#EA580C', 'stroke-width': 1, fill: 'none',
+      }));
+      svg.appendChild(svgEl('rect', {
+        x: bx, y: by, width: boxW, height: 25, rx: 5,
+        fill: '#FFF7ED', stroke: '#EA580C', 'stroke-width': 1.2,
+      }));
+      svg.appendChild(svgEl('text', {
+        x: bx + 9, y: by + 16.5, 'font-size': 12, 'font-weight': 700,
+        fill: '#C2410C', 'font-family': 'var(--font-mono)',
+      }, labelText));
+
+      // 吸收自 index.html 的底部状态条带：局部有效逼近区 (|R| < 0.05) vs 失真发散区
+      const stripY = 282;
+      svg.appendChild(svgEl('text', {
+        x: l - 8, y: stripY + 15, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 600, fill: '#5E6878',
+      }, '逼近度'));
+
+      const COLS = 90;
+      const cellW = (W - l - r) / COLS;
+      let validMinX = null, validMaxX = null;
+      for (let i = 0; i < COLS; i++) {
+        const xm = xMin + ((i + 0.5) / COLS) * (xMax - xMin);
+        const e = Math.abs(evalTrueFunc(xm) - evalTaylorContinuous(xm, center, tau));
+        const isGood = e < 0.06;
+        const isFair = e >= 0.06 && e < 0.25;
+        if (isGood) {
+          if (validMinX === null) validMinX = xm;
+          validMaxX = xm;
+        }
+        const fill = isGood ? 'rgba(13, 148, 136, 0.18)' : isFair ? 'rgba(79, 70, 229, 0.09)' : 'rgba(234, 88, 12, 0.10)';
+        svg.appendChild(svgEl('rect', {
+          x: l + i * cellW, y: stripY, width: cellW + 0.4, height: 22, fill,
+        }));
+      }
+      svg.appendChild(svgEl('rect', {
+        x: l, y: stripY, width: W - l - r, height: 22, rx: 4, fill: 'none', stroke: 'rgba(24,29,36,0.12)',
+      }));
+
+      if (validMinX !== null && validMaxX !== null && validMaxX - validMinX > 0.3) {
+        const midX = toMainX((validMinX + validMaxX) / 2);
+        svg.appendChild(svgEl('text', {
+          x: midX, y: stripY + 15, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#0F766E',
+        }, `有效贴合邻域 [${validMinX.toFixed(1)}, ${validMaxX.toFixed(1)}] (|R| < 0.06)`));
+      }
+      // 探针在条带上的游标
+      svg.appendChild(svgEl('line', {
+        x1: px, x2: px, y1: stripY - 3, y2: stripY + 25, stroke: '#EA580C', 'stroke-width': 2,
+      }));
+    }
+
+    // ==================== 2. 副图 ①：当前生长项分解 ΔT_n(x) ====================
+    function drawTermMini() {
+      const svg = document.getElementById('termSvg');
+      svg.textContent = '';
+      const W = 380, H = 188, l = 36, r = 14, t = 14, b = 24;
+      const { tau, center, probe } = state;
+      const baseN = Math.floor(tau);
+      const alpha = tau - baseN;
+      const growN = alpha > 1e-3 && baseN < 9 ? baseN + 1 : baseN;
+      const weight = alpha > 1e-3 && baseN < 9 ? alpha : 1.0;
+
+      const X = (x) => l + ((x - MAIN_BOX.xMin) / (MAIN_BOX.xMax - MAIN_BOX.xMin)) * (W - l - r);
+      const Y = (y) => t + ((1.5 - Math.max(-1.6, Math.min(1.6, y))) / 3.0) * (H - t - b);
+
+      // 零线
+      svg.appendChild(svgEl('line', { x1: l, x2: W - r, y1: Y(0), y2: Y(0), stroke: 'rgba(24,29,36,0.2)' }));
+
+      // 完整第 growN 阶项虚线 vs 当前乘了演化权重 weight 的实线
+      let dFull = '', dWeighted = '';
+      for (let i = 0; i <= 100; i++) {
+        const x = MAIN_BOX.xMin + (i / 100) * (MAIN_BOX.xMax - MAIN_BOX.xMin);
+        const termVal = evalTerm(x, center, growN);
+        dFull += (i === 0 ? 'M' : 'L') + `${X(x).toFixed(1)} ${Y(termVal).toFixed(1)}`;
+        dWeighted += (i === 0 ? 'M' : 'L') + `${X(x).toFixed(1)} ${Y(termVal * weight).toFixed(1)}`;
+      }
+      svg.appendChild(svgEl('path', { d: dFull, fill: 'none', stroke: '#94A3B8', 'stroke-width': 1.4, 'stroke-dasharray': '3 3' }));
+      svg.appendChild(svgEl('path', { d: dWeighted, fill: 'none', stroke: '#4F46E5', 'stroke-width': 2.2 }));
+
+      const px = X(probe);
+      const termAtProbe = evalTerm(probe, center, growN) * weight;
+      svg.appendChild(svgEl('line', { x1: px, x2: px, y1: Y(0), y2: Y(termAtProbe), stroke: '#EA580C', 'stroke-width': 2 }));
+      svg.appendChild(svgEl('circle', { cx: px, cy: Y(termAtProbe), r: 4, fill: '#EA580C' }));
+
+      svg.appendChild(svgEl('text', { x: l + 6, y: H - 6, 'font-size': 11, fill: '#8C95A4', 'font-family': 'var(--font-mono)' },
+        `第 ${growN} 阶单项贡献 (切入权重 ${(weight * 100).toFixed(0)}%)`));
+      document.getElementById('mini1Hint').textContent = `T_${growN}(x) · ${(weight * 100).toFixed(0)}%`;
+    }
+
+    // ==================== 3. 副图 ②：探针处余项误差随阶数收敛曲线 ====================
+    function drawConvMini() {
+      const svg = document.getElementById('convSvg');
+      svg.textContent = '';
+      const W = 340, H = 188, l = 42, r = 16, t = 16, b = 26;
+      const { tau, center, probe } = state;
+      const yt = evalTrueFunc(probe);
+
+      // 计算 k = 0..9 在探针处的误差
+      const errs = [];
+      for (let k = 0; k <= 9; k++) {
+        errs.push(Math.abs(yt - evalTaylorDiscrete(probe, center, k)));
+      }
+      const maxE = Math.max(0.25, ...errs.slice(0, 6));
+      const X = (k) => l + (k / 9) * (W - l - r);
+      const Y = (e) => t + (1 - Math.min(1, e / maxE)) * (H - t - b);
+
+      // 网格与零误差基准线
+      svg.appendChild(svgEl('line', { x1: l, x2: W - r, y1: Y(0), y2: Y(0), stroke: '#0D9488', 'stroke-width': 1.2, 'stroke-dasharray': '4 3' }));
+      for (let k = 0; k <= 9; k += 2) {
+        svg.appendChild(svgEl('text', { x: X(k), y: H - 7, 'text-anchor': 'middle', 'font-size': 10.5, fill: '#8C95A4', 'font-family': 'var(--font-mono)' }, `${k}阶`));
+      }
+
+      // 全程淡灰轨迹
+      let dAll = '';
+      for (let k = 0; k <= 9; k++) dAll += (k === 0 ? 'M' : 'L') + `${X(k).toFixed(1)} ${Y(errs[k]).toFixed(1)}`;
+      svg.appendChild(svgEl('path', { d: dAll, fill: 'none', stroke: '#CBD5E1', 'stroke-width': 1.5, 'stroke-dasharray': '3 3' }));
+
+      // 已走过的实线轨迹 (0 -> tau)
+      let dPassed = '';
+      const steps = Math.max(2, Math.round(tau * 10));
+      for (let i = 0; i <= steps; i++) {
+        const curTau = (i / steps) * tau;
+        const curErr = Math.abs(yt - evalTaylorContinuous(probe, center, curTau));
+        dPassed += (i === 0 ? 'M' : 'L') + `${X(curTau).toFixed(1)} ${Y(curErr).toFixed(1)}`;
+      }
+      svg.appendChild(svgEl('path', { d: dPassed, fill: 'none', stroke: '#4F46E5', 'stroke-width': 2.2 }));
+
+      const curErr = Math.abs(yt - evalTaylorContinuous(probe, center, tau));
+      svg.appendChild(svgEl('circle', { cx: X(tau), cy: Y(curErr), r: 4.5, fill: '#EA580C', stroke: '#fff', 'stroke-width': 1.5 }));
+      document.getElementById('mini2Hint').textContent = `|R| → ${curErr.toFixed(4)}`;
+    }
+
+    // ==================== 4. 副图 ③：读数表、结论与同步 ====================
+    function renderAll() {
+      drawMainStage();
+      drawTermMini();
+      drawConvMini();
+
+      const { tau, center, probe } = state;
+      const baseN = Math.floor(tau);
+      const yt = evalTrueFunc(probe);
+      const yp = evalTaylorContinuous(probe, center, tau);
+      const prevYp = evalTaylorDiscrete(probe, center, Math.max(0, Math.ceil(tau) - 1));
+      const err = Math.abs(yt - yp);
+
+      // 读数表
+      const rows = [
+        ['原函数真值 f(x)', yt.toFixed(4), ''],
+        ['当前逼近值 P_τ(x)', yp.toFixed(4), ''],
+        ['当前余项误差 |R|', err.toFixed(4), 'row-highlight'],
+        ['上一阶逼近 Pₙ₋₁(x)', prevYp.toFixed(4), ''],
+        ['本阶修正量 |ΔP|', Math.abs(yp - prevYp).toFixed(4), ''],
+        ['展开中心 x₀', center.toFixed(2), ''],
+      ];
+      document.getElementById('readoutTable').innerHTML = rows
+        .map(([k, v, cls]) => `<tr class="${cls}"><td>${k}</td><td>${v}</td></tr>`)
+        .join('');
+      document.getElementById('mini3Hint').textContent = `x = ${probe.toFixed(2)}`;
+
+      // 自然语言动态结论
+      const dist = Math.abs(probe - center);
+      const quality = err < 0.01 ? '已达到高精度贴合（误差 < 0.01）'
+        : err < 0.08 ? '处于良性逼近邻域内'
+        : '距离展开中心较远，当前阶数尚不足以压制高次余项发散';
+      document.getElementById('liveConclusionText').innerHTML =
+        `在探针 <b class="mono">x = ${probe.toFixed(2)}</b>（距中心 <span class="mono">Δx = ${dist.toFixed(2)}</span>）处，展开进程 <b class="mono">τ = ${tau.toFixed(2)} 阶</b>：${quality}。`;
+
+      // 时间轴与滑杆同步
+      const scrub = document.getElementById('timelineScrub');
+      scrub.value = tau; setSliderFill(scrub);
+      const sTau = document.getElementById('sliderTau');
+      sTau.value = tau; setSliderFill(sTau);
+      const cTau = document.getElementById('canvasSliderTau');
+      cTau.value = tau; setSliderFill(cTau);
+
+      const sCen = document.getElementById('sliderCenter');
+      sCen.value = center; setSliderFill(sCen);
+      const cCen = document.getElementById('canvasSliderCenter');
+      cCen.value = center; setSliderFill(cCen);
+
+      const sPrb = document.getElementById('sliderProbe');
+      sPrb.value = probe; setSliderFill(sPrb);
+
+      document.getElementById('valTau').textContent = `${tau.toFixed(2)} 阶`;
+      document.getElementById('canvasDegreeVal').textContent = `${tau.toFixed(2)} 阶`;
+      document.getElementById('valCenter').textContent = center.toFixed(2);
+      document.getElementById('canvasCenterVal').textContent = center.toFixed(2);
+      document.getElementById('valProbe').textContent = probe.toFixed(2);
+      document.getElementById('canvasMiniErr').textContent = err.toFixed(4);
+
+      document.getElementById('timelineReadout').innerHTML =
+        `演化进程 <b>τ = ${tau.toFixed(2)}</b> / 9.00 阶`;
+
+      // 高亮时间轴刻度
+      document.querySelectorAll('#timelineTicks span').forEach((sp) => {
+        sp.classList.toggle('active-tick', Math.abs(parseFloat(sp.dataset.k) - Math.round(tau)) < 0.5);
+      });
+
+      // 右侧公式展示
+      const activeOrder = Math.ceil(tau);
+      if (state.func === 'sin' && Math.abs(center) < 1e-3) {
+        const parts = ['x'];
+        if (activeOrder >= 3) parts.push('− <em>x³/3!</em>');
+        if (activeOrder >= 5) parts.push('+ <em>x⁵/5!</em>');
+        if (activeOrder >= 7) parts.push('− <em>x⁷/7!</em>');
+        if (activeOrder >= 9) parts.push('+ <em>x⁹/9!</em>');
+        document.getElementById('formulaDisplay').innerHTML = `<i>P</i><sub>${activeOrder}</sub>(<i>x</i>) = ${parts.join(' ')}`;
+      } else {
+        const dx = Math.abs(center) < 1e-3 ? 'x' : `(x ${center > 0 ? '−' : '+'} ${Math.abs(center).toFixed(1)})`;
+        document.getElementById('formulaDisplay').innerHTML =
+          `<i>P</i><sub>${activeOrder}</sub>(<i>x</i>) = ∑<sub>k=0..${activeOrder}</sub> [ <i>f</i><sup>(k)</sup>(${center.toFixed(1)}) / k! ] · <em>${dx}<sup>k</sup></em>`;
+      }
+
+      // 画布模式节点 4 迷你缩略图
+      const miniSvg = document.getElementById('miniCanvasPlot');
+      let mTrue = '', mTaylor = '';
+      for (let i = 0; i <= 60; i++) {
+        const x = MAIN_BOX.xMin + (i / 60) * (MAIN_BOX.xMax - MAIN_BOX.xMin);
+        const mx = (10 + (i / 60) * 240).toFixed(1);
+        const myt = (105 - ((evalTrueFunc(x) - MAIN_BOX.yMin) / (MAIN_BOX.yMax - MAIN_BOX.yMin)) * 90).toFixed(1);
+        const ypClamped = Math.max(MAIN_BOX.yMin - 0.4, Math.min(MAIN_BOX.yMax + 0.4, evalTaylorContinuous(x, center, tau)));
+        const myp = (105 - ((ypClamped - MAIN_BOX.yMin) / (MAIN_BOX.yMax - MAIN_BOX.yMin)) * 90).toFixed(1);
+        mTrue += (i === 0 ? 'M' : 'L') + `${mx},${myt} `;
+        mTaylor += (i === 0 ? 'M' : 'L') + `${mx},${myp} `;
+      }
+      miniSvg.innerHTML = `
+        <line x1="10" y1="60" x2="250" y2="60" stroke="#CBD5E1" stroke-width="1" />
+        <path d="${mTrue}" fill="none" stroke="#94A3B8" stroke-width="1.8" stroke-dasharray="3 3" />
+        <path d="${mTaylor}" fill="none" stroke="#4F46E5" stroke-width="2.4" />
+      `;
+    }
+
+    // ==================== 5. 连续播放时间轴动画控制 (rAF 60fps 丝滑演化) ====================
+    let rafId = 0;
+    let lastTime = 0;
+
+    function setPlaying(on) {
+      state.playing = on;
+      cancelAnimationFrame(rafId);
+      const icon = document.getElementById('playSvgIcon');
+      icon.innerHTML = on
+        ? '<path d="M4.5 3h2.5v10H4.5zM9 3h2.5v10H9z"/>'
+        : '<path d="M4.5 3v10l8-5z"/>';
+      if (on) {
+        if (state.tau >= 8.98) state.tau = 0;
+        lastTime = performance.now();
+        const tick = (now) => {
+          if (!state.playing) return;
+          const dt = (now - lastTime) / 1000;
+          lastTime = now;
+          state.tau = Math.min(9.0, state.tau + dt * 1.15); // 每秒推进约 1.15 阶
+          renderAll();
+          if (state.tau >= 9.0) {
+            setPlaying(false);
+            return;
+          }
+          rafId = requestAnimationFrame(tick);
+        };
+        rafId = requestAnimationFrame(tick);
+      }
+    }
+
+    function togglePlay() { setPlaying(!state.playing); }
+    function playFromZero() { state.tau = 0; setPlaying(true); }
+    function stepOrder(dir) {
+      setPlaying(false);
+      state.tau = Math.max(0, Math.min(9, Math.round(state.tau + dir)));
+      renderAll();
+    }
+    function scrubTo(val) {
+      setPlaying(false);
+      state.tau = val;
+      renderAll();
+    }
+
+    // 绑定所有滑杆与主图直接拖拽探针
+    document.getElementById('timelineScrub').addEventListener('input', (e) => scrubTo(parseFloat(e.target.value)));
+    document.getElementById('sliderTau').addEventListener('input', (e) => scrubTo(parseFloat(e.target.value)));
+    document.getElementById('canvasSliderTau').addEventListener('input', (e) => scrubTo(parseFloat(e.target.value)));
+    document.getElementById('sliderCenter').addEventListener('input', (e) => { state.center = parseFloat(e.target.value); renderAll(); });
+    document.getElementById('canvasSliderCenter').addEventListener('input', (e) => { state.center = parseFloat(e.target.value); renderAll(); });
+    document.getElementById('sliderProbe').addEventListener('input', (e) => { state.probe = parseFloat(e.target.value); renderAll(); });
+
+    // 主画布直接左右拖动探针 x (吸收自 index.html 的直接操纵感)
+    const mainSvgEl = document.getElementById('mainPlotSvg');
+    const updateProbeFromEvent = (e) => {
+      const rect = mainSvgEl.getBoundingClientRect();
+      const px = ((e.clientX - rect.left) / rect.width) * MAIN_BOX.W;
+      const xVal = Math.max(-3.6, Math.min(3.6, fromMainPx(px)));
+      state.probe = Math.round(xVal * 100) / 100;
+      renderAll();
+    };
+    mainSvgEl.addEventListener('pointerdown', (e) => {
+      mainSvgEl.setPointerCapture(e.pointerId);
+      updateProbeFromEvent(e);
+    });
+    mainSvgEl.addEventListener('pointermove', (e) => {
+      if (mainSvgEl.hasPointerCapture(e.pointerId)) updateProbeFromEvent(e);
+    });
+
+    // 空格键快捷播放/暂停
+    window.addEventListener('keydown', (e) => {
+      if (e.target.matches('input, textarea')) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlay();
+      }
+    });
+
+    function setTargetFunc(fn) {
+      state.func = fn;
+      document.getElementById('pillSin').classList.toggle('active', fn === 'sin');
+      document.getElementById('pillCos').classList.toggle('active', fn === 'cos');
+      document.getElementById('pillExp').classList.toggle('active', fn === 'exp');
+      document.getElementById('canvasFuncText').textContent =
+        fn === 'sin' ? 'f(x) = sin(x)' : fn === 'cos' ? 'f(x) = cos(x)' : 'f(x) = 0.55·e^(0.35x)·cos(x)';
+      renderAll();
+    }
+
+    function applyPreset(tau, c, p) {
+      setPlaying(false);
+      state.tau = tau;
+      state.center = c;
+      state.probe = p;
+      renderAll();
+    }
+
+    function resetDefaults() {
+      applyPreset(3, 0, 1.85);
+    }
+
+    function toggleSteps() {
+      const d = document.getElementById('stepsDrawer');
+      const b = document.getElementById('btnSteps');
+      const open = !d.classList.contains('open');
+      d.classList.toggle('open', open);
+      b.textContent = open ? '步骤与观察 ▴' : '步骤与观察 ▾';
+    }
+
+    // ==================== 模式切换与画布拖拽 ====================
+    function switchMode(mode) {
+      document.getElementById('catalogModal').classList.remove('active');
+      document.getElementById('btnToggleCatalog').classList.remove('active');
+      const isInst = mode === 'instrument';
+      document.getElementById('tabInstrument').classList.toggle('active', isInst);
+      document.getElementById('tabCanvas').classList.toggle('active', !isInst);
+      document.getElementById('layerInstrument').classList.toggle('active', isInst);
+      document.getElementById('layerCanvas').classList.toggle('active', !isInst);
+      if (!isInst) requestAnimationFrame(updateWires);
+    }
+
+    function toggleCatalog() {
+      const modal = document.getElementById('catalogModal');
+      const btn = document.getElementById('btnToggleCatalog');
+      const open = !modal.classList.contains('active');
+      modal.classList.toggle('active', open);
+      btn.classList.toggle('active', open);
+    }
+
+    function toggleDrawer() {
+      document.getElementById('paletteDrawer').classList.toggle('collapsed');
+    }
+
+    function togglePin(btn) {
+      btn.classList.toggle('pinned');
+    }
+
+    function showEmbedToast() {
+      const t = document.getElementById('embedToast');
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 4200);
+    }
+
+    const wires = [
+      { from: 'node_src', to: 'node_taylor', toOffsetY: 0.38, isSource: true },
+      { from: 'node_slider', to: 'node_taylor', toOffsetY: 0.72, isSource: true },
+      { from: 'node_taylor', to: 'node_view', toOffsetY: 0.52, isSource: false },
+    ];
+
+    function updateWires() {
+      const svg = document.getElementById('wiresSvg');
+      let html = '';
+      for (const w of wires) {
+        const elFrom = document.getElementById(w.from);
+        const elTo = document.getElementById(w.to);
+        if (!elFrom || !elTo) continue;
+        const x1 = parseFloat(elFrom.dataset.x) + elFrom.offsetWidth;
+        const y1 = parseFloat(elFrom.dataset.y) + elFrom.offsetHeight * 0.52;
+        const x2 = parseFloat(elTo.dataset.x);
+        const y2 = parseFloat(elTo.dataset.y) + elTo.offsetHeight * (w.toOffsetY || 0.52);
+        const dx = Math.max(60, Math.abs(x2 - x1) * 0.48);
+        const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+        html += `<path class="wire-base" d="${d}" />`;
+        html += `<path class="wire-flow ${w.isSource ? 'src-wire' : ''}" d="${d}" />`;
+      }
+      svg.innerHTML = html;
+    }
+
+    let dragTarget = null, dragStartX = 0, dragStartY = 0, origX = 0, origY = 0, isPanning = false;
+    const vp = document.getElementById('canvasViewport');
+    const world = document.getElementById('canvasWorld');
+
+    function applyWorldTransform() {
+      world.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+      document.getElementById('zoomReadout').textContent = `${Math.round(state.zoom * 100)}%`;
+    }
+    function changeCanvasZoom(delta) {
+      state.zoom = Math.max(0.5, Math.min(1.5, Math.round((state.zoom + delta) * 100) / 100));
+      applyWorldTransform();
+    }
+    function resetCanvasView() {
+      state.zoom = 1.0; state.panX = 0; state.panY = 0;
+      applyWorldTransform();
+    }
+
+    vp.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.palette-drawer') || e.target.closest('.floating-dock') || e.target.closest('input') || e.target.closest('button')) return;
+      const node = e.target.closest('.c-node');
+      if (node) {
+        document.querySelectorAll('.c-node').forEach((n) => n.classList.remove('selected'));
+        node.classList.add('selected');
+        if (e.target.closest('.c-node-head')) {
+          dragTarget = node; dragStartX = e.clientX; dragStartY = e.clientY;
+          origX = parseFloat(node.dataset.x); origY = parseFloat(node.dataset.y);
+          vp.setPointerCapture(e.pointerId);
+        }
+      } else {
+        isPanning = true; vp.classList.add('Panning');
+        dragStartX = e.clientX; dragStartY = e.clientY;
+        origX = state.panX; origY = state.panY;
+        vp.setPointerCapture(e.pointerId);
+      }
+    });
+
+    vp.addEventListener('pointermove', (e) => {
+      if (dragTarget) {
+        const nx = origX + (e.clientX - dragStartX) / state.zoom;
+        const ny = origY + (e.clientY - dragStartY) / state.zoom;
+        dragTarget.dataset.x = nx; dragTarget.dataset.y = ny;
+        dragTarget.style.left = `${nx}px`; dragTarget.style.top = `${ny}px`;
+        updateWires();
+      } else if (isPanning) {
+        state.panX = origX + (e.clientX - dragStartX);
+        state.panY = origY + (e.clientY - dragStartY);
+        applyWorldTransform();
+      }
+    });
+
+    vp.addEventListener('pointerup', () => {
+      dragTarget = null; isPanning = false; vp.classList.remove('Panning');
+    });
+
+    let spawnCount = 0;
+    function spawnDemoNode(type, title, kind) {
+      spawnCount++;
+      const id = `node_spawn_${spawnCount}`;
+      const x = 680 + (spawnCount % 3) * 40, y = 410 + (spawnCount % 2) * 30;
+      const div = document.createElement('div');
+      div.className = `c-node type-${kind} selected`;
+      div.id = id; div.dataset.x = x; div.dataset.y = y;
+      div.style.left = `${x}px`; div.style.top = `${y}px`;
+      const dotColor = kind === 'source' ? 'var(--c-source)' : kind === 'view' ? 'var(--c-view)' : 'var(--c-op)';
+      div.innerHTML = `
+        <div class="c-node-head">
+          <div class="c-node-title"><span class="brick-dot" style="background:${dotColor}"></span><span>${title}</span></div>
+          <div class="c-node-actions"><button type="button" class="pin-btn" onclick="this.closest('.c-node').remove();updateWires();">✕</button></div>
+        </div>
+        <div class="c-node-body" style="color:var(--ink-500)">新添加的积木节点（按住标题栏可拖拽）</div>
+        <div class="c-port in"><span class="port-tag">输入端口</span></div>
+        <div class="c-port out"><span class="port-tag">输出端口</span></div>
+      `;
+      document.querySelectorAll('.c-node').forEach((n) => n.classList.remove('selected'));
+      world.appendChild(div);
+      wires.push({ from: 'node_src', to: id, toOffsetY: 0.52, isSource: true });
+      updateWires();
+    }
+
+    renderAll();
+  </script>
+</body>
+</html>

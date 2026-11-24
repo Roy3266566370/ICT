@@ -13,7 +13,7 @@ test('M5 自然语言生成动态关系：未配置模型提示、预览确认�
   expect(materialMatch).toBeTruthy();
   const materialId = materialMatch![1]!;
 
-  const editLink = page.getByRole('link', { name: '编辑内容 / 交互' });
+  const editLink = page.getByRole('button', { name: '编辑课件' });
   await expect(editLink).toBeVisible({ timeout: 60_000 });
   await editLink.click();
   const editor = page.locator('[data-free-editor]');
@@ -109,7 +109,8 @@ test('M5 自然语言生成动态关系：未配置模型提示、预览确认�
   // 7. 点击「重做编辑」，保存并返回放映态，验证观众权限（仅终点手柄）与拖动实时联动
   await editor.getByRole('button', { name: '重做编辑' }).click();
   await expect(relSection.locator('[data-relation-id]')).toHaveCount(1);
-  await editor.getByRole('button', { name: '保存并返回演示' }).click();
+  await expect(editor.getByText('已保存到服务端', {exact: true})).toBeVisible();
+  await page.getByRole('button', { name: '互动预览' }).click();
   await expect(page).toHaveURL(/\/work/, { timeout: 60_000 });
 
   const slide = page.getByLabel('幻灯片第 1 页', { exact: true });

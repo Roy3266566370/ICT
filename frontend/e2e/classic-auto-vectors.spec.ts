@@ -30,7 +30,7 @@ test('真实 PPTX 保留原生矢量，并可按需校对、应用和撤销嵌�
   await page.getByRole('button', { name: /^第 2 页/ }).first().click();
   const second = page.getByLabel('幻灯片第 2 页', { exact: true });
   await expect(second.locator('[data-vector-node]')).toHaveCount(0);
-  await page.getByRole('link', { name: '编辑内容 / 交互' }).click();
+  await page.getByRole('button', { name: '编辑课件' }).click();
   const editor = page.locator('[data-free-editor]');
   const canvas = editor.getByLabel('可编辑画布第 2 页');
   const picture = canvas.locator('[data-node-type="image"]').first();
@@ -68,7 +68,8 @@ test('真实 PPTX 保留原生矢量，并可按需校对、应用和撤销嵌�
   await screenshot('pptx-figure-undone.png');
   await expect(editor.getByText('已保存到服务端', { exact: true })).toBeVisible();
   await editor.getByRole('button', { name: '重做编辑' }).click();
-  await editor.getByRole('button', { name: '保存并返回演示' }).click();
+  await expect(editor.getByText('已保存到服务端', {exact: true})).toBeVisible();
+  await page.getByRole('button', { name: '互动预览' }).click();
   await expect(page).toHaveURL(/\/work\?page=2$/);
   await page.reload();
   const detected = second.locator('[data-vector-node]').first();

@@ -1,11 +1,14 @@
 from __future__ import annotations
+from copy import deepcopy
 import colorsys
 from hashlib import sha256
+from io import BytesIO
 import math
 from pathlib import Path
 import re
 
 import numpy as np
+from PIL import Image
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.oxml import parse_xml
@@ -13,6 +16,49 @@ from pptx.oxml.ns import qn
 from ..parsers.pptx_parser import _walk_shapes
 
 EMU_PER_POINT=12700
+NATIVE_PRESETS = {
+    'rect', 'ellipse', 'roundRect', 'diamond', 'parallelogram', 'trapezoid',
+    'triangle', 'rtTriangle', 'hexagon', 'octagon', 'pentagon', 'star5', 'chevron',
+    'rightArrow', 'leftArrow', 'upArrow', 'downArrow', 'leftRightArrow',
+    'leftBrace', 'rightBrace', 'wedgeRectCallout', 'plus', 'cloud',
+}
+PATH_COMMANDS = {'moveTo':('M',1), 'lnTo':('L',1), 'quadBezTo':('Q',2), 'cubicBezTo':('C',3), 'close':('Z',0)}
+PATH_STEPS = {code:(tag,count) for tag,(code,count) in PATH_COMMANDS.items()}
+
+
+def shape_path_steps(path):
+    """Parse the bounded, absolute path representation used by scene shapes."""
+    if not isinstance(path,str) or len(path)>20_000:
+        raise ValueError('Invalid custom path')
+    tokens=iter(path.split())
+    steps=[]
+    try:
+        for code in tokens:
+            tag,count=PATH_STEPS[code]
+            points=[(int(next(tokens)),int(next(tokens))) for _ in range(count)]
+            if len(steps)>=200 or any(abs(coord)>2**31 for point in points for coord in point):
+                raise ValueError('Invalid custom path coordinate')
+            steps.append((tag,points))
+    except (KeyError,StopIteration) as error:
+        raise ValueError('Unsupported custom path command') from error
+    if not steps or steps[0][0]!='moveTo':
+        raise ValueError('Invalid custom path origin')
+    return steps
+
+
+def valid_shape_paths(paths):
+    if not isinstance(paths,list) or not 1<=len(paths)<=8:
+        return False
+    for item in paths:
+        if (not isinstance(item,dict) or item.keys()!={'width','height','path','fill','stroke'}
+                or any(type(item[k]) is not int or not 0<item[k]<=2**31 for k in ('width','height'))
+                or any(type(item[k]) is not bool for k in ('fill','stroke'))):
+            return False
+        try:
+            shape_path_steps(item['path'])
+        except ValueError:
+            return False
+    return True
 
 def _color(font):
     try:
@@ -39,6 +85,12 @@ def _font(font, resolve_color=None):
         rpr=getattr(font,'_rPr',None)
         raw=rpr.get('spc') if rpr is not None else None
         if raw is not None and float(raw)!=0:result['letter_spacing']=float(raw)/100
+        baseline=rpr.get('baseline') if rpr is not None else None
+        if baseline is not None:result['baseline']=max(-100,min(100,int(baseline)/1000))
+        highlight=rpr.find(qn('a:highlight')) if rpr is not None else None
+        if highlight is not None and resolve_color:
+            color=resolve_color(highlight)
+            if color:result['highlight']=color
     except (TypeError,ValueError,AttributeError):pass
     return result
 
@@ -48,8 +100,22 @@ def _text_properties(frame, style, resolve_color=None):
     paragraphs=[]
     for p in frame.paragraphs:
         align={1:'left',2:'center',3:'right',4:'justify'}.get(int(p.alignment or 1),'left')
-        runs=[{'text':r.text,'style':_font(r.font, resolve_color)} for r in p.runs]
+        runs=[]
+        ordinary=iter(p.runs)
+        for entry in p._p:
+            if entry.tag==qn('a:r'):
+                r=next(ordinary)
+                runs.append({'text':r.text,'style':_font(r.font,resolve_color)})
+            elif entry.tag==qn('a:br'):
+                runs.append({'text':'\v','style':{}})
+            elif entry.tag==qn('a:fld'):
+                text=entry.find(qn('a:t'))
+                if text is not None:
+                    runs.append({'text':text.text or '','style':{}})
         paragraph={'text':p.text,'align':align,'runs':runs}
+        props=p._p.pPr
+        if props is not None and any(props.find(qn('a:'+kind)) is not None for kind in ('buChar','buAutoNum')):
+            paragraph['bullet']=True
         if p.line_spacing is not None:
             if resolve_color and hasattr(p.line_spacing, 'pt'):paragraph['line_spacing_pt']=p.line_spacing.pt
             elif isinstance(p.line_spacing, (int, float)) and p.line_spacing>0:
@@ -104,7 +170,7 @@ def _theme(part):
     return (parse_xml(relation.target_part.blob) if relation else None), mapping
 
 
-def _theme_color(fill, theme, mapping, placeholder=None):
+def _theme_color(fill, theme, mapping, placeholder=None, *, ignore_alpha=False):
     if fill is None or len(fill) != 1:
         raise ValueError('Unavailable solid color')
     color = fill[0]
@@ -117,7 +183,7 @@ def _theme_color(fill, theme, mapping, placeholder=None):
             name = mapping.get(value, value) if mapping is not None else value
             scheme = theme.find('.//' + qn('a:clrScheme')) if theme is not None else None
             entry = scheme.find(qn('a:' + name)) if scheme is not None else None
-            value = _theme_color(entry, theme, mapping)
+            value = _theme_color(entry, theme, mapping, ignore_alpha=ignore_alpha)
     elif tag == qn('a:sysClr'):
         value = color.get('lastClr')
     elif tag != qn('a:srgbClr'):
@@ -141,7 +207,7 @@ def _theme_color(fill, theme, mapping, placeholder=None):
             else:
                 saturation *= amount
             channels = colorsys.hls_to_rgb(hue, min(1, max(0, light)), min(1, max(0, saturation)))
-        elif transform.tag != qn('a:alpha') or amount != 1:
+        elif transform.tag != qn('a:alpha') or (amount != 1 and not ignore_alpha):
             raise ValueError('Unsupported source color effect')
     return '#' + ''.join(f'{round(max(0, min(channel, 1)) * 255):02x}' for channel in channels)
 
@@ -346,11 +412,141 @@ def native_figure_scene(nodes: list[dict], page: dict) -> dict | None:
         return None
 
 
-def import_document(source:Path,title:str)->dict:
+def _resolved_color(fill, theme, mapping, placeholder=None, *, ignore_alpha=False):
+    try:
+        return _theme_color(fill, theme, mapping, placeholder, ignore_alpha=ignore_alpha)
+    except (ValueError, TypeError, IndexError):
+        return None
+
+
+def _format_style(theme, reference, list_name, offset=1):
+    if theme is None or reference is None:
+        return None
+    styles = theme.find('.//' + qn('a:' + list_name))
+    index = int(reference.get('idx', '0')) - offset
+    return styles[index] if styles is not None and 0 <= index < len(styles) else None
+
+
+def _shape_appearance(shape, style, theme, mapping):
+    props = shape._element.spPr
+    appearance = shape._element.find(qn('p:style'))
+    preset = props.find(qn('a:prstGeom'))
+    geometry = preset.get('prst', 'rect') if preset is not None else 'rect'
+    complex_geometry = geometry not in NATIVE_PRESETS
+    if preset is not None:
+        adjustment = preset.find(qn('a:avLst'))
+        complex_geometry |= adjustment is not None and bool(len(adjustment))
+
+    def read_paint(explicit, inherited, reference):
+        tags = {qn('a:' + name) for name in ('solidFill', 'noFill', 'gradFill', 'blipFill', 'pattFill', 'grpFill')}
+        paint = next((child for child in explicit if child.tag in tags), None) if explicit is not None else None
+        if paint is None:
+            paint = inherited
+        if paint is None or paint.tag == qn('a:noFill'):
+            return None, False, 1
+        placeholder = _resolved_color(reference, theme, mapping) if reference is not None else None
+        value = _resolved_color(paint, theme, mapping, placeholder, ignore_alpha=True) if paint.tag == qn('a:solidFill') else None
+        alpha=paint[0].find(qn('a:alpha')) if value else None
+        opacity=max(0,min(1,int(alpha.get('val','100000'))/100000)) if alpha is not None else 1
+        return value, value is None, opacity
+
+    fill_ref = appearance.find(qn('a:fillRef')) if appearance is not None else None
+    fill, complex_fill, fill_opacity = read_paint(props, _format_style(theme, fill_ref, 'fillStyleLst'), fill_ref)
+    if fill:
+        style['fill'] = fill
+    line = props.find(qn('a:ln'))
+    line_ref = appearance.find(qn('a:lnRef')) if appearance is not None else None
+    inherited_line = _format_style(theme, line_ref, 'lnStyleLst')
+    inherited_paint = inherited_line.find(qn('a:solidFill')) if inherited_line is not None else None
+    stroke, complex_stroke, stroke_opacity = read_paint(line, inherited_paint, line_ref)
+    if stroke:
+        style['stroke'] = stroke
+        style['stroke_width'] = next((int(candidate.get('w')) / EMU_PER_POINT for candidate in (line, inherited_line)
+                                      if candidate is not None and candidate.get('w') is not None), 1)
+    effect = any(len(child) for child in props if child.tag in {qn('a:'+tag) for tag in ('effectLst','effectDag','scene3d','sp3d')})
+    complex_styles = bool(fill and stroke and fill_opacity!=stroke_opacity)
+    opacity=fill_opacity if fill else stroke_opacity
+    return geometry if not complex_geometry else 'rect', bool(complex_geometry or complex_fill or complex_stroke or effect or complex_styles), opacity
+
+
+def _shape_paths(shape):
+    geometry=shape._element.spPr.find(qn('a:custGeom'))
+    paths=geometry.find(qn('a:pathLst')) if geometry is not None else None
+    if paths is None:
+        return None
+    if not 1<=len(paths)<=8:
+        raise ValueError('Unsupported custom geometry')
+    result=[]
+    for path in paths:
+        width=int(path.get('w',str(shape.width)))
+        height=int(path.get('h',str(shape.height)))
+        if not (0<width<=2**31 and 0<height<=2**31 and 0<len(path)<=200):
+            raise ValueError('Invalid custom path dimensions')
+        steps=[]
+        for command in path:
+            code, count=PATH_COMMANDS.get(command.tag.rsplit('}',1)[-1],(None,-1))
+            if len(command)!=count:
+                raise ValueError('Unsupported custom path command')
+            points=[int(point.get(key)) for point in command for key in ('x','y')]
+            if any(abs(point)>2**31 for point in points):
+                raise ValueError('Invalid custom path coordinate')
+            steps.append(' '.join([code,*map(str,points)]))
+        if not steps[0].startswith('M '):
+            raise ValueError('Invalid custom path origin')
+        fill=path.get('fill','norm')
+        if fill not in ('norm','none'):
+            raise ValueError('Unsupported custom path fill mode')
+        result.append({'width':width,'height':height,'path':' '.join(steps),'fill':fill!='none',
+                       'stroke':path.get('stroke','true') not in ('false','0')})
+    return result
+
+
+def _background(slide, theme, mapping):
+    owners = (slide, slide.slide_layout, slide.slide_layout.slide_master)
+    for owner in owners:
+        bg = owner._element.find(f'{qn("p:cSld")}/{qn("p:bg")}')
+        if bg is None:
+            continue
+        props = bg.find(qn('p:bgPr'))
+        reference = bg.find(qn('p:bgRef'))
+        fill = props.find(qn('a:solidFill')) if props is not None else None
+        if reference is not None:
+            fill = _format_style(theme, reference, 'bgFillStyleLst', 1001)
+            if fill is None:
+                fill = _format_style(theme, reference, 'fillStyleLst')
+        color = _resolved_color(fill, theme, mapping, _resolved_color(reference, theme, mapping))
+        return color, color is None
+    return None, False
+
+
+def _native_picture(shape, target):
+    try:
+        blob=shape.image.blob
+        with Image.open(BytesIO(blob)) as image:
+            if image.width * image.height > 30_000_000:
+                return False
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if image.format=='PNG' and not getattr(image,'is_animated',False):
+                image.verify()
+                target.write_bytes(blob)
+            else:
+                image.convert('RGBA').save(target,compress_level=2)
+        return True
+    except (AttributeError, KeyError, OSError, SyntaxError, ValueError, Image.DecompressionBombError):
+        return False
+
+
+def import_document(source:Path,title:str,*,asset_root:Path|None=None)->dict:
+    from .auto_vectors import _vector
     ppt=Presentation(source)
     pages=[]
     for number,slide in enumerate(ppt.slides,1):
         nodes=[]
+        theme, mapping = _theme(slide.part)
+        background, complex_background = _background(slide, theme, mapping)
+        fallback = complex_background or any(not shape.is_placeholder for shape in slide.slide_layout.shapes)
+        if slide._element.get('showMasterSp') not in ('0', 'false'):
+            fallback |= any(not shape.is_placeholder for shape in slide.slide_layout.slide_master.shapes)
         for shape,index,legacy,group_path,bbox in _walk_shapes(slide.shapes,page_no=number,parent_transform=(1,1,0,0)):
             # Top-level groups are preserved as one accurate object; children are not drawn twice.
             if group_path is not None: continue
@@ -360,13 +556,13 @@ def import_document(source:Path,title:str)->dict:
             kind='text' if has_text and (text or 'TEXT_BOX' in native_kind) else 'shape'
             if getattr(shape,'has_chart',False):kind='chart'
             elif getattr(shape,'has_table',False):kind='table'
-            elif 'PICTURE' in native_kind or 'GROUP' in native_kind:kind='image'
+            elif shape._element.tag==qn('p:pic') or 'PICTURE' in native_kind or 'GROUP' in native_kind:kind='image'
             style={'font_size':18,'font_family':'Arial','color':'#18233D','bold':False,'italic':False,
                    'underline':False,'align':'left','vertical_align':'top','line_height':1.15,
                    'padding_left':0,'padding_right':0,'padding_top':0,'padding_bottom':0}
             paragraphs=[]
             if has_text:
-                paragraphs = _text_properties(shape.text_frame, style)
+                paragraphs = _text_properties(shape.text_frame, style, lambda fill: _resolved_color(fill, theme, mapping))
             node={'id':f'n_{shape.shape_id}','source_element_id':legacy,'source_shape_id':shape.shape_id,
               'name':shape.name or ('文字' if has_text else '对象'),'type':kind,
               'x':bbox['x']/EMU_PER_POINT,'y':bbox['y']/EMU_PER_POINT,
@@ -374,26 +570,66 @@ def import_document(source:Path,title:str)->dict:
               'rotation':float(shape.rotation),'z':index,'opacity':1,
               'locked':not bool(text) and bbox['w']*bbox['h']>ppt.slide_width*ppt.slide_height*.9,'hidden':False,'deleted':False,
               'text':text,'base_text':text,'style':style,'base_style':dict(style),'paragraphs':paragraphs,
-              'word_wrap':bool(getattr(shape.text_frame,'word_wrap',True)) if has_text else None,
+              'word_wrap':shape.text_frame.word_wrap if has_text else None,
               'auto_size':int(getattr(shape.text_frame,'auto_size',0) or 0) if has_text else None,
               'shape':'rect',
               'asset_id':f'n_{shape.shape_id}','background_asset_id':f'n_{shape.shape_id}_empty' if has_text else None,
               'whole_group':'GROUP' in native_kind}
-            node['base_width']=node['width'];node['base_height']=node['height']
-            node['base_x']=node['x'];node['base_y']=node['y'];node['base_rotation']=node['rotation']
-            try:
-                if 'OVAL' in str(shape.auto_shape_type):node['shape']='ellipse'
-            except (AttributeError,ValueError):pass
+            complex_shape = False
+            if shape.shape_type == MSO_SHAPE_TYPE.LINE:
+                try:
+                    props = shape._element.spPr
+                    transform = _transform(props.xfrm)
+                    first = (transform @ (0, 0, 1))[:2]
+                    last = (transform @ (props.xfrm.ext.cx.pt, props.xfrm.ext.cy.pt, 1))[:2]
+                    vector = _vector(node, first, last, _line_style(shape, theme, mapping))
+                    if vector is None:
+                        raise ValueError('Empty line')
+                    node = vector
+                except (AttributeError, TypeError, ValueError, OverflowError):
+                    complex_shape = True
+            elif shape._element.tag==qn('p:pic') and asset_root is not None:
+                filename = f'n_{shape.shape_id}.png'
+                if _native_picture(shape, asset_root / f'p{number:02d}' / filename):
+                    node['native_file'] = filename
+                    crop = {side: getattr(shape, 'crop_' + side, 0) for side in ('left', 'top', 'right', 'bottom')}
+                    if (any(crop.values()) and all(0 <= value < 1 for value in crop.values())
+                            and crop['left']+crop['right'] < 1 and crop['top']+crop['bottom'] < 1):
+                        node['crop'] = crop
+                        node['base_crop'] = dict(crop)
+                    elif any(crop.values()):
+                        complex_shape = True
+                else:
+                    complex_shape = True
+            elif shape.shape_type in (MSO_SHAPE_TYPE.AUTO_SHAPE, MSO_SHAPE_TYPE.TEXT_BOX,
+                                      MSO_SHAPE_TYPE.PLACEHOLDER, MSO_SHAPE_TYPE.FREEFORM):
+                try:
+                    node['shape'], complex_shape, node['opacity'] = _shape_appearance(shape, style, theme, mapping)
+                    paths=_shape_paths(shape)
+                    if paths:
+                        node['shape_paths']=paths
+                except (AttributeError, TypeError, ValueError, OverflowError):
+                    complex_shape = True
+            elif kind not in ('table', 'chart'):
+                complex_shape = True
             if kind=='table':
                 node['table']=[[c.text for c in row.cells] for row in shape.table.rows]
                 node['base_table']=[list(row) for row in node['table']]
             if kind=='chart':
                 from ..parsers.pptx_parser import _chart_data
                 node['chart']=_chart_data(shape)[0]
-                from copy import deepcopy
                 node['base_chart']=deepcopy(node['chart'])
+                complex_shape |= not bool(node['chart'] and node['chart']['categories'])
+            node.update({f'base_{key}': node[key] for key in ('x', 'y', 'width', 'height', 'rotation')},
+                        base_style=dict(node['style']), base_opacity=node['opacity'], native_fallback=complex_shape)
+            fallback |= complex_shape
             nodes.append(node)
+        notes = slide.notes_slide.notes_text_frame if slide.has_notes_slide else None
         pages.append({'page_no':number,'id':f'p_{number}','width':ppt.slide_width/EMU_PER_POINT,
-                      'height':ppt.slide_height/EMU_PER_POINT,'nodes':nodes,'modified':False})
+                      'height':ppt.slide_height/EMU_PER_POINT,'nodes':nodes,'modified':False,
+                      'native_ready':True,'native_fallback':fallback,
+                      **({'notes':notes.text} if notes is not None and notes.text else {}),
+                      **({'background_color':background} if background else {})})
     return {'schema_version':'1.0','revision':0,'title':title,'source_key':sha256(source.read_bytes()).hexdigest()[:24],
+            'native_import_version':1,
             'pages':pages,'applied_operations':[]}

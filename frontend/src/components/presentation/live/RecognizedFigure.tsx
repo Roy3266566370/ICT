@@ -17,7 +17,7 @@ interface Shared {
   disabled: boolean;
   flashKey: string | null;
   onChange: (spec: ISpec, id: string, value: number) => void;
-  onExpand: (specId: string) => void;
+  onExpand?: (specId: string) => void;
 }
 
 interface Props {
@@ -238,8 +238,8 @@ function RecognizedFigureInner({ region, spec, cells, shared, reducedMotion }: P
       style={shared.place(region.bbox, region.elementId)}>
       <div className={styles.figureCornerActions}>
         {dirty && <button type="button" onClick={resetPanel} title="恢复本图原稿">重置</button>}
-        <button type="button" onClick={() => shared.onExpand(spec.object_id)}
-          aria-label={`展开实验页：${spec.title ?? '交互'}`} title="展开为完整实验页">↗</button>
+        {shared.onExpand && <button type="button" onClick={() => shared.onExpand?.(spec.object_id)}
+          aria-label={`展开实验页：${spec.title ?? '交互'}`} title="展开为完整实验页">↗</button>}
       </div>
       {active && <svg ref={svgRef} className={styles.recognizedSvg} viewBox={`0 0 ${iw} ${ih}`}
         preserveAspectRatio="none" role="img" aria-label={`${spec.title ?? '图形'}：拖动端点调整矩阵`}>

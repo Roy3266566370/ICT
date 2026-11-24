@@ -39,6 +39,7 @@ export interface PipelineStage {
   textLabel?: string;
   controls?: PipelineControl[];
   actions?: { label: string; append: string }[];
+  presets?: { label: string; text?: string; params: Record<string, number> }[];
   run: (args: { text: string; params: Record<string, number>; upstream: (Record<string, unknown> | null)[] }) => PipelineResult;
 }
 

@@ -122,3 +122,27 @@ test('IPv4 allows an unaligned final fragment up to the exact MTU', () => {
     { totalLength: 71, payload: 51, offset: 6, mf: 0 },
   ]);
 });
+
+test('CSMA/CD 短帧漏检、标准帧可靠检测与无碰撞延迟', () => {
+  const short = simulate('csmaCdLab', { link: { params: { distance: 2500, rate: 0, frameBytes: 16, delayB: 1 } } });
+  assert.equal(short.get('verdict')?.data.reliable, false);
+  assert.equal(short.get('verdict')?.data.collision, true);
+  assert.equal(short.get('timeline')?.frames.length, 2);
+  const standard = simulate('csmaCdLab', { link: { params: { distance: 1000, rate: 0, frameBytes: 64, delayB: 2 } } });
+  assert.equal(standard.get('verdict')?.data.reliable, true);
+  const delayed = simulate('csmaCdLab', { link: { params: { distance: 1000, rate: 0, frameBytes: 64, delayB: 8 } } });
+  assert.equal(delayed.get('verdict')?.data.collision, false);
+});
+
+test('RIP 断链计数到无穷，水平分割与 OSPF 快速收敛', () => {
+  const rip = simulate('routingLab', { topology: { params: { fault: 1, splitHorizon: 0, protocol: 0 } } });
+  assert.equal(rip.get('converge')?.data.ripLoop, true);
+  assert.ok(Number(rip.get('converge')?.data.ripRounds) >= 15);
+  assert.match(JSON.stringify(rip.get('converge')?.frames.at(-1)), /16/);
+  const split = simulate('routingLab', { topology: { params: { fault: 1, splitHorizon: 1, protocol: 0 } } });
+  assert.equal(split.get('converge')?.data.ripLoop, false);
+  assert.ok(Number(split.get('converge')?.data.ripRounds) < 15);
+  const ospf = simulate('routingLab', { topology: { params: { fault: 1, splitHorizon: 0, protocol: 1 } } });
+  assert.match(String(ospf.get('converge')?.frames[0]?.title), /OSPF/);
+  assert.equal(ospf.get('converge')?.data.ospfRounds, 1);
+});

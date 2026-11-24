@@ -245,7 +245,7 @@ def test_document_api_auth_conflict_assets_and_no_render_jobs(source_deck,tmp_pa
 
 
 def test_freeze_fails_fast_when_edited_page_is_not_prepared(source_deck, tmp_path, monkeypatch):
-    """Publish/export must not run PowerPoint synchronously for missing layers."""
+    """Publish/export must not run PowerPoint synchronously for legacy missing layers."""
     from app.documents import layers, presentation, store
     from app.documents.importer import import_document
     root = tmp_path / 'document'
@@ -253,6 +253,7 @@ def test_freeze_fails_fast_when_edited_page_is_not_prepared(source_deck, tmp_pat
         monkeypatch.setattr(module, 'document_root', lambda _: root)
     doc = import_document(source_deck, 'Test')
     doc['pages'][0]['modified'] = True
+    doc['pages'][0].pop('native_ready')
     store.write_document('material', doc)
     with pytest.raises(ValueError, match='仍在准备'):
         presentation.freeze_document('material')

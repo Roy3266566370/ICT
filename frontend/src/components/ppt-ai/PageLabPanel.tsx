@@ -28,12 +28,14 @@ export function LabCanvas({
   values,
   identity,
   editable = true,
+  fitDialog = false,
   onParamChange,
 }: {
   lab: PageLab;
   values: Values;
   identity?: string;
   editable?: boolean;
+  fitDialog?: boolean;
   onParamChange?: (patch: Values) => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -88,7 +90,9 @@ export function LabCanvas({
       program:lab.program, input:values, timeoutMs:RUN_TIMEOUT_MS};
     target.postMessage(init, '*');
   }, [loaded, failed, values, lab.program, artifactId, revision, generation, stop]);
-  return <div className={styles.stage}>
+  const fitWidth = fitDialog && typeof ast?.width === 'number' && typeof ast?.height === 'number' && ast.height > 0
+    ? `min(100%, ${58 * ast.width / ast.height}dvh)` : undefined;
+  return <div className={styles.stage} style={fitWidth ? {width: fitWidth} : undefined}>
     {!failed && <iframe ref={iframeRef} className={styles.iframe} sandbox="allow-scripts"
       referrerPolicy="no-referrer" title="AI 交互隔离沙箱" tabIndex={-1} aria-hidden="true"
       srcDoc={SANDBOX_SRCDOC} onLoad={() => setLoaded(true)} />}

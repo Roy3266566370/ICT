@@ -107,7 +107,7 @@ export function MathSceneView({node, interactive, editing, onPatch}: {
     for(let i=Math.ceil(y[0]/gridStep)*gridStep;i<=y[1];i+=gridStep)
       grid.push(<Line.Segment key={`y${i}`} point1={transform([x[0],i])} point2={transform([x[1],i])} color={color} weight={1} opacity={.25}/>);
   }
-  return <div className="mathScene" data-math-scene={node.id} data-line-style={node.style.line_style??'solid'} data-flow={!!node.flow?.enabled}
+  return <div className="mathScene" data-math-scene={node.id} data-presentation-snapshot={node.id} data-line-style={node.style.line_style??'solid'} data-flow={!!node.flow?.enabled}
     data-no-pan style={{position:'absolute',left:node.x,top:node.y,width:node.width,height:node.height,
       transform:`rotate(${node.rotation}deg)`,opacity:node.opacity,zIndex:node.z+10001,
       '--flow-duration':`${1/(node.flow?.speed??1)}s`,pointerEvents:interactive||editing?'auto':'none'} as CSSProperties}>

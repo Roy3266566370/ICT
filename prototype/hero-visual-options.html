@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万象首屏视觉 · 三套动态大局观方案对比</title>
+  <style>
+    :root {
+      --paper: #f3f0e7;
+      --paper-hi: #fbf9f2;
+      --paper-card: #fffdf8;
+      --ink: #111312;
+      --ink-2: #32362e;
+      --muted: #696c61;
+      --line: #dad4c5;
+      --line-strong: #c2bba8;
+      --blue: #2234d4;
+      --blue-deep: #111b5e;
+      --blue-soft: #eef1ff;
+      --red: #de421f;
+      --teal: #0f766e;
+      --serif: "Songti SC", "Noto Serif SC", "STSong", Georgia, serif;
+      --sans: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+      --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(900px 520px at 85% 0%, rgba(34, 52, 212, .06), transparent 60%),
+        radial-gradient(700px 420px at 10% 100%, rgba(222, 66, 31, .05), transparent 55%),
+        var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      padding: clamp(20px, 3vw, 36px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 22px;
+    }
+
+    /* 顶部方案切换条 */
+    .switcher-bar {
+      width: min(1160px, 100%);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      padding: 12px 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(17, 19, 18, .1);
+      background: rgba(255, 253, 248, .88);
+      backdrop-filter: blur(10px);
+    }
+    .switcher-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      border: 1px solid var(--line-strong);
+      background: var(--paper-hi);
+      color: var(--ink-2);
+      padding: 8px 15px;
+      border-radius: 10px;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .16s ease;
+    }
+    .tab-btn:hover { border-color: var(--ink); color: var(--ink); }
+    .tab-btn.is-active {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+      box-shadow: 0 6px 16px rgba(17, 19, 18, .18);
+    }
+    .hint {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* 展示舞台 */
+    .stage-grid {
+      width: min(1160px, 100%);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+    .stage-grid.is-all {
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    }
+
+    .option-card {
+      display: none;
+      flex-direction: column;
+      gap: 14px;
+      border-radius: 24px;
+      border: 1px solid rgba(17, 19, 18, .12);
+      background: linear-gradient(145deg, #fffdf8 0%, #f5f1e6 100%);
+      padding: 22px;
+      box-shadow: 0 24px 60px rgba(17, 19, 18, .08), inset 0 1px 0 rgba(255, 255, 255, .9);
+    }
+    .option-card.is-visible,
+    .stage-grid.is-all .option-card {
+      display: flex;
+    }
+    .option-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .option-head h2 {
+      font-family: var(--serif);
+      font-size: 22px;
+      margin: 0;
+    }
+    .option-head span {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+    .option-desc {
+      margin: -6px 0 2px;
+      font-size: 13.5px;
+      color: var(--ink-2);
+    }
+
+    .visual-box {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 10.5;
+      min-height: 360px;
+      border-radius: 16px;
+      border: 1px solid rgba(17, 19, 18, .09);
+      background:
+        radial-gradient(circle at 25% 25%, rgba(34, 52, 212, .05), transparent 55%),
+        radial-gradient(circle at 80% 75%, rgba(222, 66, 31, .05), transparent 55%),
+        #fbf9f3;
+      overflow: hidden;
+    }
+    .stage-grid.is-all .visual-box {
+      min-height: 290px;
+    }
+    .visual-box svg,
+    .visual-box canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ================= 方案 A：2.5D 立体悬浮动效 ================= */
+    .iso-layer {
+      transition: transform .18s ease-out;
+      will-change: transform;
+    }
+    .iso-float-1 { animation: isoFloat 5.6s ease-in-out infinite; }
+    .iso-float-2 { animation: isoFloat 5.6s ease-in-out -1.8s infinite; }
+    .iso-float-3 { animation: isoFloat 5.6s ease-in-out -3.5s infinite; }
+    @keyframes isoFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+    .beam-flow {
+      stroke-dasharray: 7 9;
+      animation: beamUp 2.4s linear infinite;
+    }
+    .beam-flow-slow {
+      stroke-dasharray: 6 10;
+      animation: beamUp 4.2s linear infinite;
+    }
+    @keyframes beamUp {
+      from { stroke-dashoffset: 64; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* ================= 方案 C：宏观动态沙盘动效 ================= */
+    .pano-stream {
+      stroke-dasharray: 6 8;
+      animation: panoFlow 3.2s linear infinite;
+    }
+    .pano-stream-rev {
+      stroke-dasharray: 5 9;
+      animation: panoFlow 5.4s linear infinite;
+    }
+    @keyframes panoFlow {
+      from { stroke-dashoffset: 56; }
+      to { stroke-dashoffset: 0; }
+    }
+    .pano-pulse {
+      animation: pulseGlow 2.8s ease-in-out infinite;
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: .65; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.16); }
+    }
+  </style>
+</head>
+<body>
+  <div class="switcher-bar">
+    <div class="switcher-tabs" role="tablist" aria-label="切换视觉方案">
+      <button type="button" class="tab-btn is-active" data-target="opt-a">方案 A · 2.5D 立体生态架构</button>
+      <button type="button" class="tab-btn" data-target="opt-b">方案 B · Canvas 知识引力场</button>
+      <button type="button" class="tab-btn" data-target="opt-c">方案 C · 宏观动态生态沙盘</button>
+      <button type="button" class="tab-btn" data-target="all">三方案同屏对比</button>
+    </div>
+    <span class="hint">移动鼠标到画面上可体验视差 / 引力交互</span>
+  </div>
+
+  <div class="stage-grid" id="stage-grid">
+    <!-- ==================== 方案 A：2.5D 立体悬浮生态架构 ==================== -->
+    <section class="option-card is-visible" id="opt-a">
+      <div class="option-head">
+        <h2>方案 A · 2.5D 立体悬浮「万象三层生态架构」</h2>
+        <span>ISOMETRIC STACK · 建筑纵深感 + 鼠标 3D 视差</span>
+      </div>
+      <p class="option-desc">从底层「真计算内核」向上注入「万象工坊」积木封装，再托举起顶层「万象活页」演播与分发，同时右侧形成资产回流闭环。</p>
+      <div class="visual-box" id="iso-box">
+        <svg viewBox="0 0 760 500" role="img" aria-label="万象三层立体生态架构">
+          <defs>
+            <linearGradient id="iso-blue" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#1c2ecb" />
+              <stop offset="100%" stop-color="#0f1854" />
+            </linearGradient>
+            <linearGradient id="iso-teal" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#0f766e" />
+              <stop offset="100%" stop-color="#14b8a6" />
+            </linearGradient>
+            <linearGradient id="iso-paper" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#ffffff" />
+              <stop offset="100%" stop-color="#f1ece0" />
+            </linearGradient>
+            <filter id="iso-shadow" x="-15%" y="-15%" width="130%" height="140%">
+              <feDropShadow dx="0" dy="14" stdDeviation="12" flood-color="#111312" flood-opacity="0.12" />
+            </filter>
+          </defs>
+
+          <!-- 背景微坐标网格 -->
+          <g stroke="#e4ded0" stroke-width="1">
+            <line x1="60" y1="250" x2="700" y2="250" stroke-dasharray="3 5" />
+            <line x1="380" y1="30" x2="380" y2="470" stroke-dasharray="3 5" />
+          </g>
+
+          <!-- ========== 底层：真计算内核层 ========== -->
+          <g class="iso-layer" data-depth="0.4">
+            <g class="iso-float-3" filter="url(#iso-shadow)">
+              <!-- 立体底板 -->
+              <polygon points="380,320 590,390 380,460 170,390" fill="#121a45" stroke="#3648a6" stroke-width="1.5" />
+              <polygon points="170,390 380,460 380,474 170,404" fill="#0b102d" />
+              <polygon points="590,390 380,460 380,474 590,404" fill="#192561" />
+              <!-- 内部算力网格 -->
+              <g stroke="#3d52bf" stroke-width="0.9" opacity="0.55">
+                <line x1="222" y1="373" x2="432" y2="443" />
+                <line x1="275" y1="355" x2="485" y2="425" />
+                <line x1="327" y1="338" x2="537" y2="408" />
+                <line x1="222" y1="407" x2="432" y2="337" />
+                <line x1="275" y1="425" x2="485" y2="355" />
+                <line x1="327" y1="442" x2="537" y2="372" />
+              </g>
+              <!-- 学科内核微节点 -->
+              <circle cx="310" cy="390" r="5" fill="#60a5fa" />
+              <circle cx="380" cy="368" r="5" fill="#2dd4bf" />
+              <circle cx="450" cy="390" r="5" fill="#fb923c" />
+              <circle cx="380" cy="414" r="5" fill="#a78bfa" />
+              <!-- 左侧标注 -->
+              <line x1="170" y1="392" x2="112" y2="392" stroke="#9b9586" stroke-dasharray="2 3" />
+              <text x="104" y="388" text-anchor="end" font-size="13" font-weight="700" fill="#111312">01 · 真计算内核</text>
+              <text x="104" y="405" text-anchor="end" font-size="10.5" fill="#696c61" font-family="monospace">高数 / 408 / DL / 沙盘</text>
+            </g>
+          </g>
+
+          <!-- 垂直上升能量光束：底层 → 中层 -->
+          <g fill="none" stroke-width="2">
+            <path d="M310 385 L310 278" stroke="#60a5fa" class="beam-flow" />
+            <path d="M380 364 L380 258" stroke="#2dd4bf" class="beam-flow" />
+            <path d="M450 385 L450 278" stroke="#fb923c" class="beam-flow" />
+          </g>
+
+          <!-- ========== 中层：万象工坊层（积木编排与封装） ========== -->
+          <g class="iso-layer" data-depth="0.9">
+            <g class="iso-float-2" filter="url(#iso-shadow)">
+              <polygon points="380,192 590,262 380,332 170,262" fill="rgba(238,241,255,0.92)" stroke="#2234d4" stroke-width="1.6" />
+              <polygon points="170,262 380,332 380,342 170,272" fill="#cbd3fb" />
+              <polygon points="590,262 380,332 380,342 590,272" fill="#dbe1fe" />
+              <!-- 3 块立体积木 -->
+              <polygon points="295,244 338,258 295,272 252,258" fill="#1c2ecb" />
+              <polygon points="380,224 426,240 380,256 334,240" fill="#0f766e" />
+              <polygon points="462,248 505,262 462,276 419,262" fill="#de421f" />
+              <!-- 积木间连线 -->
+              <path d="M315 256 L356 244 M404 244 L440 258" stroke="#111b5e" stroke-width="2" stroke-dasharray="4 3" />
+              <!-- 左侧标注 -->
+              <line x1="170" y1="264" x2="112" y2="264" stroke="#2234d4" stroke-dasharray="2 3" />
+              <text x="104" y="260" text-anchor="end" font-size="13.5" font-weight="700" fill="#111b5e">02 · 万象工坊</text>
+              <text x="104" y="277" text-anchor="end" font-size="10.5" fill="#696c61" font-family="monospace">积木连线 · 封装活仪器</text>
+            </g>
+          </g>
+
+          <!-- 垂直上升能量光束：中层 → 顶层 -->
+          <g fill="none" stroke-width="2.2">
+            <path d="M335 236 L335 148" stroke="#2234d4" class="beam-flow" />
+            <path d="M425 236 L425 148" stroke="#de421f" class="beam-flow" />
+          </g>
+
+          <!-- ========== 顶层：万象活页层（动态课件演播） ========== -->
+          <g class="iso-layer" data-depth="1.5">
+            <g class="iso-float-1" filter="url(#iso-shadow)">
+              <polygon points="380,68 590,138 380,208 170,138" fill="url(#iso-paper)" stroke="#111312" stroke-width="1.8" />
+              <polygon points="170,138 380,208 380,217 170,147" fill="#d9d3c3" />
+              <polygon points="590,138 380,208 380,217 590,147" fill="#e8e3d5" />
+              <!-- 顶层活页内的微缩文字行 + 实时曲线框 -->
+              <g stroke="#7c7a70" stroke-width="2" stroke-linecap="round">
+                <line x1="252" y1="138" x2="314" y2="118" />
+                <line x1="268" y1="148" x2="320" y2="131" opacity=".6" />
+                <line x1="286" y1="157" x2="328" y2="143" opacity=".45" />
+              </g>
+              <polygon points="386,102 496,138 430,162 320,126" fill="#eef1ff" stroke="#2234d4" stroke-width="1.3" />
+              <path d="M342 130 Q388 106 422 138 T476 136" fill="none" stroke="#de421f" stroke-width="2.4" />
+              <circle cx="404" cy="126" r="4.5" fill="#0f766e" stroke="#fff" stroke-width="1.5" />
+              <!-- 左侧标注 -->
+              <line x1="170" y1="140" x2="112" y2="140" stroke="#de421f" stroke-dasharray="2 3" />
+              <text x="104" y="136" text-anchor="end" font-size="13.5" font-weight="700" fill="#de421f">03 · 万象活页</text>
+              <text x="104" y="153" text-anchor="end" font-size="10.5" fill="#696c61" font-family="monospace">现场演播 · 离线分发</text>
+            </g>
+          </g>
+
+          <!-- 右侧大局闭环回流轨（活页 → 课后反钻 → 工坊 & 内核） -->
+          <g fill="none">
+            <path d="M598 142 C682 162, 682 372, 598 390" stroke="#0f766e" stroke-width="2.2" class="beam-flow-slow" />
+            <polygon points="594,390 606,384 604,396" fill="#0f766e" />
+          </g>
+          <g font-family="monospace" font-size="11" fill="#0f766e">
+            <rect x="614" y="236" width="124" height="52" rx="10" fill="#ebfbf8" stroke="#0f766e" stroke-opacity=".35" />
+            <text x="676" y="258" text-anchor="middle" font-weight="700">课后反钻回流</text>
+            <text x="676" y="276" text-anchor="middle" font-size="10" fill="#32362e">分享 · 离线 · 复用</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <!-- ==================== 方案 B：Canvas 60fps 知识引力场 ==================== -->
+    <section class="option-card" id="opt-b">
+      <div class="option-head">
+        <h2>方案 B · Canvas 实时「万象知识引力场」</h2>
+        <span>60FPS PARTICLE ATLAS · 纸墨星盘 + 鼠标引力互动</span>
+      </div>
+      <p class="option-desc">外围多学科知识与静态讲义星尘不断汇入「万象工坊」点亮重算，再沿流线跃迁至「万象活页」向外激发出有序的演播涟漪。</p>
+      <div class="visual-box">
+        <canvas id="atlas-canvas"></canvas>
+      </div>
+    </section>
+
+    <!-- ==================== 方案 C：宏观动态生态沙盘 ==================== -->
+    <section class="option-card" id="opt-c">
+      <div class="option-head">
+        <h2>方案 C · 「宏观生态动态沙盘」</h2>
+        <span>ECOSYSTEM PANORAMA · 鸟瞰全貌 + 实时微缩内核纹理</span>
+      </div>
+      <p class="option-desc">一幅鸟瞰全景画卷：左端静态文档涌入，中央工坊矩阵实时跳动波形与算力，右端展开动态活页画卷并回流沉淀至个人资产库。</p>
+      <div class="visual-box">
+        <svg id="pano-svg" viewBox="0 0 760 500" role="img" aria-label="万象宏观生态动态沙盘">
+          <defs>
+            <linearGradient id="pano-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#2234d4" />
+              <stop offset="50%" stop-color="#0f766e" />
+              <stop offset="100%" stop-color="#de421f" />
+            </linearGradient>
+          </defs>
+
+          <!-- 顶部宏观坐标标尺 -->
+          <g font-family="monospace" font-size="10.5" fill="#7f8175">
+            <text x="36" y="36">INPUT · 静态素材与公式</text>
+            <text x="380" y="36" text-anchor="middle" fill="#111b5e" font-weight="700">ENGINE · 万象工坊算力矩阵</text>
+            <text x="724" y="36" text-anchor="end" fill="#de421f" font-weight="700">STAGE · 万象活页画卷</text>
+            <line x1="36" y1="48" x2="724" y2="48" stroke="#dcd6c7" />
+          </g>
+
+          <!-- 连接主管线 -->
+          <g fill="none" stroke-width="2.2">
+            <!-- 左 → 中 -->
+            <path d="M168 140 C215 140, 215 190, 252 190" stroke="#2234d4" class="pano-stream" />
+            <path d="M168 235 L252 235" stroke="#2234d4" class="pano-stream" />
+            <path d="M168 330 C215 330, 215 280, 252 280" stroke="#2234d4" class="pano-stream" />
+            <!-- 中 → 右 -->
+            <path d="M508 190 C548 190, 548 148, 580 148" stroke="#de421f" class="pano-stream" />
+            <path d="M508 235 L580 235" stroke="#de421f" class="pano-stream" />
+            <path d="M508 280 C548 280, 548 322, 580 322" stroke="#de421f" class="pano-stream" />
+            <!-- 底部闭环回流：右 → 个人资产库 → 中央工坊 -->
+            <path d="M648 360 C648 438, 520 438, 456 438" stroke="#0f766e" class="pano-stream-rev" />
+            <path d="M304 438 C230 438, 120 438, 120 374" stroke="#0f766e" class="pano-stream-rev" />
+          </g>
+
+          <!-- ===== 左侧：静态素材输入列 ===== -->
+          <g transform="translate(36,108)">
+            <rect width="132" height="62" rx="10" fill="#fff" stroke="#cfc8b8" />
+            <text x="14" y="26" font-size="12" font-weight="700" fill="#111312">静态 PPTX / PDF</text>
+            <text x="14" y="45" font-size="10.5" fill="#696c61" font-family="monospace">原有讲义直接导入</text>
+          </g>
+          <g transform="translate(36,204)">
+            <rect width="132" height="62" rx="10" fill="#fff" stroke="#cfc8b8" />
+            <text x="14" y="26" font-size="12" font-weight="700" fill="#111312">公式与算法题</text>
+            <text x="14" y="45" font-size="10.5" fill="#696c61" font-family="monospace">y′=f(x,y) · 408</text>
+          </g>
+          <g transform="translate(36,300)">
+            <rect width="132" height="62" rx="10" fill="#fff" stroke="#cfc8b8" />
+            <text x="14" y="26" font-size="12" font-weight="700" fill="#111312">数据与业务表</text>
+            <text x="14" y="45" font-size="10.5" fill="#696c61" font-family="monospace">CSV · 财务参数</text>
+          </g>
+
+          <!-- ===== 中央：万象工坊全景引擎盒 ===== -->
+          <g transform="translate(252,110)">
+            <rect width="256" height="250" rx="18" fill="#101840" stroke="#2234d4" stroke-width="2" />
+            <text x="18" y="28" fill="#fff" font-size="14" font-weight="700">万象工坊 · 实时引擎</text>
+            <circle cx="234" cy="22" r="4.5" fill="#2dd4bf" class="pano-pulse" />
+            <!-- 内部微缩实时波形窗 -->
+            <rect x="16" y="44" width="224" height="72" rx="10" fill="#17245e" stroke="rgba(164,182,255,.25)" />
+            <path id="pano-live-wave" d="" fill="none" stroke="#5eead4" stroke-width="2.2" />
+            <path id="pano-live-wave2" d="" fill="none" stroke="#ff9c82" stroke-width="1.6" stroke-dasharray="4 4" />
+            <!-- 内部三块微缩积木 -->
+            <g transform="translate(16,130)" font-family="monospace" font-size="10">
+              <rect width="68" height="44" rx="7" fill="#1f317a" stroke="#7c93ff" />
+              <text x="34" y="20" text-anchor="middle" fill="#fff">函数源</text>
+              <text x="34" y="34" text-anchor="middle" fill="#9fb2f5">PARAM</text>
+
+              <rect x="78" width="68" height="44" rx="7" fill="#1f317a" stroke="#5eead4" />
+              <text x="112" y="20" text-anchor="middle" fill="#fff">RK4/梯度</text>
+              <text x="112" y="34" text-anchor="middle" fill="#5eead4">KERNEL</text>
+
+              <rect x="156" width="68" height="44" rx="7" fill="#0f3e40" stroke="#4fd1c5" />
+              <text x="190" y="20" text-anchor="middle" fill="#fff">插件出口</text>
+              <text x="190" y="34" text-anchor="middle" fill="#9cf3e9">PLUGIN</text>
+            </g>
+            <!-- 底部实时参数读数 -->
+            <rect x="16" y="190" width="224" height="42" rx="8" fill="rgba(255,255,255,.06)" />
+            <text id="pano-readout" x="28" y="215" fill="#b7c6ff" font-family="monospace" font-size="11">LIVE KERNEL · 60 FPS · ZERO MOCK</text>
+          </g>
+
+          <!-- ===== 右侧：万象活页错落画卷 ===== -->
+          <g transform="translate(580,104)">
+            <rect width="144" height="76" rx="12" fill="#fff" stroke="#111312" stroke-width="1.5" />
+            <text x="14" y="26" font-size="12.5" font-weight="700" fill="#de421f">课堂大屏演播</text>
+            <text x="14" y="45" font-size="10.5" fill="#32362e">幻灯片内直接调参</text>
+            <text x="14" y="62" font-size="10" fill="#0f766e" font-family="monospace">● 免切软件</text>
+          </g>
+          <g transform="translate(580,196)">
+            <rect width="144" height="76" rx="12" fill="#fff" stroke="#111312" stroke-width="1.5" />
+            <text x="14" y="26" font-size="12.5" font-weight="700" fill="#111b5e">离线单文件包</text>
+            <text x="14" y="45" font-size="10.5" fill="#32362e">U 盘直开 · 断网可算</text>
+            <text x="14" y="62" font-size="10" fill="#0f766e" font-family="monospace">● .HTML / .ZIP</text>
+          </g>
+          <g transform="translate(580,288)">
+            <rect width="144" height="76" rx="12" fill="#fff" stroke="#111312" stroke-width="1.5" />
+            <text x="14" y="26" font-size="12.5" font-weight="700" fill="#0f766e">课后反钻探究</text>
+            <text x="14" y="45" font-size="10.5" fill="#32362e">一键拆开回到工坊</text>
+            <text x="14" y="62" font-size="10" fill="#2234d4" font-family="monospace">● 自由改公式</text>
+          </g>
+
+          <!-- ===== 底部：个人知识资产库 ===== -->
+          <g transform="translate(304,412)">
+            <rect width="152" height="52" rx="26" fill="#ebfbf8" stroke="#0f766e" stroke-width="1.5" />
+            <text x="76" y="25" text-anchor="middle" font-size="12.5" font-weight="700" fill="#0f766e">个人活课件资产库</text>
+            <text x="76" y="41" text-anchor="middle" font-size="10" fill="#32362e" font-family="monospace">↺ 沉淀 · 跨学期复用</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // ================= 顶部方案切换 =================
+    (function () {
+      const grid = document.getElementById('stage-grid');
+      const tabs = document.querySelectorAll('.tab-btn');
+      const cards = document.querySelectorAll('.option-card');
+
+      tabs.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          tabs.forEach((t) => t.classList.remove('is-active'));
+          btn.classList.add('is-active');
+          const target = btn.dataset.target;
+          if (target === 'all') {
+            grid.classList.add('is-all');
+            cards.forEach((c) => c.classList.add('is-visible'));
+          } else {
+            grid.classList.remove('is-all');
+            cards.forEach((c) => c.classList.toggle('is-visible', c.id === target));
+          }
+          window.dispatchEvent(new Event('resize'));
+        });
+      });
+    })();
+
+    // ================= 方案 A：鼠标 3D 视差微倾 =================
+    (function () {
+      const box = document.getElementById('iso-box');
+      const layers = box.querySelectorAll('.iso-layer');
+      box.addEventListener('pointermove', (e) => {
+        const r = box.getBoundingClientRect();
+        const nx = ((e.clientX - r.left) / r.width - 0.5) * 2;
+        const ny = ((e.clientY - r.top) / r.height - 0.5) * 2;
+        layers.forEach((layer) => {
+          const d = parseFloat(layer.dataset.depth || '1');
+          layer.style.transform = `translate(${(nx * 10 * d).toFixed(1)}px, ${(ny * 8 * d).toFixed(1)}px)`;
+        });
+      });
+      box.addEventListener('pointerleave', () => {
+        layers.forEach((layer) => { layer.style.transform = 'translate(0px, 0px)'; });
+      });
+    })();
+
+    // ================= 方案 B：Canvas 60fps 知识引力场 =================
+    (function () {
+      const canvas = document.getElementById('atlas-canvas');
+      const ctx = canvas.getContext('2d');
+      let W = 760, H = 480;
+      const mouse = { x: -999, y: -999, active: false };
+
+      const satellites = [
+        { label: '微积分', angle: 0.2, r: 0.41, speed: 0.0022, color: '#2234d4' },
+        { label: '微分方程', angle: 1.25, r: 0.43, speed: 0.0018, color: '#0f766e' },
+        { label: '408 算法', angle: 2.3, r: 0.40, speed: 0.0024, color: '#2234d4' },
+        { label: '深度学习', angle: 3.35, r: 0.42, speed: 0.0019, color: '#de421f' },
+        { label: '商业沙盘', angle: 4.4, r: 0.39, speed: 0.0021, color: '#0f766e' },
+        { label: 'PPT / PDF', angle: 5.45, r: 0.43, speed: 0.0017, color: '#de421f' }
+      ];
+
+      // 粒子分为三阶段：0=外围被吸入工坊，1=工坊流向活页，2=活页向外扩散涟漪
+      const particles = Array.from({ length: 78 }, (_, i) => ({
+        phase: i % 3,
+        t: Math.random(),
+        satIdx: i % satellites.length,
+        curveSign: (i % 2 === 0 ? 1 : -1) * (0.4 + Math.random() * 0.8),
+        speed: 0.004 + Math.random() * 0.0045,
+        outAngle: Math.random() * Math.PI * 2,
+        size: 1.8 + Math.random() * 2.1
+      }));
+
+      let rippleT = 0;
+
+      function resize() {
+        const rect = canvas.parentElement.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = rect.width; H = rect.height;
+        canvas.width = W * dpr; canvas.height = H * dpr;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      canvas.addEventListener('pointermove', (e) => {
+        const r = canvas.getBoundingClientRect();
+        mouse.x = e.clientX - r.left;
+        mouse.y = e.clientY - r.top;
+        mouse.active = true;
+      });
+      canvas.addEventListener('pointerleave', () => { mouse.active = false; });
+      window.addEventListener('resize', resize);
+      resize();
+
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+        const cx = W / 2, cy = H / 2;
+        const rx = Math.min(W, H) * 0.88;
+        const work = { x: cx - W * 0.16, y: cy };
+        const live = { x: cx + W * 0.16, y: cy };
+
+        // 细星盘坐标环
+        ctx.save();
+        ctx.strokeStyle = 'rgba(17, 19, 18, 0.08)';
+        ctx.lineWidth = 1;
+        [0.24, 0.36, 0.45].forEach((ratio) => {
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, W * ratio, H * ratio * 0.92, 0, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+        ctx.restore();
+
+        // 活页向外扩散涟漪
+        rippleT = (rippleT + 0.006) % 1;
+        [0, 0.5].forEach((offset) => {
+          const p = (rippleT + offset) % 1;
+          ctx.beginPath();
+          ctx.arc(live.x, live.y, 34 + p * 115, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(222, 66, 31, ${(1 - p) * 0.25})`;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        });
+
+        // 外围学科星点
+        const satPos = satellites.map((s) => {
+          s.angle += s.speed;
+          const x = cx + Math.cos(s.angle) * W * s.r;
+          const y = cy + Math.sin(s.angle) * H * s.r * 0.88;
+          // 微弱连线到工坊
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(work.x, work.y);
+          ctx.strokeStyle = 'rgba(34, 52, 212, 0.07)';
+          ctx.stroke();
+          // 节点
+          ctx.beginPath();
+          ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+          ctx.fillStyle = s.color;
+          ctx.fill();
+          ctx.font = '600 11px "PingFang SC", sans-serif';
+          ctx.fillStyle = '#4a4e45';
+          ctx.textAlign = 'center';
+          ctx.fillText(s.label, x, y - 10);
+          return { x, y };
+        });
+
+        // 粒子流动
+        particles.forEach((p) => {
+          p.t += p.speed;
+          if (p.t >= 1) { p.t = 0; p.phase = (p.phase + 1) % 3; }
+          let x = 0, y = 0, col = '#2234d4';
+          if (p.phase === 0) {
+            const s = satPos[p.satIdx];
+            x = s.x + (work.x - s.x) * p.t;
+            y = s.y + (work.y - s.y) * p.t;
+            col = `rgba(34, 52, 212, ${0.25 + p.t * 0.65})`;
+          } else if (p.phase === 1) {
+            const mx = (work.x + live.x) / 2;
+            const my = cy + p.curveSign * H * 0.22;
+            const u = 1 - p.t;
+            x = u * u * work.x + 2 * u * p.t * mx + p.t * p.t * live.x;
+            y = u * u * work.y + 2 * u * p.t * my + p.t * p.t * live.y;
+            col = `rgba(15, 118, 110, ${0.85})`;
+          } else {
+            const dist = 28 + p.t * rx * 0.28;
+            x = live.x + Math.cos(p.outAngle) * dist;
+            y = live.y + Math.sin(p.outAngle) * dist;
+            col = `rgba(222, 66, 31, ${(1 - p.t) * 0.75})`;
+          }
+
+          // 鼠标引力连线
+          if (mouse.active) {
+            const distM = Math.hypot(x - mouse.x, y - mouse.y);
+            if (distM < 95) {
+              ctx.beginPath();
+              ctx.moveTo(x, y);
+              ctx.lineTo(mouse.x, mouse.y);
+              ctx.strokeStyle = `rgba(34, 52, 212, ${(1 - distM / 95) * 0.35})`;
+              ctx.lineWidth = 1;
+              ctx.stroke();
+            }
+          }
+
+          ctx.beginPath();
+          ctx.arc(x, y, p.size, 0, Math.PI * 2);
+          ctx.fillStyle = col;
+          ctx.fill();
+        });
+
+        // 双星核心：工坊 & 活页
+        function drawCore(pt, title, sub, bg, border, textCol, subCol) {
+          const g = ctx.createRadialGradient(pt.x, pt.y, 10, pt.x, pt.y, 64);
+          g.addColorStop(0, border + '38');
+          g.addColorStop(1, border + '00');
+          ctx.fillStyle = g;
+          ctx.beginPath(); ctx.arc(pt.x, pt.y, 64, 0, Math.PI * 2); ctx.fill();
+
+          ctx.beginPath(); ctx.arc(pt.x, pt.y, 38, 0, Math.PI * 2);
+          ctx.fillStyle = bg; ctx.fill();
+          ctx.lineWidth = 2; ctx.strokeStyle = border; ctx.stroke();
+
+          ctx.textAlign = 'center';
+          ctx.fillStyle = textCol;
+          ctx.font = '700 14px "Songti SC", serif';
+          ctx.fillText(title, pt.x, pt.y - 2);
+          ctx.fillStyle = subCol;
+          ctx.font = '600 9.5px Consolas, monospace';
+          ctx.fillText(sub, pt.x, pt.y + 14);
+        }
+
+        drawCore(work, '万象工坊', 'COMPUTE', '#111b5e', '#2234d4', '#ffffff', '#a5b4fc');
+        drawCore(live, '万象活页', 'PRESENT', '#fffdf8', '#de421f', '#111312', '#de421f');
+
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+
+    // ================= 方案 C：中央引擎实时微缩波形律动 =================
+    (function () {
+      const wave1 = document.getElementById('pano-live-wave');
+      const wave2 = document.getElementById('pano-live-wave2');
+      const readout = document.getElementById('pano-readout');
+      let phase = 0;
+
+      function tick() {
+        phase += 0.045;
+        let d1 = '', d2 = '';
+        for (let i = 0; i <= 56; i++) {
+          const t = i / 56;
+          const x = 24 + t * 208;
+          const y1 = 80 - Math.sin(t * Math.PI * 3.5 + phase) * 20;
+          const y2 = 80 - Math.cos(t * Math.PI * 2.5 - phase * 0.7) * 16;
+          d1 += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y1.toFixed(1) + ' ';
+          d2 += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ',' + y2.toFixed(1) + ' ';
+        }
+        wave1.setAttribute('d', d1);
+        wave2.setAttribute('d', d2);
+        const freq = (2.0 + Math.sin(phase * 0.4) * 0.6).toFixed(2);
+        readout.textContent = `LIVE KERNEL · ω=${freq} · 同步推送至活页`;
+        requestAnimationFrame(tick);
+      }
+      tick();
+    })();
+  </script>
+</body>
+</html>

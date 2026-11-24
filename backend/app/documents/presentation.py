@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 import base64,re,math
 from .store import read_document,document_root
-from .layers import hydrate_document,layer_dir,manifest_ready,read_manifest
+from .layers import hydrate_document,layer_dir,manifest_ready,native_asset_path,read_manifest,source_page_number
 
 def current_document(material_id:str):
     document=read_document(material_id)
@@ -28,7 +28,7 @@ def apply_document_specs(material_id:str,specs:list[dict])->list[dict]:
     pages={p['page_no']:p for p in document['pages']}
     user_by_page=node_interaction_specs(document)
     def node_page(node):
-        return next((page_no for page_no,page in pages.items() if node in page.get('nodes',[])),1)
+        return next((page_no for page_no,page in pages.items() if any(n is node for n in page.get('nodes',[]))),1)
     def owner(page_no,element):
         if not element:return None
         return next((n for n in pages.get(page_no,{}).get('nodes',[]) if n.get('source_element_id') and
@@ -199,7 +199,8 @@ def apply_document_specs(material_id:str,specs:list[dict])->list[dict]:
             return False
         return True
 
-    result = [spec for spec in result if _is_meaningful_experiment(spec)]
+    result = [spec for spec in result if _is_meaningful_experiment(spec)
+              and (not document.get('structure_modified') or spec_pages(spec)<=pages.keys())]
     return result
 
 def freeze_document(material_id:str)->dict|None:
@@ -207,12 +208,14 @@ def freeze_document(material_id:str)->dict|None:
     from ..render import PAGE_IMAGE_PATTERN, pages_dir
 
     document=read_document(material_id)
-    if not document or not any(p.get('modified') for p in document['pages']):return None
+    if not document or not (document.get('structure_modified') or any(p.get('modified') for p in document['pages'])):return None
     for page in document['pages']:
         if not page.get('modified'):continue
         # Publishing must stay a short request: object preparation is an
         # explicit, pollable step handled before publish/download.
-        if not page.get('rendered_only') and not manifest_ready(read_manifest(material_id,document['source_key'],page['page_no'])):
+        source_page=source_page_number(page)
+        if (source_page is not None and not page.get('native_ready') and not page.get('rendered_only')
+                and not manifest_ready(read_manifest(material_id,document['source_key'],source_page))):
             raise ValueError(f'第{page["page_no"]}页对象仍在准备，请等待准备完成后再发布')
     document=hydrate_document(material_id,document)
     cache={};total=0
@@ -229,7 +232,10 @@ def freeze_document(material_id:str)->dict|None:
         if not url:return None
         filename=url.rsplit('/',1)[-1]
         if not re.fullmatch(r'(background|n_\d+(_empty)?)\.png',filename):raise ValueError('页面资源名称不合法')
-        target=layer_dir(material_id,document['source_key'],page['page_no'])/filename
+        number=source_page_number(page)
+        target=(native_asset_path(material_id,document['source_key'],number,filename)
+                if '/document/native-assets/' in url else layer_dir(material_id,document['source_key'],number)/filename)
+        if target is None:raise ValueError('页面图片资源不存在')
         return embed(target)
 
     pages=[]
@@ -241,13 +247,19 @@ def freeze_document(material_id:str)->dict|None:
         for node in page['nodes']:
             text_changed=node.get('text')!=node.get('base_text')
             if text_changed:
-                node['base_text']=None;node['paragraphs']=[]
+                node['base_text']=None
+                if '\n'.join(p.get('text','') for p in node.get('paragraphs',[]))!=node.get('text'):
+                    node['paragraphs']=[]
+            styled_text_changed='base_paragraphs' in node and node.get('paragraphs')!=node.get('base_paragraphs')
+            if 'base_paragraphs' in node:
+                node['rich_text_edited']=True
+            node.pop('base_paragraphs',None)
             # Don't deliver the raster containing superseded text or data.
-            raster_changed=(node['type']=='text' and (text_changed or node['style']!=node['base_style'] or
+            raster_changed=(node['type']=='text' and (text_changed or styled_text_changed or node['style']!=node['base_style'] or
               node.get('base_width',node['width'])!=node['width'] or node.get('base_height',node['height'])!=node['height'])) or \
               (node['type']=='table' and node.get('table')!=node.get('base_table')) or \
               (node['type']=='chart' and node.get('chart')!=node.get('base_chart'))
-            cleaned = asset_path(material_id,page['page_no'],node.get('cleaned_asset_id')) if node['type']=='image' else None
+            cleaned = asset_path(material_id,node.get('cleaned_asset_page_no',page['page_no']),node.get('cleaned_asset_id')) if node['type']=='image' else None
             if cleaned is not None:
                 # Delivery uses the substitute as the ordinary image so existing players
                 # render it beneath the editable vectors without drawing the source ink.
@@ -258,7 +270,7 @@ def freeze_document(material_id:str)->dict|None:
             elif page.get('rendered_only') and node.get('render_file'):
                 filename=node['render_file']
                 match=PAGE_IMAGE_PATTERN.fullmatch(filename) if isinstance(filename,str) else None
-                if not match or match.group('erased') or int(match.group('page_no'))!=page['page_no']:
+                if not match or match.group('erased') or int(match.group('page_no'))!=source_page_number(page):
                     raise ValueError('页面原图标识无效')
                 node['image_url']=embed(pages_dir(material_id)/filename)
             else:
@@ -267,15 +279,16 @@ def freeze_document(material_id:str)->dict|None:
             for kind in ('table','chart'):
                 if node.get(kind)!=node.get('base_'+kind):node.pop('base_'+kind,None)
         pages.append(page)
-    return public_document({'schema_version':'1.0','revision':document['revision'],'title':document['title'],'pages':pages})
+    return public_document({'schema_version':'1.0','revision':document['revision'],'title':document['title'],'pages':pages,
+        **({'page_order':[page['page_no'] for page in document['pages']]} if document.get('structure_modified') else {})})
 
 
 def public_document(raw)->dict|None:
     """A second whitelist at the delivery boundary, including nested scene fields."""
     if not isinstance(raw,dict):return None
-    style_keys={'font_size','font_family','color','bold','italic','underline','letter_spacing','align','vertical_align','line_height',
+    style_keys={'font_size','font_family','color','bold','italic','underline','letter_spacing','baseline','highlight','align','vertical_align','line_height',
       'padding_left','padding_right','padding_top','padding_bottom','fill','stroke','stroke_width','line_style','arrow_start','arrow_end','anim_step','bind_mode'}
-    node_keys={'id','type','x','y','width','height','rotation','z','opacity','text','base_text','base_width','base_height','shape','whole_group','word_wrap'}
+    node_keys={'id','type','x','y','width','height','rotation','z','opacity','text','base_text','base_width','base_height','shape','whole_group','word_wrap','rich_text_edited'}
     def style(value):return {k:v for k,v in value.items() if k in style_keys and type(v) in (str,float,int,bool)} if isinstance(value,dict) else {}
     def image(value):return value if isinstance(value,str) and re.fullmatch(r'data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+',value) else None
     def chart(value):
@@ -293,6 +306,10 @@ def public_document(raw)->dict|None:
             node={k:deepcopy(v) for k,v in source.items() if k in node_keys and (v is None or type(v) in (str,int,float,bool))}
             node.update(name=source.get('type','对象'),style=style(source.get('style')),base_style=style(source.get('base_style')),
               locked=False,hidden=False,deleted=False)
+            if source.get('shape_paths'):
+                from .importer import valid_shape_paths
+                if valid_shape_paths(source['shape_paths']):
+                    node['shape_paths']=deepcopy(source['shape_paths'])
             transform=source.get('text_transform')
             if (source.get('type')=='text' and isinstance(transform,list) and len(transform)==4
                 and all(type(value) in (int,float) and -1e6<=value<=1e6 for value in transform)
@@ -361,11 +378,16 @@ def public_document(raw)->dict|None:
                 from .inline_systems import validate_scene_demo
                 try:node['demo']=validate_scene_demo(deepcopy(source['demo']))
                 except (ValueError,TypeError):pass
+            if isinstance(source.get('workshop_plugin'),dict):
+                from .workshop_plugin import validate_workshop_plugin
+                try:node['workshop_plugin']=validate_workshop_plugin(source['workshop_plugin'],public=True)
+                except ValueError:pass
             for key in ('chart','base_chart'):
                 if isinstance(source.get(key),dict):node[key]=chart(source[key])
             for key in ('table','base_table'):
                 if isinstance(source.get(key),list):node[key]=[[v for v in row if isinstance(v,str)] for row in source[key] if isinstance(row,list)]
             node['paragraphs']=[{'text':str(p.get('text','')),'align':p.get('align','left'),
+              **({'bullet':p['bullet']} if type(p.get('bullet')) is bool else {}),
               **{key:float(p[key]) for key in ('line_height','line_spacing_pt','space_before','space_after')
                  if type(p.get(key)) in (int,float)},
               'runs':[{'text':str(r.get('text','')),'style':style(r.get('style'))} for r in p.get('runs',[]) if isinstance(r,dict)]}
@@ -378,8 +400,13 @@ def public_document(raw)->dict|None:
                 page_relations=validate_page_relations(page['relations'],nodes)
             except (ValueError,TypeError):
                 page_relations=[]
+        background=page.get('background_color')
         pages.append({k:deepcopy(page[k]) for k in ('page_no','width','height') if k in page}|
           {'modified':True,'nodes':nodes,'background_url':image(page.get('background_url')),
+           **({'background_color':background} if isinstance(background,str) and re.fullmatch(r'#[a-fA-F0-9]{6}',background) else {}),
            **({'relations':page_relations} if page_relations else {}),
            'preparation':{'status':'ready','frozen_ids':[v for v in page.get('preparation',{}).get('frozen_ids',[]) if isinstance(v,str)]}})
-    return {'schema_version':'1.0','revision':raw.get('revision',0),'title':str(raw.get('title','')),'pages':pages}
+    order=raw.get('page_order')
+    return {'schema_version':'1.0','revision':raw.get('revision',0),'title':str(raw.get('title','')),'pages':pages,
+        **({'page_order':order} if isinstance(order,list) and 0<len(order)<=10000
+           and all(type(n) is int and 0<n<=10000 for n in order) and len(set(order))==len(order) else {})}

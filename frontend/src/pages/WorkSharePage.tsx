@@ -5,7 +5,7 @@
  * 「在工坊里改造」= fork：快照 → 我自己的新作品，进编辑器继续玩。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
 import { NODE_DEFS } from '@/canvas/nodes.tsx';
 import type { CanvasDoc } from '@/canvas/types.ts';
@@ -15,6 +15,7 @@ import styles from './WorkshopPage.module.css';
 export function WorkSharePage(): JSX.Element {
   const { shareId = '' } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [doc, setDoc] = useState<CanvasDoc | null>(null);
   const [title, setTitle] = useState('');
   const [err, setErr] = useState<string | null>(null);
@@ -69,7 +70,14 @@ export function WorkSharePage(): JSX.Element {
     );
   }
   if (!doc) return <div className={styles.page}><p className={styles.muted}>载入中…</p></div>;
-  const isPipeline = !!doc.panel && doc.nodes.some((node) => node.type === 'lab408Stage');
+  if (searchParams.get('embed') === '1' && doc.panel) {
+    return <div className={styles.embeddedPlayer} aria-label={title}>
+      <CanvasBoard doc={doc} mode="instrument" tool="select" inkColor="#2F3A49" readOnly interactivePanel
+        setDoc={(update) => setDoc((current) => current && (typeof update === 'function' ? update(current) : update))} />
+    </div>;
+  }
+  const isPipeline = !!doc.panel && doc.nodes.some((node) =>
+    node.type === 'lab408Stage' || node.type === 'aiRuleBlock' || node.type === 'universalStageView');
 
   return (
     <div className={styles.page}>
@@ -94,7 +102,7 @@ export function WorkSharePage(): JSX.Element {
         <CanvasBoard doc={doc} setDoc={(update) => {
           if (isPipeline) setDoc((current) => current && (typeof update === 'function' ? update(current) : update));
         }} tool="select" inkColor="#2F3A49"
-          workbench={isPipeline} readOnly={isPipeline} />
+          mode={isPipeline ? 'instrument' : undefined} readOnly={isPipeline} />
       </div>
     </div>
   );

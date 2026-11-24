@@ -68,7 +68,8 @@ function Get-ManagedRecord([int]$Port, [string]$StatePath, [string]$Target) {
         if ($listening) { throw "Unknown owner on port $Port (no repo launch record). Stop it manually or choose another port; -Restart will not kill it." }
         return $null
     }
-    $record = Get-Content -LiteralPath $StatePath -Raw | ConvertFrom-Json
+    # PowerShell 7 writes UTF-8 without a BOM. Windows PowerShell 5.1 must decode it explicitly.
+    $record = Get-Content -LiteralPath $StatePath -Raw -Encoding UTF8 | ConvertFrom-Json
     if (-not $listening -and -not (Get-Process -Id $record.pid -ErrorAction SilentlyContinue)) { return $null }
     $null = Assert-ManagedProcess $record $Target
     if ($listening) { Assert-PortOwner $Port $record.pid }

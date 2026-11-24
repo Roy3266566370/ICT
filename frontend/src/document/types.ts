@@ -1,3 +1,5 @@
+import type {SceneShape} from './shapeCatalog';
+
 export interface TextStyle {
   line_style?: 'solid'|'dashed'|'dotted'; arrow_start?: boolean; arrow_end?: boolean;
   anim_step?: number; bind_mode?: 'none'|'scale'|'rotate';
@@ -5,6 +7,11 @@ export interface TextStyle {
   align?:'left'|'center'|'right'|'justify';vertical_align?:'top'|'middle'|'bottom';line_height?:number;
   padding_left?:number;padding_right?:number;padding_top?:number;padding_bottom?:number;
   fill?:string;stroke?:string;stroke_width?:number;
+  baseline?:number;highlight?:string;
+}
+export interface SceneParagraph {
+  text:string;align?:TextStyle['align'];line_height?:number;line_spacing_pt?:number;space_before?:number;space_after?:number;
+  bullet?:boolean;runs:Array<{text:string;style:Partial<TextStyle>}>;
 }
 export interface ChartData {categories:string[];series:Array<{name:string;values:number[]}>;title?:string;chart_type?:string;}
 export type InteractionTemplate='grid_transform'|'circle_ellipse'|'vectors'|'eigen_probe'|'inverse_map'|'det_area'|'basis_change';
@@ -116,34 +123,64 @@ export interface FigureVectorization {
   vision_available:boolean;
   diagnostics?:{elapsed_ms:number;cache_hit:boolean;warnings?:string[];vision_status?:'applied'|'skipped'|'failed'};
 }
+export interface WorkshopPluginPreset {
+  id: string;
+  label: string;
+  params: Record<string, number>;
+  cursor?: number;
+}
+export interface WorkshopPluginConfig {
+  template_kind: string;
+  title: string;
+  category?: string;
+  work_id?: string;
+  doc?: import('../canvas/types').CanvasDoc;
+  display_mode?: 'full' | 'compact' | 'stage_only';
+  transparent_bg?: boolean;
+  hide_border?: boolean;
+  theme?: 'auto' | 'light' | 'dark';
+  visible_params?: string[];
+  presets?: WorkshopPluginPreset[];
+  preview_data?: string;
+}
 export interface SceneNode {
   diagram?: import('../living/diagram').DiagramDoc;
   demo?: import('../ppt-ai/pageLabTypes').PageLab|null;
+  workshop_plugin?: WorkshopPluginConfig | null;
   flow?: {enabled: boolean; speed: number};
   viewer_editable?: boolean;
   viewer_parameters?: ViewerParameter[];
   math_scene?: MathScene;
   matrix_ocr?: MatrixOCR;
   basis?: BasisOverlay | null;
-  id:string;name:string;type:'text'|'image'|'shape'|'chart'|'table'|'vector'|'math_scene'|'diagram'|'demo';x:number;y:number;width:number;height:number;
+  id:string;name:string;type:'text'|'image'|'shape'|'chart'|'table'|'vector'|'math_scene'|'diagram'|'demo'|'workshop_plugin';x:number;y:number;width:number;height:number;
   rotation:number;z:number;opacity:number;locked:boolean;hidden:boolean;deleted:boolean;text:string;
   style:TextStyle;base_style:TextStyle;base_text:string|null;base_x?:number;base_y?:number;base_width?:number;base_height?:number;
   source_element_id?:string|null;source_shape_id?:number|null;whole_group?:boolean;content_changed?:boolean;
-  paragraphs?:Array<{text:string;align?:TextStyle['align'];line_height?:number;line_spacing_pt?:number;space_before?:number;space_after?:number;runs:Array<{text:string;style:Partial<TextStyle>}>}>;
+  paragraphs?:SceneParagraph[];base_paragraphs?:SceneParagraph[];rich_text_edited?:boolean;
   image_url?:string|null;background_url?:string|null;image_data?:string;asset_id?:string|null;background_asset_id?:string|null;
   cleaned_asset_id?:string|null;cleaned_url?:string|null;figure_scene?:FigureScene|null;
   figure_source_id?:string;figure_object_id?:string;figure_provenance?:FigureProvenance;text_transform?:[number,number,number,number];
   image_frame?:[number,number];image_scale?:number;image_size?:[number,number];
   background_frame?:[number,number];background_scale?:number;background_size?:[number,number];word_wrap?:boolean;
-  shape?:'rect'|'ellipse';duplicate_from?:string;table?:string[][];base_table?:string[][];chart?:ChartData|null;base_chart?:ChartData|null;
+  shape?:SceneShape;duplicate_from?:string;table?:string[][];base_table?:string[][];chart?:ChartData|null;base_chart?:ChartData|null;
+  shape_paths?:Array<{width:number;height:number;path:string;fill:boolean;stroke:boolean}>;
   style_modified?:string[];crop?:{left:number;right:number;top:number;bottom:number};interaction?:NodeInteraction|null;
 }
 export interface ScenePage {
   page_no:number;id?:string;width:number;height:number;nodes:SceneNode[];modified?:boolean;auto_vectors?:boolean;background_url?:string;
+  source_page_no?:number|null;copy_from_page_no?:number;notes?:string;background_color?:string|null;background_modified?:boolean;native_fallback?:boolean;
   figure_scenes?:Record<string,FigureScene>;
   relations?:SceneRelation[];
-  preparation?:{status:'unprepared'|'queued'|'preparing'|'ready'|'failed';message?:string;errors?:string[];frozen_ids?:string[];seconds?:number};
+  preparation?:{status:'unprepared'|'queued'|'preparing'|'ready'|'failed';fallback_status?:'unprepared'|'queued'|'preparing'|'ready'|'failed'|'unavailable';message?:string;errors?:string[];frozen_ids?:string[];seconds?:number};
 }
-export interface SceneDocument {schema_version:string;revision:number;title:string;source_key?:string;pages:ScenePage[];}
-export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'table'|'chart'|'crop'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'math_scene'|'matrix_ocr'|'diagram'|'demo'|'cleaned_asset_id'|'figure_scene'>> & {style?:Partial<TextStyle>};
-export interface NodeChange {page_no:number;id:string;patch?:NodePatch;create?:Record<string,unknown>;relations?:SceneRelation[];}
+export interface SceneDocument {schema_version:string;revision:number;title:string;source_key?:string;pages:ScenePage[];archived_pages?:ScenePage[];structure_modified?:boolean;}
+export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'paragraphs'|'table'|'chart'|'crop'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'math_scene'|'matrix_ocr'|'diagram'|'demo'|'workshop_plugin'|'cleaned_asset_id'|'figure_scene'>> & {style?:Partial<TextStyle>};
+export type PageMetadata=Pick<ScenePage,'notes'|'background_color'>;
+export type PageAction=
+  | {kind:'add_page';width:number;height:number}
+  | {kind:'duplicate_page';from:number}
+  | {kind:'delete_page'|'restore_page'}
+  | {kind:'reorder_pages';order:number[]}
+  | {kind:'page_metadata';patch:PageMetadata&{background_modified?:boolean}};
+export interface NodeChange {page_no:number;id:string;patch?:NodePatch;create?:Record<string,unknown>;relations?:SceneRelation[];page_action?:PageAction;}

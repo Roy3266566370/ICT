@@ -21,7 +21,7 @@ test('真实矩阵课件的线条保存与放映可操作', async ({ page }, inf
   await page.goto('/living');
   await page.locator('input[type=file][accept*=".pptx"]').setInputFiles(file);
   await expect(page).toHaveURL(/\/materials\/[^/]+\/work/, { timeout: 60_000 });
-  const edit = page.getByRole('link', { name: '编辑内容 / 交互' });
+  const edit = page.getByRole('button', { name: '编辑课件' });
   await expect(edit).toBeVisible({ timeout: 150_000 });
   await edit.click();
   const editor = page.locator('[data-free-editor]');
@@ -44,7 +44,8 @@ test('真实矩阵课件的线条保存与放映可操作', async ({ page }, inf
   await inline.getByLabel('流速', {exact:true}).fill('2');
   await expect(line).toHaveAttribute('stroke', '#ee3300');
   await expect(line).toHaveAttribute('stroke-dasharray', '9 6');
-  await editor.getByRole('button', { name: '保存并返回演示' }).click();
+  await expect(editor.getByText('已保存到服务端', {exact: true})).toBeVisible();
+  await page.getByRole('button', { name: '互动预览' }).click();
   await expect(page).toHaveURL(/\/work/, { timeout: 60000 });
   await page.reload();
   const slide = page.getByLabel('幻灯片第 1 页', { exact: true });
@@ -55,7 +56,7 @@ test('真实矩阵课件的线条保存与放映可操作', async ({ page }, inf
   await expect(savedLine).toHaveAttribute('marker-end', /url/);
   await expect(savedLine).toHaveClass(/sceneFlow/);
   await expect(savedLine).toHaveCSS('animation-duration', '0.5s');
-  await page.getByRole('button', { name: /开始演示/ }).click();
+  await page.getByRole('button', { name: '全屏放映' }).click();
   const controls = slide.getByLabel('放映线条控制');
   await controls.getByLabel('选择线条').selectOption({ index: 1 });
   await expect(controls.getByRole('spinbutton', { name: '线长', exact: true })).toHaveValue('225');

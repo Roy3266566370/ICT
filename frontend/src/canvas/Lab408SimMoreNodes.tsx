@@ -105,7 +105,7 @@ function GraphStepView({ frame }: { frame: GraphFrame }): JSX.Element {
   </div>;
 }
 
-export function DsStepBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function DsStepBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const mode = clampInt(node.params.mode, 0, 0, 3);
   const order = clampInt(node.params.order, 0, 0, 3);
   const text = node.text ?? (mode === 1 ? KMP_EXAMPLE : mode === 2 ? SORT_EXAMPLE : '');
@@ -122,10 +122,10 @@ export function DsStepBody({ node, onParams, onText }: NodeBodyProps): JSX.Eleme
   const cursor = total > 0 ? Math.min(index, total - 1) : 0;
   const frame = active?.frames[cursor];
   return <div data-lab408="dsStepLab">
-    <div className={styles.presets}>
+    {!inCard && <div className={styles.presets}>
       {DS_MODE_LABELS.map((label, value) => <button key={label} type="button" aria-pressed={mode === value} onClick={() => onParams?.({ mode: value })}>{label}</button>)}
-    </div>
-    {mode === 0 ? <div className={styles.presets}>
+    </div>}
+    {mode === 0 && !inCard ? <div className={styles.presets}>
       {TRAVERSAL_LABELS.map((label, value) => <button key={label} type="button" aria-pressed={order === value} onClick={() => onParams?.({ order: value })}>{label}</button>)}
     </div> : null}
     {mode === 1 || mode === 2 ? <label className={styles.inlineField}>{mode === 1 ? 'text|pattern' : '待排序序列'}
@@ -152,16 +152,16 @@ function parseSortValues(text: string): number[] {
   return trimmed.split(/[,\s;]+/).map(part => Number(part)).filter(value => Number.isFinite(value));
 }
 
-export function Ieee754Body({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function Ieee754Body({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const bits = node.params.bits === 64 ? 64 : 32;
   const text = node.text ?? IEEE_EXAMPLE;
   const result = ieee754Decode(text, bits);
   const expWidth = bits === 64 ? 11 : 8;
   const mantissaWidth = bits === 64 ? 52 : 23;
   return <div data-lab408="ieee754Lab">
-    <div className={styles.presets}>
+    {!inCard && <div className={styles.presets}>
       {[32, 64].map(value => <button key={value} type="button" aria-pressed={bits === value} onClick={() => onParams?.({ bits: value })}>{value} 位</button>)}
-    </div>
+    </div>}
     <label className={styles.inlineField}>浮点表示
       <input className={styles.sequenceInput} aria-label="IEEE754 输入" value={text} onChange={event => onText?.(event.target.value)} />
     </label>
@@ -190,7 +190,7 @@ function BankerStepView({ frame }: { frame: BankerFrame }): JSX.Element {
   </div>;
 }
 
-export function BankerBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function BankerBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const available0 = clampInt(node.params.available0, 3, 0, 9);
   const text = node.text ?? BANKER_EXAMPLE;
   const parsed = parseBankerText(text.trim() ? text : BANKER_EXAMPLE);
@@ -204,9 +204,9 @@ export function BankerBody({ node, onParams, onText }: NodeBodyProps): JSX.Eleme
   const cursor = total > 0 ? Math.min(index, total - 1) : 0;
   const frame = player.frames[cursor];
   return <div data-lab408="bankerLab">
-    <label className={styles.inlineField}>可用资源 A
+    {!inCard && <label className={styles.inlineField}>可用资源 A
       <input type="range" className={styles.slider} min={0} max={9} step={1} value={available0} aria-label="可用资源 A" onChange={event => onParams?.({ available0: Number(event.target.value) })} />
-    </label>
+    </label>}
     <label className={styles.inlineField}>资源表
       <textarea className={styles.workbenchText} rows={8} aria-label="银行家资源表" value={text} onChange={event => onText?.(event.target.value)} />
     </label>
@@ -234,7 +234,7 @@ function WindowStepView({ frame }: { frame: WindowFrame }): JSX.Element {
   </div>;
 }
 
-export function SlidingWindowBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function SlidingWindowBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const winSize = clampInt(node.params.winSize, 4, 1, 8);
   const mode = clampInt(node.params.mode, 0, 0, 1);
   const text = node.text ?? SEQ_EXAMPLE;
@@ -248,12 +248,12 @@ export function SlidingWindowBody({ node, onParams, onText }: NodeBodyProps): JS
   const cursor = total > 0 ? Math.min(index, total - 1) : 0;
   const frame = player.frames[cursor];
   return <div data-lab408="slidingWindowLab">
-    <div className={styles.presets}>
+    {!inCard && <div className={styles.presets}>
       {(['GBN', 'SR'] as const).map((label, value) => <button key={label} type="button" aria-pressed={mode === value} onClick={() => onParams?.({ mode: value })}>{label}</button>)}
-    </div>
-    <label className={styles.inlineField}>窗口大小 {winSize}
+    </div>}
+    {!inCard && <label className={styles.inlineField}>窗口大小 {winSize}
       <input type="range" className={styles.slider} min={1} max={8} step={1} value={winSize} aria-label="窗口大小" onChange={event => onParams?.({ winSize: Number(event.target.value) })} />
-    </label>
+    </label>}
     <label className={styles.inlineField}>丢帧序号
       <input className={styles.sequenceInput} aria-label="丢帧序号" value={text} onChange={event => onText?.(event.target.value)} />
     </label>

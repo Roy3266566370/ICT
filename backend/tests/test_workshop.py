@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -245,3 +246,92 @@ def test_panel_contract_validation(owner: TestClient) -> None:
     # 显式传入 panel=None 不报错，且不持久化空字段
     cleared = _create(owner, session, dict(DOC, panel=None))
     assert "panel" not in cleared["document"]
+
+
+def test_free_canvas_block_kinds_round_trip(owner: TestClient) -> None:
+    session = _session(owner)
+    document = {
+        "version": 1,
+        "title": "办公 · 物理 · 408 · 深度学习积木",
+        "nodes": [
+            {"id": "biz", "type": "bizTableSource", "x": 10, "y": 10, "params": {"sample": 1}},
+            {"id": "wf", "type": "bizWaterfallView", "x": 330, "y": 10, "params": {}},
+            {"id": "field", "type": "emFieldSource", "x": 10, "y": 240, "params": {"count": 2}},
+            {"id": "fv", "type": "emFieldView", "x": 330, "y": 240, "params": {}},
+            {"id": "arr", "type": "arraySource", "x": 10, "y": 470, "params": {"length": 8}},
+            {"id": "sort", "type": "sortCompareView", "x": 330, "y": 470, "params": {}},
+            {"id": "loss", "type": "lossProbeOp", "x": 10, "y": 700, "params": {}},
+            {"id": "lora", "type": "loraAdapterOp", "x": 330, "y": 700, "params": {}},
+            {"id": "ai", "type": "aiRuleBlock", "x": 10, "y": 930, "params": {"a": 1},
+             "payload": json.dumps({"version": 1, "prompt": "测试规则", "title": "测试", "summary": "",
+                                    "controls": [], "preferredView": "chart",
+                                    "code": "function run(){ return { data: {}, frames: [{ title: '1', summary: '1' }] }; }"})},
+            {"id": "stage", "type": "universalStageView", "x": 330, "y": 930, "params": {}},
+            {"id": "comp", "type": "composite", "x": 650, "y": 700, "params": {},
+             "sub": {
+                 "nodes": [
+                     {"id": "pi", "type": "portIn", "x": 0, "y": 0, "params": {}},
+                     {"id": "po", "type": "portOut", "x": 120, "y": 0, "params": {}},
+                 ],
+                 "wires": [{"id": "inner", "from": "pi", "to": "po"}],
+                 "ports": [
+                     {"id": "pi", "dir": "in", "label": "序列", "kind": "series"},
+                     {"id": "po", "dir": "out", "label": "序列", "kind": "series"},
+                 ],
+             }},
+        ],
+        "wires": [
+            {"id": "w1", "from": "biz", "to": "wf", "toPort": "in"},
+            {"id": "w2", "from": "field", "to": "fv", "toPort": "in"},
+            {"id": "w3", "from": "arr", "to": "sort", "toPort": "in"},
+            {"id": "w4", "from": "loss", "to": "lora", "toPort": "in"},
+            {"id": "w5", "from": "ai", "to": "stage", "toPort": "in"},
+        ],
+        "strokes": [],
+        "zoom": 0.9,
+    }
+    created = _create(owner, session, document)
+    saved = created["document"]
+    assert [node["type"] for node in saved["nodes"]] == [
+        "bizTableSource", "bizWaterfallView", "emFieldSource", "emFieldView",
+        "arraySource", "sortCompareView", "lossProbeOp", "loraAdapterOp", "aiRuleBlock", "universalStageView", "composite",
+    ]
+    assert saved["nodes"][-1]["sub"]["ports"][0]["kind"] == "series"
+    assert "function run" in saved["nodes"][-3]["payload"]
+    assert len(saved["wires"]) == 5
+    fetched = owner.get(f"/api/v1/works/{created['work_id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["data"]["document"]["nodes"][0]["type"] == "bizTableSource"
+
+
+def test_ai_rule_endpoint_reports_unavailable_and_returns_generated_payload(
+    owner: TestClient, monkeypatch: Any
+) -> None:
+    from app.workshop import ai_rule
+
+    session = _session(owner)
+    prompt = "演示一个二次函数扫描"
+
+    def unavailable(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise ai_rule.AiRuleUnavailable("未配置主力模型 LLM_API_KEY，可展开代码抽屉手动编写规则")
+
+    monkeypatch.setattr(ai_rule, "generate_ai_rule", unavailable)
+    failed = owner.post("/api/v1/workshop/ai-rule-block", headers=_h(session), json={"prompt": prompt})
+    assert failed.status_code == 503
+    assert failed.json()["error"]["code"] == "MODEL_UNAVAILABLE"
+    assert "LLM_API_KEY" in failed.json()["error"]["message"]
+
+    def generated(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return {
+            "version": 1, "prompt": prompt, "title": "二次函数扫描", "summary": "测试",
+            "controls": [{"key": "a", "label": "A", "value": 1, "min": -3, "max": 3, "step": 0.1}],
+            "presets": [{"label": "默认", "params": {"a": 1}}], "preferredView": "chart",
+            "code": "function run({ params }) { return { data: {}, frames: [{ title: '1', summary: '1' }, { title: '2', summary: '2' }] }; }",
+            "verificationNote": "a=1 时 f(1)=1",
+        }
+
+    monkeypatch.setattr(ai_rule, "generate_ai_rule", generated)
+    created = owner.post("/api/v1/workshop/ai-rule-block", headers=_h(session), json={"prompt": prompt})
+    assert created.status_code == 200
+    assert created.json()["data"]["title"] == "二次函数扫描"
+    assert created.json()["data"]["presets"][0]["params"]["a"] == 1

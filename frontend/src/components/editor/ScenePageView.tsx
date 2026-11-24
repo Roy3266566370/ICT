@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { VectorLine, VectorControls } from './VectorLine';
 import {MathSceneView,MathSceneControls} from './MathSceneView';
 import {SlideDiagramNode} from './SlideDiagramNode';
 import {SlideDemoNode} from './SlideDemoNode';
+import {standaloneDemos} from './standaloneDemos';
+import {SlideWorkshopPluginNode} from './SlideWorkshopPluginNode';
 import { BasisRelationOverlay, useBasisPlayback } from './BasisComposition';
 import {memo,type CSSProperties,type ReactNode} from 'react';
 import { allowsViewerParameter, evaluatePageRelations, normalizePageRelations, relationDependencies } from '@/document/relations';
-import type {NodePatch,SceneNode,ScenePage,TextStyle} from '@/document/types';
+import type {NodePatch,SceneNode,ScenePage,SceneParagraph,TextStyle} from '@/document/types';
+import {SHAPE_CATALOG} from '@/document/shapeCatalog';
+import {displayParagraphs} from '@/document/richText';
+import {InlineRichText} from './InlineRichText';
+import {Formula} from '@/components/showcase/Formula';
 import {resizeVector} from '@/document/vectorGeometry';
 import {same} from '@/document/model';
 import {resolveMatrixSource} from '@/document/mathScene';
@@ -19,7 +26,8 @@ export function textCss(style:Partial<TextStyle>):CSSProperties {
   return {fontFamily:style.font_family,fontSize:style.font_size,color:style.color,
     fontWeight:style.bold===undefined?undefined:style.bold?'bold':'normal',fontStyle:style.italic===undefined?undefined:style.italic?'italic':'normal',textDecoration:style.underline===undefined?undefined:style.underline?'underline':'none',
     letterSpacing:typeof style.letter_spacing==='number'?style.letter_spacing:undefined,
-    textAlign:style.align,lineHeight:style.line_height??1.15};
+    textAlign:style.align,lineHeight:style.line_height??1.15,backgroundColor:style.highlight,
+    ...(style.baseline?{position:'relative',top:`${-style.baseline/100}em`}:{})};
 }
 /**
  * Placed raster geometry measured by the PowerPoint exporter.  PowerPoint
@@ -35,38 +43,64 @@ export function rasterCss(node:SceneNode,which:'image'|'background'):CSSProperti
   return {inset:0,width:'100%',height:'100%'};
 }
 export function textChanged(node:SceneNode){return node.text!==node.base_text||!same(node.style,node.base_style)||
+  (node.base_paragraphs!==undefined&&!same(node.paragraphs??[],node.base_paragraphs))||
   (node.base_width!==undefined&&node.width!==node.base_width)||(node.base_height!==undefined&&node.height!==node.base_height);}
+function TextRuns({paragraph}:{paragraph:SceneParagraph}){
+  let offset=0;
+  const spans=paragraph.runs.flatMap(run=>{
+    const start=paragraph.text.indexOf(run.text,offset);
+    if(start<0)return [];
+    const gap=start>offset?[{start:offset,end:start,style:{}}]:[];
+    offset=start+run.text.length;
+    return [...gap,{start,end:offset,style:run.style}];
+  });
+  if(offset<paragraph.text.length)spans.push({start:offset,end:paragraph.text.length,style:{}});
+  const styled=(from:number,to:number)=>spans.filter(span=>span.end>from&&span.start<to).map(span=><span
+    key={Math.max(span.start,from)} style={textCss(span.style)}>{paragraph.text.slice(Math.max(span.start,from),Math.min(span.end,to)).replace(/\v/g,'\n')}</span>);
+  const parts:ReactNode[]=[];
+  let start=0;
+  for(const match of paragraph.text.matchAll(/(?<!\\)\$([^$\n\v]+)(?<!\\)\$/g)){
+    const position=match.index;
+    const style=spans.find(span=>span.start<=position&&span.end>position)?.style??{};
+    parts.push(...styled(start,position),<span key={`formula-${position}`} style={textCss(style)}><Formula tex={match[1]!} label={match[1]}/></span>);
+    start=position+match[0].length;
+  }
+  parts.push(...styled(start,paragraph.text.length));
+  return parts.length?parts:'\u200b';
+}
 function TextContent({node}:{node:SceneNode}){
   const style=node.style;
-  const changedFields=Object.keys(style).filter(k=>!same(style[k as keyof TextStyle],node.base_style[k as keyof TextStyle]));
+  const changedFields=(Object.keys(style) as Array<keyof TextStyle>).filter(k=>!same(style[k],node.base_style[k]));
   const nowrap=node.word_wrap===false;
-  const baseParagraphs=node.paragraphs??[];
-  const textParagraphs=node.text===node.base_text
-    ? baseParagraphs
-    : node.text.split('\n').map((text,index)=>{
-        const original=baseParagraphs[index];
-        return {text,align:freeAlign(original?.align,style.align),line_height:original?.line_height,
-          line_spacing_pt:original?.line_spacing_pt,space_before:original?.space_before,space_after:original?.space_after,runs:[]};
-      });
+  const textParagraphs=displayParagraphs(node);
   return <div className={styles.textFrame} style={{padding:`${style.padding_top??0}px ${style.padding_right??0}px ${style.padding_bottom??0}px ${style.padding_left??0}px`,
     justifyContent:style.vertical_align==='middle'?'center':style.vertical_align==='bottom'?'flex-end':'flex-start',
     whiteSpace:nowrap?'pre':'pre-wrap',...textCss(style)}}>
     <div className={styles.textContent} data-text-content
       style={nowrap?{width:'max-content',overflowWrap:'normal',wordBreak:'normal'}:undefined}>
-      {textParagraphs?.length?textParagraphs.map((p,i)=><p key={i} style={{
+      {textParagraphs.map((p,i)=><p key={i} className={p.bullet?styles.bullet:undefined} style={{
         textAlign:changedFields.includes('align')?style.align:p.align,
         lineHeight:typeof p.line_spacing_pt==='number'?`${p.line_spacing_pt}px`:(p.line_height??style.line_height??1.15),
         marginTop:p.space_before, marginBottom:p.space_after,
       }}>
-        {'runs'in p&&p.runs.length?p.runs.map((run,j)=>{
-          const specific={...run.style};for(const key of changedFields)delete specific[key as keyof TextStyle];
-          return <span key={j} style={textCss(specific)}>{run.text}</span>;
-        }):(p.text||'\u200b')}
-      </p>):node.text}
+        <TextRuns paragraph={p}/>
+      </p>)}
     </div>
   </div>;
 }
-function freeAlign(value:TextStyle['align']|undefined,fallback:TextStyle['align']|undefined){return value??fallback??'left';}
+function ShapeContent({node}:{node:SceneNode}){
+  if(node.shape_paths?.length)return <>{node.shape_paths.map((shape,index)=><svg key={index} className={styles.shape}
+    viewBox={`0 0 ${shape.width} ${shape.height}`} preserveAspectRatio="none" aria-hidden="true">
+    <path d={shape.path} fill={shape.fill?node.style.fill??'none':'none'} stroke={shape.stroke?node.style.stroke??'none':'none'}
+      strokeWidth={node.style.stroke_width??0} vectorEffect="non-scaling-stroke"/>
+  </svg>)}</>;
+  const shape=SHAPE_CATALOG.find(candidate=>candidate.id===node.shape)??SHAPE_CATALOG[0];
+  return <svg className={styles.shape} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <path d={shape.path} fill={'open' in shape?'none':(node.style.fill??'none')}
+      stroke={node.style.stroke??('open' in shape?node.style.color:'none')}
+      strokeWidth={node.style.stroke_width??('open' in shape?1:0)} vectorEffect="non-scaling-stroke"/>
+  </svg>;
+}
 function ChartContent({node}:{node:SceneNode}){
   const data=node.chart;if(!data)return null;
   const rows=data.series.flatMap(series=>data.categories.map((category,i)=>[category,series.name,series.values[i]??0]));
@@ -75,8 +109,8 @@ function ChartContent({node}:{node:SceneNode}){
   return <div className={styles.chart}><VegaSpecView spec={spec} evaluation={{values:{},derived:{},violations:[]}}
     view={{type:'vega',spec_ref:data.chart_type?.includes('LINE')?'line':'bar',dataset:'data',x:'category',y:'value',title:data.title??node.name}} reducedMotion/></div>;
 }
-const NodeView=memo(function NodeView({node,editing,editingText,onText,onCompose,onTextBlur,selectable,proofFigures,basisCoordLabel}:{node:SceneNode;editing:boolean;editingText:boolean;proofFigures?:boolean;
-  onText?:(id:string,text:string)=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void;selectable:boolean;basisCoordLabel?:boolean}){
+const NodeView=memo(function NodeView({node,pageWidth,pageHeight,editing,editingText,onText,onCompose,onTextBlur,selectable,proofFigures,basisCoordLabel}:{node:SceneNode;pageWidth:number;pageHeight:number;editing:boolean;editingText:boolean;proofFigures?:boolean;
+  onText?:(id:string,text:string,paragraphs?:SceneParagraph[])=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void;selectable:boolean;basisCoordLabel?:boolean}){
   const changed=textChanged(node);
   const clean=node.type==='image'&&node.cleaned_asset_id&&node.cleaned_url;
   const src=(!proofFigures&&clean)||node.image_data||node.image_url;
@@ -85,32 +119,32 @@ const NodeView=memo(function NodeView({node,editing,editingText,onText,onCompose
     left:`${-100*crop.left/(1-crop.left-crop.right)}%`,top:`${-100*crop.top/(1-crop.top-crop.bottom)}%`}:{};
   const tableChanged=node.type==='table'&&!same(node.table,node.base_table);
   const chartChanged=node.type==='chart'&&!same(node.chart,node.base_chart);
+  const underlay=node.background_url?<img className={styles.raster} src={node.background_url} style={rasterCss(node,'background')} alt="" draggable={false}/>:
+    (node.style.fill||node.style.stroke)?<ShapeContent node={node}/>:null;
   return <div className={styles.node} data-node-id={node.id} data-node-type={node.type} data-locked={node.locked}
     data-basis-coordinates={basisCoordLabel?true:undefined}
     role={selectable?'button':undefined} tabIndex={selectable?0:undefined} aria-label={selectable?`选择：${node.text?.slice(0,28)||node.name}`:undefined}
-    style={{left:node.x,top:node.y,width:node.width,height:node.height,transform,zIndex:node.z+10001,opacity:node.opacity*(proofFigures&&clean?0.35:1),
+    style={{left:node.x,top:node.y,width:node.width,height:node.height,transform,zIndex:editingText?35000:node.z+10001,opacity:node.opacity*(proofFigures&&clean?0.35:1),
       pointerEvents:editing?'auto':'none'}}>
     {editingText?<>
-      {node.background_url&&<img className={styles.raster} src={node.background_url} style={rasterCss(node,'background')} alt="" draggable={false}/>}
-      <textarea autoFocus aria-label="画布文字编辑" className={styles.inlineText} value={node.text} style={{...textCss(node.style),padding:`${node.style.padding_top??0}px ${node.style.padding_right??0}px ${node.style.padding_bottom??0}px ${node.style.padding_left??0}px`}}
-        onChange={e=>onText?.(node.id,e.target.value)} onBlur={onTextBlur} onCompositionStart={()=>onCompose?.(true)} onCompositionEnd={()=>onCompose?.(false)}
-        onPointerDown={e=>e.stopPropagation()} onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();onTextBlur?.();}}}/>
-    </>:node.type==='text'&&changed?<>
-      {node.background_url&&<img className={styles.raster} src={node.background_url} style={rasterCss(node,'background')} alt="" draggable={false}/>}
+      {underlay}<InlineRichText node={node} pageSize={{width:pageWidth,height:pageHeight}} css={textCss} onText={onText} onCompose={onCompose} onClose={onTextBlur}/>
+    </>:node.type==='text'&&(changed||!src)?<>
+      {underlay}
       <TextContent node={node}/>
-    </>:tableChanged?<table className={styles.table} style={textCss(node.style)}><tbody>{node.table?.map((row,i)=><tr key={i}>{row.map((cell,j)=><td key={j}>{cell}</td>)}</tr>)}</tbody></table>:
-      chartChanged?<ChartContent node={node}/>:
-      node.type==='shape'&&(!src||!same(node.style,node.base_style))?<div className={styles.shape} style={{background:node.style.fill??'transparent',border:`${node.style.stroke_width??0}px solid ${node.style.stroke??'transparent'}`,borderRadius:node.shape==='ellipse'?'50%':0}}/>:
+    </>:node.type==='table'&&node.table&&(!src||tableChanged)?<table className={styles.table} style={textCss(node.style)}><tbody>{node.table.map((row,i)=><tr key={i}>{row.map((cell,j)=><td key={j}>{cell}</td>)}</tr>)}</tbody></table>:
+      node.type==='chart'&&node.chart&&(!src||chartChanged)?<ChartContent node={node}/>:
+      node.type==='shape'&&(!src||!same(node.style,node.base_style))?<ShapeContent node={node}/>:
       src?(crop?<div className={styles.imageClip}><img className={styles.raster} src={src} style={imageStyle} alt="" draggable={false}/></div>:
         <img className={styles.raster} src={src} style={rasterCss(node,'image')} alt="" draggable={false}/>):
       node.type==='text'?<TextContent node={node}/>:null}
   </div>;
 });
 interface Props {page:ScenePage;scale:number;editing?:boolean;editingId?:string|null;preview?:Record<string,Partial<SceneNode>>;children?:ReactNode;
-  onText?:(id:string,text:string)=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void; presentVectors?:boolean; vectorId?:string;
+  onText?:(id:string,text:string,paragraphs?:SceneParagraph[])=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void; presentVectors?:boolean; vectorId?:string;
+  resetHost?:HTMLElement|null; inlineAllDemos?:boolean;
   onVectorSelect?:(id:string)=>void; onVectorPatch?:(id:string, patch:import('@/document/types').NodePatch,key?:string)=>void;
   onGenerateDemo?:(id:string)=>void;generating?:Record<string,boolean>;proofFigures?:boolean;}
-export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur,presentVectors,vectorId,onVectorSelect,onVectorPatch,onGenerateDemo,generating,proofFigures}:Props){
+export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur,presentVectors,vectorId,onVectorSelect,onVectorPatch,onGenerateDemo,generating,proofFigures,resetHost,inlineAllDemos}:Props){
   const frozen=page.preparation?.frozen_ids??[];
   const rawVisible = page.nodes.filter(n=>!n.deleted&&!n.hidden&&!frozen.includes(n.id));
   const [liveDrafts, setLiveDrafts] = useState<Record<string, NodePatch>>({});
@@ -172,7 +206,8 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
   const visible = relationEval.nodes;
   const vectors = visible.filter(node=>node.type==='vector');
   const mathNodes = visible.filter(node=>node.type==='math_scene');
-  const richNodes = visible.filter(node=>node.type==='diagram'||node.type==='demo');
+  const separateIds = new Set(inlineAllDemos ? [] : standaloneDemos(page).map(node=>node.id));
+  const richNodes = visible.filter(node=>node.type==='diagram'||(node.type==='demo'&&!separateIds.has(node.id))||node.type==='workshop_plugin');
   const matrixImages = visible.filter(node=>node.type==='image'&&node.matrix_ocr);
   const basisActive = relationEval.overlays.length > 0;
   const basisLabelIds = new Set(
@@ -230,10 +265,10 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
     setChoice(id);
     setOverrides(current=>({...current,[id]:{...current[id],...patch,style:{...current[id]?.style,...patch.style}}}));
   };
-  return <div className={styles.canvas} style={{width:page.width,height:page.height,transform:`scale(${scale})`}} data-scene-page={page.page_no}>
-    <div className={styles.contentLayer}>
-      {page.background_url&&<img className={styles.pageBackground} src={page.background_url} alt="" draggable={false}/>}
-      {visible.filter(node=>node.type!=='vector'&&node.type!=='math_scene'&&node.type!=='diagram'&&node.type!=='demo').map(node=><NodeView key={node.id} node={node}
+  return <div className={styles.canvas} style={{width:page.width,height:page.height,backgroundColor:page.background_color??'#fff',transform:`scale(${scale})`}} data-scene-page={page.page_no}>
+    <div className={styles.contentLayer} data-editing={editing || undefined}>
+      {page.background_url&&!page.background_modified&&<img className={styles.pageBackground} src={page.background_url} alt="" draggable={false}/>}
+      {visible.filter(node=>node.type!=='vector'&&node.type!=='math_scene'&&node.type!=='diagram'&&node.type!=='demo'&&node.type!=='workshop_plugin').map(node=><NodeView key={node.id} node={node} pageWidth={page.width} pageHeight={page.height}
         basisCoordLabel={basisLabelIds.has(node.id)}
         editing={editing} editingText={editingId===node.id} selectable={editing} proofFigures={proofFigures} onText={onText} onCompose={onCompose} onTextBlur={onTextBlur}/>)}
       {matrixImages.map(node=><MatrixImageLayer key={node.id} node={node} interactive={presentVectors||editing}
@@ -263,6 +298,7 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
         return <div key={node.id} data-node-id={node.id} data-node-type={node.type} style={{display:'contents'}}
           onPointerDown={()=>{if(editing)onVectorSelect?.(node.id);}}>
           {node.type==='diagram'?<SlideDiagramNode key={`${node.id}:${resetVersion}`} {...props}/>:
+            node.type==='workshop_plugin'?<SlideWorkshopPluginNode key={`${node.id}:${resetVersion}`} {...props} presentationKey={`${page.page_no}:${node.id}`}/>:
             <SlideDemoNode key={`${node.id}:${resetVersion}`} {...props} generating={generating?.[node.id]} onGenerate={onGenerateDemo?()=>onGenerateDemo(node.id):undefined}/>}
         </div>;
       })}
@@ -305,9 +341,9 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
       {editableVector(selectedMath)&&<MathSceneControls key={`${selectedMath.id}:${resetVersion}`} node={selectedMath} onPatch={patch=>change(selectedMath.id,patch)} hidePlayback={!!selectedMath.math_scene?.template}/>}
       </details>
     </div>}
-    {presentVectors&&(vectors.length>0||mathNodes.length>0||matrixImages.length>0||richNodes.length>0)&&<button className={styles.resetDynamics} type="button" data-no-pan onClick={()=>{
+    {presentVectors&&resetHost&&(vectors.length>0||mathNodes.length>0||matrixImages.length>0||richNodes.length>0)&&createPortal(<button type="button" onClick={()=>{
       setOverrides({});setLiveDrafts({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});setResetVersion(v=>v+1);
-    }}>一键重置</button>}
+    }}>一键重置</button>,resetHost)}
     {children}
   </div>;
 }

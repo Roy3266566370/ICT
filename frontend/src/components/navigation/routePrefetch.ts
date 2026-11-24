@@ -11,11 +11,7 @@ export const routeLoaders = {
   prepare: () => import('@/pages/PreparePage'),
   workbench: () => import('@/pages/MaterialDeckPage'),
   share: () => import('@/pages/SharePage'),
-  freeEdit: () => import('@/pages/FreeEditPage'),
   pptAi: () => import('@/pages/PptAiPage'),
-  labs: () => import('@/pages/LabPage'),
-  labWorkbench: () => import('@/pages/LabWorkbenchPage'),
-  labShare: () => import('@/pages/LabSharePage'),
   living: () => import('@/pages/LivingPagesPage'),
   workshop: () => import('@/pages/WorkshopPage'),
   workShare: () => import('@/pages/WorkSharePage'),
@@ -34,15 +30,12 @@ export function routeKeyForPath(path: string): RouteKey | null {
   if (clean.startsWith('/examples/')) return 'exampleDemo';
   if (clean === '/space') return 'space';
   if (clean === '/settings/profile') return 'settings';
-  if (clean === '/labs') return 'labs';
-  if (clean.startsWith('/labs/')) return 'labWorkbench';
-  if (clean.startsWith('/lab-share/')) return 'labShare';
   if (clean === '/living') return 'living';
   if (clean === '/workshop') return 'workshop';
   if (clean.startsWith('/work-shares/')) return 'workShare';
   if (/^\/materials\/[^/]+\/prepare$/.test(clean)) return 'prepare';
   if (/^\/materials\/[^/]+\/work$/.test(clean)) return 'workbench';
-  if (/^\/materials\/[^/]+\/edit$/.test(clean)) return 'freeEdit';
+  if (/^\/materials\/[^/]+\/edit$/.test(clean)) return 'workbench';
   if (/^\/materials\/[^/]+\/ai$/.test(clean)) return 'pptAi';
   if (clean.startsWith('/p/')) return 'share';
   if (clean === '/login') return 'login';

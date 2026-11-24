@@ -1,25 +1,20 @@
-import { memo, useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { memo, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { getStroke } from 'perfect-freehand';
+import { PresentationSyncContext, type InkFrame, type InkStroke } from './usePresentationSync';
 
 export type AnnotateTool = 'off' | 'pen' | 'highlighter' | 'laser' | 'eraser';
-
-interface InkStroke {
-  id: string;
-  tool: 'pen' | 'highlighter';
-  color: string;
-  size: number;
-  points: Array<[number, number, number]>;
-}
 
 interface Props {
   pageNo: number;
   tool: AnnotateTool;
   color: string;
   clearNonce: number;
+  autoPen?: boolean;
 }
 
 const VIEW_W = 1920;
 const VIEW_H = 1080;
+const EMPTY_FRAME: InkFrame = {strokes: [], active: null, laser: null};
 
 function svgPathFromStroke(points: number[][]): string {
   if (!points.length) return '';
@@ -47,7 +42,7 @@ function strokeD(stroke: InkStroke): string {
     thinning: stroke.tool === 'highlighter' ? 0.05 : 0.45,
     smoothing: 0.55,
     streamline: 0.55,
-    simulatePressure: true,
+    simulatePressure: false,
   });
   return svgPathFromStroke(outline);
 }
@@ -58,26 +53,43 @@ export const PresentationAnnotator = memo(function PresentationAnnotator({
   tool,
   color,
   clearNonce,
+  autoPen,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [byPage, setByPage] = useState<Record<number, InkStroke[]>>({});
-  const [activeStroke, setActiveStroke] = useState<InkStroke | null>(null);
-  const [laser, setLaser] = useState<[number, number] | null>(null);
-  const drawing = useRef(false);
+  const sync = useContext(PresentationSyncContext);
+  const frames = useRef<Record<number, InkFrame>>({});
+  const [byPage, setByPage] = useState(frames.current);
+  const drawing = useRef<{id: number; tool: Exclude<AnnotateTool, 'off'>} | null>(null);
   const clearSeen = useRef(clearNonce);
-
+  const queued = useRef(0);
+  const update = useCallback((target: number, frame: InkFrame, broadcast = false) => {
+    frames.current = {...frames.current, [target]: frame};
+    setByPage(frames.current);
+    if (broadcast && sync) {
+      cancelAnimationFrame(queued.current);
+      queued.current = requestAnimationFrame(() => sync.send({kind: 'ink', pageNo: target, frame}));
+    }
+  }, [sync]);
+  useEffect(() => sync?.subscribe(message => {
+    if (message.kind === 'ink') update(message.pageNo, message.frame);
+    if (message.kind === 'hello') {
+      const current = frames.current[pageNo];
+      if (current) sync.send({kind: 'ink', pageNo, frame: current});
+    }
+  }), [pageNo, sync, update]);
+  useEffect(() => () => cancelAnimationFrame(queued.current), []);
   useEffect(() => {
     if (clearNonce === clearSeen.current) return;
     clearSeen.current = clearNonce;
-    setByPage((prev) => ({ ...prev, [pageNo]: [] }));
-    setActiveStroke(null);
-  }, [clearNonce, pageNo]);
-
+    update(pageNo, EMPTY_FRAME, true);
+  }, [clearNonce, pageNo, update]);
   useEffect(() => {
-    if (tool !== 'laser') setLaser(null);
-  }, [tool]);
+    drawing.current = null;
+    const frame = frames.current[pageNo];
+    if (frame?.active || frame?.laser) update(pageNo, {...frame, active: null, laser: null});
+  }, [pageNo, tool, update]);
 
-  const toCanvas = useCallback((event: ReactPointerEvent<SVGSVGElement>): [number, number, number] | null => {
+  const toCanvas = useCallback((event: PointerEvent): [number, number, number] | null => {
     const svg = svgRef.current;
     if (!svg) return null;
     const rect = svg.getBoundingClientRect();
@@ -88,74 +100,83 @@ export const PresentationAnnotator = memo(function PresentationAnnotator({
     return [x, y, pressure];
   }, []);
 
-  const eraseAt = useCallback(
-    (x: number, y: number) => {
-      const thresholdSq = 34 * 34;
-      setByPage((prev) => {
-        const list = prev[pageNo];
-        if (!list?.length) return prev;
-        const filtered = list.filter((s) =>
-          s.points.every(([px, py]) => (px - x) * (px - x) + (py - y) * (py - y) > thresholdSq),
-        );
-        return filtered.length === list.length ? prev : { ...prev, [pageNo]: filtered };
-      });
-    },
-    [pageNo],
-  );
-
-  const onPointerDown = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (tool === 'off') return;
-    event.preventDefault();
-    event.stopPropagation();
-    const pt = toCanvas(event);
-    if (!pt) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    drawing.current = true;
-    if (tool === 'laser') {
-      setLaser([pt[0], pt[1]]);
-      return;
-    }
-    if (tool === 'eraser') {
-      eraseAt(pt[0], pt[1]);
-      return;
-    }
-    setActiveStroke({
-      id: `ink_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      tool,
-      color: tool === 'highlighter' ? '#facc15' : color,
-      size: tool === 'highlighter' ? 28 : 8,
-      points: [pt],
-    });
-  };
-
-  const onPointerMove = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (tool === 'off') return;
-    const pt = toCanvas(event);
-    if (!pt) return;
-    if (tool === 'laser') {
-      setLaser([pt[0], pt[1]]);
-      return;
-    }
-    if (!drawing.current) return;
-    if (tool === 'eraser') {
-      eraseAt(pt[0], pt[1]);
-      return;
-    }
-    setActiveStroke((curr) => (curr ? { ...curr, points: [...curr.points, pt] } : null));
-  };
-
-  const onPointerUp = () => {
-    if (!drawing.current) return;
-    drawing.current = false;
-    setActiveStroke((curr) => {
-      if (curr && curr.points.length > 0) {
-        setByPage((prev) => ({ ...prev, [pageNo]: [...(prev[pageNo] ?? []), curr] }));
+  useEffect(() => {
+    const svg = svgRef.current;
+    const slide = svg?.parentElement;
+    if (!svg || !slide) return;
+    const erase = (frame: InkFrame, [x, y]: [number, number, number]) => {
+      const strokes = frame.strokes.filter(stroke =>
+        stroke.points.every(([px, py]) => (px - x) ** 2 + (py - y) ** 2 > 34 ** 2));
+      if (strokes.length !== frame.strokes.length) update(pageNo, {...frame, strokes}, true);
+    };
+    const down = (event: PointerEvent) => {
+      const automatic = tool === 'off' && autoPen && event.pointerType === 'pen';
+      if (event.button !== 0 || drawing.current || (!automatic && (tool === 'off' || event.target !== svg))) return;
+      const selected = automatic ? 'pen' : tool;
+      const point = toCanvas(event);
+      if (!point || selected === 'off') return;
+      event.preventDefault();
+      event.stopPropagation();
+      svg.setPointerCapture(event.pointerId);
+      drawing.current = {id: event.pointerId, tool: selected};
+      const frame = frames.current[pageNo] ?? EMPTY_FRAME;
+      if (selected === 'eraser') erase(frame, point);
+      else if (selected === 'laser') update(pageNo, {...frame, laser: [point[0], point[1]]}, true);
+      else {
+        const highlighter = selected === 'highlighter';
+        update(pageNo, {...frame, active: {
+          id: crypto.randomUUID(), tool: selected, color: highlighter ? '#facc15' : color,
+          size: highlighter ? 28 : 8, points: [point],
+        }}, true);
       }
-      return null;
-    });
-  };
+    };
+    const move = (event: PointerEvent) => {
+      const active = drawing.current?.id === event.pointerId ? drawing.current : null;
+      const selected = active?.tool ?? (event.target === svg ? tool : 'off');
+      if (!active && selected !== 'laser') return;
+      const point = toCanvas(event);
+      if (!point) return;
+      const frame = frames.current[pageNo] ?? EMPTY_FRAME;
+      if (selected === 'laser') update(pageNo, {...frame, laser: [point[0], point[1]]}, true);
+      else if (selected === 'eraser') erase(frame, point);
+      else if (frame.active) update(pageNo, {...frame, active: {...frame.active, points: [...frame.active.points, point]}}, true);
+    };
+    const up = (event: PointerEvent) => {
+      if (drawing.current?.id !== event.pointerId) return;
+      event.stopPropagation();
+      drawing.current = null;
+      const frame = frames.current[pageNo];
+      if (!frame?.active) return;
+      const strokes = event.type === 'pointercancel' ? frame.strokes : [...frame.strokes, frame.active];
+      update(pageNo, {...frame, strokes, active: null}, true);
+    };
+    const leave = () => {
+      const frame = frames.current[pageNo];
+      if (frame?.laser) update(pageNo, {...frame, laser: null}, true);
+    };
+    const suppressClick = (event: MouseEvent) => {
+      if ((tool !== 'off' && event.target === svg) || (autoPen && (event as PointerEvent).pointerType === 'pen')) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    slide.addEventListener('pointerdown', down, true);
+    slide.addEventListener('pointermove', move, true);
+    slide.addEventListener('pointerup', up, true);
+    slide.addEventListener('pointercancel', up, true);
+    slide.addEventListener('click', suppressClick, true);
+    svg.addEventListener('pointerleave', leave);
+    return () => {
+      slide.removeEventListener('pointerdown', down, true);
+      slide.removeEventListener('pointermove', move, true);
+      slide.removeEventListener('pointerup', up, true);
+      slide.removeEventListener('pointercancel', up, true);
+      slide.removeEventListener('click', suppressClick, true);
+      svg.removeEventListener('pointerleave', leave);
+    };
+  }, [autoPen, color, pageNo, tool, toCanvas, update]);
 
-  const strokes = byPage[pageNo] ?? [];
+  const {strokes, active: activeStroke, laser} = byPage[pageNo] ?? EMPTY_FRAME;
   const interactive = tool !== 'off';
 
   return (
@@ -182,19 +203,13 @@ export const PresentationAnnotator = memo(function PresentationAnnotator({
                 : 'default',
         touchAction: interactive ? 'none' : 'auto',
       }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      onPointerLeave={() => {
-        if (tool === 'laser') setLaser(null);
-      }}
     >
       {strokes.map((stroke) => (
         <path
           key={stroke.id}
           d={strokeD(stroke)}
           fill={stroke.color}
+          pointerEvents="none"
           opacity={stroke.tool === 'highlighter' ? 0.38 : 0.92}
         />
       ))}
@@ -202,11 +217,12 @@ export const PresentationAnnotator = memo(function PresentationAnnotator({
         <path
           d={strokeD(activeStroke)}
           fill={activeStroke.color}
+          pointerEvents="none"
           opacity={activeStroke.tool === 'highlighter' ? 0.38 : 0.92}
         />
       ) : null}
       {laser ? (
-        <g>
+        <g pointerEvents="none">
           <circle cx={laser[0]} cy={laser[1]} r={24} fill="#ef4444" opacity={0.22} />
           <circle cx={laser[0]} cy={laser[1]} r={9} fill="#ef4444" opacity={0.95} />
           <circle cx={laser[0]} cy={laser[1]} r={3.5} fill="#ffffff" />

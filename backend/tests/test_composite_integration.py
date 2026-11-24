@@ -1,13 +1,51 @@
 """The pasted multi-question workflow persists the compiled kernel models."""
-from test_labs_api import app, owner, _cleanup, _headers, _session
 import pytest
+from fastapi.testclient import TestClient
+
+from app.db.session import get_engine, reset_engine_cache
+from app.main import create_app
+from app.settings import get_settings
 
 TEXT = "在0≤x≤2内，求曲线y=x²−x与x轴之间的面积，以及该区域绕x轴旋转所得旋转体的体积。"
 
 
+@pytest.fixture
+def owner(tmp_path, monkeypatch):
+    try:
+        with monkeypatch.context() as env:
+            database = tmp_path / "composite.db"
+            env.setenv("DATABASE_URL", f"sqlite:///{database.as_posix()}")
+            env.setenv("SESSION_COOKIE_SECURE", "false")
+            env.setenv("ENFORCE_CSRF", "true")
+            env.setenv("LAB_AI_ENABLED", "false")
+            get_settings.cache_clear()
+            reset_engine_cache()
+            try:
+                with TestClient(create_app()) as client:
+                    yield client
+            finally:
+                get_engine().dispose()
+    finally:
+        reset_engine_cache()
+        get_settings.cache_clear()
+
+
+def _csrf_headers(client):
+    response = client.post("/api/v1/sessions")
+    assert response.status_code == 200, response.text
+    return {"X-CSRF-Token": response.json()["data"]["csrf_token"]}
+
+
+def _persisted_problems(document):
+    # GET derives these fields from the stored model for the walkthrough UI.
+    derived = {"walkthrough_eligible", "walkthrough_context"}
+    return [{key: value for key, value in problem.items() if key not in derived}
+            for problem in document["problems"]]
+
+
 def create(owner, monkeypatch):
     monkeypatch.setattr("app.labs.orchestrator._ai_available", lambda: False)
-    headers = _headers(_session(owner))
+    headers = _csrf_headers(owner)
     response = owner.post("/api/v1/labs/text", headers=headers,
                           json={"text": TEXT, "orchestrate": True, "subject": "calculus"})
     assert response.status_code == 201, response.text
@@ -22,7 +60,7 @@ def test_paste_persists_kernel_subquestions(owner, monkeypatch):
     assert {p["model"]["task"] for p in document["problems"]} == {"geometric_area", "area_volume"}
     stored = owner.get(f'/api/v1/labs/{document["lab_id"]}').json()["data"]
     assert stored["orchestration"]["problem"]["text"] == TEXT
-    assert stored["problems"] == document["problems"]
+    assert _persisted_problems(stored) == document["problems"]
 
 
 def test_revision_recompute_cache_and_conflict(owner, monkeypatch):
@@ -42,7 +80,7 @@ def test_revision_recompute_cache_and_conflict(owner, monkeypatch):
 
 def test_ambiguous_paste_retains_source_without_answer(owner, monkeypatch):
     monkeypatch.setattr("app.labs.orchestrator._ai_available", lambda: False)
-    headers = _headers(_session(owner))
+    headers = _csrf_headers(owner)
     response = owner.post("/api/v1/labs/text", headers=headers, json={
         "text": "在0≤x≤1内，求曲线y=x²与x轴之间的区域旋转的体积。", "orchestrate": True,
         "subject": "calculus"})
@@ -58,7 +96,7 @@ def test_ambiguous_paste_retains_source_without_answer(owner, monkeypatch):
 
 def test_nonmath_paste_keeps_original_route(owner, monkeypatch):
     monkeypatch.setattr("app.labs.orchestrator.solve_composite", lambda *a, **k: pytest.fail("nonmath must not invoke math orchestration"))
-    headers = _headers(_session(owner))
+    headers = _csrf_headers(owner)
     response = owner.post("/api/v1/labs/text", headers=headers, json={
         "text": "从A开始执行广度优先搜索，边：A-B, A-C。", "orchestrate": True})
     assert response.status_code == 201, response.text
@@ -71,7 +109,7 @@ def test_nonmath_paste_keeps_original_route(owner, monkeypatch):
 ])
 def test_single_calculus_paste_solves_and_persists(owner, monkeypatch, text, expected):
     monkeypatch.setattr('app.labs.orchestrator._ai_available', lambda: False)
-    headers = _headers(_session(owner))
+    headers = _csrf_headers(owner)
     response = owner.post('/api/v1/labs/text', headers=headers,
                           json={'text': text, 'orchestrate': True})
     assert response.status_code == 201, response.text
@@ -81,4 +119,4 @@ def test_single_calculus_paste_solves_and_persists(owner, monkeypatch, text, exp
     assert document['problems'][0]['solution']['answer_value'] == pytest.approx(expected)
     saved = owner.get(f"/api/v1/labs/{document['lab_id']}").json()['data']
     assert saved['orchestration'] == document['orchestration']
-    assert saved['problems'] == document['problems']
+    assert _persisted_problems(saved) == document['problems']

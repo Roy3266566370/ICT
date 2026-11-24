@@ -142,3 +142,29 @@ test('字符串与排序链汇合后显示逐帧累计比较、交换与回退�
   assert.deepEqual(stats.frames.at(-1)?.rows, [['KMP', 11, 0, 3], ['排序', 2, 2, 0]]);
   assert.ok(stats.frames.some(frame => frame.rows?.some(row => row[0] === '排序' && row[1] === 1 && row[2] === 0)));
 });
+
+test('B 树逐次插入产生分裂帧，B+ 树可切换且目标查找路径正确', () => {
+  const source = run('btreeLab', 'input', '10,20,5,6,12,30,7,17,25,3', { order: 0, variant: 0, target: 17 }).data;
+  const inserted = run('btreeLab', 'insert', '', {}, [source]);
+  assert.ok(inserted.frames.length > source.values.length);
+  assert.ok(Number(inserted.data.splitCount) >= 1);
+  const metrics = run('btreeLab', 'metrics', '', {}, [inserted.data]);
+  assert.match(JSON.stringify(metrics.frames), /命中/);
+  const bp = run('btreeLab', 'input', '10,20,5,6,12,30,7,17,25,3', { order: 1, variant: 1, target: 20 }).data;
+  const bpInsert = run('btreeLab', 'insert', '', {}, [bp]);
+  assert.ok(Number(bpInsert.data.splitCount) >= 1);
+  assert.throws(() => run('btreeLab', 'input', '10,10', {}, []), /重复/);
+});
+
+test('散列表对比线性、二次与链地址 ASL，并报告满表场景', () => {
+  const source = run('hashTableLab', 'input', '19,14,23,1,68,20,84,27,55,11,10,79', { tableSize: 17, modP: 13, strategy: 0 }).data;
+  const probe = run('hashTableLab', 'probe', '', {}, [source]);
+  assert.equal(probe.frames.length, 12);
+  assert.ok(Number(probe.data.metrics.success) > 0);
+  const compare = run('hashTableLab', 'compare', '', {}, [source]);
+  assert.equal(compare.frames[0]?.rows?.length, 3);
+  assert.ok(compare.frames[0]?.rows?.every((row) => row[1] !== '表满'));
+  const full = run('hashTableLab', 'input', '19,14,23,1,68,20,84,27,55,11,10,79', { tableSize: 13, modP: 13 }).data;
+  assert.match(JSON.stringify(run('hashTableLab', 'compare', '', {}, [full]).frames), /表满/);
+  assert.throws(() => run('hashTableLab', 'input', '1,2', { tableSize: 7, modP: 19 }, []), /不能大于/);
+});

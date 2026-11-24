@@ -155,7 +155,7 @@ function Plot({ series, xMin, xMax, yMin, yMax, aria, onPick, children }: {
   </>;
 }
 
-export function FtcViewBody({ node, values, onParams }: NodeBodyProps): JSX.Element {
+export function FtcViewBody({ node, values, onParams, inCard }: NodeBodyProps): JSX.Element {
   const a = node.params.a ?? 0, x = node.params.x ?? 1, n = node.params.n ?? 122;
   const controls = <>
     <div className={styles.fields}>
@@ -180,17 +180,19 @@ export function FtcViewBody({ node, values, onParams }: NodeBodyProps): JSX.Elem
         <Plot aria={`变上限积分 F(x)=∫ f 在 ${num(lo - pad)} 到 ${num(hi + pad)}`} xMin={lo - pad} xMax={hi + pad}
           series={[{ name: 'F(x)', color: CORAL, samples: samples.map((p) => ({ x: p.x, y: p.integral })) }]} />
       </div>
-      {controls}
-      <p className={styles.readout}>左：面积 f 下方（{num(lo)} → {num(hi)}）<br />F(x) = ∫ₐˣ f ≈ <b data-readout="ftc-integral">{num(area.sum)}</b><br />
-        f(x) = <b data-readout="ftc-function">{num(f(x))}</b></p>
-      <p className={styles.tip}>右图为同一 f 的变上限积分曲线；曲线斜率与 f 的最大偏差 ≈ {num(slopeError.length ? Math.max(...slopeError) : null)}（样本差分估计）。数值积分只作观察，不是解析原函数。</p>
+      {!inCard && <>
+        {controls}
+        <p className={styles.readout}>左：面积 f 下方（{num(lo)} → {num(hi)}）<br />F(x) = ∫ₐˣ f ≈ <b data-readout="ftc-integral">{num(area.sum)}</b><br />
+          f(x) = <b data-readout="ftc-function">{num(f(x))}</b></p>
+        <p className={styles.tip}>右图为同一 f 的变上限积分曲线；曲线斜率与 f 的最大偏差 ≈ {num(slopeError.length ? Math.max(...slopeError) : null)}（样本差分估计）。数值积分只作观察，不是解析原函数。</p>
+      </>}
     </div>;
   } catch (error) {
-    return <div data-calculus="ftcView" className={styles.body}>{controls}<Notice>{errorText(error)}</Notice></div>;
+    return <div data-calculus="ftcView" className={styles.body}>{!inCard && controls}<Notice>{errorText(error)}</Notice></div>;
   }
 }
 
-export function FourierLabBody({ node, onParams }: NodeBodyProps): JSX.Element {
+export function FourierLabBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
   const index = Math.max(0, Math.min(2, Math.round(node.params.waveform ?? 0)));
   const waveform: Waveform = WAVEFORMS[index] ?? 'square';
   const n = Math.max(1, Math.round(node.params.n ?? 5));
@@ -217,7 +219,7 @@ export function FourierLabBody({ node, onParams }: NodeBodyProps): JSX.Element {
       <Field label="显示跨度" value={span} min={2} max={20} step={0.1} onChange={(v) => onParams?.({ span: v })} />
     </div>
   </>;
-  if (!curve.ok) return <div data-calculus="fourierLab" className={styles.body}>{controls}<Notice>{curve.error}</Notice></div>;
+  if (!curve.ok) return <div data-calculus="fourierLab" className={styles.body}>{inCard ? null : controls}<Notice>{curve.error}</Notice></div>;
   const peak = Math.max(...curve.spectrum.map((b) => b.amplitude), 1e-6);
   const barW = Math.max(2, Math.min(18, 300 / Math.max(curve.spectrum.length, 1) - 2));
   const partialAtHalfPi = fourierPartialSum(waveform, n, Math.PI / 2);
@@ -227,25 +229,27 @@ export function FourierLabBody({ node, onParams }: NodeBodyProps): JSX.Element {
         { name: '理想波形', color: INDIGO, samples: curve.ideal },
         { name: `前 ${n} 项部分和`, color: CORAL, dashed: true, samples: curve.partial },
       ]} />
-    {controls}
-    <p className={styles.readout}>方波/三角/锯齿在 π/2 的部分和 = <b data-readout="fourier-partial">{num(partialAtHalfPi)}</b><br />
-      谐波项数 {curve.spectrum.length}，最大振幅 {num(peak)}</p>
-    <svg className={styles.spectrum} viewBox="0 0 340 90" role="img" aria-label={`${waveform} 频谱柱`}>
-      <line x1="20" x2="330" y1="78" y2="78" stroke={HAIRLINE_STRONG} />
-      {curve.spectrum.map((bar, i) => {
-        const height = bar.amplitude / peak * 62;
-        return <g key={bar.harmonic}>
-          <rect x={22 + i * (barW + 3)} y={78 - height} width={barW} height={Math.max(height, 1)} fill={CORAL_SOFT} stroke={CORAL} strokeWidth="0.8" />
-          <text x={22 + i * (barW + 3) + barW / 2} y="88" textAnchor="middle" fill={INK_MUTED}>{bar.harmonic}</text>
-        </g>;
-      })}
-      <line x1="20" x2="20" y1="10" y2="78" stroke={HAIRLINE} />
-    </svg>
-    <p className={styles.tip}>蓝色为理想波形，虚线为截断正弦级数的部分和；阶数越高越贴近跳变处，但吉布斯振荡不会消失。频谱柱给出各次谐波振幅（奇次或全部，视波形而定）。</p>
+    {inCard ? null : <>
+      {controls}
+      <p className={styles.readout}>方波/三角/锯齿在 π/2 的部分和 = <b data-readout="fourier-partial">{num(partialAtHalfPi)}</b><br />
+        谐波项数 {curve.spectrum.length}，最大振幅 {num(peak)}</p>
+      <svg className={styles.spectrum} viewBox="0 0 340 90" role="img" aria-label={`${waveform} 频谱柱`}>
+        <line x1="20" x2="330" y1="78" y2="78" stroke={HAIRLINE_STRONG} />
+        {curve.spectrum.map((bar, i) => {
+          const height = bar.amplitude / peak * 62;
+          return <g key={bar.harmonic}>
+            <rect x={22 + i * (barW + 3)} y={78 - height} width={barW} height={Math.max(height, 1)} fill={CORAL_SOFT} stroke={CORAL} strokeWidth="0.8" />
+            <text x={22 + i * (barW + 3) + barW / 2} y="88" textAnchor="middle" fill={INK_MUTED}>{bar.harmonic}</text>
+          </g>;
+        })}
+        <line x1="20" x2="20" y1="10" y2="78" stroke={HAIRLINE} />
+      </svg>
+      <p className={styles.tip}>蓝色为理想波形，虚线为截断正弦级数的部分和；阶数越高越贴近跳变处，但吉布斯振荡不会消失。频谱柱给出各次谐波振幅（奇次或全部，视波形而定）。</p>
+    </>}
   </div>;
 }
 
-export function OdeSlopeFieldBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function OdeSlopeFieldBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const expression = node.text ?? '-y';
   const x0 = node.params.x0 ?? 0, y0 = node.params.y0 ?? 1;
   const min = node.params.min ?? -3, max = node.params.max ?? 3;
@@ -259,47 +263,53 @@ export function OdeSlopeFieldBody({ node, onParams, onText }: NodeBodyProps): JS
     backward = integrateOdeRK4(expression, x0, y0, -step, steps);
   } catch (e) { error = errorText(e); }
   const last = forward[forward.length - 1] ?? null;
-  return <div data-calculus="odeSlopeField" className={styles.body}>
-    <label className={styles.expression}>y′ =<input aria-label="微分方程表达式" maxLength={500} spellCheck={false}
-      value={expression} onChange={(e) => onText?.(e.target.value)} /></label>
-    {grid ? <>
-      <Plot aria="斜率场与双向积分曲线，点击平面可设初值" xMin={min} xMax={max} yMin={min} yMax={max}
-        onPick={(x, y) => onParams?.({ x0: x, y0: y })}
-        series={[
-          { name: '正向解曲线', color: CORAL, samples: forward.map((p) => ({ x: p.x, y: p.y })) },
-          { name: '反向解曲线', color: INDIGO, dashed: true, samples: backward.map((p) => ({ x: p.x, y: p.y })) },
-        ]}>
-        {(scale) => {
-          const field = grid!;
-          return <>
-            {field.xs.flatMap((gx, i) => field.ys.map((gy, j) => {
-              const slope = field.slopes[j]?.[i] ?? null;
-              if (slope === null || !Number.isFinite(slope)) return null;
-              const unit = Math.hypot(1, slope), half = (max - min) / 15 * 0.34;
-              const dx = half / unit, dy = half * slope / unit;
-              return <line key={`${i}-${j}`} x1={scale.px(gx - dx)} y1={scale.py(gy - dy)} x2={scale.px(gx + dx)} y2={scale.py(gy + dy)}
-                stroke={HAIRLINE_STRONG} strokeWidth="1.1" />;
-            }))}
-            <circle cx={scale.px(x0)} cy={scale.py(y0)} r="4" fill={PASS} stroke="var(--paper-0)" strokeWidth="1.5" />
-          </>;
-        }}
-      </Plot>
-    </> : <Notice>{error}</Notice>}
-    <div className={styles.fields}>
-      <Field label="初值 x₀" value={x0} min={min} max={max} onChange={(v) => onParams?.({ x0: v })} />
-      <Field label="初值 y₀" value={y0} min={min} max={max} onChange={(v) => onParams?.({ y0: v })} />
+  return <div data-calculus="odeSlopeField" className={inCard ? styles.body : styles.splitBody}>
+    <div className={styles.stageVisual}>
+      {grid ? <>
+        <Plot aria="斜率场与双向积分曲线，点击平面可设初值" xMin={min} xMax={max} yMin={min} yMax={max}
+          onPick={(x, y) => onParams?.({ x0: x, y0: y })}
+          series={[
+            { name: '正向解曲线', color: CORAL, samples: forward.map((p) => ({ x: p.x, y: p.y })) },
+            { name: '反向解曲线', color: INDIGO, dashed: true, samples: backward.map((p) => ({ x: p.x, y: p.y })) },
+          ]}>
+          {(scale) => {
+            const field = grid!;
+            return <>
+              {field.xs.flatMap((gx, i) => field.ys.map((gy, j) => {
+                const slope = field.slopes[j]?.[i] ?? null;
+                if (slope === null || !Number.isFinite(slope)) return null;
+                const unit = Math.hypot(1, slope), half = (max - min) / 15 * 0.34;
+                const dx = half / unit, dy = half * slope / unit;
+                return <line key={`${i}-${j}`} x1={scale.px(gx - dx)} y1={scale.py(gy - dy)} x2={scale.px(gx + dx)} y2={scale.py(gy + dy)}
+                  stroke={HAIRLINE_STRONG} strokeWidth="1.1" />;
+              }))}
+              <circle cx={scale.px(x0)} cy={scale.py(y0)} r="4" fill={PASS} stroke="var(--paper-0)" strokeWidth="1.5" />
+            </>;
+          }}
+        </Plot>
+      </> : <Notice>{error}</Notice>}
     </div>
-    <div className={styles.fields}>
-      <Field label="场范围" value={max} min={0.5} max={10} onChange={(v) => onParams?.({ min: -v, max: v })} />
-      <Field label="步长 h" value={step} min={0.001} max={0.5} step={0.005} onChange={(v) => onParams?.({ step: v })} />
+    <div className={styles.stageControls}>
+      <label className={styles.expression}>y′ =<input aria-label="微分方程表达式" maxLength={500} spellCheck={false}
+        value={expression} onChange={(e) => onText?.(e.target.value)} /></label>
+      {!inCard && <>
+        <div className={styles.fields}>
+          <Field label="初值 x₀" value={x0} min={min} max={max} onChange={(v) => onParams?.({ x0: v })} />
+          <Field label="初值 y₀" value={y0} min={min} max={max} onChange={(v) => onParams?.({ y0: v })} />
+        </div>
+        <div className={styles.fields}>
+          <Field label="场范围" value={max} min={0.5} max={10} onChange={(v) => onParams?.({ min: -v, max: v })} />
+          <Field label="步长 h" value={step} min={0.001} max={0.5} step={0.005} onChange={(v) => onParams?.({ step: v })} />
+        </div>
+        <Field label="积分步数" value={steps} min={1} max={2000} step={1} onChange={(v) => onParams?.({ steps: Math.round(v) })} />
+        <p className={styles.readout}>末点 (x, y) ≈ (<b data-readout="ode-x">{num(last?.x ?? null)}</b>, <b data-readout="ode-y">{num(last?.y ?? null)}</b>)</p>
+        <p className={styles.tip}>短线段为斜率场（灰色），朱砂为正向 RK4 解曲线，蓝色虚线为从初值反向积分。点击平面任意位置把 (x₀, y₀) 设为新初值；解只在有限区间内有效。</p>
+      </>}
     </div>
-    <Field label="积分步数" value={steps} min={1} max={2000} step={1} onChange={(v) => onParams?.({ steps: Math.round(v) })} />
-    <p className={styles.readout}>末点 (x, y) ≈ (<b data-readout="ode-x">{num(last?.x ?? null)}</b>, <b data-readout="ode-y">{num(last?.y ?? null)}</b>)</p>
-    <p className={styles.tip}>短线段为斜率场（灰色），朱砂为正向 RK4 解曲线，蓝色虚线为从初值反向积分。点击平面任意位置把 (x₀, y₀) 设为新初值；解只在有限区间内有效。</p>
   </div>;
 }
 
-export function Func2dSourceBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function Func2dSourceBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const a = node.params.a ?? 1, b = node.params.b ?? 1;
   const expression = node.text ?? 'a*x^2+b*y^2';
   const preview = useMemo(() => {
@@ -323,7 +333,7 @@ export function Func2dSourceBody({ node, onParams, onText }: NodeBodyProps): JSX
   if (!preview.ok) return <div data-calculus="func2dSource" className={styles.body}>
     <label className={styles.expression}>f(x,y) =<input aria-label="二元函数表达式" maxLength={500} spellCheck={false}
       value={expression} onChange={(e) => onText?.(e.target.value)} /></label>
-    {controls}<Notice>{preview.error}</Notice>
+    {!inCard && controls}<Notice>{preview.error}</Notice>
   </div>;
   const middle = preview.fn(1, 1);
   return <div data-calculus="func2dSource" className={styles.body}>
@@ -334,8 +344,10 @@ export function Func2dSourceBody({ node, onParams, onText }: NodeBodyProps): JSX
         { name: 'f(x, 0)', color: INDIGO, samples: preview.middle },
         { name: 'f(x, 1)', color: CORAL, dashed: true, samples: preview.offset },
       ]} />
-    {controls}
-    <p className={styles.readout}>f(1, 1) = <b data-readout="func2d-value">{num(middle)}</b></p>
+    {!inCard && <>
+      {controls}
+      <p className={styles.readout}>f(1, 1) = <b data-readout="func2d-value">{num(middle)}</b></p>
+    </>}
   </div>;
 }
 
@@ -377,7 +389,7 @@ function levelSegments(at: (x: number, y: number) => number | null, xMin: number
   return segments;
 }
 
-export function GradientContourBody({ node, values, onParams, onText }: NodeBodyProps): JSX.Element {
+export function GradientContourBody({ node, values, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const x = node.params.x ?? 1, y = node.params.y ?? 1;
   const theta = node.params.theta ?? Math.PI / 4, span = node.params.span ?? 2.5;
   const constraint = node.text ?? 'x+y-2';
@@ -390,9 +402,9 @@ export function GradientContourBody({ node, values, onParams, onText }: NodeBody
       <Field label="方向角 θ" value={theta} min={-3.1416} max={3.1416} step={0.01} onChange={(v) => onParams?.({ theta: v })} />
       <Field label="视野半宽" value={span} min={0.5} max={6} onChange={(v) => onParams?.({ span: v })} />
     </div>
-    <label className={styles.expression}>约束 g(x,y) =<input aria-label="约束线表达式" maxLength={500} spellCheck={false}
-      value={constraint} onChange={(e) => onText?.(e.target.value)} /></label>
   </>;
+  const constraintInput = <label className={styles.expression}>约束 g(x,y) =<input aria-label="约束线表达式" maxLength={500} spellCheck={false}
+    value={constraint} onChange={(e) => onText?.(e.target.value)} /></label>;
   try {
     const f = inputFunction2d(values);
     const g = gradient2d(f, x, y);
@@ -445,22 +457,24 @@ export function GradientContourBody({ node, values, onParams, onText }: NodeBody
         <circle cx={px(x)} cy={py(y)} r="4" fill={INDIGO} stroke="var(--paper-0)" strokeWidth="1.5" />
         <text x={PAD + 4} y={W + PAD - 4} fill={INK_MUTED} fontSize="9">x ∈ [{num(x - span)}, {num(x + span)}]</text>
       </svg>
-      {controls}
-      <p className={styles.readout}>f(x, y) = <b data-readout="value">{num(g.value)}</b><br />
-        ∇f = (<b data-readout="gradient-x">{num(g.fx)}</b>, <b data-readout="gradient-y">{num(g.fy)}</b>)<br />
-        D_θ f = <b data-readout="direction-derivative">{num(directional)}</b></p>
-      <p className={styles.tip}>底色为 f 的热图（朱砂为正、靛蓝为负），朱砂实线是过当前点的等高线，褐色箭头为梯度（垂直于等高线），绿色虚线为方向 θ。约束线按 g=0 画虚线段，留空则不画。</p>
+      {constraintInput}
+      {!inCard && <>
+        {controls}
+        <p className={styles.readout}>f(x, y) = <b data-readout="value">{num(g.value)}</b><br />
+          ∇f = (<b data-readout="gradient-x">{num(g.fx)}</b>, <b data-readout="gradient-y">{num(g.fy)}</b>)<br />
+          D_θ f = <b data-readout="direction-derivative">{num(directional)}</b></p>
+        <p className={styles.tip}>底色为 f 的热图（朱砂为正、靛蓝为负），朱砂实线是过当前点的等高线，褐色箭头为梯度（垂直于等高线），绿色虚线为方向 θ。约束线按 g=0 画虚线段，留空则不画。</p>
+      </>}
     </div>;
   } catch (error) {
     return <div data-calculus="gradientContour" className={styles.body}>
-      <label className={styles.expression}>约束 g(x,y) =<input aria-label="约束线表达式" maxLength={500} spellCheck={false}
-        value={constraint} onChange={(e) => onText?.(e.target.value)} /></label>
-      {controls}<Notice>{errorText(error)}</Notice>
+      {constraintInput}
+      {!inCard && controls}<Notice>{errorText(error)}</Notice>
     </div>;
   }
 }
 
-export function DoubleIntegralBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function DoubleIntegralBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const mode = Math.round(node.params.mode ?? 0) === 1 ? 1 : 0;
   const n = Math.max(4, Math.min(80, Math.round(node.params.n ?? 20)));
   const rMax = Math.max(0.2, Math.min(3, node.params.rMax ?? 1));
@@ -475,14 +489,16 @@ export function DoubleIntegralBody({ node, onParams, onText }: NodeBodyProps): J
     <label className={styles.expression}>{mode === 1 ? '被积函数 f(θ,r)·r =' : '被积函数 f(x,y) ='}
       <input aria-label="被积函数表达式" maxLength={500} spellCheck={false} value={integrand}
         onChange={(e) => onText?.(e.target.value)} /></label>
-    <div className={styles.fields}>
-      <Field label="分割数 n" value={n} min={4} max={80} step={1} onChange={(v) => onParams?.({ n: Math.round(v) })} />
-      {mode === 1 && <Field label="半径上限" value={rMax} min={0.2} max={3} step={0.1} onChange={(v) => onParams?.({ rMax: v })} />}
-    </div>
-    {mode === 1 && <div className={styles.fields}>
-      <Field label="θ 下限" value={theta1} min={-6.3} max={6.3} step={0.01} onChange={(v) => onParams?.({ theta1: v })} />
-      <Field label="θ 上限" value={theta2} min={-6.3} max={6.3} step={0.01} onChange={(v) => onParams?.({ theta2: v })} />
-    </div>}
+    {!inCard && <>
+      <div className={styles.fields}>
+        <Field label="分割数 n" value={n} min={4} max={80} step={1} onChange={(v) => onParams?.({ n: Math.round(v) })} />
+        {mode === 1 && <Field label="半径上限" value={rMax} min={0.2} max={3} step={0.1} onChange={(v) => onParams?.({ rMax: v })} />}
+      </div>
+      {mode === 1 && <div className={styles.fields}>
+        <Field label="θ 下限" value={theta1} min={-6.3} max={6.3} step={0.01} onChange={(v) => onParams?.({ theta1: v })} />
+        <Field label="θ 上限" value={theta2} min={-6.3} max={6.3} step={0.01} onChange={(v) => onParams?.({ theta2: v })} />
+      </div>}
+    </>}
   </>;
   try {
     if (mode === 1) {
@@ -505,9 +521,11 @@ export function DoubleIntegralBody({ node, onParams, onText }: NodeBodyProps): J
             fill="none" stroke={HAIRLINE} strokeDasharray="2 4" />)}
         </svg>
         {controls}
-        <p className={styles.readout}>θ 切片 = {num(result.slice.theta)} rad，r ∈ [{num(result.slice.r_lower)}, {num(result.slice.r_upper)})<br />
-          中点和近似 ≈ <b data-readout="approx">{num(result.approx)}</b></p>
-        <p className={styles.tip}>极坐标微元 dA = r·dr·dθ，被积函数需自行乘上 Jacobian r。扇形按 n 等分 θ 与 r；近似只作观察，不回写原题条件。</p>
+        {!inCard && <>
+          <p className={styles.readout}>θ 切片 = {num(result.slice.theta)} rad，r ∈ [{num(result.slice.r_lower)}, {num(result.slice.r_upper)})<br />
+            中点和近似 ≈ <b data-readout="approx">{num(result.approx)}</b></p>
+          <p className={styles.tip}>极坐标微元 dA = r·dr·dθ，被积函数需自行乘上 Jacobian r。扇形按 n 等分 θ 与 r；近似只作观察，不回写原题条件。</p>
+        </>}
       </div>;
     }
     const result = rectSandbox(integrand, n);
@@ -528,9 +546,11 @@ export function DoubleIntegralBody({ node, onParams, onText }: NodeBodyProps): J
         <text x={PAD + 4} y={W + PAD - 4} fill={INK_MUTED} fontSize="9">区域 [0,1] × [0,1]</text>
       </svg>
       {controls}
-      <p className={styles.readout}>切片 y = {num(result.slice.position)}，x ∈ [{num(result.slice.lower)}, {num(result.slice.upper)}]<br />
-        中点和近似 ≈ <b data-readout="approx">{num(result.approx)}</b></p>
-      <p className={styles.tip}>直角微元 dA = dy·dx，网格为 n × n 等分；高亮条是当前外层切片。近似值只用于观察，不改变原题的区域条件。</p>
+      {!inCard && <>
+        <p className={styles.readout}>切片 y = {num(result.slice.position)}，x ∈ [{num(result.slice.lower)}, {num(result.slice.upper)}]<br />
+          中点和近似 ≈ <b data-readout="approx">{num(result.approx)}</b></p>
+        <p className={styles.tip}>直角微元 dA = dy·dx，网格为 n × n 等分；高亮条是当前外层切片。近似值只用于观察，不改变原题的区域条件。</p>
+      </>}
     </div>;
   } catch (error) {
     return <div data-calculus="doubleIntegralView" className={styles.body}>{controls}<Notice>{errorText(error)}</Notice></div>;

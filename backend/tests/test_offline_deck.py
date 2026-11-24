@@ -1,7 +1,59 @@
 import json
 import re
+import pytest
 
 from app.api.routes_publish import render_standalone_html
+from app import offline
+
+
+def test_offline_asset_selection_uses_lite_runtime_for_ordinary_slides(tmp_path, monkeypatch):
+    for filename in ('runtime.js', 'runtime.css', 'runtime-lite.js', 'runtime-lite.css'):
+        (tmp_path / filename).write_text('/* ' + filename + ' */', encoding='utf-8')
+    monkeypatch.setattr(offline, 'ASSETS', tmp_path)
+    doc = {'pages': [{'nodes': [{'type': 'workshop_plugin', 'workshop_plugin': {'template_kind': 'biz-cpm'}}]}]}
+    snapshot = {'scene_document': doc, 'pages': []}
+    render = lambda data: offline.render_offline_deck(data, 'material', lambda *_: None)
+
+    html = render(snapshot)
+    assert '/* runtime-lite.js */' in html
+    assert '/* runtime-lite.css */' in html
+    assert '/* runtime.js */' not in html
+    assert '/* runtime.js */' in render({**snapshot, 'ppt_ai': {'artifacts': [{'program': 'render'}]}})
+
+    doc['pages'][0]['nodes'][0]['workshop_plugin']['template_kind'] = 'geometry-3d'
+    assert '/* runtime.js */' in render(snapshot)
+    plugin = doc['pages'][0]['nodes'][0]['workshop_plugin']
+    plugin['template_kind'] = 'custom-work'
+    plugin['doc'] = {'nodes': [{'type': 'composite', 'sub': {'nodes': [{'type': 'pageLabSim'}]}}]}
+    assert '/* runtime.js */' in render(snapshot)
+    plugin['doc']['nodes'][0]['sub']['nodes'] = [{'type': 'physicsStage'}]
+    assert '/* runtime-lite.js */' in render(snapshot)
+    for node_type in ('latexNote', 'functionSource'):
+        plugin['doc']['nodes'][0]['sub']['nodes'] = [{'type': node_type}]
+        assert '/* runtime.js */' in render(snapshot)
+    for node_type in ('bizTableSource', 'emFieldSource', 'funcCombineOp', 'arraySource', 'lossProbeOp',
+                      'aiRuleBlock', 'universalStageView'):
+        plugin['doc']['nodes'][0]['sub']['nodes'] = [{'type': node_type}]
+        assert '/* runtime-lite.js */' in render(snapshot)
+    plugin['doc']['nodes'][0]['sub']['nodes'] = [{'type': 'physicsStage'}]
+    doc['pages'][0]['nodes'].append({'type': 'demo', 'demo': {'program': 'render'}})
+    assert '/* runtime.js */' in render(snapshot)
+    doc['pages'][0]['nodes'].pop()
+    (tmp_path / 'runtime-lite.css').unlink()
+    assert '/* runtime.js */' in render(snapshot)
+
+
+def test_offline_output_fits_the_html_reimport_limit(tmp_path, monkeypatch):
+    from app import project_package
+    from app.schemas.errors import ApiError, ErrorCode
+
+    for filename in ('runtime.js', 'runtime.css'):
+        (tmp_path / filename).write_text('/* runtime */', encoding='utf-8')
+    monkeypatch.setattr(offline, 'ASSETS', tmp_path)
+    monkeypatch.setattr(project_package, 'MAX_PACKAGE_BYTES', 1_500)
+    with pytest.raises(ApiError) as error:
+        offline.render_offline_deck({'title': '离线课件' * 200, 'pages': []}, 'material', lambda *_: None)
+    assert error.value.code == ErrorCode.LIMIT_EXCEEDED
 
 
 def test_export_preserves_executable_spec_and_slide_geometry():

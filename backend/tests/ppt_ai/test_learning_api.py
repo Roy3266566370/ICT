@@ -61,10 +61,10 @@ def _wait(client: TestClient, task_id: str) -> dict[str, Any]:
 
 
 @pytest.fixture(scope="module")
-def app() -> Any:
-    learning._snapshot = lambda material: _SNAPSHOT.model_copy(
+def app(offline_ppt_ai_models: pytest.MonkeyPatch) -> Any:
+    offline_ppt_ai_models.setattr(learning, "_snapshot", lambda material: _SNAPSHOT.model_copy(
         update={"material_id": material.id, "title": material.title}
-    )
+    ))
     return create_app()
 
 

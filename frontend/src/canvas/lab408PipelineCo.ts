@@ -1,17 +1,24 @@
 import { cacheSplit } from './lab408.ts';
 import { cacheTraceFrames, ieee754Decode, parseInstructionList } from './lab408Sim.ts';
-import type { PipelineDefinition, PipelineFrame, PipelineResult } from './lab408PipelineTypes.ts';
+import type { PipelineDefinition, PipelineFrame, PipelineResult, PipelineStage } from './lab408PipelineTypes.ts';
 
 const hex32 = (value: number) => '0x' + value.toString(16).padStart(8, '0');
 const result = (data: Record<string, unknown>, frames: PipelineFrame[]): PipelineResult => ({ data, frames });
 const table = (title: string, columns: string[], rows: (string | number)[][], summary?: string): PipelineFrame =>
   ({ title, columns, rows, summary });
+const invalid = (title: string, summary: string): PipelineResult =>
+  ({ data: {}, frames: [{ title, summary }] });
 
 const cache: PipelineDefinition = { stages: [
   {
     id: 'source', title: 'CPU 访存流', diagram: 'source',
     text: '0x00001000, 0x00001004, 0x00002000, 0x00003000, 0x00001000',
     textLabel: '32 位虚拟地址序列（十进制或 0x 十六进制，空格或逗号分隔）',
+    presets: [
+      { label: '顺序访问（空间局部性）', text: '0x00001000 0x00001004 0x00001008 0x0000100c 0x00001010', params: {} },
+      { label: '同组冲突颠簸', text: '0x00001000 0x00002000 0x00003000 0x00001000 0x00002000', params: {} },
+      { label: '同组冲突（在 Cache 表调大路数）', text: '0x00001000 0x00002000 0x00003000 0x00001000 0x00002000', params: {} },
+    ],
     run: ({ text }) => {
       const tokens = text.trim().split(/[\s,，、;；]+/).filter(Boolean);
       if (!tokens.length || tokens.length > 48 || tokens.some((t) => !/^(?:0x[\da-f]+|\d+)$/i.test(t) || Number(t) > 0xffffffff)) {
@@ -363,4 +370,363 @@ const numeric: PipelineDefinition = { stages: [
   },
 ] };
 
-export const coPipelines: Record<string, PipelineDefinition> = { cacheSimLab: cache, pipelineLab: pipeline, ieee754Lab: numeric };
+/* ---------- CPU 指令周期与数据通路 ---------- */
+
+type DatapathStep = { label: string; active: string[]; note: string };
+type DatapathProgram = {
+  label: string;
+  asm: string;
+  fields: [string, string][];
+  regs: [string, number][];
+  memory: [string, number][];
+  control: Record<string, string | number>;
+  steps: DatapathStep[];
+};
+
+const datapathNodes = [
+  { id: 'pc', label: 'PC', x: 12, y: 42 },
+  { id: 'imem', label: 'IMEM', x: 34, y: 18 },
+  { id: 'ir', label: 'IR', x: 54, y: 18 },
+  { id: 'regs', label: 'RegFile', x: 54, y: 58 },
+  { id: 'alu', label: 'ALU', x: 78, y: 42 },
+  { id: 'mux', label: 'Mux', x: 78, y: 76 },
+  { id: 'dmem', label: 'DMEM', x: 92, y: 18 },
+  { id: 'wb', label: 'WB', x: 94, y: 58 },
+];
+const datapathEdges: [string, string][] = [
+  ['pc', 'imem'], ['imem', 'ir'], ['ir', 'regs'], ['regs', 'alu'], ['regs', 'mux'],
+  ['mux', 'alu'], ['alu', 'dmem'], ['alu', 'wb'], ['dmem', 'wb'],
+];
+const datapathSteps: Record<string, DatapathStep[]> = {
+  ADD: [
+    { label: 'IF', active: ['pc', 'imem', 'ir'], note: 'PC → IMEM 取指，指令写入 IR。' },
+    { label: 'ID', active: ['ir', 'regs'], note: '译码 R1、R2，读取两个源寄存器。' },
+    { label: 'EX', active: ['regs', 'alu'], note: 'ALU 计算 R1 + R2。' },
+    { label: 'WB', active: ['alu', 'wb'], note: 'ALU 结果写回 R3。' },
+  ],
+  LW: [
+    { label: 'IF', active: ['pc', 'imem', 'ir'], note: '取指并写入 IR。' },
+    { label: 'ID', active: ['ir', 'regs'], note: '读取基址寄存器 R1。' },
+    { label: 'EX', active: ['regs', 'alu', 'mux'], note: 'ALU 计算 R1 + 4，Mux 选择立即数。' },
+    { label: 'MEM', active: ['alu', 'dmem'], note: 'DMEM 读出一字到 MDR。' },
+    { label: 'WB', active: ['dmem', 'wb'], note: 'DMEM 数据写回 R2。' },
+  ],
+  SW: [
+    { label: 'IF', active: ['pc', 'imem', 'ir'], note: '取指并写入 IR。' },
+    { label: 'ID', active: ['ir', 'regs'], note: '读取基址 R1 与源数据 R2。' },
+    { label: 'EX', active: ['regs', 'alu', 'mux'], note: 'ALU 计算 R1 + 4。' },
+    { label: 'MEM', active: ['alu', 'dmem'], note: '把 R2 写入 DMEM。' },
+  ],
+  BEQ: [
+    { label: 'IF', active: ['pc', 'imem', 'ir'], note: '取指并写入 IR。' },
+    { label: 'ID', active: ['ir', 'regs'], note: '译码并读取 R1、R2。' },
+    { label: 'EX', active: ['regs', 'alu'], note: 'ALU 相减并检查是否为零。' },
+  ],
+};
+
+function datapathProgram(kind: number, mode: number): DatapathProgram {
+  const index = Math.max(0, Math.min(3, Math.round(kind)));
+  const multi = Math.round(mode) === 1;
+  const regs: [string, number][] = [['R1', 12], ['R2', 7], ['R3', 0], ['R4', 0]];
+  const memory: [string, number][] = [['0x10', 42], ['0x14', 99], ['0x20', 7]];
+  if (index === 0) {
+    return {
+      label: 'ADD', asm: 'ADD R3, R1, R2',
+      fields: [['OP', '000000'], ['rs', 'R1'], ['rt', 'R2'], ['rd', 'R3'], ['funct', '100000']],
+      regs, memory,
+      control: { RegWrite: 1, ALUSrc: 0, MemRead: 0, MemWrite: 0, Branch: 0, ALUOp: 'ADD' },
+      steps: multi ? datapathSteps.ADD! : [{ label: '单周期', active: ['pc', 'imem', 'ir', 'regs', 'alu', 'wb'], note: '取指、译码、执行和写回在同一个周期完成。' }],
+    };
+  }
+  if (index === 1) {
+    return {
+      label: 'LW', asm: 'LW R2, 4(R1)',
+      fields: [['OP', '100011'], ['rs', 'R1'], ['rt', 'R2'], ['imm', '+4']],
+      regs, memory,
+      control: { RegWrite: 1, ALUSrc: 1, MemRead: 1, MemWrite: 0, Branch: 0, ALUOp: 'ADD' },
+      steps: multi ? datapathSteps.LW! : [{ label: '单周期', active: ['pc', 'imem', 'ir', 'regs', 'alu', 'mux', 'dmem', 'wb'], note: '取指、译码、地址计算、访存和写回在同一周期完成。' }],
+    };
+  }
+  if (index === 2) {
+    return {
+      label: 'SW', asm: 'SW R2, 4(R1)',
+      fields: [['OP', '101011'], ['rs', 'R1'], ['rt', 'R2'], ['imm', '+4']],
+      regs, memory,
+      control: { RegWrite: 0, ALUSrc: 1, MemRead: 0, MemWrite: 1, Branch: 0, ALUOp: 'ADD' },
+      steps: multi ? datapathSteps.SW! : [{ label: '单周期', active: ['pc', 'imem', 'ir', 'regs', 'alu', 'mux', 'dmem'], note: '写回被关闭，数据写入 DMEM。' }],
+    };
+  }
+  return {
+    label: 'BEQ', asm: 'BEQ R1, R2, +8',
+    fields: [['OP', '000100'], ['rs', 'R1'], ['rt', 'R2'], ['imm', '+8']],
+    regs, memory,
+    control: { RegWrite: 0, ALUSrc: 0, MemRead: 0, MemWrite: 0, Branch: 1, ALUOp: 'SUB' },
+    steps: multi ? datapathSteps.BEQ! : [{ label: '单周期', active: ['pc', 'imem', 'ir', 'regs', 'alu'], note: '比较结果决定下一个 PC，不写寄存器或存储器。' }],
+  };
+}
+
+function datapathFrame(program: DatapathProgram, step: DatapathStep, title: string): PipelineFrame {
+  const active = new Set(step.active);
+  const edges: NonNullable<PipelineFrame['graph']>['edges'] = [];
+  for (const [from, to] of datapathEdges) {
+    const fromPos = datapathNodes.find((node) => node.id === from);
+    const toPos = datapathNodes.find((node) => node.id === to);
+    if (!fromPos || !toPos) continue;
+    edges.push({ from, to, active: active.has(from) && active.has(to) });
+  }
+  return {
+    title,
+    summary: step.note,
+    graph: {
+      nodes: datapathNodes.map((node) => ({ ...node, active: active.has(node.id) })),
+      edges,
+    },
+    columns: ['控制信号', '值'],
+    rows: Object.entries(program.control).map(([name, value]) => [name, value]),
+  };
+}
+
+const datapathSource: PipelineStage = {
+  id: 'program', title: '指令与初始状态', diagram: 'source',
+  controls: [
+    { key: 'inst', label: '指令类型', value: 0, options: ['ADD R3, R1, R2', 'LW R2, 4(R1)', 'SW R2, 4(R1)', 'BEQ R1, R2, +8'].map((label, value) => ({ value, label })) },
+    { key: 'mode', label: '周期模式', value: 1, options: [{ value: 0, label: '单周期' }, { value: 1, label: '多周期（逐拍）' }] },
+  ],
+  presets: [
+    { label: 'LW 多周期', params: { inst: 1, mode: 1 } },
+    { label: 'ADD 单周期', params: { inst: 0, mode: 0 } },
+    { label: 'BEQ 分支', params: { inst: 3, mode: 1 } },
+  ],
+  run({ params }) {
+    const program = datapathProgram(params.inst ?? 0, params.mode ?? 1);
+    return {
+      data: { program, mode: params.mode ?? 1 },
+      frames: [
+        table('指令与机器码字段', ['字段', '值'], program.fields, `${program.asm} · ${program.steps.length} 个执行拍。`),
+        table('初始寄存器与存储器', ['名称', '值'], [...program.regs.map(([name, value]) => [`寄存器 ${name}`, value] as [string, number]), ...program.memory.map(([name, value]) => [`内存 ${name}`, value] as [string, number])]),
+      ],
+    };
+  },
+};
+
+const datapathStage: PipelineStage = {
+  id: 'datapath', title: '数据通路逐拍高亮', diagram: 'graph', inputs: ['program'],
+  run({ upstream }) {
+    const program = upstream[0]?.program as DatapathProgram | undefined;
+    const mode = Number(upstream[0]?.mode ?? 1);
+    if (!program?.steps?.length) return invalid('等待指令', '连接指令源后生成数据通路。');
+    const frames = program.steps.map((step) => datapathFrame(program, step, `${program.label} · ${step.label}`));
+    return { data: { program, mode, steps: program.steps }, frames };
+  },
+};
+
+const datapathCycles: PipelineStage = {
+  id: 'cycles', title: '单周期 / 多周期对照', diagram: 'summary', inputs: ['datapath'],
+  run({ upstream }) {
+    const steps = upstream[0]?.steps as DatapathStep[] | undefined;
+    if (!steps?.length) return invalid('等待数据通路', '连接逐拍数据通路后比较周期开销。');
+    const single = 800;
+    const multi = steps.length * 200;
+    return {
+      data: { steps: steps.length, single, multi },
+      frames: [{
+        title: 'CPI 与关键路径',
+        summary: `多周期共 ${steps.length} 拍，每拍 200 ps；单周期关键路径约 800 ps。`,
+        columns: ['模式', '周期数', '每周期时间', '总时间', '说明'],
+        rows: [
+          ['单周期', 1, '800 ps', '800 ps', '所有部件在一个长周期内串行完成'],
+          ['多周期', steps.length, '200 ps', `${multi} ps`, steps.map((step) => step.label).join(' → ')],
+        ],
+      }],
+    };
+  },
+};
+
+/* ---------- 补码加减与 Booth 乘法 ---------- */
+
+type BoothStep = { cycle: number; A: string; Q: string; q1: number; action: string; binary: string };
+
+function twos(value: number, bits: number): number {
+  return value & ((1 << bits) - 1);
+}
+
+function bitsText(value: number, bits: number): string {
+  return (value & ((1 << bits) - 1)).toString(2).padStart(bits, '0');
+}
+
+function signedBits(value: number, bits: number): number {
+  const mask = (1 << bits) - 1;
+  const normalized = value & mask;
+  return normalized & (1 << (bits - 1)) ? normalized - (1 << bits) : normalized;
+}
+
+function boothProduct(x: number, y: number, bits: number): { steps: BoothStep[]; value: number; binary: string } {
+  const mask = (1 << bits) - 1;
+  const aBits = bits + 1;
+  const aMask = (1 << aBits) - 1;
+  let A = 0;
+  let Q = twos(y, bits);
+  let q1 = 0;
+  const M = twos(x, aBits);
+  const negM = twos(-x, aBits);
+  const steps: BoothStep[] = [];
+  for (let cycle = 0; cycle < bits; cycle += 1) {
+    const q0 = Q & 1;
+    let action = '仅算术右移';
+    if (q0 === 1 && q1 === 0) {
+      A = (A + negM) & aMask;
+      action = '10 → A − X';
+    } else if (q0 === 0 && q1 === 1) {
+      A = (A + M) & aMask;
+      action = '01 → A + X';
+    }
+    steps.push({
+      cycle: cycle + 1, A: bitsText(A, aBits), Q: bitsText(Q, bits), q1,
+      action, binary: bitsText(A, aBits) + bitsText(Q, bits),
+    });
+    const combined = ((A << (bits + 1)) | (Q << 1) | q1) >>> 0;
+    const sign = (combined >>> (aBits + bits)) & 1;
+    const shifted = (combined >>> 1) | (sign << (aBits + bits));
+    A = (shifted >>> (bits + 1)) & aMask;
+    Q = (shifted >>> 1) & mask;
+    q1 = shifted & 1;
+  }
+  const raw = ((A << bits) | Q) & ((1 << (2 * bits)) - 1);
+  const value = raw & (1 << (2 * bits - 1)) ? raw - (1 << (2 * bits)) : raw;
+  return { steps, value, binary: raw.toString(2).padStart(2 * bits, '0') };
+}
+
+const boothSource: PipelineStage = {
+  id: 'operands', title: '补码操作数', diagram: 'bits',
+  controls: [
+    { key: 'mode', label: '运算模式', value: 0, options: [{ value: 0, label: '双符号位补码加减' }, { value: 1, label: 'Booth 一位乘' }] },
+    { key: 'x', label: '操作数 X', value: 11, min: -15, max: 15, step: 1 },
+    { key: 'y', label: '操作数 Y', value: -6, min: -15, max: 15, step: 1 },
+    { key: 'bits', label: '位宽', value: 0, options: [{ value: 0, label: '5 位' }, { value: 1, label: '6 位' }, { value: 2, label: '8 位' }] },
+  ],
+  presets: [
+    { label: '加法溢出', params: { mode: 0, x: 15, y: 1, bits: 0 } },
+    { label: '负数相加', params: { mode: 0, x: -15, y: -1, bits: 0 } },
+    { label: 'Booth 11 × (−6)', params: { mode: 1, x: 11, y: -6, bits: 0 } },
+  ],
+  run({ params }) {
+    const mode = Math.round(params.mode ?? 0) === 1 ? 1 : 0;
+    const x = Math.round(params.x ?? 11);
+    const y = Math.round(params.y ?? -6);
+    const bits = [5, 6, 8][Math.max(0, Math.min(2, Math.round(params.bits ?? 0)))]!;
+    const limit = 1 << (bits - 1);
+    if (x < -limit || x >= limit || y < -limit || y >= limit) throw new Error(`操作数需在 ${-limit}～${limit - 1} 范围内。`);
+    return {
+      data: { mode, x, y, bits },
+      frames: [{
+        title: '操作数编码', columns: ['操作数', '原值', `${bits} 位补码`, `${bits + 1} 位双符号位`],
+        rows: [
+          ['X', x, bitsText(twos(x, bits), bits), bitsText(twos(x, bits), bits + 1)],
+          ['Y', y, bitsText(twos(y, bits), bits), bitsText(twos(y, bits), bits + 1)],
+        ],
+        summary: mode ? 'Booth 算法直接读取补码，Q₋₁ 初始为 0。' : '双符号位用于判断加减法是否溢出。',
+      }],
+    };
+  },
+};
+
+const boothSteps: PipelineStage = {
+  id: 'steps', title: '逐拍运算', diagram: 'grid', inputs: ['operands'],
+  run({ upstream }) {
+    const source = upstream[0];
+    if (!source) return invalid('等待操作数', '连接补码操作数后生成运算步骤。');
+    const mode = Number(source.mode);
+    const x = Number(source.x);
+    const y = Number(source.y);
+    const bits = Number(source.bits);
+    if (mode === 1) {
+      const product = boothProduct(x, y, bits);
+      return {
+        data: { mode, x, y, bits, result: product.value, expected: x * y, binary: product.binary, steps: product.steps },
+        frames: [
+          ...product.steps.map((step) => ({
+            title: `Booth 第 ${step.cycle} 拍 · ${step.action}`,
+            summary: `A = ${step.A} · Q = ${step.Q} · Q₋₁ = ${step.q1}`,
+            columns: ['拍', '动作', 'A', 'Q', 'Q₋₁', 'A·Q'],
+            rows: [[step.cycle, step.action, step.A, step.Q, step.q1, step.binary]],
+            highlightRows: [0],
+          })),
+          table('部分积结果', ['二进制', '十进制', '真值核对'], [[product.binary, product.value, x * y === product.value ? '一致' : '不一致']]),
+        ],
+      };
+    }
+    const operand = (value: number) => twos(value, bits);
+    const wideBits = bits + 1;
+    const wide = (value: number) => twos(value, wideBits);
+    const low = (value: number) => value & ((1 << bits) - 1);
+    let carry = 0;
+    const rows: (string | number)[][] = [];
+    const frames: PipelineFrame[] = [];
+    const left = operand(x);
+    const right = operand(y);
+    for (let bit = 0; bit < bits; bit += 1) {
+      const a = (left >>> bit) & 1;
+      const b = (right >>> bit) & 1;
+      const sum = a + b + carry;
+      rows.push([bit, a, b, carry, sum & 1, sum > 1 ? 1 : 0]);
+      frames.push({
+        title: `第 ${bit} 位补码相加`,
+        summary: `${a} + ${b} + 进位 ${carry} → 本位 ${sum & 1}，进位 ${sum > 1 ? 1 : 0}。`,
+        columns: ['位', 'X', 'Y', '进位入', '和', '进位出'],
+        rows: [[bit, a, b, carry, sum & 1, sum > 1 ? 1 : 0]],
+      });
+      carry = sum > 1 ? 1 : 0;
+    }
+    const resultWide = wide(x + y);
+    const resultLow = low(x + y);
+    const result = signedBits(resultLow, bits);
+    const overflow = result !== x + y;
+    const doubleBits = bitsText(resultWide, wideBits);
+    const flags = `双符号位 ${doubleBits.slice(0, 2)} · ${overflow ? '溢出' : '无溢出'}`;
+    frames.push({
+      title: '加法结果与溢出',
+      summary: flags,
+      columns: ['双符号位', '低 n 位', '结果', '真值', '判定'],
+      rows: [[doubleBits.slice(0, 2), bitsText(resultLow, bits), result, x + y, overflow ? '溢出' : '无溢出']],
+      highlightRows: overflow ? [0] : [],
+    });
+    return {
+      data: { mode, x, y, bits, result, expected: x + y, binary: bitsText(resultLow, bits), doubleBits, overflow, rows },
+      frames,
+    };
+  },
+};
+
+const boothVerify: PipelineStage = {
+  id: 'verify', title: '真值核对', diagram: 'summary', inputs: ['steps'],
+  run({ upstream }) {
+    const data = upstream[0];
+    if (!data) return invalid('等待运算结果', '连接逐拍运算后核对真值。');
+    const expected = Number(data.expected);
+    const result = Number(data.result);
+    const overflow = Boolean(data.overflow);
+    const consistent = result === expected;
+    return {
+      data,
+      frames: [{
+        title: '结果核对',
+        summary: overflow ? `发生补码溢出：低 ${Number(data.bits)} 位结果 ${result}，真值 ${expected}。` : `结果 ${result} 与真值 ${expected} ${consistent ? '一致' : '不一致'}。`,
+        columns: ['项目', '值'],
+        rows: [
+          ['模式', Number(data.mode) ? 'Booth 一位乘' : '双符号位补码加减'],
+          ['二进制结果', String(data.binary)],
+          ['双符号位', String(data.doubleBits ?? '—')],
+          ['计算结果', result],
+          ['真值', expected],
+          ['核对', consistent ? '一致' : '不一致（已标记溢出）'],
+        ],
+      }],
+    };
+  },
+};
+
+export const coPipelines: Record<string, PipelineDefinition> = {
+  cacheSimLab: cache, pipelineLab: pipeline, ieee754Lab: numeric,
+  cpuDatapathLab: { stages: [datapathSource, datapathStage, datapathCycles] },
+  aluBoothLab: { stages: [boothSource, boothSteps, boothVerify] },
+};

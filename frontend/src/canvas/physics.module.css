@@ -5,6 +5,10 @@
 .row > span { flex: 0 0 auto; color: var(--ink-500, #686f61); font-size: 10px; }
 .slider { flex: 1; min-width: 0; accent-color: #ff7a59; }
 .value { flex: 0 0 auto; min-width: 42px; text-align: right; font: 10px var(--font-family-mono, monospace); font-variant-numeric: tabular-nums; color: #b8431f; }
+.num { flex: 0 0 auto; width: 52px; text-align: right; font: 10px var(--font-family-mono, monospace); font-variant-numeric: tabular-nums; color: #b8431f; background: var(--paper-0, #fff); border: 1px solid #d8d2c4; border-radius: 5px; padding: 2px 4px; }
+.num::-webkit-outer-spin-button, .num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.num { appearance: textfield; -moz-appearance: textfield; }
+.num:focus { outline: 1.5px solid #ff7a59; border-color: #ff7a59; }
 .readout { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 5px 7px; background: #ff7a590a; border-left: 2px solid #ff7a5973; font: 10px/1.7 var(--font-family-mono, monospace); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .readout b { color: #b8431f; }
 .readout i { font-style: normal; color: #6d7783; }

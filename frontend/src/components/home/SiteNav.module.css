@@ -555,55 +555,56 @@
 }
 
 /* ==========================================================================
- * 纸面准入台（v0.4）
- * 与首页 / 登录注册页共用：纸面、墨线、钴蓝与朱砂。
- * 覆盖既有外观，不改变导航结构、账号菜单语义与移动端行为。
+ * 纸面生态顶栏（与新首页 / 万象工坊 / 万象活页 / 个人主页统一）
+ * 保持导航结构、账号菜单语义（C-NAV-ACCOUNT@1）与移动端行为不变。
  * ========================================================================== */
 
 .header {
-  background: var(--paper-2);
-  border-bottom: 1px solid var(--ink-900);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  height: 68px;
+  background: rgba(243, 240, 231, 0.86);
+  border-bottom: 1px solid rgba(17, 19, 18, 0.08);
+  -webkit-backdrop-filter: saturate(150%) blur(14px);
+  backdrop-filter: saturate(150%) blur(14px);
 }
 
 .inner {
-  max-width: 1440px;
-  padding-inline: var(--layout-gutter, 40px);
+  max-width: 1280px;
+  padding-inline: clamp(20px, 3.2vw, 44px);
 }
 
 .brand {
   gap: 10px;
-  padding: 0;
-  margin-inline-start: 0;
-  border-radius: 0;
+  padding: 4px 8px 4px 4px;
+  margin-inline-start: -4px;
+  border-radius: 10px;
 }
-.brand:hover { background: transparent; }
+.brand:hover { background: rgba(17, 19, 18, 0.04); }
 .mark { filter: none; }
-.mark img { width: 26px; height: 26px; }
+.mark img { width: 28px; height: 28px; border-radius: 6px; }
 .brandText { gap: 2px; }
 .brandName {
   font-family: var(--font-family-serif);
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
-  letter-spacing: .16em;
+  letter-spacing: .12em;
+  color: #111312;
 }
 .brandLatin {
   font-size: 8.5px;
-  letter-spacing: .23em;
-  color: var(--ink-400);
+  letter-spacing: .22em;
+  color: #696c61;
 }
 
 .right { gap: 22px; }
 .nav { gap: 26px; }
 .link {
   min-height: 40px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  color: var(--ink-700);
+  color: #32362e;
 }
-.link:hover { color: var(--ink-900); }
-.link[aria-current='page'] { color: var(--ink-900); }
+.link:hover { color: #111312; }
+.link[aria-current='page'] { color: #111312; font-weight: 600; }
 .link[aria-current='page']::before { display: none; }
 .link::after {
   content: '';
@@ -611,8 +612,9 @@
   left: 0;
   right: 0;
   bottom: 7px;
-  height: 1px;
-  background: var(--color-coral);
+  height: 2px;
+  border-radius: 99px;
+  background: #de421f;
   transform: scaleX(0);
   transform-origin: right;
   transition: transform var(--motion-duration-base) var(--motion-easing-standard);
@@ -624,175 +626,188 @@
 }
 
 .uploadButton {
-  height: 38px;
+  height: 36px;
   padding: 0 14px;
-  border: 1px solid var(--ink-900);
-  border-radius: 0;
-  background: transparent;
-  color: var(--ink-900);
-  font-family: var(--font-family-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: .04em;
-  transition: background-color 160ms ease, color 160ms ease;
+  border: 1px solid rgba(17, 19, 18, 0.18);
+  border-radius: 9px;
+  background: #fffdf8;
+  color: #111312;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
 }
 .uploadButton:hover {
-  background: var(--ink-900);
-  border-color: var(--ink-900);
-  color: var(--paper-0);
+  background: #fff;
+  border-color: #111312;
+  color: #111312;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(17, 19, 18, 0.08);
 }
 
 .accountLoginLink {
-  min-height: 38px;
-  padding: 0 2px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink-700);
+  min-height: 36px;
+  padding: 0 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #32362e;
 }
-.accountLoginLink:hover { color: var(--color-coral-ink); }
+.accountLoginLink:hover { color: #2234d4; }
 
 .accountRegisterLink {
-  height: 38px;
+  height: 36px;
   padding: 0 15px;
-  border: 1px solid var(--ink-900);
-  border-radius: 0;
-  background: var(--ink-900);
-  color: var(--paper-0);
-  font-family: var(--font-family-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: .04em;
-  transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  border: 1px solid #111312;
+  border-radius: 9px;
+  background: #111312;
+  color: #fbf9f2;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: 0 4px 12px rgba(17, 19, 18, 0.14);
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 .accountRegisterLink:hover {
-  background: #1e211d;
-  border-color: #1e211d;
-  box-shadow: 3px 3px 0 var(--color-coral);
-  transform: translate(-1px, -1px);
+  background: #111b5e;
+  border-color: #111b5e;
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(17, 27, 94, 0.22);
+  transform: translateY(-1px);
 }
 
 .accountButton {
-  height: 38px;
-  border: 1px solid var(--ink-900);
-  border-radius: 0;
-  background: transparent;
-  font-weight: 500;
+  height: 36px;
+  padding: 0 12px 0 4px;
+  border: 1px solid rgba(17, 19, 18, 0.16);
+  border-radius: 999px;
+  background: #fffdf8;
+  color: #111312;
+  font-weight: 600;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
-.accountButton:hover { border-color: var(--color-coral); }
+.accountButton:hover {
+  border-color: #111312;
+  box-shadow: 0 4px 12px rgba(17, 19, 18, 0.08);
+}
 
 .accountMenu {
-  border: 1px solid var(--ink-900);
-  border-radius: 0;
-  background: var(--paper-0);
-  box-shadow: 6px 6px 0 rgba(222, 66, 31, .82);
+  border: 1px solid rgba(17, 19, 18, 0.12);
+  border-radius: 14px;
+  padding: 6px;
+  background: #fffdf8;
+  box-shadow: 0 16px 40px rgba(17, 19, 18, 0.14);
 }
 .accountMenuItem {
-  border-radius: 0;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
 }
 .accountMenuItem:hover:not(:disabled) {
-  background: var(--paper-3);
-  color: var(--ink-900);
+  background: #f3f0e7;
+  color: #111312;
 }
 .accountNotice {
-  border: 1px solid var(--ink-900);
-  border-radius: 0;
-  background: var(--paper-0);
-  box-shadow: 3px 3px 0 var(--color-coral);
+  border: 1px solid rgba(17, 19, 18, 0.14);
+  border-radius: 10px;
+  background: #fffdf8;
+  box-shadow: 0 10px 24px rgba(17, 19, 18, 0.1);
 }
 
 .menuButton {
   width: 38px;
   height: 38px;
-  border: 1px solid var(--ink-900);
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid rgba(17, 19, 18, 0.16);
+  border-radius: 9px;
+  background: #fffdf8;
 }
-.menuButton:hover { background: var(--paper-3); }
+.menuButton:hover { background: #fff; border-color: #111312; }
 
 .panel {
-  background: var(--paper-0);
-  border-bottom: 1px solid var(--ink-900);
-  box-shadow: none;
+  top: 68px;
+  background: rgba(255, 253, 248, 0.96);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(17, 19, 18, 0.1);
+  box-shadow: 0 18px 40px rgba(17, 19, 18, 0.1);
 }
 .panelLink {
-  border-radius: 0;
+  border-radius: 10px;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
-.panelLink:hover { background: var(--paper-3); }
+.panelLink:hover { background: #f3f0e7; }
 .panelLink[aria-current='page'] {
-  background: var(--ink-900);
-  color: var(--paper-0);
+  background: #111312;
+  color: #fbf9f2;
 }
 .panelUpload {
-  border: 1px solid var(--ink-900);
-  border-radius: 0;
-  background: transparent;
-  color: var(--ink-900);
-  font-family: var(--font-family-mono);
-  font-size: 11px;
-  letter-spacing: .04em;
+  border: 1px solid rgba(17, 19, 18, 0.18);
+  border-radius: 10px;
+  background: #fff;
+  color: #111312;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
 }
 .panelAccountLink {
-  border-radius: 0;
+  border-radius: 10px;
   font-size: 14px;
 }
 .panelAccountRegister {
-  border-radius: 0;
-  background: var(--ink-900);
-  color: var(--paper-0);
+  border-radius: 10px;
+  background: #111312;
+  color: #fbf9f2;
   font-size: 14px;
+  font-weight: 600;
 }
 .panelAccountMenu {
-  border: 1px solid var(--ink-900);
-  border-radius: 0;
-  background: var(--paper-1);
+  border: 1px solid rgba(17, 19, 18, 0.12);
+  border-radius: 12px;
+  background: #fbf9f2;
 }
 
 .header a:focus-visible,
 .header button:focus-visible {
-  outline: 2px solid var(--color-indigo);
-  outline-offset: 3px;
+  outline: 2px solid #2234d4;
+  outline-offset: 2px;
 }
 
-/* studio 外观合并到同一套纸面语言，不再保留绿色变体。 */
+/* studio 外观完全统一为同一套宣纸毛玻璃顶栏 */
 .header[data-appearance='studio'] {
-  --color-indigo: #1c2ecb;
-  --color-indigo-strong: #101a63;
-  --color-indigo-soft: #e8e9f8;
-  --color-indigo-softer: #f2f2fa;
+  --color-indigo: #2234d4;
+  --color-indigo-strong: #111b5e;
   --color-coral: #de421f;
-  --hairline: #d8d3c4;
-  --hairline-strong: #c5c0b0;
-  --ink-900: #101211;
-  --ink-700: #34372f;
-  --ink-400: #7f8175;
-  height: 72px;
-  background: var(--paper-2);
+  --hairline: rgba(17, 19, 18, 0.08);
+  --hairline-strong: rgba(17, 19, 18, 0.18);
+  --ink-900: #111312;
+  --ink-700: #32362e;
+  --ink-400: #696c61;
+  height: 68px;
+  background: rgba(243, 240, 231, 0.86);
   font-family: var(--font-family-sans);
 }
-.header[data-appearance='studio'] .inner { max-width: 1440px; padding-inline: var(--layout-gutter, 40px); }
+.header[data-appearance='studio'] .inner { max-width: 1280px; padding-inline: clamp(20px, 3.2vw, 44px); }
 .header[data-appearance='studio'] .brand { gap: 10px; }
-.header[data-appearance='studio'] .brandName { font-family: var(--font-family-serif); letter-spacing: .16em; }
-.header[data-appearance='studio'] .brandLatin { font-size: 8.5px; letter-spacing: .23em; }
-.header[data-appearance='studio'] .link { font-size: 13px; font-weight: 500; }
-.header[data-appearance='studio'] .uploadButton { height: 38px; border-radius: 0; background: transparent; }
+.header[data-appearance='studio'] .brandName { font-family: var(--font-family-serif); letter-spacing: .12em; }
+.header[data-appearance='studio'] .brandLatin { font-size: 8.5px; letter-spacing: .22em; }
+.header[data-appearance='studio'] .link { font-size: 14px; font-weight: 500; }
+.header[data-appearance='studio'] .link[aria-current='page'] { font-weight: 600; }
+.header[data-appearance='studio'] .uploadButton { height: 36px; border-radius: 9px; background: #fffdf8; }
 .header[data-appearance='studio'] .accountRegisterLink {
-  height: 38px;
+  height: 36px;
   padding-inline: 15px;
-  border: 1px solid var(--ink-900);
-  border-radius: 0;
-  background: var(--ink-900);
-  color: var(--paper-0);
-  font-family: var(--font-family-mono);
-  font-size: 10.5px;
-  letter-spacing: .04em;
+  border: 1px solid #111312;
+  border-radius: 9px;
+  background: #111312;
+  color: #fbf9f2;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
 }
-.header[data-appearance='studio'] .accountRegisterLink:hover { background: #1e211d; }
-.header[data-appearance='studio'] .panel { top: 72px; background: var(--paper-0); }
-.header[data-appearance='studio'] .menuButton { background: transparent; border-radius: 0; }
+.header[data-appearance='studio'] .accountRegisterLink:hover { background: #111b5e; border-color: #111b5e; }
+.header[data-appearance='studio'] .panel { top: 68px; background: rgba(255, 253, 248, 0.96); }
+.header[data-appearance='studio'] .menuButton { background: #fffdf8; border-radius: 9px; }
 
 @media (max-width: 1050px) {
   .nav { gap: 18px; }
@@ -803,7 +818,7 @@
   .header { height: 64px; }
   .inner { padding-inline: 20px; }
   .panel { top: 64px; }
-  .brandName { font-size: 19px; }
+  .brandName { font-size: 18px; }
   .header[data-appearance='studio'] { height: 64px; }
   .header[data-appearance='studio'] .panel { top: 64px; }
 }

@@ -15,10 +15,55 @@ import type { ScienceResult } from './sciencePipelineTypes.ts';
 
 export interface DatasetPoint { x: number; y: number; label: number; split: 'train' | 'validation' }
 
+export interface RuleControlSpec {
+  key: string;
+  label: string;
+  value: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: { value: number; label: string }[];
+}
+
+export interface RulePreset {
+  label: string;
+  text?: string;
+  params: Record<string, number>;
+}
+
 export type PortValue =
   | { kind: 'lab408Data'; pipeline: string; stage: string; result: PipelineResult; error?: string }
   | { kind: 'physicsData'; pipeline: string; stage: string; result: ScienceResult; error?: string }
   | { kind: 'calculusData'; pipeline: string; stage: string; result: ScienceResult; error?: string }
+  | { kind: 'businessData'; pipeline: string; stage: string; result: ScienceResult; error?: string }
+  | {
+      kind: 'series';
+      title: string;
+      unit?: string;
+      labels: string[];
+      values: number[];
+      secondary?: { name: string; values: number[] }[];
+    }
+  | {
+      kind: 'field2d';
+      mode: 'electric' | 'magnetic' | 'optics';
+      sources: Array<{ kind: string; x: number; y: number; strength: number; radius?: number }>;
+    }
+  | {
+      kind: 'algoData';
+      mode: 'array' | 'graph' | 'addrStream';
+      values?: number[];
+      edges?: Array<{ u: string; v: string; w: number }>;
+      addresses?: number[];
+    }
+  | {
+      kind: 'customFrames';
+      title: string;
+      controls: RuleControlSpec[];
+      result: PipelineResult;
+      error?: string;
+      elapsedMs?: number;
+    }
   | { kind: 'tensor2d'; data: number[][] }
   | { kind: 'dataset2d'; points: DatasetPoint[]; featureMap?: 'linear' | 'quadratic' }
   | { kind: 'function'; expression: string; a: number; b: number; c: number }
@@ -42,6 +87,8 @@ export type NodeType =
   | 'functionSource' | 'functionPlot' | 'limitProbe' | 'derivative' | 'integral' | 'taylor'
   // 高数进阶：变上限积分、傅里叶、斜率场/ODE、二元函数与二重积分
   | 'ftcView' | 'fourierLab' | 'odeSlopeField' | 'func2dSource' | 'gradientContour' | 'doubleIntegralView'
+  // 高数/线代自由组合扩展：函数复合、SVD 分解、线性方程组、概率分布
+  | 'funcCombineOp' | 'svdDecomposeOp' | 'linearSolveView' | 'probDistSource'
   // 源：只有输出
   | 'matrixSource'   // 矩阵源（可编辑 2×2 → 广播 matrix2）
   | 'slider'         // 滑杆源（标量）
@@ -76,10 +123,13 @@ export type NodeType =
   | 'cacheSplit'     // Cache 地址 tag/index/offset 划分
   | 'pageReplace'    // FIFO / LRU / OPT 页面置换
   | 'ipSubnet'       // IPv4 子网划分
+  | 'arraySource' | 'sortCompareView' | 'graphSource' | 'shortestPathView'
+  | 'memAddrSource' | 'addrTranslateView' | 'cacheMapView'
   | 'lab408Workbench' // 408 全题型工作台：科目 → 题型 → 原文 → 本地内核
   | 'lab408Stage'     // 408 数据流模块，payload 指向管线和环节
   | 'physicsStage'    // 大学物理数据流模块
   | 'calculusStage'   // 高等数学数据流模块
+  | 'businessStage'   // 办公决策数据流模块
   | 'cacheSimLab'     // Cache 组相联访存步进仿真
   | 'pipelineLab'     // 5 级流水线时空图与冲突
   | 'ieee754Lab'      // IEEE754 位段解码
@@ -94,7 +144,15 @@ export type NodeType =
   | 'portOut'        // 积木内部：出口边界节点
   // 自包含仿真（活页建议/AI 设计物化而来）：数据载荷在 payload JSON 中
   | 'attentionSim'   // 注意力教学实验（query/温度/因果掩码 → 权重表）
-  | 'pageLabSim';    // AI 交互模型（page_lab 程序 + 滑块组）
+  | 'pageLabSim'     // AI 交互模型（page_lab 程序 + 滑块组）
+  // AI 创造引擎：自然语言规则方块 + 通用多形态舞台
+  | 'aiRuleBlock' | 'universalStageView'
+  // 深度学习现代机制：损失对比、LoRA、量化、LLM 采样
+  | 'lossProbeOp' | 'loraAdapterOp' | 'quantProbeOp' | 'samplingDecoderView'
+  // 办公决策：业务表格、增长曲线、情景分叉、折现、加权决策、瀑布 KPI
+  | 'bizTableSource' | 'bizGrowthSource' | 'bizScenarioFork' | 'bizDiscountOp' | 'bizDecisionMatrix' | 'bizWaterfallView'
+  // 大学物理扩展：场源、场视图、RLC、光学台、热机循环
+  | 'emFieldSource' | 'emFieldView' | 'rlcCircuitLab' | 'opticsBench' | 'thermoCycle';
 
 export interface PortSpec {
   id: string;
@@ -123,6 +181,9 @@ export interface CanvasNode {
   type: NodeType;
   x: number;
   y: number;
+  /** 自定义卡片尺寸：右下角拖出的宽/高；缺省时宽取类型默认值、高随内容自适应 */
+  w?: number;
+  h?: number;
   /** 节点自身参数（矩阵元素、滑杆值、周期、开关……） */
   params: Record<string, number>;
   /** 便签 / 公式源文本 / 积木名 */

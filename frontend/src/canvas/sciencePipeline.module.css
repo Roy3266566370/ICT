@@ -214,3 +214,7 @@
   color: var(--color-warn);
   font-weight: var(--font-weight-bold);
 }
+.scene[data-scene-probe] { touch-action: none; cursor: crosshair; }
+.scene [data-probe-handle] { cursor: grab; }
+.scene [data-probe-handle]:active { cursor: grabbing; }
+.probeLabel { font-family: var(--font-mono, Consolas, monospace); font-variant-numeric: tabular-nums; }

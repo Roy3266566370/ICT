@@ -39,7 +39,7 @@ function ParamSelect({ label, value, options, suffix, onChange }: {
   </label>;
 }
 
-export function DsTraversalBody({ node, onParams }: NodeBodyProps): JSX.Element {
+export function DsTraversalBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
   const order = Math.max(0, Math.min(3, Math.round(node.params.order ?? 0)));
   const player = dsTraversalFrames(order, TREE_IDS);
   const total = player.frames.length;
@@ -51,9 +51,9 @@ export function DsTraversalBody({ node, onParams }: NodeBodyProps): JSX.Element 
   const visits = new Map((frame?.visited ?? []).map((id, position) => [id, position + 1]));
   const positions = new Map(TREE_VISUALS.map(item => [item.id, item]));
   return <div data-lab408="dsTraversal">
-    <div className={styles.presets}>
+    {!inCard && <div className={styles.presets}>
       {TRAVERSAL_LABELS.map((label, position) => <button key={label} type="button" aria-pressed={order === position} onClick={() => onParams?.({ order: position })}>{label}</button>)}
-    </div>
+    </div>}
     <svg className={styles.objSvg} viewBox="0 0 200 118" role="img" aria-label={`二叉树${TRAVERSAL_LABELS[order]}遍历`}>
       {TREE_EDGES.map(([from, to]) => {
         const a = positions.get(from), b = positions.get(to);
@@ -76,19 +76,19 @@ export function DsTraversalBody({ node, onParams }: NodeBodyProps): JSX.Element 
   </div>;
 }
 
-export function CacheSplitBody({ node, onParams }: NodeBodyProps): JSX.Element {
+export function CacheSplitBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
   const addrBits = Math.round(node.params.addrBits ?? 32);
   const blockBytes = Math.round(node.params.blockBytes ?? 64);
   const cacheKB = Math.round(node.params.cacheKB ?? 64);
   const ways = Math.round(node.params.ways ?? 4);
   const result = cacheSplit(addrBits, blockBytes, cacheKB, ways);
   return <div>
-    <div className={styles.fieldGrid}>
+    {!inCard && <div className={styles.fieldGrid}>
       <ParamSelect label="地址位数" value={addrBits} options={ADDRESS_BITS} suffix=" 位" onChange={value => onParams?.({ addrBits: value })} />
       <ParamSelect label="块大小" value={blockBytes} options={BLOCK_BYTES} suffix=" B" onChange={value => onParams?.({ blockBytes: value })} />
       <ParamSelect label="Cache 容量" value={cacheKB} options={CACHE_KB} suffix=" KB" onChange={value => onParams?.({ cacheKB: value })} />
       <ParamSelect label="相联路数" value={ways} options={WAYS} suffix=" 路" onChange={value => onParams?.({ ways: value })} />
-    </div>
+    </div>}
     {result.valid ? <>
       <div className={styles.segBar} aria-label="Cache 地址位段划分">
         {result.tag > 0 ? <span style={{ flex: result.tag, background: '#4F46E5' }}>tag {result.tag}</span> : null}
@@ -107,7 +107,7 @@ export function CacheSplitBody({ node, onParams }: NodeBodyProps): JSX.Element {
   </div>;
 }
 
-export function PageReplaceBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function PageReplaceBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const algorithm = Math.max(0, Math.min(2, Math.round(node.params.algorithm ?? 0)));
   const capacity = Math.max(1, Math.min(4, Math.round(node.params.capacity ?? 3)));
   const reference = parseReference(node.text);
@@ -131,7 +131,7 @@ export function PageReplaceBody({ node, onParams, onText }: NodeBodyProps): JSX.
       ? 'LRU 属栈式算法，增加物理块不会让缺页次数增加。'
       : 'OPT 预知未来访问，是缺页次数的理论下界。';
   return <div data-lab408="pageReplace">
-    <div className={styles.pageControls}>
+    {!inCard && <div className={styles.pageControls}>
       <div className={styles.presets}>
         {PAGE_ALGORITHMS.map((label, position) => <button key={label} type="button" aria-pressed={algorithm === position} onClick={() => onParams?.({ algorithm: position })}>{label}</button>)}
       </div>
@@ -140,7 +140,7 @@ export function PageReplaceBody({ node, onParams, onText }: NodeBodyProps): JSX.
           {[1, 2, 3, 4].map(value => <option key={value} value={value}>{value}</option>)}
         </select>
       </label>
-    </div>
+    </div>}
     <label className={styles.inlineField}>访问序列
       <input
         className={styles.sequenceInput}
@@ -181,16 +181,16 @@ export function PageReplaceBody({ node, onParams, onText }: NodeBodyProps): JSX.
   </div>;
 }
 
-export function IpSubnetBody({ node, onParams }: NodeBodyProps): JSX.Element {
+export function IpSubnetBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
   const bits = subnetBits(node.params.prefix ?? 26, node.params.index ?? 0);
   const info = bits.info;
   return <div data-lab408="ipSubnet">
-    <div className={styles.fieldGrid}>
+    {!inCard && <div className={styles.fieldGrid}>
       <ParamSelect label="前缀长度" value={info.prefix} options={[24, 25, 26, 27, 28, 29, 30]} suffix="" onChange={value => onParams?.({ prefix: value, index: Math.min(info.index, 2 ** (value - 24) - 1) })} />
       <label className={styles.inlineField}>子网序号 {info.index + 1}/{info.count}
         <input type="range" className={styles.slider} min={0} max={info.count - 1} step={1} value={info.index} aria-label="子网序号" onChange={event => onParams?.({ index: Number(event.target.value) })} />
       </label>
-    </div>
+    </div>}
     <div className={styles.miniRead}>按位划分掩码 <b className={styles.mono} data-readout="maskBinary">{bits.maskBinary}</b></div>
     <div className={styles.miniRead}>网络地址二进制 <b className={styles.mono} data-readout="networkBinary">{bits.networkBinary}</b></div>
     <div className={styles.miniRead}>广播地址二进制 <b className={styles.mono} data-readout="broadcastBinary">{bits.broadcastBinary}</b></div>

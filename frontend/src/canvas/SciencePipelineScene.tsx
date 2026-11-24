@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Timeline } from './Lab408SimNodes.tsx';
 import type { PipelineControl } from './lab408PipelineTypes.ts';
 import type { CanvasNode } from './types.ts';
@@ -35,21 +35,63 @@ function PrimitiveLabel({ x, y, text, color }: {
   return <text x={x} y={y} fill={color ?? INK} fontSize="11" className={styles.sceneLabel}>{text}</text>;
 }
 
-export function SciencePipelineScene({ scene }: { scene: ScienceScene }): JSX.Element {
+interface SceneProbe {
+  point: { x: number; y: number };
+  text: string;
+  onMove: (x: number, y: number) => void;
+}
+
+export function SciencePipelineScene({ scene, probe, ghost, crop, xDomain, showPathLabels = true }: {
+  scene: ScienceScene; probe?: SceneProbe; ghost?: ScienceScene['paths']; crop?: { x: number; y: number };
+  xDomain?: readonly number[]; showPathLabels?: boolean;
+}): JSX.Element {
   const instanceId = useId().replace(/:/g, '');
-  const gridId = `science-grid-${instanceId}`;
+  const gridId = 'science-grid-' + instanceId;
+  const plotId = 'science-plot-' + instanceId;
+  const drag = useRef<SceneProbe['onMove']>();
+  const cropX = crop ? Math.max(0, Math.min(260, crop.x - 70)) : 0;
+  const cropY = crop ? Math.max(0, Math.min(160, crop.y - 40)) : 0;
+  const diagramWidth = crop ? 140 : 400;
+  const diagramHeight = crop ? 80 : 240;
+  const labelX = probe ? Math.max(6, Math.min(280, probe.point.x > 244 ? probe.point.x - 124 : probe.point.x + 16)) : 0;
+  const labelY = probe ? Math.max(26, Math.min(202, probe.point.y > 46 ? probe.point.y - 34 : probe.point.y + 14)) : 0;
+  const pointAt = (svg: SVGSVGElement, x: number, y: number) => {
+    const matrix = svg.getScreenCTM();
+    return matrix ? new DOMPoint(x, y).matrixTransform(matrix.inverse()) : null;
+  };
   return (
-    <svg className={styles.scene} viewBox="0 0 400 240" role="img" aria-label={scene.ariaLabel}>
+    <svg className={styles.scene} viewBox={[cropX, cropY, diagramWidth, diagramHeight].join(' ')}
+      role="img" aria-label={scene.ariaLabel} data-scene-probe={probe ? '' : undefined}
+      aria-description={probe ? '左右拖动图中探针，或使用控制舱调整对应参数' : undefined}
+      onPointerDown={probe && ((e) => {
+        if (e.button !== 0) return;
+        const point = pointAt(e.currentTarget, e.clientX, e.clientY);
+        if (!point) return;
+        drag.current = probe.onMove;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        if ((e.target as Element).closest('[data-probe-handle]')) return;
+        drag.current(point.x, point.y);
+      })}
+      onPointerMove={probe && ((e) => {
+        if (!drag.current || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+        const point = pointAt(e.currentTarget, e.clientX, e.clientY);
+        if (point) drag.current(point.x, point.y);
+      })}
+      onLostPointerCapture={() => { drag.current = undefined; }}>
       <defs>
         <pattern id={gridId} width="20" height="20" patternUnits="userSpaceOnUse">
           <path d="M20 0H0V20" className={styles.gridLine} />
         </pattern>
+        <clipPath id={plotId}><rect width="400" height="240" /></clipPath>
       </defs>
       {scene.grid ? <rect width="400" height="240" fill={`url(#${gridId})`} /> : null}
       {scene.axes ? <g className={styles.axisLine}>
         <path d="M28 12V212H388" />
         <path d="M24 20L28 12L32 20M380 208L388 212L380 216" />
       </g> : null}
+      <g clipPath={'url(#' + plotId + ')'}>
+      {ghost?.map((path, index) => <polyline key={index} points={path.points.map(([x, y]) => x + ',' + y).join(' ')}
+        fill="none" stroke={path.stroke ?? INDIGO} strokeWidth="1.5" strokeDasharray="4 4" opacity=".42" />)}
       {scene.rects?.map((rect, index) => {
         if (!allFinite(rect.x, rect.y, rect.width, rect.height)) return null;
         return <g key={`rect-${index}`}>
@@ -78,7 +120,7 @@ export function SciencePipelineScene({ scene }: { scene: ScienceScene }): JSX.El
           <path d={data} fill={path.fill ?? 'none'} stroke={path.stroke ?? INDIGO}
             strokeWidth={validNumber(path.strokeWidth, 2)} strokeDasharray={path.dashed ? '6 4' : undefined}
             strokeLinecap="round" strokeLinejoin="round" />
-          {last ? <PrimitiveLabel x={last[0] + 5} y={last[1] - 5} text={path.label} color={path.stroke} /> : null}
+          {last && showPathLabels ? <PrimitiveLabel x={last[0] + 5} y={last[1] - 5} text={path.label} color={path.stroke} /> : null}
         </g>;
       })}
       {scene.vectors?.map((vector, index) => {
@@ -112,6 +154,16 @@ export function SciencePipelineScene({ scene }: { scene: ScienceScene }): JSX.El
       {scene.labels?.map((label, index) => allFinite(label.x, label.y) ? <text key={`label-${index}`}
         x={label.x} y={label.y} fill={label.color ?? INK} fontSize={validNumber(label.size, 12)}
         textAnchor={label.anchor ?? 'start'} className={styles.sceneLabel}>{label.text}</text> : null)}
+      </g>
+      {xDomain?.length === 2 && [0, .25, .5, .75, 1].map((t) => <text key={t} x={35 + 345 * t} y="226" textAnchor="middle"
+        fontSize="8" fill={MUTED} className={styles.probeLabel}>{Number((xDomain[0]! + (xDomain[1]! - xDomain[0]!) * t).toPrecision(3))}</text>)}
+      {probe && <g data-probe-handle>
+        <line x1={probe.point.x} y1="27" x2={probe.point.x} y2="212" stroke="#ea580c" strokeWidth="1" strokeDasharray="4 4" opacity=".65" />
+        <line x1={probe.point.x} y1={probe.point.y} x2={labelX + 54} y2={labelY + 11} stroke="#ea580c" strokeWidth="1.2" />
+        <circle cx={probe.point.x} cy={probe.point.y} r="5" fill="#ea580c" stroke="#fff" strokeWidth="1.5" />
+        <rect x={labelX} y={labelY} width="110" height="22" rx="5" fill="#fff7ed" stroke="#fed7aa" />
+        <text x={labelX + 55} y={labelY + 14.5} textAnchor="middle" fontSize="9.5" fill="#9a3412" className={styles.probeLabel}>{probe.text}</text>
+      </g>}
     </svg>
   );
 }
@@ -256,7 +308,7 @@ export interface ScienceStagePanelProps {
   onParams?: (patch: Record<string, number>) => void;
   onText?: (text: string) => void;
   timeline?: { step: number; last: number; onStep: (step: number) => void };
-  subject: 'physics' | 'calculus';
+  subject: 'physics' | 'calculus' | 'business';
 }
 
 export function ScienceStagePanel(props: ScienceStagePanelProps): JSX.Element {

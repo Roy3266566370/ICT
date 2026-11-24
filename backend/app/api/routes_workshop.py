@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -19,7 +20,7 @@ from sqlalchemy import select
 
 from ..db.models import WorkshopShareRecord, WorkshopWorkRecord
 from ..schemas.common import iso_after, to_iso, utc_now
-from ..schemas.errors import missing_field, resource_unavailable, version_conflict
+from ..schemas.errors import missing_field, model_unavailable, resource_unavailable, version_conflict
 from ..settings import get_settings
 from . import API_PREFIX, DBDep, SessionDep, WriteDep, ok
 
@@ -35,6 +36,13 @@ class PatchWorkRequest(BaseModel):
     expected_revision: int = Field(ge=1)
     title: str | None = Field(default=None, max_length=120)
     document: dict[str, Any] | None = None
+
+
+class AiRuleRequest(BaseModel):
+    prompt: str = Field(min_length=4, max_length=2000)
+    current_payload: dict[str, Any] | None = None
+    last_error: str | None = Field(default=None, max_length=1200)
+    upstream_hints: list[str] = Field(default_factory=list, max_length=8)
 
 
 def _owned(db: Any, ctx: Any, work_id: str) -> WorkshopWorkRecord:
@@ -235,6 +243,29 @@ def revoke_share(share_id: str, request: Request, ctx: WriteDep, db: DBDep) -> J
     from . import empty
 
     return empty(request)  # type: ignore[return-value]
+
+
+@router.post("/workshop/ai-rule-block", summary="自然语言生成 AI 智能计算方块")
+def ai_rule_block(payload: AiRuleRequest, request: Request, _ctx: WriteDep) -> JSONResponse:
+    from ..workshop.ai_rule import AiRuleUnavailable, generate_ai_rule
+
+    if payload.current_payload is not None:
+        try:
+            size = len(json.dumps(payload.current_payload, ensure_ascii=False, allow_nan=False))
+        except (TypeError, ValueError) as exc:
+            raise missing_field("当前规则载荷包含不可序列化数值") from exc
+        if size > 60000:
+            raise missing_field("当前规则载荷过大，请先精简代码或参数")
+    try:
+        result = generate_ai_rule(
+            payload.prompt,
+            current_payload=payload.current_payload,
+            last_error=payload.last_error,
+            upstream_hints=payload.upstream_hints,
+        )
+    except AiRuleUnavailable as exc:
+        raise model_unavailable(str(exc)) from exc
+    return ok(request, result)
 
 
 __all__ = ["router"]

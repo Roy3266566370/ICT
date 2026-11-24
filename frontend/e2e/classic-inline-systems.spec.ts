@@ -15,7 +15,7 @@ test('样例 P02、P23 原位流程图和真实 AI 时间轴演示',async({page,
  const changes=doc.pages.filter((p:any)=>[2,23].includes(p.page_no)).flatMap((p:any)=>p.nodes.filter((n:any)=>['diagram','demo'].includes(n.type)&&!n.deleted).map((n:any)=>({page_no:p.page_no,id:n.id,patch:{deleted:true}})));
  if(changes.length){const cleared=await context.request.patch(`/api/v1/materials/${material}/document`,{headers:{'X-CSRF-Token':session.csrf_token},data:{expected_revision:doc.revision,operation_id:`stage4-clean-${Date.now()}`,changes}});expect(cleared.ok()).toBeTruthy();}
  await page.goto(`/materials/${material}/work`);
- await page.getByRole('link',{name:'编辑内容 / 交互',exact:true}).click();
+ await page.getByRole('button',{name:'编辑课件',exact:true}).click();
  const editor=page.locator('[data-free-editor]');
  const props=editor.getByLabel('对象属性');
  for(const no of [2,23]){
@@ -77,13 +77,14 @@ test('样例 P02、P23 原位流程图和真实 AI 时间轴演示',async({page,
    }
   }
  }
- await editor.getByRole('button',{name:'保存并返回演示',exact:true}).click();
+ await expect(editor.getByText('已保存到服务端', {exact: true})).toBeVisible();
+ await page.getByRole('button',{name:'互动预览',exact:true}).click();
  await expect(page).toHaveURL(/\/work/);await page.reload();
  for(const no of [2,23]){
   await page.getByRole('button',{name:new RegExp(`^第 ${no} 页：`)}).click();
   const slide=page.getByLabel(`幻灯片第 ${no} 页`,{exact:true});
   await expect(slide.locator('[data-scene-demo]')).toHaveCount(1);
-  await page.getByRole('button',{name:/开始演示/}).click();
+  await page.getByRole('button',{name:'全屏放映'}).click();
   const diagram=slide.locator('[data-scene-diagram]');const demo=slide.locator('[data-scene-demo]');
   await expect(diagram.getByLabel('流程图画布')).toHaveAttribute('data-flow','true');
   await diagram.locator('.react-flow__node').first().click();
@@ -97,14 +98,14 @@ test('样例 P02、P23 原位流程图和真实 AI 时间轴演示',async({page,
   const range=demo.locator('fieldset input[type=range]').first();
   if(await range.count())await range.fill((await range.getAttribute('min'))!);
   await page.screenshot({path:info.outputPath(`p${no}-fullscreen.png`)});
-  await slide.getByRole('button',{name:'一键重置',exact:true}).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'一键重置',exact:true}).click();
   await expect(demo.getByLabel('演示进度')).toHaveValue('0');
   await page.getByRole('button',{name:'查看原图',exact:true}).click();await expect(demo).toBeHidden();
   await page.getByRole('button',{name:'显示可操作图形',exact:true}).click();await expect(demo).toBeVisible();
-  await page.getByRole('button',{name:'退出演示',exact:true}).click();
  }
  // Reopen the saved P23 and exercise authoring on the same persisted node.
- await page.getByRole('link',{name:'编辑内容 / 交互',exact:true}).click();
+ await page.getByRole('button',{name:'编辑课件',exact:true}).click();
  await editor.getByRole('button',{name:'编辑第 23 页',exact:true}).click();
  const frame=editor.getByLabel('可编辑画布第 23 页',{exact:true}).locator('[data-scene-demo]');
  await frame.click();
@@ -126,12 +127,14 @@ test('样例 P02、P23 原位流程图和真实 AI 时间轴演示',async({page,
  await info.attach('p23-regenerated-lab',{body:JSON.stringify(regeneratedPayload,null,2),contentType:'application/json'});
  await expect(props.getByRole('button',{name:'重新生成演示',exact:true})).toBeEnabled({timeout:20000});
  await props.getByLabel('允许观众调节参数',{exact:true}).uncheck();
- await editor.getByRole('button',{name:'保存并返回演示',exact:true}).click();await expect(page).toHaveURL(/\/work/);await page.reload();
+ await expect(editor.getByText('已保存到服务端', {exact: true})).toBeVisible();
+ await page.getByRole('button',{name:'互动预览',exact:true}).click();await expect(page).toHaveURL(/\/work/);await page.reload();
  const readonlyDemo=page.getByLabel('幻灯片第 23 页',{exact:true}).locator('[data-scene-demo]');
  await expect(readonlyDemo.locator('fieldset input[type=range]').first()).toBeDisabled();
  await readonlyDemo.getByRole('button',{name:'下一步',exact:true}).click();
  await expect(readonlyDemo.getByLabel('演示进度')).not.toHaveValue('0');
- await page.getByRole('link',{name:'编辑内容 / 交互',exact:true}).click();
+ await page.getByRole('button',{name:'编辑课件',exact:true}).click();
  await frame.click();await props.getByLabel('允许观众调节参数',{exact:true}).check();
- await editor.getByRole('button',{name:'保存并返回演示',exact:true}).click();await expect(page).toHaveURL(/\/work/);
+ await expect(editor.getByText('已保存到服务端', {exact: true})).toBeVisible();
+ await page.getByRole('button',{name:'互动预览',exact:true}).click();await expect(page).toHaveURL(/\/work/);
 });

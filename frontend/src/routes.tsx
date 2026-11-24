@@ -1,18 +1,8 @@
 /**
  * routes.tsx —— 路由表（懒加载 + 骨架占位）
- *
- * 路由约定（§3.1 T3/T4）：
- *  - `/`             首页（T3）
- *  - `/examples`     场景示例大厅（T3）
- *  - `/space`        个人空间（T3）
- *  - `/materials/:materialId/prepare`  准备页（T4）
- *  - `/materials/:materialId/work?view=source|interactive|runs`  工作台（T4）
- *
- * 加载函数集中在 `components/navigation/routePrefetch.ts`，
- * 导航悬停/聚焦时复用它预取，避免重复打包与重复下载。
  */
 import { lazy, Suspense, type ReactElement } from 'react';
-import { createBrowserRouter, Outlet, useLocation, type RouteObject } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, useLocation, useParams, type RouteObject } from 'react-router-dom';
 import { RouteSkeleton } from './components/navigation/RouteSkeleton';
 import { routeLoaders } from './components/navigation/routePrefetch';
 
@@ -23,12 +13,8 @@ const ExampleDemoPage = lazy(routeLoaders.exampleDemo);
 const SpacePage = lazy(routeLoaders.space);
 const SettingsProfilePage = lazy(routeLoaders.settings);
 const SharePage = lazy(routeLoaders.share);
-const LabPage = lazy(routeLoaders.labs);
-const LabWorkbenchPage = lazy(routeLoaders.labWorkbench);
-const LabSharePage = lazy(routeLoaders.labShare);
 const PreparePage = lazy(routeLoaders.prepare);
 const MaterialDeckPage = lazy(routeLoaders.workbench);
-const FreeEditPage = lazy(routeLoaders.freeEdit);
 const PptAiPage = lazy(routeLoaders.pptAi);
 const LivingPagesPage = lazy(routeLoaders.living);
 const WorkshopPage = lazy(routeLoaders.workshop);
@@ -40,12 +26,11 @@ const TrustDemoPage = lazy(routeLoaders.trustDemo);
 /** 路由级加载占位：阅读器与通用页两种骨架，尺寸贴近真实布局。 */
 function PageFallback(): ReactElement {
   const location = useLocation();
-  const reader = /\/materials\/[^/]+\/(work|edit)$/.test(location.pathname) ||
-    /\/labs\/[^/]+$/.test(location.pathname);
+  const reader = /\/materials\/[^/]+\/(work|edit)$/.test(location.pathname);
   return <RouteSkeleton variant={reader ? 'reader' : 'page'} />;
 }
 
-/** 应用骨架：只提供跳转链接与 Outlet，全局导航由 T3 的 SiteNav 负责。 */
+/** 应用骨架：只提供跳转链接与 Outlet，全局导航由 SiteNav 负责。 */
 function RootLayout(): ReactElement {
   return (
     <>
@@ -73,6 +58,13 @@ function NotFoundPage(): ReactElement {
   );
 }
 
+function LegacyEditRedirect(): ReactElement {
+  const {materialId = ''} = useParams();
+  const search = new URLSearchParams(useLocation().search);
+  search.set('mode', 'edit');
+  return <Navigate to={`/materials/${encodeURIComponent(materialId)}/work?${search}`} replace />;
+}
+
 export const routes: RouteObject[] = [
   {
     path: '/',
@@ -87,15 +79,15 @@ export const routes: RouteObject[] = [
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: 'trust-demo', element: <TrustDemoPage /> },
-      { path: 'labs', element: <LabPage /> },
-      { path: 'labs/:labId', element: <LabWorkbenchPage /> },
-      { path: 'lab-share/:shareId', element: <LabSharePage /> },
+      { path: 'labs', element: <Navigate to="/workshop" replace /> },
+      { path: 'labs/*', element: <Navigate to="/workshop" replace /> },
+      { path: 'lab-share/*', element: <Navigate to="/workshop" replace /> },
       { path: 'living', element: <LivingPagesPage /> },
       { path: 'workshop', element: <WorkshopPage /> },
       { path: 'work-shares/:shareId', element: <WorkSharePage /> },
       { path: 'materials/:materialId/prepare', element: <PreparePage /> },
       { path: 'materials/:materialId/work', element: <MaterialDeckPage /> },
-      { path: 'materials/:materialId/edit', element: <FreeEditPage /> },
+      { path: 'materials/:materialId/edit', element: <LegacyEditRedirect /> },
       { path: 'materials/:materialId/ai', element: <PptAiPage /> },
       { path: 'p/:shareId', element: <SharePage /> },
       { path: '*', element: <NotFoundPage /> },

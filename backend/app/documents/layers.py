@@ -1,7 +1,11 @@
 from __future__ import annotations
 from copy import deepcopy
+from hashlib import sha256
+import logging
 from pathlib import Path
 import json,os,re,shutil,subprocess,sys,threading,time
+from zipfile import BadZipFile
+from pptx.exc import PackageNotFoundError
 from .store import LOCK,document_root,read_document,write_document
 from .importer import import_document
 from .capabilities import layer_editor_available
@@ -13,6 +17,7 @@ _RENDER_LOCKS_GUARD=threading.Lock()
 # PowerPoint may share its automation process even with DispatchEx. A second
 # export closing that process invalidates the first page's shape proxies.
 _COM_SLOTS=threading.BoundedSemaphore(1)
+logger=logging.getLogger(__name__)
 
 
 def _render_lock(material_id:str,page_no:int)->threading.Lock:
@@ -23,16 +28,75 @@ def _render_lock(material_id:str,page_no:int)->threading.Lock:
 def ensure_document(material_id:str,title:str)->dict:
     with LOCK:
         document=read_document(material_id)
-        if document is None:
-            source=working_path(material_id)
-            if source.is_file() and (layer_editor_available()[0] or not has_rendered_pages(material_id)):
-                root=document_root(material_id);root.mkdir(parents=True,exist_ok=True)
-                shutil.copyfile(source,root/'source.pptx')
-                document=import_document(root/'source.pptx',title)
-            else:
+        root=document_root(material_id)
+        source=root/'source.pptx'
+        original=working_path(material_id)
+        if document is None or not document.get('native_import_version') or (original.is_file() and not source.is_file()):
+            if not source.is_file() and original.is_file():
+                root.mkdir(parents=True,exist_ok=True)
+                shutil.copyfile(original,source)
+            if source.is_file():
+                try:
+                    key=sha256(source.read_bytes()).hexdigest()[:24]
+                    imported=import_document(source,title,asset_root=root/'native'/key)
+                    if document is None or (document.get('revision')==0
+                            and not any(page.get('modified') for page in document['pages'])
+                            and all(page.get('rendered_only') for page in document['pages'])):
+                        document=imported
+                    elif key==document['source_key']:
+                        _upgrade_document(document,imported)
+                except (ValueError,OSError,KeyError,AttributeError,BadZipFile,PackageNotFoundError,SyntaxError) as error:
+                    logger.warning('Could not import editable PPTX %s: %s',material_id,type(error).__name__)
+                    if document is None and not has_rendered_pages(material_id):
+                        raise ValueError('这份材料的 PPTX 结构无法读取') from error
+            if document is None:
                 document=rendered_document(material_id,title)
+            document['native_import_version']=1
             write_document(material_id,document)
         return hydrate_document(material_id,document)
+
+
+def _upgrade_document(document, imported):
+    source_pages={page['page_no']:page for page in imported['pages']}
+    for page in document['pages']:
+        source=source_pages.get(page.get('source_page_no',page['page_no']))
+        if source is None or page.get('rendered_only'):
+            continue
+        for key in ('notes','background_color','native_ready','native_fallback'):
+            if key in source:
+                page.setdefault(key,source[key])
+        source_nodes={node['source_shape_id']:node for node in source['nodes']}
+        for node in page['nodes']:
+            original=source_nodes.get(node.get('source_shape_id'))
+            if not original or node.get('figure_provenance') or (node['type']!=original['type'] and page.get('modified')):
+                continue
+            if node['type']!=original['type']:
+                node.update({k:original[k] for k in ('type','x','y','height','width','rotation',
+                    'base_x','base_y','base_width','base_height','base_rotation','locked')})
+            for key in ('native_file','native_fallback','crop','base_crop','shape_paths','base_opacity'):
+                if key in original:
+                    node.setdefault(key,original[key])
+            if not page.get('modified') or node.get('shape') in (None,'rect'):
+                node['shape']=original['shape']
+            if not page.get('modified'):
+                node['opacity']=original['opacity']
+            node['style']={**original['style'],**node['style']}
+            node['base_style']={**original['base_style'],**node['base_style']}
+            if 'paragraphs' in original and node.get('text')==node.get('base_text'):
+                node.setdefault('paragraphs',original['paragraphs'])
+
+
+def source_page_number(page):
+    return page.get('source_page_no',page['page_no'])
+
+
+def native_asset_path(material_id, key, page_no, filename):
+    if (re.fullmatch(r'[A-Za-z0-9_-]{1,96}',key) and type(page_no) is int and 0<page_no<=10000
+            and isinstance(filename,str) and re.fullmatch(r'n_\d+\.png',filename)):
+        path=document_root(material_id)/'native'/key/f'p{page_no:02d}'/filename
+        if path.is_file():
+            return path
+    return None
 
 
 def has_rendered_pages(material_id:str)->bool:
@@ -112,30 +176,48 @@ def manifest_ready(manifest:dict)->bool:
 def hydrate_document(material_id:str,document:dict)->dict:
     from .figure_service import asset_path, asset_url
 
-    result=deepcopy(document);result.pop('applied_operations',None)
+    result=deepcopy(document);result.pop('applied_operations',None);result.pop('archived_pages',None)
     for page in result['pages']:
+        asset_page=source_page_number(page)
+        if page.get('background_modified'):
+            page.pop('background_url',None)
         for node in page['nodes']:
             identifier=node.get('cleaned_asset_id')
-            if identifier and asset_path(material_id,page['page_no'],identifier):
-                node['cleaned_url']=asset_url(material_id,page['page_no'],identifier,'cleaned')
-        if page.get('rendered_only'):
+            cleaned_page=node.get('cleaned_asset_page_no',page['page_no'])
+            if identifier and asset_path(material_id,cleaned_page,identifier):
+                node['cleaned_url']=asset_url(material_id,cleaned_page,identifier,'cleaned')
+            if native_asset_path(material_id,result['source_key'],asset_page,node.get('native_file')):
+                node['image_url']=f'/api/v1/materials/{material_id}/document/native-assets/{result["source_key"]}/{asset_page}/{node["native_file"]}'
+        if page.get('rendered_only') or asset_page is None:
             page['preparation']={'status':'ready'}
             for node in page['nodes']:
                 if node.get('render_file'):
                     node['image_url']=f'/api/v1/materials/{material_id}/renders/{node["render_file"]}'
             continue
-        manifest=read_manifest(material_id,result['source_key'],page['page_no'])
-        prefix=f'/api/v1/materials/{material_id}/document/assets/{result["source_key"]}/{page["page_no"]}/'
+        manifest=read_manifest(material_id,result['source_key'],asset_page)
+        prefix=f'/api/v1/materials/{material_id}/document/assets/{result["source_key"]}/{asset_page}/'
         page['preparation']={k:v for k,v in manifest.items() if k in ('status','message','errors','seconds','frozen_ids','exporter_version')}
         if not manifest_ready(manifest):
+            if page.get('native_ready'):
+                fallback_status=manifest.get('status','unprepared')
+                if page.get('native_fallback') and not layer_editor_available()[0]:
+                    fallback_status='unavailable'
+                page['preparation']={'status':'ready','fallback_status':fallback_status}
+                continue
             # A cached page produced by an older exporter would still carry the
             # stretched raster geometry; hide it until the page is prepared again.
             if manifest.get('status')=='ready':page['preparation']={**page['preparation'],'status':'unprepared'}
             continue
-        page['background_url']=prefix+manifest['background']
+        if not page.get('background_modified'):
+            page['background_url']=prefix+manifest['background']
+        if page.get('native_ready'):
+            page['preparation']['fallback_status']='ready'
         for node in page['nodes']:
             entry=manifest.get('objects',{}).get(node.get('asset_id'))
             if not entry:continue
+            if ((node.get('native_file') and node.get('image_url'))
+                    or (node.get('base_opacity',1)!=1 and not node.get('native_fallback'))):
+                continue
             node['image_url']=prefix+entry['asset']
             node['background_url']=prefix+entry['empty'] if entry.get('empty') else None
             for source,key in (('asset','image'),('empty','background')):
@@ -182,6 +264,10 @@ def _prepare_remote(source:Path,page_no:int,target:Path)->None:
 def prepare_page(material_id:str,page_no:int)->None:
     document=read_document(material_id)
     if not document:return
+    page=next((item for item in document['pages'] if item['page_no']==page_no),None)
+    if page is None or source_page_number(page) is None or page.get('rendered_only'):
+        return
+    page_no=source_page_number(page)
     target=layer_dir(material_id,document['source_key'],page_no)
     with _render_lock(material_id,page_no):
         if manifest_ready(read_manifest(material_id,document['source_key'],page_no)):return

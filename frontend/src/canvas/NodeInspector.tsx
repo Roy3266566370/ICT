@@ -20,9 +20,10 @@ import {
   type RealImagePayload,
 } from './imageInput.ts';
 import { nodeSchematicMeta } from './NodeSchematic.tsx';
+import { FunctionSourceControls } from './CalculusNodes.tsx';
 import styles from './nodeInspector.module.css';
 
-function MatrixSvg({
+export function MatrixSvg({
   data,
   highlightBox,
   highlightCell,
@@ -203,7 +204,7 @@ function ConvMicroScanner({
 }
 
 /** 真实图片上传与通道切换（挂载在 pixelGridSource 检查器顶部） */
-function RealImagePanel({
+export function RealImagePanel({
   node,
   onPayload,
 }: {
@@ -316,7 +317,7 @@ function RealImagePanel({
 }
 
 /** 微型真实 CSV 数据集导入（挂载在 dataset2dSource 检查器顶部） */
-function CsvDatasetPanel({
+export function CsvDatasetPanel({
   node,
   onPayload,
 }: {
@@ -393,6 +394,7 @@ export interface NodeInspectorProps {
   selectedBodyProps: NodeBodyProps | null;
   convOrdinal?: number;
   upstreamRealImage: RealImagePayload | null;
+  closeLabel?: string;
   overviewNodes: { node: CanvasNode; title: string; content: ReactNode }[];
   onSelectNode: (id: string | null) => void;
   onUpdateParam: (nodeId: string, patch: Record<string, number>) => void;
@@ -408,6 +410,7 @@ export function NodeInspector({
   convOrdinal,
   upstreamRealImage,
   overviewNodes,
+  closeLabel,
   onSelectNode,
   onUpdateParam,
   nodeTitle,
@@ -437,7 +440,7 @@ export function NodeInspector({
             <h2>{meta.title}</h2>
           </div>
           <button type="button" className={styles.backBtn} onClick={() => onSelectNode(null)}>
-            返回总览
+            {closeLabel ?? '返回总览'}
           </button>
         </header>
 
@@ -488,7 +491,9 @@ export function NodeInspector({
             <div className={styles.sectionHead}>
               <h3>模块数据与参数调节</h3>
             </div>
-            <Body key={selectedNode.id} {...selectedBodyProps} />
+            {selectedNode.type === 'functionSource'
+              ? <FunctionSourceControls key={selectedNode.id} {...selectedBodyProps} />
+              : <Body key={selectedNode.id} {...selectedBodyProps} />}
           </section>
         </div>
       </aside>

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && npm run build:offline",
-    "build:offline": "vite build --config vite.offline.config.ts",
+    "build:offline": "vite build --config vite.offline.config.ts && vite build --config vite.offline.config.ts --mode lite",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:conversion": "node scripts/test-conversion.mjs",
@@ -20,6 +20,7 @@
     "@cortex-js/compute-engine": "^0.173.0",
     "@tanstack/react-query": "^5.59.16",
     "@xyflow/react": "^13.0.2",
+    "html-to-image": "1.11.13",
     "katex": "^0.16.11",
     "mafs": "^0.21.0",
     "mathlive": "^0.111.4",

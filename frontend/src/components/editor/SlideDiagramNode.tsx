@@ -12,7 +12,7 @@ export function DiagramPreview({doc}:{doc:DiagramDoc}) {
 }
 export function SlideDiagramNode({node,editing,interactive,onPatch}:SlideRichNodeProps) {
  if(!node.diagram)return null;
- return <div className="slideRichNode" data-no-pan data-scene-diagram={node.id} style={richNodeStyle(node,interactive||editing)}>
+ return <div className="slideRichNode" data-no-pan data-scene-diagram={node.id} data-presentation-snapshot={node.id} style={richNodeStyle(node,interactive||editing)}>
  {editing&&interactive&&!node.locked&&<div className="slideRichGrip" title="拖动整个流程图">⠿ 流程图</div>}
  <div className="slideRichContent" onPointerDown={e=>{if(interactive)e.stopPropagation();}} onKeyDown={e=>{if(interactive)e.stopPropagation();}}>
  {interactive?<Suspense fallback={<DiagramPreview doc={node.diagram}/>}><DiagramCanvas doc={node.diagram} embedded flow={node.flow} edgeStyle={{color:node.style.stroke,lineStyle:node.style.line_style,width:node.style.stroke_width}} height={Math.max(60,node.height-(editing&&!node.locked?24:0))} readOnly={node.locked||!editing} onDocChange={doc=>onPatch({diagram:doc},'diagram')}/></Suspense>:<DiagramPreview doc={node.diagram}/>}

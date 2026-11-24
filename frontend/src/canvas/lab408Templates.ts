@@ -1,7 +1,5 @@
-import { MANUAL_408_SUBJECTS } from '../labs/manual408.ts';
-import { nextId } from './math.ts';
 import { build408Pipeline } from './lab408Pipeline.ts';
-import type { CanvasDoc, CanvasNode, NodeType } from './types.ts';
+import type { CanvasDoc } from './types.ts';
 
 export interface Lab408Topic {
   id: 'l01' | 'l02' | 'l03' | 'l04';
@@ -11,14 +9,14 @@ export interface Lab408Topic {
 
 export type Lab408Kind =
   | 'dsTraversal' | 'avl' | 'kmpSort' | 'graphAlgo' | 'cacheSimLab' | 'pipelineLab' | 'ieee754Lab'
-  | 'cpuScheduleLab' | 'bankerLab' | 'pageReplace' | 'tcpCongestionLab' | 'slidingWindowLab' | 'ipSubnet';
-
-export type Lab408WorkbenchKind = 'dsWorkbench' | 'coWorkbench' | 'osWorkbench' | 'netWorkbench';
-export type Lab408TemplateKind = Lab408Kind | Lab408WorkbenchKind;
+  | 'cpuScheduleLab' | 'bankerLab' | 'pageReplace' | 'tcpCongestionLab' | 'slidingWindowLab' | 'ipSubnet'
+  | 'btreeLab' | 'hashTableLab' | 'cpuDatapathLab' | 'aluBoothLab'
+  | 'diskScheduleLab' | 'pvSyncLab' | 'csmaCdLab' | 'routingLab';
 
 export type Lab408Preview =
   | 'tree' | 'kmp' | 'sort' | 'graph' | 'cache' | 'pipeline' | 'ieee'
-  | 'split' | 'cpu' | 'banker' | 'page' | 'tcp' | 'window' | 'subnet';
+  | 'split' | 'cpu' | 'banker' | 'page' | 'tcp' | 'window' | 'subnet'
+  | 'btree' | 'hash' | 'datapath' | 'booth' | 'disk' | 'pv' | 'csma' | 'routing';
 
 export interface Lab408Template {
   kind: Lab408Kind;
@@ -34,10 +32,10 @@ export interface Lab408Template {
 }
 
 export const LAB408_TOPICS: readonly Lab408Topic[] = [
-  { id: 'l01', name: '专题 01 · 数据结构', lead: '从树遍历、哈夫曼编码与 AVL 旋转，到 KMP、排序和图算法的逐帧推演。' },
-  { id: 'l02', name: '专题 02 · 组成原理', lead: '从虚拟地址到 Cache，观察流水线转发和定点、浮点数的位级表示。' },
-  { id: 'l03', name: '专题 03 · 操作系统', lead: 'CPU 调度甘特图、银行家安全序列、页面置换与 Belady 异常，末尾是 13 个题型的全题型工作台。' },
-  { id: 'l04', name: '专题 04 · 计算机网络', lead: '从 TCP 窗口、GBN / SR 重传，到 IPv4 子网、分片与路由匹配。' },
+  { id: 'l01', name: '专题 01 · 数据结构', lead: '树遍历、哈夫曼与 AVL 之外，再看 B/B+ 树分裂、散列冲突、KMP、排序与图算法。' },
+  { id: 'l02', name: '专题 02 · 组成原理', lead: '从虚拟地址、Cache、流水线到 CPU 数据通路、补码溢出与 Booth 乘法。' },
+  { id: 'l03', name: '专题 03 · 操作系统', lead: 'CPU 调度、银行家、页面置换之外，再看磁盘寻道与 PV 生产者消费者死锁。' },
+  { id: 'l04', name: '专题 04 · 计算机网络', lead: '从 TCP 窗口、GBN / SR、IPv4 子网，到 CSMA/CD 冲突检测与 RIP / OSPF 收敛。' },
 ];
 
 export const LAB408_TEMPLATES: readonly Lab408Template[] = [
@@ -197,74 +195,101 @@ export const LAB408_TEMPLATES: readonly Lab408Template[] = [
     keywords: ['子网划分', '前缀', '掩码', '网络地址', '广播地址', 'CIDR'],
     preview: 'subnet',
   },
-];
-
-export interface Lab408WorkbenchTemplate {
-  kind: Lab408WorkbenchKind;
-  topic: Lab408Topic['id'];
-  name: string;
-  desc: string;
-  tag: string;
-  question: string;
-  steps: string;
-  observation: string;
-  preview: Lab408Preview;
-  subjectIndex: number;
-  typeId: string;
-}
-
-export const LAB408_WORKBENCH_TEMPLATES: readonly Lab408WorkbenchTemplate[] = [
   {
-    kind: 'dsWorkbench',
+    kind: 'btreeLab',
     topic: 'l01',
-    name: '数据结构全题型工作台',
-    desc: '覆盖 18 个数据结构题型；选择题型、改原文，调用本地内核。',
-    tag: '408 · 数据结构 · 全题型',
-    question: '把排序、树、图、查找或复杂度题改写后，内核还能给出一致结论吗？',
-    steps: '1. 在工作台切换到排序、树图或查找题型。\n2. 按原题改写数据与要求。\n3. 求解后核对答案、步骤与限制。',
-    observation: '同一工作台可切换该科目的全部题型；换题会重置模板，需要重新填入原题条件。',
-    preview: 'sort',
-    subjectIndex: 0,
-    typeId: 'ds_sort',
+    name: 'B 树 / B+ 树插入分裂',
+    desc: '逐次插入、节点分裂、关键字上移，并对比 B 树与 B+ 树的查找路径。',
+    tag: '408 · 数据结构 · 树',
+    question: '节点关键字超过 m−1 时如何提取中间键上移并分裂？B+ 树与 B 树在非叶节点和叶子链表上有什么区别？',
+    steps: '1. 选择 3/4/5 阶与 B/B+ 树。\n2. 逐步插入序列，观察分裂前后节点。\n3. 输入目标关键字，核对查找路径与比较次数。',
+    observation: 'B 树内部节点也保存关键字；B+ 树内部节点只做分隔，查找总落到叶子。',
+    keywords: ['B 树', 'B+ 树', '分裂', '阶数', '查找路径', '关键字'],
+    preview: 'btree',
   },
   {
-    kind: 'coWorkbench',
+    kind: 'hashTableLab',
+    topic: 'l01',
+    name: '散列表冲突与 ASL 对比',
+    desc: '线性探测、二次探测与链地址法逐次插入，对比成功/失败 ASL。',
+    tag: '408 · 数据结构 · 查找',
+    question: '装填因子 α 升高时，为什么线性探测会出现二次聚集？链地址法如何缓解？',
+    steps: '1. 选择表长与除留余数 p。\n2. 切换三种冲突策略，逐步插入。\n3. 对照成功 ASL、失败 ASL 与最大探测次数。',
+    observation: '线性探测容易形成连续聚集；二次探测打散探测序列；链地址法把冲突放到链上。',
+    keywords: ['散列表', '哈希', '线性探测', '二次探测', '链地址法', 'ASL', '装填因子'],
+    preview: 'hash',
+  },
+  {
+    kind: 'cpuDatapathLab',
     topic: 'l02',
-    name: '组成原理全题型工作台',
-    desc: '覆盖 12 个组成原理题型；从 Cache、浮点到流水线都可直接求解。',
-    tag: '408 · 组成原理 · 全题型',
-    question: '数据表示、存储层次和流水线的结论能否在同一画布里逐项复核？',
-    steps: '1. 选择题型（Cache、浮点、流水线等）。\n2. 修改位数、时钟或容量。\n3. 对照答案和内核步骤。',
-    observation: '不同题型需要完整条件；地址位数、块大小、CPI 等缺失时内核会保留阻塞原因。',
-    preview: 'cache',
-    subjectIndex: 1,
-    typeId: 'co_pipeline',
+    name: 'CPU 指令周期与数据通路',
+    desc: 'ADD / LW / SW / BEQ 的逐拍数据通路、控制信号与 CPI 对照。',
+    tag: '408 · 组成原理 · CPU',
+    question: '执行 LW、ADD、SW、BEQ 时数据经过哪些部件？哪些控制信号被拉高？',
+    steps: '1. 选择指令与单/多周期模式。\n2. 逐拍查看活跃部件与控制信号。\n3. 对比单周期与多周期的 CPI 和总延迟。',
+    observation: '多周期把一条指令拆成 IF/ID/EX/MEM/WB，每拍只激活必要部件；单周期所有部件在一个长周期内完成。',
+    keywords: ['CPU', '数据通路', '指令周期', '控制信号', 'CPI', '单周期', '多周期'],
+    preview: 'datapath',
   },
   {
-    kind: 'osWorkbench',
+    kind: 'aluBoothLab',
+    topic: 'l02',
+    name: '补码溢出与 Booth 乘法',
+    desc: '双符号位判定加减溢出，Booth 一位乘逐拍展示部分积与移位。',
+    tag: '408 · 组成原理 · 运算',
+    question: '双符号位 01/10 如何瞬间判定正负溢出？Booth 乘法为什么能直接处理补码？',
+    steps: '1. 选择位宽与操作数。\n2. 切到补码加减，逐位观察进位和双符号位。\n3. 切到 Booth 乘法，逐拍查看 A、Q、Q₋₁ 与动作。',
+    observation: '双符号位 01 表示正溢出，10 表示负溢出；Booth 根据 Q₀Q₋₁ 选择 +X、−X 或只移位。',
+    keywords: ['补码', '溢出', '双符号位', 'Booth', '乘法', '部分积'],
+    preview: 'booth',
+  },
+  {
+    kind: 'diskScheduleLab',
     topic: 'l03',
-    name: '操作系统全题型工作台',
-    desc: '覆盖 13 个操作系统题型；调度、置换、文件与磁盘都可切换。',
-    tag: '408 · 操作系统 · 全题型',
-    question: '同一组进程或页面序列，换算法后内核能否给出可比较的指标？',
-    steps: '1. 选择题型（调度、置换、文件、磁盘等）。\n2. 修改进程表、访问序列或权限。\n3. 核对周转、缺页或访问时间。',
-    observation: '调度与置换题依赖完整表格和序列；缺数据时不会猜测，结果会标为条件未完整。',
-    preview: 'cpu',
-    subjectIndex: 2,
-    typeId: 'os_cpu_schedule',
+    name: '磁盘寻道算法轨迹对比',
+    desc: 'FCFS / SSTF / SCAN / C-SCAN 的磁头轨迹、总寻道与单次最大跨越。',
+    tag: '408 · 操作系统 · 磁盘',
+    question: '同一组磁道请求，为什么 SSTF 可能饥饿？SCAN 与 C-SCAN 的折返差异在哪里？',
+    steps: '1. 输入磁道序列与初始磁头。\n2. 选择方向与主展示算法。\n3. 对照四种算法的总寻道、平均寻道与最大跨越。',
+    observation: 'SSTF 每次选最近磁道；SCAN 到端点后折返；C-SCAN 单向扫描后回到另一端重新开始。',
+    keywords: ['磁盘调度', 'FCFS', 'SSTF', 'SCAN', 'C-SCAN', '寻道长度'],
+    preview: 'disk',
   },
   {
-    kind: 'netWorkbench',
+    kind: 'pvSyncLab',
+    topic: 'l03',
+    name: 'PV 信号量与生产者消费者',
+    desc: '逐帧缓冲区、empty/full/mutex 与阻塞队列，错误顺序直接演示死锁。',
+    tag: '408 · 操作系统 · 同步',
+    question: '把 P(mutex) 和 P(empty) 的顺序写反，系统会在哪一帧卡死？',
+    steps: '1. 设置缓冲区大小与事件脚本。\n2. 先选正确顺序，观察一进一出。\n3. 切到错误顺序，定位持锁等待的死锁帧。',
+    observation: '正确顺序先申请资源再进入临界区；先 P(mutex) 会持锁等待资源，消费者无法获取互斥锁而永久阻塞。',
+    keywords: ['PV 操作', '信号量', '生产者消费者', '互斥', '死锁', '缓冲区'],
+    preview: 'pv',
+  },
+  {
+    kind: 'csmaCdLab',
     topic: 'l04',
-    name: '计算机网络全题型工作台',
-    desc: '覆盖 17 个计算机网络题型；子网、路由、TCP 与应用层都可求解。',
-    tag: '408 · 计算机网络 · 全题型',
-    question: '从地址划分到 TCP 拥塞控制，各层结论能否用同一套确定性内核核对？',
-    steps: '1. 选择题型（子网、路由、TCP、HTTP 等）。\n2. 修改地址、窗口或报文数据。\n3. 核对答案与计算步骤。',
-    observation: '网络题目的单位、首部长度和连接方式会直接影响结果；请保留原题全部参数。',
-    preview: 'subnet',
-    subjectIndex: 3,
-    typeId: 'net_tcp_control',
+    name: 'CSMA/CD 冲突检测与最短帧长',
+    desc: '总线传播、碰撞时刻、检测窗口与二进制指数退避，一眼看出短帧漏检。',
+    tag: '408 · 计算机网络 · 链路层',
+    question: '为什么以太网要规定最短帧长？帧发得太短时，冲突信号还没返回会发生什么？',
+    steps: '1. 设置总线长度、带宽、帧长与 B 站延迟。\n2. 查看 A/B 信号时间轴与碰撞点。\n3. 比较发送时延与争用期，判断是否可靠检测。',
+    observation: '发送时延必须覆盖争用期 2τ，冲突信号才能被检测到；帧太短会先发完，冲突漏检。',
+    keywords: ['CSMA/CD', '争用期', '最短帧长', '冲突检测', '二进制指数退避', '以太网'],
+    preview: 'csma',
+  },
+  {
+    kind: 'routingLab',
+    topic: 'l04',
+    name: 'RIP 与 OSPF 收敛对比',
+    desc: '断链后 RIP 距离向量计数到无穷，OSPF 链路状态一轮重算最短路。',
+    tag: '408 · 计算机网络 · 网络层',
+    question: '链路断开后，为什么 RIP 会出现坏消息传得慢，而 OSPF 能迅速重算？',
+    steps: '1. 选择故障注入与水平分割。\n2. 查看 RIP 每轮路由表与计数增长。\n3. 切到 OSPF，对照收敛轮次与报文范围。',
+    observation: 'RIP 只与邻居交换距离向量，拓扑信息传播慢；OSPF 泛洪链路状态并各自运行 Dijkstra。',
+    keywords: ['RIP', 'OSPF', '距离向量', '链路状态', '计数到无穷', '水平分割', '收敛'],
+    preview: 'routing',
   },
 ];
 
@@ -272,44 +297,8 @@ export function isLab408Kind(value: string): value is Lab408Kind {
   return LAB408_TEMPLATES.some(template => template.kind === value);
 }
 
-export function isLab408WorkbenchKind(value: string): value is Lab408WorkbenchKind {
-  return LAB408_WORKBENCH_TEMPLATES.some(template => template.kind === value);
-}
-
-export function lab408TemplateDoc(kind: Lab408TemplateKind): CanvasDoc {
-  if (isLab408WorkbenchKind(kind)) return lab408WorkbenchDoc(kind);
+export function lab408TemplateDoc(kind: Lab408Kind): CanvasDoc {
   const template = LAB408_TEMPLATES.find((item) => item.kind === kind);
   if (!template) throw new Error(`未知 408 模板：${kind}`);
   return build408Pipeline(kind, template.name, `探究：${template.question}\n搭建：${template.steps}\n观察：${template.observation}`);
-}
-
-export function lab408WorkbenchDoc(kind: Lab408WorkbenchKind): CanvasDoc {
-  const template = LAB408_WORKBENCH_TEMPLATES.find(item => item.kind === kind);
-  if (!template) throw new Error(`未知 408 模板：${kind}`);
-  const subject = MANUAL_408_SUBJECTS[template.subjectIndex];
-  if (!subject) throw new Error('408 工作台科目不存在');
-  const types = subject.groups.flatMap(group => group.types);
-  const found = types.findIndex(type => type.id === template.typeId);
-  const typeIndex = found >= 0 ? found : 0;
-  const selected = types[typeIndex];
-  const nodes: CanvasNode[] = [];
-  const add = (type: NodeType, x: number, y: number, params: Record<string, number> = {}, text?: string): CanvasNode => {
-    const node: CanvasNode = { id: nextId('n'), type, x, y, params, ...(text !== undefined ? { text } : {}) };
-    nodes.push(node);
-    return node;
-  };
-  add('textNote', 35, 25, {}, `${template.name}\n探究：${template.question}`);
-  add('textNote', 355, 25, {}, `动手搭建\n${template.steps}`);
-  add('textNote', 675, 25, {}, `预期观察\n${template.observation}\n全题型：可在工作台内切换科目与题型。`);
-  const workbench = add('lab408Workbench', 80, 320, { subjectIndex: template.subjectIndex, typeIndex }, selected?.template ?? '');
-  add('textNote', 35, 980, {}, '我的观察记录\n我改了哪些参数：\n我先预测：\n实际观察到：\n哪些条件缺失时内核拒绝计算：');
-  return {
-    version: 1,
-    title: template.name,
-    zoom: 0.9,
-    nodes,
-    wires: [],
-    strokes: [],
-    panel: { title: template.name, view_node_ids: [workbench.id], exposed_params: [] },
-  };
 }

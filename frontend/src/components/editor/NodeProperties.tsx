@@ -12,6 +12,8 @@ import {api} from '@/api/client';
 import {FigureSpecView} from '@/components/ispec/views/FigureSpecView';
 import {VegaSpecView} from '@/components/ispec/views/VegaSpecView';
 import {FIGURE_TEMPLATE_OPTIONS,defaultInteraction,formulaPreview,matrixPreview,parseFormulaText} from './interactionPreview';
+import {WORKSHOP_PLUGIN_CATALOG} from '@/canvas/templateCatalog';
+import {WorkshopPluginSettings} from './WorkshopPluginSettings';
 import styles from './FreeDeckEditor.module.css';
 interface Props {node:SceneNode|null;count:number;disabled:boolean;pageNo:number;materialId?:string;autoSpecs?:ISpec[];pageNodes?:SceneNode[];
   pageRelations?:SceneRelation[];onRelationsChange?:(relations:SceneRelation[],key?:string)=>void;
@@ -112,6 +114,33 @@ export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=
     onSuggestRelations={onSuggestRelations} onApplyRelationSuggestion={onApplyRelationSuggestion} onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete}/>;
   if(node.type==='diagram'||node.type==='demo')return <InlineSystemProperties key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo}
     onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onInteraction={onInteraction} onDiagramBuild={onDiagramBuild} onDemoGenerate={onDemoGenerate} generating={generating}/>;
+  if(node.type==='workshop_plugin')return <aside className={styles.properties} aria-label="对象属性">
+    <div className={styles.propertyTitle}><h2>万象工坊插件</h2><span>{node.workshop_plugin?.category ?? '交互仪器'}</span></div>
+    <fieldset disabled={disabled||node.locked}>
+      <section><h3>选择插件模板</h3>
+        <select aria-label="切换工坊插件模板" value={node.workshop_plugin?.template_kind ?? 'taylor-error'} onChange={e=>{
+          const item=WORKSHOP_PLUGIN_CATALOG.find(t=>t.kind===e.target.value);
+          if(item) onPatch({workshop_plugin:{template_kind:item.kind,title:item.name,category:item.category}},'workshop-template');
+        }}>
+          {node.workshop_plugin?.template_kind==='custom-work'&&<option value="custom-work">[我的作品] {node.workshop_plugin.title}</option>}
+          {WORKSHOP_PLUGIN_CATALOG.map(item=><option key={item.kind} value={item.kind}>[{item.category}] {item.name}</option>)}
+        </select>
+        <p className={styles.hint}>原生前端确定性交互插件，支持离线单文件导出并保留完整调参与时间轴播放。</p>
+      </section>
+      <section><h3>图框位置与大小</h3><div className={styles.numberGrid}>{(['x','y','width','height'] as const).map((key,i)=><label key={key}>
+        {['横坐标','纵坐标','框宽','框高'][i]}<input type="number" aria-label={['横坐标','纵坐标','框宽','框高'][i]} value={Number(node[key].toFixed(2))} step="10"
+          onChange={e=>{const value=e.currentTarget.valueAsNumber;if(Number.isFinite(value)&&Math.abs(value)<=20000&&(!['width','height'].includes(key)||value>=240))onPatch({[key]:value},`frame.${key}`);}}/></label>)}</div></section>
+      <section><label><input type="checkbox" checked={node.viewer_editable!==false} onChange={e=>onPatch({viewer_editable:e.target.checked})}/>允许演示与分享页观众操作参数</label></section>
+      {node.workshop_plugin&&<WorkshopPluginSettings key={node.id+':'+node.workshop_plugin.template_kind}
+        nodeId={node.id} plugin={node.workshop_plugin} onPatch={onPatch}/>}
+    </fieldset>
+    <fieldset disabled={disabled}><section><div className={styles.objectButtons}>
+      <button type="button" onClick={onDuplicate}>复制插件</button>
+      <button type="button" onClick={()=>onPatch({locked:!node.locked})}>{node.locked?'解锁对象':'锁定对象'}</button>
+      <button type="button" onClick={()=>onPatch({hidden:!node.hidden})}>{node.hidden?'显示对象':'隐藏对象'}</button>
+      <button type="button" className={styles.danger} onClick={onDelete}>删除插件</button>
+    </div></section></fieldset>
+  </aside>;
   if(node.type==='math_scene')return <aside className={styles.properties} aria-label="对象属性"><h2>数学图属性</h2>
     <fieldset disabled={disabled||node.locked}><MathSceneControls key={node.id} node={node} onPatch={onPatch} author/></fieldset>
     <fieldset disabled={disabled}><button onClick={onDuplicate}>复制对象</button><button onClick={()=>onPatch({locked:!node.locked})}>{node.locked?'解锁对象':'锁定对象'}</button><button onClick={onDelete}>删除对象</button></fieldset>

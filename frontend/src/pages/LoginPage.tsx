@@ -90,7 +90,7 @@ export default function LoginPage(): JSX.Element {
         if (!mockMode) {
           const me = await refreshAccount();
           if (me !== null && base === DEFAULT_RETURN_TO) {
-            target = me.profile.default_entry === 'labs' ? '/labs' : DEFAULT_RETURN_TO;
+            target = me.profile.default_entry === 'labs' ? '/workshop' : DEFAULT_RETURN_TO;
           }
         }
         navigate(target, { replace: true });

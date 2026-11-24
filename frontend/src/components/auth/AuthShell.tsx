@@ -226,7 +226,7 @@ export function AuthShell({
               <i aria-hidden="true" />
               材料与实验仍按当前浏览器会话保存；跨设备同步与永久保存尚未开放。
             </p>
-            <Link className={styles.guestLink} to="/labs#lab-samples-title">
+            <Link className={styles.guestLink} to="/workshop">
               以访客身份体验题目实验室与示例 <span aria-hidden="true">→</span>
             </Link>
           </div>

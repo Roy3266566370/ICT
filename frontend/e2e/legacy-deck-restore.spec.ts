@@ -13,7 +13,7 @@ for (const entry of ['首页', '活页'] as const) {
     await expect(page).toHaveURL(/\/materials\/[^/]+\/work/, { timeout: 60_000 });
     await expect(page.getByRole('heading', { name: /用空间视角/, level: 1 })).toBeVisible({ timeout: 120_000 });
     await expect(page.getByRole('link', { name: 'AI 交互 ↗' })).toBeVisible();
-    await page.getByRole('link', { name: '编辑内容 / 交互' }).click();
+    await page.getByRole('button', { name: '编辑课件' }).click();
     const editor = page.locator('[data-free-editor]');
     const ellipse = editor.getByRole('button', { name: '○ 椭圆', exact: true });
     await expect(ellipse).toBeEnabled({ timeout: 180_000 });
@@ -27,12 +27,13 @@ for (const entry of ['首页', '活页'] as const) {
     await editor.getByRole('combobox', { name: '图形交互模板' }).selectOption('basis_change');
     await editor.getByRole('button', { name: '应用交互' }).click();
     await expect(editor.getByRole('tab', { name: '交互 ·已配置' })).toBeVisible();
-    await editor.getByRole('button', { name: '保存并返回演示' }).click();
+    await expect(editor.getByText('已保存到服务端', {exact: true})).toBeVisible();
+    await page.getByRole('button', { name: '互动预览' }).click();
     await expect(page).toHaveURL(/\/work/, { timeout: 60_000 });
     await expect(page.getByText('矩阵空间 · 编辑验收', { exact: true }).and(page.locator('p:visible')).first()).toBeVisible({ timeout: 60_000 });
     await page.reload();
     await expect(page.getByText('矩阵空间 · 编辑验收', { exact: true }).and(page.locator('p:visible')).first()).toBeVisible({ timeout: 60_000 });
-    await page.getByRole('button', { name: /开始演示/ }).click();
+    await page.getByRole('button', { name: '全屏放映' }).click();
     await expect(page.getByText('矩阵空间 · 编辑验收', { exact: true }).and(page.locator('p:visible')).first()).toBeVisible();
     await page.screenshot({ path: info.outputPath('restored-deck.png') });
   });

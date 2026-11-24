@@ -11,6 +11,7 @@
 .expression input:focus-visible, .field input:focus-visible, .field select:focus-visible, .presets button:focus-visible { outline: 2px solid #6265be; outline-offset: 2px; }
 .presets { display: flex; flex-wrap: wrap; gap: 5px; }
 .presets button { padding: 4px 7px; font: inherit; font-size: 10px; color: #6265be; background: #6265be0c; border: 1px solid #6265be30; border-radius: 4px; cursor: pointer; }
+.presets .editExpression { background: #4038c7; border-color: #4038c7; color: white; }
 .fields { display: flex; flex-wrap: wrap; gap: 8px; }
 .field { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
 .fields .field { flex-direction: column; align-items: stretch; gap: 4px; }
@@ -36,3 +37,21 @@
 .spectrum { display: block; width: 100%; height: auto; background: var(--paper-1); border: 1px solid var(--hairline); border-radius: 7px; }
 .spectrum text { font: 8px var(--font-family-mono, monospace); fill: var(--ink-400); }
 .readout b { color: var(--color-coral-ink); font-weight: 600; }
+
+/* 宽舞台（InstrumentStage fallback）下采用左图右控双栏布局，避免图画过大占满视口 */
+.splitBody { display: grid; gap: 10px; min-width: 0; color: var(--ink-700, #2f3a49); }
+.splitBody p { margin: 0; }
+.stageVisual, .stageControls { display: grid; gap: 8px; min-width: 0; align-content: start; }
+@container fallback-chart (min-width: 600px) {
+  .splitBody {
+    grid-template-columns: minmax(280px, 1.15fr) minmax(240px, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+  .stageVisual .plot {
+    width: 100%;
+    max-width: 480px;
+    margin-inline: auto;
+  }
+  .stageVisual .legend { justify-content: center; }
+}

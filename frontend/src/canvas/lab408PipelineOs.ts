@@ -25,6 +25,10 @@ function lines(text: string): string[] {
   return text.split(/[\n;；]+/).map(line => line.trim()).filter(Boolean);
 }
 
+function tokens(text: string): string[] {
+  return text.trim().split(/[\s,，、;；]+/).filter(Boolean);
+}
+
 function integers(text: string, max: number): number[] | null {
   const tokens = text.trim().split(/[\s,，、;；]+/);
   if (!tokens.every(token => /^\d+$/.test(token))) return null;
@@ -35,6 +39,11 @@ function integers(text: string, max: number): number[] | null {
 const processSource: PipelineStage = {
   id: 'processes', title: '进程表', diagram: 'source', text: processExample,
   textLabel: '每行输入「进程 到达时间 服务时间」，最多 12 个进程',
+  presets: [
+    { label: '护航效应（长作业先到）', text: 'P1 0 9\nP2 1 2\nP3 2 2', params: {} },
+    { label: '短作业抢占（SRTF）', text: 'P1 0 7\nP2 1 1\nP3 2 2', params: {} },
+    { label: '小时间片高频切换', text: 'P1 0 5\nP2 0 5\nP3 0 5\nP4 0 5', params: {} },
+  ],
   run({ text }) {
     const rows = lines(text);
     if (!rows.length || rows.length > 12) return message('进程表', '请输入 1–12 个进程。');
@@ -149,6 +158,11 @@ function pageLabels(text: string): string[] {
 const pageSource: PipelineStage = {
   id: 'references', title: '页面访问序列', diagram: 'source', text: PAGE_REFERENCE.join(' '),
   textLabel: '按访问顺序输入页号，使用空格或逗号分隔',
+  presets: [
+    { label: 'Belady 异常经典', text: '1 2 3 4 1 2 5 1 2 3 4 5', params: {} },
+    { label: '局部性良好', text: '1 2 1 2 1 2 1 2 1 2', params: {} },
+    { label: '循环扫描颠簸', text: '1 2 3 4 1 2 3 4 1 2 3 4', params: {} },
+  ],
   run({ text }) {
     const references = pageLabels(text);
     if (!references.length || references.length > 60 || !references.every(isOsPageLabel)) return message('页面访问序列', '请输入 1–60 个页号，可用数字或字母标识。');
@@ -317,6 +331,10 @@ function matrixFrame(title: string, resources: Resources, summary?: string, sele
 const bankerSource: PipelineStage = {
   id: 'resources', title: '资源表', diagram: 'source', text: bankerExample,
   textLabel: '首行输入 Available，其余各行输入「进程 Allocation | Need」',
+  presets: [
+    { label: '存在安全序列', text: bankerExample, params: {} },
+    { label: '减少可用资源触发不安全', text: 'Available: 1\nP0 1 | 1\nP1 1 | 2', params: {} },
+  ],
   run({ text }) {
     const resources = parseResources(text);
     if (!resources) return message('资源表', '请输入维度一致的 Available、Allocation、Need，每项为 0–999。支持 1–8 类资源、1–12 个进程。');
@@ -428,9 +446,299 @@ const bankerDecision: PipelineStage = {
   },
 };
 
+/* ---------- 磁盘调度 ---------- */
+
+type DiskAlgorithm = 0 | 1 | 2 | 3;
+type DiskRun = { order: number[]; distances: number[]; total: number; average: number; maxJump: number };
+
+const diskAlgorithms = ['FCFS', 'SSTF', 'SCAN', 'C-SCAN'] as const;
+
+function diskOrder(requests: number[], head: number, direction: number, algorithm: DiskAlgorithm): DiskRun {
+  if (!requests.length) throw new Error('至少需要一个磁道请求。');
+  let order: number[] = [];
+  if (algorithm === 0) {
+    order = [...requests];
+  } else if (algorithm === 1) {
+    const remaining = [...requests];
+    let current = head;
+    while (remaining.length) {
+      let best = 0;
+      for (let index = 1; index < remaining.length; index += 1) {
+        const delta = Math.abs(remaining[index]! - current);
+        const bestDelta = Math.abs(remaining[best]! - current);
+        if (delta < bestDelta || (delta === bestDelta && remaining[index]! < remaining[best]!)) best = index;
+      }
+      const next = remaining.splice(best, 1)[0]!;
+      order.push(next);
+      current = next;
+    }
+  } else {
+    const sorted = [...new Set(requests)].sort((left, right) => left - right);
+    const above = sorted.filter((track) => track >= head);
+    const below = sorted.filter((track) => track < head);
+    if (algorithm === 2) {
+      order = direction === 0 ? [...above, 199, ...below.slice().reverse(), 0] : [...below.slice().reverse(), 0, ...above, 199];
+      order = order.filter((track, index) => index === 0 || track !== order[index - 1]);
+    } else {
+      order = direction === 0 ? [...above, 199, 0, ...below] : [...below.slice().reverse(), 0, 199, ...above.slice().reverse()];
+      order = order.filter((track, index) => index === 0 || track !== order[index - 1]);
+    }
+  }
+  const distances = order.map((track, index) => Math.abs(track - (index === 0 ? head : order[index - 1]!)));
+  const total = distances.reduce((sum, value) => sum + value, 0);
+  return {
+    order,
+    distances,
+    total,
+    average: total / Math.max(1, order.length),
+    maxJump: Math.max(0, ...distances),
+  };
+}
+
+const diskSource: PipelineStage = {
+  id: 'requests', title: '磁道请求与初始磁头', diagram: 'source',
+  text: '98,183,37,122,14,124,65,67',
+  textLabel: '磁道请求序列（0–199，逗号或空格分隔）',
+  controls: [
+    { key: 'head', label: '初始磁头', value: 53, min: 0, max: 199, step: 1 },
+    { key: 'dir', label: '初始方向', value: 0, options: [{ value: 0, label: '磁道号增大' }, { value: 1, label: '磁道号减小' }] },
+    { key: 'algo', label: '主展示算法', value: 0, options: diskAlgorithms.map((label, value) => ({ value, label })) },
+  ],
+  presets: [
+    { label: 'SSTF 最近优先', params: { head: 53, dir: 0, algo: 1 } },
+    { label: 'SCAN 电梯', params: { head: 53, dir: 0, algo: 2 } },
+    { label: 'C-SCAN 循环扫描', params: { head: 53, dir: 0, algo: 3 } },
+  ],
+  run({ text, params }) {
+    const requests = tokens(text).map(Number);
+    if (!requests.length || requests.length > 24 || requests.some((track) => !Number.isInteger(track) || track < 0 || track > 199)) {
+      throw new Error('请输入 1–24 个 0–199 的磁道请求。');
+    }
+    const head = Math.max(0, Math.min(199, Math.round(params.head ?? 53)));
+    const dir = Math.round(params.dir ?? 0) === 1 ? 1 : 0;
+    const algo = Math.max(0, Math.min(3, Math.round(params.algo ?? 0))) as DiskAlgorithm;
+    return {
+      data: { requests, head, dir, algo },
+      frames: [{
+        title: '磁盘请求', columns: ['序号', '磁道号'],
+        rows: requests.map((track, index) => [index + 1, track]),
+        summary: `初始磁头 ${head} · ${dir ? '向低磁道' : '向高磁道'} · ${diskAlgorithms[algo]}`,
+      }],
+    };
+  },
+};
+
+const diskTrace: PipelineStage = {
+  id: 'trace', title: '磁头访问轨迹', diagram: 'chart', inputs: ['requests'],
+  run({ upstream }) {
+    const source = upstream[0];
+    const requests = source?.requests as number[] | undefined;
+    if (!source || !requests?.length) return message('等待磁道请求', '连接磁盘请求后生成磁头轨迹。');
+    const head = Number(source.head);
+    const direction = Number(source.dir);
+    const selected = Number(source.algo) as DiskAlgorithm;
+    const runs = diskAlgorithms.map((_, index) => diskOrder(requests, head, direction, index as DiskAlgorithm));
+    const run = runs[selected]!;
+    let cumulative = 0;
+    const frames: PipelineFrame[] = [];
+    const positions = [head];
+    for (const [index, track] of run.order.entries()) {
+      cumulative += run.distances[index]!;
+      positions.push(track);
+      frames.push({
+        title: `第 ${index + 1} 次访问 · ${diskAlgorithms[selected]} → ${track}`,
+        summary: `移动 ${run.distances[index]} · 累计寻道 ${cumulative}`,
+        series: [{ label: '磁头轨迹', values: [...positions] }],
+        columns: ['步骤', '磁道', '单次移动', '累计寻道'],
+        rows: [[index + 1, track, run.distances[index]!, cumulative]],
+        highlightRows: [0],
+      });
+    }
+    const compare = diskAlgorithms.map((label, index) => {
+      const result = runs[index]!;
+      return { label, total: result.total, average: result.average, maxJump: result.maxJump };
+    });
+    return { data: { requests, head, direction, selected, runs, compare, total: run.total, average: run.average }, frames };
+  },
+};
+
+const diskCompare: PipelineStage = {
+  id: 'compare', title: '四种算法对照', diagram: 'summary', inputs: ['trace'],
+  run({ upstream }) {
+    const data = upstream[0];
+    if (!data) return message('等待轨迹', '连接磁头访问轨迹后比较四种算法。');
+    const compare = data.compare as { label: string; total: number; average: number; maxJump: number }[];
+    const best = compare.reduce((winner, item) => item.total < winner.total ? item : winner, compare[0]!);
+    return {
+      data,
+      frames: [{
+        title: '四种磁盘调度算法',
+        summary: `总寻道最短：${best.label}（${best.total}）。不同教材对 SCAN / C-SCAN 是否计入折返或回扫的约定可能不同。`,
+        columns: ['算法', '总寻道长度', '平均寻道长度', '最大单次跨越'],
+        rows: compare.map((item) => [item.label, item.total, item.average.toFixed(2), item.maxJump]),
+      }],
+    };
+  },
+};
+
+/* ---------- PV 生产者消费者 ---------- */
+
+type PvEvent = 'P' | 'C';
+type PvBlock = { event: PvEvent; index: number; reason: string };
+
+const pvSource: PipelineStage = {
+  id: 'script', title: '生产者 / 消费者脚本', diagram: 'source',
+  text: 'P,P,P,P,C,C',
+  textLabel: '操作事件：P = 生产者到达，C = 消费者到达（逗号或空格分隔）',
+  controls: [
+    { key: 'capacity', label: '缓冲区大小', value: 3, min: 2, max: 6, step: 1 },
+    { key: 'orderMode', label: 'PV 顺序', value: 0, options: [{ value: 0, label: '先资源后互斥' }, { value: 1, label: '先互斥后资源（可能死锁）' }] },
+  ],
+  presets: [
+    { label: '正确顺序 · 先满后取', text: 'P,P,P,P,C,C', params: { capacity: 3, orderMode: 0 } },
+    { label: '错误顺序 · 触发死锁', text: 'P,P,P,P,C,C', params: { capacity: 3, orderMode: 1 } },
+    { label: '一进一出', text: 'P,C,P,C,P,C', params: { capacity: 2, orderMode: 0 } },
+  ],
+  run({ text, params }) {
+    const events = tokens(text).map((token) => token.toUpperCase() as PvEvent);
+    if (!events.length || events.length > 24 || events.some((event) => event !== 'P' && event !== 'C')) {
+      throw new Error('请输入 1–24 个 P / C 事件。');
+    }
+    const capacity = Math.max(2, Math.min(6, Math.round(params.capacity ?? 3)));
+    const orderMode = Math.round(params.orderMode ?? 0) === 1 ? 1 : 0;
+    return {
+      data: { events, capacity, orderMode },
+      frames: [{
+        title: 'PV 操作序列', columns: ['序号', '事件'], rows: events.map((event, index) => [index + 1, event === 'P' ? '生产者' : '消费者']),
+        summary: `缓冲区 ${capacity} · ${orderMode ? '先 P(mutex) 后 P(资源)' : '先 P(资源) 后 P(mutex)'}`,
+      }],
+    };
+  },
+};
+
+const pvSim: PipelineStage = {
+  id: 'sim', title: '缓冲区与信号量', diagram: 'queue', inputs: ['script'],
+  run({ upstream }) {
+    const source = upstream[0];
+    const events = source?.events as PvEvent[] | undefined;
+    if (!source || !events?.length) return message('等待 PV 脚本', '连接操作脚本后生成逐帧状态。');
+    const capacity = Number(source.capacity);
+    const orderMode = Number(source.orderMode);
+    const buffer: (string | null)[] = Array(capacity).fill(null);
+    let empty = capacity;
+    let full = 0;
+    let mutex = true;
+    let produced = 0;
+    let consumed = 0;
+    let deadlock = false;
+    let cause = '';
+    const blocked: PvBlock[] = [];
+    const frames: PipelineFrame[] = [];
+    const record = (index: number, event: PvEvent, title: string, note: string) => frames.push({
+      title: `第 ${index + 1} 步 · ${event === 'P' ? '生产者' : '消费者'} ${title}`,
+      summary: `empty=${empty} · full=${full} · mutex=${mutex ? 1 : 0}${note ? ` · ${note}` : ''}`,
+      columns: ['槽位', '内容', '状态'],
+      rows: buffer.map((item, slot) => [slot, item ?? '空', event === 'P' && item === null ? '可写' : item ? '占用' : '空闲']),
+      highlightRows: buffer.map((item, slot) => item === null ? slot : -1).filter((slot) => slot >= 0).slice(0, 1),
+    });
+    for (const [index, event] of events.entries()) {
+      if (deadlock) {
+        blocked.push({ event, index, reason: '系统已死锁，无法继续' });
+        record(index, event, '阻塞', '系统已死锁');
+        continue;
+      }
+      if (event === 'P') {
+        if (orderMode === 0) {
+          if (empty <= 0) { blocked.push({ event, index, reason: 'empty=0' }); record(index, event, '阻塞', 'full 已满，等待 empty'); continue; }
+          if (!mutex) { blocked.push({ event, index, reason: 'mutex 被占用' }); record(index, event, '阻塞', '等待 mutex'); continue; }
+          mutex = false; empty -= 1;
+          const slot = buffer.indexOf(null);
+          buffer[slot] = `数据${produced + 1}`;
+          produced += 1;
+          mutex = true; full += 1;
+          record(index, event, `写入槽 ${slot}`, '临界区已释放');
+        } else {
+          if (!mutex) { blocked.push({ event, index, reason: 'mutex 被占用' }); record(index, event, '阻塞', '等待 mutex'); continue; }
+          mutex = false;
+          if (empty <= 0) {
+            blocked.push({ event, index, reason: '持有 mutex 等待 empty' });
+            deadlock = true;
+            cause = '生产者先 P(mutex) 并持有锁，再等待 empty；消费者无法取得 mutex，系统死锁。';
+            record(index, event, '死锁', '持有 mutex 等待 empty');
+            continue;
+          }
+          empty -= 1;
+          const slot = buffer.indexOf(null);
+          buffer[slot] = `数据${produced + 1}`;
+          produced += 1;
+          mutex = true; full += 1;
+          record(index, event, `写入槽 ${slot}`, '先互斥后资源，本次通过');
+        }
+      } else if (orderMode === 0) {
+        if (full <= 0) { blocked.push({ event, index, reason: 'full=0' }); record(index, event, '阻塞', '等待 full'); continue; }
+        if (!mutex) { blocked.push({ event, index, reason: 'mutex 被占用' }); record(index, event, '阻塞', '等待 mutex'); continue; }
+        mutex = false; full -= 1;
+        const slot = buffer.findIndex((item) => item !== null);
+        if (slot >= 0) buffer[slot] = null;
+        consumed += 1;
+        mutex = true; empty += 1;
+        record(index, event, `取出槽 ${slot}`, '临界区已释放');
+      } else {
+        if (!mutex) { blocked.push({ event, index, reason: 'mutex 被占用' }); record(index, event, '阻塞', '等待 mutex'); continue; }
+        mutex = false;
+        if (full <= 0) {
+          blocked.push({ event, index, reason: '持有 mutex 等待 full' });
+          deadlock = true;
+          cause = '消费者先 P(mutex) 并持有锁，再等待 full；生产者无法取得 mutex，系统死锁。';
+          record(index, event, '死锁', '持有 mutex 等待 full');
+          continue;
+        }
+        full -= 1;
+        const slot = buffer.findIndex((item) => item !== null);
+        if (slot >= 0) buffer[slot] = null;
+        consumed += 1;
+        mutex = true; empty += 1;
+        record(index, event, `取出槽 ${slot}`, '先互斥后资源，本次通过');
+      }
+    }
+    return {
+      data: { capacity, orderMode, produced, consumed, blocked, deadlock, cause, events },
+      frames,
+    };
+  },
+};
+
+const pvAudit: PipelineStage = {
+  id: 'audit', title: '死锁审计', diagram: 'summary', inputs: ['sim'],
+  run({ upstream }) {
+    const data = upstream[0];
+    if (!data) return message('等待模拟结果', '连接缓冲区模拟后查看审计。');
+    const blocked = data.blocked as PvBlock[] | undefined;
+    return {
+      data,
+      frames: [{
+        title: 'PV 运行审计',
+        summary: data.deadlock ? String(data.cause) : '没有发生死锁。',
+        columns: ['指标', '值'],
+        rows: [
+          ['缓冲区容量', Number(data.capacity)],
+          ['生产完成', Number(data.produced)],
+          ['消费完成', Number(data.consumed)],
+          ['阻塞事件', blocked?.length ?? 0],
+          ['是否死锁', data.deadlock ? '是' : '否'],
+          ['成因', data.deadlock ? String(data.cause) : '—'],
+        ],
+        highlightRows: data.deadlock ? [4, 5] : [],
+      }],
+    };
+  },
+};
+
 export const osPipelines: Record<string, PipelineDefinition> = {
   cpuScheduleLab: { stages: [processSource, ...cpuStages, cpuCompare] },
   pageReplace: { stages: [pageSource, ...pageStages, pageCompare] },
   pageReplaceOriginal: { stages: [pageSource, originalPages, ...pageStages, pageCompare] },
   bankerLab: { stages: [bankerSource, bankerRequest, bankerSafety, bankerDecision] },
+  diskScheduleLab: { stages: [diskSource, diskTrace, diskCompare] },
+  pvSyncLab: { stages: [pvSource, pvSim, pvAudit] },
 };

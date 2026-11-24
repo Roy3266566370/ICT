@@ -16,7 +16,7 @@ for (const [fixture, file] of [
     await expect(page).toHaveURL(/\/materials\/[^/]+\/work/, { timeout: 60_000 });
     const slide = page.getByLabel('幻灯片第 1 页', { exact: true });
     await expect(slide.locator('[data-vector-node]')).toHaveCount(0);
-    await page.getByRole('link', { name: '编辑内容 / 交互' }).click();
+    await page.getByRole('button', { name: '编辑课件' }).click();
     const editor = page.locator('[data-free-editor]');
     const canvas = editor.getByLabel('可编辑画布第 1 页');
     const picture = canvas.locator('[data-node-type="image"]');

@@ -1,6 +1,6 @@
 import pytest
 from app.ispec.native_math import build_native_math_specs
-from app.ispec.user_config import apply_user_interactions, validate_interaction
+from app.ispec.user_config import _spatial_specs, apply_user_interactions, validate_interaction
 from app.ispec.validator import validate_ispec
 
 
@@ -36,10 +36,13 @@ def test_configuration_rejects_scripts_and_incomplete_matrices():
         validate_interaction({'kind':'matrix','matrix':[[1,2]]})
 
 
-def test_rotation_stretch_words_in_ocr_are_not_specific_to_a_page():
+def test_rotation_stretch_ocr_heuristic_does_not_auto_publish_an_interaction():
     element={'element_id':'p27_s04','kind':'picture','bbox':{'x':10,'y':20,'w':100,'h':80},
       'text':'先转30°，再横拉1.6倍\n先横拉1.6倍，再转30°','recognition_method':'local_ocr'}
-    specs=apply_user_interactions([],{'pages':[{'page_no':27,'elements':[element]}]},{'overrides':{}})
+    page={'page_no':27,'elements':[element]}
+    specs=_spatial_specs(page)
     assert len(specs)==1
     assert specs[0]['kind']=='step'
     assert [p['default'] for p in specs[0]['parameters'][:2]]==[30,1.6]
+    assert specs[0]['anchor']['element_id']=='p27_s04'
+    assert apply_user_interactions([],{'pages':[page]},{'overrides':{}})==[]

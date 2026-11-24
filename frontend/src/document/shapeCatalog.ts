@@ -1,0 +1,27 @@
+export const SHAPE_CATALOG = [
+  {id:'rect',label:'矩形',path:'M0 0H100V100H0Z'},
+  {id:'ellipse',label:'椭圆',path:'M50 0A50 50 0 1 1 50 100A50 50 0 1 1 50 0Z'},
+  {id:'roundRect',label:'圆角矩形',path:'M14 0H86Q100 0 100 14V86Q100 100 86 100H14Q0 100 0 86V14Q0 0 14 0Z'},
+  {id:'diamond',label:'菱形',path:'M50 0L100 50 50 100 0 50Z'},
+  {id:'parallelogram',label:'平行四边形',path:'M25 0H100L75 100H0Z'},
+  {id:'trapezoid',label:'梯形',path:'M25 0H75L100 100H0Z'},
+  {id:'triangle',label:'三角形',path:'M50 0L100 100H0Z'},
+  {id:'rtTriangle',label:'直角三角形',path:'M0 0L100 100H0Z'},
+  {id:'hexagon',label:'六边形',path:'M25 0H75L100 50 75 100H25L0 50Z'},
+  {id:'octagon',label:'八边形',path:'M28 0H72L100 28V72L72 100H28L0 72V28Z'},
+  {id:'pentagon',label:'五边形',path:'M50 0L100 38 81 100H19L0 38Z'},
+  {id:'star5',label:'五角星',path:'M50 0L62 36 100 36 69 59 81 100 50 75 19 100 31 59 0 36 38 36Z'},
+  {id:'chevron',label:'燕尾箭头',path:'M0 0H70L100 50 70 100H0L28 50Z'},
+  {id:'rightArrow',label:'向右箭头',path:'M0 25H55V0L100 50 55 100V75H0Z'},
+  {id:'leftArrow',label:'向左箭头',path:'M100 25H45V0L0 50 45 100V75H100Z'},
+  {id:'upArrow',label:'向上箭头',path:'M25 100V45H0L50 0 100 45H75V100Z'},
+  {id:'downArrow',label:'向下箭头',path:'M25 0V55H0L50 100 100 55H75V0Z'},
+  {id:'leftRightArrow',label:'双向箭头',path:'M0 50L30 0V30H70V0L100 50 70 100V70H30V100Z'},
+  {id:'leftBrace',label:'左大括号',path:'M96 0C40 0 48 13 48 34Q48 48 4 50Q48 52 48 66C48 87 40 100 96 100',open:true},
+  {id:'rightBrace',label:'右大括号',path:'M4 0C60 0 52 13 52 34Q52 48 96 50Q52 52 52 66C52 87 60 100 4 100',open:true},
+  {id:'wedgeRectCallout',label:'标注框',path:'M0 0H100V72H52L20 100 29 72H0Z'},
+  {id:'plus',label:'十字',path:'M35 0H65V35H100V65H65V100H35V65H0V35H35Z'},
+  {id:'cloud',label:'云形',path:'M16 77C-7 77 -3 42 17 38C14 17 36 7 50 23C59 -4 85 2 86 28C109 30 104 64 90 68C101 89 65 100 56 82C43 106 18 95 16 77Z'},
+] as const;
+
+export type SceneShape = (typeof SHAPE_CATALOG)[number]['id'];

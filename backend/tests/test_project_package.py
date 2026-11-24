@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import zipfile
 from pathlib import Path
 
@@ -226,7 +227,6 @@ def test_project_package_rejects_unsafe_source_key() -> None:
 
 def test_offline_html_export_and_reimport_roundtrip(tmp_path, monkeypatch) -> None:
     import base64
-    from app.api.routes_publish import render_standalone_html
     from app.documents.layers import hydrate_document
     from app.documents.presentation import public_document
     import app.documents.store as doc_store
@@ -252,10 +252,11 @@ def test_offline_html_export_and_reimport_roundtrip(tmp_path, monkeypatch) -> No
     src_pages_dir.mkdir()
     (src_pages_dir / "s02.png").write_bytes(valid_png)
 
-    scene_doc = public_document({
+    source_document = {
         "schema_version": "1.0",
         "revision": 4,
         "title": "矩阵空间视角",
+        "source_key": "rendered_only",
         "pages": [{
             "page_no": 1,
             "width": 960,
@@ -298,7 +299,53 @@ def test_offline_html_export_and_reimport_roundtrip(tmp_path, monkeypatch) -> No
                 },
             ],
         }],
-    })
+    }
+    plugin = {
+        "template_kind": "biz-breakeven",
+        "title": "经营盈亏平衡与定价沙盘",
+        "category": "办公决策",
+        "work_id": "work_original",
+        "display_mode": "stage_only",
+        "transparent_bg": True,
+        "hide_border": False,
+        "theme": "dark",
+        "visible_params": ["price"],
+        "presets": [{"id": "season_offer", "label": "促销情景", "params": {"price": 99, "growthRate": .1}, "cursor": .5}],
+        "preview_data": valid_data_uri,
+    }
+    plugin_doc = {
+        "version": 1,
+        "title": plugin["title"],
+        "zoom": 0.69,
+        "nodes": [
+            {"id": "source", "type": "businessStage", "x": 0, "y": 0,
+             "payload": "biz-breakeven/source", "params": {"price": 139, "growthRate": -0.04},
+             "text": "调整后的经营假设"},
+            {"id": "main", "type": "businessStage", "x": 400, "y": 0,
+             "payload": "biz-breakeven/main", "params": {}},
+        ],
+        "wires": [{"id": "w1", "from": "source", "fromPort": "out", "to": "main", "toPort": "in"}],
+        "strokes": [],
+        "panel": {
+            "title": plugin["title"],
+            "view_node_ids": ["main"],
+            "exposed_params": [{"node_id": "source", "param_key": "price", "label": "客单价",
+                                "min": 20, "max": 500, "step": 1}],
+        },
+    }
+    plugin_id = "u_business_plugin"
+    doc_store.write_document("mat_src", source_document)
+    doc_store.patch_document("mat_src", 4, "insert_business_plugin", [{
+        "page_no": 1, "id": plugin_id, "create": {
+            "type": "workshop_plugin", "workshop_plugin": plugin, "viewer_editable": True,
+            "x": 80, "y": 80, "width": 700, "height": 400,
+        },
+    }])
+    saved_plugin = {**plugin, "doc": plugin_doc}
+    document = doc_store.patch_document("mat_src", 5, "adjust_business_model", [{
+        "page_no": 1, "id": plugin_id, "patch": {"workshop_plugin": saved_plugin},
+    }])
+    scene_doc = public_document(document)
     spec = {
         "spec_version": "1.0",
         "object_id": "obj_scale",
@@ -319,6 +366,12 @@ def test_offline_html_export_and_reimport_roundtrip(tmp_path, monkeypatch) -> No
     }
     from app.offline import render_offline_deck
     exported_html = render_offline_deck(snapshot, "mat_src", lambda _mid, name: src_pages_dir / name if (src_pages_dir / name).is_file() else None)
+    exported_data = json.loads(re.search(
+        r'<script id="export-data" type="application/json">(.*?)</script>', exported_html, re.S,
+    )[1])
+    exported_plugin = next(n for n in exported_data["document"]["pages"][0]["nodes"] if n["id"] == plugin_id)
+    assert exported_plugin["workshop_plugin"] == saved_plugin
+    assert exported_plugin["viewer_editable"] is True
 
     engine = create_engine("sqlite://", future=True)
     Base.metadata.create_all(engine)
@@ -357,7 +410,34 @@ def test_offline_html_export_and_reimport_roundtrip(tmp_path, monkeypatch) -> No
         assert nodes_by_id["math_1"]["flow"] == {"enabled": True, "speed": 2.0}
         assert nodes_by_id["mat_1"]["matrix_ocr"]["matrices"][0]["values"] == [[1, 2], [0, 1]]
         assert nodes_by_id["mat_1"]["image_url"].endswith("/n_1.png")
+        assert nodes_by_id[plugin_id]["type"] == "workshop_plugin"
+        assert nodes_by_id[plugin_id]["workshop_plugin"] == saved_plugin
+        assert nodes_by_id[plugin_id]["viewer_editable"] is True
         assert saved_values == [(new_id, "obj_scale", {"k": 2})]
+
+
+@pytest.mark.parametrize("invalid", [
+    {"display_mode": "overlay"},
+    {"transparent_bg": 1},
+    {"hide_border": "true"},
+    {"theme": "night"},
+    {"work_id": "../original"},
+    {"visible_params": ["price"] * 25},
+    {"visible_params": ["x" * 65]},
+    {"presets": [{"id": "scenario", "label": "x" * 25, "params": {}}]},
+    {"presets": [{"id": "scenario", "label": "有效名称", "params": {"price": float("inf")}}]},
+    {"presets": [{"id": "scenario", "label": "有效名称", "params": {"price": True}}]},
+    {"presets": [{"id": "scenario", "label": "有效名称", "params": {}, "cursor": 1.1}]},
+    {"doc": {"nodes": [{"type": "slider", "id": "node", "x": 10 ** 400, "y": 0}], "wires": []}},
+    {"preview_data": "data:image/svg+xml;base64,AAAA"},
+    {"preview_data": "data:image/png;base64,invalid###"},
+    {"preview_data": "data:image/png;base64," + "A" * 350_000},
+])
+def test_workshop_plugin_rejects_invalid_settings(invalid):
+    from app.documents.store import validate_patch
+
+    with pytest.raises(ValueError, match="工坊插件"):
+        validate_patch({"workshop_plugin": {"template_kind": "biz-breakeven", "title": "经营沙盘", **invalid}})
 
 
 def test_offline_html_import_rejects_invalid_or_legacy_html() -> None:

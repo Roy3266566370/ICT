@@ -29,7 +29,7 @@ interface RailProps {
   onSelect: (pageNo: number) => void;
 }
 
-function SceneThumbnail({ page }: { page: ScenePage }) {
+export function SceneThumbnail({ page }: { page: ScenePage }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(160);
   useEffect(() => {
@@ -80,6 +80,7 @@ function LazyThumb({ src, aspectRatio }: { src: string; aspectRatio: string }) {
 
 interface ItemProps {
   pageNo: number;
+  ordinal: number;
   label: string;
   imageUrl: string | null;
   bytes: number | null;
@@ -94,11 +95,11 @@ interface ItemProps {
 }
 
 const ThumbnailItem = memo(function ThumbnailItem(props: ItemProps) {
-  const { pageNo, label, imageUrl, bytes, aspectRatio, scene, isCurrent, affected,
+  const { pageNo, ordinal, label, imageUrl, bytes, aspectRatio, scene, isCurrent, affected,
     badgeLabel, badgeTitle, interactive, onSelect } = props;
   return (
     <button type="button" onClick={() => onSelect(pageNo)} aria-current={isCurrent ? 'page' : undefined}
-      aria-label={`第 ${pageNo} 页：${label}`} className={styles.thumbnail} data-affected={affected}>
+      aria-label={`第 ${ordinal} 页：${label}`} className={styles.thumbnail} data-affected={affected}>
       {scene ? (
         <span className={styles.thumbImage} style={{ aspectRatio }}>
           <SceneThumbnail page={scene} />
@@ -109,8 +110,8 @@ const ThumbnailItem = memo(function ThumbnailItem(props: ItemProps) {
         <span className={styles.thumbImage} style={{ aspectRatio }}><span>{label || `页面生成中`}</span></span>
       )}
       <span className={styles.thumbCaption}>
-        <b>{pageNo}</b>
-        <span>{label || `第 ${pageNo} 页`}</span>
+        <b>{ordinal}</b>
+        <span>{label || `第 ${ordinal} 页`}</span>
         {badgeLabel ? <em className={styles.impactBadge} title={badgeTitle}>{badgeLabel}</em> : null}
         {interactive ? <i title="有交互内容" /> : null}
       </span>
@@ -123,12 +124,13 @@ export const ThumbnailRail = memo(function ThumbnailRail(props: RailProps) {
   return (
     <nav className={styles.thumbnails} data-collapsed={collapsed} aria-label="幻灯片缩略图">
       <div className={styles.railTitle}>幻灯片 <span>{pages.length}</span></div>
-      {pages.map((item) => {
+      {pages.map((item, index) => {
         const badge = badges.get(item.pageNo);
         return (
           <ThumbnailItem
             key={item.pageNo}
             pageNo={item.pageNo}
+            ordinal={index + 1}
             label={item.label}
             imageUrl={item.imageUrl}
             bytes={item.bytes}

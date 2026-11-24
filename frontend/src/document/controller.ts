@@ -1,5 +1,5 @@
-import type {SceneDocument,SceneNode,SceneRelation,NodePatch,NodeChange} from './types';
-import {diffDocuments,patchNodes,patchPageRelations,rebaseDocument,same} from './model';
+import type {SceneDocument,SceneNode,ScenePage,SceneRelation,NodePatch,NodeChange,PageMetadata,WorkshopPluginConfig} from './types';
+import {copyPage,diffDocuments,newNode,patchNodes,patchPageMetadata,patchPageRelations,rebaseDocument,removePage,same} from './model';
 export {diffDocuments,patchPageRelations,rebaseDocument} from './model';
 interface Options {
   save:(revision:number,operationId:string,changes:NodeChange[])=>Promise<{revision:number}>;
@@ -12,9 +12,10 @@ export class DocumentController {
   private key='';private lastAt=0;private timer:ReturnType<typeof setTimeout>|undefined;private maxTimer:ReturnType<typeof setTimeout>|undefined;
   private persistTimer:ReturnType<typeof setTimeout>|undefined;private persistPending=false;
   private listeners=new Set<()=>void>();private flight:Promise<boolean>|null=null;private error='';private conflict=false;private disposed=false;
-  private state:Snapshot;private operation=0;private paused=false;
+  private state:Snapshot;private operation=0;private paused=false;private nextPageNo:number;
   constructor(document:SceneDocument,private options:Options) {
     this.base=document;this.current=document;this.state={document,dirty:false,saving:false,canUndo:false,canRedo:false,error:'',conflict:false};
+    this.nextPageNo=Math.max(0,...[...document.pages,...(document.archived_pages??[])].map(p=>p.page_no))+1;
   }
   getSnapshot=()=>this.state;
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>this.listeners.delete(listener);};
@@ -46,10 +47,63 @@ export class DocumentController {
     this.emit();this.persist();this.schedule();
   }
   patch(pageNo:number,ids:string[],patch:NodePatch,key=''){this.replace(patchNodes(this.current,pageNo,ids,patch),key);}
+  cacheWorkshopPreview(pageNo:number,id:string,capture:WorkshopPluginConfig){
+    const node=this.current.pages.find(page=>page.page_no===pageNo)?.nodes.find(item=>item.id===id);
+    const current=node?.workshop_plugin;
+    if(!current||node.deleted||node.hidden||node.locked||!capture.preview_data||capture.preview_data===current.preview_data)return;
+    const next={...current,preview_data:capture.preview_data};
+    if(!same(next,capture))return;
+    this.current=patchNodes(this.current,pageNo,[id],{workshop_plugin:next});
+    this.emit();this.persist();this.schedule();
+  }
   patchRelations(pageNo:number,relations:SceneRelation[],key='page.relations'){this.replace(patchPageRelations(this.current,pageNo,relations),key);}
   add(pageNo:number,node:SceneNode){this.replace({...this.current,pages:this.current.pages.map(p=>p.page_no===pageNo?{...p,modified:true,nodes:[...p.nodes,node]}:p)});}
-  undo(){const previous=this.past.at(-1);if(!previous)return;this.past=this.past.slice(0,-1);this.future=[this.current,...this.future];this.current={...previous,revision:this.base.revision};this.key='';this.emit();this.persist();this.schedule();}
-  redo(){const next=this.future[0];if(!next)return;this.future=this.future.slice(1);this.past=[...this.past,this.current];this.current={...next,revision:this.base.revision};this.key='';this.emit();this.persist();this.schedule();}
+  private insertPage(afterPageNo:number,page:ScenePage){
+    const pages=[...this.current.pages];
+    const index=pages.findIndex(p=>p.page_no===afterPageNo);
+    pages.splice(index<0?pages.length:index+1,0,page);
+    this.replace({...this.current,pages,structure_modified:true});
+    return page.page_no;
+  }
+  private allocatePageNo(){
+    const pages=[...this.current.pages,...(this.current.archived_pages??[])];
+    this.nextPageNo=Math.max(this.nextPageNo,Math.max(0,...pages.map(p=>p.page_no))+1);
+    return this.nextPageNo++;
+  }
+  addPage(afterPageNo:number,layout:'blank'|'lesson'='blank'){
+    const pageNo=this.allocatePageNo();
+    const size=this.current.pages.find(p=>p.page_no===afterPageNo)??this.current.pages[0];
+    const page:ScenePage={page_no:pageNo,id:`p_${pageNo}`,width:size?.width??720,height:size?.height??405,
+      source_page_no:null,modified:true,nodes:[],preparation:{status:'ready'}};
+    if(layout==='lesson'){
+      const title=newNode(page,`u_page_${pageNo}_title`),body=newNode(page,`u_page_${pageNo}_body`);
+      const x=page.width*.08,width=page.width*.84;
+      page.nodes=[{...title,text:'课程标题',x,y:page.height*.10,width,height:page.height*.17,style:{...title.style,bold:true,font_size:Math.max(8,Math.min(48,page.height*.09))}},
+        {...body,text:'教学要点',x,y:page.height*.32,width,height:page.height*.58,style:{...body.style,font_size:Math.max(6,Math.min(36,page.height*.055))}}];
+    }
+    return this.insertPage(afterPageNo,page);
+  }
+  duplicatePage(pageNo:number){
+    const page=this.current.pages.find(p=>p.page_no===pageNo);
+    return page?this.insertPage(pageNo,copyPage(page,this.allocatePageNo())):pageNo;
+  }
+  deletePage(pageNo:number){this.replace(removePage(this.current,pageNo));}
+  movePage(pageNo:number,targetIndex:number){
+    const pages=[...this.current.pages];const from=pages.findIndex(p=>p.page_no===pageNo);
+    if(from<0||!Number.isInteger(targetIndex)||from===targetIndex||targetIndex<0||targetIndex>=pages.length)return;
+    const [page]=pages.splice(from,1);pages.splice(targetIndex,0,page!);
+    this.replace({...this.current,pages,structure_modified:true});
+  }
+  patchPage(pageNo:number,patch:PageMetadata){this.replace(patchPageMetadata(this.current,pageNo,patch),`page.${pageNo}.${Object.keys(patch).join('.')}`);}
+  private historySnapshot(next:SceneDocument):SceneDocument {
+    const archives=new Map((this.current.archived_pages??[]).map(p=>[p.page_no,p]));
+    for(const page of this.current.pages)if(!next.pages.some(p=>p.page_no===page.page_no))archives.set(page.page_no,page);
+    for(const page of next.pages)archives.delete(page.page_no);
+    return {...next,revision:this.base.revision,structure_modified:this.current.structure_modified||next.structure_modified,
+      archived_pages:[...archives.values()]};
+  }
+  undo(){const previous=this.past.at(-1);if(!previous)return;this.past=this.past.slice(0,-1);this.future=[this.current,...this.future];this.current=this.historySnapshot(previous);this.key='';this.emit();this.persist();this.schedule();}
+  redo(){const next=this.future[0];if(!next)return;this.future=this.future.slice(1);this.past=[...this.past,this.current];this.current=this.historySnapshot(next);this.key='';this.emit();this.persist();this.schedule();}
   save=async():Promise<boolean>=>{
     if(this.flight){await this.flight;return this.conflict||this.error?false:this.save();}
     clearTimeout(this.timer);clearTimeout(this.maxTimer);this.maxTimer=undefined;
@@ -63,7 +117,9 @@ export class DocumentController {
           if(!changes.length)break;
           const id=`op_${Date.now()}_${++this.operation}_${Math.random().toString(36).slice(2,9)}`;
           const result=await this.options.save(this.base.revision,id,changes);
-          this.base={...captured,revision:result.revision};this.current={...this.current,revision:result.revision};this.persist();this.emit(true);
+          const persistedPages=new Set([...this.base.pages,...(this.base.archived_pages??[])].map(p=>p.page_no));
+          this.base={...captured,revision:result.revision,archived_pages:captured.archived_pages?.filter(p=>persistedPages.has(p.page_no))};
+          this.current={...this.current,revision:result.revision};this.persist();this.emit(true);
         }
         return true;
       }catch(error){
@@ -89,13 +145,17 @@ export class DocumentController {
   loadServer(server:SceneDocument){this.base=server;this.current=server;this.past=[];this.future=[];this.error='';this.conflict=false;this.emit();this.persist();}
   updateAssets(document:SceneDocument){
     const merge=(doc:SceneDocument):SceneDocument=>({...doc,pages:doc.pages.map(page=>{
-      const remote=document.pages.find(p=>p.page_no===page.page_no);if(!remote)return page;
+      const remote=document.pages.find(p=>p.page_no===page.page_no)??document.pages.find(p=>p.page_no===page.copy_from_page_no);
+      if(!remote)return page;
       return {...page,preparation:remote.preparation,background_url:remote.background_url,nodes:page.nodes.map(node=>{
         const original=remote.nodes.find(n=>n.id===node.id);if(!original)return node;
         const before=this.base.pages.find(p=>p.page_no===page.page_no)?.nodes.find(n=>n.id===node.id);
         const style={...node.style};
         for(const key of Object.keys(original.style) as Array<keyof SceneNode['style']>)if(same(node.style[key],before?.style[key]))Object.assign(style,{[key]:original.style[key]});
-        return {...node,image_url:original.image_url,background_url:original.background_url,base_style:original.base_style,style};
+        return {...node,image_url:original.image_url,background_url:original.background_url,
+          image_frame:original.image_frame,image_scale:original.image_scale,image_size:original.image_size,
+          background_frame:original.background_frame,background_scale:original.background_scale,background_size:original.background_size,
+          word_wrap:original.word_wrap,base_style:original.base_style,style};
       })};
     })});
     const current=merge(this.current);this.past=this.past.map(merge);this.future=this.future.map(merge);this.base=merge(this.base);this.current=current;this.emit();

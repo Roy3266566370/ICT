@@ -6,10 +6,11 @@
  */
 import type { CanvasDoc } from './types.ts';
 import { deepWorkshopDoc } from './deepWorkshop.ts';
-import { isDeepTemplateKind } from './deepTemplates.ts';
-import { isLab408Kind, isLab408WorkbenchKind, lab408TemplateDoc } from './lab408Templates.ts';
+import { DEEP_TEMPLATES, isDeepTemplateKind } from './deepTemplates.ts';
+import { LAB408_TEMPLATES, isLab408Kind, lab408TemplateDoc } from './lab408Templates.ts';
 import { PHYSICS_TEMPLATES, physicsTemplateDoc, type PhysicsTemplateKind } from './physicsTemplates.ts';
-import { calculusTemplateDoc } from './calculusTemplates.ts';
+import { CALCULUS_TEMPLATES, calculusTemplateDoc } from './calculusTemplates.ts';
+import { BUSINESS_TEMPLATES, businessTemplateDoc, isBusinessTemplateKind } from './businessTemplates.ts';
 
 const PHYSICS_KINDS: ReadonlySet<string> = new Set(PHYSICS_TEMPLATES.map((t) => t.kind));
 
@@ -19,7 +20,88 @@ export function isPhysicsTemplateKind(kind: string): kind is PhysicsTemplateKind
 
 export function buildTemplateDoc(kind: string): CanvasDoc {
   if (isDeepTemplateKind(kind)) return deepWorkshopDoc(kind);
-  if (isLab408Kind(kind) || isLab408WorkbenchKind(kind)) return lab408TemplateDoc(kind);
+  if (isLab408Kind(kind)) return lab408TemplateDoc(kind);
   if (isPhysicsTemplateKind(kind)) return physicsTemplateDoc(kind);
+  if (isBusinessTemplateKind(kind)) return businessTemplateDoc(kind);
   return calculusTemplateDoc(kind);
+}
+
+const workshopTemplates = [...CALCULUS_TEMPLATES, ...PHYSICS_TEMPLATES, ...LAB408_TEMPLATES, ...DEEP_TEMPLATES, ...BUSINESS_TEMPLATES];
+
+export function findWorkshopTemplate(kind: string | undefined, title: string) {
+  return workshopTemplates.find((template) => template.kind === kind)
+    ?? workshopTemplates.find((template) => template.name === title);
+}
+
+const workshopFormulas: Record<string, string> = {
+  ...Object.fromEntries(BUSINESS_TEMPLATES.map(({ kind, formula }) => [kind, formula])),
+  'projectile-drag': 'm·dv/dt = mg − kv',
+  'incline-friction': 'tan α = μ',
+  'collision-momentum': 'Σp初 = Σp末',
+  'oscillation-wave': 'ω₀ = √(g/ℓ)',
+  'charged-particle': 'F = q(E + v × B)',
+  'rc-circuit': 'τ = RC',
+  'motional-emf': 'ℰ = Bℓv',
+  'double-slit': 'd sin θ = mλ',
+  'refraction-fiber': 'n₁ sin θ₁ = n₂ sin θ₂',
+  'thin-lens': '1/f = 1/u + 1/v',
+  'carnot-cycle': 'η = 1 − T꜀/Tₕ',
+  'photoelectric': 'Kₘₐₓ = hν − W',
+  dsTraversal: '前序 · 中序 · 后序 · 层序',
+  avl: 'BF = h(L) − h(R)',
+  kmpSort: 'next / nextval',
+  graphAlgo: 'd[v] ← min(d[v], d[u]+w)',
+  cacheSimLab: 'AMAT = 命中时间 + 缺失率 × 罚时',
+  pipelineLab: 'CPI = 周期数 / 指令数',
+  ieee754Lab: 'x = (−1)ˢ × M × 2ᴱ',
+  cpuScheduleLab: '周转 = 完成 − 到达',
+  bankerLab: 'Need = Max − Allocation',
+  pageReplace: 'FIFO / LRU / OPT',
+  tcpCongestionLab: 'cwnd ← cwnd + 1/cwnd',
+  slidingWindowLab: 'GBN / SR',
+  ipSubnet: '地址数 = 2⁽³² ⁻ ᵖ⁾',
+  btreeLab: '⌈m/2⌉ − 1 ≤ k ≤ m − 1',
+  hashTableLab: 'H(key) = key mod p · α = n / m',
+  cpuDatapathLab: '取指 IF → 译码 ID → 执行 EX → 访存 MEM → 写回 WB',
+  aluBoothLab: '[X+Y]补 = [X]补 + [Y]补 (mod 2ⁿ)',
+  diskScheduleLab: '平均寻道长度 = Σ|trackᵢ − trackᵢ₋₁| / n',
+  pvSyncLab: 'P(S): S←S−1 · V(S): S←S+1',
+  csmaCdLab: 'L_min = 2τ · R',
+  routingLab: 'Dₓ(y) = minᵥ { c(x,v) + Dᵥ(y) }',
+  dlSvm: '间隔宽度 = 2/‖w‖',
+  dlActivation: '∂hₗ/∂h₀ = ∏ f′(zᵢ)',
+  dlOptimizer: 'θₜ₊₁ = θₜ − η · update(∇L)',
+  dlRegularization: 'L + λ‖θ‖²',
+  dlManifold: 'hₗ = σ(Wₗhₗ₋₁ + bₗ)',
+  dlCnn: 'yᵢⱼ = Σᵤᵥ xᵢ₊ᵤ,ⱼ₊ᵥ kᵤᵥ',
+  dlResnet: 'y = x + F(x)',
+  dlSequence: 'hₜ = f(hₜ₋₁, xₜ)',
+  dlAttention: 'softmax(QKᵀ/√dₖ)V',
+  dlMultihead: 'Concat(head₁, …, headₕ)Wᴼ',
+  dlKv: 'p = softmax(logits / T)',
+  dlAutoencoder: 'x̂ = Dec(Enc(x))',
+  dlDiffusion: 'score = ∇ₓ log pₜ(x)',
+  dlQlearning: 'Q ← Q + α(r + γ max Q′ − Q)',
+};
+
+export interface WorkshopPluginEntry {
+  kind: string;
+  name: string;
+  desc: string;
+  category: '高等数学' | '大学物理' | '408 专题' | '深度学习' | '办公决策';
+  formula?: string;
+  keywords?: readonly string[];
+}
+
+export const WORKSHOP_PLUGIN_CATALOG: readonly WorkshopPluginEntry[] = [
+  ...CALCULUS_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '高等数学' as const, formula: t.formula ?? workshopFormulas[t.kind] })),
+  ...PHYSICS_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '大学物理' as const, formula: workshopFormulas[t.kind] })),
+  ...LAB408_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '408 专题' as const, formula: workshopFormulas[t.kind] })),
+  ...DEEP_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '深度学习' as const, formula: workshopFormulas[t.kind] })),
+  ...BUSINESS_TEMPLATES.map(({ kind, name, desc, formula, keywords }) =>
+    ({ kind, name, desc, category: '办公决策' as const, formula, keywords })),
+];
+
+export function workshopFormula(kind: string | undefined): string | undefined {
+  return kind && Object.hasOwn(workshopFormulas, kind) ? workshopFormulas[kind] : undefined;
 }

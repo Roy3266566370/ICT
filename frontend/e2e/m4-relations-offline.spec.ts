@@ -33,7 +33,7 @@ test('M4 换基图在线矢量化、动态关系面板、实时拖动联动与�
   expect(materialMatch).toBeTruthy();
   const materialId = materialMatch![1]!;
 
-  await page.getByRole('link', { name: '编辑内容 / 交互' }).click();
+  await page.getByRole('button', { name: '编辑课件' }).click();
   const editor = page.locator('[data-free-editor]');
   const canvas = editor.getByLabel('可编辑画布第 1 页');
   const picture = canvas.locator('[data-node-type="image"]').first();
@@ -65,7 +65,8 @@ test('M4 换基图在线矢量化、动态关系面板、实时拖动联动与�
   await shot('m4-01-editor-relations-panel.png');
 
   // 4. 保存并返回演示（放映态），验证细粒度权限与拖动 b₂ 实时联动
-  await editor.getByRole('button', { name: '保存并返回演示' }).click();
+  await expect(editor.getByText('已保存到服务端', {exact: true})).toBeVisible();
+  await page.getByRole('button', { name: '互动预览' }).click();
   await expect(page).toHaveURL(/\/work/, { timeout: 60_000 });
   const slide = page.getByLabel('幻灯片第 1 页', { exact: true });
   await expect(slide.locator('[data-vector-node]').first()).toBeVisible();
@@ -90,7 +91,7 @@ test('M4 换基图在线矢量化、动态关系面板、实时拖动联动与�
   await shot('m4-03-online-after-drag.png');
 
   // 一键重置恢复 (1, 1)
-  await slide.getByRole('button', { name: '一键重置' }).click();
+  await page.getByRole('button', { name: '一键重置' }).click();
   await expect(boundCoord).toContainText('(1, 1)');
 
   // 5. 点击「生成分享网页」，在全新无痕会话打开公开分享链接，验证观众权限隔离与拖动联动
@@ -155,7 +156,7 @@ test('M4 换基图在线矢量化、动态关系面板、实时拖动联动与�
   await expect(offlineSlide).toContainText('(2, 1)');
   await shot('m4-05-offline-after-drag.png', offlinePage);
 
-  await offlineSlide.getByRole('button', { name: '一键重置' }).click();
+  await offlinePage.getByRole('button', { name: '一键重置' }).click();
   await expect(offlineCoord).toContainText('(1, 1)');
   await offlineContext.close();
 });

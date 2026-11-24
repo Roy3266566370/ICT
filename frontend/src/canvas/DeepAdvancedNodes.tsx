@@ -37,7 +37,7 @@ function CliffGrid({ model, pg }: { model: NonNullable<AdvancedSnapshot['grid']>
   const [cell, setCell] = useState(30); const scale = Math.max(1, ...model.values.flat().map(Math.abs));
   return <figure className={styles.figure}><figcaption>6×6 悬崖世界 · 点击查看{pg ? '策略概率' : 'Q(s,a)'}</figcaption><div className={styles.world}>{model.policy.map((q, s) => { const cliff = s > 30 && s < 35; return <button type="button" key={s} onClick={() => setCell(s)} aria-label={`状态${s}`} style={{ background: cliff ? '#78535e' : `rgba(83,104,187,${0.08 + 0.55 * Math.abs(model.values[Math.floor(s / 6)]![s % 6]!) / scale})`, outline: s === cell ? '2px solid #d37535' : undefined }}>{s === 30 ? 'S ' : s === 35 ? 'G ' : cliff ? '悬崖' : ''}{!cliff && s !== 35 && ['↑', '→', '↓', '←'][q.indexOf(Math.max(...q))]}</button>; })}</div><small>状态 {cell} · ↑→↓←：{model.policy[cell]!.map(fmt).join(' / ')}<br />最近回合：{model.steps.at(-1) ?? 0} 步；return {model.returns.at(-1) ?? 0}。并列箭头仅显示第一个，探索时随机打破并列。</small></figure>;
 }
-function Experiment({ node, values, onParams, onLive }: NodeBodyProps) {
+function Experiment({ node, values, onParams, onLive, inCard }: NodeBodyProps) {
   const [frame, setFrame] = useState(0), [running, setRunning] = useState(false); const live = useRef(onLive); live.current = onLive;
   // Serialized inputs make recomputation independent of parent object identity / live output rerenders.
   const serialized = JSON.stringify({ node, values });
@@ -51,14 +51,14 @@ function Experiment({ node, values, onParams, onLive }: NodeBodyProps) {
   if (!snapshot) return <p role="status">请连接有效的实验输入。</p>;
   const trainable = node.type === 'svmLab' || node.type === 'qLearningLab';
   return <div className={styles.body} onPointerDown={e => e.stopPropagation()}>
-    <div className={styles.controls}>{controls[node.type]?.map(([key, label, fallback, min, max, step]) => { const input = values[key]; const connected = input?.kind === 'scalar'; const value = bounded(input?.kind === 'scalar' ? input.v : node.params[key], fallback, min, max); return <label key={key}><span>{label}{connected ? ' · 外接 scalar' : ''}<b>{fmt(value)}</b></span><input aria-label={label} type="range" min={min} max={max} step={step} value={value} disabled={connected} onChange={e => onParams?.({ [key]: Number(e.target.value) })} /></label>; })}</div>
+    {!inCard && <div className={styles.controls}>{controls[node.type]?.map(([key, label, fallback, min, max, step]) => { const input = values[key]; const connected = input?.kind === 'scalar'; const value = bounded(input?.kind === 'scalar' ? input.v : node.params[key], fallback, min, max); return <label key={key}><span>{label}{connected ? ' · 外接 scalar' : ''}<b>{fmt(value)}</b></span><input aria-label={label} type="range" min={min} max={max} step={step} value={value} disabled={connected} onChange={e => onParams?.({ [key]: Number(e.target.value) })} /></label>; })}</div>}
     {trainable && <div className={styles.actions}><button type="button" disabled={frame >= cap} onClick={() => setRunning(v => !v)}>{running ? '暂停' : '运行'}</button><button type="button" disabled={frame >= cap} onClick={() => setFrame(f => f + 1)}>单步{node.type === 'svmLab' ? ' +10 优化步' : ' +1 回合'}</button><button type="button" onClick={() => { setRunning(false); setFrame(0); }}>重置</button><small>runtime +{frame * (node.type === 'svmLab' ? 10 : 1)}（不写文档）</small></div>}
     <p className={styles.note}>{snapshot.note}</p>
     <div className={styles.readouts}>{Object.entries(snapshot.outputs).filter(([, v]) => v.kind === 'scalar').map(([key, v]) => <span key={key}>{key}: <b>{v.kind === 'scalar' ? fmt(v.v) : ''}</b></span>)}</div>
     {snapshot.grid && <CliffGrid model={snapshot.grid} pg={values.mode?.kind === 'scalar' ? !!values.mode.v : !!node.params.mode} />}
     {snapshot.points && <Plane snapshot={snapshot} onPoint={node.type === 'autoencoderLab' ? (x, y) => onParams?.({ ax: bounded(x, 0.4, -3, 3), ay: bounded(y, 0.3, -3, 3) }) : undefined} />}
     <div className={styles.charts}>{snapshot.matrices.map(m => <Heatmap key={m.label} {...m} />)}{snapshot.curves.map(c => <Curve key={c.label} {...c} />)}</div>
-    <details><summary>端口 / 数值边界</summary>in：未连线使用固定教学输入；张量最多16行、隐藏宽度8（序列8）；点云最多120。非法数值替换/过滤、输入限幅。control 覆盖首个主参数；out 等端口广播真实矩阵/点云，loss 是本实验标量（序列=context；Q=最近 return；扩散=平均负 log density）。训练使用固定 seed 重放至当前步，非计时噪声。</details>
+    {!inCard && <details><summary>端口 / 数值边界</summary>in：未连线使用固定教学输入；张量最多16行、隐藏宽度8（序列8）；点云最多120。非法数值替换/过滤、输入限幅。control 覆盖首个主参数；out 等端口广播真实矩阵/点云，loss 是本实验标量（序列=context；Q=最近 return；扩散=平均负 log density）。训练使用固定 seed 重放至当前步，非计时噪声。</details>}
   </div>;
 }
 export function DeepAdvancedBody(props: NodeBodyProps) { return <Experiment key={props.node.id} {...props} />; }

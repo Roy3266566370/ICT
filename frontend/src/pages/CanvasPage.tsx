@@ -7,18 +7,19 @@
  * 对象端口协议、多级求值（engine）、命名端口连线、动画源见 `canvas/` 目录。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { SiteNav } from '@/components/home/SiteNav';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
 import { PALETTE_GROUPS, NODE_DEFS, defaultParams } from '@/canvas/nodes.tsx';
 import { buildTemplateDoc } from '@/canvas/templateCatalog.ts';
+import { defaultAiRuleParams, defaultAiRulePayload, serializeAiRulePayload } from '@/canvas/aiRuleBlock.ts';
+import { applyAutoLayout } from '@/canvas/layout.ts';
 import { nextId, clamp } from '@/canvas/math.ts';
 import type { CanvasDoc, CanvasTool, InkStroke, NodeType } from '@/canvas/types.ts';
 import { worksApi } from '@/api/works';
 import { extractInkFormula, type InkNodeType } from '@/api/labs';
+import { generateAiRuleBlock } from '@/api/workshopAi';
 import { errorMessage } from '@/api/client';
-import { simParamMeta } from '@/living/sim';
 import { defaultManual408Text } from '@/labs/manual408';
 import { compileExpression } from '@/labs/expr';
 import { fitFreehandCurve, curveFamilyLabel, type CurveFitResult } from '@/labs/curveFit';
@@ -84,8 +85,7 @@ function FitOverlay({ fit }: { fit: CurveFitResult }): JSX.Element {
 }
 
 const STORAGE_KEY = 'wanxiang.canvas.v1';
-const ZOOM_MIN = 0.4;
-const ZOOM_MAX = 1.6;
+const DOCK_KEY = 'wanxiang.canvas.dockHidden.v1';
 const HISTORY_MAX = 60;
 const HISTORY_COALESCE_MS = 400;
 
@@ -185,9 +185,24 @@ export function CanvasPage(): JSX.Element {
   const [deepPaletteGroup, setDeepPaletteGroup] = useState('输入');
   const deepPaletteGroups = ['输入', '算子', '训练与更新', '观察'];
   const [lastPaletteItem, setLastPaletteItem] = useState('');
-  const paletteRef = useRef<HTMLDetailsElement>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [dockHidden, setDockHidden] = useState(() => {
+    try { return localStorage.getItem(DOCK_KEY) === '1'; } catch { return false; }
+  });
+  const toggleDock = (hidden: boolean) => {
+    setDockHidden(hidden);
+    if (hidden) setPaletteOpen(false);
+    try { localStorage.setItem(DOCK_KEY, hidden ? '1' : '0'); } catch { /* 隐私模式静默失败 */ }
+  };
+  const paletteButton = useRef<HTMLButtonElement>(null);
+  const [activeMode, setMode] = useState<'instrument' | 'compose'>(() => doc.panel ? 'instrument' : 'compose');
+  useEffect(() => { if (paletteOpen) paletteSearch.current?.focus(); }, [paletteOpen]);
+  const closePalette = () => {
+    setPaletteOpen(false);
+    paletteButton.current?.focus();
+  };
   const paletteSearch = useRef<HTMLInputElement>(null);
-  const paletteCategories = ['常用', '深度学习', '高数', '408', '基础积木', '力学', '文字'];
+  const paletteCategories = ['常用', 'AI', '深度学习', '高数', '408', '办公', '基础积木', '物理', '文字'];
   const commonTypes: readonly NodeType[] = ['slider', 'matrixSource', 'functionSource', 'textNote',
     'dataset2dSource', 'linearOp', 'activationOp', 'matrixHeatmapView'];
   const query = paletteQuery.trim().toLowerCase();
@@ -195,23 +210,30 @@ export function CanvasPage(): JSX.Element {
     : PALETTE_GROUPS.filter(({ label }) => query || (paletteCategory === '深度学习'
       ? label === `深度学习 · ${deepPaletteGroup}` : paletteCategory === '基础积木'
         ? ['源', '变换', '视图', '学习'].includes(label) : paletteCategory === '高数'
-          ? label.startsWith('高数') : label === paletteCategory))
+          ? label.startsWith('高数') : paletteCategory === '物理'
+            ? label.startsWith('大学物理') : paletteCategory === '办公'
+              ? label.startsWith('办公') : paletteCategory === 'AI'
+                ? label.startsWith('AI') : label === paletteCategory))
       .map((group) => ({ ...group, types: group.types.filter((type) =>
         `${group.label} ${NODE_DEFS[type].title} ${type}`.toLowerCase().includes(query)) }))
       .filter(({ types }) => types.length);
 
   /* 工作台判定只看面板本身：任何学科只要预置了有效 panel（视图或外露参数），
      打开即进入左右停靠的仪器工作台；取消勾选「设为仪器面板」立即回到自由画布。 */
-  const useWorkbench = !!doc.panel && (doc.panel.view_node_ids.length > 0 || doc.panel.exposed_params.length > 0);
   const [tool, setTool] = useState<CanvasTool>('select');
   const [inkColor, setInkColor] = useState('#2F3A49');
   const [savedFlash, setSavedFlash] = useState(false);
   const [workId, setWorkId] = useState<string | null>(null);
   const [cloudState, setCloudState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [share, setShare] = useState<{ url: string; embedUrl?: string } | null>(null);
+  const [embedCopied, setEmbedCopied] = useState(false);
   const [inkReview, setInkReview] = useState<InkReviewState | null>(null);
   const [inkExpression, setInkExpression] = useState('');
   const [inkError, setInkError] = useState<string | null>(null);
+  const [aiSketchOpen, setAiSketchOpen] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
   const inkResolve = useRef<((ok: boolean) => void) | null>(null);
   const [fitReview, setFitReview] = useState<FitReviewState | null>(null);
   const [fitExpressions, setFitExpressions] = useState<string[]>([]);
@@ -224,53 +246,54 @@ export function CanvasPage(): JSX.Element {
   const remote = useRef<{ id: string; revision: number; doc: CanvasDoc; pending: Promise<void> }>();
   const hist = useRef<{ past: CanvasDoc[]; future: CanvasDoc[]; lastPush: number }>({ past: [], future: [], lastPush: 0 });
 
-  /* 带撤销历史的 setDoc：把"改动前"的快照压栈，400ms 内的连续改动合并为一步 */
-  const setDoc = useCallback<React.Dispatch<React.SetStateAction<CanvasDoc>>>((update) => {
-    setDocRaw((prev) => {
-      const next = typeof update === 'function' ? update(prev) : update;
-      if (next === prev) return prev;
-      const now = performance.now();
-      if (now - hist.current.lastPush > HISTORY_COALESCE_MS) {
-        hist.current.past.push(prev);
-        if (hist.current.past.length > HISTORY_MAX) hist.current.past.shift();
-        hist.current.future = [];
-        hist.current.lastPush = now;
-        setHistInfo({ undo: hist.current.past.length, redo: 0 });
-      }
-      return next;
-    });
+  const docRef = useRef(doc);
+  const writeDoc = useCallback((next: CanvasDoc) => {
+    docRef.current = next;
+    setDocRaw(next);
   }, []);
+
+  /* 连续拖动合并到同一条历史记录，文档更新函数保持纯净。 */
+  const setDoc = useCallback<React.Dispatch<React.SetStateAction<CanvasDoc>>>((update) => {
+    const previous = docRef.current;
+    const next = typeof update === 'function' ? update(previous) : update;
+    if (next === previous) return;
+    const h = hist.current;
+    const now = performance.now();
+    if (!h.past.length || h.future.length || now - h.lastPush > HISTORY_COALESCE_MS) {
+      h.past.push(previous);
+      if (h.past.length > HISTORY_MAX) h.past.shift();
+      h.future = [];
+      setHistInfo({ undo: h.past.length, redo: 0 });
+    }
+    h.lastPush = now;
+    writeDoc(next);
+  }, [writeDoc]);
 
   const undo = useCallback(() => {
     const h = hist.current;
-    setDocRaw((prev) => {
-      const p = h.past.pop();
-      if (!p) return prev;
-      h.future.push(prev);
-      h.lastPush = performance.now();
-      setHistInfo({ undo: h.past.length, redo: h.future.length });
-      return p;
-    });
-  }, []);
+    const previous = h.past.pop();
+    if (!previous) return;
+    h.future.push(docRef.current);
+    h.lastPush = -Infinity;
+    setHistInfo({ undo: h.past.length, redo: h.future.length });
+    writeDoc(previous);
+  }, [writeDoc]);
 
   const redo = useCallback(() => {
     const h = hist.current;
-    setDocRaw((prev) => {
-      const f = h.future.pop();
-      if (!f) return prev;
-      h.past.push(prev);
-      h.lastPush = performance.now();
-      setHistInfo({ undo: h.past.length, redo: h.future.length });
-      return f;
-    });
-  }, []);
+    const next = h.future.pop();
+    if (!next) return;
+    h.past.push(docRef.current);
+    h.lastPush = -Infinity;
+    setHistInfo({ undo: h.past.length, redo: h.future.length });
+    writeDoc(next);
+  }, [writeDoc]);
 
-  /* Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y */
   useEffect(() => {
     const h = (e: KeyboardEvent): void => {
       if (!(e.ctrlKey || e.metaKey)) return;
       const t = e.target as HTMLElement;
-      if (t.closest('input,textarea,[contenteditable]')) return;
+      if (t.closest('input,textarea,math-field,[contenteditable]')) return;
       const k = e.key.toLowerCase();
       if (k === 'z' && e.shiftKey) { e.preventDefault(); redo(); }
       else if (k === 'z') { e.preventDefault(); undo(); }
@@ -298,11 +321,12 @@ export function CanvasPage(): JSX.Element {
       remote.current = undefined;
       hist.current = { past: [], future: [], lastPush: 0 };
       setHistInfo({ undo: 0, redo: 0 });
-      setDocRaw(next);
+      setMode(next.panel ? 'instrument' : 'compose');
+      writeDoc(next);
     } catch {
       /* 忽略未知模板名 */
     }
-  }, [templateParam, workIdParam]);
+  }, [templateParam, workIdParam, writeDoc]);
 
   /* 指定作品（?work=wk_id / fork 后跳转）：从后端装载 */
   useEffect(() => {
@@ -315,21 +339,24 @@ export function CanvasPage(): JSX.Element {
       setWorkId(res.work_id);
       remote.current = { id: res.work_id, revision: res.revision, doc: d, pending: Promise.resolve() };
       hist.current = { past: [], future: [], lastPush: 0 };
-      setDocRaw(d);
+      setMode(d.panel ? 'instrument' : 'compose');
+      setHistInfo({ undo: 0, redo: 0 });
+      setCloudState('saved');
+      writeDoc(d);
     }).catch(() => {
       if (!dead) window.alert('工坊作品加载失败（可能已删除或不属于你），已保留本地画布。');
     });
     return () => { dead = true; };
-  }, [workIdParam]);
+  }, [workIdParam, writeDoc]);
 
   /* 防抖持久化：localStorage 永远兜底 */
   useEffect(() => {
+    setSavedFlash(false);
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
         setSavedFlash(true);
-        window.setTimeout(() => setSavedFlash(false), 900);
       } catch {
         /* 存储满/隐私模式下静默失败 */
       }
@@ -375,30 +402,87 @@ export function CanvasPage(): JSX.Element {
           x: x ?? 110 + offset, y: y ?? 120 + offset,
           params: defaultParams(type),
           ...(type === 'textNote' ? { text: '' } : {}),
-          ...(type === 'latexNote' ? { text: 'e^{i\\pi}+1=0' } : {}),
           ...(type === 'functionSource' ? { text: 'a*x^2+b*x+c' } : {}),
           ...(type === 'lab408Workbench' ? { text: defaultManual408Text() } : {}),
+          ...(type === 'aiRuleBlock' ? { payload: serializeAiRulePayload(defaultAiRulePayload()) } : {}),
         },
       ],
     }));
-  }, [setDoc]);
-
-  const setZoom = useCallback((z: number) => {
-    setDoc((d) => ({ ...d, zoom: clamp(Math.round(z * 100) / 100, ZOOM_MIN, ZOOM_MAX) }));
   }, [setDoc]);
 
   const clearInk = useCallback(() => {
     setDoc((d) => ({ ...d, strokes: [] }));
   }, [setDoc]);
 
+  const buildAiSketch = useCallback(async () => {
+    const prompt = aiPrompt.trim();
+    if (!prompt) {
+      setAiError('请先描述要搭建的实验。');
+      return;
+    }
+    if (doc.nodes.length > 0 && !window.confirm('AI 搭积木会替换当前画布内容（可用撤销恢复），继续吗？')) return;
+    setAiBusy(true);
+    setAiError('');
+    try {
+      const payload = await generateAiRuleBlock({ prompt });
+      const noteId = nextId('n');
+      const blockId = nextId('n');
+      const viewId = nextId('n');
+      const nodes = [
+        { id: noteId, type: 'textNote' as const, x: 60, y: 40, params: {}, text: `AI 搭积木草图\n${payload.title}\n${payload.summary}` },
+        { id: blockId, type: 'aiRuleBlock' as const, x: 60, y: 220, params: defaultAiRuleParams(payload), payload: serializeAiRulePayload(payload) },
+        { id: viewId, type: 'universalStageView' as const, x: 520, y: 220, params: {} },
+      ];
+      const wires = [{ id: nextId('w'), from: blockId, fromPort: 'out', to: viewId, toPort: 'in' }];
+      const next: CanvasDoc = {
+        version: 1,
+        title: payload.title,
+        zoom: 0.9,
+        nodes: applyAutoLayout(nodes, wires),
+        wires,
+        strokes: [],
+        panel: {
+          title: payload.title,
+          view_node_ids: [viewId],
+          exposed_params: payload.controls.filter((control) => !control.options).flatMap((control) => [
+            { node_id: blockId, param_key: control.key, label: control.label,
+              ...(control.min === undefined ? {} : { min: control.min }),
+              ...(control.max === undefined ? {} : { max: control.max }),
+              ...(control.step === undefined ? {} : { step: control.step }) },
+          ]),
+        },
+      };
+      setWorkId(null);
+      remote.current = undefined;
+      setShare(null);
+      setCloudState('idle');
+      setMode('instrument');
+      setDoc(next);
+      setAiSketchOpen(false);
+      setAiPrompt('');
+      setAiError('');
+      navigate('/canvas', { replace: true });
+    } catch (cause) {
+      setAiError(errorMessage(cause));
+    } finally {
+      setAiBusy(false);
+    }
+  }, [aiPrompt, doc.nodes.length, navigate, setDoc]);
+
   const newCanvas = useCallback(() => {
-    if (!window.confirm('新建演示画布？当前画布已保存在浏览器本地，会被覆盖。')) return;
+    if (!window.confirm('新建空白画布？这会替换当前本地草稿。')) return;
     spawn.current = 0;
     setWorkId(null);
-    setShareUrl(null);
+    setShare(null);
     hist.current = { past: [], future: [], lastPush: 0 };
-    setDoc(seedDoc());
-  }, [setDoc]);
+    remote.current = undefined;
+    setHistInfo({ undo: 0, redo: 0 });
+    setMode('compose');
+    setCloudState('idle');
+    setPaletteOpen(false);
+    writeDoc({ version: 1, title: '空白画布', nodes: [], wires: [], strokes: [], zoom: 1 });
+    navigate('/canvas', { replace: true });
+  }, [navigate, writeDoc]);
 
   const exportJson = useCallback(() => {
     const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
@@ -445,7 +529,10 @@ export function CanvasPage(): JSX.Element {
       }
       const pub = await worksApi.publish(wid);
       const url = `${window.location.origin}${pub.share_url}`;
-      setShareUrl(url);
+      const embedUrl = doc.panel ? new URL(url) : undefined;
+      embedUrl?.searchParams.set('embed', '1');
+      setShare({ url, embedUrl: embedUrl?.href });
+      setEmbedCopied(false);
       try { await navigator.clipboard.writeText(url); } catch { /* 剪贴板不可用时展示链接即可 */ }
     } catch {
       window.alert('发布失败：请确认后端已启动。');
@@ -610,211 +697,70 @@ export function CanvasPage(): JSX.Element {
 
   return (
     <div className={styles.page}>
-      <SiteNav current="canvas" appearance="studio" />
-
-      <div className={styles.toolbar}>
-        <input
-          className={styles.title}
-          value={doc.title}
-          spellCheck={false}
-          aria-label="画布标题"
-          onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))}
-        />
-        <span className={`${styles.savepill} ${savedFlash ? styles.savepillOn : ''}`}>
-          {workId
-            ? cloudState === 'saving' ? '云端同步中…'
-              : cloudState === 'error' ? '云端同步失败（本地仍在）'
-              : savedFlash ? '✓ 已保存' : '工坊+本地自动保存'
-            : savedFlash ? '✓ 已保存' : '本地自动保存'}
-        </span>
-        <button
-          type="button" className={styles.tbtn} disabled={histInfo.undo === 0}
-          aria-label="撤销" title="撤销 (Ctrl+Z)" onClick={undo}
-        >↩ 撤销</button>
-        <button
-          type="button" className={styles.tbtn} disabled={histInfo.redo === 0}
-          aria-label="重做" title="重做 (Ctrl+Shift+Z)" onClick={redo}
-        >↪ 重做</button>
-        <div className={styles.spacer} />
-
-        <details className={styles.palette} ref={paletteRef}
-          onToggle={() => { if (paletteRef.current?.open) paletteSearch.current?.focus(); }}
-          onKeyDown={(event) => {
-            if (event.key !== 'Escape' || !paletteRef.current?.open) return;
-            event.preventDefault();
-            paletteRef.current.open = false;
-            paletteRef.current.querySelector('summary')?.focus();
-          }}>
-          <summary className={styles.tbtn}>＋ 添加对象</summary>
-          <section className={styles.objectPicker} aria-label="积木库">
-            <header className={styles.objectPickerHeader}>
-              <strong>积木库</strong>
-              <input ref={paletteSearch} type="search" aria-label="搜索积木" placeholder="搜索名称或关键词"
-                value={paletteQuery} onChange={(event) => setPaletteQuery(event.target.value)} />
-            </header>
-            <div className={styles.objectPickerBody}>
-              <nav aria-label="积木分类" className={styles.objectCategories}>
-                {paletteCategories.map((category) => <button key={category} type="button"
-                  aria-pressed={!query && paletteCategory === category}
-                  onClick={() => { setPaletteCategory(category); setPaletteQuery(''); }}>{category}</button>)}
-              </nav>
-              <div className={styles.objectResults} key={query ? 'search' : paletteCategory}>
-                {!query && paletteCategory === '深度学习' && (
-                  <nav className={styles.objectSubcategories} aria-label="深度学习积木用途">
-                    {deepPaletteGroups.map((group) => <button key={group} type="button"
-                      aria-pressed={deepPaletteGroup === group} onClick={() => setDeepPaletteGroup(group)}>{group}</button>)}
-                  </nav>
-                )}
-                {query && <h3>搜索结果</h3>}
-                {visiblePaletteGroups.length === 0 && <p role="status">没有匹配的积木。</p>}
-                {visiblePaletteGroups.map(({ label, types }) => <section key={label}>
-                  <h3>{!query && paletteCategory === '深度学习' ? label.split(' · ')[1] : label}</h3>
-                  <div className={styles.objectGrid}>
-                    {types.map((type) => <button key={type} type="button" className={styles.objectItem}
-                      aria-label={NODE_DEFS[type].title}
-                      onClick={() => { addNode(type); setLastPaletteItem(NODE_DEFS[type].title); }}>
-                      <span>{NODE_DEFS[type].title}</span>
-                      <small>{NODE_DEFS[type].badge}</small>
-                    </button>)}
-                  </div>
-                </section>)}
-              </div>
+      <header className={styles.toolbar}>
+        <div className={styles.identity}>
+          <Link className={styles.backLink} to="/workshop">← 工坊目录</Link>
+          <input className={styles.title} value={doc.title} spellCheck={false} aria-label="画布标题"
+            onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} />
+          <span role="status" className={styles.savepill} data-state={cloudState === 'error' ? 'error' : savedFlash && cloudState !== 'saving' ? 'saved' : 'busy'}>
+            {cloudState === 'error' ? '同步失败' : !savedFlash || cloudState === 'saving' ? '同步中' : '已保存'}
+          </span>
+        </div>
+        <div className={styles.modes} role="group" aria-label="画布模式">
+          <button type="button" aria-pressed={activeMode === 'instrument'} onClick={() => { setMode('instrument'); setPaletteOpen(false); }}><span aria-hidden="true">◉ </span>交互仪器态</button>
+          <button type="button" aria-pressed={activeMode === 'compose'} onClick={() => setMode('compose')}><span aria-hidden="true">▦ </span>积木编排态</button>
+        </div>
+        <div className={styles.actions}>
+          <button type="button" className={styles.tbtn} disabled={!histInfo.undo} aria-label="撤销" title="撤销 (Ctrl+Z)" onClick={undo}>↶</button>
+          <button type="button" className={styles.tbtn} disabled={!histInfo.redo} aria-label="重做" title="重做 (Ctrl+Shift+Z)" onClick={redo}>↷</button>
+          <button type="button" className={styles.tbtn} onClick={() => { setAiError(''); setAiSketchOpen(true); }}>AI 搭积木草图</button>
+          <button type="button" className={styles.tbtn} disabled={cloudState === 'saving'} onClick={() => void saveToWorkshop()}>保存到工坊</button>
+          <button type="button" className={styles.tbtn + ' ' + styles.primary} onClick={() => void publish()}>发布 / 嵌入活页</button>
+          <details className={styles.menu}>
+            <summary className={styles.tbtn} aria-label="更多操作">···</summary>
+            <div className={styles.menuItems} onClick={(e) => { if ((e.target as HTMLElement).closest('button')) e.currentTarget.closest('details')?.removeAttribute('open'); }}>
+              <button type="button" onClick={exportJson}>导出 JSON</button>
+              <button type="button" onClick={newCanvas}>新建空白画布</button>
+              <button type="button" onClick={() => {
+                if (!window.confirm('恢复默认内容？可用撤销恢复当前编辑。')) return;
+                setDoc(templateParam ? buildTemplateDoc(templateParam) : remote.current?.doc ?? seedDoc());
+              }}>恢复默认</button>
             </div>
-            <footer className={styles.objectPickerFoot} aria-live="polite">
-              {lastPaletteItem ? `已添加：${lastPaletteItem}` : '点击积木，将它添加到画布'}
-            </footer>
-          </section>
-        </details>
+          </details>
+        </div>
+      </header>
 
-        <details className={styles.palette}>
-          <summary className={styles.tbtn} title="设为仪器面板：嵌入活页时只显示选中视图与外露参数">
-            🎛 仪器面板{doc.panel ? ` · ${doc.panel.view_node_ids.length || '全图'}` : ''}
-          </summary>
-          <div className={styles.paletteMenu}>
-            <label className={styles.paletteItem} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
-              <input type="checkbox" checked={!!doc.panel} onChange={(e) =>
-                setDoc((d) => ({ ...d, panel: e.target.checked ? { view_node_ids: [], exposed_params: [] } : undefined }))} />
-              设为仪器面板
-            </label>
-            {doc.panel ? <>
-              <div className={styles.paletteLabel}>可见节点（全不选 = 显示全部）</div>
-              {doc.nodes.map((n) => (
-                <label key={n.id} className={styles.paletteItem} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
-                  <input type="checkbox" checked={doc.panel!.view_node_ids.includes(n.id)} onChange={(e) =>
-                    setDoc((d) => ({ ...d, panel: { ...d.panel!, view_node_ids: e.target.checked
-                      ? [...d.panel!.view_node_ids, n.id]
-                      : d.panel!.view_node_ids.filter((id) => id !== n.id) } }))} />
-                  {n.text || NODE_DEFS[n.type]?.title || n.type}
-                </label>
-              ))}
-              <div className={styles.paletteLabel}>外露参数</div>
-              {doc.nodes.flatMap((n) => Object.keys(n.params ?? {}).map((key) => ({ n, key }))).map(({ n, key }) => {
-                const ref = `${n.id}.${key}`;
-                const entry = doc.panel!.exposed_params.find((p) => p.node_id === n.id && p.param_key === key);
-                const exposed = !!entry;
-                const updateBound = (patch: Partial<{ min: number; max: number; step: number }>) => {
-                  setDoc((d) => ({
-                    ...d,
-                    panel: d.panel ? {
-                      ...d.panel,
-                      exposed_params: d.panel.exposed_params.map((p) =>
-                        p.node_id === n.id && p.param_key === key ? { ...p, ...patch } : p),
-                    } : undefined,
-                  }));
-                };
-                return (
-                  <div key={ref}>
-                    <label className={styles.paletteItem} style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
-                      <input type="checkbox" checked={exposed} onChange={(e) => {
-                        const meta = simParamMeta(n, key);
-                        setDoc((d) => ({ ...d, panel: { ...d.panel!, exposed_params: e.target.checked
-                          ? [...d.panel!.exposed_params, {
-                              node_id: n.id, param_key: key,
-                              label: meta.label || `${n.text || NODE_DEFS[n.type]?.title || n.type}·${key}`,
-                              min: meta.min, max: meta.max, step: meta.step,
-                            }]
-                          : d.panel!.exposed_params.filter((p) => !(p.node_id === n.id && p.param_key === key)) } }));
-                      }} />
-                      {(n.text || NODE_DEFS[n.type]?.title || n.type)}·{key}
-                    </label>
-                    {entry ? (
-                      <div style={{ display: 'flex', gap: '.3rem', paddingLeft: '1.4rem', marginBottom: '.25rem', fontSize: '.75rem' }}>
-                        <label>min <input type="number" step="any" style={{ width: '3.6rem' }} value={entry.min ?? ''}
-                          onChange={(e) => updateBound({ min: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
-                        <label>max <input type="number" step="any" style={{ width: '3.6rem' }} value={entry.max ?? ''}
-                          onChange={(e) => updateBound({ max: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
-                        <label>step <input type="number" step="any" style={{ width: '3.2rem' }} value={entry.step ?? ''}
-                          onChange={(e) => updateBound({ step: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-              <div className={styles.paletteLabel}>嵌入活页后学生只能调外露参数，原作不受污染</div>
-            </> : null}
-          </div>
-        </details>
-
-        <span className={styles.groupLabel}>笔</span>
-        <button
-          type="button"
-          className={`${styles.tbtn} ${tool === 'pen' ? styles.tbtnOn : ''}`}
-          aria-pressed={tool === 'pen'}
-          onClick={() => setTool((t) => (t === 'pen' ? 'select' : 'pen'))}
-        >
-          ✒️ 手写
-        </button>
-        <span className={styles.swatches}>
-          {(['#2F3A49', '#B8431F'] as const).map((c) => (
-            <i
-              key={c}
-              className={`${styles.swatch} ${inkColor === c ? styles.swatchOn : ''}`}
-              style={{ background: c }}
-              role="button"
-              tabIndex={0}
-              aria-label={`墨迹颜色 ${c}`}
-              onClick={() => { setInkColor(c); if (tool !== 'pen') setTool('pen'); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setInkColor(c); setTool('pen'); } }}
-            />
-          ))}
-        </span>
-        <button
-          type="button"
-          className={`${styles.tbtn} ${tool === 'erase' ? styles.tbtnOn : ''}`}
-          aria-pressed={tool === 'erase'}
-          onClick={() => setTool((t) => (t === 'erase' ? 'select' : 'erase'))}
-        >
-          橡皮
-        </button>
-        <button type="button" className={styles.tbtn} onClick={clearInk}>清屏</button>
-
-        <span className={styles.czoom}>
-          <button type="button" aria-label="缩小" onClick={() => setZoom(doc.zoom - 0.15)}>−</button>
-          <b aria-live="polite">{Math.round(doc.zoom * 100)}%</b>
-          <button type="button" aria-label="放大" onClick={() => setZoom(doc.zoom + 0.15)}>＋</button>
-        </span>
-
-        <button type="button" className={styles.tbtn} onClick={exportJson}>导出</button>
-        <button type="button" className={styles.tbtn} onClick={newCanvas}>新建</button>
-        {!workId ? (
-          <button type="button" className={styles.tbtn} onClick={() => void saveToWorkshop()}>
-            存到工坊
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className={`${styles.tbtn} ${styles.primary}`}
-          onClick={() => void publish()}
-        >
-          发布画布
-        </button>
-      </div>
-
-      {shareUrl ? (
+      {share && (
         <div className={styles.sharebar} role="status">
-          已发布到工坊画廊：<a href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}</a>
-          <span className={styles.dim}>（链接已复制，任何人打开即玩，可 fork 改造）</span>
-          <button type="button" className={styles.tbtn} onClick={() => setShareUrl(null)}>知道了</button>
+          画布已发布
+          <a href={share.url} target="_blank" rel="noreferrer">打开分享</a>
+          {share.embedUrl && <>
+            <a href={share.embedUrl} target="_blank" rel="noreferrer">预览嵌入</a>
+            <button type="button" className={styles.tbtn} onClick={async () => {
+              const markup = '<iframe title="万象工坊交互仪器" src="' + share.embedUrl + '" width="100%" height="720" loading="lazy"></iframe>';
+              try { await navigator.clipboard.writeText(markup); setEmbedCopied(true); }
+              catch { window.prompt('复制嵌入代码', markup); }
+            }}>{embedCopied ? '嵌入代码已复制' : '复制嵌入代码'}</button>
+          </>}
+          <button type="button" className={styles.tbtn} onClick={() => setShare(null)}>关闭</button>
+        </div>
+      )}
+
+      {aiSketchOpen ? (
+        <div className={styles.inkReview} role="dialog" aria-modal="true" aria-label="AI 搭积木草图">
+          <div className={styles.inkReviewCard}>
+            <h3>AI 搭积木草图</h3>
+            <p className={styles.fitHint}>用一句话描述课堂要展示的实验。AI 会生成一个智能计算方块和通用舞台，并自动摆放、连线；生成后仍可自由修改。</p>
+            <textarea className={styles.aiPrompt} rows={4} value={aiPrompt} spellCheck={false}
+              aria-label="AI 搭积木主题" placeholder="例如：演示电梯磁盘调度 SCAN 的磁头轨迹，并对比 FCFS"
+              onChange={(event) => { setAiPrompt(event.currentTarget.value); setAiError(''); }} />
+            {aiError ? <p className={styles.inkReviewError} role="alert">{aiError}</p> : null}
+            <div className={styles.inkReviewActions}>
+              <button type="button" className={styles.tbtn} disabled={aiBusy} onClick={() => setAiSketchOpen(false)}>取消</button>
+              <button type="button" className={`${styles.tbtn} ${styles.primary}`} disabled={aiBusy || !aiPrompt.trim()}
+                onClick={() => void buildAiSketch()}>{aiBusy ? 'AI 正在搭积木…' : '生成草图'}</button>
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -893,7 +839,75 @@ export function CanvasPage(): JSX.Element {
         </div>
       ) : null}
 
-      <CanvasBoard workbench={useWorkbench} workId={workId} doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor} onAddNode={addNode} onInkExtract={recognizeInk} onInkFit={recognizeCurves} />
+      <CanvasBoard workId={workId} doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor}
+        onAddNode={addNode} onInkExtract={recognizeInk} onInkFit={recognizeCurves}
+        templateKind={templateParam ?? undefined} mode={activeMode} onCompose={() => setMode('compose')}
+        renderTools={({ fitAll, tidyLayout, zoomBy, spawnPoint }) => <>
+          {dockHidden ? (
+            <button type="button" className={`${styles.dock} ${styles.dockToggle}`} onClick={() => toggleDock(false)}
+              title="展开画布工具坞" aria-label="展开画布工具坞" aria-expanded="false">▴ 工具坞</button>
+          ) : (
+          <div className={styles.dock} role="toolbar" aria-label="画布工具坞">
+            <button ref={paletteButton} type="button" aria-expanded={paletteOpen} onClick={() => setPaletteOpen((open) => !open)}>＋ 积木库</button>
+            <button type="button" aria-pressed={tool === 'select'} onClick={() => setTool('select')} title="拖空白平移，Shift 拖动框选">平移 / 选择</button>
+            <button type="button" aria-pressed={tool === 'pen'} onClick={() => setTool(tool === 'pen' ? 'select' : 'pen')} title="手写后按 Shift 框选，可识别公式或拟合曲线">手写</button>
+            {tool === 'pen' && ['#2F3A49', '#B8431F'].map((color) => <button key={color} type="button" className={styles.inkColor} style={{ background: color }} aria-label={'墨迹颜色 ' + color} aria-pressed={inkColor === color} onClick={() => setInkColor(color)} />)}
+            <button type="button" aria-pressed={tool === 'erase'} onClick={() => setTool(tool === 'erase' ? 'select' : 'erase')}>橡皮</button>
+            <button type="button" disabled={!doc.strokes.length} onClick={clearInk}>清屏</button>
+            <div className={styles.zoom}>
+              <button type="button" aria-label="缩小" onClick={() => zoomBy(-0.15)}>−</button>
+              <output>{Math.round(doc.zoom * 100)}%</output>
+              <button type="button" aria-label="放大" onClick={() => zoomBy(0.15)}>＋</button>
+            </div>
+            <button type="button" onClick={fitAll}>适应全图</button>
+            <button type="button" onClick={tidyLayout}>自动整理排版</button>
+            <button type="button" onClick={() => toggleDock(true)} title="收起工具坞" aria-label="收起工具坞" aria-expanded="true">▾</button>
+          </div>
+          )}
+          {paletteOpen && (
+            <section className={styles.objectPicker} aria-label="积木库" onKeyDown={(e) => { if (e.key === 'Escape') closePalette(); }}>
+            <header className={styles.objectPickerHeader}>
+              <strong>积木库</strong>
+              <input ref={paletteSearch} type="search" aria-label="搜索积木" placeholder="搜索名称或关键词"
+                value={paletteQuery} onChange={(event) => setPaletteQuery(event.target.value)} />
+              <button type="button" className={styles.tbtn} aria-label="关闭积木库" onClick={closePalette}>×</button>
+            </header>
+            <div className={styles.objectPickerBody}>
+              <nav aria-label="积木分类" className={styles.objectCategories}>
+                {paletteCategories.map((category) => <button key={category} type="button"
+                  aria-pressed={!query && paletteCategory === category}
+                  onClick={() => { setPaletteCategory(category); setPaletteQuery(''); }}>{category}</button>)}
+              </nav>
+              <div className={styles.objectResults} key={query ? 'search' : paletteCategory}>
+                {!query && paletteCategory === '深度学习' && (
+                  <nav className={styles.objectSubcategories} aria-label="深度学习积木用途">
+                    {deepPaletteGroups.map((group) => <button key={group} type="button"
+                      aria-pressed={deepPaletteGroup === group} onClick={() => setDeepPaletteGroup(group)}>{group}</button>)}
+                  </nav>
+                )}
+                {query && <h3>搜索结果</h3>}
+                {visiblePaletteGroups.length === 0 && <p role="status">没有匹配的积木。</p>}
+                {visiblePaletteGroups.map(({ label, types }) => <section key={label}>
+                  <h3>{!query && paletteCategory === '深度学习' ? label.split(' · ')[1] : label}</h3>
+                  <div className={styles.objectGrid}>
+                    {types.map((type) => <button key={type} type="button" className={styles.objectItem}
+                      aria-label={NODE_DEFS[type].title} draggable
+                      onDragStart={(e) => { e.dataTransfer.setData('application/x-wanxiang-node', type); e.dataTransfer.effectAllowed = 'copy'; }}
+                      onClick={() => { const point = spawnPoint(); const offset = (spawn.current % 5) * 18; addNode(type, point.x + offset, point.y + offset); setLastPaletteItem(NODE_DEFS[type].title); }}>
+                      <span>{NODE_DEFS[type].title}</span>
+                      <small>{NODE_DEFS[type].badge}</small>
+                    </button>)}
+                  </div>
+                </section>)}
+              </div>
+            </div>
+            <footer className={styles.objectPickerFoot} aria-live="polite">
+              {lastPaletteItem ? `已添加：${lastPaletteItem}` : '点击积木，将它添加到画布'}
+            </footer>
+            </section>
+          )}
+        </>}
+      />
     </div>
   );
 }

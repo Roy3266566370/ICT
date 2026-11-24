@@ -12,7 +12,7 @@
  * ------------------------------------------------------------------------- */
 
 .shell {
-  height: 100dvh;
+  height: var(--workbench-surface-height, 100dvh);
   min-height: 420px;
   display: flex;
   flex-direction: column;
@@ -46,6 +46,8 @@
 /* ---------------- 顶栏 ---------------- */
 
 .topbar {
+  position: relative;
+  z-index: 30;
   min-height: 60px;
   padding: 10px 20px;
   display: flex;
@@ -56,6 +58,61 @@
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: saturate(140%) blur(10px);
 }
+
+.topbar[data-workbench-actions] { min-height: 44px; padding-block: 5px; }
+.topbar[data-workbench-actions] .actions { margin-inline-start: auto; }
+
+.modeSwitch {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #d9d6ce;
+  border-radius: 7px;
+  background: #efede7;
+}
+
+.modeSwitch button {
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #46505d;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.modeSwitch button[aria-pressed='true'] {
+  background: #fff;
+  color: #1e2a3b;
+  box-shadow: 0 1px 3px #0002;
+}
+
+.shell[data-presenter='true'] .authorOnly {
+  display: none;
+}
+
+.presenterDock {
+  width: min(28vw, 320px);
+  min-width: 180px;
+  padding: 12px;
+  overflow: auto;
+  background: #fff;
+  border-left: 1px solid var(--hairline, #e7e0d3);
+}
+
+.presenterDock section + section {
+  margin-top: 16px;
+  border-top: 1px solid var(--hairline, #e7e0d3);
+}
+
+.presenterDock h2 { font-size: 14px; }
+.presenterDock time { margin-right: 8px; font-variant-numeric: tabular-nums; }
+.presenterDock img { display: block; width: 100%; }
+.presenterPreview { position: relative; overflow: hidden; }
+.presenterNotes { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .brand {
   font-size: 17px;
@@ -635,30 +692,6 @@
   flex: none;
   height: 30px !important;
   box-shadow: none;
-}
-
-.presentZoom {
-  flex: none;
-  display: flex;
-  align-items: center;
-}
-
-.actions .presentZoom button {
-  min-width: 24px;
-  min-height: 24px;
-  padding: 0 5px;
-  border: 0;
-  background: transparent;
-  font-size: 13px;
-}
-
-.actions .presentZoom button[aria-pressed] {
-  padding: 0 7px;
-  font-size: 10.5px;
-}
-
-.actions .presentZoom input[type='range'] {
-  width: 64px;
 }
 
 .slide {
@@ -1286,60 +1319,38 @@
 /* ---------------- 演示模式 ---------------- */
 
 .shell[data-presenting='true'] {
-  background: #0d131c;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  height: auto;
+  min-height: 0;
+  background: #000;
   color: #e9e5dc;
 }
 
-.shell[data-presenting='true'] .thumbnails {
-  display: none;
-}
-
-.shell[data-presenting='true'] .topbar,
-.shell[data-presenting='true'] .footer {
-  background: #141c27;
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.shell[data-presenting='true'] .topbar .actions button,
-.shell[data-presenting='true'] .topbar .actions a,
-.shell[data-presenting='true'] .pager button {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.shell[data-presenting='true'] .topbar .actions .presentZoom button {
-  background: transparent;
-  border-color: transparent;
-}
-
-.shell[data-presenting='true'] .topbar .actions .presentZoom button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: transparent;
-}
-
-.shell[data-presenting='true'] .brand {
+.shell[data-presenting='true'] > :not(.workspace),
+.shell[data-presenting='true'] .workspace > :not(.main),
+.shell[data-presenting='true'] .main > :not(.viewport) {
   display: none;
 }
 
 .shell[data-experiment='true'] .authorOnly,
-.shell[data-experiment='true'] .objectStrip,
-.shell[data-presenting='true'] .authorOnly,
-.shell[data-presenting='true'] .objectStrip,
-.shell[data-presenting='true'] .railToggle {
+.shell[data-experiment='true'] .objectStrip {
   display: none !important;
 }
 
-.shell[data-presenting='true'] .title h1 {
-  color: #e9e5dc;
-}
-
-.shell[data-presenting='true'] .pageHeading {
-  display: none;
+.shell[data-presenting='true'] .canvasArea {
+  padding: 0;
 }
 
 .shell[data-presenting='true'] .slide {
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
+}
+
+.presentationBlank {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
 }
 
 /* ---------------- 响应式 ---------------- */
@@ -1420,7 +1431,7 @@
 
   .zoomPanel {
     width: 100vw;
-    height: 100vh;
+    height: var(--workbench-surface-height, 100vh);
     border-radius: 0;
   }
 

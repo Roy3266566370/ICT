@@ -1,5 +1,6 @@
 .canvas { position:absolute; left:0; top:0; transform-origin:0 0; isolation:isolate; color:#18233d; }
 .contentLayer { position:absolute; inset:0; overflow:hidden; }
+.contentLayer[data-editing=true] { overflow:visible; }
 .pageBackground { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .node { position:absolute; transform-origin:center; outline:none; box-sizing:border-box; }
 .node:focus-visible { outline:1px solid #7561d6; }
@@ -11,7 +12,13 @@
 .textContent { white-space:pre-wrap; overflow-wrap:break-word; flex-shrink:0; width:100%; text-rendering:geometricPrecision; }
 .textContent p { margin:0; padding:0; line-height:inherit; }
 .inlineText { position:absolute; inset:0; width:100%; height:100%; box-sizing:border-box; margin:0; background:transparent; border:0; outline:1px solid #7b63db; resize:none; overflow:auto; white-space:pre-wrap; }
-.shape { width:100%; height:100%; box-sizing:border-box; }
+.inlineRichFrame { position:absolute; inset:0; }
+.inlineRichFrame ul { margin:0; padding-inline-start:1.4em; }
+.richToolbar { position:absolute; top:calc(100% + 4px); left:0; z-index:1; display:flex; align-items:center; gap:3px; min-width:max-content; padding:4px; border:1px solid #ccd2dc; border-radius:5px; background:white; box-shadow:0 2px 8px #18233d22; color:#18233d; font:13px system-ui,sans-serif; }
+.richToolbar :is(button,select,input) { min-height:24px; padding:2px 5px; border:1px solid #ccd2dc; border-radius:3px; background:white; color:inherit; font:inherit; }
+.richToolbar input { width:28px; }
+.textContent .bullet { display:list-item; list-style-type:disc; list-style-position:inside; }
+.shape { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
 .table { width:100%; height:100%; border-collapse:collapse; table-layout:fixed; background:#fff; }
 .table td { border:1px solid #b6bed0; padding:4px 7px; overflow-wrap:anywhere; }
 .chart { width:100%; height:100%; overflow:hidden; background:#fff; }
@@ -31,7 +38,6 @@
 .mathPresentationControls summary { cursor:pointer; padding:2px 6px; }
 .mathPresentationControls details[open] summary { margin-bottom:6px; }
 .canvas:has(.mathPresentationControls) .vectorControls { bottom:150px; }
-.resetDynamics { position:absolute; right:10px; top:10px; z-index:30003; padding:7px 12px; background:white; color:#18233d; border:1px solid #ccd2dc; border-radius:5px; cursor:pointer; }
 
 .canvas :global(.mathControls[data-playback-only=true]) { gap:3px; font-size:10px; }
 .canvas :global(.mathControls[data-playback-only=true] input[type=range]) { width:60px; }

@@ -22,7 +22,7 @@ from tests.ppt_ai import helpers
 
 
 @pytest.fixture
-def db_factory(tmp_path: Path, monkeypatch):
+def db_factory(tmp_path: Path, monkeypatch, offline_ppt_ai_models):
     engine = create_engine("sqlite:///" + (tmp_path / "tasks.db").as_posix(), future=True)
     Base.metadata.create_all(engine)
     factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)

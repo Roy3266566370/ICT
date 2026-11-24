@@ -203,7 +203,7 @@ function SourceText({ label, value, rows, onChange }: {
   </label>;
 }
 
-export function CacheSimBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function CacheSimBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const addrBits = roundInt(node.params.addrBits, 32, 24, 48);
   const blockBytes = roundInt(node.params.blockBytes, 64, 8, 256);
   const cacheKB = roundInt(node.params.cacheKB, 64, 1, 512);
@@ -216,7 +216,7 @@ export function CacheSimBody({ node, onParams, onText }: NodeBodyProps): JSX.Ele
   const lines = frame ? frame.sets[frame.index] ?? [] : [];
   return (
     <div className={styles.stage} data-lab408="cacheSimLab">
-      <div className={styles.paramRow}>
+      {!inCard && <div className={styles.paramRow}>
         <ParamSelect label="地址位数" value={addrBits} options={ADDRESS_BITS} suffix=" 位"
           onChange={value => onParams?.({ addrBits: value })} />
         <ParamSelect label="块大小" value={blockBytes} options={BLOCK_BYTES} suffix=" B"
@@ -225,7 +225,7 @@ export function CacheSimBody({ node, onParams, onText }: NodeBodyProps): JSX.Ele
           onChange={value => onParams?.({ cacheKB: value })} />
         <ParamSelect label="相联路数" value={ways} options={WAYS} suffix=" 路"
           onChange={value => onParams?.({ ways: value })} />
-      </div>
+      </div>}
       <SourceText label="访存地址（十六进制，逗号分隔）" value={text} rows={2}
         onChange={next => onText?.(next)} />
       {frame ? <>
@@ -264,7 +264,7 @@ export function CacheSimBody({ node, onParams, onText }: NodeBodyProps): JSX.Ele
   );
 }
 
-export function PipelineBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function PipelineBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const forwarding = roundInt(node.params.forwarding, 1, 0, 1) === 1;
   const text = node.text ?? PIPELINE_TEXT;
   const instructions = parseInstructionList(text);
@@ -276,10 +276,10 @@ export function PipelineBody({ node, onParams, onText }: NodeBodyProps): JSX.Ele
   const cycles = active ? Math.max(0, active.stages.length - 1) : 0;
   return (
     <div className={styles.stage} data-lab408="pipelineLab">
-      <label className={styles.field}>转发
+      {!inCard && <label className={styles.field}>转发
         <input type="range" className={styles.slider} min={0} max={1} step={1} value={forwarding ? 1 : 0}
           aria-label="转发开关" onChange={event => onParams?.({ forwarding: Number(event.target.value) })} />
-      </label>
+      </label>}
       <SourceText label="指令序列（每行一条）" value={text} rows={4} onChange={next => onText?.(next)} />
       {total > 0 ? <>
         <Timeline total={total} index={state.index} playing={state.playing}
@@ -319,7 +319,7 @@ export function PipelineBody({ node, onParams, onText }: NodeBodyProps): JSX.Ele
   );
 }
 
-export function CpuScheduleBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function CpuScheduleBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const algo = roundInt(node.params.algo, 0, 0, 3);
   const quantum = roundInt(node.params.quantum, 2, 1, 8);
   const text = node.text ?? CPU_TEXT;
@@ -336,16 +336,18 @@ export function CpuScheduleBody({ node, onParams, onText }: NodeBodyProps): JSX.
     : 0;
   return (
     <div className={styles.stage} data-lab408="cpuScheduleLab">
-      <div className={styles.paramRow}>
-        {CPU_ALGOS.map((label, index) => (
-          <button key={label} type="button" className={styles.timelineBtn} aria-label={label} aria-pressed={algo === index}
-            onClick={() => onParams?.({ algo: index })}>{label}</button>
-        ))}
-      </div>
-      <label className={styles.field}>时间片 {quantum}
-        <input type="range" className={styles.slider} min={1} max={8} step={1} value={quantum}
-          aria-label="时间片" onChange={event => onParams?.({ quantum: Number(event.target.value) })} />
-      </label>
+      {!inCard && <>
+        <div className={styles.paramRow}>
+          {CPU_ALGOS.map((label, index) => (
+            <button key={label} type="button" className={styles.timelineBtn} aria-label={label} aria-pressed={algo === index}
+              onClick={() => onParams?.({ algo: index })}>{label}</button>
+          ))}
+        </div>
+        <label className={styles.field}>时间片 {quantum}
+          <input type="range" className={styles.slider} min={1} max={8} step={1} value={quantum}
+            aria-label="时间片" onChange={event => onParams?.({ quantum: Number(event.target.value) })} />
+        </label>
+      </>}
       <SourceText label="进程表（pid:到达:运行）" value={text} rows={3}
         onChange={next => onText?.(next)} />
       {total > 0 ? <>
@@ -380,7 +382,7 @@ export function CpuScheduleBody({ node, onParams, onText }: NodeBodyProps): JSX.
   );
 }
 
-export function TcpCongestionBody({ node, onParams, onText }: NodeBodyProps): JSX.Element {
+export function TcpCongestionBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const ssthresh = roundInt(node.params.ssthresh, 8, 1, 32);
   const text = node.text ?? TCP_TEXT;
   const player = tcpCongestionFrames(ssthresh, parseTcpEvents(text));
@@ -395,10 +397,10 @@ export function TcpCongestionBody({ node, onParams, onText }: NodeBodyProps): JS
   const points = player.frames.map(item => `${px(item.rtt)},${py(item.cwnd)}`).join(' ');
   return (
     <div className={styles.stage} data-lab408="tcpCongestionLab">
-      <label className={styles.field}>慢开始门限 ssthresh {ssthresh}
+      {!inCard && <label className={styles.field}>慢开始门限 ssthresh {ssthresh}
         <input type="range" className={styles.slider} min={1} max={32} step={1} value={ssthresh}
           aria-label="慢开始门限" onChange={event => onParams?.({ ssthresh: Number(event.target.value) })} />
-      </label>
+      </label>}
       <SourceText label="事件序列（ack / 3ack / timeout）" value={text} rows={2}
         onChange={next => onText?.(next)} />
       {total > 0 ? <>

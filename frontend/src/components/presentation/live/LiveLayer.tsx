@@ -27,7 +27,7 @@ interface Props {
   reducedMotion: boolean;
   flashKey: string | null;
   onChange: (spec: ISpec, id: string, value: number) => void;
-  onExpand: (specId: string) => void;
+  onExpand?: (specId: string) => void;
 }
 
 function baselineCells(spec: ISpec): Cells {
@@ -80,8 +80,8 @@ const Cluster = memo(function Cluster({ cluster, spec, plan, cells, evaluation, 
       : grid(columns)}
     {many && open && <div className={styles.popover} data-no-pan>{grid(4, 'label')}</div>}
     {showResults && <ResultChips spec={spec} plan={plan} evaluation={evaluation} base={base}/>}
-    <button type="button" className={styles.expand} onClick={() => shared.onExpand(spec.object_id)}
-      aria-label={`展开实验页：${spec.title ?? '交互'}`} title="展开为完整实验页">↗</button>
+    {shared.onExpand && <button type="button" className={styles.expand} onClick={() => shared.onExpand?.(spec.object_id)}
+      aria-label={`展开实验页：${spec.title ?? '交互'}`} title="展开为完整实验页">↗</button>}
   </div>;
 });
 
@@ -139,8 +139,8 @@ const Figure = memo(function Figure({ figure, spec, plan, cells, evaluation, bas
     </div>}
     <div className={styles.figureCornerActions}>
       {dirty && <button type="button" onClick={resetFigure} title="恢复原稿数值">重置</button>}
-      <button type="button" onClick={() => shared.onExpand(spec.object_id)} aria-label={`展开实验页：${spec.title ?? '交互'}`}
-        title="展开为完整实验页">↗</button>
+      {shared.onExpand && <button type="button" onClick={() => shared.onExpand?.(spec.object_id)} aria-label={`展开实验页：${spec.title ?? '交互'}`}
+        title="展开为完整实验页">↗</button>}
     </div>
     {scale > 0 && <div ref={inner} className={styles.figureInner}
       style={{ width: NATURAL_W, transform: `translate(${(size.w - NATURAL_W * scale) / 2}px, ${(size.h - size.natural * scale) / 2}px) scale(${scale})` }}>

@@ -1,5 +1,4 @@
-import {useCallback,useEffect,useRef,useState,useSyncExternalStore,type PointerEvent as ReactPointerEvent} from 'react';
-import {useNavigate,useSearchParams,Link} from 'react-router-dom';
+import {useCallback,useEffect,useRef,useState,useSyncExternalStore,type Dispatch,type PointerEvent as ReactPointerEvent,type SetStateAction} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import type {MaterialDetail} from '@/api/types';
 import {getDocument,prepareDocumentPage,reinteractDocumentPage,createSceneDiagram,suggestPageRelations} from '@/api/documents';
@@ -9,63 +8,97 @@ import {useScopedQueryKeys} from '@/api/queryKeys';
 import type {DocumentController} from '@/document/controller';
 import {newNode,patchNodes,distributeNodes} from '@/document/model';
 import {resolveMatrixSource} from '@/document/mathScene';
-import type {SceneNode,NodePatch,NodeInteraction,RelationSuggestion,SceneRelation} from '@/document/types';
+import {SHAPE_CATALOG} from '@/document/shapeCatalog';
+import type {SceneNode,ScenePage,NodePatch,NodeInteraction,RelationSuggestion,SceneRelation,SceneParagraph} from '@/document/types';
 import type {ISpec} from '@/ispec/types';
 import {ZoomControl} from '@/components/ui/ZoomControl';
 import {fitZoom,wheelZoom} from '@/components/ui/zoom';
 import {ScenePageView} from './ScenePageView';
+import {StandaloneDemoDialog} from './SlideDemoNode';
+import {standaloneDemos} from './standaloneDemos';
 import {FigureVectorizationDialog} from './FigureVectorizationDialog';
 import {NodeProperties} from './NodeProperties';
+import {WorkshopPluginPicker,type WorkshopPluginSelection} from './WorkshopPluginPicker';
+import {groupResize,intersects,rotatedBounds,rotatedBox,rotateSelection,snapAxis,type Box,type GapGuide} from './canvasGestures';
 import styles from './FreeDeckEditor.module.css';
 
-interface Props {materialId:string;controller:DocumentController;material:MaterialDetail;}
-interface Drag {kind:'move'|'resize'|'rotate';direction:string;startX:number;startY:number;nodes:SceneNode[];box:{x:number;y:number;width:number;height:number};preview:Record<string,Partial<SceneNode>>;}
+interface Props {
+  materialId:string;controller:DocumentController;material:MaterialDetail;
+  activePageNo:number;onSelectPage:(pageNo:number)=>void;
+  zoom:number|'fit';onZoom:Dispatch<SetStateAction<number|'fit'>>;
+}
+interface Drag {kind:'move'|'resize'|'rotate';direction:string;startX:number;startY:number;nodes:SceneNode[];box:Box;preview:Record<string,Partial<SceneNode>>;}
+interface Drawing {start:{x:number;y:number};kind:'select'|'ai'|'diagram'|'demo';selection:string[];box:Box;clicked?:string}
 const identifier=()=>`u_${crypto.randomUUID().replaceAll('-','')}`;
 const round=(n:number)=>Math.round(n*100)/100;
 const bounds=(nodes:SceneNode[])=>{const x=Math.min(...nodes.map(n=>n.x)),y=Math.min(...nodes.map(n=>n.y));return {x,y,width:Math.max(...nodes.map(n=>n.x+n.width))-x,height:Math.max(...nodes.map(n=>n.y+n.height))-y};};
 const countFigureObjects=(nodes:SceneNode[])=>new Set(nodes.map(node=>`${node.figure_source_id}:${node.figure_object_id??node.id}`)).size;
+const preparationStage=(page:ScenePage)=>{
+  const status=page.preparation?.status??'unprepared';
+  return status==='ready'&&page.native_fallback?page.preparation?.fallback_status??status:status;
+};
 
-export function FreeDeckEditor({materialId,controller,material}:Props){
+export function FreeDeckEditor({materialId,controller,material,activePageNo,onSelectPage:selectPage,zoom,onZoom:setZoom}:Props){
   const state=useSyncExternalStore(controller.subscribe,controller.getSnapshot);const document=state.document;
-  const [query,setQuery]=useSearchParams();const navigate=useNavigate();const pageNo=Number(query.get('page')??1);
   const queryClient=useQueryClient();
   // 材料详情缓存键带账号 scope：退出/切换账号时由 bootstrap 的 scope 监听统一清理
   const keys=useScopedQueryKeys();
-  const page=document.pages.find(p=>p.page_no===pageNo)??document.pages[0]!;
+  const page=document.pages.find(p=>p.page_no===activePageNo)??document.pages[0]!;
+  const pageIndex=document.pages.indexOf(page);
   const [selected,setSelected]=useState<string[]>([]);const [editingId,setEditingId]=useState<string|null>(null);
-  const [preview,setPreview]=useState<Record<string,Partial<SceneNode>>>({});const [guides,setGuides]=useState<{x?:number;y?:number}>({});
-  const [tab,setTab]=useState<'pages'|'layers'>('pages');const [zoom,setZoom]=useState<number|'fit'>('fit');
-  const [insertMode,setInsertMode]=useState<'diagram'|'demo'|null>(null);
-  const drawing=useRef<{x:number;y:number}|null>(null);
-  const [drawBox,setDrawBox]=useState<{x:number;y:number;width:number;height:number}|null>(null);
+  const [preview,setPreview]=useState<Record<string,Partial<SceneNode>>>({});
+  const [guides,setGuides]=useState<{x?:number;y?:number;gaps?:GapGuide[]}>({});
+  const [tab,setTab]=useState<'pages'|'layers'>('pages');
+  const [insertMode,setInsertMode]=useState<'diagram'|'demo'|'ai'|null>(null);
+  const drawing=useRef<Drawing|null>(null);
+  const [drawBox,setDrawBox]=useState<Box|null>(null);
+  const [aiBox,setAIBox]=useState<Box|null>(null);
+  const [aiRelations,setAIRelations]=useState(false);
+  const [aiInstruction,setAIInstruction]=useState('');
+  const [aiSuggestion,setAISuggestion]=useState<RelationSuggestion|null>(null);
+  const [aiPending,setAIPending]=useState(false);
+  const aiRequest=useRef<AbortController|null>(null);
+  const pageMenu=useRef<HTMLDetailsElement>(null);
+  const draggedPage=useRef<number|null>(null);
+  const [dropPage,setDropPage]=useState<number|null>(null);
   const [generating,setGenerating]=useState<Record<string,boolean>>({});
-  const currentPage=useRef(page.page_no);currentPage.current=page.page_no;
   const mounted=useRef(true);useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   const [panMode,setPanMode]=useState(false);const [spaceHeld,setSpaceHeld]=useState(false);const spaceRef=useRef(false);
   const [panning,setPanning]=useState(false);const panRef=useRef<{x:number;y:number;left:number;top:number}|null>(null);
-  const [reference,setReference]=useState(false);const [retry,setRetry]=useState(0);const [message,setMessage]=useState('');const [leaving,setLeaving]=useState(false);
+  const [reference,setReference]=useState(false);const [retry,setRetry]=useState(0);const retryUsed=useRef(0);const [message,setMessage]=useState('');
+  const [demoPage,setDemoPage]=useState<number|null>(null);
   const [proofFigures,setProofFigures]=useState(false);
+  const [pluginPickerOpen,setPluginPickerOpen]=useState(false);
   const [figureTarget,setFigureTarget]=useState<{pageNo:number;nodeId:string}|null>(null);
   const [reinteracting,setReinteracting]=useState(false);const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine);
   const viewport=useRef<HTMLDivElement>(null);const frame=useRef<HTMLDivElement>(null);const drag=useRef<Drag|null>(null);const file=useRef<HTMLInputElement>(null);
   const lastTap=useRef<{id:string;time:number;x:number;y:number}|null>(null);
   const [area,setArea]=useState({width:1050,height:680});const status=page.preparation?.status??'unprepared';
-  const nextPage=document.pages.find(p=>p.page_no===page.page_no+1);
-  const nextStatus=nextPage?.preparation?.status??'none';
-  const ready=status==='ready';const canEdit=ready&&!reference&&!leaving&&!reinteracting;
+  const stage=preparationStage(page);
+  const nextPage=document.pages[pageIndex+1];
+  const nextStage=nextPage&&preparationStage(nextPage);
+  const ready=status==='ready';const canEdit=ready&&!reference&&!reinteracting;
+  const separateDemos = ready && !reference ? standaloneDemos(page) : [];
   const fit=fitZoom(area,page,80,.15,1.7);
   const scale=zoom==='fit'?fit:zoom;
   const canPan=page.width*scale+80>area.width+1||page.height*scale+80>area.height+1;
-  const source=material.slides.find(p=>p.page_no===page.page_no);
+  const source=page.source_page_no===null?undefined:material.slides.find(p=>p.page_no===(page.source_page_no??page.page_no));
   const selectedNodes=page.nodes.filter(n=>selected.includes(n.id)&&!n.deleted);const primary=selectedNodes[0]??null;
-  const unlocked=selectedNodes.filter(n=>!n.locked&&!page.preparation?.frozen_ids?.includes(n.id));
+  const unlocked=selectedNodes.filter(n=>!n.locked&&!n.hidden&&!page.preparation?.frozen_ids?.includes(n.id));
+  const slideSelection=unlocked.length&&unlocked.length===selectedNodes.length&&
+    !separateDemos.some(node=>selected.includes(node.id))?rotatedBounds(unlocked):null;
+  const canMoveInside=slideSelection&&slideSelection.width<=page.width&&slideSelection.height<=page.height&&
+    (slideSelection.x<0||slideSelection.y<0||
+      slideSelection.x+slideSelection.width>page.width||slideSelection.y+slideSelection.height>page.height);
   const vectorized=page.nodes.filter(node=>!node.deleted&&node.figure_source_id);
   const hasAppliedFigures=page.nodes.some(node=>node.cleaned_asset_id&&!node.deleted);
   const figureNode=figureTarget?.pageNo===page.page_no&&figureTarget.nodeId===primary?.id&&selectedNodes.length===1?primary:null;
   const canVectorize=canEdit&&online&&selectedNodes.length===1&&primary?.type==='image'&&!primary.hidden&&!primary.cleaned_asset_id&&
     !primary.matrix_ocr&&!page.preparation?.frozen_ids?.includes(primary.id);
   const shown=selectedNodes.filter(n=>!n.hidden).map(n=>preview[n.id]?{...n,...preview[n.id]}:n);
-  const box=shown.length?bounds(shown):null;
+  const box=shown.length?(shown.length===1?bounds(shown):rotatedBounds(shown)):null;
+  const canTransform=canEdit&&unlocked.length===shown.length&&!editingId&&(shown.length>1||primary?.type!=='vector');
+  const aiInset=Math.min(page.width*scale/2,150);
   useEffect(()=>{const node=viewport.current;if(!node)return;const observer=new ResizeObserver(()=>setArea({width:node.clientWidth,height:node.clientHeight}));observer.observe(node);return()=>observer.disconnect();},[]);
   useEffect(()=>{
     const node=viewport.current;if(!node)return;
@@ -76,9 +109,9 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     };
     node.addEventListener('wheel',onWheel,{passive:false});
     return()=>node.removeEventListener('wheel',onWheel);
-  },[fit]);
+  },[fit,setZoom]);
   useEffect(()=>{
-    const editable=(target:EventTarget|null)=>target instanceof Element&&!!target.closest('input,textarea,select,button,a,summary,[contenteditable=true]');
+    const editable=(target:EventTarget|null)=>target instanceof Element&&!!target.closest('input,textarea,select,button,a,summary,[contenteditable=true],[data-standalone-demo]');
     const down=(event:KeyboardEvent)=>{
       if(event.code!=='Space'||editable(event.target))return;
       if(spaceRef.current)return;
@@ -89,24 +122,41 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',blur);
     return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',blur);};
   },[]);
-  useEffect(()=>{setSelected([]);setEditingId(null);setPreview({});setReference(false);setInsertMode(null);setDrawBox(null);drawing.current=null;},[page.page_no]);
+  useEffect(()=>()=>{controller.setComposing(false);aiRequest.current?.abort();},[controller]);
+  useEffect(()=>{
+    setSelected([]);setEditingId(null);setPreview({});setGuides({});setReference(false);setInsertMode(null);
+    setDrawBox(null);setAIBox(null);setAIRelations(false);setAISuggestion(null);setAIInstruction('');setAIPending(false);setDemoPage(null);setPluginPickerOpen(false);
+    drawing.current=null;drag.current=null;lastTap.current=null;aiRequest.current?.abort();aiRequest.current=null;
+  },[page.page_no]);
   useEffect(()=>{if(figureTarget&&!figureNode)setFigureTarget(null);},[figureNode,figureTarget]);
   useEffect(()=>{
-    if(status==='ready')return;
+    if(stage==='ready'||stage==='unavailable')return;
     let alive=true;let timer:ReturnType<typeof setTimeout>|undefined;
-    const poll=async()=>{try{const remote=await getDocument(materialId);if(!alive)return;controller.updateAssets(remote);
-      if(remote.pages.find(p=>p.page_no===page.page_no)?.preparation?.status!=='ready')timer=setTimeout(()=>void poll(),1000);
-    }catch(error){if(alive){setMessage(errorMessage(error));timer=setTimeout(()=>void poll(),2500);}}};
-    if(status==='unprepared'||(status==='failed'&&retry))void prepareDocumentPage(materialId,page.page_no).then(()=>void poll()).catch(error=>setMessage(errorMessage(error)));
-    else if(status==='queued'||status==='preparing')timer=setTimeout(()=>void poll(),700);
+    const poll=async()=>{
+      if(!alive)return;
+      try{
+        const remote=await getDocument(materialId);if(!alive)return;controller.updateAssets(remote);
+        const current=remote.pages.find(p=>p.page_no===page.page_no),next=current&&preparationStage(current);
+        if(next==='unprepared'||next==='queued'||next==='preparing')timer=setTimeout(()=>void poll(),1000);
+      }catch(error){
+        if(!alive)return;
+        if(!ready)setMessage(errorMessage(error));
+        timer=setTimeout(()=>void poll(),2500);
+      }
+    };
+    const manual=stage==='failed'&&retry!==retryUsed.current;
+    if(stage==='unprepared'||manual){
+      retryUsed.current=retry;
+      void prepareDocumentPage(materialId,page.page_no).then(()=>void poll()).catch(error=>{if(alive&&(!ready||manual))setMessage(errorMessage(error));});
+    }else if(stage==='queued'||stage==='preparing')timer=setTimeout(()=>void poll(),700);
     return()=>{alive=false;clearTimeout(timer);};
-  },[materialId,page.page_no,status,retry,controller]);
+  },[materialId,page.page_no,stage,ready,retry,controller]);
   // 当前页就绪后，悄悄把下一页的对象也准备好：翻页时基本不用再等。
   useEffect(()=>{
-    if(status!=='ready'||nextStatus==='ready'||nextStatus==='preparing'||nextStatus==='none')return;
-    const timer=setTimeout(()=>{void prepareDocumentPage(materialId,page.page_no+1).catch(()=>{});},900);
+    if(!ready||!nextPage||nextStage!=='unprepared')return;
+    const timer=setTimeout(()=>{void prepareDocumentPage(materialId,nextPage.page_no).catch(()=>{});},900);
     return ()=>clearTimeout(timer);
-  },[materialId,page.page_no,status,nextStatus]);
+  },[materialId,nextPage?.page_no,ready,nextStage]);
   useEffect(()=>{
     const reconnect=()=>{setOnline(true);void controller.save();};
     const offline=()=>setOnline(false);
@@ -133,8 +183,11 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     controller.replace(next);setSelected(ids);setEditingId(null);
   };
   const remove=()=>{if(canEdit){controller.patch(page.page_no,unlocked.map(n=>n.id),{deleted:true});setSelected([]);setEditingId(null);}};
-  const add=(type:'text'|'shape'|'math_scene',shape:'rect'|'ellipse'='rect')=>{
-    if(!canEdit)return;const node={...newNode(page,identifier(),type),shape};controller.add(page.page_no,node);setSelected([node.id]);if(type==='text')setEditingId(node.id);
+  const add=(type:'text'|'shape'|'math_scene'|'table'|'chart',shape:SceneNode['shape']='rect')=>{
+    if(!canEdit)return;
+    const node={...newNode(page,identifier(),type),shape};
+    if(type==='shape')node.name=SHAPE_CATALOG.find(item=>item.id===shape)?.label??node.name;
+    controller.add(page.page_no,node);setSelected([node.id]);setEditingId(type==='text'?node.id:null);
   };
   const addVector = (arrow: boolean) => {
     if (!canEdit) return;
@@ -144,6 +197,22 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     controller.add(page.page_no, node);
     setSelected([node.id]);
     setEditingId(null);
+  };
+  const addWorkshopPlugin = (entry: WorkshopPluginSelection) => {
+    if (!canEdit) return;
+    const node = newNode(page, identifier(), 'workshop_plugin');
+    node.name = [...entry.name].slice(0, 100).join('');
+    node.workshop_plugin = {
+      template_kind: entry.kind,
+      title: entry.name,
+      category: entry.category,
+      ...('work_id' in entry ? { work_id: entry.work_id, doc: entry.doc } : {}),
+    };
+    controller.add(page.page_no, node);
+    setSelected([node.id]);
+    setEditingId(null);
+    setPluginPickerOpen(false);
+    setMessage(`已插入万象工坊插件「${entry.name}」，可拖动位置或在演示态直接操作。`);
   };
   const generateNode=async(id:string,kind:'demo'|'diagram',text='',ai=false)=>{
     const pageNo=page.page_no;
@@ -155,16 +224,16 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
       if(!await controller.save())throw new Error('请先完成当前修改的同步，再根据本页生成。');
       const patch:NodePatch=kind==='demo'?{demo:(await createPageLab(materialId,pageNo,!!original.demo)).lab}:
         {diagram:(await createSceneDiagram(materialId,pageNo,text,ai)).diagram};
-      if(!mounted.current)return;
       const latest=controller.getSnapshot().document.pages.find(p=>p.page_no===pageNo)?.nodes.find(n=>n.id===id);
-      if(currentPage.current!==pageNo||!latest||latest.deleted||latest.locked||JSON.stringify(kind==='demo'?latest.demo:latest.diagram)!==content){
-        setMessage('生成已完成，原对象已变更；请回到目标图框后重新应用。');return;
+      if(!latest||latest.deleted||latest.locked||JSON.stringify(kind==='demo'?latest.demo:latest.diagram)!==content){
+        if(mounted.current)setMessage('生成期间目标图框已变更，请重新生成。');return;
       }
-      controller.patch(pageNo,[id],patch);setMessage('已生成到当前图框，可直接演示。');
+      controller.patch(pageNo,[id],patch);
+      if(mounted.current)setMessage(`已生成到第 ${controller.getSnapshot().document.pages.findIndex(p=>p.page_no===pageNo)+1} 页，可直接演示。`);
     }catch(error){if(mounted.current)setMessage(errorMessage(error));}
     finally{if(mounted.current)setGenerating(current=>({...current,[id]:false}));}
   };
-  const suggestRelations=async(instruction:string):Promise<RelationSuggestion>=>{
+  const suggestRelations=async(instruction:string,signal?:AbortSignal):Promise<RelationSuggestion>=>{
     const targetPageNo=page.page_no;
     if(!canEdit)throw new Error('当前页面暂不可编辑，无法生成动态关系。');
     if(!await controller.save())throw new Error('请先完成当前修改的同步，再生成动态关系。');
@@ -173,13 +242,13 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
       instruction,
       selected_node_ids:selected,
       expected_revision:latest.revision,
-    });
+    },signal);
   };
   const applyRelationSuggestion=(suggestion:RelationSuggestion):string|null=>{
     if(!canEdit)return '当前页面暂不可编辑。';
     const targetPageNo=page.page_no;
     const latest=controller.getSnapshot().document;
-    if(latest.revision!==suggestion.source_revision){
+    if(latest.revision!==suggestion.source_revision||controller.getSnapshot().dirty){
       return '页面在生成预览后已发生变化，请重新生成动态关系预览。';
     }
     const targetPage=latest.pages.find(item=>item.page_no===targetPageNo);
@@ -211,7 +280,37 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     setMessage(`已应用 ${suggestion.relations.length} 条动态关系，可按 Ctrl+Z 一次性撤销。`);
     return null;
   };
-  const armInsert=(kind:'diagram'|'demo')=>{setInsertMode(current=>current===kind?null:kind);setPanMode(false);setSelected([]);setEditingId(null);setMessage('在幻灯片上拖出图框；按 Esc 取消。');};
+  const closeAI=()=>{
+    aiRequest.current?.abort();aiRequest.current=null;
+    setAIBox(null);setAIRelations(false);setAISuggestion(null);setAIPending(false);
+  };
+  const armInsert=(kind:'diagram'|'demo'|'ai')=>{
+    setInsertMode(current=>current===kind?null:kind);setPanMode(false);setEditingId(null);closeAI();
+    if(kind==='ai'){
+      if(insertMode!=='ai'&&shown.length)setAIBox(rotatedBounds(shown));
+      setMessage(insertMode==='ai'?'':'在画布圈出目标区域，或从选区直接打开 AI 操作。');
+    }else{setSelected([]);setMessage('在幻灯片上拖出图框；按 Esc 取消。');}
+  };
+  const insertFrame=(kind:'diagram'|'demo',region:Box)=>{
+    const width=Math.min(page.width,Math.max(40,region.width)),height=Math.min(page.height,Math.max(30,region.height));
+    const node={...newNode(page,identifier(),kind),x:Math.max(0,Math.min(page.width-width,region.x)),
+      y:Math.max(0,Math.min(page.height-height,region.y)),width,height};
+    controller.add(page.page_no,node);setSelected([node.id]);return node;
+  };
+  const openDemo=()=>{
+    if(!aiBox)return;
+    const node=primary?.type==='demo'&&!primary.locked&&selectedNodes.length===1?primary:insertFrame('demo',aiBox);
+    closeAI();setInsertMode(null);void generateNode(node.id,'demo');
+  };
+  const generateAIRelations=async()=>{
+    aiRequest.current?.abort();
+    const request=new AbortController();
+    aiRequest.current=request;
+    setAIPending(true);setAISuggestion(null);
+    try{const suggestion=await suggestRelations(aiInstruction,request.signal);if(!request.signal.aborted)setAISuggestion(suggestion);}
+    catch(error){if(!request.signal.aborted)setMessage(errorMessage(error));}
+    finally{if(aiRequest.current===request){aiRequest.current=null;if(mounted.current)setAIPending(false);}}
+  };
   const addImage=async(image:File)=>{
     if(!['image/png','image/jpeg','image/webp'].includes(image.type)||image.size>4*1024*1024){setMessage('请选择4MB以内的PNG、JPEG或WebP图片');return;}
     const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=()=>reject(reader.error);reader.readAsDataURL(image);});
@@ -220,6 +319,15 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
   };
   const align=(mode:string)=>{
     if(!canEdit||!unlocked.length)return;
+    if(mode==='inside-slide'){
+      if(!canMoveInside||!slideSelection)return;
+      const dx=Math.max(-slideSelection.x,Math.min(0,page.width-slideSelection.x-slideSelection.width));
+      const dy=Math.max(-slideSelection.y,Math.min(0,page.height-slideSelection.y-slideSelection.height));
+      const next=unlocked.reduce((doc,node)=>patchNodes(doc,page.page_no,[node.id],{x:node.x+dx,y:node.y+dy}),
+        controller.getSnapshot().document);
+      controller.replace(next);
+      return;
+    }
     const target=unlocked.length===1?{x:0,y:0,width:page.width,height:page.height}:bounds(unlocked);let next=controller.getSnapshot().document;
     for(const node of unlocked){const value:NodePatch=mode==='left'?{x:target.x}:mode==='right'?{x:target.x+target.width-node.width}:mode==='center'?{x:target.x+(target.width-node.width)/2}:
       mode==='top'?{y:target.y}:mode==='bottom'?{y:target.y+target.height-node.height}:{y:target.y+(target.height-node.height)/2};next=patchNodes(next,page.page_no,[node.id],value);}
@@ -249,59 +357,108 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
   };
   const begin=(e:ReactPointerEvent<HTMLDivElement>)=>{
     if(panMode||spaceRef.current)return;
-    if(!canEdit||e.button!==0||(e.target as Element).closest('textarea,input,select'))return;
-    if(insertMode){const start=point(e);drawing.current={x:Math.max(0,Math.min(page.width,start.x)),y:Math.max(0,Math.min(page.height,start.y))};
-      setDrawBox({...drawing.current,width:0,height:0});e.preventDefault();e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);return;}
+    if(!canEdit||e.button!==0||(e.target as Element).closest('textarea,input,select,button,a,[contenteditable=true],[data-editor-control]'))return;
     const handle=(e.target as Element).closest<HTMLElement>('[data-handle]')?.dataset.handle;
-    const id=(e.target as Element).closest<HTMLElement>('[data-node-id]')?.dataset.nodeId;
+    const target=e.target as Element;
+    const id=target.closest<HTMLElement>('[data-node-id]')?.dataset.nodeId??
+      (target.matches('[data-vector-select]')?target.closest<SVGSVGElement>('[data-vector-node]')?.dataset.vectorNode:undefined);
+    const fallbackNode=id?page.nodes.find(n=>n.id===id):undefined;
+    if(insertMode||(!handle&&(!id||fallbackNode?.locked))){
+      if(insertMode&&insertMode!=='ai'&&!frame.current?.contains(e.target as Node))return;
+      const start=point(e);
+      if(insertMode==='diagram'||insertMode==='demo'){
+        start.x=Math.max(0,Math.min(page.width,start.x));start.y=Math.max(0,Math.min(page.height,start.y));
+      }
+      closeAI();lastTap.current=null;
+      const selection=e.shiftKey?[...selected]:[];
+      drawing.current={start,kind:insertMode??'select',selection,box:{...start,width:0,height:0},clicked:id};
+      setEditingId(null);e.preventDefault();e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);return;
+    }
+    if(target.closest('[data-no-pan]')&&!handle&&!id)return;
+    closeAI();
     let nodes=unlocked;
     if(!handle){
-      if(!id){setSelected([]);setEditingId(null);return;}
-      const node=page.nodes.find(n=>n.id===id);if(!node)return;
+      if(!id||!fallbackNode)return;
+      const node=fallbackNode;
       const prior=lastTap.current;
       if(node.type==='text'&&!node.locked&&prior?.id===id&&Date.now()-prior.time<450&&Math.hypot(e.clientX-prior.x,e.clientY-prior.y)<6){
         e.preventDefault();drag.current=null;lastTap.current=null;setSelected([id]);setEditingId(id);return;
       }
       lastTap.current={id,time:Date.now(),x:e.clientX,y:e.clientY};
       let ids=selected;
-      if(e.shiftKey){ids=selected.includes(id)?selected.filter(n=>n!==id):[...selected,id];setSelected(ids);}
+      if(e.shiftKey){ids=selected.includes(id)?selected.filter(n=>n!==id):[...selected,id];setSelected(ids);e.stopPropagation();return;}
       else if(!selected.includes(id)){ids=[id];setSelected(ids);}
       nodes=page.nodes.filter(n=>ids.includes(n.id)&&!n.locked&&!n.hidden&&!n.deleted&&!page.preparation?.frozen_ids?.includes(n.id));
       if(!nodes.length)return;
     }
-    setEditingId(null);e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);
-    const start=point(e);drag.current={kind:handle==='rotate'?'rotate':handle?'resize':'move',direction:handle??'',startX:start.x,startY:start.y,nodes,box:bounds(nodes),preview:{}};
+    if(!nodes.length)return;
+    setEditingId(null);e.preventDefault();e.stopPropagation();e.currentTarget.setPointerCapture(e.pointerId);
+    const kind=handle==='rotate'?'rotate':handle?'resize':'move';
+    const start=point(e);drag.current={kind,direction:handle??'',startX:start.x,startY:start.y,nodes,
+      box:kind!=='move'&&nodes.length===1?bounds(nodes):rotatedBounds(nodes),preview:{}};
+  };
+  const measureDrawing=(e:ReactPointerEvent<HTMLDivElement>)=>{
+    const active=drawing.current!;
+    const now=point(e),start=active.start;
+    if(active.kind==='diagram'||active.kind==='demo'){
+      now.x=Math.max(0,Math.min(page.width,now.x));now.y=Math.max(0,Math.min(page.height,now.y));
+    }
+    active.box={x:Math.min(start.x,now.x),y:Math.min(start.y,now.y),width:Math.abs(now.x-start.x),height:Math.abs(now.y-start.y)};
+    return active;
+  };
+  const drawnSelection=(active:Drawing)=>{
+    const ids=(Math.max(active.box.width,active.box.height)*scale>=4
+      ?page.nodes.filter(n=>!n.deleted&&!n.hidden&&!n.locked&&!page.preparation?.frozen_ids?.includes(n.id)&&intersects(active.box,rotatedBox(n))).map(n=>n.id)
+      :active.clicked?[active.clicked]:[]);
+    return [...active.selection.filter(id=>!ids.includes(id)),...ids.filter(id=>!active.selection.includes(id))];
   };
   const move=(e:ReactPointerEvent<HTMLDivElement>)=>{
-    if(drawing.current){const start=drawing.current,now=point(e),x=Math.max(0,Math.min(page.width,now.x)),y=Math.max(0,Math.min(page.height,now.y));
-      setDrawBox({x:Math.min(start.x,x),y:Math.min(start.y,y),width:Math.abs(x-start.x),height:Math.abs(y-start.y)});return;}
+    if(drawing.current){
+      const active=measureDrawing(e);setDrawBox(active.box);
+      if(active.kind==='select'||active.kind==='ai')setSelected(drawnSelection(active));
+      return;
+    }
     const active=drag.current;if(!active)return;
-    const current=point(e);let dx=current.x-active.startX,dy=current.y-active.startY;const result:Record<string,Partial<SceneNode>>={};const lines:{x?:number;y?:number}={};
+    const current=point(e);let dx=current.x-active.startX,dy=current.y-active.startY;
+    const result:Record<string,Partial<SceneNode>>={};const lines:typeof guides={};
     if(Math.hypot(dx,dy)>4)lastTap.current=null;
     if(active.kind==='move'){
       if(!e.altKey){
-        const others=page.nodes.filter(n=>!active.nodes.some(a=>a.id===n.id)&&!n.hidden&&!n.deleted&&!n.locked).slice(0,150);
-        const xs=[0,page.width/2,page.width,...others.flatMap(n=>[n.x,n.x+n.width/2,n.x+n.width])];
-        const ys=[0,page.height/2,page.height,...others.flatMap(n=>[n.y,n.y+n.height/2,n.y+n.height])];
-        let bestX=6/scale,bestY=6/scale;
-        for(const target of xs)for(const origin of [active.box.x,active.box.x+active.box.width/2,active.box.x+active.box.width])if(Math.abs(target-origin-dx)<bestX){bestX=Math.abs(target-origin-dx);lines.x=target;dx=target-origin;}
-        for(const target of ys)for(const origin of [active.box.y,active.box.y+active.box.height/2,active.box.y+active.box.height])if(Math.abs(target-origin-dy)<bestY){bestY=Math.abs(target-origin-dy);lines.y=target;dy=target-origin;}
+        const ids=new Set(active.nodes.map(n=>n.id));
+        const others=page.nodes.filter(n=>!ids.has(n.id)&&!n.hidden&&!n.deleted).map(rotatedBox);
+        const horizontal=snapAxis('x',active.box,dx,dy,others,page.width,6/scale);
+        const vertical=snapAxis('y',active.box,dy,horizontal.offset,others,page.height,6/scale);
+        dx=horizontal.offset;dy=vertical.offset;
+        lines.x=horizontal.line;lines.y=vertical.line;lines.gaps=[...horizontal.gaps??[],...vertical.gaps??[]];
       }
+      dx=Math.max(Math.max(...active.nodes.map(node=>-20000-node.x)),Math.min(Math.min(...active.nodes.map(node=>20000-node.x)),dx));
+      dy=Math.max(Math.max(...active.nodes.map(node=>-20000-node.y)),Math.min(Math.min(...active.nodes.map(node=>20000-node.y)),dy));
       for(const node of active.nodes)result[node.id]={x:round(node.x+dx),y:round(node.y+dy)};
+    }else if(active.kind==='rotate'){
+      const cx=active.box.x+active.box.width/2,cy=active.box.y+active.box.height/2;
+      const start=Math.atan2(active.startY-cy,active.startX-cx),end=Math.atan2(current.y-cy,current.x-cx);
+      const delta=(end-start)*180/Math.PI;
+      const rotation=e.shiftKey?Math.round(delta/15)*15:delta;
+      for(const node of active.nodes)result[node.id]=rotateSelection(node,active.box,rotation);
+    }else if(active.nodes.length>1){
+      const resized=groupResize(active.nodes,active.box,active.direction,dx,dy,e.shiftKey);
+      active.nodes.forEach((node,index)=>{result[node.id]=resized[index]!;});
     }else{
       const node=active.nodes[0]!;const angle=node.rotation*Math.PI/180,cx=node.x+node.width/2,cy=node.y+node.height/2;
-      if(active.kind==='rotate'){
-        const start=Math.atan2(active.startY-cy,active.startX-cx),end=Math.atan2(current.y-cy,current.x-cx);
-        const rotation=node.rotation+(end-start)*180/Math.PI;result[node.id]={rotation:e.shiftKey?Math.round(rotation/15)*15:round(rotation)};
-      }else{
         const localX=dx*Math.cos(angle)+dy*Math.sin(angle),localY=-dx*Math.sin(angle)+dy*Math.cos(angle);const direction=active.direction;
-        let width=Math.max(5,node.width+(direction.includes('e')?localX:direction.includes('w')?-localX:0));
-        let height=Math.max(5,node.height+(direction.includes('s')?localY:direction.includes('n')?-localY:0));
-        if(e.shiftKey&&direction.length===2){const factor=Math.max(width/node.width,height/node.height);width=node.width*factor;height=node.height*factor;}
+        const horizontal=direction.includes('e')?1:direction.includes('w')?-1:0,vertical=direction.includes('s')?1:direction.includes('n')?-1:0;
+        let width=Math.min(20000,Math.max(Math.min(5,node.width),node.width+localX*horizontal));
+        let height=Math.min(20000,Math.max(Math.min(5,node.height),node.height+localY*vertical));
+        if(e.shiftKey&&horizontal&&vertical){
+          const sx=width/node.width,sy=height/node.height;
+          const factor=Math.min(20000/Math.max(node.width,node.height),Math.abs(sx-1)>=Math.abs(sy-1)?sx:sy);
+          width=Math.max(.1,node.width*factor);height=Math.max(.1,node.height*factor);
+        }
         const shiftX=direction.includes('w')?-(width-node.width)/2:direction.includes('e')?(width-node.width)/2:0;
         const shiftY=direction.includes('n')?-(height-node.height)/2:direction.includes('s')?(height-node.height)/2:0;
-        result[node.id]={width:round(width),height:round(height),x:round(cx+shiftX*Math.cos(angle)-shiftY*Math.sin(angle)-width/2),y:round(cy+shiftX*Math.sin(angle)+shiftY*Math.cos(angle)-height/2)};
-      }
+        result[node.id]={width:round(width),height:round(height),
+          x:round(Math.max(-20000,Math.min(20000,cx+shiftX*Math.cos(angle)-shiftY*Math.sin(angle)-width/2))),
+          y:round(Math.max(-20000,Math.min(20000,cy+shiftX*Math.sin(angle)+shiftY*Math.cos(angle)-height/2)))};
     }
     active.preview=result;setPreview(result);setGuides(lines);
   };
@@ -310,15 +467,38 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     if(!cancel){let next=controller.getSnapshot().document;for(const [id,value]of Object.entries(active.preview))next=patchNodes(next,page.page_no,[id],value);controller.replace(next);}
     setPreview({});setGuides({});
   };
+  const finishPointer=(e:ReactPointerEvent<HTMLDivElement>)=>{
+    if(!drawing.current){
+      if(drag.current&&Object.keys(drag.current.preview).length)move(e);
+      end();return;
+    }
+    const active=measureDrawing(e),region=active.box;
+    drawing.current=null;setDrawBox(null);
+    if(active.kind==='select'||active.kind==='ai'){
+      const ids=drawnSelection(active);setSelected(ids);
+      if(active.kind==='ai'){
+        const nodes=page.nodes.filter(node=>ids.includes(node.id));
+        if(region.width*scale>=4&&region.height*scale>=4)setAIBox(region);
+        else if(nodes.length)setAIBox(rotatedBounds(nodes));
+      }
+      return;
+    }
+    const size=newNode(page,'',active.kind);
+    insertFrame(active.kind,{...region,width:region.width>=80?Math.max(160,region.width):size.width,
+      height:region.height>=60?Math.max(120,region.height):size.height});
+    setInsertMode(null);setMessage('');
+  };
   useEffect(()=>{
     const key=(e:KeyboardEvent)=>{
+      if (demoPage===page.page_no) return;
       if(figureNode)return;
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();void controller.save();return;}
       if((e.target as Element)?.closest('input,textarea,select,[contenteditable=true]'))return;
-      if(e.key==='Escape'){setEditingId(null);setSelected([]);setInsertMode(null);setDrawBox(null);drawing.current=null;return;}
+      if(e.key==='Escape'){setEditingId(null);setSelected([]);setInsertMode(null);setDrawBox(null);drawing.current=null;end(true);closeAI();return;}
+      if(!reinteracting&&(e.ctrlKey||e.metaKey)&&['z','y'].includes(e.key.toLowerCase())){e.preventDefault();e.shiftKey||e.key.toLowerCase()==='y'?controller.redo():controller.undo();return;}
       if(!canEdit)return;
+      if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.key.toLowerCase()==='a'&&!e.repeat){e.preventDefault();armInsert('ai');return;}
       if(e.key==='Enter'&&primary?.type==='text'&&!primary.locked){e.preventDefault();setEditingId(primary.id);return;}
-      if((e.ctrlKey||e.metaKey)&&['z','y'].includes(e.key.toLowerCase())){e.preventDefault();e.shiftKey||e.key.toLowerCase()==='y'?controller.redo():controller.undo();return;}
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='d'){e.preventDefault();duplicate();return;}
       if(e.key==='Delete'||e.key==='Backspace'){if(selected.length){e.preventDefault();remove();}return;}
       const delta=e.shiftKey?10:1;const value=e.key==='ArrowLeft'?[-delta,0]:e.key==='ArrowRight'?[delta,0]:e.key==='ArrowUp'?[0,-delta]:e.key==='ArrowDown'?[0,delta]:null;
@@ -326,13 +506,6 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     };
     window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);
   });
-  const finish=async()=>{
-    setLeaving(true);setEditingId(null);
-    if(!await controller.save()){setLeaving(false);return;}
-    // 材料详情缓存了 30 秒（全局 staleTime），不主动失效的话，返回演示页会继续显示改之前的排版。
-    await queryClient.invalidateQueries({queryKey:keys.material(materialId)});
-    navigate(`/materials/${materialId}/work?page=${page.page_no}`);
-  };
   /** 文字放不下时把文本框按实际内容高度撑开（只增不减，避免与用户手动拉高互相打架）。 */
   const growText=useCallback((id:string)=>{
     window.requestAnimationFrame(()=>{
@@ -370,7 +543,7 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
       const result=await reinteractDocumentPage(materialId,page.page_no,controller.getSnapshot().document.revision);
       const remote=await getDocument(materialId);controller.loadServer(remote);
       await queryClient.invalidateQueries({queryKey:keys.material(materialId)});
-      setMessage(`第 ${page.page_no} 页已按当前内容重新提取${result.refreshed_user_interactions?`，并恢复 ${result.refreshed_user_interactions} 个用户公式`:''}。位置和样式修改仍保留。`);
+      setMessage(`第 ${pageIndex+1} 页已按当前内容重新提取${result.refreshed_user_interactions?`，并恢复 ${result.refreshed_user_interactions} 个用户公式`:''}。位置和样式修改仍保留。`);
     }catch(error){setMessage(errorMessage(error));}
     finally{setReinteracting(false);}
   };
@@ -378,87 +551,142 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
     if(!canEdit||!primary?.source_element_id)return;
     const patch:NodePatch={};
     if(primary.text!==primary.base_text)patch.text=primary.base_text??'';
+    if(primary.base_paragraphs&&JSON.stringify(primary.paragraphs)!==JSON.stringify(primary.base_paragraphs))
+      patch.paragraphs=primary.base_paragraphs;
     if(JSON.stringify(primary.table)!==JSON.stringify(primary.base_table))patch.table=primary.base_table;
     if(JSON.stringify(primary.chart)!==JSON.stringify(primary.base_chart))patch.chart=primary.base_chart;
     if(!Object.keys(patch).length)return;
     controller.patch(page.page_no,[primary.id],patch,'restore.content');
     setMessage('已恢复这段内容为原稿；依赖它的自动交互会在演示页重新启用。');
   };
-  const onText=useCallback((id:string,text:string)=>controller.patch(page.page_no,[id],{text},`text.${id}`),[controller,page.page_no]);
+  const onText=useCallback((id:string,text:string,paragraphs?:SceneParagraph[])=>controller.patch(page.page_no,[id],{text,...(paragraphs?{paragraphs}:{})},`text.${id}`),[controller,page.page_no]);
   const onCompose=useCallback((active:boolean)=>controller.setComposing(active),[controller]);
   const closeText=useCallback(()=>setEditingId(null),[]);
+  const removePage=()=>{
+    if(document.pages.length<2)return;
+    const fallback=document.pages[pageIndex+1]??document.pages[pageIndex-1];
+    controller.deletePage(page.page_no);
+    if(fallback)selectPage(fallback.page_no);
+  };
+  const sourceFor=(candidate:typeof page)=>candidate.source_page_no===null?undefined:
+    material.slides.find(slide=>slide.page_no===(candidate.source_page_no??candidate.page_no));
 
   return <div className={styles.editor} data-free-editor>
-    <header className={styles.header}><Link to="/" className={styles.brand}>万象<span>自由编辑</span></Link>
-      <div className={styles.documentTitle}><h1>{document.title}</h1><span>{document.pages.length} 页 · 网页文档</span></div>
-      <span className={styles.sync} data-error={!!state.error||!online} data-dirty={state.dirty&&!state.saving} role="status" aria-live="polite">{syncText}</span>
-      <button onClick={()=>void controller.save()} disabled={state.saving||leaving}>立即保存</button>
-      <button className={styles.primary} onClick={()=>void finish()} disabled={leaving}>{leaving?'正在同步…':'保存并返回演示'}</button>
-    </header>
     <div className={styles.toolbar}>
-      <div className={styles.toolGroup}><button aria-label="撤销编辑" title="Ctrl+Z" onClick={()=>controller.undo()} disabled={!state.canUndo||!canEdit}>↶ 撤销</button>
-        <button aria-label="重做编辑" title="Ctrl+Shift+Z" onClick={()=>controller.redo()} disabled={!state.canRedo||!canEdit}>↷ 重做</button></div>
+      <div className={styles.toolGroup}><button aria-label="撤销编辑" title="Ctrl+Z" onClick={()=>controller.undo()} disabled={!state.canUndo||reinteracting}>↶ 撤销</button>
+        <button aria-label="重做编辑" title="Ctrl+Shift+Z" onClick={()=>controller.redo()} disabled={!state.canRedo||reinteracting}>↷ 重做</button></div>
       <div className={styles.toolGroup}><button onClick={()=>add('text')} disabled={!canEdit}>＋ 文字</button><button onClick={()=>file.current?.click()} disabled={!canEdit}>＋ 图片</button>
-        <button onClick={()=>add('shape')} disabled={!canEdit}>□ 矩形</button><button onClick={()=>add('shape','ellipse')} disabled={!canEdit}>○ 椭圆</button></div>
+        <select aria-label="插入教学图形" value="" disabled={!canEdit} onChange={e=>{const shape=SHAPE_CATALOG.find(item=>item.id===e.target.value);if(shape)add('shape',shape.id);}}>
+          <option value="" disabled>＋ 图形</option>{SHAPE_CATALOG.map(shape=><option key={shape.id} value={shape.id}>{shape.label}</option>)}
+        </select>
+        <select aria-label="插入表格或图表" value="" disabled={!canEdit} onChange={e=>{if(e.target.value==='table'||e.target.value==='chart')add(e.target.value);}}>
+          <option value="" disabled>＋ 表格或图表</option><option value="table">表格</option><option value="chart">图表</option>
+        </select></div>
       <div className={styles.toolGroup}><button onClick={()=>addVector(false)} disabled={!canEdit}>＋ 线条</button><button onClick={()=>addVector(true)} disabled={!canEdit}>＋ 箭头</button></div>
-      <div className={styles.toolGroup}><button onClick={()=>add('math_scene')} disabled={!canEdit}>＋ 数学图</button></div>
+      <div className={styles.toolGroup}><button className={styles.primary} onClick={()=>setPluginPickerOpen(true)} disabled={!canEdit}>🎛️ 插入工坊插件</button></div>
+      <div className={styles.toolGroup}><button onClick={()=>add('math_scene')} disabled={!canEdit}>＋ 矩阵图</button></div>
       <div className={styles.toolGroup}><button aria-pressed={insertMode==='diagram'} onClick={()=>armInsert('diagram')} disabled={!canEdit}>＋ 流程图</button>
-        <button aria-pressed={insertMode==='demo'} onClick={()=>armInsert('demo')} disabled={!canEdit}>＋ AI 演示框</button></div>
+        <button aria-pressed={insertMode==='demo'} onClick={()=>armInsert('demo')} disabled={!canEdit}>＋ AI 演示框</button>
+        <button aria-pressed={insertMode==='ai'} onClick={()=>armInsert('ai')} disabled={!canEdit} aria-keyshortcuts="A" title="圈选本页要处理的对象（A）">AI 圈选</button></div>
       <input type="file" accept="image/png,image/jpeg,image/webp" ref={file} hidden onChange={e=>{const image=e.target.files?.[0];if(image)void addImage(image).catch(error=>setMessage(errorMessage(error)));e.target.value='';}}/>
       <div className={styles.toolGroup}><button onClick={duplicate} disabled={!selectedNodes.length||!canEdit}>复制</button><button onClick={remove} disabled={!unlocked.length||!canEdit}>删除</button>
         <button onClick={()=>layer(true)} disabled={!unlocked.length||!canEdit}>置顶</button><button onClick={()=>layer(false)} disabled={!unlocked.length||!canEdit}>置底</button>
         <select aria-label="对齐对象" value="" disabled={!unlocked.length||!canEdit} onChange={e=>align(e.target.value)}><option value="" disabled>对齐 ▾</option>
-          <option value="left">左对齐</option><option value="center">水平居中</option><option value="right">右对齐</option><option value="top">顶端对齐</option><option value="middle">垂直居中</option><option value="bottom">底端对齐</option></select>
+          <option value="left">左对齐</option><option value="center">水平居中</option><option value="right">右对齐</option><option value="top">顶端对齐</option><option value="middle">垂直居中</option><option value="bottom">底端对齐</option>
+          <option value="inside-slide" disabled={!canMoveInside}>移入幻灯片</option></select>
         <select aria-label="分布对象" value="" disabled={unlocked.length<3||!canEdit} onChange={e=>distribute(e.target.value as 'h'|'v')}><option value="" disabled>分布 ▾</option>
           <option value="h">横向等距</option><option value="v">纵向等距</option></select></div>
-      <div className={styles.toolbarEnd}><button aria-pressed={reference} onClick={()=>{setReference(!reference);setEditingId(null);}}>原稿对照</button>
+      <div className={styles.toolbarEnd}><button aria-pressed={reference} disabled={!source?.image_url} onClick={()=>{setReference(!reference);setEditingId(null);closeAI();}}>原稿对照</button>
         {hasAppliedFigures&&<button aria-pressed={proofFigures} disabled={reference}
           onClick={()=>setProofFigures(value=>!value)} title="显示半透明原图和矢量对象">图示校对</button>}
         <button aria-pressed={panMode} title="放大后拖动画布；也可按住空格或鼠标中键拖动" onClick={()=>{setPanMode(value=>!value);setEditingId(null);}}>平移</button>
-        <ZoomControl className={styles.zoomControl} value={zoom} fitValue={fit} min={.15} max={4} step={.1} onChange={setZoom}/></div>
+        <ZoomControl className={styles.zoomControl} value={zoom} fitValue={fit} min={.25} max={4} step={.1} onChange={setZoom}/>
+        <span className={styles.sync} data-error={!!state.error||!online} data-dirty={state.dirty&&!state.saving} role="status" aria-live="polite">{syncText}</span>
+        <button onClick={()=>void controller.save()} disabled={state.saving||reinteracting}>立即保存</button></div>
     </div>
     {(state.error||message)&&<div className={styles.notice} role="alert">{state.error||message}
       {state.conflict?<><button onClick={()=>void recover('merge')}>合并最新修改</button><button onClick={()=>void recover('local')}>使用本机冲突项</button><button onClick={()=>void recover('server')}>放弃草稿并载入服务端</button></>:
         state.error?<button onClick={()=>void controller.save()}>重试同步</button>:null}<button onClick={()=>setMessage('')} aria-label="关闭提示">×</button></div>}
     <div className={styles.workspace}>
       <aside className={styles.rail}><div className={styles.tabs}><button aria-pressed={tab==='pages'} onClick={()=>setTab('pages')}>页面</button><button aria-pressed={tab==='layers'} onClick={()=>setTab('layers')}>图层</button></div>
-        <div className={styles.railBody}>{tab==='pages'?document.pages.map(p=><button key={p.page_no} className={styles.thumbnail} aria-current={p.page_no===page.page_no?'page':undefined}
-          aria-label={`编辑第 ${p.page_no} 页`} onClick={()=>setQuery({page:String(p.page_no)},{replace:true})}>
-          <div className={styles.thumbImage} style={{aspectRatio:`${p.width}/${p.height}`}}>{p.modified&&p.preparation?.status==='ready'?<ScenePageView page={p} scale={148/p.width}/>:<img src={material.slides.find(s=>s.page_no===p.page_no)?.image_url??''} alt="" loading="lazy"/>}</div>
-          <span>{p.page_no}<b>{material.slides.find(s=>s.page_no===p.page_no)?.title??`第 ${p.page_no} 页`}</b>{p.modified&&<i/>}</span></button>):[...page.nodes].filter(n=>!n.deleted).sort((a,b)=>b.z-a.z).map(node=><div className={styles.layerRow} key={node.id} data-selected={selected.includes(node.id)}>
+        {tab==='pages'&&<details ref={pageMenu} className={styles.pageMenu} onClick={e=>{if(!e.currentTarget.open)return;const target=e.target as Element;if(target.closest('button'))e.currentTarget.open=false;}}>
+          <summary>页面操作</summary>
+          <div>
+            <button onClick={()=>selectPage(controller.addPage(page.page_no))} disabled={reinteracting}>新建空白页</button>
+            <button onClick={()=>selectPage(controller.addPage(page.page_no,'lesson'))} disabled={reinteracting}>插入教学版式</button>
+            <button onClick={()=>selectPage(controller.duplicatePage(page.page_no))} disabled={reinteracting}>复制本页</button>
+            <button onClick={()=>controller.movePage(page.page_no,pageIndex-1)} disabled={reinteracting||pageIndex===0}>向前移动</button>
+            <button onClick={()=>controller.movePage(page.page_no,pageIndex+1)} disabled={reinteracting||pageIndex===document.pages.length-1}>向后移动</button>
+            <button onClick={removePage} disabled={reinteracting||document.pages.length===1}>删除本页</button>
+          </div>
+        </details>}
+        <div className={styles.railBody}>{tab==='pages'?document.pages.map((p,index)=>{
+          const original=sourceFor(p);
+          return <button key={p.page_no} className={styles.thumbnail} aria-current={p.page_no===page.page_no?'page':undefined}
+            aria-label={`编辑第 ${index+1} 页`} onClick={()=>selectPage(p.page_no)} draggable={!reinteracting}
+            data-drop={dropPage===p.page_no}
+            onContextMenu={e=>{e.preventDefault();selectPage(p.page_no);if(pageMenu.current)pageMenu.current.open=true;}}
+            onDragStart={e=>{draggedPage.current=p.page_no;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(p.page_no));}}
+            onDragOver={e=>{if(draggedPage.current!==null&&draggedPage.current!==p.page_no){e.preventDefault();e.dataTransfer.dropEffect='move';setDropPage(p.page_no);}}}
+            onDragLeave={e=>{if(!(e.relatedTarget instanceof Node)||!e.currentTarget.contains(e.relatedTarget))setDropPage(null);}}
+            onDrop={e=>{e.preventDefault();const dragged=draggedPage.current;draggedPage.current=null;setDropPage(null);if(dragged!==null)controller.movePage(dragged,index);}}
+            onDragEnd={()=>{draggedPage.current=null;setDropPage(null);}}>
+            <div className={styles.thumbImage} style={{aspectRatio:`${p.width}/${p.height}`}}>{p.preparation?.status==='ready'&&(p.modified||!original?.image_url)?
+              <div className={styles.thumbCanvas}><ScenePageView page={p} scale={148/p.width}/></div>:
+              original?.image_url?<img src={original.image_url} alt="" loading="lazy" draggable={false}/>:null}</div>
+            <span>{index+1}<b>{original?.title??`第 ${index+1} 页`}</b>{p.modified&&<i/>}</span>
+          </button>;
+        }):[...page.nodes].filter(n=>!n.deleted).sort((a,b)=>b.z-a.z).map(node=><div className={styles.layerRow} key={node.id} data-selected={selected.includes(node.id)}>
             <button className={styles.layerSelect} aria-pressed={selected.includes(node.id)} onClick={e=>setSelected(e.shiftKey?[...new Set([...selected,node.id])]:[node.id])} title={node.text||node.name}>
               <span>{node.type==='text'?'T':node.type==='image'?'▧':node.type==='chart'?'▥':node.type==='table'?'▦':'◇'}</span>{node.text?.slice(0,20)||node.name}</button>
             <button aria-label={`${node.hidden?'显示':'隐藏'}图层 ${node.name}`} onClick={()=>controller.patch(page.page_no,[node.id],{hidden:!node.hidden})} disabled={!canEdit}>{node.hidden?'◌':'◉'}</button>
             <button aria-label={`${node.locked?'解锁':'锁定'}图层 ${node.name}`} onClick={()=>controller.patch(page.page_no,[node.id],{locked:!node.locked})} disabled={!canEdit}>{node.locked?'▣':'◇'}</button>
           </div>)}</div>
+        {tab==='pages'&&<details className={styles.pageSettings}><summary>备注和背景</summary>
+          <label>演讲者备注<textarea value={page.notes??''} maxLength={20000} rows={3} disabled={reinteracting} onChange={e=>controller.patchPage(page.page_no,{notes:e.target.value})}/></label>
+          <div><label>背景色 <input type="color" value={page.background_color??'#ffffff'} disabled={reinteracting} onChange={e=>controller.patchPage(page.page_no,{background_color:e.target.value})}/></label>
+            {page.background_modified&&<button disabled={reinteracting} onClick={()=>controller.patchPage(page.page_no,{background_color:null})}>清除设置</button>}</div>
+        </details>}
       </aside>
-      <main className={styles.main}><div className={styles.pageHeading}><span>第 {page.page_no} 页</span><b>{source?.title??document.title}</b>
+      <main className={styles.main}><div className={styles.pageHeading}><span>第 {pageIndex+1} 页</span><b>{source?.title??document.title}</b>
+        {separateDemos.length>0&&<button type="button" className={styles.retryLayers} onClick={()=>setDemoPage(page.page_no)}>独立演示</button>}
         {vectorized.length>0&&<span>已矢量化 {countFigureObjects(vectorized)} 个对象</span>}
+        {ready&&stage==='failed'&&<button className={styles.retryLayers} onClick={()=>setRetry(n=>n+1)}>重试复杂图层</button>}
         <span>{reference?'原稿对照':proofFigures&&hasAppliedFigures?'图示校对':`${Math.round(scale*100)}%`}</span></div>
         <div className={styles.viewport} ref={viewport} data-pan-ready={canPan&&(panMode||spaceHeld)} data-panning={panning}
           onPointerDown={panDown} onPointerMove={panMove} onPointerUp={panEnd} onPointerCancel={panEnd}>
-          <div className={styles.workarea} style={{minWidth:page.width*scale+80,minHeight:page.height*scale+80}}>
-            <div ref={frame} className={styles.frame} style={{width:page.width*scale,height:page.height*scale}} onPointerDown={begin} onPointerMove={move}
-              onPointerUp={()=>{if(drawing.current&&insertMode&&drawBox){const node=newNode(page,identifier(),insertMode);
-                const width=drawBox.width>=80?Math.max(160,drawBox.width):node.width,height=drawBox.height>=60?Math.max(120,drawBox.height):node.height;
-                Object.assign(node,{x:Math.max(0,Math.min(page.width-width,drawBox.x)),y:Math.max(0,Math.min(page.height-height,drawBox.y)),width:Math.min(page.width,width),height:Math.min(page.height,height)});
-                controller.add(page.page_no,node);setSelected([node.id]);drawing.current=null;setDrawBox(null);setInsertMode(null);setMessage('');return;}end();}}
-              onPointerCancel={()=>{drawing.current=null;setDrawBox(null);end(true);}} onDoubleClick={e=>{
-                if(!canEdit||panMode||spaceRef.current)return;const recent=lastTap.current;
-                const id=(e.target as Element).closest<HTMLElement>('[data-node-id]')?.dataset.nodeId??
-                  (recent&&Date.now()-recent.time<500&&Math.hypot(e.clientX-recent.x,e.clientY-recent.y)<6?recent.id:undefined);
-                const node=page.nodes.find(n=>n.id===id);if(node?.type==='text'&&!node.locked){setSelected([node.id]);setEditingId(node.id);}
-              }} aria-label={`可编辑画布第 ${page.page_no} 页`}>
-              {reference||!ready?<img className={styles.original} src={source?.image_url??''} alt={`第 ${page.page_no} 页原稿`} draggable={false}/>:
+          <div className={styles.workarea} style={{minWidth:page.width*scale+80,minHeight:page.height*scale+80}}
+            data-ai-mode={insertMode==='ai'}
+            onPointerDownCapture={e=>{if(insertMode==='ai'||(e.target as Element).matches('[data-vector-select]')||
+              (e.shiftKey&&(e.target as Element).closest('[data-node-id]')))begin(e);}}
+            onPointerDown={e=>{if(insertMode!=='ai'&&!(e.target as Element).matches('[data-vector-select]')&&
+              !(e.shiftKey&&(e.target as Element).closest('[data-node-id]')))begin(e);}}
+            onPointerMove={move} onPointerUp={finishPointer} onDoubleClick={e=>{
+              if(!canEdit||panMode||spaceRef.current||insertMode)return;
+              const recent=lastTap.current;
+              const id=(e.target as Element).closest<HTMLElement>('[data-node-id]')?.dataset.nodeId??
+                (recent&&Date.now()-recent.time<500&&Math.hypot(e.clientX-recent.x,e.clientY-recent.y)<6?recent.id:undefined);
+              const node=page.nodes.find(n=>n.id===id);
+              if(node?.type==='text'&&!node.locked){setSelected([node.id]);setEditingId(node.id);}
+            }}
+            onLostPointerCapture={()=>{if(drag.current||drawing.current){drawing.current=null;setDrawBox(null);end(true);}}}
+            onPointerCancel={()=>{drawing.current=null;setDrawBox(null);end(true);}}>
+            <div ref={frame} className={styles.frame} style={{width:page.width*scale,height:page.height*scale}} aria-label={`可编辑画布第 ${pageIndex+1} 页`}>
+              {reference||!ready?(source?.image_url?<img className={styles.original} src={source.image_url} alt={`第 ${pageIndex+1} 页原稿`} draggable={false}/>:null):
                 <ScenePageView page={page} scale={scale} editing={canEdit} proofFigures={proofFigures} editingId={editingId} preview={preview} onText={onText} onCompose={onCompose} onTextBlur={closeText} vectorId={primary?.id}
-                  onVectorSelect={id=>{setSelected([id]);setEditingId(null);}}
+                  onVectorSelect={id=>{setSelected(ids=>ids.includes(id)?ids:[id]);setEditingId(null);}}
                   generating={generating} onGenerateDemo={id=>void generateNode(id,'demo')}
-                  onVectorPatch={(id, patch,key)=>controller.patch(page.page_no,[id],patch,key?`${id}.${key}`:'')}>
+                  onVectorPatch={(id, patch,key)=>{
+                    if(key==='workshop-preview'&&patch.workshop_plugin)controller.cacheWorkshopPreview(page.page_no,id,patch.workshop_plugin);
+                    else controller.patch(page.page_no,[id],patch,key?`${id}.${key}`:'');
+                  }}>
                   {guides.x!==undefined&&<div className={styles.guideX} style={{left:guides.x}}/>}{guides.y!==undefined&&<div className={styles.guideY} style={{top:guides.y}}/>}
-                  {drawBox&&<div style={{position:'absolute',...drawBox,border:'2px dashed #1e73a8',background:'#e9f3fa55',pointerEvents:'none',zIndex:60000}}/>}
-                  {box&&primary?.type!=='vector'&&<div className={styles.selection} style={{left:box.x,top:box.y,width:box.width,height:box.height,
+                  {guides.gaps?.map(({axis,from,to,cross},index)=><div key={index} className={styles.gapGuide} data-axis={axis}
+                    style={axis==='x'?{left:from,top:cross,width:to-from}:{left:cross,top:from,height:to-from}}/>)}
+                  {(drawBox??aiBox)&&<div className={styles.drawBox} style={{...(drawBox??aiBox),borderWidth:1/scale}}/>}
+                  {box&&(shown.length>1||primary?.type!=='vector')&&!separateDemos.some(node=>shown.length===1&&node.id===primary?.id)&&<div className={styles.selection} style={{left:box.x,top:box.y,width:box.width,height:box.height,
                     transform:shown.length===1?`rotate(${shown[0]!.rotation}deg)`:undefined,borderWidth:1/scale}}>
-                    {unlocked.length===1&&selectedNodes.length===1&&!editingId&&<>
+                    {canTransform&&!drawBox&&insertMode!=='ai'&&<>
                       {['nw','n','ne','e','se','s','sw','w'].map(direction=><span key={direction} role="button" aria-label={`缩放手柄 ${direction}`} data-handle={direction}
                         className={styles.handle} data-direction={direction} style={{width:9/scale,height:9/scale,borderWidth:1/scale}}/>)}
                       <span className={styles.rotationLine} style={{height:24/scale,top:-24/scale}}/><span role="button" aria-label="旋转手柄" data-handle="rotate" className={styles.rotateHandle}
@@ -466,6 +694,29 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
                     </>}
                   </div>}
                 </ScenePageView>}
+              {aiBox&&!drawBox&&!reference&&<div role="group" aria-label="选区 AI 操作" className={styles.aiActions} data-editor-control
+                data-above={aiBox.y+aiBox.height>page.height*.65}
+                style={{left:Math.min(Math.max(aiInset,(aiBox.x+aiBox.width/2)*scale),page.width*scale-aiInset),
+                  top:(aiBox.y+aiBox.height>page.height*.65?Math.max(0,aiBox.y):Math.min(page.height,aiBox.y+aiBox.height))*scale}}>
+                <div>
+                  <button type="button" disabled={!canVectorize} onClick={()=>{if(primary){setFigureTarget({pageNo:page.page_no,nodeId:primary.id});closeAI();setInsertMode(null);}}}>图片矢量化</button>
+                  <button type="button" disabled={!canEdit||!online} onClick={openDemo}>生成 AI 演示</button>
+                  <button type="button" disabled={!canEdit||!online||!selectedNodes.length} aria-expanded={aiRelations} onClick={()=>setAIRelations(open=>!open)}>添加联动关系</button>
+                  <button type="button" aria-label="关闭选区 AI 操作" onClick={()=>{closeAI();setInsertMode(null);}}>×</button>
+                </div>
+                {aiRelations&&<form onSubmit={e=>{e.preventDefault();void generateAIRelations();}}>
+                  <label>描述对象如何联动<input autoFocus value={aiInstruction} onChange={e=>setAIInstruction(e.target.value)} maxLength={500} required/></label>
+                  <button type="submit" disabled={aiPending||!aiInstruction.trim()}>{aiPending?'正在生成…':'生成关系预览'}</button>
+                  {aiSuggestion&&<div>
+                    <p>{aiSuggestion.summary}</p>
+                    {aiSuggestion.warnings.map(warning=><p key={warning}>{warning}</p>)}
+                    <button type="button" disabled={!aiSuggestion.relations.length} onClick={()=>{
+                      const error=applyRelationSuggestion(aiSuggestion);
+                      if(error)setMessage(error);else{closeAI();setInsertMode(null);}
+                    }}>应用 {aiSuggestion.relations.length} 条关系</button>
+                  </div>}
+                </form>}
+              </div>}
             </div>
           </div>
         </div>
@@ -485,11 +736,15 @@ export function FreeDeckEditor({materialId,controller,material}:Props){
         onInteraction={(config:NodeInteraction|null)=>patch({interaction:config},'interaction')}
         onReinteract={()=>void reinteract()} reinteracting={reinteracting} onRestoreContent={restoreContent}/>
     </div>
-    <footer className={styles.footer}><span>Shift 多选 · 对齐 / 分布 · 等比缩放 · Alt 暂停吸附 · 空格/中键拖动平移 · 方向键微调 · Ctrl+Z 撤销</span>
-      <div><button disabled={page.page_no===1} onClick={()=>setQuery({page:String(page.page_no-1)},{replace:true})}>上一页</button><span>{page.page_no} / {document.pages.length}</span>
-        <button disabled={page.page_no===document.pages.length} onClick={()=>setQuery({page:String(page.page_no+1)},{replace:true})}>下一页</button></div>
+    <footer className={styles.footer}><span>拖动空白处框选 · Shift 增减选 · Alt 暂停吸附 · 空格/中键平移 · Ctrl+Z 撤销</span>
+      <div><button disabled={pageIndex===0} onClick={()=>{const previous=document.pages[pageIndex-1];if(previous)selectPage(previous.page_no);}}>上一页</button><span>{pageIndex+1} / {document.pages.length}</span>
+        <button disabled={!nextPage} onClick={()=>{if(nextPage)selectPage(nextPage.page_no);}}>下一页</button></div>
       <span>修改即时显示 · 网页自动保存</span></footer>
+    {demoPage===page.page_no&&separateDemos.length>0&&<StandaloneDemoDialog nodes={separateDemos} initialId={primary?.id} editing={canEdit}
+      onPatch={(id,patch,key)=>{if(canEdit)controller.patch(page.page_no,[id],patch,key?`${id}.${key}`:'');}}
+      onClose={()=>setDemoPage(null)}/>}
     {figureNode&&<FigureVectorizationDialog key={`${page.page_no}:${figureNode.id}`} materialId={materialId} pageNo={page.page_no} node={figureNode} controller={controller}
       onClose={()=>setFigureTarget(null)} onApplied={count=>{setProofFigures(false);setMessage(`已应用 ${count} 个图示对象，可撤销或选择对象继续编辑。`);}} onManual={addVector}/>}
+    {pluginPickerOpen&&canEdit&&<WorkshopPluginPicker key={page.page_no} onSelect={addWorkshopPlugin} onClose={()=>setPluginPickerOpen(false)}/>}
   </div>;
 }

@@ -41,3 +41,26 @@ test('64-bit fixed-point conversion preserves integers beyond the JS safe range'
   const report = run('ieee754Lab', { source: { text: '9007199254740993' }, width: { params: { fixed: 1, bits: 64, fraction: 0 } } });
   assert.deepEqual(report.get('value')?.frames[0]?.rows?.[0], ['9007199254740993', '0', 1]);
 });
+
+test('CPU 数据通路逐拍高亮，并列出单/多周期 CPI', () => {
+  const multi = run('cpuDatapathLab', { program: { params: { inst: 1, mode: 1 } } });
+  assert.equal(multi.get('datapath')?.frames.length, 5);
+  assert.match(JSON.stringify(multi.get('datapath')?.frames[0]), /IF/);
+  assert.deepEqual(multi.get('cycles')?.frames[0]?.rows?.[1]?.slice(0, 3), ['多周期', 5, '200 ps']);
+  const single = run('cpuDatapathLab', { program: { params: { inst: 0, mode: 0 } } });
+  assert.equal(single.get('datapath')?.frames.length, 1);
+  assert.match(JSON.stringify(single.get('datapath')?.frames[0]), /单周期/);
+});
+
+test('补码双符号位溢出与 Booth 乘法逐拍核对', () => {
+  const overflow = run('aluBoothLab', { operands: { params: { mode: 0, x: 15, y: 1, bits: 0 } } });
+  assert.equal(overflow.get('steps')?.data.overflow, true);
+  assert.match(String(overflow.get('verify')?.frames[0]?.summary), /溢出/);
+  const normal = run('aluBoothLab', { operands: { params: { mode: 0, x: 11, y: -6, bits: 0 } } });
+  assert.equal(normal.get('verify')?.data.result, 5);
+  const booth = run('aluBoothLab', { operands: { params: { mode: 1, x: 11, y: -6, bits: 0 } } });
+  assert.equal(booth.get('verify')?.data.result, -66);
+  assert.equal(booth.get('steps')?.frames.length, 6);
+  assert.match(String(booth.get('verify')?.frames[0]?.summary), /一致/);
+  assert.throws(() => run('aluBoothLab', { operands: { params: { x: 20, bits: 0 } } }), /范围/);
+});

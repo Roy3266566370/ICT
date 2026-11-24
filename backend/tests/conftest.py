@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Callable
@@ -38,6 +38,21 @@ def load_golden(repo_root: Path) -> Callable[[str], dict[str, Any]]:
             return json.load(handle)
 
     return _load
+
+
+@pytest.fixture(scope="module")
+def offline_ppt_ai_models() -> Iterator[pytest.MonkeyPatch]:
+    """Keep deterministic PPT AI fixtures independent of configured model endpoints."""
+    from app.settings import get_settings
+
+    try:
+        with pytest.MonkeyPatch.context() as monkeypatch:
+            monkeypatch.setenv("LIVING_FIGURE_VISION_PROVIDER", "none")
+            monkeypatch.setenv("LLM_PROVIDER", "none")
+            get_settings.cache_clear()
+            yield monkeypatch
+    finally:
+        get_settings.cache_clear()
 
 
 @pytest.fixture

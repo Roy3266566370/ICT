@@ -6,7 +6,7 @@ import styles from './PageLabPanel.module.css';
 
 type Values = Record<string,number>;
 export {labDefaults};
-export function PageLabPlayer({lab,identity,values,onValues,editable=true}:{lab:PageLab;identity:string;values:Values;onValues:(values:Values)=>void;editable?:boolean}) {
+export function PageLabPlayer({lab,identity,values,onValues,editable=true,standalone=false}:{lab:PageLab;identity:string;values:Values;onValues:(values:Values)=>void;editable?:boolean;standalone?:boolean}) {
   const [playback,setPlayback] = useState({t:0,playing:false});
   const [runId,setRunId] = useState(0);
   const seek = (t:number) => {setRunId(id=>id+1);setPlayback({t,playing:false});};
@@ -24,7 +24,7 @@ export function PageLabPlayer({lab,identity,values,onValues,editable=true}:{lab:
   },[playback.playing,timeline]);
   const input = useMemo(() => playbackInput(values,timeline,playback.t),[values,timeline,playback.t]);
   const toggle = () => setPlayback(current => ({t:current.t >= 1 ? 0 : current.t,playing:!current.playing}));
-  return <div className={styles.player} tabIndex={0} aria-label="交互演示播放器"
+  return <div className={styles.player} data-standalone={standalone||undefined} tabIndex={0} aria-label="交互演示播放器"
     onPointerDown={event => event.stopPropagation()} onKeyDown={event => {
       event.stopPropagation();
       if (event.code === 'Space' && event.target === event.currentTarget && timeline) {event.preventDefault();toggle();}
@@ -35,6 +35,7 @@ export function PageLabPlayer({lab,identity,values,onValues,editable=true}:{lab:
       values={input}
       identity={identity}
       editable={editable}
+      fitDialog={standalone}
       onParamChange={editable ? (patch) => onValues({ ...values, ...patch }) : undefined}
     />
     {timeline && <div className={styles.playback}>
@@ -49,7 +50,7 @@ export function PageLabPlayer({lab,identity,values,onValues,editable=true}:{lab:
     <fieldset className={styles.sliders} disabled={!editable}>
       {publicParams(lab).map(param => <label key={param.id} className={styles.slider}>
         <span>{param.label}</span><output>{Number((values[param.id] ?? param.default).toFixed(4))}{param.unit}</output>
-        <input type="range" min={param.min} max={param.max} step={param.step} value={values[param.id] ?? param.default}
+        <input type="range" aria-label={param.label} min={param.min} max={param.max} step={param.step} value={values[param.id] ?? param.default}
           onChange={event => onValues({...values,[param.id]:Number(event.target.value)})} />
       </label>)}
     </fieldset>

@@ -13,14 +13,17 @@
 from __future__ import annotations
 
 import base64
+from functools import lru_cache
 from io import BytesIO
 import json
 import logging
 import math
+import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import tempfile
 from typing import Any, Mapping
 
 from sqlalchemy import select
@@ -117,6 +120,8 @@ def _timeline_example(context: Mapping[str, Any]) -> dict[str, str]:
 
 _NODE_RUNNER = r"""
 const vm = require('node:vm');
+// 双重保险：在读取模型代码前主动清空进程环境变量
+for (const k of Object.keys(process.env)) { delete process.env[k]; }
 let raw = '';
 process.stdin.on('data', (c) => (raw += c));
 process.stdin.on('end', () => {
@@ -455,8 +460,37 @@ def _check_ast_colors(ast: Mapping[str, Any]) -> None:
     walk(ast.get("nodes") or [])
 
 
+def _sanitized_node_env() -> dict[str, str]:
+    """构造最小化子进程环境变量，彻底剥离 API Key、数据库凭据与业务配置。"""
+    allow = ("SYSTEMROOT", "WINDIR", "COMSPEC") if os.name == "nt" else ("PATH", "LANG")
+    env = {key: os.environ[key] for key in allow if key in os.environ}
+    env["NODE_OPTIONS"] = ""
+    return env
+
+
+@lru_cache(maxsize=4)
+def _node_permission_flags(node_bin: str) -> tuple[str, ...]:
+    """探测当前 Node 版本支持的最小权限标志（零文件/子进程/Worker 权限）。"""
+    env = _sanitized_node_env()
+    for flag in ("--permission", "--experimental-permission"):
+        try:
+            probe = subprocess.run(
+                [node_bin, flag, "-e", "process.exit(0)"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+                env=env,
+                check=False,
+            )
+            if probe.returncode == 0:
+                return (flag,)
+        except Exception:  # noqa: BLE001
+            continue
+    return ()
+
+
 def dry_run(program: str, params: list[dict[str, Any]], timeline: Mapping[str, Any] | None = None) -> None:
-    """在隔离 Node 子进程探测参数与时间边界；仅旧版无时间轴实验允许缺少 Node。"""
+    """在最小权限隔离 Node 子进程中探测参数与时间边界；仅旧版无时间轴实验允许缺少 Node。"""
 
     node = shutil.which("node")
     if node is None:
@@ -466,16 +500,21 @@ def dry_run(program: str, params: list[dict[str, Any]], timeline: Mapping[str, A
         return
     inputs = _probe_inputs(params, timeline)
     job = json.dumps({"program": program, "inputs": inputs, "timeline": timeline is not None}, ensure_ascii=False)
+    perm_flags = _node_permission_flags(node)
+    cmd = [node, *perm_flags, "--max-old-space-size=96", "-e", _NODE_RUNNER]
     try:
-        completed = subprocess.run(
-            [node, "--max-old-space-size=96", "-e", _NODE_RUNNER],
-            input=job,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=8,
-            check=False,
-        )
+        with tempfile.TemporaryDirectory(prefix="page-lab-dryrun-") as empty_cwd:
+            completed = subprocess.run(
+                cmd,
+                input=job,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=8,
+                cwd=empty_cwd,
+                env=_sanitized_node_env(),
+                check=False,
+            )
     except subprocess.TimeoutExpired as exc:
         raise PageLabError("程序试运行超时（疑似死循环）") from exc
     if completed.returncode != 0 or not completed.stdout.strip():

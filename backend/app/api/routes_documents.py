@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel,ConfigDict,Field
 from . import API_PREFIX,DBDep,SessionDep,WriteDep,ok,owned_material
 from ..documents.store import DocumentConflict,patch_document,read_document,reinteract_page
-from ..documents.layers import ensure_document,has_rendered_pages,hydrate_document,layer_dir,manifest_ready,prepare_page,read_manifest
+from ..documents.layers import ensure_document,has_rendered_pages,layer_dir,manifest_ready,native_asset_path,prepare_page,read_manifest,source_page_number
 from ..documents.capabilities import layer_editor_available
 from ..schemas.common import is_expired
 from ..schemas.errors import missing_field,resource_unavailable,version_conflict
@@ -152,10 +152,14 @@ def update_document(material_id:str,payload:DocumentPatch,request:Request,ctx:Wr
 def prepare_document_page(material_id:str,page_no:int,request:Request,ctx:WriteDep,db:DBDep,background_tasks:BackgroundTasks):
     material=owned_material(db,ctx,material_id)
     document=ensure_document(material_id,material.title)
-    if page_no not in [p['page_no'] for p in document['pages']]:raise missing_field('页面不存在')
-    if any(page['page_no']==page_no and page.get('rendered_only') for page in document['pages']):
+    page=next((p for p in document['pages'] if p['page_no']==page_no),None)
+    if page is None:raise missing_field('页面不存在')
+    source_page=source_page_number(page)
+    if page.get('rendered_only') or source_page is None:
         return ok(request,{'status':'ready'},status_code=202)
-    manifest=read_manifest(material_id,document['source_key'],page_no)
+    if page.get('native_ready') and (not page.get('native_fallback') or not layer_editor_available()[0]):
+        return ok(request,{'status':'ready'},status_code=202)
+    manifest=read_manifest(material_id,document['source_key'],source_page)
     if manifest_ready(manifest):
         status='ready'
     elif manifest.get('status') in ('queued','preparing'):
@@ -165,7 +169,7 @@ def prepare_document_page(material_id:str,page_no:int,request:Request,ctx:WriteD
         # regenerated rather than served with stale geometry.
         status='unprepared'
     if status not in ('ready','queued','preparing') or (status in ('queued','preparing') and time.time()-manifest.get('started_at',0)>130):
-        target=layer_dir(material_id,document['source_key'],page_no);target.mkdir(parents=True,exist_ok=True)
+        target=layer_dir(material_id,document['source_key'],source_page);target.mkdir(parents=True,exist_ok=True)
         (target/'manifest.json').write_text(json.dumps({'status':'queued','started_at':time.time()}),encoding='utf-8')
         background_tasks.add_task(prepare_page,material_id,page_no)
         status='queued'
@@ -189,12 +193,23 @@ def document_capabilities(material_id:str,request:Request,ctx:SessionDep,db:DBDe
     owned_material(db,ctx,material_id)
     from ..editing import working_path
     current=read_document(material_id)
+    if working_path(material_id).is_file() or (current and any(p.get('native_ready') for p in current['pages'])):
+        return ok(request,{'free_editing':True,'engine':'native_pptx','reason':None})
     available,reason,engine=layer_editor_available()
     if ((current and any(page.get('rendered_only') for page in current['pages']))
             or (not current and (not available or not working_path(material_id).is_file())
                 and has_rendered_pages(material_id))):
         return ok(request,{'free_editing':True,'engine':'rendered_page','reason':None})
     return ok(request,{'free_editing':available,'engine':engine,'reason':reason})
+
+
+@router.get('/materials/{material_id}/document/native-assets/{key}/{page_no}/{filename}')
+def document_native_asset(material_id:str,key:str,page_no:int,filename:str,ctx:SessionDep,db:DBDep):
+    owned_material(db,ctx,material_id)
+    document=read_document(material_id)
+    target=native_asset_path(material_id,key,page_no,filename) if document and key==document['source_key'] else None
+    if target is None:raise resource_unavailable()
+    return FileResponse(target,media_type='image/png',headers={'Cache-Control':'private, max-age=31536000, immutable'})
 
 @router.get('/materials/{material_id}/document/assets/{key}/{page_no}/{filename}')
 def document_asset(material_id:str,key:str,page_no:int,filename:str,ctx:SessionDep,db:DBDep):

@@ -86,6 +86,9 @@ function GlobalHomeShortcut(): ReactElement | null {
     // /login、/register 页头右上角已有「返回首页」，不重复挂全局快捷入口（R8-7）
     pathname === '/login' ||
     pathname === '/register' ||
+    pathname === '/canvas' ||
+    pathname === '/workshop' ||
+    pathname.startsWith('/work-shares/') ||
     pathname.startsWith('/p/') ||
     pathname.startsWith('/labs') ||
     pathname.startsWith('/lab-share/') ||

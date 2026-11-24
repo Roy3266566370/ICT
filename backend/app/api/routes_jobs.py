@@ -281,48 +281,65 @@ def read_ispec_payload(material_id: str) -> dict[str, Any] | None:
 CONVERSION_VERSION = 4
 
 
-def _persist_ispecs(material: MaterialRecord, slides_payload: Mapping[str, Any]) -> None:
+def _persist_ispecs(material: MaterialRecord, slides_payload: Mapping[str, Any], *, fast_upload: bool = False) -> None:
     """``extracting`` 阶段：生成 iSpec 并原子落盘。
 
     识别失败不阻断上传链路（材料仍可读），只降低识别结论为"未识别"。
     产物为空数组时也必须落盘：显式表达"没有交互区域"，绝不回退示例区域。
+    当 ``fast_upload=True`` 时跳过耗时的整本图片 OCR / 视觉读图 / LLM 猜测，
+    直接以极速模式生成空自动交互（用户可在编辑页直接插入万象工坊插件，或按需点击“重新提取本页交互”）。
     """
 
     fallback_reason = "识别层未产出 iSpec；未回退到公共示例区域"
-    try:
-        from ..editing import read_metadata
-        from ..ispec.user_config import enrich_recognition, apply_user_interactions
-        metadata = read_metadata(material.id)
-        enriched, image_recognition, figure_scenes = enrich_recognition(slides_payload, material.id, metadata)
-        # 未配置 LLM_PROVIDER / LLM_API_KEY 时 build_provider() 返回 NoopProvider，不联网。
-        result = build_ispecs_detailed(enriched, material_id=material.id, llm=build_provider())
-        ispecs = result.ispecs
-        native_count = len(ispecs)
-        ispecs = apply_user_interactions(ispecs, enriched, metadata)
-        inferred_extra = len(ispecs) - native_count
-        if inferred_extra > 0:
-            # 识别结论在 builder 内先于图示启发式计算；补一句最终总数，避免“说 3 个、展示 7 个”。
-            reason = result.recognition.get('reason') or ''
-            result.recognition['reason'] = reason + f'；另有 {inferred_extra} 个图示启发式对象'
-        if figure_scenes:
-            reason = result.recognition.get('reason') or ''
-            result.recognition['reason'] = reason + f'；{len(figure_scenes)} 张位图读图重建为可操作图形'
-        for spec in ispecs:
-            if metadata['revision']:
-                spec['object_id'] += f'__r{metadata["revision"]}'
-        from ..ispec.persistence import migrate_unchanged_values
-        previous=(read_ispec_payload(material.id) or {}).get('ispecs',[])
-        migrate_unchanged_values(material.id,previous,ispecs)
-        errors = result.errors
-        recognition = result.recognition
-    except Exception:  # noqa: BLE001 - 识别异常不得让材料不可读
-        logger.exception("材料 %s 的 iSpec 生成失败，已降级为空识别结果", material.id)
-        ispecs = []
-        errors = []
-        recognition = {"found": False, "reason": fallback_reason}
-        image_recognition = {}
-        figure_scenes = {}
-        metadata = {'revision': 0}
+    if fast_upload:
+        ispecs: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        recognition: dict[str, Any] = {
+            "found": False,
+            "reason": "已跳过耗时的自动公式识别，请直接浏览 PPT 或在编辑页插入万象工坊交互插件",
+        }
+        image_recognition: dict[str, Any] = {}
+        figure_scenes: dict[str, Any] = {}
+        try:
+            from ..editing import read_metadata
+            metadata = read_metadata(material.id)
+        except Exception:  # noqa: BLE001
+            metadata = {'revision': 0}
+    else:
+        try:
+            from ..editing import read_metadata
+            from ..ispec.user_config import enrich_recognition, apply_user_interactions
+            metadata = read_metadata(material.id)
+            enriched, image_recognition, figure_scenes = enrich_recognition(slides_payload, material.id, metadata)
+            # 未配置 LLM_PROVIDER / LLM_API_KEY 时 build_provider() 返回 NoopProvider，不联网。
+            result = build_ispecs_detailed(enriched, material_id=material.id, llm=build_provider())
+            ispecs = result.ispecs
+            native_count = len(ispecs)
+            ispecs = apply_user_interactions(ispecs, enriched, metadata)
+            inferred_extra = len(ispecs) - native_count
+            if inferred_extra > 0:
+                # 识别结论在 builder 内先于图示启发式计算；补一句最终总数，避免“说 3 个、展示 7 个”。
+                reason = result.recognition.get('reason') or ''
+                result.recognition['reason'] = reason + f'；另有 {inferred_extra} 个图示启发式对象'
+            if figure_scenes:
+                reason = result.recognition.get('reason') or ''
+                result.recognition['reason'] = reason + f'；{len(figure_scenes)} 张位图读图重建为可操作图形'
+            for spec in ispecs:
+                if metadata['revision']:
+                    spec['object_id'] += f'__r{metadata["revision"]}'
+            from ..ispec.persistence import migrate_unchanged_values
+            previous=(read_ispec_payload(material.id) or {}).get('ispecs',[])
+            migrate_unchanged_values(material.id,previous,ispecs)
+            errors = result.errors
+            recognition = result.recognition
+        except Exception:  # noqa: BLE001 - 识别异常不得让材料不可读
+            logger.exception("材料 %s 的 iSpec 生成失败，已降级为空识别结果", material.id)
+            ispecs = []
+            errors = []
+            recognition = {"found": False, "reason": fallback_reason}
+            image_recognition = {}
+            figure_scenes = {}
+            metadata = {'revision': 0}
 
     payload = {
         "schema_version": "1.0",
@@ -629,8 +646,9 @@ def _run_upload_pipeline(
     transition(db, job, "extracting", progress_pct=STAGE_PROGRESS["extracting"])
     page_count = persist_slides(db, material, slides_payload or {})
 
-    # 识别层只产出 iSpec：图表/表格/公式直读；为空即"未识别到交互区域"。
-    _persist_ispecs(material, slides_payload or {})
+    # 上传主链路默认走极速模式：跳过整本图片 OCR / 视觉读图 / LLM 猜公式，
+    # 仅渲染底图与保存版式结构，让 PPT 秒开；交互能力由编辑页直接插入万象工坊插件承接。
+    _persist_ispecs(material, slides_payload or {}, fast_upload=native_changed)
 
     try:
         candidates = bundle.map_candidates(material.id, slides_payload or {})

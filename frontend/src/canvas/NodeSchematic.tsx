@@ -42,6 +42,10 @@ function shapeText(v: PortValue | null): string {
   if (v.kind === 'matrix2') return '2×2';
   if (v.kind === 'scalar') return '标量';
   if (v.kind === 'body') return '动力学';
+  if (v.kind === 'series') return `${v.values.length} 点`;
+  if (v.kind === 'field2d') return v.mode === 'electric' ? '电场' : v.mode === 'magnetic' ? '磁场' : '光路';
+  if (v.kind === 'algoData') return v.mode === 'graph' ? `${v.edges?.length ?? 0} 边` : v.mode === 'addrStream' ? `${v.addresses?.length ?? 0} 地址` : `${v.values?.length ?? 0} 项`;
+  if (v.kind === 'customFrames') return `${v.result.frames.length} 帧`;
   return '';
 }
 
@@ -147,6 +151,27 @@ export function nodeSchematicMeta(
   if (['dsTraversal', 'dsStepLab', 'cacheSimLab', 'cacheSplit', 'pipelineLab', 'ieee754Lab', 'cpuScheduleLab', 'bankerLab', 'pageReplace', 'tcpCongestionLab', 'slidingWindowLab', 'ipSubnet', 'lab408Workbench'].includes(node.type)) {
     return { title: def.title, spec: '408', accent: COLORS.lab408, foot: '点击步进推演' };
   }
+  if (node.type.startsWith('biz')) {
+    return { title: def.title, spec: '办公', accent: '#0d9488', foot: outShape || '业务序列' };
+  }
+  if (['emFieldSource', 'emFieldView', 'rlcCircuitLab', 'opticsBench', 'thermoCycle'].includes(node.type)) {
+    return { title: def.title, spec: '物理', accent: COLORS.physics, foot: outShape || '实时观测' };
+  }
+  if (['funcCombineOp', 'svdDecomposeOp', 'linearSolveView', 'probDistSource'].includes(node.type)) {
+    return { title: def.title, spec: '高数', accent: COLORS.calculus, foot: outShape || '可连线' };
+  }
+  if (['arraySource', 'sortCompareView', 'graphSource', 'shortestPathView', 'memAddrSource', 'addrTranslateView', 'cacheMapView'].includes(node.type)) {
+    return { title: def.title, spec: '408', accent: COLORS.lab408, foot: outShape || '可步进' };
+  }
+  if (['lossProbeOp', 'loraAdapterOp', 'quantProbeOp', 'samplingDecoderView'].includes(node.type)) {
+    return { title: def.title, spec: 'DL', accent: COLORS.learn, foot: outShape || '点击查看' };
+  }
+  if (node.type === 'aiRuleBlock') {
+    return { title: def.title, spec: 'AI', accent: '#7c3aed', foot: outShape || '自然语言规则' };
+  }
+  if (node.type === 'universalStageView') {
+    return { title: def.title, spec: '舞台', accent: COLORS.view, foot: outShape || '自动多形态' };
+  }
   if (['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor', 'ftcView', 'fourierLab', 'odeSlopeField', 'func2dSource', 'gradientContour', 'doubleIntegralView', 'matrixSource', 'transformView', 'eigRead'].includes(node.type)) {
     return { title: def.title, spec: '高数', accent: COLORS.calculus, foot: outShape || '点击查看曲线' };
   }
@@ -155,7 +180,7 @@ export function nodeSchematicMeta(
   return { title, spec: def.badge, accent, foot: outShape || '点击查看详情' };
 }
 
-function SchematicGraphic({ node }: { node: CanvasNode }): JSX.Element {
+export function SchematicGraphic({ node }: { node: CanvasNode }): JSX.Element {
   const lab = find408Stage(node);
   if (lab) return <Lab408Diagram diagram={lab.stage.diagram} />;
   const physics = findPhysicsStage(node);
@@ -424,6 +449,88 @@ function SchematicGraphic({ node }: { node: CanvasNode }): JSX.Element {
     );
   }
 
+  if (node.type.startsWith('biz')) {
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        <line x1="22" y1="46" x2="126" y2="46" stroke="#cbd5e1" />
+        {[18, 30, 22, 38, 28, 42].map((h, index) => <rect key={index} x={28 + index * 16} y={46 - h} width="10" height={h} rx="2"
+          fill={index === 5 ? '#0d9488' : '#4f46e5'} opacity={0.35 + index * 0.08} />)}
+      </svg>
+    );
+  }
+  if (['emFieldSource', 'emFieldView'].includes(node.type)) {
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        <circle cx="58" cy="28" r="8" fill="none" stroke="#b15236" strokeWidth="1.5" />
+        <circle cx="96" cy="28" r="6" fill="none" stroke="#4f46e5" strokeWidth="1.5" />
+        {[0, 1, 2].map((index) => <path key={index} d={`M64 22Q80 ${8 + index * 12} 92 24`} fill="none" stroke="#d96236" strokeWidth="1.1" opacity="0.7" />)}
+      </svg>
+    );
+  }
+  if (node.type === 'rlcCircuitLab') {
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        <path d="M22 40 C40 4, 58 52, 74 20 S108 44 126 12" fill="none" stroke="#0d9488" strokeWidth="2" />
+        <path d="M22 46 H126" stroke="#cbd5e1" strokeWidth="1" />
+      </svg>
+    );
+  }
+  if (node.type === 'opticsBench' || node.type === 'thermoCycle') {
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        {node.type === 'opticsBench'
+          ? <><ellipse cx="74" cy="28" rx="7" ry="20" fill="#4f46e522" stroke="#4f46e5" /><path d="M24 44 L74 28 L126 12" stroke="#d96236" strokeWidth="1.5" fill="none" /></>
+          : <path d="M34 44 C48 10 90 8 112 28 C96 48 58 50 34 44Z" fill="#b152361f" stroke="#b15236" strokeWidth="1.5" />}
+      </svg>
+    );
+  }
+  if (['funcCombineOp', 'probDistSource'].includes(node.type)) {
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        {node.type === 'probDistSource'
+          ? [14, 26, 38, 30, 18, 8].map((h, index) => <rect key={index} x={28 + index * 16} y={46 - h} width="11" height={h} rx="2" fill="#4f46e5" opacity="0.72" />)
+          : <><path d="M20 44 H128" stroke="#cbd5e1" /><path d="M24 42 Q52 8 74 28 T124 18" fill="none" stroke="#d96236" strokeWidth="1.8" /><path d="M24 34 Q64 50 124 30" fill="none" stroke="#4f46e5" strokeWidth="1.4" strokeDasharray="3 2" /></>}
+      </svg>
+    );
+  }
+  if (['svdDecomposeOp', 'linearSolveView'].includes(node.type)) {
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        {[0, 1, 2].map((index) => <g key={index}>{[0, 1].map((row) => [0, 1].map((col) => (
+          <rect key={`${row}-${col}`} x={26 + index * 36 + col * 11} y={18 + row * 11} width="9" height="9" rx="1.5" fill="#4f46e5" opacity={0.2 + (index + row + col) * 0.12} />
+        )))}</g>)}
+        <path d="M112 28 H132" stroke="#d96236" strokeWidth="2" />
+      </svg>
+    );
+  }
+  if (['arraySource', 'sortCompareView', 'memAddrSource', 'addrTranslateView', 'cacheMapView'].includes(node.type)) {
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        {[22, 36, 28, 44, 30].map((h, index) => <rect key={index} x={24 + index * 18} y={46 - h} width="12" height={h} rx="2" fill="#6d28d9" opacity={0.3 + index * 0.1} />)}
+        <line x1="20" y1="46" x2="128" y2="46" stroke="#cbd5e1" />
+      </svg>
+    );
+  }
+  if (['graphSource', 'shortestPathView'].includes(node.type)) {
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        <path d="M34 38 L62 18 L94 34 L120 16 M62 18 L94 34" stroke="#94a3b8" strokeWidth="1.2" />
+        {[[34, 38], [62, 18], [94, 34], [120, 16]].map(([x, y], index) => <circle key={index} cx={x} cy={y} r="6" fill={index === 2 ? '#6d28d9' : '#fff'} stroke="#6d28d9" strokeWidth="1.4" />)}
+      </svg>
+    );
+  }
+  if (['lossProbeOp', 'loraAdapterOp', 'quantProbeOp', 'samplingDecoderView'].includes(node.type)) {
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        {[0, 1, 2, 3].flatMap((row) => [0, 1, 2, 3].map((col) => (
+          <rect key={`${row}-${col}`} x={40 + col * 16} y={8 + row * 10} width="14" height="8" rx="1.5"
+            fill={node.type === 'samplingDecoderView' ? '#4f46e5' : (row + col) % 2 ? '#0d9488' : '#d96236'}
+            opacity={0.18 + ((row * 3 + col * 2) % 5) * 0.14} />
+        )))}
+      </svg>
+    );
+  }
+
   // 默认清爽波形/函数示意
   return (
     <svg viewBox="0 0 148 56" aria-hidden="true">
@@ -456,7 +563,7 @@ export function NodeSchematic({
   onRemove,
 }: NodeSchematicProps): JSX.Element {
   const meta = nodeSchematicMeta(node, def, self, convOrdinal);
-  const pipelineCard = node.type === 'lab408Stage' || node.type === 'physicsStage' || node.type === 'calculusStage';
+  const pipelineCard = node.type === 'lab408Stage' || node.type === 'physicsStage' || node.type === 'calculusStage' || node.type === 'businessStage';
   return (
     <div className={`${styles.card} ${selected ? styles.selected : ''} ${pipelineCard ? styles.labCard : ''}`}>
       <div

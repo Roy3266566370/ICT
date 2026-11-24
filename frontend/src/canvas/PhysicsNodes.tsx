@@ -45,6 +45,11 @@ function Row({ label, value, min, max, step, onChange }: {
   label: string; value: number; min: number; max: number; step: number;
   onChange: (v: number) => void;
 }): JSX.Element {
+  const commit = (el: HTMLInputElement): void => {
+    const v = el.valueAsNumber;
+    if (Number.isFinite(v)) onChange(Math.min(max, Math.max(min, v)));
+    else el.value = fmt(value);
+  };
   return (
     <label className={styles.row}>
       <span>{label}</span>
@@ -54,7 +59,16 @@ function Row({ label, value, min, max, step, onChange }: {
         aria-label={label}
         onChange={(e) => onChange(parseFloat(e.target.value))}
       />
-      <b className={styles.value}>{fmt(value)}</b>
+      <input
+        key={fmt(value)} type="number" className={styles.num}
+        min={min} max={max} step={step} defaultValue={fmt(value)}
+        aria-label={`${label}数值`} inputMode="decimal"
+        onBlur={(e) => commit(e.currentTarget)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(e.currentTarget); }
+          if (e.key === 'Escape') { e.currentTarget.value = fmt(value); e.currentTarget.blur(); }
+        }}
+      />
     </label>
   );
 }
@@ -100,7 +114,7 @@ function samplePoints(type: PhysNodeType, params: Params, tEnd: number, n = 60):
 
 /* ============================== 抛体 ============================== */
 
-export function ProjectileBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
+export function ProjectileBody({ node, self, onParams, inCard }: NodeBodyProps): JSX.Element {
   const b = asBody(self);
   const v0 = Math.max(0.5, P(node, 'v0', 8));
   const ang = P(node, 'angle', 55);
@@ -178,16 +192,18 @@ export function ProjectileBody({ node, self, onParams }: NodeBodyProps): JSX.Ele
           <span><i>射程</i> {fmt(range)}m</span>
         </div>
       ) : null}
-      <Row label="v0 m/s" value={v0} min={1} max={20} step={0.5} onChange={(v) => onParams?.({ v0: v })} />
-      <Row label="角度°" value={ang} min={5} max={85} step={1} onChange={(v) => onParams?.({ angle: v })} />
-      <Row label="g m/s²" value={g} min={1} max={25} step={0.1} onChange={(v) => onParams?.({ g: v })} />
+      {!inCard && <>
+        <Row label="v0 m/s" value={v0} min={0.5} max={80} step={0.5} onChange={(v) => onParams?.({ v0: v })} />
+        <Row label="角度°" value={ang} min={0} max={90} step={0.5} onChange={(v) => onParams?.({ angle: v })} />
+        <Row label="g m/s²" value={g} min={0.1} max={50} step={0.1} onChange={(v) => onParams?.({ g: v })} />
+      </>}
     </div>
   );
 }
 
 /* ============================== 弹簧振子 ============================== */
 
-export function SpringBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
+export function SpringBody({ node, self, onParams, inCard }: NodeBodyProps): JSX.Element {
   const b = asBody(self);
   const k = Math.max(0.1, P(node, 'k', 6));
   const m = Math.max(0.05, P(node, 'm', 1));
@@ -245,9 +261,11 @@ export function SpringBody({ node, self, onParams }: NodeBodyProps): JSX.Element
         <span><i>T</i> {fmt((2 * Math.PI) / w)}s</span>
         <span>E <b>{fmt(total)}</b>J</span>
       </div>
-      <Row label="k N/m" value={k} min={0.5} max={40} step={0.5} onChange={(v) => onParams?.({ k: v })} />
-      <Row label="m kg" value={m} min={0.1} max={10} step={0.1} onChange={(v) => onParams?.({ m: v })} />
-      <Row label="振幅 m" value={A} min={0.2} max={2} step={0.1} onChange={(v) => onParams?.({ x0: v })} />
+      {!inCard && <>
+        <Row label="k N/m" value={k} min={0.5} max={40} step={0.5} onChange={(v) => onParams?.({ k: v })} />
+        <Row label="m kg" value={m} min={0.1} max={10} step={0.1} onChange={(v) => onParams?.({ m: v })} />
+        <Row label="振幅 m" value={A} min={0.2} max={2} step={0.1} onChange={(v) => onParams?.({ x0: v })} />
+      </>}
     </div>
   );
 }
@@ -258,7 +276,7 @@ function roadY(track: number): number {
 
 /* ============================== 单摆 ============================== */
 
-export function PendulumBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
+export function PendulumBody({ node, self, onParams, inCard }: NodeBodyProps): JSX.Element {
   const b = asBody(self);
   const L = Math.max(0.2, P(node, 'L', 1.5));
   const th0 = P(node, 'theta0', 25);
@@ -318,9 +336,11 @@ export function PendulumBody({ node, self, onParams }: NodeBodyProps): JSX.Eleme
         <span><i>T小角</i> {fmt((2 * Math.PI) * Math.sqrt(L / g))}s</span>
         <span>E <b>{fmt((b?.ke ?? 0) + (b?.pe ?? 0))}</b>J</span>
       </div>
-      <Row label="摆长 m" value={L} min={0.3} max={3} step={0.1} onChange={(v) => onParams?.({ L: v })} />
-      <Row label="θ0°" value={th0} min={2} max={90} step={1} onChange={(v) => onParams?.({ theta0: v })} />
-      <Row label="g m/s²" value={g} min={1} max={25} step={0.1} onChange={(v) => onParams?.({ g: v })} />
+      {!inCard && <>
+        <Row label="摆长 m" value={L} min={0.3} max={3} step={0.1} onChange={(v) => onParams?.({ L: v })} />
+        <Row label="θ0°" value={th0} min={2} max={90} step={1} onChange={(v) => onParams?.({ theta0: v })} />
+        <Row label="g m/s²" value={g} min={1} max={25} step={0.1} onChange={(v) => onParams?.({ g: v })} />
+      </>}
     </div>
   );
 }
@@ -403,7 +423,7 @@ export function EnergyBody({ values }: NodeBodyProps): JSX.Element {
 
 /* ============================== 斜面 ============================== */
 
-export function InclineBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
+export function InclineBody({ node, self, onParams, inCard }: NodeBodyProps): JSX.Element {
   const b = asBody(self);
   const alpha = P(node, 'alpha', 30);
   const mu = P(node, 'mu', 0.3);
@@ -473,18 +493,20 @@ export function InclineBody({ node, self, onParams }: NodeBodyProps): JSX.Elemen
         <span><i>f</i> {fmt(st.friction)}N</span>
       </div>
       <p className={styles.caption}>tan α {st.sliding ? '>' : '≤'} μ：{st.sliding ? '重力分量超过最大静摩擦，开始下滑' : '静摩擦足以平衡，滑块保持不动'}</p>
-      <Row label="α°" value={alpha} min={5} max={75} step={1} onChange={(v) => onParams?.({ alpha: v })} />
-      <Row label="μ" value={mu} min={0} max={1} step={0.02} onChange={(v) => onParams?.({ mu: v })} />
-      <Row label="L m" value={L} min={0.5} max={5} step={0.1} onChange={(v) => onParams?.({ L: v })} />
-      <Row label="m kg" value={m} min={0.1} max={10} step={0.1} onChange={(v) => onParams?.({ m: v })} />
-      <Row label="g m/s²" value={g} min={1} max={25} step={0.1} onChange={(v) => onParams?.({ g: v })} />
+      {!inCard && <>
+        <Row label="α°" value={alpha} min={5} max={75} step={1} onChange={(v) => onParams?.({ alpha: v })} />
+        <Row label="μ" value={mu} min={0} max={1} step={0.02} onChange={(v) => onParams?.({ mu: v })} />
+        <Row label="L m" value={L} min={0.5} max={5} step={0.1} onChange={(v) => onParams?.({ L: v })} />
+        <Row label="m kg" value={m} min={0.1} max={10} step={0.1} onChange={(v) => onParams?.({ m: v })} />
+        <Row label="g m/s²" value={g} min={1} max={25} step={0.1} onChange={(v) => onParams?.({ g: v })} />
+      </>}
     </div>
   );
 }
 
 /* ============================== 一维碰撞 ============================== */
 
-export function CollisionBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
+export function CollisionBody({ node, self, onParams, inCard }: NodeBodyProps): JSX.Element {
   const b = asBody(self);
   const m1 = Math.max(0.1, P(node, 'm1', 1));
   const v1 = P(node, 'v1', 2);
@@ -539,18 +561,20 @@ export function CollisionBody({ node, self, onParams }: NodeBodyProps): JSX.Elem
         <span>Eₖ <b>{fmt(kinetic)}</b>J</span>
         <span>J <b>{fmt(impulse)}</b>N·s</span>
       </div>
-      <Row label="m1 kg" value={m1} min={0.2} max={8} step={0.1} onChange={(v) => onParams?.({ m1: v })} />
-      <Row label="v1 m/s" value={v1} min={-5} max={5} step={0.2} onChange={(v) => onParams?.({ v1: v })} />
-      <Row label="m2 kg" value={m2} min={0.2} max={8} step={0.1} onChange={(v) => onParams?.({ m2: v })} />
-      <Row label="v2 m/s" value={v2} min={-5} max={5} step={0.2} onChange={(v) => onParams?.({ v2: v })} />
-      <Row label="e" value={e} min={0} max={1} step={0.05} onChange={(v) => onParams?.({ e: v })} />
+      {!inCard && <>
+        <Row label="m1 kg" value={m1} min={0.2} max={8} step={0.1} onChange={(v) => onParams?.({ m1: v })} />
+        <Row label="v1 m/s" value={v1} min={-5} max={5} step={0.2} onChange={(v) => onParams?.({ v1: v })} />
+        <Row label="m2 kg" value={m2} min={0.2} max={8} step={0.1} onChange={(v) => onParams?.({ m2: v })} />
+        <Row label="v2 m/s" value={v2} min={-5} max={5} step={0.2} onChange={(v) => onParams?.({ v2: v })} />
+        <Row label="e" value={e} min={0} max={1} step={0.05} onChange={(v) => onParams?.({ e: v })} />
+      </>}
     </div>
   );
 }
 
 /* ============================== 受迫共振 ============================== */
 
-export function ResonanceBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
+export function ResonanceBody({ node, self, onParams, inCard }: NodeBodyProps): JSX.Element {
   const b = asBody(self);
   const k = Math.max(0.1, P(node, 'k', 10));
   const m = Math.max(0.05, P(node, 'm', 1));
@@ -595,18 +619,20 @@ export function ResonanceBody({ node, self, onParams }: NodeBodyProps): JSX.Elem
         <span>峰值 <b>{fmt(maxA)}</b></span>
         <span>放大 <b>{fmt(A / Math.max(f0 / k, 1e-9), 1)}</b>×</span>
       </div>
-      <Row label="k N/m" value={k} min={1} max={40} step={0.5} onChange={(v) => onParams?.({ k: v })} />
-      <Row label="m kg" value={m} min={0.1} max={8} step={0.1} onChange={(v) => onParams?.({ m: v })} />
-      <Row label="c" value={c} min={0} max={3} step={0.05} onChange={(v) => onParams?.({ c: v })} />
-      <Row label="F0 N" value={f0} min={0} max={4} step={0.1} onChange={(v) => onParams?.({ f0: v })} />
-      <Row label="ω_d" value={wd} min={0.1} max={Math.max(0.5, 3 * Math.sqrt(k / m))} step={0.05} onChange={(v) => onParams?.({ wd: v })} />
+      {!inCard && <>
+        <Row label="k N/m" value={k} min={1} max={40} step={0.5} onChange={(v) => onParams?.({ k: v })} />
+        <Row label="m kg" value={m} min={0.1} max={8} step={0.1} onChange={(v) => onParams?.({ m: v })} />
+        <Row label="c" value={c} min={0} max={3} step={0.05} onChange={(v) => onParams?.({ c: v })} />
+        <Row label="F0 N" value={f0} min={0} max={4} step={0.1} onChange={(v) => onParams?.({ f0: v })} />
+        <Row label="ω_d" value={wd} min={0.1} max={Math.max(0.5, 3 * Math.sqrt(k / m))} step={0.05} onChange={(v) => onParams?.({ wd: v })} />
+      </>}
     </div>
   );
 }
 
 /* ============================== 波场 ============================== */
 
-export function WaveBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
+export function WaveBody({ node, self, onParams, inCard }: NodeBodyProps): JSX.Element {
   const b = asBody(self);
   const amp = Math.max(0, P(node, 'amp', 0.6));
   const freq = Math.max(0.1, P(node, 'freq', 1));
@@ -647,9 +673,11 @@ export function WaveBody({ node, self, onParams }: NodeBodyProps): JSX.Element {
         <span><i>T</i> <b>{fmt(1 / freq)}</b>s</span>
         <span>{mode === 1 ? '波节恒为 0（x = 0、λ/2、λ）' : '波形整体沿 +x 传播'}</span>
       </div>
-      <Row label="振幅 A" value={amp} min={0.1} max={1.5} step={0.05} onChange={(v) => onParams?.({ amp: v })} />
-      <Row label="频率 f" value={freq} min={0.1} max={4} step={0.05} onChange={(v) => onParams?.({ freq: v })} />
-      <Row label="波长 λ" value={lambda} min={0.5} max={6} step={0.1} onChange={(v) => onParams?.({ lambda: v })} />
+      {!inCard && <>
+        <Row label="振幅 A" value={amp} min={0.1} max={1.5} step={0.05} onChange={(v) => onParams?.({ amp: v })} />
+        <Row label="频率 f" value={freq} min={0.1} max={4} step={0.05} onChange={(v) => onParams?.({ freq: v })} />
+        <Row label="波长 λ" value={lambda} min={0.5} max={6} step={0.1} onChange={(v) => onParams?.({ lambda: v })} />
+      </>}
     </div>
   );
 }

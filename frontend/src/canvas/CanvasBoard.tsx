@@ -12,21 +12,27 @@
  * 桌面交互：Ctrl/⌘+滚轮缩放（锚定光标）、空格/中键拖平移、点击选中 + Del 删除、
  * 双击空白快速加便签；Pointer Events 同套代码吃鼠标/触屏/手写笔。
  */
-import { createPortal } from 'react-dom';
 import { find408Stage, pipelinePorts } from './lab408Pipeline.ts';
 import { findPhysicsStage } from './physicsPipeline.ts';
 import { findCalculusStage } from './calculusPipeline.ts';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { findBusinessStage } from './businessPipeline.ts';
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasDoc, CanvasNode, CanvasTool, InkStroke, NodeType, PortValue, Wire } from './types.ts';
 import { nextId, clamp } from './math.ts';
 import { isStudyStage } from './studyStages';
 import { NODE_DEFS, nodePorts, type NodeBodyProps } from './nodes.tsx';
+import { AiRuleLive } from './AiRuleBlockNode.tsx';
 import { makeCtx, evalOutput, inputValues } from './engine.ts';
 import { PHYS_TYPES, physCycle, type PhysNodeType } from './physics.ts';
 import { COMPACT_CARD_WIDTH, applyAutoLayout } from './layout.ts';
-import { NodeSchematic, nodeSchematicMeta } from './NodeSchematic.tsx';
+import { simParamMeta } from '@/living/sim';
+import { InstrumentStage } from './InstrumentStage.tsx';
+import { applyPresetToDoc, workshopParamRefs, type WorkshopEmbedOptions } from './pluginPresets.ts';
+import type { WorkshopPluginPreset } from '../document/types.ts';
+import { PresentationSyncContext } from '@/components/presentation/usePresentationSync';
+import { SchematicGraphic, nodeSchematicMeta } from './NodeSchematic.tsx';
 import { NodeInspector } from './NodeInspector.tsx';
-import { parseRealImagePayload, type RealImagePayload } from './imageInput.ts';
+import { parseRealImagePayload } from './imageInput.ts';
 import styles from './canvas.module.css';
 
 /** 递归遍历节点树（含 composite.sub 内部节点） */
@@ -46,12 +52,22 @@ interface BoardProps {
   onAddNode?: (type: NodeType, x: number, y: number) => void;
   /** 嵌入活页等固定高度容器时，视口撑满父级而不是占满整屏。 */
   embedded?: boolean;
-  workbench?: boolean;
+  mode?: 'instrument' | 'compose';
+  onCompose?: () => void;
+  templateKind?: string;
+  renderTools?: (actions: {
+    fitAll: () => void; tidyLayout: () => void; zoomBy: (delta: number) => void; spawnPoint: () => Pt;
+  }) => React.ReactNode;
   workId?: string | null;
   /** 首次渲染时自动缩放到节点包围盒，避免嵌入视口停在空白区域。 */
   focusContent?: boolean;
   /** 公开分享等只读场景：保留参数交互，但隐藏删除/结构编辑入口。 */
   readOnly?: boolean;
+  interactivePanel?: boolean;
+  slideInstrument?: boolean;
+  workshopEmbed?: WorkshopEmbedOptions;
+  onPreviewPreset?: (preset: WorkshopPluginPreset) => void;
+  presentationKey?: string;
   /** 仪器面板模式：仅渲染列出的节点；连线/墨迹/端口隐藏，
    *  但被隐藏节点仍参与求值与动画（内部接线照常工作）。 */
   visibleNodeIds?: ReadonlySet<string>;
@@ -85,7 +101,9 @@ const ZOOM_MAX = 1.6;
 
 const pinKey = (nodeId: string, portId: string): string => `pin|${nodeId}|${portId}`;
 const poutKey = (nodeId: string, portId: string): string => `pout|${nodeId}|${portId}`;
-const PIPELINE_STAGE_TYPES: ReadonlySet<NodeType> = new Set<NodeType>(['lab408Stage', 'physicsStage', 'calculusStage']);
+/** 卡片整面拖拽时，落在这些交互元素上的按下不触发拖动（交给控件自身）。 */
+const NODE_DRAG_IGNORE = 'button,input,select,textarea,summary,a[href],label,math-field,[data-port],[data-node-x],[data-node-resize],[data-node-drag-ignore],[contenteditable="true"]';
+const PIPELINE_STAGE_TYPES: ReadonlySet<NodeType> = new Set<NodeType>(['lab408Stage', 'physicsStage', 'calculusStage', 'businessStage']);
 const isPipelineStage = (type: NodeType): boolean => PIPELINE_STAGE_TYPES.has(type);
 
 function strokePath(pts: [number, number][]): string {
@@ -107,13 +125,17 @@ function portKindOf(ctx: ReturnType<typeof makeCtx>, nodeId: string, isOut: bool
   return spec?.kind;
 }
 
-export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, workbench, workId, focusContent, readOnly, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
+export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, mode: requestedMode, onCompose, templateKind, renderTools, workId, focusContent, readOnly, interactivePanel, slideInstrument, workshopEmbed, onPreviewPreset, presentationKey, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
+  const mode = embedded || visibleNodeIds ? undefined : requestedMode;
   const innerRef = useRef<HTMLDivElement>(null);
   const vpRef = useRef<HTMLDivElement>(null);
   const portRefs = useRef(new Map<string, HTMLElement>());
   const live = useRef(new Map<string, PortValue>());
   const spaceHeld = useRef(false);
+  const nodeDragging = useRef(false);
   const focusedOnce = useRef(false);
+  const composedOnce = useRef(false);
+  const restoredViewport = useRef(false);
   const zoomRef = useRef(doc.zoom);
   zoomRef.current = doc.zoom;
 
@@ -124,26 +146,63 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
   const [selStrokes, setSelStrokes] = useState<ReadonlySet<string>>(new Set());
   const [inkBusy, setInkBusy] = useState(false);
   const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
-  const [resultsOpen, setResultsOpen] = useState(true);
-  const [plotsOpen, setPlotsOpen] = useState(true);
-  const [mobileResults, setMobileResults] = useState(false);
-  const [resultHost, setResultHost] = useState<HTMLDivElement | null>(null);
-  const [compactPref, setCompactPref] = useState(true);
+  const [pan, setPan] = useState<Pt>({ x: 0, y: 0 });
+  const panRef = useRef(pan);
+  panRef.current = pan;
+  const [inspectNodeId, setInspectNodeId] = useState<string | null>(null);
+  const [paramNodeId, setParamNodeId] = useState<string | null>(null);
   const [frame, setFrame] = useState(0);
   const [pipelineCursors, setPipelineCursors] = useState<Record<string, number>>({});
-  const autoLaidOutRef = useRef<string | null>(null);
+  const presentation = useContext(PresentationSyncContext);
+  const lastCursorSend = useRef<Record<string, {time: number; timer?: number}>>({});
+  const cursorValues = useRef(pipelineCursors);
+  cursorValues.current = pipelineCursors;
+  useEffect(() => {
+    if (!presentation || !presentationKey) return;
+    setPipelineCursors(previous => ({...previous, ...presentation.timeline(presentationKey)}));
+    const unsubscribe = presentation.subscribe(message => {
+      if (message.kind === 'timeline' && message.node === presentationKey) {
+        setPipelineCursors(previous => ({...previous, [message.key]: message.position}));
+      }
+      if (message.kind === 'workshop-request' && message.node === presentationKey) {
+        for (const [key, position] of Object.entries(cursorValues.current)) {
+          presentation.send({kind: 'timeline', node: presentationKey, key, position});
+        }
+      }
+    });
+    return () => {
+      unsubscribe();
+      for (const {timer} of Object.values(lastCursorSend.current)) window.clearTimeout(timer);
+      lastCursorSend.current = {};
+    };
+  }, [presentation, presentationKey]);
   const zoom = doc.zoom;
-  const compactMode = Boolean(workbench && doc.panel && !embedded && !visibleNodeIds && compactPref);
-  const worldWidth = doc.nodes.reduce((size, node) => Math.max(size, node.x + (compactMode ? COMPACT_CARD_WIDTH : (NODE_DEFS[node.type]?.width ?? 0)) + 160), INNER_W);
-  const worldHeight = doc.nodes.reduce((size, node) => Math.max(size, node.y + 700), INNER_H);
+  const composing = mode === 'compose';
+  const schematic = composing && doc.nodes.some((node) => isPipelineStage(node.type) || isStudyStage(node.type));
+  const nodeWidth = (node: CanvasNode) => schematic && node.type !== 'textNote' && node.type !== 'latexNote' && node.type !== 'functionSource'
+    ? COMPACT_CARD_WIDTH : node.w ?? NODE_DEFS[node.type]?.width ?? 240;
+  const nodeRole = (node: CanvasNode | undefined): string => {
+    if (!node) return 'operator';
+    const definition = find408Stage(node) ?? findCalculusStage(node) ?? findPhysicsStage(node) ?? findBusinessStage(node);
+    if (definition) {
+      if (!definition.stage.inputs?.length) return 'source';
+      if (doc.panel?.view_node_ids.includes(node.id)) return 'view';
+      return node.type === 'lab408Stage' ? 'pipeline' : 'operator';
+    }
+    const badge = NODE_DEFS[node.type].badge;
+    return badge === '源' ? 'source' : badge === '视图' || doc.panel?.view_node_ids.includes(node.id) ? 'view'
+      : node.type.startsWith('lab408') ? 'pipeline' : 'operator';
+  };
+  const worldWidth = doc.nodes.reduce((size, node) => Math.max(size, node.x + nodeWidth(node) + 160), INNER_W);
+  const worldHeight = doc.nodes.reduce((size, node) => Math.max(size, node.y + (node.h ?? 700)), INNER_H);
 
   const ctx = useMemo(() => makeCtx(doc, live.current), [doc, frame]);
 
   const toInner = useCallback((clientX: number, clientY: number): Pt => {
     const ir = innerRef.current?.getBoundingClientRect();
     if (!ir) return { x: 0, y: 0 };
-    return { x: (clientX - ir.left) / zoom, y: (clientY - ir.top) / zoom };
-  }, [zoom]);
+    return { x: (clientX - ir.left) / zoomRef.current, y: (clientY - ir.top) / zoomRef.current };
+  }, []);
 
   const portCenter = useCallback((key: string): Pt | null => {
     const el = portRefs.current.get(key);
@@ -193,29 +252,38 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     return () => cancelAnimationFrame(raf);
   }, [doc.nodes]);
 
-  /* ---------- Ctrl/⌘ + 滚轮缩放（锚定光标） ---------- */
+  const zoomTo = useCallback((requested: number, x: number, y: number) => {
+    const previous = zoomRef.current;
+    const next = Math.round(clamp(requested, composing ? 0.05 : ZOOM_MIN, ZOOM_MAX) * 100) / 100;
+    if (previous === next) return;
+    const ratio = next / previous;
+    if (composing) {
+      setPan((p) => ({ x: x + (p.x - x) * ratio, y: y + (p.y - y) * ratio }));
+    } else {
+      const vp = vpRef.current;
+      if (vp) {
+        const left = (vp.scrollLeft + x) * ratio - x;
+        const top = (vp.scrollTop + y) * ratio - y;
+        requestAnimationFrame(() => vp.scrollTo(left, top));
+      }
+    }
+    zoomRef.current = next;
+    setDoc((d) => ({ ...d, zoom: next }));
+  }, [composing, setDoc]);
+
   useEffect(() => {
     const vp = vpRef.current;
-    if (!vp) return undefined;
-    const onWheel = (e: WheelEvent): void => {
+    if (!vp) return;
+    const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey && !e.metaKey) return;
+      if (e.deltaY === 0) return;
       e.preventDefault();
       const r = vp.getBoundingClientRect();
-      const mx = e.clientX - r.left;
-      const my = e.clientY - r.top;
-      const z0 = zoomRef.current;
-      const z2 = clamp(z0 * (e.deltaY < 0 ? 1.12 : 1 / 1.12), ZOOM_MIN, ZOOM_MAX);
-      const pX = (vp.scrollLeft + mx) / z0;
-      const pY = (vp.scrollTop + my) / z0;
-      setDoc((d) => ({ ...d, zoom: Math.round(z2 * 100) / 100 }));
-      requestAnimationFrame(() => {
-        vp.scrollLeft = pX * z2 - mx;
-        vp.scrollTop = pY * z2 - my;
-      });
+      zoomTo(zoomRef.current * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX - r.left, e.clientY - r.top);
     };
     vp.addEventListener('wheel', onWheel, { passive: false });
     return () => vp.removeEventListener('wheel', onWheel);
-  }, [setDoc]);
+  }, [mode, zoomTo]);
 
   /* ---------- 嵌入视口首次聚焦到节点包围盒 ---------- */
   useLayoutEffect(() => {
@@ -251,10 +319,11 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
 
   /* ---------- 空格键状态（+拖拽平移） ---------- */
   useEffect(() => {
+    if (mode === 'instrument') return;
     const dn = (e: KeyboardEvent): void => {
       if (e.code !== 'Space') return;
       const t = e.target as HTMLElement;
-      if (t.closest('input,textarea,[contenteditable]')) return;
+      if (t.closest('input,textarea,math-field,select,button,summary,a,[contenteditable]')) return;
       spaceHeld.current = true;
       e.preventDefault();
     };
@@ -266,8 +335,22 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     return () => {
       window.removeEventListener('keydown', dn);
       window.removeEventListener('keyup', up);
+      spaceHeld.current = false;
     };
-  }, []);
+  }, [mode]);
+
+  const deleteNodes = useCallback((ids: ReadonlySet<string>) => {
+    setDoc((current) => ({
+      ...current,
+      nodes: current.nodes.filter((node) => !ids.has(node.id)),
+      wires: current.wires.filter((wire) => !ids.has(wire.from) && !ids.has(wire.to)),
+      ...(current.panel ? { panel: {
+        ...current.panel,
+        view_node_ids: current.panel.view_node_ids.filter((id) => !ids.has(id)),
+        exposed_params: current.panel.exposed_params.filter((param) => !ids.has(param.node_id)),
+      } } : {}),
+    }));
+  }, [setDoc]);
 
   /* ---------- 选中 + Del 删除（多选） ---------- */
   useEffect(() => {
@@ -276,24 +359,22 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
         setSelSet(new Set());
         setSelStrokes(new Set());
       }
-      if (readOnly || selSet.size === 0) return;
+      if (mode === 'instrument' || readOnly || selSet.size === 0) return;
       const t = e.target as HTMLElement;
-      if (t.closest('input,textarea,[contenteditable]')) return;
+      if (t.closest('input,textarea,math-field,[contenteditable]')) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        setDoc((d) => ({
-          ...d,
-          nodes: d.nodes.filter((n) => !selSet.has(n.id)),
-          wires: d.wires.filter((w) => !selSet.has(w.from) && !selSet.has(w.to)),
-        }));
+        e.preventDefault();
+        deleteNodes(selSet);
         setSelSet(new Set());
       }
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [readOnly, selSet, setDoc]);
+  }, [deleteNodes, mode, readOnly, selSet]);
 
   /* ---------- 布局后重算连线几何；内容相同则跳过重渲，防 layout-effect 循环 ---------- */
   useLayoutEffect(() => {
+    if (mode === 'instrument') return;
     const next: Record<string, string> = {};
     for (const w of doc.wires) {
       const a = portCenter(poutKey(w.from, w.fromPort ?? 'out'));
@@ -343,18 +424,14 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
   }, [pulseFrom, setDoc]);
 
   const removeNode = useCallback((id: string) => {
-    setDoc((d) => ({
-      ...d,
-      nodes: d.nodes.filter((n) => n.id !== id),
-      wires: d.wires.filter((w) => w.from !== id && w.to !== id),
-    }));
+    deleteNodes(new Set([id]));
     setSelSet((s) => {
       if (!s.has(id)) return s;
       const next = new Set(s);
       next.delete(id);
       return next;
     });
-  }, [setDoc]);
+  }, [deleteNodes]);
 
   const connect = useCallback((fromId: string, fromPort: string, toId: string, toPort: string) => {
     setDoc((d) => {
@@ -481,24 +558,79 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     });
   }, [setDoc]);
 
-  /* ---------- 节点拖动 ---------- */
+  /* ---------- 节点拖动（整卡可拖；编排态画布可平移，不钳制到左上角） ---------- */
   const startNodeDrag = useCallback((e: React.PointerEvent, node: CanvasNode) => {
-    if ((e.target as HTMLElement).closest('[data-node-x]')) return;
+    if (nodeDragging.current) return;
+    if ((e.target as HTMLElement).closest('button,summary,[data-node-x]')) return;
     if (e.button !== 0) return;
     e.preventDefault();
+    nodeDragging.current = true;
     const sx = e.clientX, sy = e.clientY, ox = node.x, oy = node.y;
+    const floor = composing ? Number.NEGATIVE_INFINITY : 0;
+    // 有效缩放 = 卡片实测渲染宽 / 布局宽，自动涵盖 doc.zoom 与外层 transform（如幻灯片缩放）
+    const cardEl = (e.target as HTMLElement).closest<HTMLElement>('[data-node]');
+    const measured = cardEl && cardEl.offsetWidth > 0 ? cardEl.getBoundingClientRect().width / cardEl.offsetWidth : 0;
+    const scale = measured > 0 ? measured : zoom;
+    let moved = false;
     const mv = (ev: PointerEvent): void => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (!moved && dx * dx + dy * dy < 16) return;
+      moved = true;
       patchNode(node.id, {
-        x: Math.max(0, ox + (ev.clientX - sx) / zoom),
-        y: Math.max(0, oy + (ev.clientY - sy) / zoom),
+        x: Math.max(floor, ox + dx / scale),
+        y: Math.max(floor, oy + dy / scale),
+      });
+    };
+    const up = (): void => {
+      nodeDragging.current = false;
+      document.removeEventListener('pointermove', mv);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      if (moved) {
+        // 拖拽结束的合成 click 吞掉，避免触发卡片内部点击行为（如打开检查器/编辑公式）
+        const swallow = (ev: MouseEvent): void => ev.stopPropagation();
+        document.addEventListener('click', swallow, { capture: true, once: true });
+        window.setTimeout(() => document.removeEventListener('click', swallow, { capture: true }), 0);
+      }
+    };
+    document.addEventListener('pointermove', mv);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  }, [patchNode, zoom, composing]);
+
+  /* ---------- 节点尺寸调整（右下角手柄，写入 w/h；缺省恢复类型宽+自适应高） ---------- */
+  const startNodeResize = useCallback((e: React.PointerEvent, node: CanvasNode) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const card = (e.currentTarget as HTMLElement).closest<HTMLElement>('[data-node]');
+    const rect = card?.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    // offsetWidth/Height 是不受 transform 影响的布局尺寸，直接就是世界坐标值
+    const ow = card ? card.offsetWidth : node.w ?? NODE_DEFS[node.type]?.width ?? 240;
+    const oh = card ? card.offsetHeight : node.h ?? 200;
+    const scaleX = card && rect && card.offsetWidth > 0 ? rect.width / card.offsetWidth : 0;
+    const scaleY = card && rect && card.offsetHeight > 0 ? rect.height / card.offsetHeight : 0;
+    const safeX = scaleX > 0 ? scaleX : zoom;
+    const safeY = scaleY > 0 ? scaleY : zoom;
+    let moved = false;
+    const mv = (ev: PointerEvent): void => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (!moved && dx * dx + dy * dy < 9) return;
+      moved = true;
+      patchNode(node.id, {
+        w: Math.round(Math.max(160, ow + dx / safeX)),
+        h: Math.round(Math.max(80, oh + dy / safeY)),
       });
     };
     const up = (): void => {
       document.removeEventListener('pointermove', mv);
       document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
     };
     document.addEventListener('pointermove', mv);
     document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
   }, [patchNode, zoom]);
 
   /* ---------- 连线拖拽（带端口 kind 兼容检查） ---------- */
@@ -557,18 +689,26 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     const vp = vpRef.current;
     if (!vp) return;
     e.preventDefault();
-    const sx = e.clientX, sy = e.clientY, sl = vp.scrollLeft, st = vp.scrollTop;
+    const sx = e.clientX, sy = e.clientY;
+    const origin = composing ? panRef.current : { x: -vp.scrollLeft, y: -vp.scrollTop };
+    const pointer = e.pointerId;
+    vp.setPointerCapture(pointer);
+    vp.dataset.panning = 'true';
     const mv = (ev: PointerEvent): void => {
-      vp.scrollLeft = sl - (ev.clientX - sx);
-      vp.scrollTop = st - (ev.clientY - sy);
+      if (ev.pointerId !== pointer) return;
+      const next = { x: origin.x + ev.clientX - sx, y: origin.y + ev.clientY - sy };
+      if (composing) setPan(next);
+      else vp.scrollTo(-next.x, -next.y);
     };
-    const up = (): void => {
-      document.removeEventListener('pointermove', mv);
-      document.removeEventListener('pointerup', up);
+    const up = (ev: PointerEvent): void => {
+      if (ev.pointerId !== pointer) return;
+      delete vp.dataset.panning;
+      vp.removeEventListener('pointermove', mv);
+      vp.removeEventListener('lostpointercapture', up);
     };
-    document.addEventListener('pointermove', mv);
-    document.addEventListener('pointerup', up);
-  }, []);
+    vp.addEventListener('pointermove', mv);
+    vp.addEventListener('lostpointercapture', up);
+  }, [composing]);
 
   /* ---------- 手写墨迹 ---------- */
   const startStroke = useCallback((e: React.PointerEvent) => {
@@ -601,6 +741,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
   }, [setDoc, toInner]);
 
   const onInnerPointerDown = useCallback((e: React.PointerEvent) => {
+    if ((e.target as Element).closest('[data-board-tools], [data-wire-hit]')) return;
     if (e.button === 1 || (e.button === 0 && spaceHeld.current)) {
       startPan(e);
       return;
@@ -622,6 +763,12 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     if (!pen) {
       // 选择工具在空白处按下 → 框选（marquee）；点在节点上交给节点的 click 选中
       if (tool === 'select' && !(e.target as HTMLElement).closest('[data-node],[data-port]')) {
+        if (composing && !e.shiftKey) {
+          setSelSet(new Set());
+          setSelStrokes(new Set());
+          startPan(e);
+          return;
+        }
         e.preventDefault();
         const start = toInner(e.clientX, e.clientY);
         let moved = false;
@@ -664,12 +811,12 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     }
     if ((e.target as HTMLElement).closest('[data-port]')) return; // 端口优先连线
     startStroke(e);
-  }, [doc.strokes, eraseAt, readOnly, startPan, startStroke, toInner, tool]);
+  }, [composing, doc.strokes, eraseAt, readOnly, startPan, startStroke, toInner, tool]);
 
   const onInnerDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (readOnly || (e.target as HTMLElement).closest('[data-node],[data-port]')) return;
+    if (readOnly || (e.target as HTMLElement).closest('[data-node],[data-port],[data-board-tools]')) return;
     const p = toInner(e.clientX, e.clientY);
-    onAddNode?.('textNote', p.x, p.y);
+    onAddNode?.('textNote', Math.max(0, p.x), Math.max(0, p.y));
   }, [onAddNode, readOnly, toInner]);
 
   const recognizeInk = useCallback(async (): Promise<void> => {
@@ -703,109 +850,98 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
     setSelStrokes(new Set());
   };
 
-  /* ---------- 渲染 ---------- */
   useLayoutEffect(() => {
-    const viewport = vpRef.current;
-    if (!workbench || !workId || !viewport) return;
-    const key = `xiangsheng.canvas.viewport.${workId}`;
+    if (!workId) return;
     try {
-      const position = JSON.parse(localStorage.getItem(key) ?? 'null') as { x?: number; y?: number } | null;
-      viewport.scrollTo(position?.x ?? 0, position?.y ?? 0);
-    } catch {
-      viewport.scrollTo(0, 0);
-    }
-    let timer: number | undefined;
-    const save = () => {
-      try {
-        localStorage.setItem(key, JSON.stringify({ x: viewport.scrollLeft, y: viewport.scrollTop }));
-      } catch { /* Storage is optional for the viewport. */ }
-    };
-    const onScroll = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(save, 180);
-    };
-    viewport.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      viewport.removeEventListener('scroll', onScroll);
-      window.clearTimeout(timer);
-      save();
-    };
-  }, [workbench, workId]);
+      const saved = JSON.parse(localStorage.getItem('xiangsheng.canvas.viewport.' + workId) ?? 'null');
+      if (Number.isFinite(saved?.x) && Number.isFinite(saved?.y)) {
+        restoredViewport.current = true;
+        setPan({ x: -saved.x, y: -saved.y });
+      }
+    } catch { /* The viewport can open without storage. */ }
+  }, [workId]);
 
-  const studyPanel = workbench ? doc.panel : undefined;
-  const tidyLayout = useCallback(() => {
-    setDoc((prev) => ({
-      ...prev,
-      nodes: applyAutoLayout(prev.nodes, prev.wires, { excludeNotes: compactMode }),
-    }));
-  }, [compactMode, setDoc]);
-
-  /* 首次进入紧凑架构模式时自动整理一次坐标，保证打开即横平竖直、无重叠 */
   useEffect(() => {
-    if (!compactMode || doc.nodes.some((node) => isPipelineStage(node.type))) return;
-    const sig = `${workId ?? 'local'}:${doc.title}:${doc.nodes.length}`;
-    if (autoLaidOutRef.current === sig) return;
-    autoLaidOutRef.current = sig;
-    setDoc((prev) => ({
-      ...prev,
-      nodes: applyAutoLayout(prev.nodes, prev.wires, { excludeNotes: true }),
-    }));
-  }, [compactMode, workId, doc.title, doc.nodes, setDoc]);
+    if (!workId || !composing) return;
+    const timer = window.setTimeout(() => {
+      try {
+        localStorage.setItem('xiangsheng.canvas.viewport.' + workId, JSON.stringify({ x: -pan.x, y: -pan.y }));
+      } catch { /* The viewport can work without storage. */ }
+    }, 180);
+    return () => window.clearTimeout(timer);
+  }, [workId, composing, pan]);
 
-  const convOrdinals = useMemo(() => {
-    const map = new Map<string, number>();
-    let idx = 1;
-    for (const n of doc.nodes) {
-      if (n.type === 'conv2dOp') map.set(n.id, idx++);
-    }
-    return map;
-  }, [doc.nodes]);
-
+  const tidyLayout = () => {
+    const boxes = [...(vpRef.current?.querySelectorAll<HTMLElement>('[data-node]') ?? [])];
+    const cardWidth = Math.max(176, ...boxes.map((el) => el.offsetWidth));
+    const cardHeight = Math.max(116, ...boxes.map((el) => el.offsetHeight));
+    setDoc((prev) => ({ ...prev, nodes: applyAutoLayout(prev.nodes, prev.wires, { cardWidth, cardHeight, excludeNotes: false }) }));
+    requestAnimationFrame(() => fitAll());
+  };
+  const nodeTitle = (node: CanvasNode) => find408Stage(node)?.stage.title ?? findPhysicsStage(node)?.stage.title
+    ?? findCalculusStage(node)?.stage.title ?? findBusinessStage(node)?.stage.title
+    ?? (node.text && node.type !== 'textNote' && node.type !== 'latexNote' && node.type !== 'functionSource'
+      && !node.text.includes('\n') ? node.text : NODE_DEFS[node.type].title);
+  const inspected = doc.nodes.find((node) => node.id === inspectNodeId);
   const activeSelId = selSet.size === 1 ? [...selSet][0]! : null;
-  const selectedNode = activeSelId ? doc.nodes.find((n) => n.id === activeSelId && n.type !== 'textNote') ?? null : null;
+  const toggleView = (id: string) => setDoc((current) => {
+    const panel = current.panel ?? { view_node_ids: [], exposed_params: [] };
+    const ids = panel.view_node_ids;
+    return { ...current, panel: { ...panel, view_node_ids: ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id] } };
+  });
+  const toggleParam = (node: CanvasNode, key: string) => setDoc((current) => {
+    const panel = current.panel ?? { view_node_ids: [], exposed_params: [] };
+    const matches = (param: (typeof panel.exposed_params)[number]) => param.node_id === node.id && param.param_key === key;
+    return { ...current, panel: { ...panel, exposed_params: panel.exposed_params.some(matches)
+      ? panel.exposed_params.filter((param) => !matches(param))
+      : [...panel.exposed_params, { node_id: node.id, param_key: key, ...simParamMeta(node, key) }] } };
+  });
 
-  const findUpstreamRealImage = useCallback((nodeId: string): RealImagePayload | null => {
-    const visited = new Set<string>();
-    const queue = [nodeId];
-    while (queue.length) {
-      const cur = queue.shift()!;
-      if (visited.has(cur)) continue;
-      visited.add(cur);
-      const found = doc.nodes.find((n) => n.id === cur);
-      if (found?.type === 'pixelGridSource') {
-        const parsed = parseRealImagePayload(found.payload);
-        if (parsed) return parsed;
-      }
-      for (const w of doc.wires) {
-        if (w.to === cur) queue.push(w.from);
-      }
-    }
-    return null;
-  }, [doc.nodes, doc.wires]);
-
-  const pipelineWork = workId ?? doc.nodes.find((node) => isPipelineStage(node.type))?.id ?? '';
+  const pipelineWork = presentationKey ?? workId ?? doc.nodes.find((node) => isPipelineStage(node.type))?.id ?? '';
+  const audienceKeys = !workshopEmbed?.authoring && workshopEmbed?.visible_params;
+  const audienceParams = useMemo(() => audienceKeys ? workshopParamRefs(doc).filter(({ key }) => audienceKeys.includes(key)) : undefined,
+    [audienceKeys, doc]);
   const pipelineEnds = useMemo(() => {
     const ends = new Map<string, number>();
     for (const node of doc.nodes) {
       if (!isPipelineStage(node.type)) continue;
       const value = evalOutput(ctx, node.id);
-      if (value?.kind !== 'lab408Data' && value?.kind !== 'physicsData' && value?.kind !== 'calculusData') continue;
+      if (value?.kind !== 'lab408Data' && value?.kind !== 'physicsData' && value?.kind !== 'calculusData' && value?.kind !== 'businessData') continue;
       if (value.error || value.result.frames.length === 0) continue;
       ends.set(value.pipeline, Math.max(ends.get(value.pipeline) ?? 0, value.result.frames.length - 1));
     }
     return ends;
   }, [ctx, doc.nodes]);
+  const setCursor = (key: string, position: number) => {
+    setPipelineCursors(previous => previous[key] === position ? previous : {...previous, [key]: position});
+    if (!presentation || !presentationKey) return;
+    const slot = lastCursorSend.current[key] ??= {time: 0};
+    window.clearTimeout(slot.timer);
+    const send = () => {
+      slot.time = Date.now();
+      presentation.send({kind: 'timeline', node: presentationKey, key, position});
+    };
+    const delay = 40 - (Date.now() - slot.time);
+    if (delay <= 0) send();
+    else slot.timer = window.setTimeout(send, delay);
+  };
   const makeBodyProps = (n: CanvasNode): NodeBodyProps => {
     const self = evalOutput(ctx, n.id);
     const pipeline = self
-      && (self.kind === 'lab408Data' || self.kind === 'physicsData' || self.kind === 'calculusData')
+      && (self.kind === 'lab408Data' || self.kind === 'physicsData' || self.kind === 'calculusData' || self.kind === 'businessData')
       && !self.error && self.result.frames.length > 0 ? self.pipeline : null;
-    const cursorKey = `${pipelineWork}:${pipeline}`;
+    const cursorKey = pipelineWork + ':' + pipeline;
+    const exposed = (audienceParams ?? (interactivePanel && readOnly ? doc.panel?.exposed_params : undefined))
+      ?.filter((param) => param.node_id === n.id);
     return {
       node: n,
       values: inputValues(ctx, n),
       self,
-      onParams: readOnly ? undefined : (patch) => updateParams(n.id, patch),
+      onParams: !readOnly && !audienceParams ? (patch) => updateParams(n.id, patch) : exposed?.length && (!readOnly || interactivePanel) ? (patch) => {
+        const allowed = Object.fromEntries(exposed.filter((param) => Object.hasOwn(patch, param.param_key))
+          .map((param) => [param.param_key, patch[param.param_key]!]));
+        if (Object.keys(allowed).length) updateParams(n.id, allowed);
+      } : undefined,
       onLive: (outputs) => {
         const keys = Object.keys(outputs);
         if (!keys.length) return;
@@ -814,57 +950,81 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
         }
         setFrame((f) => f + 1);
       },
-      onText: readOnly ? undefined : (text) => {
+      onText: readOnly || audienceParams ? undefined : (text) => {
         patchNode(n.id, { text });
         if (isPipelineStage(n.type)) pulseFrom(n.id);
       },
-      onPayload: readOnly ? undefined : (payload) => patchNode(n.id, { payload }),
-      onExplode: !readOnly && n.type === 'composite' ? () => explode(n.id) : undefined,
+      onPayload: readOnly || audienceParams ? undefined : (payload) => patchNode(n.id, { payload }),
+      onExplode: !readOnly && !audienceParams && n.type === 'composite' ? () => explode(n.id) : undefined,
       ...(pipeline ? { timeline: {
-        step: pipelineCursors[cursorKey] ?? 0,
+        step: Math.floor(pipelineCursors[cursorKey] ?? 0),
         last: pipelineEnds.get(pipeline) ?? 0,
-        onStep: (step: number) => setPipelineCursors((prev) => ({ ...prev, [cursorKey]: step })),
+        onStep: (step: number) => setCursor(cursorKey, step),
       } } : {}),
     };
   };
 
-  const fitAll = () => {
+  const fitAll = useCallback(() => {
     const viewport = vpRef.current;
-    if (!viewport || !doc.nodes.length) return;
+    if (!viewport) return;
     const boxes = [...viewport.querySelectorAll<HTMLElement>('[data-node]')];
     if (!boxes.length) return;
     const left = Math.min(...boxes.map((box) => box.offsetLeft));
     const top = Math.min(...boxes.map((box) => box.offsetTop));
     const right = Math.max(...boxes.map((box) => box.offsetLeft + box.offsetWidth));
     const bottom = Math.max(...boxes.map((box) => box.offsetTop + box.offsetHeight));
-    const fitted = clamp(Math.min((viewport.clientWidth - 48) / Math.max(1, right - left),
-      (viewport.clientHeight - 48) / Math.max(1, bottom - top)), 0.35, 1.05);
-    setDoc((prev) => ({ ...prev, zoom: Math.round(fitted * 100) / 100 }));
-    requestAnimationFrame(() => viewport.scrollTo(Math.max(0, left * fitted - 24), Math.max(0, top * fitted - 24)));
-  };
-  const showModuleInspector = () => {
-    setResultsOpen(true);
-    if (window.matchMedia('(max-width: 820px)').matches) setMobileResults(true);
-  };
+    const dockHeight = viewport.querySelector<HTMLElement>('[aria-label="画布工具坞"]')?.offsetHeight ?? 0;
+    const margin = Math.max(24, dockHeight + 24);
+    const fitted = Math.floor(clamp(Math.min((viewport.clientWidth - 48) / Math.max(1, right - left),
+      (viewport.clientHeight - 2 * margin) / Math.max(1, bottom - top)), 0.05, 1.05) * 100) / 100;
+    setDoc((prev) => prev.zoom === fitted ? prev : { ...prev, zoom: fitted });
+    setPan({ x: (viewport.clientWidth - (left + right) * fitted) / 2,
+      y: (viewport.clientHeight - (top + bottom) * fitted) / 2 });
+  }, [setDoc]);
+
+  useLayoutEffect(() => {
+    if (!composing || composedOnce.current || !doc.nodes.length) return;
+    composedOnce.current = true;
+    if (!restoredViewport.current) fitAll();
+  }, [composing, doc.nodes.length, fitAll]);
+
+  const viewportPoint = () => ({ x: (vpRef.current?.clientWidth ?? 0) / 2, y: (vpRef.current?.clientHeight ?? 0) / 2 });
+  if (mode === 'instrument') return <InstrumentStage
+    key={templateKind ?? workId}
+    doc={doc} templateKind={templateKind} readOnly={readOnly} interactivePanel={interactivePanel} slideInstrument={slideInstrument} onCompose={onCompose}
+    getBodyProps={makeBodyProps} nodeTitle={nodeTitle}
+    cursors={pipelineCursors} setCursor={setCursor} pipelineScope={pipelineWork} presentationKey={presentationKey}
+    workshopEmbed={workshopEmbed} audienceParams={audienceParams}
+    onPreset={readOnly ? undefined : onPreviewPreset ?? (preset => setDoc(current => applyPresetToDoc(current, preset, audienceKeys || undefined)))}
+  />;
+
   const canvas = (
-    <div className={`${styles.viewport} ${embedded ? styles.viewportEmbedded : ''}`} ref={vpRef}>
+    <div className={styles.viewport + (embedded ? ' ' + styles.viewportEmbedded : '') + (composing ? ' ' + styles.composeViewport : '')}
+      ref={vpRef} data-canvas-viewport
+      onPointerDown={composing ? onInnerPointerDown : undefined}
+      onDoubleClick={composing ? onInnerDoubleClick : undefined}
+      onDragOver={composing ? (e) => { if (e.dataTransfer.types.includes('application/x-wanxiang-node')) e.preventDefault(); } : undefined}
+      onDrop={composing ? (e) => {
+        const type = e.dataTransfer.getData('application/x-wanxiang-node') as NodeType;
+        if (!Object.hasOwn(NODE_DEFS, type)) return;
+        e.preventDefault();
+        const point = toInner(e.clientX, e.clientY);
+        onAddNode?.(type, Math.max(0, point.x), Math.max(0, point.y));
+      } : undefined}>
+      {composing && <div className={styles.canvasSurface} aria-hidden="true" />}
+      {composing && schematic ? doc.nodes.filter((node) => node.type === 'aiRuleBlock').map((node) =>
+        <AiRuleLive key={node.id} node={node} onLive={makeBodyProps(node).onLive} />) : null}
       <div
         ref={innerRef}
-        className={`${styles.inner} ${tool !== 'select' ? styles.inkmode : ''}`}
-        style={{ width: worldWidth, height: worldHeight, transform: `scale(${zoom})` }}
-        onPointerDown={onInnerPointerDown}
-        onDoubleClick={onInnerDoubleClick}
+        data-canvas-world
+        className={styles.inner + (tool !== 'select' ? ' ' + styles.inkmode : '')}
+        style={{ width: worldWidth, height: worldHeight, transform: composing
+          ? 'translate(' + pan.x + 'px, ' + pan.y + 'px) scale(' + zoom + ')' : 'scale(' + zoom + ')' }}
+        onPointerDown={composing ? undefined : onInnerPointerDown}
+        onDoubleClick={composing ? undefined : onInnerDoubleClick}
       >
         {/* 连线层（仪器面板模式下隐藏内部接线，引擎照常求值） */}
         <svg className={styles.wires} data-408-flow={pipelineEnds.size > 0 || undefined} width={worldWidth} height={worldHeight} aria-hidden="true">
-          <defs>
-            <marker id="wx-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto">
-              <path d="M0 1L7 4L0 7Z" fill="#94a3b8" />
-            </marker>
-            <marker id="wx-arrow-active" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5.5" markerHeight="5.5" orient="auto">
-              <path d="M0 1L7 4L0 7Z" fill="#4f46e5" />
-            </marker>
-          </defs>
           {visibleNodeIds ? null : doc.wires.map((w: Wire) => {
             const d = paths[w.id];
             if (!d) return null;
@@ -874,15 +1034,15 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
               ? (isRelated ? `${styles.wire} ${styles.wireActive}` : `${styles.wire} ${styles.wireDim}`)
               : styles.wire;
             return (
-              <g key={w.id}>
+              <g key={w.id} data-node-role={composing ? nodeRole(doc.nodes.find((node) => node.id === w.from)) : undefined}>
                 <path
                   className={wireClass}
                   data-wire={w.id}
                   d={d}
-                  markerEnd={compactMode ? (isRelated ? 'url(#wx-arrow-active)' : 'url(#wx-arrow)') : undefined}
                 />
+                {composing && <path className={styles.wireFlow} d={d} />}
                 <path
-                  className={styles.wireHit}
+                  className={styles.wireHit} data-wire-hit
                   d={d}
                   onClick={readOnly ? undefined : () => removeWire(w.id)}
                 >
@@ -905,7 +1065,6 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
         {/* 节点层 */}
         {doc.nodes.map((n) => {
           if (visibleNodeIds && !visibleNodeIds.has(n.id)) return null;
-          if (compactMode && n.type === 'textNote') return null;
           const def = NODE_DEFS[n.type];
           if (!def) return null;
           const Body = def.Body;
@@ -916,30 +1075,31 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
           const labStage = find408Stage(n)?.stage;
           const physicsStage = findPhysicsStage(n)?.stage;
           const calculusStage = findCalculusStage(n)?.stage;
-          const title = labStage?.title ?? physicsStage?.title ?? calculusStage?.title ?? def.title;
-          const docked = !compactMode && !!resultHost && !!studyPanel?.view_node_ids.includes(n.id);
+          const businessStage = findBusinessStage(n)?.stage;
+          const title = labStage?.title ?? physicsStage?.title ?? calculusStage?.title ?? businessStage?.title ?? def.title;
+          const isPinned = doc.panel?.view_node_ids.includes(n.id) ?? false;
+          const exposed = doc.panel?.exposed_params.filter((param) => param.node_id === n.id) ?? [];
           const bodyProps = makeBodyProps(n);
-          const body = (
-            <div className={styles.nbody}>
-              {docked && <h3>{isPipelineStage(n.type) ? title : n.text || title}</h3>}
-              <Body {...bodyProps} />
-            </div>
-          );
+          const compact = schematic && n.type !== 'textNote' && n.type !== 'latexNote' && n.type !== 'functionSource';
+          const preview = compact && n.type !== 'slider' ? nodeSchematicMeta(n, def, bodyProps.self) : null;
           return (
             <div
               key={n.id}
-              className={`${styles.node} ${compactMode ? styles.nodeCompact : ''}`}
-              style={{ left: n.x, top: n.y, width: compactMode ? COMPACT_CARD_WIDTH : def.width }}
+              className={styles.node}
+              style={{ left: n.x, top: n.y, width: nodeWidth(n), height: n.h }}
               data-node={n.id}
+              data-custom-h={n.h !== undefined || undefined}
+              data-node-role={composing ? nodeRole(n) : undefined}
+              data-schematic={schematic && n.type !== 'latexNote' && n.type !== 'functionSource' || undefined}
               data-408-module={labStage?.id}
               data-physics-module={physicsStage?.id}
               data-calculus-module={calculusStage?.id}
+              data-business-module={businessStage?.id}
               data-sel={selSet.has(n.id) || undefined}
-              onKeyDown={(e) => {
-                if (!compactMode || !(e.target as HTMLElement).matches('[role="button"]') || !['Enter', ' '].includes(e.key)) return;
-                e.preventDefault();
-                setSelSet(new Set([n.id]));
-                showModuleInspector();
+              onPointerDownCapture={readOnly ? undefined : (e) => {
+                if (tool !== 'select' || e.button !== 0) return;
+                if ((e.target as HTMLElement).closest(NODE_DRAG_IGNORE)) return;
+                startNodeDrag(e, n);
               }}
               onPointerDown={(e) => {
                 if (tool !== 'select' || (e.target as HTMLElement).closest('[data-port]')) return;
@@ -951,48 +1111,74 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                   }
                   return s.has(n.id) ? s : new Set([n.id]);
                 });
-                if (compactMode && !e.shiftKey && !(e.target as HTMLElement).closest('[data-node-x]')) showModuleInspector();
               }}
             >
-              {compactMode ? (
-                <NodeSchematic
-                  node={n}
-                  def={def}
-                  self={bodyProps.self}
-                  selected={selSet.has(n.id)}
-                  readOnly={readOnly}
-                  convOrdinal={convOrdinals.get(n.id)}
-                  onDragStart={readOnly ? undefined : (e) => startNodeDrag(e, n)}
-                  onRemove={() => removeNode(n.id)}
-                />
-              ) : (
-                <>
-                  <div
-                    className={styles.nhead}
-                    onPointerDown={readOnly ? undefined : (e) => startNodeDrag(e, n)}
-                    role={readOnly ? undefined : 'button'}
-                    aria-label={readOnly ? undefined : `拖动 ${title}`}
-                    tabIndex={readOnly ? undefined : 0}
+              <div
+                className={styles.nhead}
+                onPointerDown={readOnly ? undefined : (e) => startNodeDrag(e, n)}
+                role={readOnly ? undefined : 'button'}
+                aria-label={readOnly ? undefined : `拖动 ${title}`}
+                tabIndex={readOnly ? undefined : 0}
+              >
+                <span className={`${styles.ndot} ${def.badge === '源' ? styles.ndotSrc : ''}`} aria-hidden="true" />
+                <span className={styles.nodeTitle} title={nodeTitle(n)}>{nodeTitle(n)}</span>
+                <span className={`${styles.nbadge} ${def.badge === '源' ? '' : styles.nbadgeSink}`}>{def.badge}</span>
+                {composing && !readOnly && <div className={styles.pins}>
+                  <button type="button" aria-pressed={isPinned} aria-label="主舞台视图" title="主舞台视图" onClick={() => toggleView(n.id)}>📌</button>
+                  {Object.keys(n.params).length > 0 && <button type="button" aria-expanded={paramNodeId === n.id}
+                    aria-label="外露参数" title="外露参数" data-pinned={exposed.length > 0 || undefined}
+                    onClick={() => setParamNodeId(paramNodeId === n.id ? null : n.id)}>◉</button>}
+                  <button type="button" aria-label="检查模块" title="检查模块" onClick={() => setInspectNodeId(n.id)}>⌕</button>
+                </div>}
+                {readOnly ? null : (
+                  <button
+                    type="button"
+                    className={styles.nx}
+                    data-node-x
+                    aria-label={`移除 ${title}`}
+                    onClick={() => removeNode(n.id)}
                   >
-                    <span className={`${styles.ndot} ${def.badge === '源' ? styles.ndotSrc : ''}`} aria-hidden="true" />
-                    {(n.type === 'composite' || n.type === 'slider' || n.type === 'matrixHeatmapView' || isStudyStage(n.type)) ? (n.text || title) : title}
-                    <span className={`${styles.nbadge} ${def.badge === '源' ? '' : styles.nbadgeSink}`}>{def.badge}</span>
-                    {readOnly ? null : (
-                      <button
-                        type="button"
-                        className={styles.nx}
-                        data-node-x
-                        aria-label={`移除 ${title}`}
-                        onClick={() => removeNode(n.id)}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                  {docked
-                    ? <><p className={styles.dockedLabel}>结果与参数栏</p>{createPortal(body, resultHost!)}</>
-                    : body}
-                </>
+                    ×
+                  </button>
+                )}
+              </div>
+              {composing && paramNodeId === n.id && <section className={styles.paramPicker} aria-label="外露参数" data-node-drag-ignore="true">
+                {Object.keys(n.params).map((key) => {
+                  const entry = exposed.find((param) => param.param_key === key);
+                  return <div key={key}>
+                    <button type="button" aria-pressed={!!entry} onClick={() => toggleParam(n, key)}>{simParamMeta(n, key).label || key}</button>
+                    {entry && <div className={styles.paramBounds}>
+                      {([['min', '最小'], ['max', '最大'], ['step', '步长']] as const).map(([field, label]) => <label key={field}>{label}
+                        <input type="number" step="any" value={entry[field] ?? ''} onChange={(e) => {
+                          const value = e.target.value === '' ? undefined : e.target.valueAsNumber;
+                          setDoc((current) => current.panel ? { ...current, panel: { ...current.panel, exposed_params: current.panel.exposed_params.map((param) =>
+                            param.node_id === n.id && param.param_key === key ? { ...param, [field]: value } : param) } } : current);
+                        }} />
+                      </label>)}
+                    </div>}
+                  </div>;
+                })}
+              </section>}
+              <div className={styles.nbody} onClick={composing && n.type === 'functionSource'
+                ? () => setInspectNodeId(n.id) : undefined}>
+                {preview ? <>
+                  <div className={styles.schematic}><SchematicGraphic node={n} /></div>
+                  {preview.foot && <small className={styles.schematicRead}>{preview.foot}</small>}
+                </> : <Body {...bodyProps} inCard />}
+              </div>
+              {readOnly || compact || visibleNodeIds ? null : (
+                <span
+                  className={styles.resize}
+                  data-node-resize
+                  role="separator"
+                  aria-label={`调整 ${title} 大小`}
+                  title="拖拽调整大小 · 双击复原"
+                  onPointerDown={(e) => startNodeResize(e, n)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    if (n.w !== undefined || n.h !== undefined) patchNode(n.id, { w: undefined, h: undefined });
+                  }}
+                />
               )}
               {visibleNodeIds ? null : inPorts.map((p, i) => (
                 <div
@@ -1001,9 +1187,9 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                   className={`${styles.port} ${styles.portIn}`}
                   style={{ top: `${((i + 1) / (nIn + 1)) * 100}%` }}
                   data-port
-                  title={`输入 ${p.label}`}
+                  title={'输入 ' + p.label + ' · ' + (p.kind ?? 'any')}
                 >
-                  {(n.type !== 'lab408Stage' && (nIn > 1 || n.type === 'composite')) ? <span className={styles.portLabel}>{p.label}</span> : null}
+                  <span className={styles.portLabel}>{p.label} · {p.kind ?? 'any'}</span>
                 </div>
               ))}
               {visibleNodeIds ? null : outPorts.map((p, i) => (
@@ -1013,10 +1199,10 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
                   className={`${styles.port} ${styles.portOut}`}
                   style={{ top: `${((i + 1) / (nOut + 1)) * 100}%` }}
                   data-port
-                  title={readOnly ? `输出 ${p.label}` : `输出 ${p.label}：拖到兼容的蓝圈`}
+                  title={'输出 ' + p.label + ' · ' + (p.kind ?? 'any')}
                   onPointerDown={readOnly ? undefined : (e) => startWireDrag(e, n, p.id)}
                 >
-                  {(nOut > 1 || n.type === 'composite') ? <span className={`${styles.portLabel} ${styles.portLabelR}`}>{p.label}</span> : null}
+                  <span className={styles.portLabel + ' ' + styles.portLabelR}>{p.label} · {p.kind ?? 'any'}</span>
                 </div>
               ))}
             </div>
@@ -1046,7 +1232,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
 
       {/* 多选操作条：封装积木 / 手写圈选识别 */}
       {!readOnly && (selSet.size >= 2 || selStrokes.size > 0) ? (
-        <div className={styles.selBar} role="toolbar" aria-label="多选操作">
+        <div className={styles.selBar} data-board-tools role="toolbar" aria-label="多选操作">
           {selSet.size >= 2 ? <>已选 {selSet.size} 个对象</> : null}
           {selSet.size >= 2 ? (
             <button type="button" className={styles.selBarBtn} onClick={encapsulate}>
@@ -1069,91 +1255,37 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, embedded, 
           </button>
         </div>
       ) : null}
-    </div>
-  );
-  if (!studyPanel) return canvas;
-
-  const overviewNodes = compactMode
-    ? studyPanel.view_node_ids
-        .map((id) => doc.nodes.find((n) => n.id === id))
-        .filter((n): n is CanvasNode => !!n && !!NODE_DEFS[n.type])
-        .map((n) => {
-          const def = NODE_DEFS[n.type]!;
-          const Body = def.Body;
-          const bp = makeBodyProps(n);
-          const meta = nodeSchematicMeta(n, def, bp.self, convOrdinals.get(n.id));
-          return { node: n, title: meta.title, content: <Body {...bp} /> };
-        })
-    : [];
-
-  const selectedDef = selectedNode ? NODE_DEFS[selectedNode.type] ?? null : null;
-  const selectedBodyProps = selectedNode ? makeBodyProps(selectedNode) : null;
-  const nodeTitle = (n: CanvasNode): string => {
-    const def = NODE_DEFS[n.type];
-    if (!def) return n.type;
-    return nodeSchematicMeta(n, def, evalOutput(ctx, n.id), convOrdinals.get(n.id)).title;
-  };
-
-  return (
-    <div className={styles.studyWorkspace} data-results={resultsOpen} data-mobile-results={mobileResults}>
-      <div className={styles.studyCanvas}>
-        {canvas}
-        <div className={styles.floatingBar} role="toolbar" aria-label="画布排版控制">
-          <button type="button" onClick={fitAll}>适应全图</button>
-          {!readOnly && <button type="button" onClick={tidyLayout}>整理排版</button>}
-          <button
-            type="button"
-            aria-pressed={compactPref}
-            onClick={() => setCompactPref((v) => !v)}
-          >
-            {compactPref ? '展开卡片' : '架构视图'}
-          </button>
-          <button type="button" className={styles.studyDesktopToggle} aria-expanded={resultsOpen}
-            onClick={() => setResultsOpen(!resultsOpen)}>{resultsOpen ? '收起详情栏' : '展开详情栏'}</button>
-        </div>
-      </div>
-
-      {compactMode ? (
-        <div className={styles.studyInspectorHost}>
-          <NodeInspector
-            doc={doc}
-            panel={studyPanel}
-            selectedNode={selectedNode}
-            selectedDef={selectedDef}
-            selectedBodyProps={selectedBodyProps}
-            convOrdinal={selectedNode ? convOrdinals.get(selectedNode.id) : undefined}
-            upstreamRealImage={selectedNode ? findUpstreamRealImage(selectedNode.id) : null}
-            overviewNodes={overviewNodes}
-            onSelectNode={(id) => setSelSet(id ? new Set([id]) : new Set())}
-            onUpdateParam={(nodeId, patch) => updateParams(nodeId, patch)}
-            nodeTitle={nodeTitle}
-          />
-        </div>
-      ) : (
-        <aside className={styles.studyResults} aria-label="结果与参数" data-plots-open={plotsOpen}>
-          <header className={styles.studyResultHeading}>
-            <h2>实验结果</h2>
-            <button type="button" aria-expanded={plotsOpen} onClick={() => setPlotsOpen((open) => !open)}>
-              {plotsOpen ? '隐藏结果' : '显示结果'}
-            </button>
-          </header>
-          <div ref={setResultHost} className={styles.studyPlots} hidden={!plotsOpen} />
-          <h2>常用参数</h2>
-          <div className={styles.studyParams}>{studyPanel.exposed_params.map((param) => {
-            const node = doc.nodes.find((item) => item.id === param.node_id);
-            if (!node) return null;
-            const value = node.params[param.param_key] ?? param.min ?? 0;
-            return <label key={`${param.node_id}:${param.param_key}`}>
-              <span>{param.label}</span><output>{value}</output>
-              <input type="range" aria-label={param.label || param.param_key} min={param.min} max={param.max} step={param.step} value={value}
-                onChange={(event) => updateParams(node.id, { [param.param_key]: Number(event.target.value) })} />
-            </label>;
-          })}</div>
-        </aside>
-      )}
-      <button type="button" className={styles.studyMobileToggle} aria-pressed={mobileResults}
-        onClick={() => setMobileResults(!mobileResults)}>{mobileResults ? '查看画布' : '结果与参数'}</button>
+      {composing && inspected && <div className={styles.inspectDrawer} data-board-tools>
+        <NodeInspector doc={doc} selectedNode={inspected} selectedDef={NODE_DEFS[inspected.type]}
+          selectedBodyProps={{ ...makeBodyProps(inspected), onLive: undefined }}
+          upstreamRealImage={(() => {
+            const pending = [inspected.id];
+            const visited = new Set<string>();
+            while (pending.length) {
+              const id = pending.pop()!;
+              if (visited.has(id)) continue;
+              visited.add(id);
+              const node = doc.nodes.find((item) => item.id === id);
+              const image = node?.type === 'pixelGridSource' ? parseRealImagePayload(node.payload) : null;
+              if (image) return image;
+              for (const wire of doc.wires) if (wire.to === id) pending.push(wire.from);
+            }
+            return null;
+          })()}
+          overviewNodes={[]} onSelectNode={setInspectNodeId} onUpdateParam={updateParams}
+          nodeTitle={nodeTitle} closeLabel="关闭检查器" />
+      </div>}
+      {composing && renderTools && <div data-board-tools>{renderTools({
+        fitAll, tidyLayout,
+        zoomBy: (delta) => { const { x, y } = viewportPoint(); zoomTo(zoom + delta, x, y); },
+        spawnPoint: () => {
+          const r = vpRef.current?.getBoundingClientRect();
+          const point = r ? toInner(r.left + r.width * 0.48, r.top + r.height * 0.28) : { x: 110, y: 120 };
+          return { x: Math.max(0, point.x), y: Math.max(0, point.y) };
+        },
+      })}</div>}
     </div>
   );
 
+  return canvas;
 }

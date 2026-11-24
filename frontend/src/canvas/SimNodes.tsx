@@ -27,19 +27,21 @@ function simSlider(label: string, value: number, min: number, max: number, step:
   </label>;
 }
 
-export function AttentionSimBody({ node, onParams }: NodeBodyProps): JSX.Element {
+export function AttentionSimBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
   const query = node.params.query ?? 1;
   const temperature = node.params.temperature ?? 1;
   const causal = (node.params.causal ?? 0) >= 0.5;
   const { scores, weights, output } = attention(query, temperature, causal);
   return <div>
     <Formula tex={'\\mathrm{Attention}(Q,K,V)=\\mathrm{softmax}(QK^T/(\\sqrt{d_k}\\,T)+M)V'} block />
-    {simSlider('Query 第一维', query, -4, 4, 0.1, (v) => onParams?.({ query: v }))}
-    {simSlider('温度 T', temperature, 0.1, 3, 0.1, (v) => onParams?.({ temperature: v }))}
-    <label className={styles.inlineField}>
-      <input type="checkbox" checked={causal} onChange={(e) => onParams?.({ causal: e.target.checked ? 1 : 0 })} />
-      因果掩码<span className={styles.dim}>：第二个位置不能关注第三个</span>
-    </label>
+    {!inCard && <>
+      {simSlider('Query 第一维', query, -4, 4, 0.1, (v) => onParams?.({ query: v }))}
+      {simSlider('温度 T', temperature, 0.1, 3, 0.1, (v) => onParams?.({ temperature: v }))}
+      <label className={styles.inlineField}>
+        <input type="checkbox" checked={causal} onChange={(e) => onParams?.({ causal: e.target.checked ? 1 : 0 })} />
+        因果掩码<span className={styles.dim}>：第二个位置不能关注第三个</span>
+      </label>
+    </>}
     <table className={styles.simTable}>
       <thead><tr><th>Key</th><th>分数 / T</th><th>权重</th></tr></thead>
       <tbody>{weights.map((w, i) => <tr key={i}>
@@ -55,7 +57,7 @@ export function AttentionSimBody({ node, onParams }: NodeBodyProps): JSX.Element
   </div>;
 }
 
-export function PageLabSimBody({ node, onParams }: NodeBodyProps): JSX.Element {
+export function PageLabSimBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
   const sim = useMemo(() => parsePageLabSim(node.payload), [node.payload]);
   const lab = useMemo<PageLab | null>(() => {
     if (!sim) return null;
@@ -75,7 +77,7 @@ export function PageLabSimBody({ node, onParams }: NodeBodyProps): JSX.Element {
   return <div>
     {sim.summary ? <p className={styles.simSummary}>{sim.summary}</p> : null}
     <LabCanvas lab={lab} values={values} />
-    <div className={styles.fieldGrid}>
+    {!inCard && <div className={styles.fieldGrid}>
       {sim.params.map((p) => {
         const value = node.params[p.id] ?? p.default;
         return <label key={p.id} className={styles.inlineField}>{p.label}
@@ -85,8 +87,8 @@ export function PageLabSimBody({ node, onParams }: NodeBodyProps): JSX.Element {
           <span className={styles.live}>{fmt(value, 3)}{p.unit || ''}</span>
         </label>;
       })}
-    </div>
-    {sim.explain.length ? <ul className={styles.simExplain}>{sim.explain.map((line, i) => <li key={i}>{line}</li>)}</ul> : null}
+    </div>}
+    {!inCard && sim.explain.length ? <ul className={styles.simExplain}>{sim.explain.map((line, i) => <li key={i}>{line}</li>)}</ul> : null}
     <div className={styles.miniRead}><span className={styles.dim}>AI 设计 · 教学示例数据 · 参数可绑定页面变量</span></div>
   </div>;
 }

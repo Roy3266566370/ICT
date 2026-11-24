@@ -39,7 +39,7 @@ function OptimizerPlayback({ values, onLive }: NodeBodyProps) {
 }
 
 function StudyStageBody(props: NodeBodyProps) {
-  const { node, values, self, onParams } = props;
+  const { node, values, self, onParams, inCard } = props;
   if (!isStudyStage(node.type)) return null;
   const stage = studyStages[node.type];
   if (node.type === 'studyOptim') return <OptimizerPlayback {...props} />;
@@ -119,7 +119,7 @@ function StudyStageBody(props: NodeBodyProps) {
   return <div>
     {stage.inputs.map((port) => {
       const value = values[port.id];
-      if (!value && node.params[port.id] !== undefined && port.kind === 'scalar') {
+      if (!value && node.params[port.id] !== undefined && port.kind === 'scalar' && !inCard) {
         return <label key={port.id}>{port.label} <input type="number" step="any" value={node.params[port.id]}
           onChange={(event) => { if (Number.isFinite(event.target.valueAsNumber)) onParams?.({ [port.id]: event.target.valueAsNumber }); }} /></label>;
       }

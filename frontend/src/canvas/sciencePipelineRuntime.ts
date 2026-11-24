@@ -9,7 +9,7 @@ import type {
 } from './sciencePipelineTypes.ts';
 import type { CanvasDoc, CanvasNode, PortSpec, PortValue, Wire } from './types.ts';
 
-type SciencePortKind = 'physicsData' | 'calculusData';
+type SciencePortKind = 'physicsData' | 'calculusData' | 'businessData';
 
 const portId = (index: number) => index ? `in${index + 1}` : 'in';
 
@@ -86,6 +86,7 @@ export function evaluateScienceStage(
   node: Pick<CanvasNode, 'payload' | 'params' | 'text'>,
   input: (id: string) => PortValue | null,
   pipelines: SciencePipelineMap,
+  normalizeParams = sanitizedScienceParams,
 ): ScienceEvaluation | null {
   const definition = findScienceStage(node, pipelines);
   if (!definition) return null;
@@ -93,7 +94,7 @@ export function evaluateScienceStage(
   const header = { pipeline, stage: stage.id };
   const upstream = (stage.inputs ?? []).map((expected, index) => {
     const value = input(portId(index));
-    return value && (value.kind === 'physicsData' || value.kind === 'calculusData')
+    return value && (value.kind === 'physicsData' || value.kind === 'calculusData' || value.kind === 'businessData')
       && value.pipeline === pipeline && value.stage === expected && !value.error
       ? value.result.data
       : null;
@@ -111,7 +112,7 @@ export function evaluateScienceStage(
   }
 
   try {
-    const params = sanitizedScienceParams(stage, node.params);
+    const params = normalizeParams(stage, node.params);
     const merged = mergeScienceInputs(stage, node.text ?? stage.text ?? '', params, upstream);
     return { ...header, result: stage.run({ ...merged, upstream }) };
   } catch (error) {
@@ -127,7 +128,7 @@ export function buildSciencePipeline(
   kind: string,
   title: string,
   note: string,
-  nodeType: 'physicsStage' | 'calculusStage',
+  nodeType: 'physicsStage' | 'calculusStage' | 'businessStage',
   pipelines: SciencePipelineMap,
 ): CanvasDoc {
   const definition = pipelines[kind];
