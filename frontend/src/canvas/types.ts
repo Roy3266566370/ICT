@@ -157,8 +157,9 @@ export type NodeType =
 export interface PortSpec {
   id: string;
   label: string;
-  /** 输入端口：声明接收的值类型；输出端口：声明广播的值类型。缺省表示任意。 */
+  /** 输出类型或输入的单一类型。输入没有 kind 和 accepts 时接收任意类型。 */
   kind?: ValueKind;
+  accepts?: readonly ValueKind[];
 }
 
 /** 复合节点对外的端口声明：id = 内部边界节点（portIn/portOut）id = 外层接线端口 id */

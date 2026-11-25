@@ -12,18 +12,23 @@
  * 桌面交互：Ctrl/⌘+滚轮缩放（锚定光标）、空格/中键拖平移、点击选中 + Del 删除、
  * 双击空白快速加便签；Pointer Events 同套代码吃鼠标/触屏/手写笔。
  */
-import { find408Stage, pipelinePorts } from './lab408Pipeline.ts';
+import { find408Stage } from './lab408Pipeline.ts';
 import { findPhysicsStage } from './physicsPipeline.ts';
 import { findCalculusStage } from './calculusPipeline.ts';
 import { findBusinessStage } from './businessPipeline.ts';
 import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasDoc, CanvasNode, CanvasTool, InkStroke, NodeType, PortValue, Wire } from './types.ts';
+import type { CanvasDoc, CanvasNode, CanvasTool, InkStroke, NodeType, PortValue, ValueKind, Wire } from './types.ts';
 import { nextId, clamp } from './math.ts';
 import { saveCustomBlock } from './customBlocks.ts';
 import { isStudyStage } from './studyStages';
 import { NODE_DEFS, nodePorts, type NodeBodyProps } from './nodes.tsx';
 import { AiRuleLive } from './AiRuleBlockNode.tsx';
-import { makeCtx, evalOutput, inputValues } from './engine.ts';
+import { parseAiRulePayload } from './aiRuleBlock.ts';
+import { serializeUpstreamValue, upstreamHint, type RuleUpstreamContext } from './aiRulePorts.ts';
+import { createCanvasNode } from './createCanvasNode.ts';
+import { compatiblePorts, recommendNodesForPort, type WireRecommendation } from './wireRecommend.ts';
+import { WireQuickMenu } from './WireQuickMenu.tsx';
+import { makeCtx, evalOutput, inputValues, aiRuleInputs } from './engine.ts';
 import { PHYS_TYPES, physCycle, type PhysNodeType } from './physics.ts';
 import { COMPACT_CARD_WIDTH, applyAutoLayout } from './layout.ts';
 import { simParamMeta } from '@/living/sim';
@@ -44,6 +49,21 @@ function walkNodes(nodes: CanvasNode[], fn: (n: CanvasNode) => void): void {
   }
 }
 
+export interface RuleWireRequest {
+  context: RuleUpstreamContext;
+  insert: (node: CanvasNode) => void;
+}
+
+interface PendingWireMenu {
+  fromNodeId: string;
+  fromPortId: string;
+  outKind?: ValueKind;
+  canvasX: number;
+  canvasY: number;
+  clientX: number;
+  clientY: number;
+}
+
 interface BoardProps {
   doc: CanvasDoc;
   setDoc: React.Dispatch<React.SetStateAction<CanvasDoc>>;
@@ -53,6 +73,7 @@ interface BoardProps {
   onAddNode?: (type: NodeType, x: number, y: number) => void;
   /** 从「我的积木库」拖入画布 */
   onAddCustomBlock?: (blockId: string, x: number, y: number) => void;
+  onOpenRuleCreator?: (request: RuleWireRequest) => void;
   /** 嵌入活页等固定高度容器时，视口撑满父级而不是占满整屏。 */
   embedded?: boolean;
   mode?: 'instrument' | 'compose';
@@ -120,15 +141,7 @@ function strokePath(pts: [number, number][]): string {
   return d;
 }
 
-/** 端口类型兼容：双方都未声明 kind 或 kind 相同即可连（composite 端口动态取自 sub.ports） */
-function portKindOf(ctx: ReturnType<typeof makeCtx>, nodeId: string, isOut: boolean, portId: string): PortValue['kind'] | undefined {
-  const node = ctx.doc.nodes.find((n) => n.id === nodeId);
-  if (!node) return undefined;
-  const spec = nodePorts(node, isOut ? 'out' : 'in').find((p) => p.id === portId);
-  return spec?.kind;
-}
-
-export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCustomBlock, embedded, mode: requestedMode, onCompose, templateKind, renderTools, workId, focusContent, readOnly, interactivePanel, slideInstrument, workshopEmbed, onPreviewPreset, presentationKey, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
+export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCustomBlock, onOpenRuleCreator, embedded, mode: requestedMode, onCompose, templateKind, renderTools, workId, focusContent, readOnly, interactivePanel, slideInstrument, workshopEmbed, onPreviewPreset, presentationKey, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
   const mode = embedded || visibleNodeIds ? undefined : requestedMode;
   const innerRef = useRef<HTMLDivElement>(null);
   const vpRef = useRef<HTMLDivElement>(null);
@@ -144,6 +157,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
 
   const [paths, setPaths] = useState<Record<string, string>>({});
   const [tempWire, setTempWire] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const [wireMenu, setWireMenu] = useState<PendingWireMenu | null>(null);
   const [pulses, setPulses] = useState<Record<string, { count: number; delay: number }>>({});
   const [selSet, setSelSet] = useState<ReadonlySet<string>>(new Set());
   const [selStrokes, setSelStrokes] = useState<ReadonlySet<string>>(new Set());
@@ -636,56 +650,78 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     document.addEventListener('pointercancel', up);
   }, [patchNode, zoom]);
 
-  /* ---------- 连线拖拽（带端口 kind 兼容检查） ---------- */
+  /* ---------- 连线拖拽 ---------- */
+  const closeWireMenu = useCallback(() => {
+    setWireMenu(null);
+    setTempWire(null);
+  }, []);
+
   const startWireDrag = useCallback((e: React.PointerEvent, node: CanvasNode, portId: string) => {
+    if (e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+    closeWireMenu();
     const start = portCenter(poutKey(node.id, portId));
     if (!start) return;
-    const outKind = portKindOf(ctx, node.id, true, portId);
+    const { clientX: startX, clientY: startY, pointerId } = e;
+    const outKind = nodePorts(node, 'out').find((port) => port.id === portId)?.kind;
     const compatible = (key: string): boolean => {
-      const parts = key.split('|');
-      if (parts[0] !== 'pin') return false;
-      const inKind = portKindOf(ctx, parts[1] ?? '', false, parts[2] ?? '');
-      const source = find408Stage(node);
-      const target = doc.nodes.find(({ id }) => id === parts[1]);
-      const receiver = target && find408Stage(target);
-      if (source && receiver && target) {
-        const index = pipelinePorts(target, 'in').findIndex((port) => port.id === parts[2]);
-        return source.pipeline === receiver.pipeline && source.stage.id === receiver.stage.inputs?.[index];
-      }
-      return !outKind || !inKind || outKind === inKind;
+      const [direction, id, inputId] = key.split('|');
+      if (direction !== 'pin' || id === node.id) return false;
+      const target = doc.nodes.find((candidate) => candidate.id === id);
+      const input = target && nodePorts(target, 'in').find((port) => port.id === inputId);
+      return Boolean(target && input && compatiblePorts(node, portId, outKind, target, input));
     };
-    const arm = (on: boolean): void => {
-      portRefs.current.forEach((el, key) => {
-        if (compatible(key)) el.toggleAttribute('data-armed', on);
-      });
+    const armed: HTMLElement[] = [];
+    portRefs.current.forEach((el, key) => {
+      if (!compatible(key)) return;
+      el.setAttribute('data-armed', '');
+      armed.push(el);
+    });
+    const draw = (p: Pt) => setTempWire({ x1: start.x, y1: start.y, x2: p.x, y2: p.y });
+    const move = (ev: PointerEvent): void => {
+      if (ev.pointerId === pointerId) draw(toInner(ev.clientX, ev.clientY));
     };
-    arm(true);
-    const mv = (ev: PointerEvent): void => {
-      const p = toInner(ev.clientX, ev.clientY);
-      setTempWire({ x1: start.x, y1: start.y, x2: p.x, y2: p.y });
-    };
-    const up = (ev: PointerEvent): void => {
-      document.removeEventListener('pointermove', mv);
-      document.removeEventListener('pointerup', up);
+    const finish = (ev: PointerEvent): void => {
+      if (ev.pointerId !== pointerId) return;
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', finish);
+      document.removeEventListener('pointercancel', finish);
       setTempWire(null);
-      arm(false);
+      for (const el of armed) el.removeAttribute('data-armed');
+      if (ev.type === 'pointercancel') return;
+      const { clientX, clientY } = ev;
       for (const [key, el] of portRefs.current) {
-        if (!compatible(key)) continue;
+        if (!key.startsWith('pin|')) continue;
         const r = el.getBoundingClientRect();
-        if (ev.clientX > r.left - 10 && ev.clientX < r.right + 10 && ev.clientY > r.top - 10 && ev.clientY < r.bottom + 10) {
-          const parts = key.split('|');
-          const toId = parts[1] ?? '';
-          const toPort = parts[2] ?? 'in';
-          if (toId !== node.id) connect(node.id, portId, toId, toPort);
+        if (clientX > r.left - 10 && clientX < r.right + 10 && clientY > r.top - 10 && clientY < r.bottom + 10 && compatible(key)) {
+          const [, toId, toPort] = key.split('|');
+          connect(node.id, portId, toId!, toPort!);
           return;
         }
       }
+      const hit = document.elementFromPoint(clientX, clientY);
+      if (Math.hypot(clientX - startX, clientY - startY) <= 24 || !hit || !vpRef.current?.contains(hit)
+        || hit.closest('[data-node], [data-port], [data-board-tools], [data-wire-hit], button, input, aside')) return;
+      const at = toInner(clientX, clientY);
+      draw(at);
+      setWireMenu({ fromNodeId: node.id, fromPortId: portId, outKind, canvasX: at.x, canvasY: at.y, clientX, clientY });
     };
-    document.addEventListener('pointermove', mv);
-    document.addEventListener('pointerup', up);
-  }, [connect, ctx, doc.nodes, portCenter, toInner]);
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', finish);
+    document.addEventListener('pointercancel', finish);
+  }, [closeWireMenu, connect, doc.nodes, portCenter, toInner]);
+
+  const insertWiredNode = (pending: PendingWireMenu, node: CanvasNode, inPortId: string): void => {
+    const placed = { ...node, x: Math.max(0, pending.canvasX), y: Math.max(0, pending.canvasY - 40) };
+    const wire = { id: nextId('wire'), from: pending.fromNodeId, fromPort: pending.fromPortId, to: node.id, toPort: inPortId };
+    setDoc((current) => current.nodes.some(({ id }) => id === wire.from)
+      ? { ...current, nodes: [...current.nodes, placed], wires: [...current.wires, wire] }
+      : current);
+    setSelSet(new Set([node.id]));
+    setSelStrokes(new Set());
+    closeWireMenu();
+  };
 
   /* ---------- 视口平移（中键 / 空格+拖拽） ---------- */
   const startPan = useCallback((e: React.PointerEvent) => {
@@ -883,8 +919,32 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
   };
   const nodeTitle = (node: CanvasNode) => find408Stage(node)?.stage.title ?? findPhysicsStage(node)?.stage.title
     ?? findCalculusStage(node)?.stage.title ?? findBusinessStage(node)?.stage.title
+    ?? (node.type === 'aiRuleBlock' ? parseAiRulePayload(node.payload)?.title : undefined)
     ?? (node.text && node.type !== 'textNote' && node.type !== 'latexNote' && node.type !== 'functionSource'
       && !node.text.includes('\n') ? node.text : NODE_DEFS[node.type].title);
+  const wireSource = wireMenu && doc.nodes.find(({ id }) => id === wireMenu.fromNodeId);
+  const wireKind = wireMenu?.outKind ?? (wireSource && wireMenu
+    ? evalOutput(ctx, wireSource.id, wireMenu.fromPortId)?.kind : undefined);
+  const wireRecommendations = useMemo(() => wireSource && wireMenu
+    ? recommendNodesForPort(wireSource, wireMenu.fromPortId, wireKind, NODE_DEFS) : [],
+  [wireSource, wireMenu, wireKind]);
+  useEffect(() => {
+    if (wireMenu && (!wireSource || readOnly)) closeWireMenu();
+  }, [wireMenu, wireSource, readOnly, closeWireMenu]);
+
+  const openWiredCreator = (): void => {
+    if (!wireMenu || !wireSource || !onOpenRuleCreator) return;
+    const portLabel = nodePorts(wireSource, 'out').find(({ id }) => id === wireMenu.fromPortId)?.label ?? wireMenu.fromPortId;
+    const title = nodeTitle(wireSource);
+    const value = serializeUpstreamValue(evalOutput(ctx, wireSource.id, wireMenu.fromPortId));
+    closeWireMenu();
+    onOpenRuleCreator({
+      context: { nodeTitle: title, portLabel, kind: wireKind, value,
+        hint: `${title} · ${portLabel} · ${upstreamHint(value, wireKind)}` },
+      insert: (node) => insertWiredNode(wireMenu, node, 'in'),
+    });
+  };
+
   const inspected = doc.nodes.find((node) => node.id === inspectNodeId);
   const activeSelId = selSet.size === 1 ? [...selSet][0]! : null;
   const toggleView = (id: string) => setDoc((current) => {
@@ -928,8 +988,20 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     if (delay <= 0) send();
     else slot.timer = window.setTimeout(send, delay);
   };
+  const publishLive = (node: CanvasNode, outputs: Record<string, PortValue>): void => {
+    const entries = Object.entries(outputs);
+    if (!entries.length) return;
+    if (node.type === 'aiRuleBlock') {
+      for (const port of ['value', 'series']) if (!Object.hasOwn(outputs, port)) live.current.delete(`${node.id}|${port}`);
+    }
+    for (const [port, value] of entries) live.current.set(`${node.id}|${port}`, value);
+    setFrame((f) => f + 1);
+  };
   const makeBodyProps = (n: CanvasNode): NodeBodyProps => {
     const self = evalOutput(ctx, n.id);
+    const upstreamWire = n.type === 'aiRuleBlock' ? doc.wires.find((wire) => wire.to === n.id && (wire.toPort ?? 'in') === 'in') : undefined;
+    const upstreamNode = upstreamWire && doc.nodes.find((source) => source.id === upstreamWire.from);
+    const upstreamPort = upstreamNode && nodePorts(upstreamNode, 'out').find(({ id }) => id === (upstreamWire?.fromPort ?? 'out'));
     const pipeline = self
       && (self.kind === 'lab408Data' || self.kind === 'physicsData' || self.kind === 'calculusData' || self.kind === 'businessData')
       && !self.error && self.result.frames.length > 0 ? self.pipeline : null;
@@ -940,19 +1012,13 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       node: n,
       values: inputValues(ctx, n),
       self,
+      ...(upstreamNode ? { upstreamLabel: [nodeTitle(upstreamNode), upstreamPort?.label].filter(Boolean).join(' · ') } : {}),
       onParams: !readOnly && !audienceParams ? (patch) => updateParams(n.id, patch) : exposed?.length && (!readOnly || interactivePanel) ? (patch) => {
         const allowed = Object.fromEntries(exposed.filter((param) => Object.hasOwn(patch, param.param_key))
           .map((param) => [param.param_key, patch[param.param_key]!]));
         if (Object.keys(allowed).length) updateParams(n.id, allowed);
       } : undefined,
-      onLive: (outputs) => {
-        const keys = Object.keys(outputs);
-        if (!keys.length) return;
-        for (const [port, value] of Object.entries(outputs)) {
-          live.current.set(`${n.id}|${port}`, value);
-        }
-        setFrame((f) => f + 1);
-      },
+      onLive: (outputs) => publishLive(n, outputs),
       onText: readOnly || audienceParams ? undefined : (text) => {
         patchNode(n.id, { text });
         if (isPipelineStage(n.type)) pulseFrom(n.id);
@@ -1002,15 +1068,17 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     if (!restoredViewport.current) fitAll();
   }, [composing, doc.nodes.length, fitAll]);
 
+  const ruleRunners = Array.from(aiRuleInputs(ctx), ({ node, values }) =>
+    <AiRuleLive key={node.id} node={node} values={values} onLive={(outputs) => publishLive(node, outputs)} />);
   const viewportPoint = () => ({ x: (vpRef.current?.clientWidth ?? 0) / 2, y: (vpRef.current?.clientHeight ?? 0) / 2 });
-  if (mode === 'instrument') return <InstrumentStage
+  if (mode === 'instrument') return <>{ruleRunners}<InstrumentStage
     key={templateKind ?? workId}
     doc={doc} templateKind={templateKind} readOnly={readOnly} interactivePanel={interactivePanel} slideInstrument={slideInstrument} onCompose={onCompose}
     getBodyProps={makeBodyProps} nodeTitle={nodeTitle}
     cursors={pipelineCursors} setCursor={setCursor} pipelineScope={pipelineWork} presentationKey={presentationKey}
     workshopEmbed={workshopEmbed} audienceParams={audienceParams}
     onPreset={readOnly ? undefined : onPreviewPreset ?? (preset => setDoc(current => applyPresetToDoc(current, preset, audienceKeys || undefined)))}
-  />;
+  /></>;
 
   const canvas = (
     <div className={styles.viewport + (embedded ? ' ' + styles.viewportEmbedded : '') + (composing ? ' ' + styles.composeViewport : '')}
@@ -1035,8 +1103,11 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
         onAddNode?.(type, Math.max(0, point.x), Math.max(0, point.y));
       } : undefined}>
       {composing && <div className={styles.canvasSurface} aria-hidden="true" />}
-      {composing && schematic ? doc.nodes.filter((node) => node.type === 'aiRuleBlock').map((node) =>
-        <AiRuleLive key={node.id} node={node} onLive={makeBodyProps(node).onLive} />) : null}
+      {wireMenu && wireSource && !readOnly && <WireQuickMenu
+        clientX={wireMenu.clientX} clientY={wireMenu.clientY} items={wireRecommendations} onClose={closeWireMenu}
+        onChoose={(item: WireRecommendation) => insertWiredNode(wireMenu, createCanvasNode(item.type, 0, 0), item.inPortId)}
+        onCreate={onOpenRuleCreator ? openWiredCreator : undefined}
+      />}
       <div
         ref={innerRef}
         data-canvas-world
@@ -1104,7 +1175,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
           const exposed = doc.panel?.exposed_params.filter((param) => param.node_id === n.id) ?? [];
           const bodyProps = makeBodyProps(n);
           const compact = schematic && n.type !== 'textNote' && n.type !== 'latexNote' && n.type !== 'functionSource';
-          const preview = compact && n.type !== 'slider' ? nodeSchematicMeta(n, def, bodyProps.self) : null;
+          const preview = compact && n.type !== 'slider' && n.type !== 'aiRuleBlock' ? nodeSchematicMeta(n, def, bodyProps.self) : null;
           return (
             <div
               key={n.id}
@@ -1210,9 +1281,9 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
                   className={`${styles.port} ${styles.portIn}`}
                   style={{ top: `${((i + 1) / (nIn + 1)) * 100}%` }}
                   data-port
-                  title={'输入 ' + p.label + ' · ' + (p.kind ?? 'any')}
+                  title={'输入 ' + p.label + ' · ' + (p.kind ?? p.accepts?.join('/') ?? 'any')}
                 >
-                  <span className={styles.portLabel}>{p.label} · {p.kind ?? 'any'}</span>
+                  <span className={styles.portLabel}>{p.label} · {p.kind ?? p.accepts?.join('/') ?? 'any'}</span>
                 </div>
               ))}
               {visibleNodeIds ? null : outPorts.map((p, i) => (
@@ -1310,5 +1381,5 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     </div>
   );
 
-  return canvas;
+  return <>{ruleRunners}{canvas}</>;
 }

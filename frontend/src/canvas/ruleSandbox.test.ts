@@ -133,3 +133,52 @@ test('Worker 顶层移除网络与构造器入口，原型链也拿不到 fetch'
   assert.equal(messages[1]?.type, 'result');
   assert.equal((messages[1]?.output as { frames: Array<{ title: string }> }).frames[0]?.title, 'undefined');
 });
+
+test('清洗图元、颜色及最大网格，忽略越界高亮', () => {
+  const [frame] = sanitizePipelineResult({ frames: [{
+    shapes: { viewBox: [10, 9999], items: Array.from({ length: 170 }, () => ({
+      kind: 'circle', cx: 20, cy: NaN, r: 5, fill: 'url(https://example.invalid)', stroke: '#abc',
+    })) },
+    grid: { cells: Array.from({ length: 35 }, () => Array(36).fill(Infinity)), activeCell: [0, 32], palette: 'bad' },
+  }] }).frames;
+  assert.deepEqual(frame?.shapes?.viewBox, [100, 800]);
+  assert.equal(frame?.shapes?.items.length, 160);
+  assert.equal(frame?.shapes?.items[0]?.fill, undefined);
+  assert.equal(frame?.shapes?.items[0]?.stroke, '#abc');
+  assert.equal(frame?.grid?.cells.length, 32);
+  assert.deepEqual(frame?.grid?.cells[0], Array(32).fill(0));
+  assert.equal(frame?.grid?.palette, 'heat');
+  assert.equal(frame?.grid?.activeCell, undefined);
+});
+
+test('Worker 的 rand 可复现且能同时读取上游数据', async () => {
+  const code = 'function run({ upstream, rand }) { return { data: { v: upstream[0].v, r: rand() }, frames: [{}] }; }';
+  const run = (seed: number) => runRuleInSandbox(code, { text: '', params: { seed }, upstream: [{ kind: 'scalar', v: 9 }] }, {
+    workerFactory(source) {
+      const worker = {
+        onmessage: null as ((event: MessageEvent) => void) | null,
+        onerror: null,
+        postMessage(data: unknown) {
+          const sandbox = { self: { postMessage: (reply: unknown) => worker.onmessage?.({ data: reply } as MessageEvent) } };
+          runInNewContext(source, sandbox);
+          (sandbox.self as unknown as { onmessage: (event: { data: unknown }) => void }).onmessage({ data });
+        },
+        terminate() {},
+      };
+      return worker;
+    },
+  });
+  const { result } = await run(12);
+  assert.equal(result.data.v, 9);
+  assert.deepEqual((await run(12)).result.data, result.data);
+  assert.notEqual((await run(13)).result.data.r, result.data.r);
+});
+
+test('稀疏热图保留原坐标，空单元以零填充', () => {
+  const cells: number[][] = [];
+  cells[1] = [];
+  cells[1][2] = 7;
+  const [frame] = sanitizePipelineResult({ frames: [{ grid: { cells, activeCell: [1, 2] } }] }).frames;
+  assert.deepEqual(frame?.grid?.cells, [[], [0, 0, 7]]);
+  assert.deepEqual(frame?.grid?.activeCell, [1, 2]);
+});

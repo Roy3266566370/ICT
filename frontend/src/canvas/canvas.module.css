@@ -997,3 +997,67 @@
 @media (max-width: 600px) {
   .composeViewport .selBar { bottom: 115px; max-width: calc(100% - 18px); flex-wrap: wrap; }
 }
+
+.wireQuickMenu {
+  position: fixed;
+  z-index: 120;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: min(280px, calc(100vw - 16px));
+  max-height: min(420px, calc(100dvh - 16px));
+  padding: 9px;
+  border: 1px solid var(--border, #dbe3ee);
+  border-radius: 12px;
+  background: var(--paper, #fff);
+  color: var(--ink, #27364a);
+  box-shadow: 0 10px 28px #16274326;
+}
+
+.wireQuickMenu input {
+  width: 100%;
+  padding: 8px 9px;
+  border: 1px solid #ccd5e3;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.wireQuickMenu button {
+  border: 0;
+  border-radius: 7px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.wireQuickAi { padding: 9px; color: #233e83; background: #eaf1ff; font-weight: 650; }
+.wireQuickAi:hover { background: #dce8ff; }
+
+.wireQuickList {
+  display: grid;
+  gap: 2px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.wireQuickList button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 9px;
+  background: transparent;
+  color: inherit;
+}
+
+.wireQuickList button:hover, .wireQuickList button:focus-visible { background: #edf3fb; }
+.wireQuickList small { display: block; margin-top: 2px; color: #505f73; }
+.wireQuickBadge { flex: none; padding: 2px 5px; border-radius: 5px; color: #44566e; background: #eef2f7; font-size: 11px; }
+.wireQuickEmpty { padding: 7px 9px; color: #505f73; font-size: 13px; }

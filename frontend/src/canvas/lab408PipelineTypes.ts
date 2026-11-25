@@ -11,7 +11,35 @@ export interface PipelineControl {
   options?: { value: number; label: string }[];
 }
 
+type ShapeStyle = { stroke?: string; strokeWidth?: number; opacity?: number; label?: string };
+type FilledShape = ShapeStyle & { fill?: string };
+
+export type FrameShape =
+  | (FilledShape & { kind: 'circle'; cx: number; cy: number; r: number })
+  | (FilledShape & { kind: 'rect'; x: number; y: number; w: number; h: number; rx?: number })
+  | (ShapeStyle & { kind: 'line' | 'arrow'; x1: number; y1: number; x2: number; y2: number; dashed?: boolean })
+  | (FilledShape & { kind: 'polygon'; points: [number, number][] })
+  | { kind: 'text'; x: number; y: number; text: string; fill?: string; size?: number; anchor?: 'start' | 'middle' | 'end' };
+
+export interface FrameShapes {
+  viewBox?: [number, number];
+  items: FrameShape[];
+}
+
+export interface FrameGrid {
+  cells: number[][];
+  rowLabels?: string[];
+  colLabels?: string[];
+  min?: number;
+  max?: number;
+  palette?: 'heat' | 'diverging' | 'binary';
+  showValues?: boolean;
+  activeCell?: [number, number];
+}
+
 export interface PipelineFrame {
+  shapes?: FrameShapes;
+  grid?: FrameGrid;
   title: string;
   summary?: string;
   columns?: string[];

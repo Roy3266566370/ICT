@@ -55,6 +55,7 @@ export interface NodeBodyProps {
   values: Record<string, PortValue | null>;
   /** 本节点输出的求值结果（无输出为 null），供源/变换节点自显 */
   self: PortValue | null;
+  upstreamLabel?: string;
   /** 参数写回（画布负责传播与持久化） */
   onParams?: (patch: Record<string, number>) => void;
   /** 文本写回 */
@@ -449,6 +450,8 @@ function QuizBody({ values }: NodeBodyProps): JSX.Element {
   );
 }
 
+const sparkInputKinds = ['scalar', 'body', 'matrix2'] as const;
+
 function extract(v: PortValue | null | undefined): number | null {
   if (!v) return null;
   if (v.kind === 'scalar') return v.v;
@@ -682,7 +685,7 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   eigRead: { title: '特征值读数', badge: '视图', width: 200, inputs: [IN_M2], Body: EigReadBody },
   squareView: { title: '像的形状', badge: '视图', width: 200, inputs: [IN_M2], Body: SquareViewBody },
   quiz: { title: '预测闸门', badge: '学习', width: 210, inputs: [IN_M2], Body: QuizBody },
-  spark: { title: '记录仪', badge: '学习', width: 210, inputs: [{ id: 'in', label: '训练' }, { id: 'validation', label: '验证' }], Body: SparkBody },
+  spark: { title: '记录仪', badge: '学习', width: 210, inputs: [{ id: 'in', label: '训练', accepts: sparkInputKinds }, { id: 'validation', label: '验证', accepts: sparkInputKinds }], Body: SparkBody },
   textNote: { title: '便签', badge: '文字', width: 230, Body: TextNoteBody },
   latexNote: { title: '公式卡', badge: '文字', width: 240, Body: LatexNoteBody },
   cobweb: { title: '蛛网图', badge: '实验', width: 230, Body: CobwebBody },

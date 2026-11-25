@@ -15,7 +15,6 @@ import { SciencePipelineScene } from './SciencePipelineScene.tsx';
 import { FunctionSourceControls } from './CalculusNodes.tsx';
 import { MatrixSvg, RealImagePanel, CsvDatasetPanel } from './NodeInspector.tsx';
 import { NODE_DEFS, type NodeBodyProps } from './nodes.tsx';
-import { AiRuleLive } from './AiRuleBlockNode.tsx';
 import { parseAiRulePayload } from './aiRuleBlock.ts';
 import { findWorkshopTemplate, workshopFormula } from './templateCatalog.ts';
 import type { WorkshopPluginPreset } from '../document/types.ts';
@@ -634,7 +633,9 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
     : doc.nodes.filter((node) => node.type !== 'textNote' && node.type !== 'latexNote');
   const view = views.find(({ id }) => id === activeId) ?? views[0];
   const props = view && getBodyProps(view);
-  const customInput = props?.values.in?.kind === 'customFrames' ? props.values.in : undefined;
+  const customValue = view?.type === 'aiRuleBlock' ? props?.self
+    : view?.type === 'universalStageView' ? props?.values.in : undefined;
+  const customInput = customValue?.kind === 'customFrames' ? customValue : undefined;
   const target = pipeline(props?.self);
   const branch = new Set<string>();
   const queue = view ? [view.id] : [];
@@ -645,7 +646,10 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
     for (const wire of doc.wires) if (wire.to === id) queue.push(wire.from);
   }
   const ancestors = doc.nodes.filter(({ id }) => branch.has(id));
-  const customBlock = ancestors.find((node) => node.type === 'aiRuleBlock');
+  const stageInput = view?.type === 'universalStageView' ? doc.wires.find((wire) => wire.to === view.id && (wire.toPort ?? 'in') === 'in') : undefined;
+  const directSource = stageInput ? nodes.get(stageInput.from) : undefined;
+  const customBlock = view?.type === 'aiRuleBlock' ? view
+    : directSource?.type === 'aiRuleBlock' ? directSource : ancestors.find((node) => node.type === 'aiRuleBlock');
   const customBlockProps = customBlock ? getBodyProps(customBlock) : undefined;
   const customPayload = customBlock ? parseAiRulePayload(customBlock.payload) : null;
   const customFrames = customInput?.result.frames ?? [];
@@ -699,7 +703,7 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
     props: primaryProps, detailProps: other && getBodyProps(other), pinnedProps: props, source: sourceProps, position,
     seek: (value) => setCursor(timelineKey, value),
   });
-  const deep = !showPin && view && !target && !customInput && deepProcess({ ancestors, getBodyProps, cursors, setCursor, scope: pipelineScope });
+  const deep = !showPin && view && view.type !== 'aiRuleBlock' && !target && !customInput && deepProcess({ ancestors, getBodyProps, cursors, setCursor, scope: pipelineScope });
   const process = deep || (stageOutput && { ...stageOutput, key: timelineKey, last: rawLast, label: '帧' }) || customProcess;
   const current = process ? Math.max(0, Math.min(process.last, cursors[process.key] ?? 0)) : 0;
   const choosePreset = (preset: WorkshopPluginPreset) => {
@@ -753,8 +757,6 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
     data-restricted-parameters={audienceParams !== undefined || undefined}
     data-no-public-parameters={audienceParams?.length === 0 || undefined}
     data-business-instrument={target?.kind === 'businessData' || undefined}>
-    {ancestors.filter((node) => node.type === 'aiRuleBlock' && node.id !== view?.id).map((node) =>
-      <AiRuleLive key={node.id} node={node} onLive={getBodyProps(node).onLive} />)}
     <main className={styles.stage}>
       <div className={styles.scroll}>
         <section className={styles.question}>

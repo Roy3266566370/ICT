@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  CUSTOM_BLOCKS_KEY, instantiateCustomBlock, listCustomBlocks, removeCustomBlock, saveCustomBlock,
+  CUSTOM_BLOCKS_KEY, customBlockBadge, instantiateCustomBlock, listCustomBlocks, removeCustomBlock,
+  saveCustomAiRuleBlock, saveCustomBlock,
 } from './customBlocks.ts';
+import { defaultAiRulePayload } from './aiRuleBlock.ts';
 import type { CompositeSub } from './types.ts';
 
 class MemoryStorage implements Storage {
@@ -74,6 +76,33 @@ test('我的积木库忽略损坏的本地数据', () => {
     assert.deepEqual(listCustomBlocks(), []);
     storage.setItem(CUSTOM_BLOCKS_KEY, JSON.stringify([{ id: 'x', title: '坏积木', createdAt: 1, sub: {} }]));
     assert.deepEqual(listCustomBlocks(), []);
+  } finally {
+    if (previous === undefined) delete (globalThis as { localStorage?: Storage }).localStorage;
+    else Object.defineProperty(globalThis, 'localStorage', { value: previous, configurable: true });
+  }
+});
+
+
+test('我的积木库支持直接保存并实例化单块自建 AI 积木', () => {
+  const previous = globalThis.localStorage;
+  const storage = new MemoryStorage();
+  Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true });
+  try {
+    const payload = defaultAiRulePayload();
+    const saved = saveCustomAiRuleBlock('自定义二次函数', payload, { a: 2 }, '测试数据');
+    const listed = listCustomBlocks();
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0]!.kind, 'aiRule');
+    assert.equal(customBlockBadge(listed[0]!), '自建积木');
+
+    const node = instantiateCustomBlock(listed[0]!, 180, 240);
+    assert.equal(node.type, 'aiRuleBlock');
+    assert.equal(node.params.a, 2);
+    assert.equal(node.text, '测试数据');
+    assert.ok(node.payload?.includes('自定义二次函数'));
+
+    removeCustomBlock(saved.id);
+    assert.equal(listCustomBlocks().length, 0);
   } finally {
     if (previous === undefined) delete (globalThis as { localStorage?: Storage }).localStorage;
     else Object.defineProperty(globalThis, 'localStorage', { value: previous, configurable: true });

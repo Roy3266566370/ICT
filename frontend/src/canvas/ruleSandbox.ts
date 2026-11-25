@@ -1,8 +1,8 @@
-/** AI 规则方块的隔离执行沙箱：Blob Worker、80ms 熔断与输出清洗。 */
+/** AI 规则方块的隔离执行沙箱：Blob Worker、300ms 熔断与输出清洗。 */
 
-import type { PipelineFrame, PipelineResult } from './lab408PipelineTypes.ts';
+import type { FrameGrid, FrameShape, FrameShapes, PipelineFrame, PipelineResult } from './lab408PipelineTypes.ts';
 
-export const RULE_TIMEOUT_MS = 80;
+export const RULE_TIMEOUT_MS = 300;
 export const MAX_RULE_FRAMES = 200;
 export const MAX_RULE_ROWS = 200;
 export const MAX_RULE_GRAPH_NODES = 120;
@@ -47,7 +47,7 @@ const WORKER_PARAMS = `'input', 'Math', ${SHADOWED_API.map((name) => `'${name}'`
 
 const HARDENED_GLOBALS = [
   ...SHADOWED_API.filter((name) => name !== 'self' && name !== 'globalThis'),
-  'eval', 'Worker', 'SharedWorker', 'MessageChannel', 'MessagePort', 'WebTransport', 'caches',
+  'eval', 'Date', 'Worker', 'SharedWorker', 'MessageChannel', 'MessagePort', 'WebTransport', 'caches',
 ];
 
 export const RULE_WORKER_SOURCE = String.raw`
@@ -64,6 +64,7 @@ ${JSON.stringify(HARDENED_GLOBALS)}.forEach(function (name) {
     try { self[name] = undefined; } catch (ignored) {}
   }
 });
+try { Object.defineProperty(Math, 'random', { value: undefined, writable: false, configurable: false }); } catch (error) {}
 self.onmessage = function (event) {
   var data = event.data || {};
   if (data.type !== 'run') return;
@@ -71,6 +72,7 @@ self.onmessage = function (event) {
     var started = __now();
     var safeMath = {};
     Object.getOwnPropertyNames(Math).forEach(function (key) {
+      if (key === 'random') return;
       var value = Math[key];
       safeMath[key] = typeof value === 'function' ? value.bind(Math) : value;
     });
@@ -86,8 +88,16 @@ self.onmessage = function (event) {
       ${WORKER_PARAMS},
       '"use strict";\n' + data.code + '\nreturn run(input);'
     );
+    var seed = data.input.params && data.input.params.seed;
+    seed = Number.isFinite(seed) ? Math.floor(seed) >>> 0 : 42;
+    function rand() {
+      seed = (seed + 0x6D2B79F5) >>> 0;
+      var value = Math.imul(seed ^ (seed >>> 15), seed | 1);
+      value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    }
     var output = runner(
-      data.input,
+      { ...data.input, rand: rand },
       safeMath,
       deny('fetch'), deny('XMLHttpRequest'), deny('WebSocket'), deny('EventSource'),
       deny('importScripts'), denied, denied, denied, denied, denied, denied, denied, denied,
@@ -119,6 +129,97 @@ function sanitizeCell(value: unknown): string | number {
   if (typeof value === 'string') return value.slice(0, 400);
   if (typeof value === 'boolean') return value ? '是' : '否';
   return '—';
+}
+
+const SAFE_COLOR_NAMES = new Set([
+  'none', 'transparent', 'black', 'white', 'gray', 'grey', 'red', 'orange', 'yellow', 'green',
+  'blue', 'purple', 'pink', 'brown', 'cyan', 'magenta', 'navy', 'teal', 'lime', 'gold', 'silver',
+  'maroon', 'olive', 'aqua', 'fuchsia', 'coral', 'indigo', 'tomato', 'steelblue', 'royalblue',
+  'rebeccapurple', 'seagreen', 'slategray', 'lightgray', 'darkgray', 'skyblue', 'crimson',
+]);
+const COLOR_NUMBER = String.raw`[+-]?(?:\d{1,3}(?:\.\d{1,4})?|\.\d{1,4})%?`;
+const RGB_COLOR = new RegExp(`^rgb\\(\\s*${COLOR_NUMBER}\\s*,\\s*${COLOR_NUMBER}\\s*,\\s*${COLOR_NUMBER}\\s*\\)$`);
+const RGBA_COLOR = new RegExp(`^rgba\\(\\s*${COLOR_NUMBER}\\s*,\\s*${COLOR_NUMBER}\\s*,\\s*${COLOR_NUMBER}\\s*,\\s*${COLOR_NUMBER}\\s*\\)$`);
+const MODERN_RGB_COLOR = new RegExp(`^rgba?\\(\\s*${COLOR_NUMBER}\\s+${COLOR_NUMBER}\\s+${COLOR_NUMBER}(?:\\s*\/\\s*${COLOR_NUMBER})?\\s*\\)$`);
+
+function sanitizeColor(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value.length > 64) return undefined;
+  const color = value.trim().toLowerCase();
+  if (SAFE_COLOR_NAMES.has(color) || /^#(?:[\da-f]{3}|[\da-f]{6}|[\da-f]{8})$/.test(color)
+      || RGB_COLOR.test(color) || RGBA_COLOR.test(color) || MODERN_RGB_COLOR.test(color)) return color;
+  return undefined;
+}
+
+function bounded(value: unknown, min: number, max: number, fallback = 0): number {
+  return Math.max(min, Math.min(max, finite(value, fallback)));
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function sanitizeShape(raw: unknown): FrameShape[] {
+  const s = record(raw);
+  const coord = (v: unknown) => bounded(v, -4000, 4000);
+  const extent = (v: unknown) => bounded(v, 0, 4000);
+  const fill = sanitizeColor(s.fill);
+  const style = {
+    stroke: sanitizeColor(s.stroke),
+    strokeWidth: s.strokeWidth === undefined ? undefined : bounded(s.strokeWidth, 0, 40),
+    opacity: s.opacity === undefined ? undefined : bounded(s.opacity, 0, 1, 1),
+    label: clipText(s.label, 40) || undefined,
+  };
+  switch (s.kind) {
+    case 'circle':
+      return [{ ...style, kind: s.kind, cx: coord(s.cx), cy: coord(s.cy), r: extent(s.r), fill }];
+    case 'rect':
+      return [{ ...style, kind: s.kind, x: coord(s.x), y: coord(s.y), w: extent(s.w), h: extent(s.h), rx: extent(s.rx), fill }];
+    case 'line':
+    case 'arrow':
+      return [{ ...style, kind: s.kind, x1: coord(s.x1), y1: coord(s.y1), x2: coord(s.x2), y2: coord(s.y2), dashed: s.kind === 'line' && s.dashed === true }];
+    case 'polygon': {
+      const points = Array.isArray(s.points) ? s.points.slice(0, 64).flatMap((p): [number, number][] =>
+        Array.isArray(p) && p.length >= 2 ? [[coord(p[0]), coord(p[1])]] : []) : [];
+      return points.length >= 3 ? [{ ...style, kind: s.kind, points, fill }] : [];
+    }
+    case 'text':
+      return [{
+        kind: s.kind, x: coord(s.x), y: coord(s.y), text: clipText(s.text, 80), fill,
+        size: bounded(s.size, 6, 80, 14),
+        anchor: s.anchor === 'middle' || s.anchor === 'end' ? s.anchor : 'start',
+      }];
+    default:
+      return [];
+  }
+}
+
+function sanitizeShapes(raw: unknown): FrameShapes | undefined {
+  const { viewBox, items } = record(raw);
+  if (!Array.isArray(items)) return undefined;
+  const size = Array.isArray(viewBox) ? viewBox : [];
+  return {
+    viewBox: [bounded(size[0], 100, 1000, 400), bounded(size[1], 80, 800, 240)],
+    items: items.slice(0, 160).flatMap(sanitizeShape),
+  };
+}
+
+function sanitizeGrid(raw: unknown): FrameGrid | undefined {
+  const grid = record(raw);
+  if (!Array.isArray(grid.cells)) return undefined;
+  const cells = Array.from(grid.cells.slice(0, 32), (row) =>
+    Array.isArray(row) ? Array.from(row.slice(0, 32), (v) => finite(v)) : []);
+  const columns = Math.max(0, ...cells.map((row) => row.length));
+  const [r, c] = Array.isArray(grid.activeCell) ? grid.activeCell : [];
+  return {
+    cells,
+    rowLabels: Array.isArray(grid.rowLabels) ? grid.rowLabels.slice(0, cells.length).map((label) => clipText(label, 40)) : undefined,
+    colLabels: Array.isArray(grid.colLabels) ? grid.colLabels.slice(0, columns).map((label) => clipText(label, 40)) : undefined,
+    min: Number.isFinite(grid.min) ? grid.min as number : undefined,
+    max: Number.isFinite(grid.max) ? grid.max as number : undefined,
+    palette: grid.palette === 'diverging' || grid.palette === 'binary' ? grid.palette : 'heat',
+    showValues: typeof grid.showValues === 'boolean' ? grid.showValues : undefined,
+    activeCell: Number.isInteger(r) && Number.isInteger(c) && c >= 0 && c < (cells[r]?.length ?? 0) ? [r, c] : undefined,
+  };
 }
 
 function sanitizeFrame(raw: unknown, index: number): PipelineFrame {
@@ -175,6 +276,8 @@ function sanitizeFrame(raw: unknown, index: number): PipelineFrame {
       return [{ from, to, active: Boolean(item.active), label: clipText(item.label, 40) }];
     }) : [],
   } : undefined;
+  const shapes = sanitizeShapes(frame.shapes);
+  const grid = sanitizeGrid(frame.grid);
   const highlightRows = Array.isArray(frame.highlightRows)
     ? frame.highlightRows.slice(0, 40).map((row) => Math.max(0, Math.round(finite(row)))).filter((row) => !rows || row < rows.length)
     : undefined;
@@ -187,6 +290,8 @@ function sanitizeFrame(raw: unknown, index: number): PipelineFrame {
     ...(series ? { series } : {}),
     ...(timeline ? { timeline } : {}),
     ...(graph ? { graph } : {}),
+    ...(shapes ? { shapes } : {}),
+    ...(grid ? { grid } : {}),
   };
 }
 

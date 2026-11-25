@@ -356,3 +356,19 @@ export function inputValues(ctx: EvalCtx, node: CanvasNode): Record<string, Port
   }
   return out;
 }
+
+
+// Rules inside composite blocks need the same boundary values as synchronous nodes.
+export function* aiRuleInputs(ctx: EvalCtx): Generator<{ node: CanvasNode; values: ReturnType<typeof inputValues> }> {
+  function* visit(nodes: CanvasNode[], parents: CanvasNode[]): Generator<{ node: CanvasNode; values: ReturnType<typeof inputValues> }> {
+    for (const node of nodes) {
+      if (node.type === 'aiRuleBlock') {
+        const scope = parents.reduce((parent, composite) => subCtxOf(parent, composite)!, ctx);
+        yield { node, values: inputValues(scope, node) };
+      } else if (node.sub) {
+        yield* visit(node.sub.nodes, [...parents, node]);
+      }
+    }
+  }
+  yield* visit(ctx.doc.nodes, []);
+}

@@ -1,8 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import type { NodeBodyProps } from './nodes.tsx';
 import { CheckOriginalButton, Timeline } from './Lab408SimNodes';
 import { find408Stage } from './lab408Pipeline.ts';
-import type { DiagramKind, PipelineControl, PipelineFrame } from './lab408PipelineTypes.ts';
+import type { DiagramKind, FrameGrid, FrameShape, FrameShapes, PipelineControl, PipelineFrame } from './lab408PipelineTypes.ts';
 import styles from './lab408Pipeline.module.css';
 
 const colors = ['#3159ae', '#a54724', '#087b6d', '#7750a0', '#815d20'];
@@ -125,16 +125,122 @@ function FrameGantt({ timeline }: { timeline: NonNullable<PipelineFrame['timelin
   );
 }
 
-export function PipelineFrameDetails({ frame, showTitle = true, compact = false }: {
-  frame: PipelineFrame; showTitle?: boolean; compact?: boolean;
+function VectorShape({ shape, marker }: { shape: FrameShape; marker: string }): JSX.Element {
+  if (shape.kind === 'text') {
+    return <text x={shape.x} y={shape.y} fill={shape.fill ?? '#24374f'} fontSize={shape.size ?? 14}
+      textAnchor={shape.anchor}>{shape.text}</text>;
+  }
+  const stroke = { stroke: shape.stroke ?? '#3159ae', strokeWidth: shape.strokeWidth ?? 2 };
+  let graphic: JSX.Element;
+  let x: number;
+  let y: number;
+  switch (shape.kind) {
+    case 'circle':
+      x = shape.cx;
+      y = shape.cy;
+      graphic = <circle {...stroke} cx={x} cy={y} r={shape.r} fill={shape.fill ?? '#edf4ff'} />;
+      break;
+    case 'rect':
+      x = shape.x + shape.w / 2;
+      y = shape.y + shape.h / 2;
+      graphic = <rect {...stroke} x={shape.x} y={shape.y} width={shape.w} height={shape.h} rx={shape.rx} fill={shape.fill ?? '#edf4ff'} />;
+      break;
+    case 'polygon':
+      x = shape.points.reduce((sum, point) => sum + point[0], 0) / shape.points.length;
+      y = shape.points.reduce((sum, point) => sum + point[1], 0) / shape.points.length;
+      graphic = <polygon {...stroke} points={shape.points.map((point) => point.join(',')).join(' ')} fill={shape.fill ?? '#edf4ff'} />;
+      break;
+    case 'line':
+    case 'arrow':
+      x = (shape.x1 + shape.x2) / 2;
+      y = (shape.y1 + shape.y2) / 2 - 8;
+      graphic = <line {...stroke} x1={shape.x1} x2={shape.x2} y1={shape.y1} y2={shape.y2}
+        strokeDasharray={shape.dashed ? '6 4' : undefined} markerEnd={shape.kind === 'arrow' ? `url(#${marker})` : undefined} />;
+      break;
+  }
+  return <g opacity={shape.opacity}>
+    {graphic}
+    {shape.label && <text x={x} y={y} textAnchor="middle" dominantBaseline="central" className={styles.shapeLabel}>{shape.label}</text>}
+  </g>;
+}
+
+function ShapesView({ shapes }: { shapes: FrameShapes }): JSX.Element {
+  const marker = useId();
+  const [width, height] = shapes.viewBox ?? [400, 240];
+  return <svg className={styles.shapes} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="当前帧矢量图">
+    <defs>
+      <marker id={marker} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+        <path d="M0 0L10 5L0 10Z" fill="context-stroke" />
+      </marker>
+    </defs>
+    {shapes.items.map((shape, i) => <VectorShape key={i} shape={shape} marker={marker} />)}
+  </svg>;
+}
+
+const gridBlue = [37, 84, 165] as const;
+const gridRed = [171, 38, 47] as const;
+
+function gridColor(t: number, palette: FrameGrid['palette']): { background: string; color: string } {
+  const middle = palette === 'diverging' ? [250, 250, 250] : [255, 225, 112];
+  const start = t < 0.5 ? gridBlue : middle;
+  const end = t < 0.5 ? middle : gridRed;
+  const ratio = t < 0.5 ? t * 2 : t * 2 - 1;
+  const rgb = palette === 'binary' ? (t < 0.5 ? [232, 238, 245] : [41, 55, 77])
+    : start.map((channel, i) => Math.round(channel + (end[i]! - channel) * ratio));
+  const light = rgb.map((channel) => {
+    const srgb = channel / 255;
+    return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+  });
+  return { background: `rgb(${rgb.join(',')})`,
+    color: light[0]! * 0.2126 + light[1]! * 0.7152 + light[2]! * 0.0722 > 0.18 ? '#101722' : '#fff' };
+}
+
+function GridView({ grid, compact }: { grid: FrameGrid; compact: boolean }): JSX.Element {
+  const values = grid.cells.flat();
+  const columns = Math.max(0, ...grid.cells.map((row) => row.length));
+  const showValues = grid.showValues !== false && (!compact || Math.max(grid.cells.length, columns) <= 12);
+  const low = grid.min ?? Math.min(...values);
+  const high = grid.max ?? Math.max(...values);
+  const scale = Math.max(1, Math.abs(low), Math.abs(high));
+  const span = high / scale - low / scale;
+  return <div className={styles.gridScroll} tabIndex={0} role="region" aria-label="当前帧网格热图">
+    <table className={styles.frameGrid} data-values={showValues || undefined}>
+      {grid.colLabels?.length ? <thead><tr>
+        {grid.rowLabels?.length ? <td /> : null}
+        {Array.from({ length: columns }, (_, col) => <th key={col} scope="col">{grid.colLabels?.[col]}</th>)}
+      </tr></thead> : null}
+      <tbody>{grid.cells.map((row, r) => <tr key={r}>
+        {grid.rowLabels?.length ? <th scope="row">{grid.rowLabels[r]}</th> : null}
+        {Array.from({ length: columns }, (_, c) => {
+          const value = row[c];
+          if (value === undefined) return <td key={c} />;
+          const normalized = span > 0 ? Math.max(0, Math.min(1, (value / scale - low / scale) / span))
+            : grid.palette === 'binary' ? Number(value > 0) : 0.5;
+          const active = grid.activeCell?.[0] === r && grid.activeCell[1] === c;
+          return <td key={c} style={gridColor(normalized, grid.palette)} data-active={active || undefined}
+            title={String(value)} aria-label={active ? `当前单元格 ${value}` : String(value)}>
+            {showValues ? Number(value.toPrecision(3)) : null}
+          </td>;
+        })}
+      </tr>)}</tbody>
+    </table>
+  </div>;
+}
+
+export function PipelineFrameDetails({ frame, showTitle = true, showSummary = true, compact = false }: {
+  frame: PipelineFrame; showTitle?: boolean; showSummary?: boolean; compact?: boolean;
 }): JSX.Element {
   const state = frame.title.startsWith('Hit') ? 'hit' : frame.title.startsWith('Miss') ? 'miss' : undefined;
-  const graphOnly = !!frame.graph && !frame.rows?.length && !frame.series?.length && !frame.timeline?.length;
+  const hasShapes = Boolean(frame.shapes?.items.length);
+  const hasGrid = Boolean(frame.grid?.cells.some((row) => row.length));
+  const graphOnly = !!frame.graph && !hasShapes && !hasGrid && !frame.rows?.length && !frame.series?.length && !frame.timeline?.length;
   return (
     <div className={styles.frame} data-cache-state={state} data-pipeline-graph={graphOnly || undefined}
       data-compact={compact || undefined}>
       {showTitle && <h4>{frame.title}</h4>}
-      {frame.summary && frame.summary !== frame.title && <p>{frame.summary}</p>}
+      {showSummary && frame.summary && frame.summary !== frame.title && <p>{frame.summary}</p>}
+      {hasShapes && frame.shapes && <ShapesView shapes={frame.shapes} />}
+      {hasGrid && frame.grid && <GridView grid={frame.grid} compact={compact} />}
       {frame.graph && <FrameGraph graph={frame.graph} />}
       {frame.series?.length ? <FrameChart series={frame.series} /> : null}
       {frame.timeline?.length ? <FrameGantt timeline={frame.timeline} /> : null}

@@ -18,7 +18,7 @@ export function find408Stage(node: Pick<CanvasNode, 'type' | 'payload'>): { pipe
 
 const portId = (index: number) => index ? `in${index + 1}` : 'in';
 
-export function pipelinePorts(node: CanvasNode, dir: 'in' | 'out'): readonly PortSpec[] {
+export function pipelinePorts(node: Pick<CanvasNode, 'type' | 'payload'>, dir: 'in' | 'out'): readonly PortSpec[] {
   const definition = find408Stage(node);
   if (!definition) return [];
   if (dir === 'out') return [{ id: 'out', label: '实验数据', kind: 'lab408Data' }];

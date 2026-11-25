@@ -23,7 +23,7 @@ FORBIDDEN_CODE = re.compile(
     r"Date|performance|crypto|Worker|SharedWorker|MessageChannel|MessagePort|WebTransport|caches)\b|"
     r"Math\.random|import\s*\(|new\s+Function\s*\("
 )
-VIEWS = {"auto", "chart", "graph", "timeline", "table"}
+VIEWS = {"auto", "shapes", "grid", "chart", "graph", "timeline", "table"}
 
 
 class AiRuleUnavailable(RuntimeError):
@@ -93,7 +93,7 @@ def normalize_rule_payload(raw: Any, fallback_prompt: str = "") -> dict[str, Any
         raise ValueError("必须返回 JSON 对象")
     code = raw.get("code") if isinstance(raw.get("code"), str) else ""
     if not re.search(r"function\s+run\s*\(", code):
-        raise ValueError("code 必须包含 function run({ text, params, upstream })")
+        raise ValueError("code 必须包含 function run({ text, params, upstream, rand })")
     if len(code) > MAX_CODE:
         raise ValueError(f"code 超过 {MAX_CODE} 字")
     if FORBIDDEN_CODE.search(code):
@@ -151,14 +151,18 @@ def normalize_rule_payload(raw: Any, fallback_prompt: str = "") -> dict[str, Any
 SYSTEM_PROMPT = """你是万象工坊的 AI 规则方块生成器。只输出一个 JSON 对象，不输出 Markdown 或解释。
 字段：version=1、prompt、title、summary、textLabel(可选)、defaultText(可选)、controls、presets、preferredView、code、verificationNote(可选)。
 要求：
-1. code 必须是字符串，内容为同步纯函数 function run({ text, params, upstream }) { ... return { data, frames }; }。
+1. code 必须是字符串，内容为同步纯函数 function run({ text, params, upstream, rand }) { ... return { data, frames }; }。
 2. 禁止 DOM、网络、定时器、localStorage、eval、new Function、import、require、async/await；只能使用普通 JavaScript、Number、String、Math 等纯计算能力。
-3. frames 为 2–20 帧数组，每帧至少包含中文 title 和 summary；可包含 columns+rows、series、timeline、graph（graph.nodes/edges）。
+3. frames 为 2–20 帧数组，每帧至少包含中文 title 和 summary。显示字段包括：
+   - shapes: { viewBox: [400,240], items: [...] }，最多 160 个 2D 图元，适合力学、几何、电路。图元 kind 和坐标：circle(cx,cy,r)、rect(x,y,w,h,rx?)、line/arrow(x1,y1,x2,y2)、polygon(points:[[x,y],...])、text(x,y,text,size?,anchor?)。可用 fill、stroke、strokeWidth、opacity 和 label。
+   - grid: { cells: number[][], min?, max?, rowLabels?, colLabels?, palette?: 'heat'|'diverging'|'binary', showValues?, activeCell?: [row,col] }，最大 32×32，行列从 0 开始，适合迷宫、动态规划、卷积、生命游戏。
+   - graph: { nodes:[{id,label,x,y,active?}], edges:[{from,to,label?,active?}] }，坐标按 0–100；series: [{label,values:number[]}]；timeline: [{label,segments:[{label,start,end}]}]；columns 与 rows 用于表格。
 4. controls 为 1–6 个参数，每项含 key、label、value；数值型可带 min/max/step，离散型带 options。
 5. presets 为 2–3 组教学情景，每项必须含 label（不要用 name），params 的 key 必须来自 controls；可带 text。
-6. preferredView 只能是 auto/chart/graph/timeline/table。
+6. preferredView 只能是 auto/shapes/grid/chart/graph/timeline/table。
 7. verificationNote 写一条可手算核对的具体算例。
-8. 只做确定性计算，禁止 Math.random、当前时间或外部数据。"""
+8. 只做确定性计算。随机模拟使用 rand()，可提供整数 seed 控件。禁止 Math.random、当前时间或外部数据。
+9. upstream_hints 提供参考数据的端口、类型和字段。当它非空时优先读取 upstream[0]，按 kind 及字段计算，并在未连线或数据暂不可用时回退到示例或参数。把核心有限标量写入 data.value，供下游数值端口使用。"""
 
 
 def generate_ai_rule(
@@ -195,7 +199,7 @@ def generate_ai_rule(
         "prompt": prompt[:2000],
         "current_payload": current_payload if isinstance(current_payload, dict) else None,
         "last_error": (last_error or "")[:1200],
-        "upstream_hints": [str(item)[:40] for item in (upstream_hints or [])][:8],
+        "upstream_hints": [str(item)[:600] for item in (upstream_hints or [])][:8],
     }
     try:
         complete_json(

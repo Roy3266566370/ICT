@@ -9,19 +9,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { CanvasBoard } from '@/canvas/CanvasBoard.tsx';
-import { PALETTE_GROUPS, NODE_DEFS, defaultParams } from '@/canvas/nodes.tsx';
+import { CanvasBoard, type RuleWireRequest } from '@/canvas/CanvasBoard.tsx';
+import { PALETTE_GROUPS, NODE_DEFS } from '@/canvas/nodes.tsx';
 import { buildTemplateDoc } from '@/canvas/templateCatalog.ts';
-import { defaultAiRuleParams, defaultAiRulePayload, serializeAiRulePayload } from '@/canvas/aiRuleBlock.ts';
-import { instantiateCustomBlock, listCustomBlocks, removeCustomBlock, type CustomBlockRecord } from '@/canvas/customBlocks.ts';
-import { applyAutoLayout } from '@/canvas/layout.ts';
+import { defaultAiRuleParams, serializeAiRulePayload, type AiRuleBlockPayload } from '@/canvas/aiRuleBlock.ts';
+import { customBlockBadge, instantiateCustomBlock, listCustomBlocks, removeCustomBlock, saveCustomAiRuleBlock, type CustomBlockRecord } from '@/canvas/customBlocks.ts';
+import { BlockCreatorModal } from '@/canvas/BlockCreatorModal.tsx';
 import { nextId, clamp } from '@/canvas/math.ts';
 import type { CanvasDoc, CanvasTool, InkStroke, NodeType } from '@/canvas/types.ts';
 import { worksApi } from '@/api/works';
 import { extractInkFormula, type InkNodeType } from '@/api/labs';
-import { generateAiRuleBlock } from '@/api/workshopAi';
 import { errorMessage } from '@/api/client';
-import { defaultManual408Text } from '@/labs/manual408';
+import { createCanvasNode } from '@/canvas/createCanvasNode.ts';
 import { compileExpression } from '@/labs/expr';
 import { fitFreehandCurve, curveFamilyLabel, type CurveFitResult } from '@/labs/curveFit';
 import styles from './CanvasPage.module.css';
@@ -236,10 +235,8 @@ export function CanvasPage(): JSX.Element {
   const [inkReview, setInkReview] = useState<InkReviewState | null>(null);
   const [inkExpression, setInkExpression] = useState('');
   const [inkError, setInkError] = useState<string | null>(null);
-  const [aiSketchOpen, setAiSketchOpen] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiError, setAiError] = useState('');
+  const [blockCreatorOpen, setBlockCreatorOpen] = useState(false);
+  const [pendingAiWire, setPendingAiWire] = useState<RuleWireRequest | null>(null);
   const inkResolve = useRef<((ok: boolean) => void) | null>(null);
   const [fitReview, setFitReview] = useState<FitReviewState | null>(null);
   const [fitExpressions, setFitExpressions] = useState<string[]>([]);
@@ -399,81 +396,46 @@ export function CanvasPage(): JSX.Element {
   const addNode = useCallback((type: NodeType, x?: number, y?: number) => {
     spawn.current += 1;
     const offset = spawn.current * 34;
-    setDoc((d) => ({
-      ...d,
-      nodes: [
-        ...d.nodes,
-        {
-          id: nextId('n'), type,
-          x: x ?? 110 + offset, y: y ?? 120 + offset,
-          params: defaultParams(type),
-          ...(type === 'textNote' ? { text: '' } : {}),
-          ...(type === 'functionSource' ? { text: 'a*x^2+b*x+c' } : {}),
-          ...(type === 'lab408Workbench' ? { text: defaultManual408Text() } : {}),
-          ...(type === 'aiRuleBlock' ? { payload: serializeAiRulePayload(defaultAiRulePayload()) } : {}),
-        },
-      ],
-    }));
+    const node = createCanvasNode(type, x ?? 110 + offset, y ?? 120 + offset);
+    setDoc((d) => ({ ...d, nodes: [...d.nodes, node] }));
   }, [setDoc]);
 
   const clearInk = useCallback(() => {
     setDoc((d) => ({ ...d, strokes: [] }));
   }, [setDoc]);
 
-  const buildAiSketch = useCallback(async () => {
-    const prompt = aiPrompt.trim();
-    if (!prompt) {
-      setAiError('请先描述要搭建的实验。');
-      return;
+  const insertCreatedBlock = useCallback((
+    payload: AiRuleBlockPayload,
+    params: Record<string, number>,
+    text: string,
+    saveToLibrary: boolean,
+    wire?: RuleWireRequest,
+  ) => {
+    if (saveToLibrary) {
+      try {
+        saveCustomAiRuleBlock(payload.title, payload, params, text);
+        setCustomBlocks(listCustomBlocks());
+      } catch {
+        /* 存储失败不阻断放入画布 */
+      }
     }
-    if (doc.nodes.length > 0 && !window.confirm('AI 搭积木会替换当前画布内容（可用撤销恢复），继续吗？')) return;
-    setAiBusy(true);
-    setAiError('');
-    try {
-      const payload = await generateAiRuleBlock({ prompt });
-      const noteId = nextId('n');
-      const blockId = nextId('n');
-      const viewId = nextId('n');
-      const nodes = [
-        { id: noteId, type: 'textNote' as const, x: 60, y: 40, params: {}, text: `AI 搭积木草图\n${payload.title}\n${payload.summary}` },
-        { id: blockId, type: 'aiRuleBlock' as const, x: 60, y: 220, params: defaultAiRuleParams(payload), payload: serializeAiRulePayload(payload) },
-        { id: viewId, type: 'universalStageView' as const, x: 520, y: 220, params: {} },
-      ];
-      const wires = [{ id: nextId('w'), from: blockId, fromPort: 'out', to: viewId, toPort: 'in' }];
-      const next: CanvasDoc = {
-        version: 1,
-        title: payload.title,
-        zoom: 0.9,
-        nodes: applyAutoLayout(nodes, wires),
-        wires,
-        strokes: [],
-        panel: {
-          title: payload.title,
-          view_node_ids: [viewId],
-          exposed_params: payload.controls.filter((control) => !control.options).flatMap((control) => [
-            { node_id: blockId, param_key: control.key, label: control.label,
-              ...(control.min === undefined ? {} : { min: control.min }),
-              ...(control.max === undefined ? {} : { max: control.max }),
-              ...(control.step === undefined ? {} : { step: control.step }) },
-          ]),
-        },
-      };
-      setWorkId(null);
-      remote.current = undefined;
-      setShare(null);
-      setCloudState('idle');
-      setMode('instrument');
-      setDoc(next);
-      setAiSketchOpen(false);
-      setAiPrompt('');
-      setAiError('');
-      navigate('/canvas', { replace: true });
-    } catch (cause) {
-      setAiError(errorMessage(cause));
-    } finally {
-      setAiBusy(false);
-    }
-  }, [aiPrompt, doc.nodes.length, navigate, setDoc]);
+    const offset = (spawn.current % 6) * 28;
+    spawn.current += 1;
+    const node = {
+      id: nextId('n'),
+      type: 'aiRuleBlock' as const,
+      x: 120 + offset,
+      y: 120 + offset,
+      params: { ...defaultAiRuleParams(payload), ...params },
+      payload: serializeAiRulePayload(payload),
+      text,
+    };
+    setMode('compose');
+    if (wire) wire.insert(node);
+    else setDoc((current) => ({ ...current, nodes: [...current.nodes, node] }));
+    setBlockCreatorOpen(false);
+    setPendingAiWire(null);
+  }, [setDoc]);
 
   const newCanvas = useCallback(() => {
     if (!window.confirm('新建空白画布？这会替换当前本地草稿。')) return;
@@ -719,7 +681,7 @@ export function CanvasPage(): JSX.Element {
         <div className={styles.actions}>
           <button type="button" className={styles.tbtn} disabled={!histInfo.undo} aria-label="撤销" title="撤销 (Ctrl+Z)" onClick={undo}>↶</button>
           <button type="button" className={styles.tbtn} disabled={!histInfo.redo} aria-label="重做" title="重做 (Ctrl+Shift+Z)" onClick={redo}>↷</button>
-          <button type="button" className={styles.tbtn} onClick={() => { setAiError(''); setAiSketchOpen(true); }}>AI 搭积木草图</button>
+          <button type="button" className={styles.tbtn} onClick={() => setBlockCreatorOpen(true)}>＋ 创建积木</button>
           <button type="button" className={styles.tbtn} disabled={cloudState === 'saving'} onClick={() => void saveToWorkshop()}>保存到工坊</button>
           <button type="button" className={styles.tbtn + ' ' + styles.primary} onClick={() => void publish()}>发布 / 嵌入活页</button>
           <details className={styles.menu}>
@@ -752,23 +714,17 @@ export function CanvasPage(): JSX.Element {
         </div>
       )}
 
-      {aiSketchOpen ? (
-        <div className={styles.inkReview} role="dialog" aria-modal="true" aria-label="AI 搭积木草图">
-          <div className={styles.inkReviewCard}>
-            <h3>AI 搭积木草图</h3>
-            <p className={styles.fitHint}>用一句话描述课堂要展示的实验。AI 会生成一个智能计算方块和通用舞台，并自动摆放、连线；生成后仍可自由修改。</p>
-            <textarea className={styles.aiPrompt} rows={4} value={aiPrompt} spellCheck={false}
-              aria-label="AI 搭积木主题" placeholder="例如：演示电梯磁盘调度 SCAN 的磁头轨迹，并对比 FCFS"
-              onChange={(event) => { setAiPrompt(event.currentTarget.value); setAiError(''); }} />
-            {aiError ? <p className={styles.inkReviewError} role="alert">{aiError}</p> : null}
-            <div className={styles.inkReviewActions}>
-              <button type="button" className={styles.tbtn} disabled={aiBusy} onClick={() => setAiSketchOpen(false)}>取消</button>
-              <button type="button" className={`${styles.tbtn} ${styles.primary}`} disabled={aiBusy || !aiPrompt.trim()}
-                onClick={() => void buildAiSketch()}>{aiBusy ? 'AI 正在搭积木…' : '生成草图'}</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <BlockCreatorModal
+        open={blockCreatorOpen}
+        onClose={() => setBlockCreatorOpen(false)}
+        onInsert={insertCreatedBlock}
+      />
+      {pendingAiWire && <BlockCreatorModal
+        open upstreamContext={pendingAiWire.context}
+        onClose={() => setPendingAiWire(null)}
+        onInsert={(payload, draftParams, text, saveToLibrary) =>
+          insertCreatedBlock(payload, draftParams, text, saveToLibrary, pendingAiWire)}
+      />}
 
       {inkReview ? (
         <div className={styles.inkReview} role="dialog" aria-modal="true" aria-label="核对手写识别结果">
@@ -846,7 +802,7 @@ export function CanvasPage(): JSX.Element {
       ) : null}
 
       <CanvasBoard workId={workId} doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor}
-        onAddNode={addNode} onInkExtract={recognizeInk} onInkFit={recognizeCurves}
+        onAddNode={addNode} onOpenRuleCreator={setPendingAiWire} onInkExtract={recognizeInk} onInkFit={recognizeCurves}
         onAddCustomBlock={(blockId, x, y) => {
           const block = customBlocks.find((item) => item.id === blockId);
           if (!block) return;
@@ -917,7 +873,7 @@ export function CanvasPage(): JSX.Element {
                     <h3>{query ? '我的积木' : '我的积木库'}</h3>
                     {matchingCustomBlocks.length === 0 ? (
                       <p role="status" className={styles.paletteEmpty}>
-                        还没有保存过积木。在画布中选中至少 2 个对象，点击「封装成积木」，再点「存入我的积木库」。
+                        还没有保存过积木。点顶栏「＋ 创建积木」即可保存自建积木，或在画布中框选封装后存入。
                       </p>
                     ) : (
                       <div className={styles.objectGrid}>
@@ -939,7 +895,7 @@ export function CanvasPage(): JSX.Element {
                                 setLastPaletteItem(block.title);
                               }}>
                               <span>{block.title}</span>
-                              <small>{block.sub.ports.length} 端口</small>
+                              <small>{customBlockBadge(block)}</small>
                             </button>
                             <button type="button" className={styles.customBlockRemove}
                               aria-label={`删除 ${block.title}`}

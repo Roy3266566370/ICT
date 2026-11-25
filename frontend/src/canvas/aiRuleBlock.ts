@@ -2,7 +2,7 @@
 
 import type { RuleControlSpec, RulePreset } from './types.ts';
 
-export type AiRulePreferredView = 'auto' | 'chart' | 'graph' | 'timeline' | 'table';
+export type AiRulePreferredView = 'auto' | 'shapes' | 'grid' | 'chart' | 'graph' | 'timeline' | 'table';
 
 export interface AiRuleBlockPayload {
   version: 1;
@@ -18,7 +18,7 @@ export interface AiRuleBlockPayload {
   verificationNote?: string;
 }
 
-const VIEWS: readonly AiRulePreferredView[] = ['auto', 'chart', 'graph', 'timeline', 'table'];
+const VIEWS: readonly AiRulePreferredView[] = ['auto', 'shapes', 'grid', 'chart', 'graph', 'timeline', 'table'];
 const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,39}$/;
 
 function text(value: unknown, limit: number): string {

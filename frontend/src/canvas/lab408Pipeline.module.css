@@ -77,3 +77,49 @@
 .original { border-top: 1px solid #e2e9f3; padding-top: 7px; }
 .original summary { cursor: pointer; font-weight: 600; margin-bottom: 7px; }
 .original a { display: inline-block; margin-top: 6px; }
+
+.shapes {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f5f8fc;
+}
+
+.frame[data-compact] .shapes { max-height: 180px; }
+
+.shapeLabel {
+  font-size: 12px;
+  fill: #24374f;
+  stroke: #fff;
+  stroke-width: 3px;
+  paint-order: stroke;
+}
+
+.gridScroll {
+  max-height: 360px;
+  overflow: auto;
+  border-radius: 8px;
+}
+
+.frame[data-compact] .gridScroll { max-height: 180px; }
+
+.frame .frameGrid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 1px;
+  table-layout: auto;
+}
+
+.frame .frameGrid :is(td, th) {
+  height: 8px;
+  padding: 0;
+  border: 0;
+  text-align: center;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.frame .frameGrid[data-values] :is(td, th) { padding: 2px 4px; }
+.frame .frameGrid td[data-active] { box-shadow: inset 0 0 0 2px #172134, inset 0 0 0 4px #fff; }

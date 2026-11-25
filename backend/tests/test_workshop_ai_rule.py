@@ -67,3 +67,9 @@ def test_generate_ai_rule_without_model_returns_readable_unavailable_error():
     with patch.object(ai_rule, "get_settings", return_value=stub):
         with pytest.raises(ai_rule.AiRuleUnavailable, match="LLM_API_KEY"):
             ai_rule.generate_ai_rule("生成一个实验")
+
+
+@pytest.mark.parametrize("view", ["shapes", "grid"])
+def test_normalize_rule_payload_supports_new_visual_views(view):
+    result = ai_rule.normalize_rule_payload({"code": VALID_CODE, "preferredView": view})
+    assert result["preferredView"] == view
