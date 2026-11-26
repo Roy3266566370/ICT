@@ -209,14 +209,19 @@ function sanitizeGrid(raw: unknown): FrameGrid | undefined {
   const cells = Array.from(grid.cells.slice(0, 32), (row) =>
     Array.isArray(row) ? Array.from(row.slice(0, 32), (v) => finite(v)) : []);
   const columns = Math.max(0, ...cells.map((row) => row.length));
+  const mask = Array.isArray(grid.mask) ? grid.mask : undefined;
   const [r, c] = Array.isArray(grid.activeCell) ? grid.activeCell : [];
   return {
     cells,
+    ...(mask ? { mask: cells.map((row, r) => {
+      const masked = mask[r];
+      return row.map((_, c) => Array.isArray(masked) && masked[c] === true);
+    }) } : {}),
     rowLabels: Array.isArray(grid.rowLabels) ? grid.rowLabels.slice(0, cells.length).map((label) => clipText(label, 40)) : undefined,
     colLabels: Array.isArray(grid.colLabels) ? grid.colLabels.slice(0, columns).map((label) => clipText(label, 40)) : undefined,
     min: Number.isFinite(grid.min) ? grid.min as number : undefined,
     max: Number.isFinite(grid.max) ? grid.max as number : undefined,
-    palette: grid.palette === 'diverging' || grid.palette === 'binary' ? grid.palette : 'heat',
+    palette: grid.palette === 'diverging' || grid.palette === 'binary' || grid.palette === 'error' ? grid.palette : 'heat',
     showValues: typeof grid.showValues === 'boolean' ? grid.showValues : undefined,
     activeCell: Number.isInteger(r) && Number.isInteger(c) && c >= 0 && c < (cells[r]?.length ?? 0) ? [r, c] : undefined,
   };

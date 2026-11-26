@@ -35,6 +35,66 @@ def test_import_preserves_source_geometry_and_text_style(source_deck):
     assert source_deck.read_bytes()==before
 
 
+def test_import_resolves_background_fill_and_textbox_defaults(tmp_path):
+    from pptx.enum.shapes import MSO_SHAPE
+    from pptx.oxml import parse_xml
+    from pptx.oxml.ns import nsdecls, qn
+    from pptx.dml.color import RGBColor
+    from app.documents.importer import import_document
+
+    ppt = Presentation()
+    slide = ppt.slides.add_slide(ppt.slide_layouts[6])
+    slide.background.fill.solid()
+    slide.background.fill.fore_color.rgb = RGBColor.from_string('F4F4F4')
+    rect = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, ppt.slide_width, ppt.slide_height)
+    rect._element.set('useBgFill', '1')
+    box = slide.shapes.add_textbox(Inches(1), Inches(1), Inches(2), Inches(1))
+    box.text = 'Positive\vSemidefinite'
+    box._element.spPr.xfrm.set('rot', '10800000')
+    box._element.spPr.xfrm.set('flipV', '1')
+    list_style = box.text_frame._txBody.find(qn('a:lstStyle'))
+    list_style.append(parse_xml(f'<a:lvl1pPr {nsdecls("a")}><a:defRPr sz="1200"><a:latin typeface="Arial"/></a:defRPr></a:lvl1pPr>'))
+    path = tmp_path / 'text.pptx'
+    ppt.save(path)
+
+    background, text = import_document(path, 'Test')['pages'][0]['nodes']
+    assert background['style']['fill'] == '#f4f4f4'
+    assert text['rotation'] == 180
+    assert text['text_rotation_offset'] == 180
+    assert text['style']['font_size'] == 12
+    assert text['style']['font_family'] == 'Arial'
+    assert text['paragraphs'][0]['text'] == 'Positive\vSemidefinite'
+
+
+def test_preview_upgrades_stored_native_styles_without_overwriting_edits(source_deck,tmp_path,monkeypatch):
+    from app.documents import layers, presentation, store
+    from app.documents.importer import import_document
+
+    root=tmp_path/'document'
+    for module in (layers,presentation,store):
+        monkeypatch.setattr(module,'document_root',lambda _:root)
+    monkeypatch.setattr(layers,'working_path',lambda _:tmp_path/'missing.pptx')
+    root.mkdir()
+    (root/'source.pptx').write_bytes(source_deck.read_bytes())
+    old=import_document(source_deck,'Test')
+    old['native_import_version']=1
+    page=old['pages'][0]
+    page['modified']=True
+    node=page['nodes'][0]
+    node['base_style']['font_size']=48
+    node['style'].update(font_size=48,color='#ff0000')
+    node['style_modified']=['color']
+    node['x']=150
+    store.write_document('material',old)
+
+    result=presentation.current_document('material')
+    node=result['pages'][0]['nodes'][0]
+    assert result['native_import_version']==2
+    assert node['style']['font_size']==28
+    assert node['style']['color']=='#ff0000'
+    assert node['x']==150
+
+
 def test_patch_is_fast_atomic_and_does_not_modify_ppt(source_deck,tmp_path,monkeypatch):
     from app.documents import store
     from app.documents.importer import import_document

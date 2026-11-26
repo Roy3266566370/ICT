@@ -1,0 +1,40 @@
+/* 上传弹窗 */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(16, 18, 17, .56);
+}
+.dialog {
+  position: relative;
+  width: min(980px, 100%);
+  max-height: 88dvh;
+  overflow: auto;
+  border: 1px solid var(--ink-900, #111312);
+  border-radius: 14px;
+  background: var(--paper-0, #fffdf8);
+  box-shadow: 0 24px 60px rgba(17, 19, 18, .28);
+}
+.close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(17, 19, 18, .2);
+  border-radius: 8px;
+  background: var(--paper-0, #fff);
+  color: var(--ink-900, #111312);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.close:hover { background: #f3f0e7; }
+.body { padding: 26px; }
+.body :global(#upload-panel-title) { padding-right: 34px; }

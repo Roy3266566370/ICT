@@ -1,8 +1,8 @@
 /**
- * WorkSharePage.tsx —— 工坊发布作品播放器（/work-shares/:shareId）
+ * WorkSharePage.tsx —— 定象坊发布作品播放器（/work-shares/:shareId）
  *
- * 只读：画布照常跑动画（live 通道不经过 doc），但禁用一切指针交互。
- * 「在工坊里改造」= fork：快照 → 我自己的新作品，进编辑器继续玩。
+ * 发布快照的结构只读，互动参数仅保存在当前页面。
+ * 「在定象坊改造」= fork：快照 → 我自己的新作品，进编辑器继续玩。
  */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -20,6 +20,9 @@ export function WorkSharePage(): JSX.Element {
   const [title, setTitle] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [forking, setForking] = useState(false);
+  const updatePreview = useCallback<React.Dispatch<React.SetStateAction<CanvasDoc>>>((update) => {
+    setDoc((current) => current && (typeof update === 'function' ? update(current) : update));
+  }, []);
 
   useEffect(() => {
     if (!shareId) return;
@@ -64,7 +67,7 @@ export function WorkSharePage(): JSX.Element {
         <div className={styles.errCard}>
           <h2>作品打不开</h2>
           <p>{err}</p>
-          <Link to="/workshop">回工坊画廊 →</Link>
+          <Link to="/workshop">回定象坊画廊 →</Link>
         </div>
       </div>
     );
@@ -73,7 +76,7 @@ export function WorkSharePage(): JSX.Element {
   if (searchParams.get('embed') === '1' && doc.panel) {
     return <div className={styles.embeddedPlayer} aria-label={title}>
       <CanvasBoard doc={doc} mode="instrument" tool="select" inkColor="#2F3A49" readOnly interactivePanel
-        setDoc={(update) => setDoc((current) => current && (typeof update === 'function' ? update(current) : update))} />
+        setDoc={updatePreview} />
     </div>;
   }
   const isPipeline = !!doc.panel && doc.nodes.some((node) =>
@@ -82,7 +85,7 @@ export function WorkSharePage(): JSX.Element {
   return (
     <div className={styles.page}>
       <div className={styles.playerBar}>
-        <Link to="/workshop" className={styles.backLink}>← 工坊</Link>
+        <Link to="/workshop" className={styles.backLink}>← 定象坊</Link>
         <h1 className={styles.playerTitle}>{title}</h1>
         <span className={styles.playerTag}>发布快照 · 打开即玩</span>
         <div className={styles.playerSpacer} />
@@ -92,17 +95,15 @@ export function WorkSharePage(): JSX.Element {
           disabled={forking}
           onClick={() => void fork()}
         >
-          {forking ? '改造中…' : '在工坊里改造 →'}
+          {forking ? '改造中…' : '在定象坊改造 →'}
         </button>
       </div>
       <div className={styles.playerHint}>
-        这是别人发布的活画布——对象还在动，但不能改。点右上角「在工坊里改造」复制一份到你自己的画布。
+        可以在当前页面体验互动。要编辑画布，请点右上角「在定象坊改造」，把发布快照复制到你的作品。
       </div>
       <div className={styles.frozenBoard} data-pipeline={isPipeline || undefined} aria-label="只读画布">
-        <CanvasBoard doc={doc} setDoc={(update) => {
-          if (isPipeline) setDoc((current) => current && (typeof update === 'function' ? update(current) : update));
-        }} tool="select" inkColor="#2F3A49"
-          mode={isPipeline ? 'instrument' : undefined} readOnly={isPipeline} />
+        <CanvasBoard doc={doc} setDoc={updatePreview} tool="select" inkColor="#2F3A49"
+          mode={isPipeline ? 'instrument' : undefined} readOnly interactivePanel={isPipeline} interactiveSliders={!isPipeline} />
       </div>
     </div>
   );

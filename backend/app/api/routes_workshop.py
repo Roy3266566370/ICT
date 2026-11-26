@@ -1,4 +1,4 @@
-"""万象工坊端点：作品存取、发布、画廊与 fork 再创作。
+"""定象坊端点：作品存取、发布、画廊与 fork 再创作。
 
 - ``POST /works`` / ``GET /works`` / ``GET|PATCH|DELETE /works/{id}``：画布文档 CRUD（乐观锁）；
 - ``POST /works/{id}/publish`` → 快照分享；

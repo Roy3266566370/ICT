@@ -1,6 +1,11 @@
 import type { NodeBodyProps } from './nodes.tsx';
 import type { PipelineResult } from './lab408PipelineTypes.ts';
 import type { PortValue, ValueKind } from './types.ts';
+import { compileFunction, compileFunction2d, derivativeAt, gradient2d, type RealFunction } from './calculus.ts';
+import type { RuleSampleProfile } from './aiRuleBlock.ts';
+import { sampleCalculusLesson } from './calculusSandboxSamples.ts';
+import { sampleDiskDensity } from './calculusDisk.ts';
+import { sampleVectorField } from './calculusField.ts';
 
 export interface RuleUpstreamContext {
   nodeTitle: string;
@@ -20,6 +25,87 @@ function boundedResultData(data: Record<string, unknown>): Record<string, unknow
   return {};
 }
 
+function meanValueSample(f: RealFunction, xs: number[], ys: (number | null)[], dy: (number | null)[]) {
+  const lower = xs.indexOf(-2), upper = xs.indexOf(2);
+  const start = ys[lower], end = ys[upper];
+  if (!finiteNumber(start) || !finiteNumber(end)) return null;
+  const slope = (end - start) / 4;
+  if (!Number.isFinite(slope)) return null;
+  const tolerance = 1e-8 * Math.max(1, Math.abs(slope));
+  const span = { start, end, slope };
+  if (dy.slice(lower, upper + 1).some((d) => d === null)) return span;
+
+  for (let i = lower + 1; i < upper; i++) {
+    if (Math.abs(dy[i]! - slope) <= tolerance) return { ...span, point: [xs[i]!, ys[i]!] };
+  }
+  for (let i = lower + 1; i <= upper; i++) {
+    let left = xs[i - 1]!, right = xs[i]!;
+    const leftSign = Math.sign(dy[i - 1]! - slope);
+    if (leftSign * Math.sign(dy[i]! - slope) >= 0) continue;
+    for (let k = 0; k < 28; k++) {
+      const x = (left + right) / 2;
+      let difference: number;
+      try { difference = derivativeAt(f, x) - slope; } catch { break; }
+      if (Math.abs(difference) <= tolerance) return { ...span, point: [x, f(x)!] };
+      if (Math.sign(difference) === leftSign) left = x;
+      else right = x;
+    }
+  }
+  return span;
+}
+
+function sampleFunction(value: Extract<PortValue, { kind: 'function' }>) {
+  const f = compileFunction(value);
+  const xs = Array.from({ length: 101 }, (_, i) => (i - 50) / 20);
+  const ys = xs.map(f);
+  const series = xs.map((x, i) => {
+    if (ys[i] === null) return null;
+    for (let order = 7; order >= 1; order--) {
+      try { return f.series!(x, order); } catch { /* The next lower order may exist. */ }
+    }
+    return null;
+  });
+  const dy = series.map((terms) => terms?.[1] ?? null);
+  const d2y = series.map((terms) => {
+    const derivative = 2 * (terms?.[2] ?? NaN);
+    return Number.isFinite(derivative) ? derivative : null;
+  });
+  return { xs, ys, dy, d2y, series, meanValue: meanValueSample(f, xs, ys, dy) };
+}
+
+function sampleTerrain(value: Extract<PortValue, { kind: 'function2d' }>) {
+  const f = compileFunction2d(value);
+  const xs = Array.from({ length: 31 }, (_, i) => (i - 15) / 5);
+  const ys = [...xs];
+  const values = ys.map((y) => xs.map((x) => f(x, y)));
+  const slopes = ys.map((y, row) => xs.map((x, column) => {
+    if (values[row]?.[column] === null) return null;
+    try { return gradient2d(f, x, y); } catch { return null; }
+  }));
+  return { xs, ys, values, dx: slopes.map((row) => row.map((g) => finiteNumber(g?.fx) ? g.fx : null)),
+    dy: slopes.map((row) => row.map((g) => finiteNumber(g?.fy) ? g.fy : null)) };
+}
+
+const sampledFunctions = new Map<string, Record<string, unknown>>();
+
+function sampledUpstream(value: Extract<PortValue, { kind: 'function' | 'function2d' }>, profile?: Exclude<RuleSampleProfile, 'diskDensity'>, scalar?: number) {
+  const key = JSON.stringify([value, profile, scalar]);
+  const cached = sampledFunctions.get(key);
+  if (cached) return cached;
+  const base = { ...value, expression: value.expression.slice(0, 400) };
+  let result: Record<string, unknown> = base;
+  try {
+    const samples = value.kind === 'function2d' ? sampleTerrain(value)
+      : profile ? sampleCalculusLesson(compileFunction(value), profile, scalar) : sampleFunction(value);
+    result = { ...base, samples };
+  } catch {
+    // Preserve the input metadata if the expression cannot be sampled.
+  }
+  if (sampledFunctions.size >= 12) sampledFunctions.delete(sampledFunctions.keys().next().value!);
+  sampledFunctions.set(key, result);
+  return result;
+}
+
 export function serializeUpstreamValue(value: PortValue | null | undefined): Record<string, unknown> | null {
   if (!value) return null;
   switch (value.kind) {
@@ -36,7 +122,7 @@ export function serializeUpstreamValue(value: PortValue | null | undefined): Rec
         edges: value.edges?.slice(0, 200), addresses: value.addresses?.slice(0, 200) };
     case 'function':
     case 'function2d':
-      return { ...value, expression: value.expression.slice(0, 400) };
+      return sampledUpstream(value);
     case 'customFrames':
     case 'lab408Data':
     case 'physicsData':
@@ -52,6 +138,9 @@ export function serializeUpstreamValue(value: PortValue | null | undefined): Rec
       };
     }
     case 'scalar':
+      return Number.isFinite(value.v) ? { ...value } : null;
+    case 'vectorFunction2d':
+      return { ...value, samples: sampleVectorField(value) };
     case 'matrix2':
     case 'body':
       return { ...value };
@@ -90,7 +179,13 @@ export function ruleAuxiliaryOutputs(result: PipelineResult, title: string): Rec
   return outputs;
 }
 
-export function ruleUpstream(values: NodeBodyProps['values']): Record<string, unknown>[] {
-  const input = serializeUpstreamValue(values.in);
-  return input ? [input] : [];
+export function ruleUpstream(values: NodeBodyProps['values'], profile?: RuleSampleProfile): Record<string, unknown>[] {
+  const scalar = values.aux?.kind === 'scalar' && Number.isFinite(values.aux.v) ? values.aux.v : undefined;
+  const source = values.in;
+  const input = source?.kind === 'vectorFunction2d' && scalar !== undefined ? { ...source, samples: sampleVectorField(source, scalar) }
+    : profile === 'diskDensity' && source?.kind === 'function2d' ? { ...source, samples: sampleDiskDensity(source) }
+      : profile && profile !== 'diskDensity' && source?.kind === 'function'
+        ? sampledUpstream(source, profile, scalar) : serializeUpstreamValue(source);
+  const auxiliary = serializeUpstreamValue(values.aux);
+  return [input, auxiliary && { ...auxiliary, port: 'aux' }].filter((value) => value !== null);
 }

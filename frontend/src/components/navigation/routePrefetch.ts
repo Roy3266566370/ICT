@@ -4,20 +4,15 @@ import { prefetchAllowed, type NetworkHint } from '@/components/presentation/pre
 export const routeLoaders = {
   home: () => import('@/pages/HomePage'),
   canvas: () => import('@/pages/CanvasPage'),
-  examples: () => import('@/pages/ExamplesPage'),
-  exampleDemo: () => import('@/pages/ExampleDemoPage'),
   space: () => import('@/pages/SpacePage'),
   settings: () => import('@/pages/SettingsProfilePage'),
-  prepare: () => import('@/pages/PreparePage'),
   workbench: () => import('@/pages/MaterialDeckPage'),
   share: () => import('@/pages/SharePage'),
-  pptAi: () => import('@/pages/PptAiPage'),
   living: () => import('@/pages/LivingPagesPage'),
   workshop: () => import('@/pages/WorkshopPage'),
   workShare: () => import('@/pages/WorkSharePage'),
   login: () => import('@/pages/LoginPage'),
   register: () => import('@/pages/RegisterPage'),
-  trustDemo: () => import('@/pages/TrustDemoPage'),
 } as const;
 
 export type RouteKey = keyof typeof routeLoaders;
@@ -26,21 +21,15 @@ export function routeKeyForPath(path: string): RouteKey | null {
   const clean = (path.split(/[?#]/, 1)[0] ?? '').replace(/\/+$/, '') || '/';
   if (clean === '/') return 'home';
   if (clean === '/canvas') return 'canvas';
-  if (clean === '/examples') return 'examples';
-  if (clean.startsWith('/examples/')) return 'exampleDemo';
   if (clean === '/space') return 'space';
   if (clean === '/settings/profile') return 'settings';
   if (clean === '/living') return 'living';
   if (clean === '/workshop') return 'workshop';
   if (clean.startsWith('/work-shares/')) return 'workShare';
-  if (/^\/materials\/[^/]+\/prepare$/.test(clean)) return 'prepare';
-  if (/^\/materials\/[^/]+\/work$/.test(clean)) return 'workbench';
-  if (/^\/materials\/[^/]+\/edit$/.test(clean)) return 'workbench';
-  if (/^\/materials\/[^/]+\/ai$/.test(clean)) return 'pptAi';
+  if (/^\/materials\/[^/]+\/(work|edit|prepare)$/.test(clean)) return 'workbench';
   if (clean.startsWith('/p/')) return 'share';
   if (clean === '/login') return 'login';
   if (clean === '/register') return 'register';
-  if (clean === '/trust-demo') return 'trustDemo';
   return null;
 }
 
@@ -70,8 +59,8 @@ function networkHint(): NetworkHint | undefined {
 export function prefetchCommonRoutes(): void {
   if (!prefetchAllowed(networkHint())) return;
   const run = (): void => {
-    // 只预取示例大厅：题目实验室会连带下载 three.js（约 550KB），不适合空闲预取。
-    prefetchRoute('examples');
+    // 预取定象坊大厅，提升进入速度。
+    prefetchRoute('workshop');
   };
   const schedule = (): void => {
     if (typeof window.requestIdleCallback === 'function') {

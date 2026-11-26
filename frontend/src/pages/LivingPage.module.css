@@ -1067,3 +1067,128 @@
 .bindRow input { flex: 1; min-width: 0; }
 .bindRow span { color: var(--ink-300); }
 .bindHint { margin: 0.15rem 0 0; color: var(--ink-300); font-size: 0.75rem; }
+
+.listRoot:global(.atelier-paper) .pageHead { padding: clamp(38px, 5vw, 62px) 0 22px; }
+.listRoot .pageTitle { isolation: isolate; }
+.pageHead > p { max-width: 380px; margin: 0 0 3px; color: var(--wx-muted); text-align: right; line-height: 1.7; }
+.book {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 510px;
+  isolation: isolate;
+  border: 1px solid #12151335;
+  border-radius: 6px;
+  background: #fffdf8;
+  box-shadow: 0 4px 0 -1px #e5ddcb, 0 8px 0 -2px #d2c8b2, 0 34px 65px #33280c2e;
+}
+.book::before {
+  position: absolute;
+  z-index: 1;
+  inset: 0 auto 0 50%;
+  width: 41px;
+  content: "";
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, #29221328 47%, #2922133b 50%, #79674415 58%, transparent);
+}
+.book::after {
+  position: absolute;
+  z-index: 2;
+  content: "";
+  top: -2px;
+  right: 11%;
+  width: 22px;
+  height: 46px;
+  background: linear-gradient(90deg, #ab2d17, #de421f);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+  pointer-events: none;
+}
+.bookCopy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 0;
+  padding: clamp(25px, 4vw, 53px);
+}
+.bookCopy h2 { margin: 0; font: 700 clamp(33px, 3.9vw, 54px)/1.13 var(--wx-serif); letter-spacing: -.04em; }
+.bookCopy h2 em { color: #bb3519; font-style: normal; }
+.bookCopy > p { max-width: 42ch; margin: 20px 0 0; line-height: 1.8; color: var(--wx-ink-2); }
+.bookActions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 24px; }
+.bookActions .generateBtn { color: #fffdf8; background: #121513; border-color: #121513; }
+.bookActions .generateBtn:hover { background: #111b5e; }
+.bookLink {
+  padding: 9px 14px;
+  color: var(--wx-ink);
+  border: 1px solid #12151330;
+  border-radius: 9px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.bookLink:hover { color: var(--wx-blue-deep); border-color: var(--wx-blue-deep); }
+.bookCopy .headMeta { width: 100%; margin-top: 26px; padding-top: 19px; }
+.bookPage {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  padding: clamp(30px, 4vw, 54px);
+  border-radius: 0 6px 6px 0;
+  background: linear-gradient(115deg, #eae4d780, #fffdf840 45%);
+}
+.bookPage::before { content: ""; position: absolute; inset: 14px; border: 1px solid #12151316; border-radius: 4px; pointer-events: none; }
+.listRoot .createSection, .listRoot .listSection { margin-top: clamp(48px, 6vw, 84px); }
+.listRoot .tips { margin-top: 16px; }
+.listRoot .pageList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(225px, 100%), 1fr));
+  gap: 14px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+.listRoot .pageRow {
+  --book-accent: #24325b;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid #12151324;
+  border-left: 4px solid var(--book-accent);
+  background: #fffdf8;
+  border-radius: 7px;
+  box-shadow: 0 8px 20px #1c160a0e;
+  overflow: hidden;
+}
+.listRoot .pageRow:nth-child(3n + 2) { --book-accent: #0f766e; }
+.listRoot .pageRow:nth-child(3n) { --book-accent: #ac2c10; }
+.listRoot .pageItem { display: grid; grid-template-columns: 1fr auto; gap: 9px 6px; align-items: start; min-height: 128px; flex: 1; padding: 14px; }
+.listRoot .pageIndex { color: var(--book-accent); }
+.listRoot .pageMain { grid-column: 1 / -1; grid-row: 2; min-width: 0; }
+.listRoot .pageItemTitle { white-space: normal; overflow-wrap: anywhere; font: 700 18px/1.3 var(--wx-serif); }
+.listRoot .pageArrow { grid-row: 1; grid-column: 2; }
+.pageDelete {
+  align-self: flex-end;
+  margin: 0 8px 8px;
+  padding: 6px 9px;
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #9c3029;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pageDelete:hover { background: #a9383112; }
+.pageDelete:focus-visible { outline: 2px solid currentColor; }
+@media (max-width: 820px) {
+  .listRoot:global(.atelier-paper) .pageHead { align-items: flex-start; }
+  .pageHead > p { text-align: left; }
+  .book { grid-template-columns: 1fr; }
+  .book::before { display: none; }
+  .bookPage { border-radius: 0 0 6px 6px; padding-bottom: 52px; }
+}

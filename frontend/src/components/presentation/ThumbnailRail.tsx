@@ -26,6 +26,7 @@ interface RailProps {
   badges: ReadonlyMap<number, ThumbnailRailBadge>;
   interactivePages: ReadonlySet<number>;
   collapsed: boolean;
+  onCollapse: () => void;
   onSelect: (pageNo: number) => void;
 }
 
@@ -72,7 +73,7 @@ function LazyThumb({ src, aspectRatio }: { src: string; aspectRatio: string }) {
   return (
     <span ref={host} className={styles.thumbImage} style={{ aspectRatio }}>
       {visible ? (
-        <img src={src} alt="" decoding="async" fetchPriority="low" draggable={false} />
+        <img src={src} alt="" decoding="async" draggable={false} {...{ fetchpriority: 'low' }} />
       ) : null}
     </span>
   );
@@ -100,6 +101,7 @@ const ThumbnailItem = memo(function ThumbnailItem(props: ItemProps) {
   return (
     <button type="button" onClick={() => onSelect(pageNo)} aria-current={isCurrent ? 'page' : undefined}
       aria-label={`第 ${ordinal} 页：${label}`} className={styles.thumbnail} data-affected={affected}>
+      <span className={styles.thumbPreview}>
       {scene ? (
         <span className={styles.thumbImage} style={{ aspectRatio }}>
           <SceneThumbnail page={scene} />
@@ -109,22 +111,37 @@ const ThumbnailItem = memo(function ThumbnailItem(props: ItemProps) {
       ) : (
         <span className={styles.thumbImage} style={{ aspectRatio }}><span>{label || `页面生成中`}</span></span>
       )}
+      {interactive && <span className={styles.interactiveBadge}>✦ 互动</span>}
+      </span>
       <span className={styles.thumbCaption}>
         <b>{ordinal}</b>
         <span>{label || `第 ${ordinal} 页`}</span>
         {badgeLabel ? <em className={styles.impactBadge} title={badgeTitle}>{badgeLabel}</em> : null}
-        {interactive ? <i title="有交互内容" /> : null}
       </span>
     </button>
   );
 });
 
 export const ThumbnailRail = memo(function ThumbnailRail(props: RailProps) {
-  const { pages, currentPageNo, affectedPages, badges, interactivePages, collapsed, onSelect } = props;
+  const { pages, currentPageNo, affectedPages, badges, interactivePages, collapsed, onCollapse, onSelect } = props;
+  const [onlyInteractive, setOnlyInteractive] = useState(false);
+  const activeFilter = onlyInteractive && interactivePages.size > 0;
+  const selected = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!collapsed) selected.current?.querySelector('[aria-current="page"]')?.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
+  }, [collapsed, activeFilter, currentPageNo]);
   return (
     <nav className={styles.thumbnails} data-collapsed={collapsed} aria-label="幻灯片缩略图">
-      <div className={styles.railTitle}>幻灯片 <span>{pages.length}</span></div>
+      <div className={styles.railTitle}>
+        {interactivePages.size ? <div className={styles.railFilters} role="group" aria-label="筛选缩略图">
+          <button type="button" aria-pressed={!activeFilter} onClick={() => setOnlyInteractive(false)}>全部 <span>{pages.length}</span></button>
+          <button type="button" aria-pressed={activeFilter} onClick={() => setOnlyInteractive(true)}>交互 <span>{interactivePages.size}</span></button>
+        </div> : <span>幻灯片 · {pages.length}</span>}
+        <button type="button" className={styles.railCollapse} aria-label="收起页导航" onClick={onCollapse}>◂</button>
+      </div>
+      <div ref={selected} className={styles.railList}>
       {pages.map((item, index) => {
+        if (activeFilter && !interactivePages.has(item.pageNo)) return null;
         const badge = badges.get(item.pageNo);
         return (
           <ThumbnailItem
@@ -145,6 +162,7 @@ export const ThumbnailRail = memo(function ThumbnailRail(props: RailProps) {
           />
         );
       })}
+      </div>
     </nav>
   );
 });

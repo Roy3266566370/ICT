@@ -1,27 +1,22 @@
-import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type PointerEvent as ReactPointerEvent, type ReactNode, type SetStateAction } from 'react';
-import {FormulaReviewDialog} from './FormulaReviewDialog';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react';
+import { createPortal } from 'react-dom';
 import { Link,useSearchParams } from 'react-router-dom';
-import { api, apiBase, errorMessage, requestBinary, requestDownload } from '@/api/client';
+import { api, errorMessage, requestBinary, requestDownload } from '@/api/client';
 import { downloadProjectPackage } from '@/api/projectPackage';
 import type { SlideElement } from '@/api/types';
 import { useReducedMotion } from '@/hooks/useMotionPreference';
-import { ISpecView, validateParameterInput } from '@/components/ispec/ISpecView';
-import { evaluateSpec } from '@/ispec/evaluate';
-import { initialValues, type ISpec } from '@/ispec/types';
+import type { ISpec } from '@/ispec/types';
 import { useDeckValues } from './useDeckValues';
 import styles from './DeckPlayer.module.css';
-import { getMaterialEditor, saveMaterialEdits, type EditorModel, type ElementEdit } from '@/api/editor';
-import { ElementEditor } from './ElementEditor';
-import { ScenarioCompare } from './ScenarioCompare';
 import {ScenePageView} from '@/components/editor/ScenePageView';
 import {StandaloneDemoDialog} from '@/components/editor/SlideDemoNode';
 import {standaloneDemos} from '@/components/editor/standaloneDemos';
 import type {SceneDocument,ScenePage} from '@/document/types';
-import {getDocument,patchDocument,prepareDocumentPage,reinteractDocumentPage} from '@/api/documents';
-import { ExperimentStage } from '@/components/experiments/ExperimentStage';
-import { TrustBadge } from '@/components/trust/TrustBadge';
-import {ZoomControl} from '@/components/ui/ZoomControl';
-import {fitZoom,wheelZoom} from '@/components/ui/zoom';
+import {getDocument,prepareDocumentPage} from '@/api/documents';
+import {fitZoom,stepZoom,wheelZoom} from '@/components/ui/zoom';
+import {defaultPresetsForTemplate, WORKSHOP_PRESET_PREVIEW_EVENT} from '@/canvas/pluginPresets';
+import {DeckPopover, DeckTopBar} from './DeckTopBar';
+import {isInteractiveSlide} from './deckPresentation.ts';
 import {PptAiInteraction} from '@/components/ppt-ai/PptAiInteraction';
 import {GeneratedViewFrame} from '@/components/ppt-ai/GeneratedViewFrame';
 import {LearningPanel} from '@/components/ppt-ai/learning/LearningPanel';
@@ -39,8 +34,6 @@ import {LinkagePanel} from '@/components/ppt-ai/LinkagePanel';
 import { pageDisplayUrl } from './pageUrls';
 import { newPrefetchUrls, planPrefetch, prefetchAllowed } from './prefetch';
 import { ThumbnailRail, type ThumbnailRailBadge, type ThumbnailRailItem } from './ThumbnailRail';
-import { LiveLayer } from './live/LiveLayer';
-import { planLive } from './live/liveRegions';
 import { PresentationAnnotator, type AnnotateTool } from './PresentationAnnotator';
 import { PresenterDock } from './PresenterDock';
 import { PresentationMenu, type PresentationScreen } from './PresentationMenu';
@@ -53,7 +46,6 @@ export function DeckModeSwitch({mode, onChange}: WorkbenchModes) {
   return <div className={styles.modeSwitch} role="group" aria-label="课件工作台模式">
     <button type="button" aria-pressed={mode === 'edit'} onClick={() => onChange('edit')}>编辑课件</button>
     <button type="button" aria-pressed={mode === 'preview'} onClick={() => onChange('preview')}>互动预览</button>
-    <button type="button" aria-pressed={mode === 'present'} onClick={() => onChange('present')}>全屏放映</button>
   </div>;
 }
 
@@ -63,11 +55,9 @@ function sceneTitle(page:ScenePage):string|undefined{
     .sort((a,b)=>(b.style.font_size??0)-(a.style.font_size??0)||b.text.length-a.text.length)[0]?.text.trim().slice(0,80);
 }
 
-const EMPTY_VALUES: Record<string, number | boolean | string> = {};
-
 export interface DeckPage {
   page_no: number;
-  title?: string;
+  title?: string | null;
   image_url: string | null;
   render_bytes?: number | null;
   width?: number;
@@ -81,8 +71,8 @@ interface Props {
   specs: ISpec[];
   identity: string;
   materialId?: string;
-  fidelity?: string;
-  extraActions?: ReactNode;
+  headerActionsHost?: HTMLDivElement | null;
+  downloadBackup?: () => void;
   onRefresh?: () => Promise<unknown>;
   sceneDocument?:SceneDocument|null;
   aiSnapshot?:PptAiRuntimeSnapshot|null;
@@ -113,7 +103,7 @@ function isDiagramNoiseFormula(mathText: string): boolean {
   return false;
 }
 
-export function DeckPlayer({title, pages, specs, identity, materialId, fidelity, extraActions, onRefresh,sceneDocument,aiSnapshot,formulaReviews,
+export function DeckPlayer({title, pages, specs, identity, materialId, headerActionsHost, downloadBackup, onRefresh,sceneDocument,aiSnapshot,formulaReviews,
   workbench,workbenchZoom,inactive,saveDocument,readDocumentRevision,documentPending,presenter}: Props) {
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [search, setSearch] = useSearchParams();
@@ -121,7 +111,8 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   const index = Math.max(0, Math.min(pages.length - 1, pages.findIndex(p => p.page_no === requested)));
   const page = pages[index];
   const documentPage=sceneDocument?.pages.find(p=>p.page_no===page?.page_no);
-  const scenePage=documentPage?.preparation?.status==='ready' && (documentPage.modified || !page?.image_url) ? documentPage : undefined;
+  const scenePage=documentPage?.preparation?.status==='ready' && (documentPage.modified || !page?.image_url
+    || isInteractiveSlide(documentPage.nodes)) ? documentPage : undefined;
   /** 编辑过的页面按场景节点定位；未编辑页面继续用原 bbox（EMU）。 */
   const sceneNodeStyle = useCallback((elementId?: string | null): CSSProperties | null => {
     if(!scenePage || !elementId) return null;
@@ -141,10 +132,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     if(moved) return moved;
     return bbox && page ? boxStyle(bbox,page) : {};
   }, [sceneNodeStyle, page]);
-  const livePageSize = useMemo(
-    () => ({ width: page?.width ?? 12192000, height: page?.height ?? 6858000 }),
-    [page?.width, page?.height],
-  );
   const [standalonePresentation, setPresenting] = useState(false);
   const presenting = workbench ? workbench.mode === 'present' : standalonePresentation;
   const [presenterSession, setPresenterSession] = useState<string | null>(null);
@@ -154,18 +141,22 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   const [annotateColor, setAnnotateColor] = useState('#c4622d');
   const [annotateClearNonce, setAnnotateClearNonce] = useState(0);
   const [originalPage, setOriginalPage] = useState<number | null>(null);
+  const viewingOriginal = !presenting && originalPage === page?.page_no && Boolean(scenePage && page?.image_url);
   const [demoPage,setDemoPage] = useState<number | null>(null);
-  const separateDemos = scenePage && originalPage !== page?.page_no ? standaloneDemos(scenePage) : [];
+  const separateDemos = useMemo(() => scenePage ? standaloneDemos(scenePage) : [], [scenePage]);
   const demoOpen = separateDemos.length > 0 && demoPage === page?.page_no;
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const pagePresets = useMemo(() => (scenePage?.nodes ?? []).flatMap(node => {
+    const plugin = node.workshop_plugin;
+    if (node.type !== 'workshop_plugin' || !plugin || node.hidden || node.deleted || node.locked || node.viewer_editable === false) return [];
+    const presets = plugin.presets ?? defaultPresetsForTemplate(plugin.template_kind);
+    return presets.length ? [{ node, presets }] : [];
+  }), [scenePage]);
   const [aiActiveId, setAiActiveId] = useState<string | null>(null);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [imageFailed, setImageFailed] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [localZoom, setLocalZoom] = useState<number | 'fit'>('fit');
   const [presentationZoom, setPresentationZoom] = useState<number | null>(null);
   const [presentationMenu, setPresentationMenu] = useState<{x: number; y: number} | null>(null);
@@ -177,15 +168,10 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   const panRef = useRef<{x:number;y:number;left:number;top:number;moved:boolean} | null>(null);
   const suppressPageClick = useRef(false);
   const lastWheelAt = useRef(0);
-  const [editor, setEditor] = useState<EditorModel | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [editJob, setEditJob] = useState<string | null>(null);
-  const [editorBusy, setEditorBusy] = useState(false);
-  const [reinteracting, setReinteracting] = useState(false);
   const [labOpen, setLabOpen] = useState(false);
-  const pendingActivation = useRef<string | null>(null);
   const shell = useRef<HTMLDivElement>(null);
   const [resetHost, setResetHost] = useState<HTMLDivElement | null>(null);
+  const [lineControlsHost, setLineControlsHost] = useState<HTMLDivElement | null>(null);
   const slideElement = useRef<HTMLDivElement>(null);
   const [viewportNode, setViewportNode] = useState<HTMLDivElement | null>(null);
   const [area, setArea] = useState({width: 900, height: 600});
@@ -202,16 +188,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   const branchRevision = useRef(1);
   const linkSaveTimer = useRef<number | null>(null);
   const impactTimer = useRef<number | null>(null);
-  const meaningfulSpecs = useMemo(() => specs.filter(spec => {
-    if (spec.scene?.scene_type === 'relation_types') return false;
-    const hasVisual = spec.views.some(v => v.type === 'figure' || v.type === 'vega' || v.type === 'table');
-    const hasExpr = (spec.expressions?.length ?? 0) > 0;
-    const notes = spec.notes ?? '';
-    if (!hasVisual && !hasExpr && (notes.includes('omml_formula') || notes.includes('不执行公式求值'))) return false;
-    return true;
-  }), [specs]);
-  const pageSpecs = useMemo(() => meaningfulSpecs.filter(spec => spec.anchor?.page===page?.page_no || spec.parameters.some(p => p.source.page === page?.page_no) ||
-    spec.checks?.some(check => check.page === page?.page_no)), [meaningfulSpecs, page?.page_no]);
   const aiNodes = useMemo(() => nodesForPage(aiBundle, page?.page_no ?? 1), [aiBundle, page?.page_no]);
   const aiActiveNode = useMemo(() => aiNodes.find(node => node.node_id === aiActiveId) ?? null, [aiNodes, aiActiveId]);
   const prefetchedImages = useRef(new Map<string, HTMLImageElement>());
@@ -248,10 +224,14 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
       if (idleTimer !== null) window.clearTimeout(idleTimer);
     };
   }, [index, pages]);
-  const interactivePages = useMemo(
-    () => new Set(specs.flatMap(spec => spec.parameters.map(parameter => parameter.source.page))),
-    [specs],
-  );
+  const interactivePages = useMemo(() => {
+    const scenes = new Map(sceneDocument?.pages.map(item => [item.page_no, item]));
+    return new Set(pages.filter(item => {
+      const scene = scenes.get(item.page_no);
+      return isInteractiveSlide(scene?.preparation?.status === 'ready' ? scene.nodes : undefined,
+        nodesForPage(aiBundle, item.page_no).length > 0);
+    }).map(item => item.page_no));
+  }, [pages, sceneDocument, aiBundle]);
   const affectedPages = useMemo(() => new Set(linkImpact.affectedPages), [linkImpact.affectedPages]);
   const railBadges = useMemo(() => {
     const badges = new Map<number, ThumbnailRailBadge>();
@@ -318,7 +298,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     };
   }, [aiActiveNode, aiValues, linkEvaluation, aiNodeOverrides]);
   const [learningOpen,setLearningOpen]=useState(false);
-  const learningEntryRef=useRef<HTMLButtonElement>(null);
+  const learningEntryRef=useRef<HTMLElement>(null);
   const closeLearning=useCallback(()=>{
     setLearningOpen(false);
     window.setTimeout(()=>learningEntryRef.current?.focus({preventScroll:true}),0);
@@ -330,40 +310,31 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   const [learningHighlight,setLearningHighlight]=useState<LearningSourceRef|null>(null);
   const frozenLearningPage=useMemo(()=>learningPageFromFrozen(aiSnapshot,page?.page_no??1),[aiSnapshot,page?.page_no]);
   const activeLearningPage=learningPage??frozenLearningPage;
-  const activeSpecs = useMemo(() => pageSpecs.filter(spec => spec.availability !== 'needs_review'), [pageSpecs]);
-  const pausedSpecs = useMemo(() => pageSpecs.filter(spec => spec.availability === 'needs_review'), [pageSpecs]);
-  const selectedSpec = presenting ? null : pageSpecs.find(spec => spec.object_id === activeId) ?? null;
-  const active = selectedSpec && selectedSpec.availability !== 'needs_review' ? selectedSpec : null;
-  const values = active ? (state.values[active.object_id] ?? initialValues(active)) : EMPTY_VALUES;
-  // 控件读即时值；图形与结论读延后值，拖动时输入不被重型渲染阻塞。
-  const deferredValues = useDeferredValue(values);
-  const valuesStale = values !== deferredValues;
-  const [liveMode, setLiveMode] = useState(true);
-  const deferredDeckValues = useDeferredValue(state.values);
-  const livePlans = useMemo(() => activeSpecs.map(spec => planLive(spec, page?.page_no ?? 0)), [activeSpecs, page?.page_no]);
-  const liveSpecs = useMemo(() => liveMode && !scenePage?.auto_vectors ? activeSpecs.filter((_, i) => !livePlans[i]!.fallback) : [], [liveMode, activeSpecs, livePlans, scenePage?.auto_vectors]);
-  const liveSpecIds = useMemo(() => new Set(liveSpecs.map(spec => spec.object_id)), [liveSpecs]);
-  const evaluation = useMemo(() => active ? evaluateSpec(active, deferredValues) : null, [active, deferredValues]);
-  const visual = active?.views.find(view => view.type === 'figure' || view.type === 'vega');
   // PPT 页宽是点值（约 12192000），展示缩放以场景页的像素宽为 100% 基准。
   const pageWidth = documentPage?.width ?? 960;
   const pageHeight = documentPage?.height ?? pageWidth * ((page?.height ?? 540) / (page?.width ?? 960));
-  const fitScale = fitZoom(area, {width: pageWidth, height: pageHeight}, 40, .25, 4);
+  const gutter = presenting ? 0 : viewingOriginal ? 52 : 28;
+  const fitScale = fitZoom(area, {width: pageWidth * (viewingOriginal ? 2 : 1), height: pageHeight}, gutter, .1, 4);
   const presentationFit = Math.max(.001, Math.min(area.width / pageWidth, area.height / pageHeight));
   const scale = presenting ? presentationZoom ?? presentationFit : zoom === 'fit' ? fitScale : zoom;
-  const gutter = presenting ? 0 : 40;
   const slideWidth = pageWidth * scale;
   const slideHeight = pageHeight * scale;
-  const canPan = slideWidth + gutter > area.width + 1 || slideHeight + gutter > area.height + 1;
+  const displayWidth = slideWidth * (viewingOriginal ? 2 : 1) + gutter;
+  const canPan = displayWidth > area.width + 1 || slideHeight + gutter > area.height + 1;
 
   useLayoutEffect(() => {
     const node = viewportNode;
     if (!node) return;
-    const measure = () => setArea({width: node.clientWidth, height: node.clientHeight});
+    const measure = () => {
+      const width = Math.floor(node.offsetWidth);
+      const height = Math.floor(node.offsetHeight);
+      if (width > 0 && height > 0) setArea(prev => prev.width === width && prev.height === height ? prev : {width, height});
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(node);
-    return () => observer.disconnect();
+    window.addEventListener('resize', measure);
+    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
   }, [viewportNode]);
   useEffect(() => {
     const node = viewportNode;
@@ -378,35 +349,8 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     node.addEventListener('wheel', onWheel, {passive: false});
     return () => node.removeEventListener('wheel', onWheel);
   }, [fitScale, presentationFit, presentationMenu, presentationScreen, presenting, setZoom, viewportNode]);
-  useEffect(() => { setReviewId(null); setActiveId(null); setAiActiveId(null); setSelected(null); setAdvancedOpen(false); setImageFailed(false); setDemoPage(null);
+  useEffect(() => { setAiActiveId(null); setImageFailed(false); setDemoPage(null); setOriginalPage(null);
     setLearningOpen(false);setLearningPage(null);setLearningBundle(null);setLearningHighlight(null);setLearningError('');setLabOpen(false); }, [page?.page_no]);
-  useEffect(() => { setAdvancedOpen(false); }, [activeId]);
-  useEffect(() => {
-    const id=pendingActivation.current;
-    if (!id) return;
-    const generated=specs.find(spec=>spec.anchor?.element_id===id);
-    if (generated) {setActiveId(generated.object_id); pendingActivation.current=null;}
-  },[specs]);
-  useEffect(() => {
-    if (!editJob || !materialId) return;
-    let alive=true;
-    const check=async()=>{
-      try {
-        const job=await api.getJob(editJob);
-        if (!alive) return;
-        if (['awaiting_confirmation','ready','failed'].includes(job.stage)) {
-          const model=await getMaterialEditor(materialId);
-          if (!alive) return;
-          setEditor(model); setEditJob(null); setEditorBusy(false);
-          if (job.stage==='failed') {setMessage(job.error?.message ?? '更新失败，可重新识别'); return;}
-          setEditing(false); setSelected(null); setReviewId(null); setMessage('内容已保存，页面和交互已更新');
-          await onRefresh?.();
-        }
-      } catch(error) {if(alive) setMessage(`正在等待生成结果：${errorMessage(error)}`);}
-    };
-    void check(); const timer=window.setInterval(()=>void check(),1500);
-    return()=>{alive=false;window.clearInterval(timer);};
-  },[editJob,materialId,onRefresh]);
 
   const loadLearningBundle=async(pageData:LearningPage)=>{
     if(!materialId||!pageData.bundle_id)return aiSnapshot?.bundle??null;
@@ -415,8 +359,8 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   };
   const openLearning=async()=>{
     if(!page)return;
-    setLearningOpen(true);setLabOpen(false);setLearningError('');setLearningHighlight(null);
-    setActiveId(null);setAiActiveId(null);setAdvancedOpen(false);setEditing(false);
+    setLearningOpen(true);setLabOpen(false);setLinkPanelOpen(false);setLearningError('');setLearningHighlight(null);
+    setAiActiveId(null);
     if(!materialId){setLearningPage(null);setLearningBundle(aiSnapshot?.bundle??null);return;}
     setLearningLoading(true);
     try{
@@ -436,69 +380,15 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     }catch(error){setLearningError(errorMessage(error));}
     await onRefresh?.();
   };
-  const openEditor=async()=>{
-    if (!materialId || busy || state.saving) return;
-    setEditing(true);setActiveId(null);setEditorBusy(true);setMessage('');
-    try {setEditor(await getMaterialEditor(materialId));}
-    catch(error){setMessage(errorMessage(error));}
-    finally{setEditorBusy(false);}
-  };
-  const flushDocument = async () => {
+  const flushDocument = useCallback(async () => {
     if (saveDocument && !await saveDocument()) throw new Error('课件修改尚未同步，请在编辑课件中检查保存状态');
-  };
-  const reinteractPage=async()=>{
-    if(!materialId||state.saving||busy||editorBusy||reinteracting)return;
-    setReinteracting(true);setMessage('正在按当前编辑内容提取本页交互…');
-    try{
-      await flushDocument();
-      if(!await state.save()){setMessage('参数尚未保存，请先处理保存提示');return;}
-      const revision=readDocumentRevision?.()??sceneDocument?.revision??0;
-      const result=await reinteractDocumentPage(materialId,page!.page_no,revision);
-      await onRefresh?.();
-      setActiveId(null);
-      setMessage(`第 ${page!.page_no} 页已按当前内容重新提取${result.refreshed_user_interactions?`，恢复 ${result.refreshed_user_interactions} 个公式`:''}`);
-    }catch(error){setMessage(errorMessage(error));}
-    finally{setReinteracting(false);}
-  };
-  const restoreSpecContent=async(spec:ISpec)=>{
-    if(!materialId||!sceneDocument||state.saving)return;
-    const node=sceneDocument.pages.find(item=>item.page_no===page?.page_no)?.nodes.find(item=>
-      item.id===spec.node_id||item.source_element_id===spec.anchor?.element_id);
-    if(!node){setMessage('没有找到对应的编辑对象，请打开自由编辑处理');return;}
-    const patch:Record<string,unknown>={};
-    if(node.base_text!==null&&node.base_text!==undefined&&node.text!==node.base_text)patch.text=node.base_text;
-    if(JSON.stringify(node.table)!==JSON.stringify(node.base_table))patch.table=node.base_table;
-    if(JSON.stringify(node.chart)!==JSON.stringify(node.base_chart))patch.chart=node.base_chart;
-    if(!Object.keys(patch).length){
-      setMessage(node.source_element_id?'当前内容与原稿一致':'这是新建对象，没有可撤销的原稿；请在自由编辑中修改公式或重新提取');
-      return;
-    }
-    setMessage('正在恢复原稿内容…');
-    try{
-      await flushDocument();
-      await patchDocument(materialId,readDocumentRevision?.()??sceneDocument.revision,`restore_${Date.now()}`, [{page_no:page!.page_no,id:node.id,patch}]);
-      await onRefresh?.();
-      setActiveId(null);
-      setMessage('已恢复原稿内容，依赖它的交互重新启用');
-    }catch(error){setMessage(errorMessage(error));}
-  };
-  const saveEdit=async(change?:ElementEdit)=>{
-    if(!materialId || editorBusy || busy || state.saving) return;
-    setEditorBusy(true);setMessage('正在保存并重新生成页面…');
-    try {
-      if(!await state.save()) {setMessage('当前参数尚未保存，请先处理保存提示');setEditorBusy(false);return;}
-      const model=editor ?? await getMaterialEditor(materialId);
-      const result=await saveMaterialEdits(materialId,model.revision,change?[change]:[]);
-      if(change?.kind==='interaction' || change?.kind==='recognition') pendingActivation.current=change.element_id;
-      setEditJob(result.job_id);
-    }catch(error){setMessage(errorMessage(error));setEditorBusy(false);}
-  };
+  }, [saveDocument]);
   useEffect(() => {
-    if (!materialId || editorBusy || busy || state.saving) return;
+    if (!materialId || busy || state.saving) return;
     if (!/未保存|仍有新修改/.test(state.status)) return;
     const timer = window.setTimeout(() => { void state.save(); }, 1100);
     return () => window.clearTimeout(timer);
-  }, [materialId, editorBusy, busy, state.saving, state.status, state.save, state.values]);
+  }, [materialId, busy, state.saving, state.status, state.save, state.values]);
   const go = useCallback((next: number) => {
     const target = pages[Math.max(0, Math.min(pages.length - 1, next))];
     if (!target) return;
@@ -584,7 +474,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     const node = viewportNode;
     if (!node) return;
     const onWheel = (event: WheelEvent) => {
-      if (!presenting || active || presentationMenu || presentationScreen || event.ctrlKey || event.metaKey) return;
+      if (!presenting || presentationMenu || presentationScreen || event.ctrlKey || event.metaKey) return;
       if (Math.abs(event.deltaY) < 8) return;
       event.preventDefault();
       const now = Date.now();
@@ -594,7 +484,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     };
     node.addEventListener('wheel', onWheel, {passive: false});
     return () => node.removeEventListener('wheel', onWheel);
-  }, [active, go, index, presentationMenu, presentationScreen, presenting, viewportNode]);
+  }, [go, index, presentationMenu, presentationScreen, presenting, viewportNode]);
   useEffect(() => {
     viewportNode?.scrollTo({left: 0, top: 0});
   }, [page?.page_no, presenting, viewportNode]);
@@ -611,9 +501,16 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   }, [workbench]);
   const startPresentation = useCallback(() => {
+    if (workbench) { workbench.onChange('present'); return; }
     setPresenting(true);
     void shell.current?.requestFullscreen?.().catch(() => setMessage('已进入演示模式，可用浏览器全屏继续展示'));
-  }, []);
+  }, [workbench]);
+  useEffect(() => {
+    if (workbench || !presenting) return;
+    const changed = () => { if (!document.fullscreenElement) setPresenting(false); };
+    document.addEventListener('fullscreenchange', changed);
+    return () => document.removeEventListener('fullscreenchange', changed);
+  }, [workbench, presenting]);
   useEffect(() => {
     if (!presenting || inactive || demoOpen) return;
     const onEscape = (event: KeyboardEvent) => {
@@ -629,9 +526,12 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     if (inactive || demoOpen) return;
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        if (presenting) return;
+        if (presenting || event.defaultPrevented) return;
         if (learningOpen) closeLearning();
-        else if (activeId) setActiveId(null);
+        else if (labOpen) setLabOpen(false);
+        else if (aiActiveId) setAiActiveId(null);
+        else if (linkPanelOpen) setLinkPanelOpen(false);
+        else if (annotateTool !== 'off') setAnnotateTool('off');
         return;
       }
       if (event.defaultPrevented || (event.target as Element)?.closest('input, textarea, select, math-field, [contenteditable="true"]')) return;
@@ -655,9 +555,16 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
           return;
         }
       }
+      if (!presenting && materialId && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        if (!busy && !state.saving) {
+          void flushDocument().then(() => state.save()).catch(error => setMessage(errorMessage(error)));
+        }
+        return;
+      }
       if((event.ctrlKey || event.metaKey) && ['z','y'].includes(event.key.toLowerCase())) {
         event.preventDefault();
-        if(busy || editorBusy || state.saving) return;
+        if(busy || state.saving) return;
         if(event.key.toLowerCase()==='y' || event.shiftKey) state.redo();else state.undo();
         return;
       }
@@ -672,7 +579,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  }, [go, index, pages.length, activeId, state.undo, state.redo,busy,editorBusy,state.saving,learningOpen,closeLearning,inactive,demoOpen,presentationMenu,presentationScreen,presenting]);
+  }, [go, index, pages.length, state.undo, state.redo,state.save,busy,state.saving,materialId,flushDocument,learningOpen,closeLearning,labOpen,aiActiveId,linkPanelOpen,annotateTool,inactive,demoOpen,presentationMenu,presentationScreen,presenting]);
   useEffect(() => {
     if (workbench) return;
     const changed = () => { if (!document.fullscreenElement) setPresenting(false); };
@@ -762,26 +669,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
     }catch(error){setMessage(errorMessage(error));}
     finally{setBusy(false);}
   };
-  const change = useCallback((id: string, value: number | boolean | string) => {
-    if (!active || busy || state.saving || editorBusy) return;
-    setMessage('');
-    const parameter = active.parameters.find(p => p.id === id);
-    if (parameter && validateParameterInput(parameter, value).ok) state.change(active, id, value);
-  }, [active, busy, editorBusy, state.change, state.saving]);
-  const closeExperiment = useCallback(() => setActiveId(null), []);
-  const resetExperiment = useCallback(() => { if (active) state.reset(active); }, [active, state.reset]);
-  const toggleAdvanced = useCallback(() => setAdvancedOpen(value => !value), []);
-  const refreshTrust = useCallback(() => { void onRefresh?.(); }, [onRefresh]);
-
-  const changeLive = useCallback((spec: ISpec, id: string, value: number) => {
-    if (busy || state.saving || editorBusy) return false;
-    const parameter = spec.parameters.find(p => p.id === id);
-    if (!parameter || !validateParameterInput(parameter, value).ok) return false;
-    setMessage('');
-    state.change(spec, id, value);
-    return true;
-  }, [busy, editorBusy, state.change, state.saving]);
-  const expandSpec = useCallback((specId: string) => setActiveId(specId), []);
 
   const applyLinkChange = useCallback((
     nextValues: CanonicalValues,
@@ -890,66 +777,93 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
   }, [pages, go]);
 
   if (!page) return <div className={styles.empty}>页面正在生成，请稍后重新载入。</div>;
-  // 减法收口：不再在幻灯片画面上主动盖满“公式待核对”遮罩，避免打断 PPT 演示体验。
-  const reviewElements: SlideElement[] = [];
-  const reviewElement = reviewElements.find(element => element.element_id === reviewId);
-  const review = reviewId ? formulaReviews?.[reviewId] : undefined;
 
-  const editablePage=editor?.pages.find(item=>item.page_no===page.page_no);
-  const selectedElement=editablePage?.elements.find(element=>element.element_id===selected);
+  const interactive = interactivePages.has(page.page_no);
+  const hasOriginal = Boolean(scenePage && page.image_url);
+  const resetPageInteraction = () => {
+    setDemoPage(null);
+    if (!aiNodes.length) return;
+    const nextOverrides = { ...aiOverrides };
+    const changed = aiNodes.filter(node => node.node_id in nextOverrides).map(node => node.node_id);
+    if (!changed.length) return;
+    for (const id of changed) delete nextOverrides[id];
+    applyLinkChange(liveValues, nextOverrides, [], changed);
+    persistLinkState(liveValues, nextOverrides);
+  };
+  const toggleOriginal = () => setOriginalPage(viewingOriginal ? null : page.page_no);
+  const canLearn = Boolean((materialId && aiSnapshot?.learningEnabled !== false) || frozenLearningPage);
+  const canOpenLab = Boolean(materialId && api.mode === 'http');
+  const canPresentDual = Boolean(workbench && !presenter);
+  const actionRow = <div className={styles.previewActions}>
+    {!presenter && (canLearn || canOpenLab || aiNodes.length > 0 || aiBundle) && <DeckPopover
+      label={<>✦ AI <span aria-hidden="true">▾</span></>} ariaLabel="AI" triggerRef={learningEntryRef}>
+      {canLearn && <button type="button" onClick={() => void openLearning()} aria-expanded={learningOpen} disabled={learningLoading}>
+        {learningLoading ? '正在准备…' : '本页学习'}
+      </button>}
+      {canOpenLab && <button type="button" onClick={() => {
+        setLabOpen(value => !value); setLearningOpen(false); setAiActiveId(null); setLinkPanelOpen(false);
+      }} aria-expanded={labOpen}>AI 交互</button>}
+      {aiNodes.map(node => <button key={node.node_id} type="button" onClick={() => {
+        setAiActiveId(node.node_id); setLabOpen(false); setLearningOpen(false); setLinkPanelOpen(false);
+      }}>{node.title}</button>)}
+      {aiBundle && <button type="button" onClick={() => {
+        setLinkPanelOpen(value => !value); setLabOpen(false); setLearningOpen(false); setAiActiveId(null);
+      }} aria-expanded={linkPanelOpen}>全表变量</button>}
+    </DeckPopover>}
+    <button type="button" aria-pressed={annotateTool !== 'off'}
+      onClick={() => setAnnotateTool(tool => tool === 'off' ? 'pen' : 'off')}>✏ 板书</button>
+    {((!presenter && materialId) || hasOriginal || downloadBackup) && <DeckPopover
+      label={<><span className={styles.exportLabel}>导出与分享</span><span className={styles.compactExportLabel}>导出</span> ▾</>}
+      ariaLabel="导出与分享">
+      {!presenter && materialId && <>
+        <button type="button" onClick={() => void download()} disabled={busy || state.saving}>下载离线交互网页（.html）</button>
+        <button type="button" onClick={() => void publish()} disabled={busy || state.saving}>生成在线分享链接</button>
+        <button type="button" onClick={() => void exportPptx()} disabled={busy || state.saving}>导出 PPTX 课件（.pptx）</button>
+        <button type="button" onClick={() => void exportProject()} disabled={busy || state.saving}>导出工程包（.xsproj）</button>
+      </>}
+      {downloadBackup && <button type="button" onClick={downloadBackup}>导出工程备份</button>}
+      {hasOriginal && <button type="button" aria-pressed={viewingOriginal} onClick={toggleOriginal}>查看原图对照</button>}
+    </DeckPopover>}
+    {!presenter && <div className={styles.presentGroup}>
+      <button type="button" onClick={startPresentation} aria-label="演示">▶ 演示</button>
+      {canPresentDual && <DeckPopover label="▾" ariaLabel="演示选项">
+        <button type="button" onClick={openPresenter} disabled={documentPending}
+          title={documentPending ? '课件同步后可打开控台' : undefined}>演讲者双屏视图</button>
+      </DeckPopover>}
+    </div>}
+  </div>;
+  const currentZoom = zoom === 'fit' ? fitScale : zoom;
+  const visibleZoom = presenting ? scale : currentZoom;
+  const minimumZoom = presenting ? Math.min(.25, presentationFit / 2) : .25;
+  const maximumZoom = presenting ? Math.max(4, presentationFit * 2) : 4;
+  const changeZoom = (direction: -1 | 1) => {
+    if (presenting) {
+      setPresentationZoom(current => {
+        const value = current ?? presentationFit;
+        return stepZoom(value, direction * value * .1, minimumZoom, maximumZoom);
+      });
+    } else {
+      setZoom(current => stepZoom(current === 'fit' ? fitScale : current, direction * .1));
+    }
+  };
+  const zoomControls = <div className={styles.capsuleGroup} role="group" aria-label="画布缩放">
+    <button type="button" disabled={visibleZoom <= minimumZoom} onClick={() => changeZoom(-1)} aria-label="缩小画布">−</button>
+    {presenting && <input type="range" aria-label="演示缩放比例" aria-valuetext={`${Math.round(visibleZoom * 100)}%`}
+      min={minimumZoom} max={maximumZoom} step="any" value={visibleZoom}
+      onChange={event => setPresentationZoom(event.currentTarget.valueAsNumber)}/>}
+    <output aria-live="polite">{Math.round(visibleZoom * 100)}%</output>
+    <button type="button" disabled={visibleZoom >= maximumZoom} onClick={() => changeZoom(1)} aria-label="放大画布">+</button>
+    <button type="button" aria-pressed={presenting ? presentationZoom === null : zoom === 'fit'}
+      onClick={() => presenting ? setPresentationZoom(null) : setZoom('fit')}>适应</button>
+  </div>;
+  const statusNotice = state.conflict || state.loadFailed || /失败/.test(state.status) ? state.status : '';
 
   return <PresentationSyncContext.Provider value={sync}><div ref={shell} className={styles.shell}
-    data-presenting={presenting} data-presenter={!!presenter} data-experiment={!!active} data-panel={!!active}>
-    <header className={styles.topbar} data-workbench-actions={workbench && !presenter ? '' : undefined}>
-      {(!workbench || presenter) && <>
-      <div className={styles.brand}>{materialId ? <a href="/" aria-label="返回首页">万象<span> / 演示文稿</span></a> : <span>万象<span> / 交互演示</span></span>}</div>
-      <div className={styles.title}><h1>{title}</h1><span>{pages.length} 页 · {meaningfulSpecs.length} 个交互对象</span></div>
-      </>}
-      <button className={styles.railToggle} onClick={() => setRailCollapsed(value => !value)} aria-pressed={railCollapsed}
-        aria-label={railCollapsed ? '展开页导航' : '收起页导航'}>{railCollapsed ? '▸ 页导航' : '◂ 页导航'}</button>
-      <div className={styles.actions}>
-        <div ref={setResetHost} style={{display:'contents'}}/>
-        <div className={`${styles.actionGroup} ${styles.authorOnly}`}>
-          {aiBundle && <button onClick={() => setLinkPanelOpen(value => !value)} aria-pressed={linkPanelOpen}
-            title="查看所有输入概念、派生输出与出现位置">全表变量</button>}
-          <button onClick={state.undo} disabled={!state.canUndo || editorBusy || busy || state.saving} aria-label="撤销参数修改" title="Ctrl+Z">↶ 撤销</button>
-          <button onClick={state.redo} disabled={!state.canRedo || editorBusy || busy || state.saving} aria-label="重做参数修改" title="Ctrl+Shift+Z">↷ 重做</button>
-        </div>
-        {materialId && <div className={`${styles.actionGroup} ${styles.authorOnly}`}><button onClick={() => {
-          void flushDocument().then(() => state.save()).catch(error => setMessage(errorMessage(error)));
-        }} disabled={state.saving || editorBusy || busy}>{state.saving ? '保存中…' : '立即保存'}</button>
-          <details className={styles.moreMenu}><summary role="button" aria-haspopup="menu">更多 ▾</summary>
-            <div role="menu">
-              <button role="menuitem" onClick={() => setLiveMode(value => !value)}>
-                {liveMode ? '切换为经典实验页' : '切换为原位交互'}</button>
-              {materialId && api.mode === 'http' && <Link role="menuitem" to={`/materials/${materialId}/ai`}>AI 自动交互分析 ↗</Link>}
-              <button role="menuitem" onClick={() => void reinteractPage()} disabled={editorBusy || busy || state.saving || reinteracting}>{reinteracting?'提取中…':'重新提取本页交互'}</button>
-              <button role="menuitem" onClick={() => void saveEdit()} disabled={editorBusy || busy || state.saving}>按原稿整份重转（较慢）</button>
-              <Link role="menuitem" to={`/materials/${materialId}/prepare`}>转换详情</Link>
-              <button role="menuitem" onClick={() => void exportProject()} disabled={editorBusy || busy || state.saving || editing}>导出工程包（.xsproj）</button>
-              <button role="menuitem" onClick={() => void exportPptx()} disabled={editorBusy || busy || state.saving || editing}>导出 PPTX 课件（.pptx）</button>
-            </div>
-          </details>
-        </div>}
-        <div className={`${styles.actionGroup} ${styles.authorOnly}`}>
-          {materialId && <><button onClick={()=>void download()} disabled={busy || state.saving || editorBusy || editing}>下载交互网页</button>
-          <button onClick={() => void publish()} disabled={busy || editorBusy || editing || state.saving}>{busy ? '生成中…' : '生成分享网页'}</button></>}
-          {extraActions}
-        </div>
-        {!active && !editing && <button type="button" aria-pressed={annotateTool !== 'off'}
-          onClick={() => setAnnotateTool(t => t === 'off' ? 'pen' : 'off')} title="开启/关闭课堂板书批注">
-          {annotateTool === 'off' ? '✏ 板书' : '✏ 板书中'}
-        </button>}
-        {scenePage && page?.image_url && <button type="button"
-          onClick={()=>setOriginalPage(originalPage===page.page_no ? null : page.page_no)}>
-          {originalPage===page.page_no ? '显示可操作图形' : '查看原图'}
-        </button>}
-        {workbench && !presenter && <button type="button" className={styles.authorOnly} onClick={openPresenter} disabled={documentPending}
-          title={documentPending ? '课件同步后可打开控台' : undefined}>演讲者视图</button>}
-        {!workbench && <button className={styles.primary} onClick={startPresentation}>▶ 开始演示</button>}
-      </div>
-    </header>
-    {(message || state.status) && <div className={styles.notice} role="status">{[message,state.status].filter(Boolean).join(' · ')}
+    data-presenting={presenting} data-presenter={!!presenter}>
+    {!inactive && !presenting && (headerActionsHost === undefined
+      ? <DeckTopBar title={title} home={materialId ? <a href="/" aria-label="返回首页">← 万象</a> : undefined}>{actionRow}</DeckTopBar>
+      : headerActionsHost && createPortal(actionRow, headerActionsHost))}
+    {(message || statusNotice) && <div className={styles.notice} role="status">{[message,statusNotice].filter(Boolean).join(' · ')}
       {state.loadFailed && <button className={styles.resolveConflict} disabled={state.saving}
         onClick={() => void state.reloadBaseline()}>重新载入基线并保存草稿</button>}
       {(state.conflict || state.loadFailed) && <button className={styles.resolveConflict} disabled={state.saving}
@@ -960,29 +874,10 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
       <button onClick={() => setShareUrl('')} aria-label="关闭分享提示">×</button></div>}
     <div className={styles.workspace}>
       <ThumbnailRail pages={railPages} currentPageNo={page.page_no} affectedPages={affectedPages}
-        badges={railBadges} interactivePages={interactivePages} collapsed={railCollapsed} onSelect={jumpToPage}/>
+        badges={railBadges} interactivePages={interactivePages} collapsed={railCollapsed} onCollapse={() => setRailCollapsed(true)} onSelect={jumpToPage}/>
       <main className={styles.main}>
-        {!active && <div className={styles.pageHeading}><span>第 {index + 1} 页</span><h2>{(scenePage&&sceneTitle(scenePage))??page.title??title}</h2>
-          {separateDemos.length>0&&<button type="button" className={styles.learningEntry} onClick={()=>setDemoPage(page.page_no)}>独立演示</button>}
-          {!presenter && ((materialId&&aiSnapshot?.learningEnabled!==false)||frozenLearningPage)&&<button type="button" className={styles.learningEntry} ref={learningEntryRef} onClick={()=>void openLearning()}
-            aria-expanded={learningOpen} disabled={learningLoading}>
-            {learningLoading?'正在准备…':'本页学习'} <span aria-hidden="true">↗</span>
-          </button>}
-          {!presenter&&materialId&&api.mode==='http'&&<button type="button" className={styles.learningEntry} onClick={()=>{setLabOpen(value=>!value);setLearningOpen(false);setActiveId(null);setAiActiveId(null);}}
-            aria-expanded={labOpen}>AI 交互 <span aria-hidden="true">✦</span></button>}
-          <span className={styles.pageTag}>{activeSpecs.length ? `${activeSpecs.length} 个可交互对象` : pausedSpecs.length ? `${pausedSpecs.length} 个交互待核对` : '原页阅读'}</span>
-          {linkImpact.changes.filter(change => change.page === page.page_no).slice(0, 2).map((change, changeIndex) =>
-            <span key={changeIndex} className={styles.impactBadge} title={`${change.title}：${change.label}`}>
-              {change.label} {change.before} → {change.after}
-            </span>)}
-          <ZoomControl className={styles.headingZoom} value={zoom} fitValue={fitScale} min={.25} max={4} step={.1} onChange={setZoom}/></div>}
-        {active && evaluation && !editing ? <ExperimentStage spec={active} evaluation={evaluation} values={values} renderValues={deferredValues} stale={valuesStale} visual={visual}
-          pageNo={page.page_no} pageTitle={(scenePage&&sceneTitle(scenePage))??page.title} originalImageUrl={page.image_url?pageDisplayUrl(page.image_url,page.render_bytes):undefined}
-          pageWidth={page.width} pageHeight={page.height} materialId={materialId}
-          onTrustUpdated={refreshTrust}
-          reducedMotion={reducedMotion} presenting={presenting} advancedOpen={advancedOpen}
-          canUndo={state.canUndo} canRedo={state.canRedo} onUndo={state.undo} onRedo={state.redo}
-          onChange={change} onClose={closeExperiment} onReset={resetExperiment} onAdvanced={toggleAdvanced}/> : <>
+        {!presenting && railCollapsed && <button type="button" className={styles.railExpand}
+          aria-label="展开页导航" onClick={() => setRailCollapsed(false)}>▸</button>}
         <div className={styles.viewport} ref={setViewportNode} data-can-pan={canPan} data-panning={panning}
           onPointerDown={panDown} onPointerMove={panMove} onPointerUp={panEnd} onPointerCancel={panEnd}
           onContextMenuCapture={event => {
@@ -992,20 +887,31 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
             setPresentationMenu({x: event.clientX, y: event.clientY});
           }}
           onClick={(event) => {
-            if (!presenting || active || demoOpen) return;
+            if (!presenting || demoOpen) return;
             if (suppressPageClick.current) { suppressPageClick.current = false; return; }
             if ((event.target as Element).closest('button,a,input,select,textarea,[contenteditable="true"],[data-no-pan],[data-live-region]')) return;
             go(index + 1);
           }}>
-          <div className={styles.canvasArea} style={{minWidth: slideWidth + gutter, minHeight: slideHeight + gutter}}>
+          <div className={styles.canvasArea} data-comparing={viewingOriginal} style={{minWidth: displayWidth, minHeight: slideHeight + gutter}}>
+          {viewingOriginal&&<figure className={styles.comparisonFigure}>
+            <figcaption>原稿</figcaption>
+            <div className={styles.slide} style={{width:slideWidth,height:slideHeight}}>
+              {page.image_url&&!imageFailed?<img className={styles.pageImage} src={pageDisplayUrl(page.image_url,page.render_bytes)}
+                alt={`第 ${page.page_no} 页原始 PPT`} decoding="async" draggable={false} onError={()=>setImageFailed(true)}/>:
+                <p className={styles.fallback} role="status">原稿图暂时无法加载。</p>}
+            </div>
+          </figure>}
+          <div className={styles.comparisonFigure}>
+          {viewingOriginal&&<div className={styles.comparisonLabel}>互动稿</div>}
           <div ref={slideElement} className={styles.slide} style={{width: slideWidth, height: slideHeight}} aria-label={`幻灯片第 ${index + 1} 页`}>
-            {scenePage && <div hidden={originalPage===page.page_no}>
+            {scenePage && (
               <ScenePageView key={scenePage.page_no} page={scenePage} scale={scale} presentVectors
-                resetHost={originalPage===page.page_no ? null : resetHost}/>
-            </div>}
-            {(!scenePage || originalPage===page.page_no) && (page.image_url && !imageFailed ? <img className={styles.pageImage} src={pageDisplayUrl(page.image_url,page.render_bytes)}
+                resetHost={resetHost} lineControlsHost={scenePage.auto_vectors&&!presenting?lineControlsHost:undefined}
+                onResetPresentation={resetPageInteraction} resetForAi={aiNodes.length > 0}/>
+            )}
+            {!scenePage && (page.image_url && !imageFailed ? <img className={styles.pageImage} src={pageDisplayUrl(page.image_url,page.render_bytes)}
               alt={`第 ${page.page_no} 页原始 PPT`} onError={() => setImageFailed(true)} draggable={false}
-              decoding="async" fetchPriority="high"/> :
+              decoding="async" {...({ fetchpriority: 'high' } as Record<string, string>)}/> :
               <div className={styles.fallback}>{page.elements?.map(element => element.text ?
                 <span key={element.element_id} style={boxStyle(element.bbox, page)}>{element.text}</span> : null)}
                 <p>本页为结构还原，可能与原版式有差异{imageFailed ? '（整页图加载失败）' : ''}</p></div>)}
@@ -1013,46 +919,16 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
               style={{left:`${learningHighlight.bbox.x*100}%`,top:`${learningHighlight.bbox.y*100}%`,
                 width:`${learningHighlight.bbox.w*100}%`,height:`${learningHighlight.bbox.h*100}%`}}
               aria-hidden="true"/> : null}
-            {!active && !editing && liveSpecs.length>0 && <LiveLayer specs={liveSpecs} plans={livePlans} values={state.values}
-              deferred={deferredDeckValues} pageSize={livePageSize}
-              pageImageUrl={!scenePage&&page.image_url?pageDisplayUrl(page.image_url,page.render_bytes):undefined}
-              place={sourceStyle} disabled={busy||state.saving||editorBusy} reducedMotion={reducedMotion}
-              flashKey={null} onChange={changeLive} onExpand={presenting ? undefined : expandSpec}/>}
-            {materialId && !active && !editing && !presenting && reviewElements.map(element =>
-              <button key={element.element_id} type="button" className={styles.formulaReviewHotspot}
-                style={sourceStyle(element.bbox, element.element_id)}
-                onClick={() => setReviewId(element.element_id)}>公式待核对</button>)}
-            {!active && !editing && <PresentationAnnotator pageNo={page.page_no} tool={presenting ? presentationTool : annotateTool} color={annotateColor}
-              clearNonce={annotateClearNonce} autoPen={(presenting || !!presenter) && !inactive}/>}
-            {!presenting && !active && !scenePage?.auto_vectors && activeSpecs.filter(spec=>!liveSpecIds.has(spec.object_id)).map(spec => {
-              if(editing) return null;
-              const sources = spec.anchor ? [{...spec.anchor,status:'original' as const,excerpt:spec.title??''}] : [...new Map(spec.parameters.filter(p => p.source.page === page.page_no && p.source.bbox)
-                .map(p => [p.source.element_id, p.source])).values()];
-              if (spec.views.some(v => v.type === 'text' && v.title === '原始公式')) {
-                const formula = page.elements?.find(element => element.text?.split('\n').some(line => line.trim() === spec.title));
-                if (formula && !sources.some(source => source.element_id === formula.element_id)) sources.push({
-                  page: page.page_no, element_id: formula.element_id, bbox: formula.bbox,
-                  status: 'original', excerpt: formula.text ?? ''});
-              }
-              return sources.map((source, i) => <button key={`${spec.object_id}-${i}`} className={styles.hotspot}
-                data-live-region={`${spec.object_id}:hot${i}`} data-live-kind="hotspot" data-live-title={spec.title ?? '交互'}
-                style={sourceStyle(source.bbox, source.element_id)} onClick={() => setActiveId(spec.object_id)}
-                aria-label={`交互：${spec.title ?? '公式或图表'}`}><span>点击交互 ↗</span></button>);
-            })}
-            {!presenting && !active && !editing && !scenePage?.auto_vectors && aiNodes.map(node => {
+            <PresentationAnnotator pageNo={page.page_no} tool={presenting ? presentationTool : annotateTool} color={annotateColor}
+              clearNonce={annotateClearNonce} autoPen={(presenting || !!presenter) && !inactive}/>
+            {!presenting && !scenePage?.auto_vectors && aiNodes.map(node => {
               const box=node.source.bbox;
               return <button key={node.node_id} className={styles.aiHotspot}
                 style={{left:`${box.x*100}%`,top:`${box.y*100}%`,width:`${box.w*100}%`,height:`${box.h*100}%`}}
-                onClick={()=>{setAiActiveId(node.node_id);setActiveId(null);}}
+                onClick={()=>{setAiActiveId(node.node_id);}}
                 aria-label={`AI 交互：${node.title}`}><span>AI · {node.title}</span></button>;
             })}
-            {!presenting && editing && (editablePage?.elements ?? page.elements ?? []).filter(element=>
-              element.kind==='picture' &&
-              !(element.kind==='picture' && element.bbox.w*element.bbox.h > (page.width??12192000)*(page.height??6858000)*.9))
-              .sort((a,b)=>b.bbox.w*b.bbox.h-a.bbox.w*a.bbox.h).map(element=><button type="button" key={element.element_id}
-                className={styles.editHotspot} data-selected={selected===element.element_id}
-                style={sourceStyle(element.bbox,element.element_id)} aria-label={`编辑：${element.text?.slice(0,32) || element.name || element.kind}`}
-                onClick={()=>setSelected(element.element_id)}><span>{element.kind==='picture'?'配置图示 / 公式':'编辑内容'}</span></button>)}
+          </div>
           </div>
           </div>
           {presenting && presentationScreen && <div data-no-pan className={styles.presentationBlank}
@@ -1068,19 +944,61 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
             onPresenter={workbench && !presenter && !documentPending ? openPresenter : undefined} onEnd={exitPresentation}/>}
           {demoOpen&&<StandaloneDemoDialog nodes={separateDemos} onClose={()=>setDemoPage(null)}/>}
         </div>
-        <div className={styles.objectStrip}>
-          {editing?<span>点击公式或图示图片配置交互。文字、图片位置和排版可通过“自由编辑”即时调整。</span>:pageSpecs.length ? <><span>{liveMode&&liveSpecs.length?'本页交互 · 已原位，点击可展开实验页':'本页交互'}</span>
-            {activeSpecs.map(spec => <button key={spec.object_id} aria-pressed={activeId === spec.object_id}
-              onClick={() => setActiveId(activeId === spec.object_id ? null : spec.object_id)}>
-              {spec.views.some(v => v.type === 'figure') ? '◇ ' : spec.kind === 'filter' ? '▥ ' : 'ƒ '}{spec.title ?? '打开交互'}
-              {spec.trust ? <span className={styles.objectTrust}><TrustBadge trust={spec.trust} compact/></span> : null}</button>)}
-            {pausedSpecs.map(spec => <button key={spec.object_id} className={styles.reviewChip} aria-pressed={activeId === spec.object_id}
-              onClick={() => setActiveId(activeId === spec.object_id ? null : spec.object_id)}>⚠ 待核对 · {spec.title ?? '交互'}</button>)}</> :
-            <span>本页保留原稿，可使用方向键或底部按钮翻页。</span>}
-          {fidelity === 'low' && <span>结构还原 · 版式可能有差异</span>}
-        </div>
-        </>}
-        {!active && !editing && annotateTool !== 'off' && <div className={styles.annotateDock} role="toolbar" aria-label="课堂板书工具条" data-no-pan>
+        {!presenting&&scenePage?.auto_vectors&&<div ref={setLineControlsHost} className={styles.lineControlsHost}/>}
+        {!presenting && interactive && <div className={styles.interactionBar} role="group" aria-label="本页交互状态条">
+          {pagePresets.length > 0 && <DeckPopover label="情景预设 ▾" ariaLabel="情景预设" above>
+            {pagePresets.map(({node, presets}) => <div className={styles.presetGroup} key={node.id}>
+              {pagePresets.length > 1 && <span>{node.workshop_plugin?.title || node.name}</span>}
+              {presets.map(preset => <button key={preset.id} type="button" onClick={() =>
+                window.dispatchEvent(new CustomEvent(WORKSHOP_PRESET_PREVIEW_EVENT, { detail: { nodeId: node.id, preset } }))
+              }>{preset.label}</button>)}
+            </div>)}
+          </DeckPopover>}
+          <div ref={setResetHost} className={styles.resetHost}/>
+          {!scenePage && aiNodes.length > 0 &&
+            <button type="button" onClick={resetPageInteraction}>↺ 重置本页状态</button>}
+          {separateDemos.length > 0 && <button type="button" onClick={() => setDemoPage(page.page_no)}>▶ 独立演示</button>}
+          {hasOriginal && <button type="button" aria-pressed={viewingOriginal} onClick={toggleOriginal}>原图对照</button>}
+          {aiNodes.length > 0 && <button type="button" onClick={() => {
+            setAiActiveId(aiNodes[0]!.node_id); setLabOpen(false); setLearningOpen(false); setLinkPanelOpen(false);
+          }}>✦ 本页交互</button>}
+          {linkImpact.changes.filter(change => change.page === page.page_no).slice(0, 2).map(change =>
+            <span key={`${change.title}:${change.label}`} className={styles.impactBadge} title={change.title}>{change.label} {change.before} → {change.after}</span>)}
+        </div>}
+        {presenting && !inactive && !presentationScreen && !presentationMenu && !demoOpen &&
+          <div className={`${styles.stageCapsule} ${styles.presentationZoom}`}>{zoomControls}</div>}
+        {!presenting && <div className={styles.stageCapsule} role="group" aria-label="翻页与缩放">
+          <div className={styles.capsuleGroup}>
+            <button type="button" onClick={() => go(index - 1)} disabled={index === 0} aria-label="上一页">‹</button>
+            <DeckPopover label={`${index + 1} / ${pages.length}`} ariaLabel={`跳转页码，第 ${index + 1} 页，共 ${pages.length} 页`} above>
+              <label className={styles.pageJump}>跳转到页码
+                <select value={index} onChange={event => {
+                  go(Number(event.currentTarget.value));
+                  const menu = event.currentTarget.closest('details');
+                  if (menu) { menu.open = false; menu.querySelector('summary')?.focus(); }
+                }}>
+                  {railPages.map((item, ordinal) => <option key={item.pageNo} value={ordinal}>{ordinal + 1} · {item.label || '幻灯片'}</option>)}
+                </select>
+              </label>
+            </DeckPopover>
+            <button type="button" onClick={() => go(index + 1)} disabled={index === pages.length - 1} aria-label="下一页">›</button>
+          </div>
+          {zoomControls}
+          <DeckPopover label="?" ariaLabel="键盘快捷键" above>
+            <dl className={styles.shortcutHelp}>
+              <dt>← / →、↑ / ↓、Page Up / Down</dt><dd>翻页</dd>
+              <dt>空格</dt><dd>下一页</dd>
+              <dt>Home / End</dt><dd>首尾页</dd>
+              <dt>Ctrl / ⌘ + 滚轮</dt><dd>缩放</dd>
+              <dt>Ctrl / ⌘ + Z、Shift + Z 或 Y</dt><dd>撤销或重做参数修改</dd>
+              {materialId && <><dt>Ctrl / ⌘ + S</dt><dd>保存</dd></>}
+              <dt>Esc</dt><dd>关闭浮层或退出演示</dd>
+              <dt>B / W（演示中）</dt><dd>黑屏或白屏</dd>
+              <dt>右键 / Shift + F10（演示中）</dt><dd>演示控制</dd>
+            </dl>
+          </DeckPopover>
+        </div>}
+        {annotateTool !== 'off' && <div className={styles.annotateDock} role="toolbar" aria-label="课堂板书工具条" data-no-pan>
           <button type="button" aria-pressed={annotateTool === 'pen'} onClick={() => setAnnotateTool('pen')} title="钢笔圈画">✏ 钢笔</button>
           <button type="button" aria-pressed={annotateTool === 'highlighter'} onClick={() => setAnnotateTool('highlighter')} title="荧光笔高亮">🖍 荧光笔</button>
           <button type="button" aria-pressed={annotateTool === 'laser'} onClick={() => setAnnotateTool('laser')} title="激光笔指示">🔴 激光</button>
@@ -1100,17 +1018,17 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
       </main>
       {presenter && <PresenterDock notes={documentPage?.notes} next={pages[index + 1]}
         scene={sceneDocument?.pages.find(item => item.page_no === pages[index + 1]?.page_no)}/>}
-      {!editing && linkPanelOpen && aiBundle && linkEvaluation && (
+      {linkPanelOpen && aiBundle && linkEvaluation && (
         <div className={styles.linkAside}>
           <LinkagePanel bundle={aiBundle} evaluation={linkEvaluation} values={liveValues} overrides={aiOverrides}
             onJump={jumpToPage} onValueChange={changeConcept} onOverride={toggleNodeOverride}
             onClose={() => setLinkPanelOpen(false)} />
         </div>
       )}
-      {!editing && labOpen && materialId && <aside className={styles.learningAside} aria-label="本页 AI 交互面板">
+      {labOpen && materialId && <aside className={styles.learningAside} aria-label="本页 AI 交互面板">
         <PageLabPanel materialId={materialId} pageNo={page.page_no} onClose={()=>setLabOpen(false)}/>
       </aside>}
-      {!editing && learningOpen && activeLearningPage && <aside className={styles.learningAside} aria-label="本页学习面板">
+      {learningOpen && activeLearningPage && <aside className={styles.learningAside} aria-label="本页学习面板">
         <LearningPanel materialId={materialId??null} page={activeLearningPage}
           bundle={learningBundle??aiSnapshot?.bundle??null}
           pageImageUrl={page.image_url?pageDisplayUrl(page.image_url,page.render_bytes):undefined}
@@ -1119,21 +1037,14 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
           onLocate={(source)=>setLearningHighlight(source)}
           onRefresh={materialId?refreshLearning:undefined}/>
       </aside>}
-      {!editing && learningOpen && !activeLearningPage && <aside className={styles.learningAside} aria-label="本页学习面板">
+      {learningOpen && !activeLearningPage && <aside className={styles.learningAside} aria-label="本页学习面板">
         <div className={styles.learningPlaceholder} role="status">
           <b>本页学习</b>
           {learningError ? <p>{learningError}</p> : <p>{learningLoading?'正在加载本页学习内容…':'本页暂无学习内容；原稿继续可读。'}</p>}
           <button type="button" onClick={closeLearning}>关闭</button>
         </div>
       </aside>}
-      {materialId && reviewElement && review && <FormulaReviewDialog key={reviewElement.element_id}
-        imageUrl={apiBase() + '/api/v1/materials/' + encodeURIComponent(materialId) + '/editor/formulas/' + encodeURIComponent(reviewElement.element_id) + '/image'}
-        draft={review.math_text} reason={review.reason} busy={editorBusy} message={message} onClose={() => setReviewId(null)}
-        onConfirm={latex => void saveEdit({page: page.page_no, element_id: reviewElement.element_id, kind: 'recognition', text: latex})}/>}
-      {editing && selectedElement && materialId && <ElementEditor key={selectedElement.element_id} element={selectedElement}
-        materialId={materialId} page={page.page_no} specs={specs} busy={editorBusy} onSave={change=>void saveEdit(change)}
-        onClose={()=>setSelected(null)}/>}
-      {!editing && aiActiveNode && aiSnapshot?.bundle && <aside className={styles.inspector} aria-label="PPT AI 交互">
+      {aiActiveNode && aiSnapshot?.bundle && <aside className={styles.inspector} aria-label="PPT AI 交互">
         <div className={styles.inspectorHead}><span>AI 交互 · {aiActiveNode.title}</span><button onClick={() => setAiActiveId(null)} aria-label="关闭 AI 交互">×</button></div>
         <div className={styles.inspectorBody}>
           {aiArtifact ? (
@@ -1150,44 +1061,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, fidelity,
           {materialId ? <p style={{marginTop:10,fontSize:11}}><Link to={`/materials/${materialId}/ai`}>在 AI 工作台调参、实验与验收 ↗</Link></p> : null}
         </div>
       </aside>}
-      {!editing && selectedSpec?.availability==='needs_review' && <aside className={styles.inspector} aria-label="交互待核对">
-        <div className={styles.inspectorHead}><span>交互待核对</span><button onClick={() => setActiveId(null)} aria-label="关闭核对面板">×</button></div>
-        <div className={styles.inspectorBody}><div className={styles.reviewBox}>
-          <b>{selectedSpec.title ?? '当前交互'}</b>
-          <p>{selectedSpec.availability_reason ?? '来源内容已修改，旧计算结果已停止显示。'}</p>
-          <p>请选择处理方式；在核对之前不会继续显示按旧内容算出的结果。</p>
-          <div className={styles.reviewActions}>
-            {materialId&&<button onClick={() => void reinteractPage()} disabled={reinteracting||state.saving}>{reinteracting?'提取中…':'按当前内容重新提取'}</button>}
-            {materialId&&<button onClick={() => void restoreSpecContent(selectedSpec)} disabled={state.saving}>撤销内容修改</button>}
-            {workbench&&!presenter&&<button type="button" onClick={() => workbench.onChange('edit')}>在课件中编辑</button>}
-          </div>
-        </div></div>
-      </aside>}
-      {!editing && active && advancedOpen && !presenting && <aside className={styles.inspector} aria-label="完整参数与来源">
-        <div className={styles.inspectorHead}><span>完整参数与来源</span><button onClick={() => setAdvancedOpen(false)} aria-label="关闭完整参数">×</button></div>
-        <div className={styles.inspectorBody}><fieldset className={styles.inspectorFields} disabled={busy || state.saving || editorBusy}>
-          {active.parameters.some(p => p.source.status === 'inferred') && <p className={styles.inferred}>
-            {active.notes?.includes('占位') ? '含待确认的参数；原文未给出的数值以 0 占位，请先核对。' :
-              '部分参数根据原文中的关系推导，请核对识别依据。'}</p>}
-          <ISpecView spec={{...active, views: active.views.filter(v => v !== visual)}} values={values} onChange={change}
-            figureRef={visual?.type === 'figure' ? visual.spec_ref : undefined}
-            stage={2} reducedMotion={reducedMotion} presentation/>
-          <button className={styles.reset} onClick={() => state.reset(active)}>恢复本实验基准</button>
-          <ScenarioCompare identity={identity} spec={active} values={values} onRestore={snapshot=>state.restore(active,snapshot)}/>
-          <details className={styles.evidence}><summary>查看原文依据与识别说明</summary>
-            {[...new Map(active.parameters.map(p => [p.source.excerpt, p.source])).values()].map((source, i) =>
-              <blockquote key={i}>第 {source.page} 页 · {source.status === 'inferred' ? '系统推断，请核对' : source.status==='confirmed'?'用户确认':source.status==='manual_demo'?'手工示例':'原文提取'}<p>{source.excerpt}</p></blockquote>)}
-            <p>{active.notes}</p></details>
-        </fieldset></div>
-      </aside>}
     </div>
-    <footer className={styles.footer}><span className={styles.keyboard}>{active ? '← → 单步 · 空格播放 · PageUp/PageDown 翻页 · Esc 返回原页' : '← → 翻页 · Home / End 首尾页 · 放大后拖动平移 · Esc 返回'}</span>
-      <div className={styles.pager}><button onClick={() => go(0)} disabled={!index} aria-label="第一页">|‹</button>
-        <button onClick={() => go(index-1)} disabled={!index}>上一页</button>
-        <label><span className={styles.srOnly}>跳转到页码</span><select value={index} onChange={e => go(Number(e.target.value))}>
-          {pages.map((p, i) => <option key={p.page_no} value={i}>{i + 1}</option>)}</select><span> / {pages.length}</span></label>
-        <button onClick={() => go(index+1)} disabled={index >= pages.length-1}>下一页</button>
-        <button onClick={() => go(pages.length-1)} disabled={index >= pages.length-1} aria-label="最后一页">›|</button></div>
-      <span className={styles.footerStatus}>{active ? '实验状态' : '阅读状态'}</span></footer>
   </div></PresentationSyncContext.Provider>;
 }

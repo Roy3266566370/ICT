@@ -408,6 +408,7 @@ def test_build_snapshot_and_public_payload_are_whitelisted(
             revoked_at=None,
             snapshot_json=snapshot,
         )
+        snapshot["pages"] = [{"page_no": 1, "title": "Frozen source slide title"}]
         payload = public_payload(share)
 
     raw = json.dumps(payload, ensure_ascii=False)
@@ -415,6 +416,7 @@ def test_build_snapshot_and_public_payload_are_whitelisted(
         assert forbidden not in raw
     assert payload["regions"][0]["region_id"] == "rgn_demo"
     assert payload["regions"][0]["status"] == "confirmed"
+    assert payload["pages"][0]["title"] == "Frozen source slide title"
 
 
 def test_compat_publish_excludes_unselected_personal_experiments(

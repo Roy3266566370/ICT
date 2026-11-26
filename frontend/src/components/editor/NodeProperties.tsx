@@ -2,30 +2,58 @@ import { VectorControls } from './VectorLine';
 import {DynamicStyleControls} from './DynamicStyleControls';
 import {PageRelationsPanel} from './PageRelationsPanel';
 import {useEffect,useMemo,useState} from 'react';
-import type {NodeInteraction,RelationSuggestion,SceneNode,SceneRelation,NodePatch,TextStyle,InteractionTemplate} from '@/document/types';
-import type {ISpec,SpecEvaluation} from '@/ispec/types';
-import {initialValues} from '@/ispec/types';
-import {evaluateSpec} from '@/ispec/evaluate';
-import {FormulaExplorer} from '@/components/presentation/FormulaExplorer';
-import {api} from '@/api/client';
-import {FigureSpecView} from '@/components/ispec/views/FigureSpecView';
-import {VegaSpecView} from '@/components/ispec/views/VegaSpecView';
-import {FIGURE_TEMPLATE_OPTIONS,defaultInteraction,formulaPreview,matrixPreview,parseFormulaText} from './interactionPreview';
-import {WORKSHOP_PLUGIN_CATALOG} from '@/canvas/templateCatalog';
+import type {RelationSuggestion,SceneNode,SceneRelation,NodePatch,TextStyle,PageMetadata} from '@/document/types';
+import {WORKSHOP_PLUGIN_CATALOG,workshopPluginConfigForTemplate} from '@/canvas/templateCatalog';
 import {WorkshopPluginSettings} from './WorkshopPluginSettings';
 import styles from './FreeDeckEditor.module.css';
-interface Props {node:SceneNode|null;count:number;disabled:boolean;pageNo:number;materialId?:string;autoSpecs?:ISpec[];pageNodes?:SceneNode[];
+interface Props {node:SceneNode|null;count:number;disabled:boolean;pageNodes?:SceneNode[];
   pageRelations?:SceneRelation[];onRelationsChange?:(relations:SceneRelation[],key?:string)=>void;
   onSuggestRelations?:(instruction:string)=>Promise<RelationSuggestion>;
   onApplyRelationSuggestion?:(suggestion:RelationSuggestion)=>string|null;
   onPatch:(patch:NodePatch,key?:string)=>void;onDuplicate:()=>void;onDelete:()=>void;
   onDiagramBuild?:(text:string,ai:boolean)=>void|Promise<void>;onDemoGenerate?:()=>void;generating?:boolean;
   onVectorize?:()=>void;figureCount?:number;
-  onInteraction:(config:NodeInteraction|null)=>void;onReinteract?:()=>void;reinteracting?:boolean;onRestoreContent?:()=>void;}
-function VectorProperties({node,disabled,pageNodes=[],pageRelations=[],onRelationsChange,onSuggestRelations,onApplyRelationSuggestion,onPatch,onDuplicate,onDelete}:{node:SceneNode;disabled:boolean;pageNodes?:SceneNode[];
-  pageRelations?:SceneRelation[];onRelationsChange?:(relations:SceneRelation[],key?:string)=>void;
+  pageMeta?:{notes:string;backgroundColor:string;backgroundModified:boolean};
+  onPatchPage?:(patch:PageMetadata)=>void;
+  onInsertPlugin?:()=>void;onInsertDemo?:()=>void;}
+type PanelTab='props'|'relations';
+function RelationsTab({pageNodes,pageRelations,node,disabled,onRelationsChange,onSuggestRelations,onApplyRelationSuggestion}:{
+  pageNodes:SceneNode[];pageRelations?:SceneRelation[];node:SceneNode|null;disabled:boolean;
+  onRelationsChange?:(relations:SceneRelation[],key?:string)=>void;
   onSuggestRelations?:(instruction:string)=>Promise<RelationSuggestion>;
-  onApplyRelationSuggestion?:(suggestion:RelationSuggestion)=>string|null;
+  onApplyRelationSuggestion?:(suggestion:RelationSuggestion)=>string|null}){
+  return <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={node} disabled={disabled} onChange={onRelationsChange}
+    onSuggestRelations={onSuggestRelations} onApplySuggestion={onApplyRelationSuggestion}/>;
+}
+function PageOverview({disabled,pageMeta,onPatchPage,onInsertPlugin,onInsertDemo}:{
+  disabled:boolean;pageMeta?:Props['pageMeta'];onPatchPage?:(patch:PageMetadata)=>void;
+  onInsertPlugin?:()=>void;onInsertDemo?:()=>void}){
+  return <>
+    <div className={styles.propertyTitle}><h2>页面属性</h2><span>未选中对象</span></div>
+    <p className={styles.hint}>点击画布中的对象可调整位置与样式；双击文字直接输入。以下是本页的整体设置。</p>
+    {pageMeta&&<fieldset disabled={disabled}>
+      <section><h3>演讲者备注</h3>
+        <textarea aria-label="演讲者备注" rows={4} maxLength={20000} value={pageMeta.notes}
+          onChange={e=>onPatchPage?.({notes:e.target.value})} placeholder="放映时仅供演讲者查看的提示…"/>
+      </section>
+      <section><h3>页面背景</h3>
+        <div className={styles.numberGrid}>
+          <label>背景色<input type="color" aria-label="页面背景色" value={pageMeta.backgroundColor}
+            onChange={e=>onPatchPage?.({background_color:e.target.value})}/></label>
+        </div>
+        {pageMeta.backgroundModified&&<button type="button" onClick={()=>onPatchPage?.({background_color:null})}>清除背景设置</button>}
+      </section>
+    </fieldset>}
+    {(onInsertPlugin||onInsertDemo)&&<section><h3>让这页变活</h3>
+      <div className={styles.objectButtons}>
+        {onInsertPlugin&&<button type="button" className={styles.applyButton} onClick={onInsertPlugin}>🎛️ 插入定象坊插件</button>}
+        {onInsertDemo&&<button type="button" onClick={onInsertDemo}>添加 AI 演示框</button>}
+      </div>
+      <p className={styles.hint}>定象坊沙盘是可离线播放的交互仪器；AI 演示框会根据本页内容生成可拖动的演示。</p>
+    </section>}
+  </>;
+}
+function VectorProperties({node,disabled,pageNodes=[],onPatch,onDuplicate,onDelete}:{node:SceneNode;disabled:boolean;pageNodes?:SceneNode[];
   onPatch:(patch:NodePatch,key?:string)=>void;onDuplicate:()=>void;onDelete:()=>void}){
   const peers=useMemo(()=>pageNodes.filter(item=>item.type==='vector'&&!item.deleted&&!item.hidden&&item.id!==node.id),[pageNodes,node.id]);
   const [firstId,setFirstId]=useState(()=>node.basis?.firstId??peers[0]?.id??'');
@@ -35,7 +63,7 @@ function VectorProperties({node,disabled,pageNodes=[],pageRelations=[],onRelatio
     setResultId(node.basis?.resultId??peers.find(p=>p.id!==(node.basis?.firstId??peers[0]?.id))?.id??peers[0]?.id??'');
   },[node.id,node.basis,peers]);
   const canLink=peers.length>=2&&firstId&&resultId&&firstId!==resultId;
-  return <aside className={styles.properties} aria-label="对象属性">
+  return <>
     <div className={styles.propertyTitle}><h2>线条属性</h2><span>{node.name}</span></div>
     <fieldset disabled={disabled || node.locked}>
       <section><h3>外观与动态</h3><div className={styles.numberGrid}><VectorControls node={node} onPatch={onPatch} full/></div></section>
@@ -56,8 +84,6 @@ function VectorProperties({node,disabled,pageNodes=[],pageRelations=[],onRelatio
           {node.basis&&<button type="button" onClick={()=>onPatch({basis:null},'vector.basis')}>解除换基联动</button>}
         </div>
       </section>}
-      <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={node} disabled={disabled} onChange={onRelationsChange}
-        onSuggestRelations={onSuggestRelations} onApplySuggestion={onApplyRelationSuggestion}/>
     </fieldset>
     <fieldset disabled={disabled}>
       <section><h3>对象操作</h3><div className={styles.objectButtons}>
@@ -67,7 +93,7 @@ function VectorProperties({node,disabled,pageNodes=[],pageRelations=[],onRelatio
         <button type="button" className={styles.danger} onClick={onDelete}>删除对象</button>
       </div></section>
     </fieldset>
-  </aside>;
+  </>;
 }
 function InlineSystemProperties({node,disabled,onPatch,onDuplicate,onDelete,onDiagramBuild,onDemoGenerate,generating}:Props&{node:SceneNode}){
   const [text,setText]=useState(()=>node.diagram?.edges.map(edge=>{
@@ -75,7 +101,7 @@ function InlineSystemProperties({node,disabled,onPatch,onDuplicate,onDelete,onDi
     return `${edge.from}[${label(edge.from)}] --> ${edge.to}[${label(edge.to)}]`;
   }).join('\n')??'');
   const demo=node.demo;
-  return <aside className={styles.properties} aria-label="对象属性"><h2>{node.type==='diagram'?'原位流程图':'AI 演示框'}</h2>
+  return <><h2>{node.type==='diagram'?'原位流程图':'AI 演示框'}</h2>
     <fieldset disabled={disabled||node.locked||generating}>
       <section><h3>图框位置与大小</h3><div className={styles.numberGrid}>{(['x','y','width','height','rotation'] as const).map((key,i)=><label key={key}>
         {['横坐标','纵坐标','框宽','框高','旋转角度'][i]}<input type="number" aria-label={['横坐标','纵坐标','框宽','框高','旋转角度'][i]} value={Number(node[key].toFixed(2))} step="1"
@@ -102,26 +128,21 @@ function InlineSystemProperties({node,disabled,onPatch,onDuplicate,onDelete,onDi
     <fieldset disabled={disabled}><section><div className={styles.objectButtons}><button onClick={onDuplicate}>复制对象</button>
       <button onClick={()=>onPatch({locked:!node.locked})}>{node.locked?'解锁对象':'锁定对象'}</button>
       <button onClick={()=>onPatch({hidden:!node.hidden})}>{node.hidden?'显示对象':'隐藏对象'}</button><button onClick={onDelete}>删除对象</button></div></section></fieldset>
-  </aside>;
+  </>;
 }
-export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=[],pageNodes=[],pageRelations=[],onRelationsChange,onSuggestRelations,onApplyRelationSuggestion,onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onDiagramBuild,onDemoGenerate,generating,onVectorize,figureCount}:Props){
-  if(!node)return <aside className={styles.properties} aria-label="对象属性"><h2>对象属性</h2><p className={styles.hint}>点击画布中的对象，拖动调整位置。双击文字可直接输入，也可从左侧图层选择对象。</p>
-    <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={null} disabled={disabled} onChange={onRelationsChange}
-      onSuggestRelations={onSuggestRelations} onApplySuggestion={onApplyRelationSuggestion}/>
-  </aside>;
-  if(node.type==='vector')return <VectorProperties node={node} disabled={disabled} pageNodes={pageNodes} pageRelations={pageRelations} onRelationsChange={onRelationsChange}
-    onSuggestRelations={onSuggestRelations} onApplyRelationSuggestion={onApplyRelationSuggestion} onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete}/>;
-  if(node.type==='diagram'||node.type==='demo')return <InlineSystemProperties key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo}
-    onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onInteraction={onInteraction} onDiagramBuild={onDiagramBuild} onDemoGenerate={onDemoGenerate} generating={generating}/>;
-  if(node.type==='workshop_plugin')return <aside className={styles.properties} aria-label="对象属性">
-    <div className={styles.propertyTitle}><h2>万象工坊插件</h2><span>{node.workshop_plugin?.category ?? '交互仪器'}</span></div>
+function WorkshopPluginProperties({node,disabled,onPatch,onDuplicate,onDelete}:{node:SceneNode;disabled:boolean;
+  onPatch:(patch:NodePatch,key?:string)=>void;onDuplicate:()=>void;onDelete:()=>void}){
+  const current=node.workshop_plugin;
+  return <>
+    <div className={styles.propertyTitle}><h2>定象坊插件</h2><span>{node.workshop_plugin?.category ?? '交互仪器'}</span></div>
     <fieldset disabled={disabled||node.locked}>
       <section><h3>选择插件模板</h3>
-        <select aria-label="切换工坊插件模板" value={node.workshop_plugin?.template_kind ?? 'taylor-error'} onChange={e=>{
+        <select aria-label="切换定象坊插件模板" value={node.workshop_plugin?.template_kind ?? 'taylor-error'} onChange={e=>{
           const item=WORKSHOP_PLUGIN_CATALOG.find(t=>t.kind===e.target.value);
-          if(item) onPatch({workshop_plugin:{template_kind:item.kind,title:item.name,category:item.category}},'workshop-template');
+          if(item) onPatch({workshop_plugin:workshopPluginConfigForTemplate(item)},'workshop-template');
         }}>
-          {node.workshop_plugin?.template_kind==='custom-work'&&<option value="custom-work">[我的作品] {node.workshop_plugin.title}</option>}
+          {current&&!WORKSHOP_PLUGIN_CATALOG.some(item=>item.kind===current.template_kind)&&
+            <option value={current.template_kind}>[{current.template_kind==='custom-work' ? '我的作品' : current.category || '历史插件'}] {current.title}</option>}
           {WORKSHOP_PLUGIN_CATALOG.map(item=><option key={item.kind} value={item.kind}>[{item.category}] {item.name}</option>)}
         </select>
         <p className={styles.hint}>原生前端确定性交互插件，支持离线单文件导出并保留完整调参与时间轴播放。</p>
@@ -139,111 +160,43 @@ export function NodeProperties({node,count,disabled,pageNo,materialId,autoSpecs=
       <button type="button" onClick={()=>onPatch({hidden:!node.hidden})}>{node.hidden?'显示对象':'隐藏对象'}</button>
       <button type="button" className={styles.danger} onClick={onDelete}>删除插件</button>
     </div></section></fieldset>
-  </aside>;
-  return <NodePropertiesInner key={node.id} node={node} count={count} disabled={disabled} pageNo={pageNo} materialId={materialId} autoSpecs={autoSpecs} pageNodes={pageNodes}
-    pageRelations={pageRelations} onRelationsChange={onRelationsChange} onSuggestRelations={onSuggestRelations} onApplyRelationSuggestion={onApplyRelationSuggestion}
-    onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onInteraction={onInteraction} onReinteract={onReinteract}
-    reinteracting={reinteracting} onRestoreContent={onRestoreContent} onVectorize={onVectorize} figureCount={figureCount}/>;
+  </>;
 }
-function NodePropertiesInner({node,count,disabled,pageNo,materialId,autoSpecs,pageNodes=[],pageRelations=[],onRelationsChange,onSuggestRelations,onApplyRelationSuggestion,onPatch,onDuplicate,onDelete,onInteraction,onReinteract,reinteracting,onRestoreContent,onVectorize,figureCount}:Props&{node:SceneNode}){
-  const [tab,setTab]=useState<'look'|'interact'>('look');
-  const [config,setConfig]=useState<NodeInteraction>(()=>node.interaction??defaultInteraction(node));
-  const [message,setMessage]=useState('');
-  useEffect(()=>{setConfig(node.interaction??defaultInteraction(node));setMessage('');},[node.id,node.interaction]);
-  // The deck may already have a saved x=3; preview the same current condition.
-  useEffect(()=>{
-    if(!materialId||!node.interaction)return;
-    let alive=true;
-    void api.getISpecValues(materialId,`node_spec_${node.id}`).then(record=>{
-      if(!alive||!record.values)return;
-      const numbers=Object.fromEntries(Object.entries(record.values).filter(([,value])=>typeof value==='number')) as Record<string,number>;
-      if(!Object.keys(numbers).length)return;
-      setConfig(current=>{
-        if(current.kind==='formula'){
-          const defaults={...current.defaults};
-          for(const [key,value] of Object.entries(numbers))if(current.formula?.includes(key))defaults[key]=value;
-          return {...current,defaults};
-        }
-        if(current.kind==='matrix'||current.kind==='figure'){
-          const matrix=(current.matrix??[[1,0],[0,1]]).map(row=>[...row]);const vector=[...(current.vector??[1,0])];
-          if(numbers.a!==undefined)matrix[0]![0]=numbers.a;if(numbers.b!==undefined)matrix[0]![1]=numbers.b;
-          if(numbers.c!==undefined)matrix[1]![0]=numbers.c;if(numbers.d!==undefined)matrix[1]![1]=numbers.d;
-          if(numbers.x1!==undefined)vector[0]=numbers.x1;if(numbers.y1!==undefined)vector[1]=numbers.y1;
-          return {...current,matrix,vector};
-        }
-        return current;
-      });
-    }).catch(()=>{});
-    return()=>{alive=false;};
-    // Load the deck's current condition once per selected object; applying the
-    // panel must not overwrite the values the user is editing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[materialId,node.id]);
+export function NodeProperties({node,count,disabled,pageNodes=[],pageRelations=[],onRelationsChange,onSuggestRelations,onApplyRelationSuggestion,onPatch,onDuplicate,onDelete,onDiagramBuild,onDemoGenerate,generating,pageMeta,onPatchPage,onInsertPlugin,onInsertDemo,onVectorize,figureCount}:Props) {
+  const [tab,setTab]=useState<PanelTab>('props');
+  const relationCount=(pageRelations??[]).length;
+  const propsContent=(()=>{
+    if(!node)return <PageOverview disabled={disabled} pageMeta={pageMeta} onPatchPage={onPatchPage} onInsertPlugin={onInsertPlugin} onInsertDemo={onInsertDemo}/>;
+    if(node.type==='vector')return <VectorProperties node={node} disabled={disabled} pageNodes={pageNodes} onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete}/>;
+    if(node.type==='diagram'||node.type==='demo')return <InlineSystemProperties key={node.id} node={node} count={count} disabled={disabled}
+      onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete} onDiagramBuild={onDiagramBuild} onDemoGenerate={onDemoGenerate} generating={generating}/>;
+    if(node.type==='workshop_plugin')return <WorkshopPluginProperties node={node} disabled={disabled} onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete}/>;
+    return <NodePropertiesInner key={node.id} node={node} count={count} disabled={disabled} pageNodes={pageNodes}
+      pageRelations={pageRelations} onRelationsChange={onRelationsChange} onSuggestRelations={onSuggestRelations}
+      onApplyRelationSuggestion={onApplyRelationSuggestion} onPatch={onPatch} onDuplicate={onDuplicate} onDelete={onDelete}
+      onVectorize={onVectorize} figureCount={figureCount}/>;
+  })();
+  return <aside className={styles.properties} aria-label="对象属性" onPointerDown={e=>e.stopPropagation()}>
+    <div className={styles.propertyTabs} role="tablist" aria-label="属性面板分组">
+      <button type="button" role="tab" aria-selected={tab==='props'} onClick={()=>setTab('props')}>属性</button>
+      <button type="button" role="tab" aria-selected={tab==='relations'} onClick={()=>setTab('relations')}>动态关系{relationCount?` (${relationCount})`:''}</button>
+    </div>
+    {tab==='props'?propsContent:
+      <RelationsTab pageNodes={pageNodes} pageRelations={pageRelations} node={node} disabled={disabled}
+        onRelationsChange={onRelationsChange} onSuggestRelations={onSuggestRelations} onApplyRelationSuggestion={onApplyRelationSuggestion}/>}
+  </aside>;
+}
+function NodePropertiesInner({node,count,disabled,onPatch,onDuplicate,onDelete,onVectorize,figureCount}:Props&{node:SceneNode}){
   const setStyle=(style:Partial<TextStyle>)=>onPatch({style},`style.${Object.keys(style)[0]}`);
   const text=node.type==='text';
-  const contentChanged=!!node.source_element_id&&(node.text!==node.base_text||JSON.stringify(node.table)!==JSON.stringify(node.base_table)||JSON.stringify(node.chart)!==JSON.stringify(node.base_chart));
-  const update=(patch:Partial<NodeInteraction>)=>setConfig(current=>({...current,...patch}));
-  const formula=config.formula??'';
-  const parsed=useMemo(()=>parseFormulaText(formula),[formula]);
-  const formulaSpec=useMemo(()=>config.kind==='formula'?formulaPreview(formula,config.defaults??{},config.ranges??{},pageNo):undefined,[config,formula,pageNo]);
-  const matrixSpec=useMemo(()=>config.kind==='matrix'||config.kind==='figure'?matrixPreview(config,pageNo):undefined,[config,pageNo]);
-  const previewSpec:ISpec|undefined=formulaSpec?.spec??matrixSpec;
-  const previewValues=useMemo(()=>previewSpec?initialValues(previewSpec):{},[previewSpec]);
-  const previewEvaluation:SpecEvaluation|null=useMemo(()=>previewSpec?evaluateSpec(previewSpec,previewValues):null,[previewSpec,previewValues]);
-  const formulaVars=parsed.variables;
-  const validFormula=!parsed.error&&formulaVars.length>0&&(config.allowed??formulaVars).some(name=>formulaVars.includes(name));
-  const applyFormula=()=>{
-    const check=formulaPreview(formula,config.defaults??{},config.ranges??{},pageNo);
-    if(check.error||!check.spec){setMessage(check.error??'公式无法解析');return;}
-    const allowed=(config.allowed??check.variables).filter(name=>check.variables.includes(name));
-    if(!allowed.length){setMessage('请至少勾选一个可调变量');return;}
-    const defaults=Object.fromEntries(check.variables.map(name=>[name,Number(config.defaults?.[name]??0)]));
-    onInteraction({kind:'formula',formula:formula.trim(),defaults,allowed,ranges:config.ranges??{},title:formula.trim().slice(0,60),status:'active'});
-    setMessage('交互已应用，随文档自动保存；返回演示即可调参。');
-  };
-  const applyMatrix=(template?:InteractionTemplate)=>{
-    onInteraction({kind:template?'figure':'matrix',template,matrix:config.matrix??[[1,0],[0,1]],vector:config.vector??[1,0],title:config.title||'图形交互',status:'active'});
-    setMessage('交互已应用，随文档自动保存；返回演示即可调参。');
-  };
-  const applyChart=()=>{
-    if(!node.chart)return;
-    onInteraction({kind:'chart',categories:node.chart.categories,series:node.chart.series,title:config.title||node.chart.title||'图表交互',status:'active'});
-    setMessage('交互已应用，数据来自当前图表。');
-  };
-  const apply=()=>{
-    if(config.kind==='formula')applyFormula();
-    else if(config.kind==='chart')applyChart();
-    else applyMatrix(config.kind==='figure'?config.template:undefined);
-  };
-  const previewParam=(id:string,value:number)=>{
-    const matrix=(config.matrix??[[1,0],[0,1]]).map(row=>[...row]);const vector=[...(config.vector??[1,0])];
-    if(id==='a')matrix[0]![0]=value;else if(id==='b')matrix[0]![1]=value;
-    else if(id==='c')matrix[1]![0]=value;else if(id==='d')matrix[1]![1]=value;
-    else if(id==='x1'||id==='vx'||id==='point_x'||id==='target_x')vector[0]=value;
-    else if(id==='y1'||id==='vy'||id==='point_y'||id==='target_y')vector[1]=value;
-    else if(id==='b2x')matrix[0]![0]=value;else if(id==='b2y')matrix[1]![0]=value;
-    else if(id.startsWith('cells_1_matrix_')){const parts=id.split('_');matrix[Number(parts[2])]![Number(parts[3])]=value;}
-    setConfig(current=>({...current,matrix,vector}));
-  };
-  const auto=(autoSpecs??[]).filter(spec=>(spec.anchor?.element_id&&spec.anchor.element_id===node.source_element_id)||
-    spec.parameters.some(parameter=>parameter.source.element_id===node.source_element_id));
-  const userPaused=!!node.interaction&&(
-    node.interaction.status==='paused'
-    ||(node.interaction.kind==='formula'&&!!node.interaction.formula&&!node.text.replace(/\s+/g,'').includes(node.interaction.formula.replace(/\s+/g,'')))
-    ||(node.interaction.kind==='chart'&&!!node.chart&&(JSON.stringify(node.chart.categories)!==JSON.stringify(node.interaction.categories)||JSON.stringify(node.chart.series)!==JSON.stringify(node.interaction.series))));
-  return <aside className={styles.properties} aria-label="对象属性">
+  return <>
     <div className={styles.propertyTitle}><h2>{count>1?`已选择 ${count} 个对象`:text?'文字属性':node.type==='image'?'图片属性':node.type==='chart'?'图表属性':node.type==='table'?'表格属性':'图形属性'}</h2>
       <span>{node.whole_group?'组合图形（整体操作）':node.name}</span></div>
-    <div className={styles.propertyTabs} role="tablist"><button role="tab" aria-selected={tab==='look'} onClick={()=>setTab('look')}>外观</button>
-      <button role="tab" aria-selected={tab==='interact'} onClick={()=>setTab('interact')}>交互{node.interaction?' ·已配置':auto.length?' ·自动识别':''}</button></div>
-    {contentChanged&&auto.length>0&&<div className={styles.pauseBox} role="status"><b>来源内容已修改</b><p>原交互已停用，避免继续显示旧结果。可重新提取当前内容，或撤销这次内容修改。</p>
-      <div>{onReinteract&&<button onClick={onReinteract} disabled={reinteracting}>{reinteracting?'提取中…':'重新提取本页交互'}</button>}
-        {onRestoreContent&&<button onClick={onRestoreContent}>撤销内容修改</button>}</div></div>}
-    {tab==='look'&&node.type==='image'&&count===1&&<section><h3>图示矢量化</h3>
+    {node.type==='image'&&!node.whole_group&&count===1&&<section><h3>图示矢量化</h3>
       {node.cleaned_asset_id?<p className={styles.hint}>已应用 {figureCount??0} 个矢量化对象</p>:
         <button type="button" className={styles.applyButton} disabled={!onVectorize} onClick={onVectorize}>矢量化此图</button>}
     </section>}
-    {tab==='look'?<fieldset disabled={disabled||node.locked}>
+    <fieldset disabled={disabled||node.locked}>
       <section><h3>位置与大小 <span>pt</span></h3><div className={styles.numberGrid}>
         {(['x','y','width','height','rotation'] as const).map((key,i)=><label key={key}>{['X','Y','宽度','高度','旋转 °'][i]}
           <input type="number" step={key==='rotation'?1:.1} aria-label={['对象 X','对象 Y','对象宽度','对象高度','对象旋转'][i]}
@@ -294,92 +247,12 @@ function NodePropertiesInner({node,count,disabled,pageNo,materialId,autoSpecs,pa
           {node.chart!.series.map((s,j)=><td key={j}><input type="number" step="any" aria-label={`图表系列 ${j+1} 第 ${i+1} 行`} value={s.values[i]??0} onChange={e=>{
             const v=Number(e.target.value);if(Number.isFinite(v))onPatch({chart:{...node.chart!,series:node.chart!.series.map((s,a)=>a===j?{...s,values:s.values.map((n,b)=>b===i?v:n)}:s)}},'chart');
           }}/></td>)}</tr>)}</tbody></table></div></section>}
-    </fieldset>:<div className={styles.interactionPanel}>
-      {auto.length>0&&!node.interaction&&<p className={styles.hint}>此对象已有自动识别交互：{auto.map(spec=>spec.title).join('、')}。保存下面的配置会覆盖它。</p>}
-      {userPaused&&<div className={styles.warnBox}><b>交互已暂停</b><p>{node.interaction?.reason??'来源内容与已保存的交互不一致，旧结果不会继续显示。'}</p>
-        {text&&<button onClick={()=>{setConfig(defaultInteraction(node));setMessage('已按当前文字重建，请检查后应用。');}}>按当前文字重建公式</button>}
-      </div>}
-      {text?<fieldset disabled={disabled}>
-        <section><h3>公式与变量</h3>
-          <label className={styles.fullField}>计算关系<textarea rows={3} aria-label="交互公式" placeholder="例如 y = x^2 + 2*x" value={formula}
-            onChange={e=>update({kind:'formula',formula:e.target.value})}/></label>
-          {parsed.error?<p className={styles.error} role="alert">{parsed.error}</p>:<p className={styles.hint}>识别到变量：{formulaVars.join('、')}；使用受限表达式，不执行脚本。</p>}
-          {formulaVars.map(name=>{
-            const range=config.ranges?.[name]??{};const allowed=(config.allowed??formulaVars).includes(name);
-            return <div className={styles.varRow} key={name}><label className={styles.check}><input type="checkbox" checked={allowed} aria-label={`变量 ${name} 可调`}
-              onChange={e=>update({allowed:e.target.checked?[...new Set([...(config.allowed??formulaVars),name])]:(config.allowed??formulaVars).filter(v=>v!==name)})}/>{name}</label>
-              <label>初值<input type="number" step="any" aria-label={`变量 ${name} 初值`} value={config.defaults?.[name]??0}
-                onChange={e=>update({defaults:{...config.defaults,[name]:Number(e.target.value)}})}/></label>
-              <label>最小<input type="number" step="any" aria-label={`变量 ${name} 最小值`} value={range.min??-10}
-                onChange={e=>update({ranges:{...config.ranges,[name]:{...range,min:Number(e.target.value)}}})}/></label>
-              <label>最大<input type="number" step="any" aria-label={`变量 ${name} 最大值`} value={range.max??10}
-                onChange={e=>update({ranges:{...config.ranges,[name]:{...range,max:Number(e.target.value)}}})}/></label>
-              <label>步长<input type="number" step="any" min={.0001} aria-label={`变量 ${name} 步长`} value={range.step??.1}
-                onChange={e=>update({ranges:{...config.ranges,[name]:{...range,step:Math.max(.0001,Number(e.target.value))}}})}/></label>
-            </div>;
-          })}
-        </section>
-        {formulaSpec?.spec&&previewEvaluation?<section><h3>即时预览</h3>
-          <FormulaExplorer spec={formulaSpec.spec} evaluation={previewEvaluation} onChange={(id,value)=>{
-            if(typeof value==='number')update({defaults:{...config.defaults,[id]:value}});
-          }}/>
-          {formulaSpec.output&&<p className={styles.previewResult}>当前：{formulaSpec.output} = {String(previewEvaluation.derived[formulaSpec.output]??'—')}</p>}
-        </section>:null}
-        <p className={styles.hint}>应用后可在演示页直接调参；“来源”标记为用户确认。</p>
-      </fieldset>:node.type==='table'?<fieldset disabled={disabled}>
-        <section><h3>表格数据</h3><p className={styles.hint}>表格的内容与行列在“外观”中编辑，不会套用矩阵或图形模板。修改后若原交互依赖这份表格，演示页会提示待核对，可按当前内容重新提取。</p>
-          <p className={styles.previewResult}>当前 {node.table?.length??0} 行 × {Math.max(0,...(node.table??[]).map(row=>row.length))} 列</p>
-        </section>
-      </fieldset>:node.type==='chart'?<fieldset disabled={disabled}>
-        <section><h3>图表交互</h3><p className={styles.hint}>交互直接使用“外观”中当前图表数据，修改数据会同步到计算结果。</p>
-          {node.chart&&<div className={styles.miniChart}><VegaSpecView view={{type:'vega',spec_ref:node.chart.chart_type?.includes('LINE')?'line':'bar',dataset:'data',x:'category',y:'value',title:node.chart.title??node.name}}
-            spec={{spec_version:'1.0',object_id:'preview_chart',kind:'filter',parameters:[],datasets:[{id:'data',columns:['category','series','value'],
-              rows:node.chart.series.flatMap(series=>node.chart!.categories.map((category,i)=>[category,series.name,series.values[i]??0]))}],
-              views:[]}} evaluation={{values:{},derived:{},violations:[]}} reducedMotion/></div>}
-        </section>
-      </fieldset>:<fieldset disabled={disabled}>
-        <section><h3>图形交互</h3>
-          <label className={styles.fullField}>图形模板<select aria-label="图形交互模板" value={config.kind==='figure'?(config.template??'grid_transform'):''}
-            onChange={e=>update({kind:'figure',template:e.target.value as InteractionTemplate})}>
-            <option value="">仅矩阵实验台（不套用图形模板）</option>
-            {FIGURE_TEMPLATE_OPTIONS.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
-          </select></label>
-          <p className={styles.hint}>{config.kind==='figure'?FIGURE_TEMPLATE_OPTIONS.find(option=>option.value===config.template)?.hint:'矩阵与向量实验台：拖动基向量，修改矩阵。'}</p>
-          <div className={styles.numberGrid}>
-            {([[0,0,'a'],[0,1,'b'],[1,0,'c'],[1,1,'d']] as const).map(([r,c,key])=><label key={key}>矩阵 {key}
-              <input type="number" step="any" aria-label={`交互矩阵 ${key}`} value={config.matrix?.[r]?.[c]??(key==='a'||key==='d'?1:0)}
-                onChange={e=>{const value=Number(e.target.value);if(Number.isFinite(value)){const matrix=(config.matrix??[[1,0],[0,1]]).map(row=>[...row]);matrix[r]![c]=value;update({matrix});}}}/></label>)}
-            <label>{config.template==='basis_change'?'固定点 x':'输入向量 x'}<input type="number" step="any" aria-label="交互向量 x" value={config.vector?.[0]??1}
-              onChange={e=>update({vector:[Number(e.target.value),config.vector?.[1]??0]})}/></label>
-            <label>{config.template==='basis_change'?'固定点 y':'输入向量 y'}<input type="number" step="any" aria-label="交互向量 y" value={config.vector?.[1]??0}
-              onChange={e=>update({vector:[config.vector?.[0]??1,Number(e.target.value)]})}/></label>
-          </div>
-          {config.template==='basis_change'&&<p className={styles.hint}>斜基 b₂ 取矩阵第一列（{config.matrix?.[0]?.[0]??1}, {config.matrix?.[1]?.[0]??0}）。</p>}
-        </section>
-        {matrixSpec&&previewEvaluation?<section><h3>即时预览</h3><div className={styles.figurePreview}>
-          <FigureSpecView view={matrixSpec.views.find(view=>view.type==='figure')!} spec={matrixSpec} evaluation={previewEvaluation}
-            stage={2} reducedMotion draggable onParamChange={previewParam}/>
-        </div></section>:null}
-        <p className={styles.hint}>同类模板共享受限参数与计算引擎；拖动预览或修改数字都可即时查看效果。</p>
-      </fieldset>}
-      {message&&<p className={styles.hint} role="status">{message}</p>}
-      {node.type!=='table'&&<div className={styles.interactionActions}><button className={styles.applyButton} onClick={apply} disabled={disabled||(text&&!validFormula)}>应用交互</button>
-        {node.interaction&&<button onClick={()=>{onInteraction(null);setMessage('已移除该对象上的用户交互。');}} disabled={disabled}>移除用户交互</button>}
-        {onReinteract&&<button onClick={onReinteract} disabled={disabled||reinteracting}>{reinteracting?'识别中…':'重新提取本页交互'}</button>}
-      </div>}
-      <PageRelationsPanel pageNodes={pageNodes} relations={pageRelations} selectedNode={node} disabled={disabled} onChange={onRelationsChange}
-        onSuggestRelations={onSuggestRelations} onApplySuggestion={onApplyRelationSuggestion}/>
-    </div>}
+    </fieldset>
     <fieldset disabled={disabled}>
       <section><h3>对象操作</h3><div className={styles.objectButtons}>
         <button onClick={onDuplicate}>复制对象</button><button onClick={()=>onPatch({locked:!node.locked})}>{node.locked?'解锁对象':'锁定对象'}</button>
         <button onClick={()=>onPatch({hidden:!node.hidden})}>{node.hidden?'显示对象':'隐藏对象'}</button><button className={styles.danger} onClick={onDelete}>删除对象</button>
       </div></section>
     </fieldset>
-    <details className={styles.provenance}><summary>内容与来源</summary>
-      <p>{node.source_element_id?'来自原 PPT 对象，位置和样式改动会即时同步；内容修改会暂停依赖它的自动交互。':'在网页文档中新建的对象，可独立配置公式或图形交互。'}</p>
-      {auto.length>0&&<p>自动识别：{auto.map(spec=>spec.title).join('、')}</p>}
-      {node.interaction&&<p>当前交互：用户确认，随文档保存。</p>}
-    </details>
-  </aside>;
+  </>;
 }

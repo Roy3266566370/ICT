@@ -23,7 +23,7 @@ import { saveCustomBlock } from './customBlocks.ts';
 import { isStudyStage } from './studyStages';
 import { NODE_DEFS, nodePorts, type NodeBodyProps } from './nodes.tsx';
 import { AiRuleLive } from './AiRuleBlockNode.tsx';
-import { parseAiRulePayload } from './aiRuleBlock.ts';
+import { applyRulePreset, parseAiRulePayload } from './aiRuleBlock.ts';
 import { serializeUpstreamValue, upstreamHint, type RuleUpstreamContext } from './aiRulePorts.ts';
 import { createCanvasNode } from './createCanvasNode.ts';
 import { compatiblePorts, recommendNodesForPort, type WireRecommendation } from './wireRecommend.ts';
@@ -88,6 +88,7 @@ interface BoardProps {
   /** 公开分享等只读场景：保留参数交互，但隐藏删除/结构编辑入口。 */
   readOnly?: boolean;
   interactivePanel?: boolean;
+  interactiveSliders?: boolean;
   slideInstrument?: boolean;
   workshopEmbed?: WorkshopEmbedOptions;
   onPreviewPreset?: (preset: WorkshopPluginPreset) => void;
@@ -141,7 +142,7 @@ function strokePath(pts: [number, number][]): string {
   return d;
 }
 
-export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCustomBlock, onOpenRuleCreator, embedded, mode: requestedMode, onCompose, templateKind, renderTools, workId, focusContent, readOnly, interactivePanel, slideInstrument, workshopEmbed, onPreviewPreset, presentationKey, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
+export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCustomBlock, onOpenRuleCreator, embedded, mode: requestedMode, onCompose, templateKind, renderTools, workId, focusContent, readOnly, interactivePanel, interactiveSliders, slideInstrument, workshopEmbed, onPreviewPreset, presentationKey, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
   const mode = embedded || visibleNodeIds ? undefined : requestedMode;
   const innerRef = useRef<HTMLDivElement>(null);
   const vpRef = useRef<HTMLDivElement>(null);
@@ -785,8 +786,8 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       startPan(e);
       return;
     }
-    if (e.button !== 0) return;
-    if (!readOnly && tool === 'erase') {
+    if (e.button !== 0 || readOnly) return;
+    if (tool === 'erase') {
       e.preventDefault();
       eraseAt(e);
       const mv = (ev: PointerEvent): void => eraseAt(ev);
@@ -798,7 +799,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       document.addEventListener('pointerup', up);
       return;
     }
-    const pen = !readOnly && (tool === 'pen' || e.pointerType === 'pen');
+    const pen = tool === 'pen' || e.pointerType === 'pen';
     if (!pen) {
       // 选择工具在空白处按下 → 框选（marquee）；点在节点上交给节点的 click 选中
       if (tool === 'select' && !(e.target as HTMLElement).closest('[data-node],[data-port]')) {
@@ -1002,6 +1003,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     const upstreamWire = n.type === 'aiRuleBlock' ? doc.wires.find((wire) => wire.to === n.id && (wire.toPort ?? 'in') === 'in') : undefined;
     const upstreamNode = upstreamWire && doc.nodes.find((source) => source.id === upstreamWire.from);
     const upstreamPort = upstreamNode && nodePorts(upstreamNode, 'out').find(({ id }) => id === (upstreamWire?.fromPort ?? 'out'));
+    const presetSource = n.type === 'aiRuleBlock' ? parseAiRulePayload(n.payload)?.presetSource : undefined;
     const pipeline = self
       && (self.kind === 'lab408Data' || self.kind === 'physicsData' || self.kind === 'calculusData' || self.kind === 'businessData')
       && !self.error && self.result.frames.length > 0 ? self.pipeline : null;
@@ -1013,10 +1015,14 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       values: inputValues(ctx, n),
       self,
       ...(upstreamNode ? { upstreamLabel: [nodeTitle(upstreamNode), upstreamPort?.label].filter(Boolean).join(' · ') } : {}),
+      onRulePreset: presetSource && !readOnly && !audienceParams
+        ? (preset) => setDoc((current) => applyRulePreset(current, n.id, preset, presetSource)) : undefined,
       onParams: !readOnly && !audienceParams ? (patch) => updateParams(n.id, patch) : exposed?.length && (!readOnly || interactivePanel) ? (patch) => {
         const allowed = Object.fromEntries(exposed.filter((param) => Object.hasOwn(patch, param.param_key))
           .map((param) => [param.param_key, patch[param.param_key]!]));
         if (Object.keys(allowed).length) updateParams(n.id, allowed);
+      } : interactiveSliders && !audienceParams && n.type === 'slider' ? ({ v }) => {
+        if (v !== undefined && Number.isFinite(v)) updateParams(n.id, { v });
       } : undefined,
       onLive: (outputs) => publishLive(n, outputs),
       onText: readOnly || audienceParams ? undefined : (text) => {
@@ -1182,6 +1188,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
               className={styles.node}
               style={{ left: n.x, top: n.y, width: nodeWidth(n), height: n.h }}
               data-node={n.id}
+              data-node-type={n.type}
               data-custom-h={n.h !== undefined || undefined}
               data-node-role={composing ? nodeRole(n) : undefined}
               data-schematic={schematic && n.type !== 'latexNote' && n.type !== 'functionSource' || undefined}

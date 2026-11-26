@@ -1,4 +1,4 @@
-/** 工坊专题的本地自定义名称：只改显示名，不改变模板归属与模板 kind。 */
+/** 定象坊专题的本地自定义名称：只改显示名，不改变模板归属与模板 kind。 */
 
 export const TOPIC_ALIAS_KEY = 'wanxiang.workshop.topicNames.v1';
 const MAX_TOPIC_NAME = 60;

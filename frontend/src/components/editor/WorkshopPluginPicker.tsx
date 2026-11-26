@@ -1,7 +1,7 @@
 /**
- * WorkshopPluginPicker.tsx —— 万象工坊交互插件选择器弹窗
+ * WorkshopPluginPicker.tsx —— 定象坊交互插件选择器弹窗
  *
- * 供万象活页编辑器（FreeDeckEditor）选择策展的 50+ 个万象工坊交互插件，
+ * 供通文册编辑器（FreeDeckEditor）选择策展的 50+ 个定象坊交互插件，
  * 一键插入到当前 PPT 幻灯片中。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -10,7 +10,7 @@ import type { CanvasDoc } from '@/canvas/types';
 import { WORKSHOP_PLUGIN_CATALOG, type WorkshopPluginEntry } from '@/canvas/templateCatalog';
 import styles from './WorkshopPluginPicker.module.css';
 
-const CATEGORIES = ['全部', '高等数学', '大学物理', '408 专题', '深度学习', '办公决策', '我的作品', '公开画廊'] as const;
+const CATEGORIES = ['全部', '高等数学', '线性代数', '大学物理', '408 专题', '深度学习', '办公决策', '我的作品', '公开画廊'] as const;
 type CategoryFilter = (typeof CATEGORIES)[number];
 
 export type WorkshopPluginSelection = WorkshopPluginEntry | {
@@ -132,12 +132,12 @@ export function WorkshopPluginPicker({ onSelect, onClose }: Props): JSX.Element 
   }, [category, normalizedQuery]);
 
   return (
-    <div className={styles.backdrop} role="dialog" aria-modal="true" aria-label="插入万象工坊交互插件" onClick={close}
+    <div className={styles.backdrop} role="dialog" aria-modal="true" aria-label="插入定象坊交互插件" onClick={close}
       onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <header className={styles.header}>
           <div>
-            <h2>插入万象工坊交互插件</h2>
+            <h2>插入定象坊交互插件</h2>
             <p>所有插件均为纯前端确定性交互仪器，插入 PPT 后可原位调参、播放时间轴，且离线导出 100% 保留交互。</p>
           </div>
           <button type="button" className={styles.closeBtn} onClick={close} aria-label="关闭插件库">×</button>
@@ -161,7 +161,7 @@ export function WorkshopPluginPicker({ onSelect, onClose }: Props): JSX.Element 
           <input
             type="search"
             className={styles.search}
-            aria-label={showWorks ? '搜索我的作品' : showGallery ? '搜索公开画廊' : '搜索工坊插件'}
+            aria-label={showWorks ? '搜索我的作品' : showGallery ? '搜索公开画廊' : '搜索定象坊插件'}
             placeholder={showWorks ? '按作品名称搜索' : showGallery ? '按公开作品名称搜索' : '搜索插件（如 Taylor、Cache、盈亏、漏斗、甘特图、AB实验）'}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -189,8 +189,8 @@ export function WorkshopPluginPicker({ onSelect, onClose }: Props): JSX.Element 
             {listFailed ? <div className={styles.empty} role="status">暂时无法读取作品。 <button type="button" onClick={() => {
               setListFailed(false);
               setListAttempt(attempt => attempt + 1);
-            }}>重试</button></div> : works === null ? <p className={styles.empty} role="status">正在读取工坊作品…</p>
-              : !works.length ? <p className={styles.empty}>还没有已保存的作品。在工坊保存画布后，即可插入课件。</p>
+            }}>重试</button></div> : works === null ? <p className={styles.empty} role="status">正在读取定象坊作品…</p>
+              : !works.length ? <p className={styles.empty}>还没有已保存的作品。在定象坊保存画布后，即可插入课件。</p>
               : !visibleWorks?.length ? <p className={styles.empty}>没有匹配的作品，换个关键词试试。</p>
               : visibleWorks.map(work => <button key={work.work_id} type="button" className={styles.card}
                 disabled={openingWork !== undefined} aria-busy={openingWork === work.work_id}
@@ -201,7 +201,7 @@ export function WorkshopPluginPicker({ onSelect, onClose }: Props): JSX.Element 
               </button>)}
             {detailFailed && <p className={styles.empty} role="alert">暂时无法打开这件作品，请重试。</p>}
           </> : filtered.length === 0 ? (
-            <p className={styles.empty}>没有匹配的工坊插件，换个关键词试试。</p>
+            <p className={styles.empty}>没有匹配的定象坊插件，换个关键词试试。</p>
           ) : (
             filtered.map((item) => (
               <button

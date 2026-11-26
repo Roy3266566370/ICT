@@ -42,7 +42,7 @@ const VARIANT_COPY: Readonly<
     entry: '个人空间（可设）',
     status: '回访',
     stamp: '再次入场',
-    docTitle: '登录 · 万象题目实验室',
+    docTitle: '登录 · 万象',
     tabText: '已有档案',
   },
   register: {
@@ -51,7 +51,7 @@ const VARIANT_COPY: Readonly<
     entry: '建立后可设置',
     status: '待建档',
     stamp: '新档案',
-    docTitle: '注册 · 万象题目实验室',
+    docTitle: '注册 · 万象',
     tabText: '新建档案',
   },
 };
@@ -135,7 +135,7 @@ export function AuthShell({
   }, [variant]);
 
   return (
-    <div className={styles.page} data-auth-variant={variant}>
+    <div className={`${styles.page} studio-scope atelier-paper`} data-auth-variant={variant}>
       <header className={styles.topbar}>
         <Link className={styles.brand} to="/" aria-label="万象 WANXIANG 首页">
           <img className={styles.brandMark} src={markUrl} width={26} height={26} alt="" />
@@ -224,10 +224,10 @@ export function AuthShell({
           <div className={styles.deskFoot}>
             <p className={styles.boundaryNote}>
               <i aria-hidden="true" />
-              材料与实验仍按当前浏览器会话保存；跨设备同步与永久保存尚未开放。
+              课件和画布作品随当前浏览器会话保留。课件可在通文册工作台导出留存。
             </p>
             <Link className={styles.guestLink} to="/workshop">
-              以访客身份体验题目实验室与示例 <span aria-hidden="true">→</span>
+              以访客身份体验定象坊 <span aria-hidden="true">→</span>
             </Link>
           </div>
         </section>
@@ -274,7 +274,7 @@ export function AuthShell({
                   </div>
 
                   <div className={styles.facts}>
-                    <div><span>SCOPE / 范围</span><b>个人空间 · 题目实验室</b></div>
+                    <div><span>SCOPE / 范围</span><b>个人空间 · 定象坊 · 通文册</b></div>
                     <div><span>ENTRY / 入口</span><b>{copy.entry}</b></div>
                     <div><span>STATUS / 状态</span><b>{copy.status}</b></div>
                     <div><span>ISSUED / 签发</span><b>2026.11</b></div>
@@ -312,11 +312,11 @@ export function AuthShell({
                   <ol className={styles.notes}>
                     <li>
                       <span>01</span>
-                      <div><b>能进入</b><p>个人空间与题目实验室；保存显示名、默认入口与账号资料。</p></div>
+                      <div><b>账号资料</b><p>登录后可在个人空间管理显示名与默认入口。</p></div>
                     </li>
                     <li>
                       <span>02</span>
-                      <div><b>还不能带走</b><p>材料、实验与分享记录仍随当前浏览器会话保存；跨设备同步与永久保存尚未开放。</p></div>
+                      <div><b>课件和画布作品</b><p>随当前浏览器会话保留。课件可在通文册工作台导出留存。</p></div>
                     </li>
                     <li>
                       <span>03</span>

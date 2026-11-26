@@ -234,14 +234,14 @@ export function newNode(page:ScenePage,id:string,type:SceneNode['type']='text'):
   // 位置放在页面中央——左上角往往压着标题，用户第一眼会以为写错了地方。
   const reference=[...page.nodes].filter(n=>n.type==='text'&&!n.deleted&&!n.hidden&&n.text.trim())
     .sort((a,b)=>(b.style.font_size??0)-(a.style.font_size??0))[0];
-  const width=type==='workshop_plugin'?760:type==='diagram'?640:type==='demo'?620:type==='text'||type==='table'?320:type==='chart'?400:200,
-    height=type==='workshop_plugin'?460:type==='diagram'?280:type==='demo'?360:type==='chart'?250:type==='text'?70:type==='vector'?16:140;
-  return {id,type,name:type==='text'?'新文字':type==='image'?'新图片':type==='vector'?'线条':type==='workshop_plugin'?'万象工坊插件':'新图形',
+  const width=type==='workshop_plugin'?Math.min(600,Math.max(1,Math.round(page.width*.65))):type==='diagram'?640:type==='demo'?620:type==='text'||type==='table'?320:type==='chart'?400:200,
+    height=type==='workshop_plugin'?Math.min(350,Math.max(1,Math.round(page.height*.65))):type==='diagram'?280:type==='demo'?360:type==='chart'?250:type==='text'?70:type==='vector'?16:140;
+  return {id,type,name:type==='text'?'新文字':type==='image'?'新图片':type==='vector'?'线条':type==='workshop_plugin'?'定象坊插件':'新图形',
     x:Math.round((page.width-width)/2),y:Math.round((page.height-height)/2),
     width,height,
     ...(type==='diagram'?{diagram:defaultDiagram(),viewer_editable:true,name:'原位流程图',flow:{enabled:true,speed:1}}:{}),
     ...(type==='demo'?{demo:null,viewer_editable:true,name:'AI 演示框'}:{}),
-    ...(type==='workshop_plugin'?{workshop_plugin:{template_kind:'taylor-error',title:'Taylor 展开与余项',category:'高等数学'},viewer_editable:true,name:'Taylor 展开与余项'}:{}),
+    ...(type==='workshop_plugin'?{workshop_plugin:{template_kind:'ch03-derivatives-app',title:'第 3 章 · 导数应用与局部近似',category:'高等数学'},viewer_editable:true,name:'第 3 章 · 导数应用与局部近似'}:{}),
     ...(type==='table'?{name:'教学表格',table:[['项目','数值'],['甲','2'],['乙','4']]}:{}),
     ...(type==='chart'?{name:'教学图表',chart:{categories:['甲','乙','丙'],series:[{name:'示例',values:[2,4,3]}],title:'教学图表',chart_type:'COLUMN_CLUSTERED'}}:{}),
     ...(type==='vector'?{flow:{enabled:false,speed:1},viewer_editable:true}:{}),

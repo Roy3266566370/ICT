@@ -1,4 +1,4 @@
-/** 408 工坊的操作系统与网络步进内核（纯函数，画布与测试共用）。 */
+/** 408 定象坊的操作系统与网络步进内核（纯函数，画布与测试共用）。 */
 
 import { PAGE_ALGORITHMS, pageReplacement, subnetInfo, type SubnetResult } from './lab408.ts';
 import type { FramePlayer } from './lab408Sim.ts';

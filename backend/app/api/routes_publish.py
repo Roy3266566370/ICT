@@ -693,6 +693,7 @@ def public_payload(share: ShareRecord) -> dict[str, Any]:
             {
                 "page_no": page_no,
                 "image_url": _page_url(share.share_id, page_no) if item.get('image') else None,
+                "title": item.get("title") if isinstance(item.get("title"), str) else None,
                 "width": item.get("width", 12192000),
                 "height": item.get("height", 6858000),
                 "elements": item.get("elements", []),

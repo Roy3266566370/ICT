@@ -1,27 +1,28 @@
 /**
- * WorkshopPage.tsx —— 万象工坊（/workshop）
+ * WorkshopPage.tsx —— 定象坊（/workshop）
  *
- * 工坊门面：模板目录 + 我的作品（仅在用户从画布显式保存后展示）+ 公开画廊（已发布作品，可 fork）。
+ * 定象坊门面：模板目录 + 我的作品（仅在用户从画布显式保存后展示）+ 公开画廊（已发布作品，可 fork）。
  * 内置模板通过 /canvas?template=<kind> 直接在客户端打开即玩，不再自动向「我的作品」建档。
  */
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { SiteNav } from '@/components/home/SiteNav';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom';
+import { MainSiteNav } from '@/components/home/MainSiteNav';
 import { WorkshopIntroBanner } from '@/components/intros/WorkshopIntroBanner';
 import { worksApi, type ShareSummary, type WorkSummary } from '@/api/works';
 import {
-  CALCULUS_TEMPLATES,
   CALCULUS_TOPICS,
+  VISIBLE_CALCULUS_TEMPLATES,
   type CalculusTemplate,
 } from '@/canvas/calculusTemplates';
 import {
   PHYSICS_TEMPLATES,
   PHYSICS_TOPICS,
+  VISIBLE_PHYSICS_TEMPLATES,
   type PhysicsTemplate,
 } from '@/canvas/physicsTemplates';
 import {
   LAB408_TOPICS,
-  LAB408_TEMPLATES,
+  VISIBLE_LAB408_TEMPLATES,
   type Lab408Preview as Lab408PreviewKind,
 } from '@/canvas/lab408Templates';
 import {
@@ -30,15 +31,16 @@ import {
   type DeepTemplate,
 } from '@/canvas/deepTemplates';
 import { workshopFormula } from '@/canvas/templateCatalog';
-import { BUSINESS_TEMPLATES, BUSINESS_TOPICS } from '@/canvas/businessTemplates';
-import type { BusinessTemplateKind } from '@/canvas/businessPipelineTypes';
+import { VISIBLE_BUSINESS_TEMPLATES, BUSINESS_TOPICS } from '@/canvas/businessTemplates';
+import type { BusinessPreview as BusinessPreviewKind } from '@/canvas/businessTemplates';
+import { LINALG_TOPICS, VISIBLE_LINALG_TEMPLATES, type LinalgTemplateKind } from '@/canvas/linalgTemplates';
 import {
   readTopicAliases, topicDisplayName, writeTopicAlias, type TopicAliases,
 } from './workshopTopics';
 import styles from './WorkshopPage.module.css';
 
 type TemplateKind = string;
-type TemplateCategory = 'calculus' | 'mechanics' | 'lab408' | 'deep' | 'business' | 'all';
+type TemplateCategory = 'calculus' | 'linalg' | 'mechanics' | 'lab408' | 'deep' | 'business' | 'all';
 
 /* ---------- 统一专题目录：数据形状（C-TOPIC-CATALOG@1） ---------- */
 
@@ -55,6 +57,7 @@ export interface CatalogItem {
   desc: string;
   tag: string;
   formula?: string;
+  panorama?: true;
   preview: JSX.Element;
 }
 
@@ -245,20 +248,51 @@ function WavePreview(): JSX.Element {
   );
 }
 
+function RotationPreview(): JSX.Element {
+  return (
+    <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <line x1="24" y1="56" x2="236" y2="124" stroke="var(--hairline-strong)" />
+      <circle cx="92" cy="72" r="18" fill="none" stroke="var(--color-indigo)" strokeWidth="1.8" />
+      <line x1="92" y1="72" x2="92" y2="54" stroke="var(--color-indigo)" strokeWidth="1.6" />
+      <circle cx="152" cy="94" r="18" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" strokeDasharray="4 3" />
+      <circle cx="198" cy="112" r="18" fill="none" stroke="var(--ink-400)" strokeWidth="1.8" />
+      <path d="M36 40a52 52 0 0 1 30 -14" fill="none" stroke="var(--color-coral)" strokeWidth="1.6" />
+      <path d="M70 24l8 4-8 4z" fill="var(--color-coral)" />
+      <text x="24" y="136" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">I 小者胜 · ω=ω₀(r₀/r)² · L 守恒</text>
+    </svg>
+  );
+}
+
+function OscPreview(): JSX.Element {
+  return (
+    <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      <line x1="30" y1="22" x2="30" y2="118" stroke="var(--hairline-strong)" />
+      <path d="M30 40h20M30 52h20M30 64h20M30 76h20" stroke="var(--color-indigo)" strokeWidth="1.4" />
+      <rect x="42" y="88" width="22" height="22" rx="3" fill="var(--color-indigo)" fillOpacity=".18" stroke="var(--color-indigo)" />
+      <path d="M96 80Q130 30 164 80T232 80" fill="none" stroke="var(--color-coral)" strokeWidth="1.8" />
+      <path d="M96 80Q130 56 164 80T232 80" fill="none" stroke="var(--color-coral)" strokeWidth="1.4" strokeDasharray="4 3" opacity=".6" />
+      <text x="96" y="130" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">Ek⇌Ep 守恒 · c 压平共振峰</text>
+    </svg>
+  );
+}
+
 function PhysicsPreview({ template }: { template: PhysicsTemplate }): JSX.Element {
   switch (template.kind) {
-    case 'projectile-drag': return <ProjectilePreview />;
+    case 'projectile-drag': case 'phy01-mechanics': return <ProjectilePreview />;
     case 'incline-friction': return <InclinePreview />;
     case 'collision-momentum': return <CollisionPreview />;
     case 'oscillation-wave': return <WavePreview />;
-    case 'charged-particle': return <ChargedParticlePreview />;
+    case 'phy02-rigid-rotation': return <RotationPreview />;
+    case 'phy03-oscillations': return <OscPreview />;
+    case 'phy04-waves': return <WavePreview />;
+    case 'charged-particle': case 'phy05-em-fields': return <ChargedParticlePreview />;
     case 'rc-circuit': return <RcCircuitPreview />;
-    case 'motional-emf': return <MotionalEmfPreview />;
-    case 'double-slit': return <DoubleSlitPreview />;
-    case 'refraction-fiber': return <RefractionFiberPreview />;
+    case 'motional-emf': case 'phy06-induction-circuits': return <MotionalEmfPreview />;
+    case 'double-slit': case 'phy08-wave-optics': return <DoubleSlitPreview />;
+    case 'refraction-fiber': case 'phy07-geometric-optics': return <RefractionFiberPreview />;
     case 'thin-lens': return <ThinLensPreview />;
-    case 'carnot-cycle': return <CarnotCyclePreview />;
-    case 'photoelectric': return <PhotoelectricPreview />;
+    case 'carnot-cycle': case 'phy09-thermodynamics': return <CarnotCyclePreview />;
+    case 'photoelectric': case 'phy10-modern-physics': return <PhotoelectricPreview />;
   }
 }
 
@@ -318,6 +352,87 @@ function CalculusPreview({ template }: { template: CalculusTemplate }): JSX.Elem
     </svg>
   );
   switch (template.kind) {
+    case 'ch01-limits':
+      return svg(<g>
+        <CalcAxes grid />
+        <rect x="108" y="24" width="42" height="85" fill="var(--color-indigo)" fillOpacity=".13" />
+        <rect x="30" y="55" width="200" height="24" fill="var(--color-coral)" fillOpacity=".16" />
+        <path d="M33 106L124 69M134 64L228 26" fill="none" stroke="var(--color-indigo)" strokeWidth="2" />
+        <circle cx="129" cy="67" r="4" fill="var(--paper-0)" stroke="var(--color-indigo)" strokeWidth="1.6" />
+      </g>, 'ε–δ 邻域 · 间断点 · 二分夹逼');
+    case 'ch02-derivatives':
+      return svg(<g>
+        <CalcAxes grid />
+        <path d="M32 100Q133 111 225 28" fill="none" stroke="var(--color-indigo)" strokeWidth="2" />
+        <path d="M67 120L207 65M69 117L192 59" fill="none" stroke="var(--color-coral)" strokeWidth="1.5" strokeDasharray="4 2" />
+        <line x1="192" y1="59" x2="192" y2="72" stroke="var(--color-indigo)" strokeWidth="2" />
+      </g>, '割线趋近 · 链式倍率 · 微分余差');
+    case 'ch04-integrals':
+      return svg(<g>
+        <CalcAxes grid />
+        <path d="M52 102V92H81V86H110V76H139V65H168V51H197V35H221V102Z" fill="var(--color-indigo)" fillOpacity=".16" stroke="var(--color-indigo)" />
+        <path d="M36 96Q141 85 226 25" fill="none" stroke="var(--color-coral)" strokeWidth="2" />
+      </g>, '黎曼和 · 原函数族 · 收敛临界');
+    case 'ch06-integral-apps':
+      return svg(<g>
+        <CalcAxes />
+        <path d="M34 72H143" stroke="var(--hairline-strong)" strokeDasharray="3 3" />
+        {[0, 1, 2, 3, 4].map((i) => <rect key={i} x={39 + i * 19} y={62 - i * 5} width="19" height={20 + i * 10}
+          fill="var(--color-indigo)" fillOpacity=".20" stroke="var(--color-indigo)" />)}
+        <path d="M160 42H228M169 42V108H226Z" fill="var(--color-coral)" fillOpacity=".14" stroke="var(--color-coral)" />
+        <path d="M169 62H185M169 78H199M169 94H213" stroke="var(--color-coral)" />
+      </g>, '旋转体体积 · 水坝合力 · 抽水做功');
+    case 'ch08-space-geometry':
+      return svg(<g>
+        <CalcAxes grid />
+        <path d="M44 26Q118 67 44 108M218 26Q144 67 218 108" fill="none" stroke="var(--color-indigo)" strokeWidth="2" />
+        <path d="M72 24L198 110M72 110L198 24" fill="none" stroke="var(--color-coral)" strokeDasharray="4 3" />
+        <circle cx="135" cy="67" r="4" fill="var(--color-coral)" />
+      </g>, '截痕翻转 · 高度场 · 点积与叉积');
+    case 'ch10-multiple-int':
+      return svg(<g>
+        <circle cx="119" cy="68" r="47" fill="var(--color-indigo)" fillOpacity=".12" stroke="var(--color-indigo)" />
+        <circle cx="119" cy="68" r="31" fill="none" stroke="var(--color-indigo)" strokeDasharray="4 3" />
+        <path d="M119 68L159 44M119 68L164 82M73 68H177M119 21V115" stroke="var(--hairline-strong)" />
+        <path d="M119 68H142M134 60V76" stroke="var(--color-coral)" strokeWidth="1.8" />
+        <circle cx="134" cy="68" r="3.5" fill="var(--color-coral)" />
+      </g>, '极坐标微元 · 圆盘密度 · 质心');
+    case 'ch11-vector-calc':
+      return svg(<g>
+        <CalcAxes grid />
+        <circle cx="130" cy="68" r="44" fill="var(--color-indigo)" fillOpacity=".10" stroke="var(--color-indigo)" strokeWidth="1.5" />
+        <path d="M93 45Q127 9 161 39L151 38M165 88Q126 124 97 96L109 97" fill="none" stroke="var(--color-coral)" strokeWidth="2" />
+        <path d="M114 66v-15l-4 6M148 56v15l4-6M119 84h19l-5-4" fill="none" stroke="var(--color-indigo)" strokeWidth="1.3" />
+      </g>, '闭合环量 · 外向通量 · 格林公式');
+    case 'ch03-derivatives-app':
+      return svg(<g>
+        <CalcAxes grid />
+        <path d="M32 99C71 133 90 25 133 45S170 119 229 66" fill="none" stroke="var(--color-indigo)" strokeWidth="2" />
+        <circle cx="138" cy="74" r="29" fill="none" stroke="var(--color-coral)" strokeWidth="1.5" />
+        <circle cx="133" cy="45" r="4" fill="var(--color-coral)" />
+      </g>, '曲率圆 · 中值切线 · 泰勒误差');
+    case 'ch07-ode-dynamics':
+      return svg(<g>
+        <CalcAxes />
+        <path d="M34 68L53 68 62 56 72 80 82 56 92 80 102 56 112 68H124" fill="none" stroke="var(--color-indigo)" strokeWidth="2" />
+        <rect x="124" y="54" width="27" height="28" rx="3" fill="var(--color-coral)" />
+        <path d="M200 38C240 44 238 96 202 98S169 55 197 54 225 82 206 88 187 74 200 70" fill="none" stroke="var(--color-indigo)" strokeWidth="2" />
+      </g>, '受迫振子 · 相轨 · 步长稳定性');
+    case 'ch09-multivar-opt':
+      return svg(<g>
+        <CalcAxes grid />
+        {[12, 22, 33].map((size) => <g key={size} fill="none" stroke="var(--color-indigo)">
+          <ellipse cx="85" cy="65" rx={size} ry={size * 0.65} /><ellipse cx="165" cy="65" rx={size} ry={size * 0.65} />
+        </g>)}
+        <path d="M221 31L200 45 193 55 170 64" fill="none" stroke="var(--color-coral)" strokeWidth="2" />
+        <circle cx="170" cy="64" r="4" fill="var(--color-coral)" />
+      </g>, '双谷地形 · 约束圆 · 寻谷轨迹');
+    case 'ch12-series-fourier':
+      return svg(<g>
+        <CalcAxes />
+        <path d="M33 80L42 69 50 88 58 58 65 70 73 40 81 53 91 32 99 56 108 40 118 80 128 68 136 105 144 82 151 103 160 81 169 94 179 53 187 72 198 41 207 59 230 39" fill="none" stroke="var(--hairline-strong)" strokeWidth="1.5" />
+        <path d="M33 82C70 83 62 40 101 44S126 97 152 91 181 43 230 47" fill="none" stroke="var(--color-indigo)" strokeWidth="2" />
+      </g>, '频谱截断 · 波形重建 · 信噪比');
     case 'limit-epsilon':
       return svg(<g>
         <CalcAxes />
@@ -681,6 +796,16 @@ function Lab408Preview({ kind }: { kind: Lab408PreviewKind }): JSX.Element {
       <text x="30" y="116" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">RIP 计数到 16 · OSPF 重算</text>
     </svg>;
   }
+  if (kind === 'dnsStack') {
+    const layers: [string, string][] = [['HTTP', '#dbe7ff'], ['TCP', '#d6f0d9'], ['IP', '#ffe3d6'], ['MAC', '#f3e8ff']];
+    return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
+      {layers.map(([name, fill], index) => <g key={name}>
+        <rect x={34 + index * 20} y={34 + index * 20} width={156 - index * 20} height="18" rx="4" fill={fill} stroke="var(--hairline-strong)" />
+        <text x={42 + index * 20} y={47 + index * 20} fontSize="7.5" fill="var(--ink-600)" fontFamily="var(--font-family-mono)">{name}</text>
+      </g>)}
+      <text x="30" y="128" fontSize="7.5" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">DNS → HTTP · 逐层封装 · RTT 对账</text>
+    </svg>;
+  }
   return <svg viewBox="0 0 260 140" aria-hidden="true" focusable="false">
     <text x="30" y="34" fontSize="9" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">192.168.1.0/24</text>
     {[0, 1, 2, 3].map((index) => <g key={index}>
@@ -696,31 +821,36 @@ function Lab408Preview({ kind }: { kind: Lab408PreviewKind }): JSX.Element {
 
 export { CALCULUS_TOPICS, LAB408_TOPICS };
 
-const CALCULUS_ITEMS: readonly CatalogItem[] = CALCULUS_TEMPLATES.map((t) => ({
+const CALCULUS_ITEMS: readonly CatalogItem[] = VISIBLE_CALCULUS_TEMPLATES.map((t) => ({
   key: t.kind,
   topic: t.topic,
   name: t.name,
   desc: t.desc,
   tag: t.tag,
   formula: t.formula,
+  panorama: t.panorama,
   preview: <CalculusPreview template={t} />,
 }));
 
-const PHYSICS_ITEMS: readonly CatalogItem[] = PHYSICS_TEMPLATES.map((t) => ({
+const PHYSICS_ITEMS: readonly CatalogItem[] = VISIBLE_PHYSICS_TEMPLATES.map((t) => ({
   key: t.kind,
   topic: t.topic,
   name: t.name,
   desc: t.desc,
   tag: t.tag,
+  formula: t.formula ?? workshopFormula(t.kind),
+  panorama: t.panorama,
   preview: <PhysicsPreview template={t} />,
 }));
 
-const LAB408_ITEMS: readonly CatalogItem[] = LAB408_TEMPLATES.map((t) => ({
+const LAB408_ITEMS: readonly CatalogItem[] = VISIBLE_LAB408_TEMPLATES.map((t) => ({
   key: t.kind,
   topic: t.topic,
   name: t.name,
   desc: t.desc,
   tag: t.tag,
+  formula: t.formula ?? workshopFormula(t.kind),
+  panorama: t.panorama,
   preview: <Lab408Preview kind={t.preview} />,
 }));
 
@@ -733,31 +863,108 @@ const DEEP_ITEMS: readonly CatalogItem[] = DEEP_TEMPLATES.map((t) => ({
   preview: <DeepPreview template={t} />,
 }));
 
-const businessPreviewPaths: Record<BusinessTemplateKind, readonly string[]> = {
-  'biz-breakeven': ['M29 74L150 16', 'M29 57L150 35'],
-  'biz-funnel': ['M25 20H152M43 33H134M56 46H121M68 59H109M77 72H100'],
-  'biz-cpm': ['M30 24H54M54 47H111M111 70H150', 'M54 36H101M54 59H84'],
-  'biz-abtest': ['M24 74C48 74 44 27 66 27S85 74 111 74', 'M64 74C88 74 84 22 106 22S125 74 152 74'],
-};
+function BusinessPreview({ kind }: { kind: BusinessPreviewKind }): JSX.Element {
+  const axes = <path d="M16 78H160M16 12V78" stroke="var(--hairline)" />;
+  switch (kind) {
+    case 'sensGrid': return <svg viewBox="0 0 176 88" fill="none">{axes}
+      {[0, 1, 2].map((r) => [0, 1, 2, 3].map((c) =>
+        <rect key={`${r}-${c}`} x={36 + c * 30} y={18 + r * 18} width={26} height={14} rx={2}
+          fill={(r + c) % 3 === 0 ? '#b15236' : '#13746d'} opacity={0.25 + 0.15 * ((r * 4 + c) % 4)} />))}
+      <rect x={66} y={36} width={26} height={14} rx={2} fill="none" stroke="#344153" strokeWidth={1.6} /></svg>;
+    case 'npv': return <svg viewBox="0 0 176 88" fill="none">{axes}
+      <path d="M24 70C60 70 70 34 100 34S140 22 152 20" stroke="#13746d" strokeWidth={2.5} strokeLinecap="round" />
+      <path d="M24 74C60 74 72 52 104 50S142 40 152 38" stroke="#b15236" strokeWidth={2.5} strokeDasharray="5 4" strokeLinecap="round" />
+      <path d="M16 54H160" stroke="#9aa7b5" strokeDasharray="3 4" /></svg>;
+    case 'cohort': return <svg viewBox="0 0 176 88" fill="none">{axes}
+      {[0, 1, 2, 3].map((r) => [0, 1, 2, 3].map((c) => c <= 3 - r ?
+        <rect key={`${r}-${c}`} x={30 + c * 30} y={16 + r * 16} width={24} height={12} rx={2}
+          fill="#13746d" opacity={Math.max(0.15, 0.85 - c * 0.22)} /> : null))}</svg>;
+    case 'abCurve': return <svg viewBox="0 0 176 88" fill="none">{axes}
+      <path d="M24 74C48 74 44 30 68 30S92 74 112 74" stroke="#13746d" strokeWidth={2.5} strokeLinecap="round" />
+      <path d="M64 74C88 74 84 24 108 24S132 74 152 74" stroke="#b15236" strokeWidth={2.5} strokeLinecap="round" /></svg>;
+    case 'gantt': return <svg viewBox="0 0 176 88" fill="none">{axes}
+      <rect x={30} y={20} width={36} height={12} rx={3} fill="#13746d" />
+      <rect x={66} y={38} width={52} height={12} rx={3} fill="#b15236" />
+      <rect x={118} y={56} width={28} height={12} rx={3} fill="#c08814" />
+      <rect x={66} y={56} width={30} height={12} rx={3} fill="#13746d" opacity={0.45} /></svg>;
+    case 'eoqQueue': return <svg viewBox="0 0 176 88" fill="none">{axes}
+      <path d="M30 22C60 60 80 74 96 66S140 30 152 20" stroke="#13746d" strokeWidth={2.5} strokeLinecap="round" />
+      <path d="M24 66C70 66 120 66 140 40S152 30 156 26" stroke="#b15236" strokeWidth={2.5} strokeLinecap="round" />
+      <circle cx={96} cy={66} r={4} fill="#c08814" /></svg>;
+    case 'decMatrix': return <svg viewBox="0 0 176 88" fill="none">{axes}
+      {[58, 40, 68, 30].map((h, i) => <rect key={i} x={34 + i * 32} y={78 - h} width={22} height={h} rx={3}
+        fill={i === 2 ? '#b15236' : '#13746d'} opacity={i === 2 ? 0.9 : 0.55} />)}</svg>;
+    case 'pareto': return <svg viewBox="0 0 176 88" fill="none">{axes}
+      <path d="M30 72C70 60 110 40 152 26" stroke="#9aa7b5" strokeWidth={2} strokeDasharray="4 4" />
+      {[0.95, 0.75, 0.55, 0.35, 0.15].map((t, i) =>
+        <circle key={i} cx={30 + t * 122} cy={72 - t * 46} r={4} fill={i === 2 ? '#c08814' : '#4f46e5'} />)}</svg>;
+    default: return <svg viewBox="0 0 176 88" fill="none">{axes}
+      <path d="M29 74L150 16" stroke="#13746d" strokeWidth={2.5} strokeLinecap="round" />
+      <path d="M29 57L150 35" stroke="#b15236" strokeWidth={2.5} strokeLinecap="round" /></svg>;
+  }
+}
 
-const BUSINESS_ITEMS: readonly CatalogItem[] = BUSINESS_TEMPLATES.map((t) => ({
+const BUSINESS_ITEMS: readonly CatalogItem[] = VISIBLE_BUSINESS_TEMPLATES.map((t) => ({
   key: t.kind, topic: t.topic, name: t.name, desc: t.desc, tag: t.tag, formula: t.formula,
-  preview: <svg viewBox="0 0 176 88" fill="none">
-    <path d="M16 78H160M16 12V78" stroke="var(--hairline)" />
-    {businessPreviewPaths[t.kind].map((path, i) => <path key={path} d={path} stroke={i ? '#b15236' : '#13746d'}
-      strokeWidth={t.kind === 'biz-funnel' || t.kind === 'biz-cpm' ? 6 : 2.5} strokeLinecap="round" />)}
-  </svg>,
+  panorama: t.panorama,
+  preview: <BusinessPreview kind={t.preview} />,
 }));
 
-const ALL_TOPICS: readonly WorkshopTopic[] = [...CALCULUS_TOPICS, ...PHYSICS_TOPICS, ...LAB408_TOPICS, ...DEEP_TOPICS, ...BUSINESS_TOPICS];
-const ALL_ITEMS: readonly CatalogItem[] = [...CALCULUS_ITEMS, ...PHYSICS_ITEMS, ...LAB408_ITEMS, ...DEEP_ITEMS, ...BUSINESS_ITEMS];
+function LinalgPreview({ kind }: { kind: LinalgTemplateKind }): JSX.Element {
+  const blue = '#2234d4', red = '#b64028', green = '#0f766e', muted = '#a4a6a0';
+  const diagrams: Record<LinalgTemplateKind, ReactNode> = {
+    'la01-matrix-det-basis': <>
+      <path d="M34 25h78v54H34z M60 25v54 M86 25v54 M34 43h78 M34 61h78" stroke={muted} />
+      <path d="M55 79h78l27-54H82z M81 79l27-54 M107 79l27-54 M64 61h78 M73 43h78" stroke={blue} />
+      <path d="M55 79h26l9-18H64z" fill="#d4d9fb" stroke={blue} />
+    </>,
+    'la02-gauss-lu-rank': <>
+      <path d="M42 25H32v57h10m96-57h10v57h-10M119 27v52" stroke={muted} />
+      <path d="M51 36h11m13 0h11m13 0h10m17 0h10M75 53h11m13 0h10m17 0h10M99 70h10m17 0h10" stroke={blue} strokeWidth="4" strokeLinecap="round" />
+      <path d="M52 45h16v15h24v17h20" stroke={red} strokeWidth="2" />
+    </>,
+    'la03-four-subspaces': <>
+      <path d="M30 68h42V35 M108 68h42V35" stroke={muted} strokeDasharray="3 3" />
+      <path d="M30 42h42 M30 61h42 M108 42h42 M108 61h42" stroke={blue} strokeWidth="5" strokeLinecap="round" />
+      <path d="M79 43h21l-6-4m6 4l-6 4M79 61h16" stroke={green} strokeWidth="2" />
+      <circle cx="98" cy="61" r="4" fill={red} />
+    </>,
+    'la04-ortho-qr-ls': <>
+      <path d="M29 77 153 33" stroke={blue} strokeWidth="2.5" />
+      <path d="M55 26 69 63 M98 79 89 56 M126 23 134 40" stroke={red} strokeWidth="1.5" strokeDasharray="3 3" />
+      <path d="m69 63 7-2 2 6" stroke={green} />
+      <g fill={red}><circle cx="55" cy="26" r="4" /><circle cx="98" cy="79" r="4" /><circle cx="126" cy="23" r="4" /></g>
+    </>,
+    'la05-eigen-dynamics': <>
+      <path d="M26 53h128M90 20v65" stroke={muted} />
+      <path d="M43 80 137 26m-10 2 10-2-5 8M41 31l96 43m-6-8 6 8-10-2" stroke={blue} strokeWidth="2" />
+      <path d="M148 63c-25 30-65 16-54-4 6-10 19-7 12 2" stroke={red} strokeWidth="2" />
+    </>,
+    'la06-quadform-svd-pca': <>
+      <circle cx="55" cy="52" r="23" stroke={muted} strokeDasharray="3 3" />
+      <path d="M82 53h20l-5-4m5 4-5 4" stroke={green} strokeWidth="1.5" />
+      <ellipse cx="127" cy="53" rx="33" ry="14" transform="rotate(-33 127 53)" fill="#d4d9fb" stroke={blue} strokeWidth="2" />
+      <path d="m102 69 50-32m-33 5 16 22" stroke={red} strokeWidth="1.5" />
+    </>,
+  };
+  return <svg viewBox="0 0 180 104" fill="none" aria-hidden="true" focusable="false">{diagrams[kind]}</svg>;
+}
+
+const LINALG_ITEMS: readonly CatalogItem[] = VISIBLE_LINALG_TEMPLATES.map(t => ({
+  key: t.kind, topic: t.topic, name: t.name, desc: t.desc, tag: t.tag, formula: t.formula,
+  panorama: t.panorama, preview: <LinalgPreview kind={t.preview} />,
+}));
+
+const ALL_TOPICS: readonly WorkshopTopic[] = [...CALCULUS_TOPICS, ...LINALG_TOPICS, ...PHYSICS_TOPICS, ...LAB408_TOPICS, ...DEEP_TOPICS, ...BUSINESS_TOPICS];
+const ALL_ITEMS: readonly CatalogItem[] = [...CALCULUS_ITEMS, ...LINALG_ITEMS, ...PHYSICS_ITEMS, ...LAB408_ITEMS, ...DEEP_ITEMS, ...BUSINESS_ITEMS];
 
 const EXTRA_SEARCH: ReadonlyMap<string, string> = new Map([
-  ...CALCULUS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
+  ...VISIBLE_CALCULUS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
+  ...VISIBLE_LINALG_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
   ...DEEP_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
   ...PHYSICS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
-  ...LAB408_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
-  ...BUSINESS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
+  ...VISIBLE_LAB408_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
+  ...VISIBLE_BUSINESS_TEMPLATES.map((t) => [t.kind, `${t.question} ${t.observation} ${t.keywords.join(' ')}`] as const),
 ]);
 
 function matchesQuery(item: CatalogItem, normalizedQuery: string): boolean {
@@ -779,11 +986,11 @@ export interface CatalogCardProps {
 export function CatalogCard({ item, disabled, creating, actionLabel, onCreate }: CatalogCardProps): JSX.Element {
   const subject = item.tag.split(' · ')[0] ?? '';
   const tone = item.topic.startsWith('dl') ? 'deep' : item.topic.startsWith('p') ? 'physics'
-    : item.topic.startsWith('biz-') ? 'business' : subject === '高数' || subject === '线代' ? 'math' : 'pipeline';
+    : item.topic.startsWith('biz-') ? 'business' : item.topic.startsWith('la-') || subject === '高数' || subject === '线代' ? 'math' : 'pipeline';
   const formula = item.formula ?? workshopFormula(item.key);
   return <button type="button" className={styles.tplCard} data-subject={tone} disabled={disabled} onClick={onCreate}>
     <span className={styles.tplPreview}><span className={styles.tplArt} aria-hidden="true">{item.preview}</span>
-      <span className={styles.tplMeta}>{subject}</span>
+      <span className={styles.tplMeta}>{item.panorama ? '全景沙盘' : subject}</span>
     </span>
     <span className={styles.tplBody}>
       <span className={styles.tplName}>{item.name}</span>
@@ -802,6 +1009,8 @@ export interface TopicCatalogProps {
   disabled?: boolean;
   creatingKey?: string | null;
   actionLabel?: string;
+  highlightPanoramas?: boolean;
+  panoramaTitle?: string;
   onCreate?: (item: CatalogItem) => void;
 }
 
@@ -811,24 +1020,32 @@ export function TopicCatalog({
   disabled = false,
   creatingKey = null,
   actionLabel = '打开实验 →',
+  highlightPanoramas = false,
+  panoramaTitle = '高数全景沙盘',
   onCreate,
 }: TopicCatalogProps): JSX.Element {
   const knownTopicIds = new Set(topics.map((topic) => topic.id));
   const validItems = items.filter((item) => knownTopicIds.has(item.topic));
+  const panoramas = highlightPanoramas ? validItems.filter((item) => item.panorama) : [];
+  const cards = (group: readonly CatalogItem[]) => <div className={styles.tplGrid}>
+    {group.map((item) => <CatalogCard key={item.key} item={item} disabled={disabled}
+      creating={creatingKey === item.key} actionLabel={actionLabel}
+      onCreate={() => onCreate?.(item)} />)}
+  </div>;
   return <div className={styles.topicCatalog}>
+    {panoramas.length > 0 && <section className={styles.topicGroup} aria-labelledby="subject-panoramas">
+      <header className={styles.topicHead}><h3 id="subject-panoramas">{panoramaTitle}</h3></header>
+      {cards(panoramas)}
+    </section>}
     {topics.map((topic) => {
-      const grouped = validItems.filter((item) => item.topic === topic.id);
+      const grouped = validItems.filter((item) => item.topic === topic.id && (!highlightPanoramas || !item.panorama));
       if (!grouped.length) return null;
       return <section key={topic.id} className={styles.topicGroup} aria-labelledby={`topic-${topic.id}`}>
         <header className={styles.topicHead}>
           <h3 id={`topic-${topic.id}`}>{topic.name}</h3>
           <span className={styles.countPill}>{grouped.length} 个实验</span>
         </header>
-        <div className={styles.tplGrid}>
-          {grouped.map((item) => <CatalogCard key={item.key} item={item} disabled={disabled}
-            creating={creatingKey === item.key} actionLabel={actionLabel}
-            onCreate={() => onCreate?.(item)} />)}
-        </div>
+        {cards(grouped)}
       </section>;
     })}
   </div>;
@@ -857,18 +1074,70 @@ function SkeletonRows(): JSX.Element {
   );
 }
 
+const WORKSHOP_RETURN_KEY = 'xiangsheng.workshop.returnState';
+
+interface WorkshopReturnState {
+  subject: TemplateCategory;
+  topic: string;
+  q: string;
+  scrollY: number;
+}
+
+function readWorkshopReturnState(): WorkshopReturnState | null {
+  try {
+    const raw = window.sessionStorage.getItem(WORKSHOP_RETURN_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<WorkshopReturnState>;
+    const subject = parsed.subject;
+    const validSubject: TemplateCategory =
+      subject === 'calculus' || subject === 'linalg' || subject === 'mechanics' || subject === 'lab408'
+      || subject === 'deep' || subject === 'business' || subject === 'all'
+        ? subject : 'calculus';
+    return {
+      subject: validSubject,
+      topic: typeof parsed.topic === 'string' ? parsed.topic : '',
+      q: typeof parsed.q === 'string' ? parsed.q : '',
+      scrollY: typeof parsed.scrollY === 'number' && Number.isFinite(parsed.scrollY) ? Math.max(0, parsed.scrollY) : 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeWorkshopReturnState(state: WorkshopReturnState): void {
+  try {
+    window.sessionStorage.setItem(WORKSHOP_RETURN_KEY, JSON.stringify(state));
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
 export function WorkshopPage(): JSX.Element {
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationType = useNavigationType();
   const [searchParams, setSearchParams] = useSearchParams();
+  const savedReturn = useRef<WorkshopReturnState | null>(readWorkshopReturnState());
+  const hasExplicitParams = searchParams.has('subject') || searchParams.has('topic') || searchParams.has('q');
   const [works, setWorks] = useState<WorkSummary[] | null>(null);
   const [gallery, setGallery] = useState<ShareSummary[] | null>(null);
   const [category, setCategory] = useState<TemplateCategory>(() => {
     const subject = searchParams.get('subject');
-    return subject === 'mechanics' || subject === 'lab408' || subject === 'deep' || subject === 'business' || subject === 'all'
-      ? subject : 'calculus';
+    if (subject === 'calculus' || subject === 'linalg' || subject === 'mechanics' || subject === 'lab408' || subject === 'deep' || subject === 'business' || subject === 'all') {
+      return subject;
+    }
+    return !hasExplicitParams && savedReturn.current ? savedReturn.current.subject : 'calculus';
   });
-  const [query, setQuery] = useState(() => searchParams.get('q') ?? '');
-  const [topicFilter, setTopicFilter] = useState(() => searchParams.get('topic') ?? '');
+  const [query, setQuery] = useState(() => {
+    const q = searchParams.get('q');
+    if (q !== null) return q;
+    return !hasExplicitParams && savedReturn.current ? savedReturn.current.q : '';
+  });
+  const [topicFilter, setTopicFilter] = useState(() => {
+    const topic = searchParams.get('topic');
+    if (topic !== null) return topic;
+    return !hasExplicitParams && savedReturn.current ? savedReturn.current.topic : '';
+  });
   const [topicAliases, setTopicAliases] = useState<TopicAliases>(() => readTopicAliases());
 
   const [loadError, setLoadError] = useState('');
@@ -879,9 +1148,53 @@ export function WorkshopPage(): JSX.Element {
   };
   useEffect(loadWorks, []);
 
+  // 恢复上次在定象坊目录的滚动位置
+  const restoreScroll = useRef(navigationType === 'POP' || location.state?.restoreScroll === true);
+  useEffect(() => {
+    const saved = savedReturn.current;
+    if (!restoreScroll.current || !saved || saved.scrollY <= 0) return;
+    const raf = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: saved.scrollY, left: 0, behavior: 'auto' });
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, []);
+
+  // 离开页面前自动记忆当前筛选与滚动位置
+  const stateRef = useRef({ category, topicFilter, query });
+  stateRef.current = { category, topicFilter, query };
+  const saveReturnSnapshot = useCallback((): string => {
+    const { category: curSubject, topicFilter: curTopic, query: curQuery } = stateRef.current;
+    writeWorkshopReturnState({
+      subject: curSubject,
+      topic: curTopic,
+      q: curQuery,
+      scrollY: window.scrollY,
+    });
+    const next = new URLSearchParams();
+    next.set('subject', curSubject);
+    if (curTopic) next.set('topic', curTopic);
+    if (curQuery.trim()) next.set('q', curQuery);
+    const qs = next.toString();
+    return qs ? `/workshop?${qs}` : location.pathname + location.search;
+  }, [location.pathname, location.search]);
+
+  useLayoutEffect(() => () => {
+    const { category: curSubject, topicFilter: curTopic, query: curQuery } = stateRef.current;
+    writeWorkshopReturnState({
+      subject: curSubject,
+      topic: curTopic,
+      q: curQuery,
+      scrollY: window.scrollY,
+    });
+  }, []);
+
   const fromTemplate = useCallback((kind: TemplateKind) => {
-    navigate(`/canvas?template=${encodeURIComponent(kind)}`);
-  }, [navigate]);
+    const from = saveReturnSnapshot();
+    navigate(`/canvas?template=${encodeURIComponent(kind)}`, {
+      flushSync: true,
+      state: { from, fromLabel: '← 定象坊目录', restoreScroll: true },
+    });
+  }, [navigate, saveReturnSnapshot]);
 
   const selectCategory = useCallback((key: TemplateCategory) => {
     setCategory(key);
@@ -892,7 +1205,7 @@ export function WorkshopPage(): JSX.Element {
       next.delete('topic');
       if (query.trim()) next.set('q', query); else next.delete('q');
       return next;
-    }, { replace: true });
+    }, { replace: true, preventScrollReset: true });
   }, [query, setSearchParams]);
 
   const selectTopic = useCallback((id: string) => {
@@ -902,11 +1215,12 @@ export function WorkshopPage(): JSX.Element {
       next.set('topic', id);
       if (query.trim()) next.set('q', query); else next.delete('q');
       return next;
-    }, { replace: true });
+    }, { replace: true, preventScrollReset: true });
   }, [query, setSearchParams]);
 
   const normalizedQuery = query.trim().toLowerCase();
   const view = category === 'calculus' ? { topics: CALCULUS_TOPICS, items: CALCULUS_ITEMS }
+    : category === 'linalg' ? { topics: LINALG_TOPICS, items: LINALG_ITEMS }
     : category === 'mechanics' ? { topics: PHYSICS_TOPICS, items: PHYSICS_ITEMS }
       : category === 'lab408' ? { topics: LAB408_TOPICS, items: LAB408_ITEMS }
         : category === 'deep' ? { topics: DEEP_TOPICS, items: DEEP_ITEMS }
@@ -914,9 +1228,7 @@ export function WorkshopPage(): JSX.Element {
             : { topics: ALL_TOPICS, items: ALL_ITEMS };
   const knownTopicIds = new Set(view.topics.map((topic) => topic.id));
   const searchedItems = view.items.filter((item) => knownTopicIds.has(item.topic) && matchesQuery(item, normalizedQuery));
-  const selectedTopicId = topicFilter === 'all' ? 'all'
-    : view.topics.some((topic) => topic.id === topicFilter) ? topicFilter
-      : category === 'all' ? 'all' : view.topics[0]?.id ?? 'all';
+  const selectedTopicId = topicFilter && view.topics.some((topic) => topic.id === topicFilter) ? topicFilter : 'all';
   const activeTopicId = normalizedQuery ? 'all' : selectedTopicId;
   const shownItems = activeTopicId === 'all'
     ? searchedItems : searchedItems.filter((item) => item.topic === activeTopicId);
@@ -939,12 +1251,14 @@ export function WorkshopPage(): JSX.Element {
   }, [normalizedQuery, selectedTopic, topicAliases]);
 
   const openWork = useCallback((wid: string) => {
-    navigate(`/canvas?work=${encodeURIComponent(wid)}`);
-  }, [navigate]);
+    const from = saveReturnSnapshot();
+    navigate(`/canvas?work=${encodeURIComponent(wid)}`, { state: { from, fromLabel: '← 定象坊目录', restoreScroll: true } });
+  }, [navigate, saveReturnSnapshot]);
 
   const blank = useCallback(() => {
-    navigate('/canvas', { state: { blank: true } });
-  }, [navigate]);
+    saveReturnSnapshot();
+    navigate('/canvas', { state: { blank: true, from: '/workshop', fromLabel: '← 定象坊目录', restoreScroll: true } });
+  }, [navigate, saveReturnSnapshot]);
 
   const remove = useCallback(async (wid: string) => {
     if (!window.confirm('删除这个作品？已发布的分享链接会一并失效。')) return;
@@ -956,59 +1270,83 @@ export function WorkshopPage(): JSX.Element {
     }
   }, []);
 
-  return (
-    <div className={`${styles.catalogPage} studio-scope`}>
-      <SiteNav current="canvas" appearance="studio" />
+  return <>
+    <MainSiteNav current="canvas" />
+    <div className={`${styles.catalogPage} studio-scope atelier-paper`}>
 
       <main className={styles.main}>
         <header className={styles.pageHead}>
           <div className={styles.headCopy}>
             <div className={styles.headBadge}>
-              <i aria-hidden="true" /> WANXIANG WORKSHOP · 真计算内核与积木编排舞台
+              <i aria-hidden="true" /> DINGXIANG ATELIER · 定象坊
             </div>
             <h1 className={styles.title}>
-              万象<span className={styles.titleHighlight}>工坊</span>
+              搭一块砖，<br /><span className={styles.titleHighlight}>定一种象。</span>
             </h1>
             <p className={styles.lead}>
-              挑一个学科实验即开即玩，或从空白画布拖拽积木连线。所有模型均由真实数值内核驱动，支持外露参数、情景预设并一键封装为「万象活页」交互插件。
+              公式、算法与物理场，都是可拆、可连、可运行的<strong>象砖</strong>。排起来就是一件作品，也能嵌入通文册，让读者动手探索。
             </p>
+            <div className={styles.headActions}>
+              <button type="button" className={styles.blankButton} onClick={blank}>＋ 新建空白画布</button>
+              <a href="#workshop-catalog-title" className={styles.secondaryButton}>先逛逛标本柜</a>
+            </div>
             <div className={styles.headMetrics}>
               <div className={styles.headMetric}>
                 <strong>{totalTemplates}</strong>
                 <span>学科真内核模板</span>
               </div>
               <div className={styles.headMetric}>
-                <strong>5 大领域</strong>
-                <span>高数 / 物理 / 408 / DL / 决策</span>
+                <strong>6 大领域</strong>
+                <span>高数 / 线代 / 物理 / 408 / DL / 决策</span>
               </div>
               <div className={styles.headMetric}>
                 <strong>{works === null ? '—' : works.length}</strong>
                 <span>我的已存作品</span>
               </div>
               <div className={styles.headMetric}>
-                <strong>活页插件</strong>
-                <span>一键挂载至动态 PPT</span>
+                <strong>0</strong>
+                <span>额外插件安装</span>
               </div>
             </div>
           </div>
 
-          <div className={styles.headActions}>
-            <button type="button" className={styles.blankButton} onClick={blank}>
-              ＋ 新建空白画布
-            </button>
-            <Link to="/living" className={styles.secondaryButton}>
-              去万象活页挂载插件 ↗
-            </Link>
-          </div>
+          <WorkshopIntroBanner />
         </header>
 
-        <WorkshopIntroBanner />
+        <section className={styles.typeCase} aria-label="象砖字架">
+          <div><span>TYPE CASE / 字架</span><h2>取一枚，排上去</h2></div>
+          <div className={styles.typeCaseBricks}>
+            {([
+              ['calculus', 'ƒ', '函数砖', '高等数学'],
+              ['mechanics', '→', '场砖', '大学物理'],
+              ['lab408', '⌗', '算法砖', '408 专题'],
+              ['deep', '∇', '学习砖', '深度学习'],
+              ['business', '▥', '数据砖', '办公决策'],
+            ] as const).map(([subject, glyph, label, detail]) => (
+              <a key={subject} href="#workshop-catalog-title" onClick={() => selectCategory(subject)}>
+                <span aria-hidden="true">{glyph}</span><div><strong>{label}</strong><small>{detail}</small></div>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.section} aria-labelledby="workshop-maker">
+          <div className={styles.sectionHead}>
+            <div><p className={styles.sectionEyebrow}>象砖工造</p>
+              <h2 id="workshop-maker" className={styles.sectionTitle}>从一块砖，到一件能跑的作品</h2></div>
+          </div>
+          <div className={styles.makerSteps}>
+            <a href="#workshop-catalog-title"><span>01 · 选砖</span><h3>取一块真内核象砖</h3><p>从学科标本柜打开一个可运行的实验。</p></a>
+            <button type="button" onClick={blank}><span>02 · 排字</span><h3>把数据口连起来</h3><p>在画布上接线，让参数流进下游积木。</p></button>
+            <Link to="/living"><span>03 · 装订</span><h3>定象，然后装订成册</h3><p>把保存的仪器嵌进通文册任意一页。</p></Link>
+          </div>
+        </section>
 
         <section className={styles.section} aria-labelledby="workshop-catalog-title">
           <div className={styles.sectionHead}>
             <div>
-              <p className={styles.sectionEyebrow}><span className={styles.secNo}>§ 01</span> TEMPLATE LIBRARY / 学科实验模板库</p>
-              <h2 id="workshop-catalog-title" className={styles.sectionTitle}>即开即玩的真内核实验室</h2>
+              <p className={styles.sectionEyebrow}>SPECIMEN CABINET / 学科实验模板库</p>
+              <h2 id="workshop-catalog-title" className={styles.sectionTitle}>{category === 'linalg' ? '线性代数全景沙盘' : '标本柜'}</h2>
             </div>
             <span className={styles.countPill}>当前显示 {shownCount} / {totalTemplates} 个</span>
           </div>
@@ -1018,6 +1356,7 @@ export function WorkshopPage(): JSX.Element {
               <div className={styles.filterPills} role="group" aria-label="学科分类">
                 {([
                   ['calculus', `高等数学 · ${CALCULUS_ITEMS.length}`],
+                  ['linalg', `线性代数 · ${LINALG_ITEMS.length}`],
                   ['mechanics', `大学物理 · ${PHYSICS_ITEMS.length}`],
                   ['lab408', `408 专题 · ${LAB408_ITEMS.length}`],
                   ['deep', `深度学习 · ${DEEP_ITEMS.length}`],
@@ -1065,6 +1404,10 @@ export function WorkshopPage(): JSX.Element {
           <TopicCatalog
             topics={shownTopics}
             items={shownItems}
+            highlightPanoramas={activeTopicId === 'all' && category !== 'linalg'}
+            panoramaTitle={category === 'mechanics' ? '大学物理全景沙盘'
+              : category === 'business' ? '办公决策全景沙盘'
+              : category === 'calculus' ? '高数全景沙盘' : '全景沙盘'}
             disabled={false}
             creatingKey={null}
             actionLabel="打开实验 →"
@@ -1150,7 +1493,7 @@ export function WorkshopPage(): JSX.Element {
         </section>
       </main>
     </div>
-  );
+  </>;
 }
 
 export default WorkshopPage;

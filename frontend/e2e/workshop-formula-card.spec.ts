@@ -36,7 +36,7 @@ test('公式卡可用按钮输入分数，检查器和卡片共享排版结果',
 
   const [saved] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/works') && response.request().method() === 'POST'),
-    page.getByRole('button', { name: '保存到工坊' }).click(),
+    page.getByRole('button', { name: '保存到定象坊' }).click(),
   ]);
   expect(saved.ok()).toBe(true);
   const { data: { work_id: workId } } = await saved.json();

@@ -27,13 +27,23 @@ test('M5 自然语言生成动态关系：未配置模型提示、预览确认�
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
 
+  await editor.getByRole('tab', { name: /动态关系/ }).click();
   const relSection = editor.getByLabel('页面动态关系');
   await expect(relSection).toBeVisible();
   const nlInput = relSection.getByLabel('自然语言生成动态关系').locator('textarea');
   await expect(nlInput).toBeVisible();
   await expect(relSection.locator('[data-relation-id]')).toHaveCount(0);
 
-  // 3. 验证真实后端在未配置 AI 模型时返回清晰中文错误，不写入文档
+  // 3. 模拟后端未配置 AI 模型的错误响应（本机开发环境可能已配置真实模型），验证前端展示清晰中文错误且不写入文档
+  await page.route(`**/api/v1/materials/${materialId}/document/pages/1/relations/suggest`, async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: { code: 'MODEL_UNAVAILABLE', message: '未配置文本模型，暂无法用自然语言生成关系，可继续手工添加', retryable: false },
+      }),
+    });
+  });
   await nlInput.fill('把新增文字绑定为箭头长度');
   await relSection.getByRole('button', { name: '生成关系预览' }).click();
   await expect(relSection.getByRole('alert')).toContainText(/AI|模型|配置/);
@@ -45,6 +55,7 @@ test('M5 自然语言生成动态关系：未配置模型提示、预览确认�
   expect(vecId).toBeTruthy();
   expect(txtId).toBeTruthy();
 
+  await page.unroute(`**/api/v1/materials/${materialId}/document/pages/1/relations/suggest`);
   await page.route(`**/api/v1/materials/${materialId}/document/pages/1/relations/suggest`, async (route) => {
     const reqBody = route.request().postDataJSON() as { expected_revision?: number } | null;
 

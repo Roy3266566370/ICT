@@ -102,7 +102,7 @@ export function useMaterials(limit?: number): UseQueryResult<MaterialsListRespon
   return useQuery({
     queryKey: keys.materials(limit),
     queryFn: () => api.listMaterials(limit),
-    staleTime: 10_000,
+    refetchOnMount: 'always',
   });
 }
 
@@ -239,7 +239,13 @@ export function useDeleteMaterial(): UseMutationResult<void, Error, string> {
   const keys = useScopedQueryKeys();
   return useMutation({
     mutationFn: (materialId: string) => api.deleteMaterial(materialId),
-    onSuccess: (_data, materialId) => {
+    onSuccess: async (_data, materialId) => {
+      const listQueries = { queryKey: keys.materials().slice(0, -1) };
+      await queryClient.cancelQueries(listQueries);
+      queryClient.setQueriesData<MaterialsListResponse>(listQueries, previous => previous && ({
+        ...previous,
+        items: previous.items.filter(item => item.material_id !== materialId),
+      }));
       queryClient.removeQueries({ queryKey: keys.material(materialId) });
       void queryClient.invalidateQueries({ queryKey: keys.materialsRoot() });
     },

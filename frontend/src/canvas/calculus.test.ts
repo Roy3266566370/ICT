@@ -120,8 +120,9 @@ test('积分节点输出带符号积分，面积模式和反向区间含义不�
   assert.equal(evaluate('integral', '1/x', { lower: -1, upper: 1 }), null);
 });
 
-test('全部高数模板可求值，泰勒输出可继续接函数图像且每次新建使用独立对象', () => {
+test('旧版高数流水线可求值，泰勒输出可继续接函数图像且每次新建使用独立对象', () => {
   for (const template of CALCULUS_TEMPLATES) {
+    if (template.panorama) continue;
     const doc = calculusTemplateDoc(template.kind);
     const ids = new Set(doc.nodes.map((node) => node.id));
     assert.equal(ids.size, doc.nodes.length);

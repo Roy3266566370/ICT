@@ -20,8 +20,8 @@ interface NavItem {
 /** 主站导航：使用指南已并入首页底部，不再占用独立入口。 */
 const NAV_ITEMS: readonly NavItem[] = [
   { section: 'home', label: '首页', to: '/' },
-  { section: 'canvas', label: '万象工坊', to: '/workshop' },
-  { section: 'living', label: '万象活页', to: '/living' },
+  { section: 'canvas', label: '定象坊', to: '/workshop' },
+  { section: 'living', label: '通文册', to: '/living' },
   { section: 'workspace', label: '个人主页', to: '/space' },
 ];
 

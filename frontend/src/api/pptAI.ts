@@ -47,8 +47,8 @@ export async function createPptAiPlan(
   return post(`${materialPath(materialId)}/ai-plans`, body);
 }
 
-export async function getPptAiTask(materialId: string, taskId: string): Promise<PptAITask> {
-  return requestJson<PptAITask>(`${materialPath(materialId)}/ai-tasks/${encodeURIComponent(taskId)}`);
+export async function getPptAiTask(materialId: string, taskId: string, signal?: AbortSignal): Promise<PptAITask> {
+  return requestJson<PptAITask>(`${materialPath(materialId)}/ai-tasks/${encodeURIComponent(taskId)}`, signal ? {signal} : undefined);
 }
 
 export async function waitForPptAiTask(
@@ -56,11 +56,13 @@ export async function waitForPptAiTask(
   taskId: string,
   onUpdate?: (task: PptAITask) => void,
   timeoutMs = 360_000,
+  signal?: AbortSignal,
 ): Promise<PptAITask> {
   const deadline = Date.now() + timeoutMs;
   let last: PptAITask | null = null;
   while (Date.now() < deadline) {
-    const task = await getPptAiTask(materialId, taskId);
+    signal?.throwIfAborted();
+    const task = await getPptAiTask(materialId, taskId, signal);
     last = task;
     onUpdate?.(task);
     if (['succeeded', 'needs_review', 'failed', 'cancelled', 'superseded'].includes(task.status)) return task;

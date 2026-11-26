@@ -55,3 +55,45 @@ def test_native_shape_table_and_chart_insertions(tmp_path, monkeypatch):
     assert (shape['shape'], shape['name']) == ('leftBrace', '左大括号')
     assert table_node['table'] == table
     assert chart_node['chart'] == chart
+
+
+def test_material_stats_include_visible_objects_on_saved_pages(tmp_path, monkeypatch):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+
+    from app.api.routes_materials import material_stats
+    from app.db.models import KnowledgeObjectRecord, RunRecord
+
+    monkeypatch.setattr(store, 'UPLOAD_DIR', tmp_path)
+    engine = create_engine('sqlite://')
+    KnowledgeObjectRecord.__table__.create(engine)
+    RunRecord.__table__.create(engine)
+    store.write_document('deck', {'revision': 0, 'pages': [
+        {'page_no': 1, 'width': 720, 'height': 405, 'nodes': [{'type': 'text'}]},
+    ]})
+
+    with Session(engine) as db:
+        assert material_stats(db, ['deck', 'legacy'])['deck']['object_count'] == 0
+        store.patch_document('deck', 0, 'insert', [
+            {'page_no': 2, 'id': '__page__', 'page_action': {'kind': 'add_page', 'width': 720, 'height': 405}},
+            {'page_no': 2, 'id': 'u_line', 'create': {'type': 'vector'}},
+            {'page_no': 2, 'id': 'u_plugin', 'create': {
+                'type': 'workshop_plugin',
+                'workshop_plugin': {'template_kind': 'biz-breakeven', 'title': '经营沙盘'},
+            }},
+            {'page_no': 2, 'id': 'u_chart', 'create': {
+                'type': 'chart', 'chart': {'categories': ['甲'], 'series': [{'name': '示例', 'values': [3]}]},
+            }},
+            {'page_no': 2, 'id': '__page__', 'relations': [
+                {'id': 'resize_chart', 'kind': 'expr', 'targetId': 'u_chart', 'targetProperty': 'width', 'expression': '100'},
+            ]},
+        ])
+        assert material_stats(db, ['deck'])['deck']['object_count'] == 3
+        store.patch_document('deck', 1, 'hide', [
+            {'page_no': 2, 'id': 'u_plugin', 'patch': {'hidden': True}},
+        ])
+        assert material_stats(db, ['deck'])['deck']['object_count'] == 2
+        store.patch_document('deck', 2, 'remove', [
+            {'page_no': 2, 'id': '__page__', 'page_action': {'kind': 'delete_page'}},
+        ])
+        assert material_stats(db, ['deck'])['deck']['object_count'] == 0

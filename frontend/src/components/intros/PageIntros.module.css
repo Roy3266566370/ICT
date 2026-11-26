@@ -1,4 +1,4 @@
-/* 三大主页面（万象工坊 / 万象活页 / 个人主页）顶部动态功能引入区统一样式 */
+/* 三大主页面（定象坊 / 通文册 / 个人主页）顶部动态功能引入区统一样式 */
 
 .introShell {
   position: relative;
@@ -121,7 +121,7 @@
   padding: 20px 22px 22px;
 }
 
-/* ==================== 01 万象工坊：活体电路标本 ==================== */
+/* ==================== 01 定象坊：活体电路标本 ==================== */
 .circuitGrid {
   display: grid;
   grid-template-columns: minmax(215px, 1fr) 44px minmax(225px, 1fr) 44px minmax(275px, 1.25fr);
@@ -163,6 +163,7 @@
 .cStepVermilion {
   color: #de421f;
   background: rgba(222, 66, 31, 0.09);
+  white-space: nowrap;
 }
 
 .cStepTeal {
@@ -404,7 +405,7 @@
   transform: translateY(-1px);
 }
 
-/* ==================== 02 万象活页：死 PPT 瞬间通电 ==================== */
+/* ==================== 02 通文册：死 PPT 瞬间通电 ==================== */
 .livingLayout {
   display: grid;
   grid-template-columns: minmax(260px, 0.92fr) minmax(320px, 1.25fr);
@@ -744,207 +745,6 @@
   opacity: 1;
 }
 
-/* ==================== 03 个人主页：创作闭环罗盘 ==================== */
-.pulseTopRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.pulseGreeting {
-  font-size: 13.5px;
-  color: #4b4f4c;
-}
-
-.pulseGreeting strong {
-  color: #111312;
-  font-family: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
-  font-size: 15px;
-}
-
-.pulseCountBadge {
-  font-family: "JetBrains Mono", Consolas, monospace;
-  font-size: 11.5px;
-  color: #0f766e;
-  background: rgba(15, 118, 110, 0.1);
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-weight: 600;
-}
-
-.compassTrack {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
-
-.compassLineBg {
-  position: absolute;
-  top: 28px;
-  left: 12%;
-  right: 12%;
-  height: 2px;
-  background: rgba(17, 19, 18, 0.1);
-  z-index: 0;
-}
-
-.compassLineFill {
-  position: absolute;
-  top: 28px;
-  left: 12%;
-  height: 2px;
-  background: linear-gradient(90deg, #0f766e, #2234d4);
-  z-index: 1;
-  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.compassNode {
-  position: relative;
-  z-index: 2;
-  background: #fffdf8;
-  border: 1px solid rgba(17, 19, 18, 0.11);
-  border-radius: 15px;
-  padding: 14px 15px;
-  cursor: pointer;
-  transition: all 0.22s ease;
-  text-align: left;
-}
-
-.compassNode:hover {
-  transform: translateY(-2px);
-  border-color: rgba(17, 19, 18, 0.24);
-  box-shadow: 0 4px 12px rgba(17, 19, 18, 0.05);
-}
-
-.compassNodeDone {
-  border-color: rgba(15, 118, 110, 0.28);
-  background: linear-gradient(180deg, rgba(15, 118, 110, 0.03), #fffdf8);
-}
-
-.compassNodeNext {
-  border-color: rgba(222, 66, 31, 0.38);
-  box-shadow: 0 8px 22px rgba(222, 66, 31, 0.08);
-}
-
-.compassNodeTop {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.compassDot {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-family: "JetBrains Mono", Consolas, monospace;
-  font-size: 11px;
-  font-weight: 700;
-  background: #faf8f2;
-  color: #83867f;
-  border: 1px solid rgba(17, 19, 18, 0.12);
-}
-
-.compassNodeDone .compassDot {
-  background: #0f766e;
-  color: #fff;
-  border-color: #0f766e;
-}
-
-.compassNodeNext .compassDot {
-  background: #de421f;
-  color: #fff;
-  border-color: #de421f;
-  animation: pulseRing 2s ease-in-out infinite;
-}
-
-@keyframes pulseRing {
-  0%, 100% {
-    box-shadow: 0 0 0 4px rgba(222, 66, 31, 0.16);
-  }
-  50% {
-    box-shadow: 0 0 0 9px rgba(222, 66, 31, 0.04);
-  }
-}
-
-.statusStamp {
-  font-family: "JetBrains Mono", Consolas, monospace;
-  font-size: 10.5px;
-  padding: 2px 7px;
-  border-radius: 6px;
-  font-weight: 600;
-  color: #83867f;
-  background: #faf8f2;
-}
-
-.statusStampDone {
-  color: #0f766e;
-  background: rgba(15, 118, 110, 0.1);
-  border: 1px solid rgba(15, 118, 110, 0.25);
-}
-
-.statusStampNext {
-  color: #de421f;
-  background: rgba(222, 66, 31, 0.09);
-}
-
-.compassNode h4 {
-  font-size: 13.5px;
-  color: #111312;
-  margin: 0 0 4px;
-}
-
-.compassNode p {
-  font-size: 12px;
-  color: #4b4f4c;
-  margin: 0;
-  line-height: 1.45;
-}
-
-.pulseAdviceBar {
-  margin-top: 14px;
-  padding: 12px 16px;
-  border-radius: 13px;
-  background: #faf8f2;
-  border: 1px solid rgba(17, 19, 18, 0.1);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  flex-wrap: wrap;
-}
-
-.pulseAdviceText {
-  font-size: 12.5px;
-  color: #4b4f4c;
-}
-
-.pulseAdviceText strong {
-  color: #111312;
-}
-
-.pulseCta {
-  border: none;
-  background: #111312;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 7px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.pulseCta:hover {
-  background: #2234d4;
-}
-
 @media (max-width: 960px) {
   .circuitGrid {
     grid-template-columns: 1fr;
@@ -957,21 +757,169 @@
   .livingLayout {
     grid-template-columns: 1fr;
   }
-  .compassTrack {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .compassLineBg,
-  .compassLineFill {
-    display: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .dot,
   .cursorBlink,
   .wireFlow,
-  .scanBeam,
-  .compassNodeNext .compassDot {
+  .scanBeam {
     animation: none;
   }
+}
+
+.atelierBench {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #f7f4ec;
+  border: 1px solid #12151333;
+  box-shadow: 0 22px 56px #34250e23;
+}
+.atelierBench::before { display: none; }
+.atelierBench .introHead { padding: 12px 14px; background: #fbf9f2; }
+.atelierBench .introHeadSub { display: none; }
+.atelierBench .introBody {
+  padding: 14px;
+  background:
+    radial-gradient(#514a3420 .65px, transparent .65px) 0 0 / 18px 18px,
+    linear-gradient(160deg, #f7f4ec, #e8dfcb);
+}
+.atelierBench .circuitGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(160px, 1fr);
+  grid-template-areas: "sheet check" "tray check";
+  gap: 12px;
+  align-items: stretch;
+  min-height: clamp(395px, 34vw, 514px);
+}
+.atelierBench .wireSlot { display: none; }
+.atelierBench .cNode { min-width: 0; border-radius: 9px; padding: 14px; box-shadow: none; }
+.atelierBench .proofSheet {
+  grid-area: sheet;
+  align-self: center;
+  min-height: 0;
+  border: 1px solid #baad94;
+  background: repeating-linear-gradient(130deg, #fffcf200 0 4px, #7c5c2920 5px, #fffcf200 6px), linear-gradient(135deg, #fffdf4, #ece1ca);
+  box-shadow: 0 10px 16px #32240f32;
+  transform: rotate(-1deg);
+}
+.atelierBench .stageCanvasBox { padding: 3px; background: #fffdf88c; }
+.atelierBench .typeTray {
+  grid-area: tray;
+  background: linear-gradient(155deg, #5d4930, #2e2214);
+  border-block: 5px solid #b58c4c;
+  color: #fffdf8;
+}
+.atelierBench .typeTray :is(.cTitle, .cHint, .cStep) { color: #fbf2dd; }
+.atelierBench .typeTray .cStep { background: #241c13; }
+.atelierBench .presetPills {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.atelierBench .presetPill {
+  padding: 7px 4px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-height: 48px;
+  background: #fbf5e7;
+  color: #2e2214;
+  border: 1px solid #ae9b74;
+  border-top: 4px solid #0f766e;
+  border-radius: 4px;
+}
+.atelierBench .presetPill:nth-child(2) { border-top-color: #de421f; }
+.atelierBench .presetPill:nth-child(3) { border-top-color: #2234d4; }
+.atelierBench .presetPillActive { background: #fffdf8; box-shadow: inset 0 0 0 2px #ba964a; }
+.atelierBench .promptPreview { min-height: 0; }
+.atelierBench .pressCheck { grid-area: check; display: flex; flex-direction: column; background: #fbf9f2; }
+.atelierBench .pressCheck .cNodeHead { flex-wrap: wrap; }
+.bindLink {
+  margin-top: auto;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: #fffdf8;
+  background: #121513;
+  font-size: 12px;
+  text-align: center;
+  text-decoration: none;
+}
+.bindLink:hover { color: #fffdf8; background: #111b5e; }
+
+.atlasSheet {
+  position: relative;
+  width: min(100%, 480px);
+  padding: 16px 17px 13px;
+  color: #e9e6da;
+  border-radius: 8px;
+  background: radial-gradient(130% 100% at 10% 0%, #34447855, transparent 58%),
+              linear-gradient(155deg, #171b20, #101317 62%, #0c0f12);
+  box-shadow: inset 0 0 0 1px #ffffff18, 0 20px 44px #0c0e1057;
+}
+.atlasBar, .atlasRange {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font: 11px var(--font-family-mono);
+  color: #e9e6da;
+}
+.atlasBar { border-bottom: 1px solid #ffffff1a; padding-bottom: 8px; }
+.atlasBar:last-of-type { border: 0; border-top: 1px solid #ffffff1a; padding: 9px 0 0; }
+.atlasBar .collapseBtn, .atlasControl {
+  border: 1px solid #f3c86b52;
+  border-radius: 5px;
+  color: #f3c86b;
+  background: #242421;
+  padding: 4px 7px;
+  font: inherit;
+}
+.atlasBar .collapseBtn:hover, .atlasControl:hover { color: #fffdf8; background: #4b402c; }
+.atlasFigure {
+  position: relative;
+  margin-top: 10px;
+  display: grid;
+  align-items: center;
+  min-height: clamp(130px, 16vw, 234px);
+  border-radius: 5px;
+  background: #ffffff04;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .atlasFigure { animation: turnProof .35s ease-out both; transform-origin: left center; }
+  @keyframes turnProof {
+    from { opacity: .45; transform: perspective(900px) rotateY(-12deg); }
+    to { opacity: 1; transform: perspective(900px) rotateY(0); }
+  }
+}
+.atlasFigure svg { width: 100%; display: block; }
+.atlasEmbed {
+  position: absolute;
+  bottom: 6px;
+  left: 7px;
+  padding: 3px 6px;
+  border: 1px solid #ffffff29;
+  border-radius: 4px;
+  background: #0d1013da;
+  font-size: 10px;
+}
+.atlasRange { margin: 12px 0; }
+.atlasRange input { flex: 1; width: 0; accent-color: #de421f; }
+.atlasRange output { padding-inline: 4px; color: #f3c86b; }
+.flipCorner {
+  position: absolute;
+  right: -17px;
+  bottom: -35px;
+  padding: 9px 7px 5px;
+  border: 0;
+  border-radius: 0 0 5px 0;
+  color: #34372f;
+  background: linear-gradient(315deg, #eee8da 0 48%, #dcd4c2 49% 52%, #f7f4ec 53%);
+  font-size: 12px;
+}
+.flipCorner:hover { color: #a82f16; }
+@media (max-width: 540px) {
+  .atelierBench .circuitGrid { grid-template-columns: 1fr; grid-template-areas: "sheet" "tray" "check"; }
+  .atelierBench .pressCheck { gap: 5px; }
+  .flipCorner { right: 0; }
 }

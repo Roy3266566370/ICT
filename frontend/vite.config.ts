@@ -134,8 +134,8 @@ export default defineConfig({
   // fixtures 由上面的插件单独暴露；public 只放 favicon 等站点级静态文件
   publicDir: 'public',
   plugins: [react(), fixturesPlugin()],
-  // Pre-bundle dependencies used by on-demand PPTX capture and presentation annotation.
-  optimizeDeps: { include: ['html-to-image', 'perfect-freehand'] },
+  // Pre-bundle dependencies used by on-demand PPTX capture, presentation annotation, and diagram nodes.
+  optimizeDeps: { include: ['html-to-image', 'perfect-freehand', '@xyflow/react'] },
   resolve: {
     alias: {
       '@': path.resolve(here, 'src'),

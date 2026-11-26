@@ -1,13 +1,15 @@
-/** 万象活页主入口：统一导入静态 PPTX / PDF / 图片到横向动态 PPT 工作台，并管理已有课件。 */
+/** 通文册主入口：统一导入静态 PPTX / PDF / 图片到横向动态 PPT 工作台，并管理已有课件。 */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, errorMessage } from '@/api/client';
+import { errorMessage } from '@/api/client';
+import { useDeleteMaterial, useMaterials } from '@/api/hooks';
 import { importProjectPackage } from '@/api/projectPackage';
 import { uploadTeachingMaterial, WORKBENCH_UPLOAD_ACCEPT } from '@/api/teachingUpload';
 import type { MaterialSummary } from '@/api/types';
-import { SiteNav } from '@/components/home/SiteNav';
+import { MainSiteNav } from '@/components/home/MainSiteNav';
 import { LivingIntroBanner } from '@/components/intros/LivingIntroBanner';
+import { DeleteContentDialog } from '@/components/ui/DeleteContentDialog';
 import styles from './LivingPage.module.css';
 
 function UploadGlyph(): JSX.Element {
@@ -58,24 +60,19 @@ function statusLabel(status: MaterialSummary['status'] | 'readable'): string {
 
 export default function LivingPagesPage(): ReactNode {
   const navigate = useNavigate();
-  const [materials, setMaterials] = useState<MaterialSummary[] | null>(null);
+  const materialsQuery = useMaterials(50);
+  const materials = materialsQuery.data?.items ?? null;
+  const deleteMaterial = useDeleteMaterial();
+  const [pendingDelete, setPendingDelete] = useState<MaterialSummary | null>(null);
   const [busy, setBusy] = useState<'upload' | 'import' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  const listTitle = useRef<HTMLHeadingElement>(null);
 
   const totalSlides = materials === null ? null : materials.reduce((sum, item) => sum + item.page_count, 0);
   const totalObjects = materials === null ? null : materials.reduce((sum, item) => sum + item.object_count, 0);
-
-  const [loadError, setLoadError] = useState('');
-  const loadData = (): void => {
-    setLoadError('');
-    api.listMaterials(50)
-      .then((res) => setMaterials(res.items))
-      .catch(() => setLoadError('课件列表加载失败，请重试。'));
-  };
-  useEffect(loadData, []);
 
   const upload = async (files: FileList | null): Promise<void> => {
     if (!files?.length) return;
@@ -107,53 +104,41 @@ export default function LivingPagesPage(): ReactNode {
     }
   };
 
-  return (
-    <div className={`${styles.listRoot} studio-scope`}>
-      <SiteNav current="living" appearance="studio" />
+  return <>
+    <MainSiteNav current="living" />
+    <div className={`${styles.listRoot} studio-scope atelier-paper`}>
       <main className={styles.listPage}>
         <header className={styles.pageHead}>
           <div className={styles.headText}>
-            <div className={styles.eyebrow}>
-              <i aria-hidden="true" /> WANXIANG LIVING PAGES · 动态课件与工坊插件演播舞台
-            </div>
-            <h1 className={styles.pageTitle}>
-              万象<span className={styles.titleHighlight}>活页</span>
-            </h1>
-            <p className={styles.lead}>
-              上传静态 PPTX、PDF 或图片，直接进入高保真横向幻灯片工作台。
-              保留原稿排版的同时，在任意一页原地嵌入「万象工坊」50+ 学科交互插件，并可打包为单文件 HTML 断网演播。
-            </p>
-            <div className={styles.headMeta}>
-              <div className={styles.headMetric}>
-                <b>{materials === null ? '—' : materials.length}</b>
-                <span>份动态课件</span>
-              </div>
-              <div className={styles.headMetric}>
-                <b>{totalSlides === null ? '—' : totalSlides}</b>
-                <span>页幻灯片</span>
-              </div>
-              <div className={styles.headMetric}>
-                <b>{totalObjects === null ? '—' : totalObjects}</b>
-                <span>个交互对象</span>
-              </div>
-            </div>
+            <div className={styles.eyebrow}><i aria-hidden="true" /> TONGWEN ATLAS · 通文册</div>
+            <h1 className={styles.pageTitle}>一本<span className={styles.titleHighlight}>会呼吸的册。</span></h1>
           </div>
-
-          <aside className={styles.headNote}>
-            <span className={styles.headNoteTag}>ECOSYSTEM · 双向贯通</span>
-            <strong>与万象工坊无缝联动</strong>
-            <p>所有 PPTX、PDF 与图片均进入横向幻灯片舞台，默认开启原位交互；随时把工坊里搭好的活仪器装进任意页面。</p>
-            <Link to="/workshop" className={styles.headNoteLink}>去万象工坊挑仪器 ↗</Link>
-          </aside>
+          <p>把定象坊里搭好的象砖装进任意一页。读者打开就能调参，也能把交互课件带走。</p>
         </header>
 
-        <LivingIntroBanner />
+        <div className={styles.book}>
+          <section className={styles.bookCopy} aria-label="制作通文册">
+            <h2>把静态课件，<br />装订成<em>会动的册。</em></h2>
+            <p>上传 PPTX、PDF 或图片，保留原稿排版，再把定象坊的公式、曲线和参数滑块嵌进任意一页。</p>
+            <div className={styles.bookActions}>
+              <button type="button" className={styles.generateBtn} disabled={busy === 'upload'}
+                onClick={() => fileRef.current?.click()}>上传 PPT 开始装订 ↗</button>
+              <a className={styles.bookLink} href="#living-mine-title">查看我的册</a>
+            </div>
+            <div className={styles.headMeta}>
+              <div className={styles.headMetric}><b>{materials?.length ?? '—'}</b><span>我的课件</span></div>
+              <div className={styles.headMetric}><b>{totalSlides ?? '—'}</b><span>页幻灯片</span></div>
+              <div className={styles.headMetric}><b>{totalObjects ?? '—'}</b><span>个交互对象</span></div>
+            </div>
+          </section>
+          <div className={styles.bookPage}><LivingIntroBanner /></div>
+        </div>
 
         <section className={styles.createSection} aria-labelledby="living-create-title">
           <div className={styles.sectionHead}>
             <div>
-              <p className={styles.sectionEyebrow}><span className={styles.secNo}>§ 01</span> NEW OR IMPORT / 开始制作</p>
-              <h2 id="living-create-title" className={styles.sectionTitle}>新建或导入动态 PPT</h2>
+              <p className={styles.sectionEyebrow}><span className={styles.secNo}>§ 01</span> BINDING / 开始装订</p>
+              <h2 id="living-create-title" className={styles.sectionTitle}>导入原稿或恢复工程</h2>
             </div>
             <p className={styles.sectionNote}>上传即入工作台 · 原位编辑与现场演播</p>
           </div>
@@ -204,7 +189,7 @@ export default function LivingPagesPage(): ReactNode {
               </div>
               <h3 className={styles.pasteTitle}>导入已有工程包或离线网页</h3>
               <p className={styles.pasteLead}>
-                从本地恢复之前导出的工程包或单文件交互 HTML，完整保留所有原位矢量图形、工坊插件、数学画布与流程图，导入后立即回到工作台继续编辑。
+                从本地恢复之前导出的工程包或单文件交互 HTML，完整保留所有原位矢量图形、定象坊插件、数学画布与流程图，导入后立即回到工作台继续编辑。
               </p>
               <div className={styles.pasteFoot}>
                 <span className={styles.pasteHint}>支持 .xsproj 工程存档与万象单文件 .html 直接导回</span>
@@ -228,14 +213,14 @@ export default function LivingPagesPage(): ReactNode {
           </div>
         </section>
 
-        {loadError ? <p className={styles.uploadError} role="alert">{loadError} <button type="button" onClick={loadData}>重试</button></p> : null}
+        {materialsQuery.isError ? <p className={styles.uploadError} role="alert">课件列表加载失败，请重试。 <button type="button" onClick={() => void materialsQuery.refetch()}>重试</button></p> : null}
         {error ? <p className={styles.uploadError} role="alert">{error}</p> : null}
 
         <section className={styles.listSection} aria-labelledby="living-mine-title">
           <div className={styles.sectionHead}>
             <div>
-              <p className={styles.sectionEyebrow}><span className={styles.secNo}>§ 02</span> LIBRARY / 个人活课件库</p>
-              <h2 id="living-mine-title" className={styles.sectionTitle}>我的动态 PPT</h2>
+              <p className={styles.sectionEyebrow}><span className={styles.secNo}>§ 02</span> LIBRARY / 我的书架</p>
+              <h2 id="living-mine-title" className={styles.sectionTitle} ref={listTitle} tabIndex={-1}>我的通文册</h2>
             </div>
             <span className={styles.countPill}>{materials === null ? '载入中' : `${materials.length} 份`}</span>
           </div>
@@ -268,13 +253,21 @@ export default function LivingPagesPage(): ReactNode {
                     <span className={styles.pageItemTime}>{formatTime(item.created_at)}</span>
                     <span className={styles.pageArrow} aria-hidden="true">→</span>
                   </Link>
+                  <button type="button" className={styles.pageDelete} aria-label={`删除「${item.title}」`}
+                    onClick={() => setPendingDelete(item)}>删除</button>
                 </li>
               ))}
             </ul>
           )}
+          {pendingDelete && <DeleteContentDialog label="课件" title={pendingDelete.title}
+            onDelete={() => deleteMaterial.mutateAsync(pendingDelete.material_id)}
+            onDismiss={deleted => {
+              setPendingDelete(null);
+              if (deleted) listTitle.current?.focus({ preventScroll: true });
+            }}/>}
         </section>
 
-        <section className={styles.tips} aria-label="工作台能力说明">
+        <section className={styles.tips} aria-label="三次装订，把作品送上流通">
           <div>
             <strong>01 · IMPORT</strong>
             <h3>原稿保真导入</h3>
@@ -282,18 +275,18 @@ export default function LivingPagesPage(): ReactNode {
           </div>
           <div>
             <strong>02 · LIVE STAGE</strong>
-            <h3>原位交互与工坊插件</h3>
-            <p>在幻灯片原位插入万象工坊交互仪器，现场调参、切换情景预设，告别讲课来回切软件。</p>
+            <h3>嵌入象砖</h3>
+            <p>在幻灯片原位插入定象坊交互仪器，现场调参、切换情景预设，告别讲课来回切软件。</p>
           </div>
           <div>
             <strong>03 · OFFLINE</strong>
-            <h3>离线演播与无损导回</h3>
+            <h3>发放与离线演播</h3>
             <p>导出独立单文件 HTML，教室断网照常跑真实计算；也可打包工程随时导回继续修订。</p>
           </div>
         </section>
       </main>
     </div>
-  );
+  </>;
 }
 
 function formatTime(iso: string): string {

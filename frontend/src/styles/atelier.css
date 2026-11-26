@@ -1,0 +1,11 @@
+.studio-scope.atelier-paper {
+  background-color: #f2efe6;
+  background-image:
+    radial-gradient(900px 520px at 82% -6%, #2234d40e, transparent 62%),
+    radial-gradient(760px 460px at 4% 12%, #de421f0c, transparent 58%),
+    linear-gradient(to right, #12151307 1px, transparent 1px),
+    linear-gradient(to bottom, #12151307 1px, transparent 1px);
+  background-size: auto, auto, 56px 56px, 56px 56px;
+}
+
+.atelier-paper :where([id]) { scroll-margin-top: 84px; }

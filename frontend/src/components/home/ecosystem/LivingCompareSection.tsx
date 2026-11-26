@@ -1,5 +1,5 @@
 /**
- * § 03 万象活页 Before/After 可拖拽卷帘实景对比（0% ~ 100% 拉到底 + 真实泰勒级数逼近）
+ * § 03 通文册 Before/After 可拖拽卷帘实景对比（0% ~ 100% 拉到底 + 真实泰勒级数逼近）
  */
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 
@@ -90,11 +90,11 @@ export function LivingCompareSection(): JSX.Element {
       <div className="container">
         <header className="section-head">
           <div>
-            <p className="eyebrow"><span className="sec-no">§ 03</span> WANXIANG LIVING PAGES / 万象活页</p>
+            <p className="eyebrow"><span className="sec-no">§ 03</span> TONGWEN ATLAS / 通文册</p>
             <h2>拉动中间手柄，<br />看静态 PPT 如何当场“复活”。</h2>
           </div>
           <p>
-            不用重做整套课件。保留你原本的页面结构，把写死的截图原地替换成工坊活仪器——课堂上不用切软件，拖动滑杆就能现场回应追问。
+            不用重做整套课件。保留你原本的页面结构，把写死的截图原地替换成定象坊活仪器——课堂上不用切软件，拖动滑杆就能现场回应追问。
           </p>
         </header>
 
@@ -108,12 +108,12 @@ export function LivingCompareSection(): JSX.Element {
           </div>
 
           <div className="compare-viewport" ref={viewportRef}>
-            {/* 底层：万象活页（动态激活） */}
+            {/* 底层：通文册（动态激活） */}
             <div className="compare-layer layer-after">
               <div>
-                <span className="after-tag">AFTER · 万象活页（动态激活）</span>
+                <span className="after-tag">AFTER · 通文册（动态激活）</span>
                 <h3 className="slide-title">sin(x) 的泰勒多项式逼近</h3>
-                <p className="slide-desc">保留原稿讲解文字与公式，右侧配图已替换为工坊真实内核。讲台上直接把阶数从 1 推到 9，看多项式如何贴合正弦波。</p>
+                <p className="slide-desc">保留原稿讲解文字与公式，右侧配图已替换为定象坊真实内核。讲台上直接把阶数从 1 推到 9，看多项式如何贴合正弦波。</p>
                 <div className="formula-pill formula-pill--sm">{TAYLOR_FORMULAS[degree]}</div>
               </div>
 
@@ -170,7 +170,7 @@ export function LivingCompareSection(): JSX.Element {
               className="compare-divider"
               style={{ left: `${split}%` }}
               role="slider"
-              aria-label="拖动对比静态课件与万象活页"
+              aria-label="拖动对比静态课件与通文册"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(split)}

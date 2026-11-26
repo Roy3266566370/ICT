@@ -32,6 +32,64 @@ from pathlib import Path
 from typing import Any
 
 
+def _has_existing_powerpoint(win32com_client: Any) -> bool:
+    """检查当前是否已有运行中的 PowerPoint COM 实例。"""
+
+    try:
+        win32com_client.GetActiveObject("PowerPoint.Application")
+        return True
+    except Exception:
+        return False
+
+
+def _count_presentations(app: Any) -> int | None:
+    """安全读取当前打开的演示文稿数量；读取失败返回 ``None``。"""
+
+    try:
+        return int(app.Presentations.Count)
+    except Exception:
+        return None
+
+
+def _is_powerpoint_visible(app: Any) -> bool:
+    """判断 PowerPoint 窗口是否可见（可见通常意味着用户正在使用）。"""
+
+    try:
+        return bool(app.Visible)
+    except Exception:
+        return False
+
+
+def _safe_quit_powerpoint(
+    app: Any,
+    *,
+    had_existing_instance: bool,
+    existing_presentations: int | None,
+) -> None:
+    """仅当确认不会误关用户正在使用的 PowerPoint 时才调用 ``app.Quit()``。
+
+    PowerPoint 在 Windows 上是单实例 COM 服务：``DispatchEx`` 仍会附着到用户
+    已打开的 ``POWERPNT.EXE``。因此只有在满足以下全部条件时才允许退出：
+    1. 调用前原本没有运行中的 PowerPoint 实例；
+    2. 调用前原本没有打开的演示文稿；
+    3. 关闭本次打开的演示文稿后，当前剩余演示文稿数量明确为 0。
+    """
+
+    if app is None:
+        return
+    if had_existing_instance:
+        return
+    if existing_presentations is None or existing_presentations > 0:
+        return
+    remaining = _count_presentations(app)
+    if remaining is None or remaining > 0:
+        return
+    try:
+        app.Quit()
+    except Exception:  # pragma: no cover - 已退出
+        pass
+
+
 def export_with_com(
     pptx_path: str,
     out_dir: str,
@@ -43,13 +101,19 @@ def export_with_com(
     started = time.monotonic()
     app = None
     presentation = None
+    had_existing_instance = False
+    existing_presentations: int | None = None
     try:
         import pythoncom  # noqa: PLC0415
         import win32com.client  # noqa: PLC0415
 
         pythoncom.CoInitialize()
         try:
+            had_existing_instance = _has_existing_powerpoint(win32com.client)
             app = win32com.client.DispatchEx("PowerPoint.Application")
+            existing_presentations = _count_presentations(app)
+            if _is_powerpoint_visible(app):
+                had_existing_instance = True
             # ReadOnly/Untitled/WithWindow 必须显式给出，避免加锁或弹窗。
             presentation = app.Presentations.Open(
                 pptx_path, ReadOnly=True, Untitled=False, WithWindow=False
@@ -75,11 +139,11 @@ def export_with_com(
                     presentation.Close()
                 except Exception:  # pragma: no cover - 已关闭
                     pass
-            if app is not None:
-                try:
-                    app.Quit()
-                except Exception:  # pragma: no cover - 已退出
-                    pass
+            _safe_quit_powerpoint(
+                app,
+                had_existing_instance=had_existing_instance,
+                existing_presentations=existing_presentations,
+            )
             try:
                 pythoncom.CoUninitialize()
             except Exception:  # pragma: no cover

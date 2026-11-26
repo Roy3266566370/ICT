@@ -41,10 +41,7 @@ async function openTemplate(page: Page, subject: 'physics' | 'calculus', kind: s
   const templates = subject === 'physics' ? PHYSICS_TEMPLATES : CALCULUS_TEMPLATES;
   const template = templates.find((item) => item.kind === kind);
   expect(template, `缺少 ${subject} 模板 ${kind}`).toBeTruthy();
-  const querySubject = subject === 'physics' ? 'mechanics' : 'calculus';
-  await page.goto(`/workshop?subject=${querySubject}&q=${encodeURIComponent(template!.name)}`);
-  await page.locator('button').filter({ has: page.getByText(template!.name, { exact: true }) }).first().click();
-  await expect(page).toHaveURL(/\/canvas\?work=/);
+  await page.goto(`/canvas?template=${encodeURIComponent(kind)}`);
   await expect(page.locator(`[data-${subject}-module]`).first()).toBeVisible();
 }
 

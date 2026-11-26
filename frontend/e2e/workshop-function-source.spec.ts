@@ -1,5 +1,19 @@
 import { expect, test } from '@playwright/test';
 
+test('从积木库连续添加积木会留出前一张卡片的标题', async ({ page }) => {
+  await page.goto('/canvas');
+  await page.getByRole('button', { name: /积木库/ }).click();
+  await page.getByRole('searchbox', { name: '搜索积木' }).fill('滑杆源');
+  const add = page.getByRole('button', { name: '滑杆源', exact: true });
+  for (let i = 0; i < 6; i++) await add.click();
+  const cards = page.locator('[data-node-type="slider"]');
+  await expect(cards).toHaveCount(6);
+  const positions = await cards.evaluateAll((nodes) => nodes.map((node) => (node as HTMLElement).offsetTop));
+  for (let i = 1; i < positions.length; i++) {
+    expect(positions[i]! - positions[i - 1]!).toBeGreaterThanOrEqual(40);
+  }
+});
+
 test('函数源左侧显示图像，右侧修改参数并用按钮编写函数', async ({ page }) => {
   await page.goto('/workshop');
   await page.getByRole('button', { name: /新建空白画布/ }).click();

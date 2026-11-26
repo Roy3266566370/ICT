@@ -3,11 +3,17 @@ from __future__ import annotations
 from copy import deepcopy
 import base64,re,math
 from .store import read_document,document_root
-from .layers import hydrate_document,layer_dir,manifest_ready,native_asset_path,read_manifest,source_page_number
+from .importer import NATIVE_IMPORT_VERSION
+from .layers import ensure_document,hydrate_document,layer_dir,manifest_ready,native_asset_path,read_manifest,source_page_number
 
 def current_document(material_id:str):
     document=read_document(material_id)
-    return hydrate_document(material_id,document) if document else None
+    if not document:
+        return None
+    if ((document.get('native_import_version') or 0)<NATIVE_IMPORT_VERSION
+            and (document_root(material_id)/'source.pptx').is_file()):
+        return ensure_document(material_id,document['title'])
+    return hydrate_document(material_id,document)
 
 def apply_document_specs(material_id:str,specs:list[dict])->list[dict]:
     """Project recognised specs onto the current scene and merge node-level interactions.
@@ -148,14 +154,6 @@ def apply_document_specs(material_id:str,specs:list[dict])->list[dict]:
             result=[spec for spec in result if spec.get('node_id') not in user_node_ids]
             result.extend(user_specs)
     try:
-        from ..ispec.advanced_scenes import apply_advanced_scenes
-        from ..ispec.scene_definitions import ensure_scene_definition
-        result=apply_advanced_scenes(material_id,result)
-        for spec in result:
-            ensure_scene_definition(spec)
-    except (ValueError, TypeError, OSError):
-        pass
-    try:
         from ..ispec.persistence import load_values
         saved=load_values(material_id)
         def compatible(default,value):
@@ -207,7 +205,7 @@ def freeze_document(material_id:str)->dict|None:
     from .figure_service import asset_path
     from ..render import PAGE_IMAGE_PATTERN, pages_dir
 
-    document=read_document(material_id)
+    document=current_document(material_id)
     if not document or not (document.get('structure_modified') or any(p.get('modified') for p in document['pages'])):return None
     for page in document['pages']:
         if not page.get('modified'):continue
@@ -217,7 +215,6 @@ def freeze_document(material_id:str)->dict|None:
         if (source_page is not None and not page.get('native_ready') and not page.get('rendered_only')
                 and not manifest_ready(read_manifest(material_id,document['source_key'],source_page))):
             raise ValueError(f'第{page["page_no"]}页对象仍在准备，请等待准备完成后再发布')
-    document=hydrate_document(material_id,document)
     cache={};total=0
     def embed(target):
         nonlocal total
@@ -315,6 +312,8 @@ def public_document(raw)->dict|None:
                 and all(type(value) in (int,float) and -1e6<=value<=1e6 for value in transform)
                 and abs(transform[0]*transform[3]-transform[1]*transform[2])>1e-9):
                 node['text_transform']=list(transform)
+            if source.get('text_rotation_offset') == 180:
+                node['text_rotation_offset']=180
             provenance=source.get('figure_provenance')
             if provenance in ('native','pixel','vision','user_confirmed'):
                 node['figure_provenance']=provenance

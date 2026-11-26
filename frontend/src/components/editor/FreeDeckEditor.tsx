@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import {useCallback,useEffect,useRef,useState,useSyncExternalStore,type Dispatch,type PointerEvent as ReactPointerEvent,type SetStateAction} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import type {MaterialDetail} from '@/api/types';
@@ -12,6 +13,7 @@ import type {SceneNode,ScenePage,NodePatch,NodeInteraction,RelationSuggestion,Sc
 import type {ISpec} from '@/ispec/types';
 import {ZoomControl} from '@/components/ui/ZoomControl';
 import {fitZoom,wheelZoom} from '@/components/ui/zoom';
+import {workshopPluginConfigForTemplate} from '@/canvas/templateCatalog';
 import {ScenePageView} from './ScenePageView';
 import {StandaloneDemoDialog} from './SlideDemoNode';
 import {standaloneDemos} from './standaloneDemos';
@@ -25,6 +27,7 @@ interface Props {
   materialId:string;controller:DocumentController;material:MaterialDetail;
   activePageNo:number;onSelectPage:(pageNo:number)=>void;
   zoom:number|'fit';onZoom:Dispatch<SetStateAction<number|'fit'>>;
+  headerActionsHost?: HTMLElement | null;
 }
 interface Drag {kind:'move'|'resize'|'rotate';direction:string;startX:number;startY:number;nodes:SceneNode[];box:Box;preview:Record<string,Partial<SceneNode>>;}
 interface Drawing {start:{x:number;y:number};kind:'select'|'ai'|'diagram'|'demo';selection:string[];box:Box;clicked?:string}
@@ -37,7 +40,7 @@ const preparationStage=(page:ScenePage)=>{
   return status==='ready'&&page.native_fallback?page.preparation?.fallback_status??status:status;
 };
 
-export function FreeDeckEditor({materialId,controller,material,activePageNo,onSelectPage:selectPage,zoom,onZoom:setZoom}:Props){
+export function FreeDeckEditor({materialId,controller,material,activePageNo,onSelectPage:selectPage,zoom,onZoom:setZoom,headerActionsHost}:Props){
   const state=useSyncExternalStore(controller.subscribe,controller.getSnapshot);const document=state.document;
   const queryClient=useQueryClient();
   // 材料详情缓存键带账号 scope：退出/切换账号时由 bootstrap 的 scope 监听统一清理
@@ -57,7 +60,7 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
   const [aiSuggestion,setAISuggestion]=useState<RelationSuggestion|null>(null);
   const [aiPending,setAIPending]=useState(false);
   const aiRequest=useRef<AbortController|null>(null);
-  const pageMenu=useRef<HTMLDetailsElement>(null);
+  const [pageMenuFor,setPageMenuFor]=useState<number|null>(null);
   const draggedPage=useRef<number|null>(null);
   const [dropPage,setDropPage]=useState<number|null>(null);
   const [generating,setGenerating]=useState<Record<string,boolean>>({});
@@ -67,38 +70,52 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
   const [reference,setReference]=useState(false);const [retry,setRetry]=useState(0);const retryUsed=useRef(0);const [message,setMessage]=useState('');
   const [demoPage,setDemoPage]=useState<number|null>(null);
   const [proofFigures,setProofFigures]=useState(false);
+  const [figureTarget,setFigureTarget]=useState<string|null>(null);
   const [pluginPickerOpen,setPluginPickerOpen]=useState(false);
-  const [figureTarget,setFigureTarget]=useState<{pageNo:number;nodeId:string}|null>(null);
   const [reinteracting,setReinteracting]=useState(false);const [online,setOnline]=useState(()=>typeof navigator==='undefined'||navigator.onLine);
-  const viewport=useRef<HTMLDivElement>(null);const frame=useRef<HTMLDivElement>(null);const drag=useRef<Drag|null>(null);const file=useRef<HTMLInputElement>(null);
+  const viewport=useRef<HTMLDivElement>(null);const frame=useRef<HTMLDivElement>(null);const rail=useRef<HTMLDivElement>(null);
+  const drag=useRef<Drag|null>(null);const file=useRef<HTMLInputElement>(null);
   const lastTap=useRef<{id:string;time:number;x:number;y:number}|null>(null);
   const [area,setArea]=useState({width:1050,height:680});const status=page.preparation?.status??'unprepared';
   const stage=preparationStage(page);
   const nextPage=document.pages[pageIndex+1];
   const nextStage=nextPage&&preparationStage(nextPage);
-  const ready=status==='ready';const canEdit=ready&&!reference&&!reinteracting;
-  const separateDemos = ready && !reference ? standaloneDemos(page) : [];
-  const fit=fitZoom(area,page,80,.15,1.7);
+  const ready=status==='ready';const canEdit=ready&&!reinteracting;
+  const separateDemos = ready ? standaloneDemos(page) : [];
+  const fit=fitZoom(area,{...page,width:page.width*(reference?2:1)},reference?64:80,.15,1.7);
   const scale=zoom==='fit'?fit:zoom;
-  const canPan=page.width*scale+80>area.width+1||page.height*scale+80>area.height+1;
+  const displayWidth=page.width*scale*(reference?2:1)+(reference?64:80);
+  const canPan=displayWidth>area.width+1||page.height*scale+80>area.height+1;
   const source=page.source_page_no===null?undefined:material.slides.find(p=>p.page_no===(page.source_page_no??page.page_no));
   const selectedNodes=page.nodes.filter(n=>selected.includes(n.id)&&!n.deleted);const primary=selectedNodes[0]??null;
+  const figureNode=figureTarget&&primary?.id===figureTarget?primary:null;
+  const canVectorize=canEdit&&online&&selectedNodes.length===1&&primary?.type==='image'&&!primary.whole_group&&
+    !primary.hidden&&!primary.locked&&!primary.cleaned_asset_id&&!page.preparation?.frozen_ids?.includes(primary.id);
+  const hasAppliedFigures=page.nodes.some(node=>node.cleaned_asset_id&&!node.deleted);
   const unlocked=selectedNodes.filter(n=>!n.locked&&!n.hidden&&!page.preparation?.frozen_ids?.includes(n.id));
   const slideSelection=unlocked.length&&unlocked.length===selectedNodes.length&&
     !separateDemos.some(node=>selected.includes(node.id))?rotatedBounds(unlocked):null;
   const canMoveInside=slideSelection&&slideSelection.width<=page.width&&slideSelection.height<=page.height&&
     (slideSelection.x<0||slideSelection.y<0||
       slideSelection.x+slideSelection.width>page.width||slideSelection.y+slideSelection.height>page.height);
-  const vectorized=page.nodes.filter(node=>!node.deleted&&node.figure_source_id);
-  const hasAppliedFigures=page.nodes.some(node=>node.cleaned_asset_id&&!node.deleted);
-  const figureNode=figureTarget?.pageNo===page.page_no&&figureTarget.nodeId===primary?.id&&selectedNodes.length===1?primary:null;
-  const canVectorize=canEdit&&online&&selectedNodes.length===1&&primary?.type==='image'&&!primary.hidden&&!primary.cleaned_asset_id&&
-    !page.preparation?.frozen_ids?.includes(primary.id);
   const shown=selectedNodes.filter(n=>!n.hidden).map(n=>preview[n.id]?{...n,...preview[n.id]}:n);
   const box=shown.length?(shown.length===1?bounds(shown):rotatedBounds(shown)):null;
   const canTransform=canEdit&&unlocked.length===shown.length&&!editingId&&(shown.length>1||primary?.type!=='vector');
   const aiInset=Math.min(page.width*scale/2,150);
-  useEffect(()=>{const node=viewport.current;if(!node)return;const observer=new ResizeObserver(()=>setArea({width:node.clientWidth,height:node.clientHeight}));observer.observe(node);return()=>observer.disconnect();},[]);
+  useEffect(()=>{
+    const node=viewport.current;if(!node)return;
+    const measure=()=>{
+      // 使用不受内部滚动条影响的 offsetWidth/offsetHeight，防止滚动条出现/消失触发 ResizeObserver 震荡
+      const width=Math.floor(node.offsetWidth);
+      const height=Math.floor(node.offsetHeight);
+      if(width>0&&height>0)setArea(prev=>prev.width===width&&prev.height===height?prev:{width,height});
+    };
+    measure();
+    const observer=new ResizeObserver(measure);
+    observer.observe(node);
+    window.addEventListener('resize',measure);
+    return()=>{observer.disconnect();window.removeEventListener('resize',measure);};
+  },[]);
   useEffect(()=>{
     const node=viewport.current;if(!node)return;
     const onWheel=(event:WheelEvent)=>{
@@ -123,11 +140,22 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
   },[]);
   useEffect(()=>()=>{controller.setComposing(false);aiRequest.current?.abort();},[controller]);
   useEffect(()=>{
+    if(tab==='pages')rail.current?.querySelector('[aria-current="page"]')?.scrollIntoView({block:'nearest',inline:'nearest'});
+  },[page.page_no,tab]);
+  useEffect(()=>{
     setSelected([]);setEditingId(null);setPreview({});setGuides({});setReference(false);setInsertMode(null);
+    setFigureTarget(null);setProofFigures(false);
     setDrawBox(null);setAIBox(null);setAIRelations(false);setAISuggestion(null);setAIInstruction('');setAIPending(false);setDemoPage(null);setPluginPickerOpen(false);
+    setPageMenuFor(current=>current===page.page_no?current:null);
     drawing.current=null;drag.current=null;lastTap.current=null;aiRequest.current?.abort();aiRequest.current=null;
   },[page.page_no]);
-  useEffect(()=>{if(figureTarget&&!figureNode)setFigureTarget(null);},[figureNode,figureTarget]);
+  useEffect(()=>{
+    if(pageMenuFor===null)return;
+    const close=(e:PointerEvent)=>{if(!(e.target as Element).closest('[data-page-menu]'))setPageMenuFor(null);};
+    const key=(e:KeyboardEvent)=>{if(e.key==='Escape')setPageMenuFor(null);};
+    window.addEventListener('pointerdown',close);window.addEventListener('keydown',key);
+    return()=>{window.removeEventListener('pointerdown',close);window.removeEventListener('keydown',key);};
+  },[pageMenuFor]);
   useEffect(()=>{
     if(stage==='ready'||stage==='unavailable')return;
     let alive=true;let timer:ReturnType<typeof setTimeout>|undefined;
@@ -191,6 +219,7 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
   const addVector = (arrow: boolean) => {
     if (!canEdit) return;
     const node = newNode(page, identifier(), 'vector');
+    node.name = arrow ? '箭头' : '线条';
     node.y += (page.nodes.filter(item => item.type === 'vector' && !item.deleted).length % 5) * 22;
     node.style.arrow_end = arrow;
     controller.add(page.page_no, node);
@@ -201,17 +230,18 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
     if (!canEdit) return;
     const node = newNode(page, identifier(), 'workshop_plugin');
     node.name = [...entry.name].slice(0, 100).join('');
-    node.workshop_plugin = {
+    node.workshop_plugin = 'work_id' in entry ? {
       template_kind: entry.kind,
       title: entry.name,
       category: entry.category,
-      ...('work_id' in entry ? { work_id: entry.work_id, doc: entry.doc } : {}),
-    };
+      work_id: entry.work_id,
+      doc: entry.doc,
+    } : workshopPluginConfigForTemplate(entry);
     controller.add(page.page_no, node);
     setSelected([node.id]);
     setEditingId(null);
     setPluginPickerOpen(false);
-    setMessage(`已插入万象工坊插件「${entry.name}」，可拖动位置或在演示态直接操作。`);
+    setMessage(`已插入定象坊插件「${entry.name}」，可拖动位置或在演示态直接操作。`);
   };
   const generateNode=async(id:string,kind:'demo'|'diagram',text='',ai=false)=>{
     const pageNo=page.page_no;
@@ -291,7 +321,8 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
     }else{setSelected([]);setMessage('在幻灯片上拖出图框；按 Esc 取消。');}
   };
   const insertFrame=(kind:'diagram'|'demo',region:Box)=>{
-    const width=Math.min(page.width,Math.max(40,region.width)),height=Math.min(page.height,Math.max(30,region.height));
+    const minH=kind==='demo'?320:30;
+    const width=Math.min(page.width,Math.max(kind==='demo'?320:40,region.width)),height=Math.min(page.height,Math.max(minH,region.height));
     const node={...newNode(page,identifier(),kind),x:Math.max(0,Math.min(page.width-width,region.x)),
       y:Math.max(0,Math.min(page.height-height,region.y)),width,height};
     controller.add(page.page_no,node);setSelected([node.id]);return node;
@@ -489,8 +520,7 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
   };
   useEffect(()=>{
     const key=(e:KeyboardEvent)=>{
-      if (demoPage===page.page_no) return;
-      if(figureNode)return;
+      if (demoPage===page.page_no||figureNode) return;
       if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();void controller.save();return;}
       if((e.target as Element)?.closest('input,textarea,select,[contenteditable=true]'))return;
       if(e.key==='Escape'){setEditingId(null);setSelected([]);setInsertMode(null);setDrawBox(null);drawing.current=null;end(true);closeAI();return;}
@@ -582,78 +612,72 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
           <option value="" disabled>＋ 表格或图表</option><option value="table">表格</option><option value="chart">图表</option>
         </select></div>
       <div className={styles.toolGroup}><button onClick={()=>addVector(false)} disabled={!canEdit}>＋ 线条</button><button onClick={()=>addVector(true)} disabled={!canEdit}>＋ 箭头</button></div>
-      <div className={styles.toolGroup}><button className={styles.primary} onClick={()=>setPluginPickerOpen(true)} disabled={!canEdit}>🎛️ 插入工坊插件</button></div>
-      <div className={styles.toolGroup}><button aria-pressed={insertMode==='diagram'} onClick={()=>armInsert('diagram')} disabled={!canEdit}>＋ 流程图</button>
+      <div className={`${styles.toolGroup} ${styles.featureGroup}`}><button className={styles.featurePrimary} onClick={()=>setPluginPickerOpen(true)} disabled={!canEdit}>🎛️ 插入定象坊插件</button>
+        <button aria-pressed={insertMode==='diagram'} onClick={()=>armInsert('diagram')} disabled={!canEdit}>＋ 流程图</button>
         <button aria-pressed={insertMode==='demo'} onClick={()=>armInsert('demo')} disabled={!canEdit}>＋ AI 演示框</button>
         <button aria-pressed={insertMode==='ai'} onClick={()=>armInsert('ai')} disabled={!canEdit} aria-keyshortcuts="A" title="圈选本页要处理的对象（A）">AI 圈选</button></div>
       <input type="file" accept="image/png,image/jpeg,image/webp" ref={file} hidden onChange={e=>{const image=e.target.files?.[0];if(image)void addImage(image).catch(error=>setMessage(errorMessage(error)));e.target.value='';}}/>
-      <div className={styles.toolGroup}><button onClick={duplicate} disabled={!selectedNodes.length||!canEdit}>复制</button><button onClick={remove} disabled={!unlocked.length||!canEdit}>删除</button>
+      {selectedNodes.length>0&&<div className={styles.toolGroup}><button onClick={duplicate} disabled={!selectedNodes.length||!canEdit}>复制</button><button onClick={remove} disabled={!unlocked.length||!canEdit}>删除</button>
         <button onClick={()=>layer(true)} disabled={!unlocked.length||!canEdit}>置顶</button><button onClick={()=>layer(false)} disabled={!unlocked.length||!canEdit}>置底</button>
         <select aria-label="对齐对象" value="" disabled={!unlocked.length||!canEdit} onChange={e=>align(e.target.value)}><option value="" disabled>对齐 ▾</option>
           <option value="left">左对齐</option><option value="center">水平居中</option><option value="right">右对齐</option><option value="top">顶端对齐</option><option value="middle">垂直居中</option><option value="bottom">底端对齐</option>
           <option value="inside-slide" disabled={!canMoveInside}>移入幻灯片</option></select>
         <select aria-label="分布对象" value="" disabled={unlocked.length<3||!canEdit} onChange={e=>distribute(e.target.value as 'h'|'v')}><option value="" disabled>分布 ▾</option>
-          <option value="h">横向等距</option><option value="v">纵向等距</option></select></div>
-      <div className={styles.toolbarEnd}><button aria-pressed={reference} disabled={!source?.image_url} onClick={()=>{setReference(!reference);setEditingId(null);closeAI();}}>原稿对照</button>
-        {hasAppliedFigures&&<button aria-pressed={proofFigures} disabled={reference}
-          onClick={()=>setProofFigures(value=>!value)} title="显示半透明原图和矢量对象">图示校对</button>}
-        <button aria-pressed={panMode} title="放大后拖动画布；也可按住空格或鼠标中键拖动" onClick={()=>{setPanMode(value=>!value);setEditingId(null);}}>平移</button>
-        <ZoomControl className={styles.zoomControl} value={zoom} fitValue={fit} min={.25} max={4} step={.1} onChange={setZoom}/>
-        <span className={styles.sync} data-error={!!state.error||!online} data-dirty={state.dirty&&!state.saving} role="status" aria-live="polite">{syncText}</span>
-        <button onClick={()=>void controller.save()} disabled={state.saving||reinteracting}>立即保存</button></div>
+          <option value="h">横向等距</option><option value="v">纵向等距</option></select></div>}
+      {headerActionsHost ? createPortal(<button type="button" className={styles.headerSave}
+          onClick={()=>void controller.save()} disabled={state.saving||reinteracting}>立即保存</button>, headerActionsHost)
+          : <div className={styles.toolbarEnd}><button onClick={()=>void controller.save()} disabled={state.saving||reinteracting}>立即保存</button></div>}
     </div>
     {(state.error||message)&&<div className={styles.notice} role="alert">{state.error||message}
       {state.conflict?<><button onClick={()=>void recover('merge')}>合并最新修改</button><button onClick={()=>void recover('local')}>使用本机冲突项</button><button onClick={()=>void recover('server')}>放弃草稿并载入服务端</button></>:
         state.error?<button onClick={()=>void controller.save()}>重试同步</button>:null}<button onClick={()=>setMessage('')} aria-label="关闭提示">×</button></div>}
     <div className={styles.workspace}>
-      <aside className={styles.rail}><div className={styles.tabs}><button aria-pressed={tab==='pages'} onClick={()=>setTab('pages')}>页面</button><button aria-pressed={tab==='layers'} onClick={()=>setTab('layers')}>图层</button></div>
-        {tab==='pages'&&<details ref={pageMenu} className={styles.pageMenu} onClick={e=>{if(!e.currentTarget.open)return;const target=e.target as Element;if(target.closest('button'))e.currentTarget.open=false;}}>
-          <summary>页面操作</summary>
-          <div>
-            <button onClick={()=>selectPage(controller.addPage(page.page_no))} disabled={reinteracting}>新建空白页</button>
-            <button onClick={()=>selectPage(controller.addPage(page.page_no,'lesson'))} disabled={reinteracting}>插入教学版式</button>
-            <button onClick={()=>selectPage(controller.duplicatePage(page.page_no))} disabled={reinteracting}>复制本页</button>
-            <button onClick={()=>controller.movePage(page.page_no,pageIndex-1)} disabled={reinteracting||pageIndex===0}>向前移动</button>
-            <button onClick={()=>controller.movePage(page.page_no,pageIndex+1)} disabled={reinteracting||pageIndex===document.pages.length-1}>向后移动</button>
-            <button onClick={removePage} disabled={reinteracting||document.pages.length===1}>删除本页</button>
-          </div>
-        </details>}
-        <div className={styles.railBody}>{tab==='pages'?document.pages.map((p,index)=>{
+      <aside className={styles.rail}><div className={styles.tabs}><button aria-pressed={tab==='pages'} onClick={()=>setTab('pages')}>页面</button><button aria-pressed={tab==='layers'} onClick={()=>setTab('layers')}>图层</button>
+        {tab==='pages'&&<button type="button" className={styles.addPage} aria-label="新建空白页" title="在当前页之后新建空白页"
+          onClick={()=>selectPage(controller.addPage(page.page_no))} disabled={reinteracting}>＋</button>}</div>
+        <div ref={rail} className={styles.railBody}>{tab==='pages'?document.pages.map((p,index)=>{
           const original=sourceFor(p);
-          return <button key={p.page_no} className={styles.thumbnail} aria-current={p.page_no===page.page_no?'page':undefined}
-            aria-label={`编辑第 ${index+1} 页`} onClick={()=>selectPage(p.page_no)} draggable={!reinteracting}
-            data-drop={dropPage===p.page_no}
-            onContextMenu={e=>{e.preventDefault();selectPage(p.page_no);if(pageMenu.current)pageMenu.current.open=true;}}
-            onDragStart={e=>{draggedPage.current=p.page_no;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(p.page_no));}}
-            onDragOver={e=>{if(draggedPage.current!==null&&draggedPage.current!==p.page_no){e.preventDefault();e.dataTransfer.dropEffect='move';setDropPage(p.page_no);}}}
-            onDragLeave={e=>{if(!(e.relatedTarget instanceof Node)||!e.currentTarget.contains(e.relatedTarget))setDropPage(null);}}
-            onDrop={e=>{e.preventDefault();const dragged=draggedPage.current;draggedPage.current=null;setDropPage(null);if(dragged!==null)controller.movePage(dragged,index);}}
-            onDragEnd={()=>{draggedPage.current=null;setDropPage(null);}}>
-            <div className={styles.thumbImage} style={{aspectRatio:`${p.width}/${p.height}`}}>{p.preparation?.status==='ready'&&(p.modified||!original?.image_url)?
-              <div className={styles.thumbCanvas}><ScenePageView page={p} scale={148/p.width}/></div>:
-              original?.image_url?<img src={original.image_url} alt="" loading="lazy" draggable={false}/>:null}</div>
-            <span>{index+1}<b>{original?.title??`第 ${index+1} 页`}</b>{p.modified&&<i/>}</span>
-          </button>;
-        }):[...page.nodes].filter(n=>!n.deleted).sort((a,b)=>b.z-a.z).map(node=><div className={styles.layerRow} key={node.id} data-selected={selected.includes(node.id)}>
+          return <div key={p.page_no} className={styles.thumbWrap}>
+            <button className={styles.thumbnail} aria-current={p.page_no===page.page_no?'page':undefined}
+              aria-label={`编辑第 ${index+1} 页`} onClick={()=>selectPage(p.page_no)} draggable={!reinteracting}
+              data-drop={dropPage===p.page_no}
+              onContextMenu={e=>{e.preventDefault();selectPage(p.page_no);setPageMenuFor(p.page_no);}}
+              onDragStart={e=>{draggedPage.current=p.page_no;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',String(p.page_no));}}
+              onDragOver={e=>{if(draggedPage.current!==null&&draggedPage.current!==p.page_no){e.preventDefault();e.dataTransfer.dropEffect='move';setDropPage(p.page_no);}}}
+              onDragLeave={e=>{if(!(e.relatedTarget instanceof Node)||!e.currentTarget.contains(e.relatedTarget))setDropPage(null);}}
+              onDrop={e=>{e.preventDefault();const dragged=draggedPage.current;draggedPage.current=null;setDropPage(null);if(dragged!==null)controller.movePage(dragged,index);}}
+              onDragEnd={()=>{draggedPage.current=null;setDropPage(null);}}>
+              <div className={styles.thumbImage} style={{aspectRatio:`${p.width}/${p.height}`}}>{p.preparation?.status==='ready'&&(p.modified||!original?.image_url)?
+                <div className={styles.thumbCanvas}><ScenePageView page={p} scale={148/p.width}/></div>:
+                original?.image_url?<img src={original.image_url} alt="" loading="lazy" draggable={false}/>:null}</div>
+              <span>{index+1}<b>{original?.title??`第 ${index+1} 页`}</b>{p.modified&&<i title="本页已改写自原稿"/>}</span>
+            </button>
+            <button type="button" className={styles.thumbOps} aria-label={`第 ${index+1} 页操作`} aria-expanded={pageMenuFor===p.page_no} data-page-menu
+              onClick={e=>{e.stopPropagation();selectPage(p.page_no);setPageMenuFor(current=>current===p.page_no?null:p.page_no);}}>⋯</button>
+            {pageMenuFor===p.page_no&&<div className={styles.thumbMenu} role="menu" data-page-menu>
+              <button type="button" role="menuitem" disabled={reinteracting} onClick={()=>{setPageMenuFor(null);selectPage(controller.addPage(p.page_no,'lesson'));}}>插入教学版式</button>
+              <button type="button" role="menuitem" disabled={reinteracting} onClick={()=>{setPageMenuFor(null);selectPage(controller.duplicatePage(p.page_no));}}>复制本页</button>
+              <button type="button" role="menuitem" disabled={reinteracting||index===0} onClick={()=>{setPageMenuFor(null);controller.movePage(p.page_no,index-1);}}>向前移动</button>
+              <button type="button" role="menuitem" disabled={reinteracting||index===document.pages.length-1} onClick={()=>{setPageMenuFor(null);controller.movePage(p.page_no,index+1);}}>向后移动</button>
+              <button type="button" role="menuitem" disabled={reinteracting||document.pages.length===1} onClick={()=>{setPageMenuFor(null);removePage();}}>删除本页</button>
+            </div>}
+          </div>;
+        }):[...page.nodes].filter(n=>!n.deleted).sort((a,b)=>b.z-a.z).map(node=>{const label=node.text?.trim().slice(0,20)||node.name;return <div className={styles.layerRow} key={node.id} data-selected={selected.includes(node.id)}>
             <button className={styles.layerSelect} aria-pressed={selected.includes(node.id)} onClick={e=>setSelected(e.shiftKey?[...new Set([...selected,node.id])]:[node.id])} title={node.text||node.name}>
-              <span>{node.type==='text'?'T':node.type==='image'?'▧':node.type==='chart'?'▥':node.type==='table'?'▦':'◇'}</span>{node.text?.slice(0,20)||node.name}</button>
-            <button aria-label={`${node.hidden?'显示':'隐藏'}图层 ${node.name}`} onClick={()=>controller.patch(page.page_no,[node.id],{hidden:!node.hidden})} disabled={!canEdit}>{node.hidden?'◌':'◉'}</button>
-            <button aria-label={`${node.locked?'解锁':'锁定'}图层 ${node.name}`} onClick={()=>controller.patch(page.page_no,[node.id],{locked:!node.locked})} disabled={!canEdit}>{node.locked?'▣':'◇'}</button>
-          </div>)}</div>
-        {tab==='pages'&&<details className={styles.pageSettings}><summary>备注和背景</summary>
-          <label>演讲者备注<textarea value={page.notes??''} maxLength={20000} rows={3} disabled={reinteracting} onChange={e=>controller.patchPage(page.page_no,{notes:e.target.value})}/></label>
-          <div><label>背景色 <input type="color" value={page.background_color??'#ffffff'} disabled={reinteracting} onChange={e=>controller.patchPage(page.page_no,{background_color:e.target.value})}/></label>
-            {page.background_modified&&<button disabled={reinteracting} onClick={()=>controller.patchPage(page.page_no,{background_color:null})}>清除设置</button>}</div>
-        </details>}
+              <span>{node.type==='text'?'T':node.type==='image'?'▧':node.type==='chart'?'▥':node.type==='table'?'▦':'◇'}</span>{label}</button>
+            <button aria-label={`${node.hidden?'显示':'隐藏'}图层 ${label}`} onClick={()=>controller.patch(page.page_no,[node.id],{hidden:!node.hidden})} disabled={!canEdit}>{node.hidden?'◌':'◉'}</button>
+            <button aria-label={`${node.locked?'解锁':'锁定'}图层 ${label}`} onClick={()=>controller.patch(page.page_no,[node.id],{locked:!node.locked})} disabled={!canEdit}>{node.locked?'🔒':'🔓'}</button>
+          </div>;})}</div>
       </aside>
-      <main className={styles.main}><div className={styles.pageHeading}><span>第 {pageIndex+1} 页</span><b>{source?.title??document.title}</b>
-        {separateDemos.length>0&&<button type="button" className={styles.retryLayers} onClick={()=>setDemoPage(page.page_no)}>独立演示</button>}
-        {vectorized.length>0&&<span>已矢量化 {countFigureObjects(vectorized)} 个对象</span>}
-        {ready&&stage==='failed'&&<button className={styles.retryLayers} onClick={()=>setRetry(n=>n+1)}>重试复杂图层</button>}
-        <span>{reference?'原稿对照':proofFigures&&hasAppliedFigures?'图示校对':`${Math.round(scale*100)}%`}</span></div>
-        <div className={styles.viewport} ref={viewport} data-pan-ready={canPan&&(panMode||spaceHeld)} data-panning={panning}
+      <main className={styles.main}>
+        {(separateDemos.length>0||(ready&&stage==='failed'))&&<div className={styles.canvasChips}>
+          {separateDemos.length>0&&<button type="button" className={styles.retryLayers} onClick={()=>setDemoPage(page.page_no)}>独立演示</button>}
+          {ready&&stage==='failed'&&<button className={styles.retryLayers} onClick={()=>setRetry(n=>n+1)}>重试复杂图层</button>}
+        </div>}
+        <div className={styles.viewport} ref={viewport} data-fit={zoom==='fit'} data-pan-ready={canPan&&(panMode||spaceHeld)} data-panning={panning}
           onPointerDown={panDown} onPointerMove={panMove} onPointerUp={panEnd} onPointerCancel={panEnd}>
-          <div className={styles.workarea} style={{minWidth:page.width*scale+80,minHeight:page.height*scale+80}}
+          <div className={styles.workarea} data-comparing={reference}
+            style={zoom==='fit'?undefined:{minWidth:displayWidth,minHeight:page.height*scale+80}}
             data-ai-mode={insertMode==='ai'}
             onPointerDownCapture={e=>{if(insertMode==='ai'||(e.target as Element).matches('[data-vector-select]')||
               (e.shiftKey&&(e.target as Element).closest('[data-node-id]')))begin(e);}}
@@ -669,8 +693,15 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
             }}
             onLostPointerCapture={()=>{if(drag.current||drawing.current){drawing.current=null;setDrawBox(null);end(true);}}}
             onPointerCancel={()=>{drawing.current=null;setDrawBox(null);end(true);}}>
+            {reference&&<figure className={styles.referenceFigure} onPointerDown={event=>event.stopPropagation()}>
+              <figcaption>原稿</figcaption>
+              <div className={styles.frame} style={{width:page.width*scale,height:page.height*scale}}>
+                <img className={styles.original} src={source?.image_url??undefined} alt={`第 ${pageIndex+1} 页原稿`} draggable={false}/>
+              </div>
+            </figure>}
             <div ref={frame} className={styles.frame} style={{width:page.width*scale,height:page.height*scale}} aria-label={`可编辑画布第 ${pageIndex+1} 页`}>
-              {reference||!ready?(source?.image_url?<img className={styles.original} src={source.image_url} alt={`第 ${pageIndex+1} 页原稿`} draggable={false}/>:null):
+              {reference&&<div className={styles.referenceLabel}>编辑稿</div>}
+              {!ready?(source?.image_url?<img className={styles.original} src={source.image_url} alt={`第 ${pageIndex+1} 页原稿预览`} draggable={false}/>:null):
                 <ScenePageView page={page} scale={scale} editing={canEdit} proofFigures={proofFigures} editingId={editingId} preview={preview} onText={onText} onCompose={onCompose} onTextBlur={closeText} vectorId={primary?.id}
                   onVectorSelect={id=>{setSelected(ids=>ids.includes(id)?ids:[id]);setEditingId(null);}}
                   generating={generating} onGenerateDemo={id=>void generateNode(id,'demo')}
@@ -692,12 +723,12 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
                     </>}
                   </div>}
                 </ScenePageView>}
-              {aiBox&&!drawBox&&!reference&&<div role="group" aria-label="选区 AI 操作" className={styles.aiActions} data-editor-control
+              {aiBox&&!drawBox&&<div role="group" aria-label="选区 AI 操作" className={styles.aiActions} data-editor-control
                 data-above={aiBox.y+aiBox.height>page.height*.65}
                 style={{left:Math.min(Math.max(aiInset,(aiBox.x+aiBox.width/2)*scale),page.width*scale-aiInset),
                   top:(aiBox.y+aiBox.height>page.height*.65?Math.max(0,aiBox.y):Math.min(page.height,aiBox.y+aiBox.height))*scale}}>
                 <div>
-                  <button type="button" disabled={!canVectorize} onClick={()=>{if(primary){setFigureTarget({pageNo:page.page_no,nodeId:primary.id});closeAI();setInsertMode(null);}}}>图片矢量化</button>
+                  {canVectorize&&<button type="button" onClick={()=>{setFigureTarget(primary.id);closeAI();setInsertMode(null);}}>图片矢量化</button>}
                   <button type="button" disabled={!canEdit||!online} onClick={openDemo}>生成 AI 演示</button>
                   <button type="button" disabled={!canEdit||!online||!selectedNodes.length} aria-expanded={aiRelations} onClick={()=>setAIRelations(open=>!open)}>添加联动关系</button>
                   <button type="button" aria-label="关闭选区 AI 操作" onClick={()=>{closeAI();setInsertMode(null);}}>×</button>
@@ -721,23 +752,31 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
         {!ready&&<div className={styles.preparing} role="status">{status==='failed'?page.preparation?.message??'本页对象准备失败':'正在准备本页可编辑对象，首次需要几秒；后续输入和拖动即时显示。'}
           {status==='failed'&&<button onClick={()=>setRetry(n=>n+1)}>重新准备本页</button>}</div>}
       </main>
-      <NodeProperties node={primary} count={selectedNodes.length} pageNo={page.page_no} materialId={materialId} autoSpecs={autoSpecs} pageNodes={page.nodes}
+      <NodeProperties node={primary} count={selectedNodes.length} pageNodes={page.nodes}
         pageRelations={page.relations} onRelationsChange={(relations,key)=>controller.patchRelations(page.page_no,relations,key)}
         onSuggestRelations={online&&canEdit?suggestRelations:undefined}
         onApplyRelationSuggestion={canEdit?applyRelationSuggestion:undefined}
         generating={!!(primary&&generating[primary.id])} onDemoGenerate={()=>primary&&void generateNode(primary.id,'demo')}
-        onVectorize={canVectorize?()=>setFigureTarget({pageNo:page.page_no,nodeId:primary.id}):undefined}
-        figureCount={countFigureObjects(vectorized.filter(node=>node.figure_source_id===primary?.id))}
+        onVectorize={canVectorize?()=>setFigureTarget(primary.id):undefined}
+        figureCount={primary?.cleaned_asset_id?countFigureObjects(page.nodes.filter(node=>!node.deleted&&node.figure_source_id===primary.id)):undefined}
         onDiagramBuild={(text,ai)=>primary?generateNode(primary.id,'diagram',text,ai):undefined}
+        pageMeta={{notes:page.notes??'',backgroundColor:page.background_color??'#ffffff',backgroundModified:!!page.background_modified}}
+        onPatchPage={patchValue=>controller.patchPage(page.page_no,patchValue)}
+        onInsertPlugin={canEdit?()=>setPluginPickerOpen(true):undefined}
+        onInsertDemo={canEdit?()=>armInsert('demo'):undefined}
         disabled={!canEdit||!!(primary&&page.preparation?.frozen_ids?.includes(primary.id))}
-        onPatch={patch} onDuplicate={duplicate} onDelete={remove}
-        onInteraction={(config:NodeInteraction|null)=>patch({interaction:config},'interaction')}
-        onReinteract={()=>void reinteract()} reinteracting={reinteracting} onRestoreContent={restoreContent}/>
+        onPatch={patch} onDuplicate={duplicate} onDelete={remove}/>
     </div>
     <footer className={styles.footer}><span>拖动空白处框选 · Shift 增减选 · Alt 暂停吸附 · 空格/中键平移 · Ctrl+Z 撤销</span>
       <div><button disabled={pageIndex===0} onClick={()=>{const previous=document.pages[pageIndex-1];if(previous)selectPage(previous.page_no);}}>上一页</button><span>{pageIndex+1} / {document.pages.length}</span>
         <button disabled={!nextPage} onClick={()=>{if(nextPage)selectPage(nextPage.page_no);}}>下一页</button></div>
-      <span>修改即时显示 · 网页自动保存</span></footer>
+      <div className={styles.footerTools}>
+        <button aria-pressed={reference} disabled={!source?.image_url} onClick={()=>{setReference(!reference);setEditingId(null);closeAI();}}>原稿对照</button>
+        {hasAppliedFigures&&<button aria-pressed={proofFigures} onClick={()=>setProofFigures(value=>!value)}>图示校对</button>}
+        <button aria-pressed={panMode} title="放大后拖动画布；也可按住空格或鼠标中键拖动" onClick={()=>{setPanMode(value=>!value);setEditingId(null);}}>平移</button>
+        <ZoomControl className={styles.zoomControl} value={zoom} fitValue={fit} min={.25} max={4} step={.1} onChange={setZoom}/>
+        <span className={styles.sync} data-error={!!state.error||!online} data-dirty={state.dirty&&!state.saving} role="status" aria-live="polite">{syncText}</span>
+      </div></footer>
     {demoPage===page.page_no&&separateDemos.length>0&&<StandaloneDemoDialog nodes={separateDemos} initialId={primary?.id} editing={canEdit}
       onPatch={(id,patch,key)=>{if(canEdit)controller.patch(page.page_no,[id],patch,key?`${id}.${key}`:'');}}
       onClose={()=>setDemoPage(null)}/>}

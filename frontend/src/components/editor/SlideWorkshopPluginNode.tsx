@@ -1,7 +1,7 @@
 /**
- * SlideWorkshopPluginNode.tsx —— 嵌入万象活页 PPT 中的万象工坊交互插件节点
+ * SlideWorkshopPluginNode.tsx —— 嵌入通文册 PPT 中的定象坊交互插件节点
  *
- * 直接复用万象工坊的 CanvasBoard（交互仪器态），纯前端确定性计算，
+ * 直接复用定象坊的 CanvasBoard（交互仪器态），纯前端确定性计算，
  * 支持自由拖动、实时调参、时间轴播放，且离线导出 100% 保留交互。
  */
 import { lazy, Suspense, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -77,7 +77,7 @@ function PluginLiveRunner({
     return unsubscribe;
   }, [presentationKey, sync]);
   useEffect(() => {
-    if (!authoring) return;
+    if (readOnly) return;
     const preview = (event: Event) => {
       const { detail } = event as CustomEvent<{ nodeId: string; preset: WorkshopPluginPreset }>;
       if (detail.nodeId === nodeId) setRequestedPreset({ ...detail.preset });
@@ -87,12 +87,12 @@ function PluginLiveRunner({
       if (detail.nodeId === nodeId && latest.current) detail.receive(latest.current);
     };
     window.addEventListener(WORKSHOP_PRESET_PREVIEW_EVENT, preview);
-    window.addEventListener(WORKSHOP_PRESET_SNAPSHOT_EVENT, snapshot);
+    if (authoring) window.addEventListener(WORKSHOP_PRESET_SNAPSHOT_EVENT, snapshot);
     return () => {
       window.removeEventListener(WORKSHOP_PRESET_PREVIEW_EVENT, preview);
       window.removeEventListener(WORKSHOP_PRESET_SNAPSHOT_EVENT, snapshot);
     };
-  }, [authoring, nodeId]);
+  }, [authoring, nodeId, readOnly]);
 
   useLayoutEffect(() => {
     const parent = fullscreen ? fullscreenHost.current : inlineHost.current;
@@ -123,14 +123,14 @@ function PluginLiveRunner({
     if (presentationKey) sync?.send({kind: 'workshop', node: presentationKey, doc: next});
   };
 
-  if (!doc) return <div className="slideDemoPreview"><strong>此工坊作品的画布无法读取</strong></div>;
+  if (!doc) return <div className="slideDemoPreview"><strong>此定象坊作品的画布无法读取</strong></div>;
   return <>
     {expandable && <div className="slideWorkshopPresentationToolbar">
       <button ref={fullscreenButton} type="button" aria-label="全屏展开演示" onClick={() => setFullscreen(true)}>⛶ 全屏展开演示</button>
     </div>}
     <div className="slideWorkshopInlineHost" ref={inlineHost} />
     {fullscreen && createPortal(
-      <dialog ref={dialog} aria-label="全屏工坊演示" className="slideWorkshopFullScreen" data-workshop-fullscreen data-no-pan
+      <dialog ref={dialog} aria-label="全屏定象坊演示" className="slideWorkshopFullScreen" data-workshop-fullscreen data-no-pan
         onClose={() => setFullscreen(false)} onCancel={event => { event.preventDefault(); setFullscreen(false); }}
         onKeyDown={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
         <div className="slideWorkshopFullScreenBar">
@@ -141,7 +141,7 @@ function PluginLiveRunner({
       </dialog>,
       document.fullscreenElement ?? document.body,
     )}
-    {createPortal(<Suspense fallback={<div className="slideDemoPreview"><strong>正在载入万象工坊交互插件…</strong></div>}>
+    {createPortal(<Suspense fallback={<div className="slideDemoPreview"><strong>正在载入定象坊交互插件…</strong></div>}>
       <CanvasBoard
         doc={doc}
         setDoc={handleSetDoc}
@@ -151,7 +151,7 @@ function PluginLiveRunner({
         slideInstrument
         templateKind={templateKind}
         workshopEmbed={{
-          authoring, requestedPreset, display_mode: fullscreen ? 'full' : plugin.display_mode,
+          authoring, requestedPreset, display_mode: fullscreen ? 'full' : (plugin.display_mode ?? 'compact'),
           theme: plugin.theme, transparent_bg: plugin.transparent_bg, hide_border: plugin.hide_border,
           visible_params: plugin.visible_params, presets: plugin.presets ?? defaults,
         }}
@@ -168,8 +168,8 @@ function PluginLiveRunner({
 
 export function SlideWorkshopPluginNode({ node, editing, interactive, onPatch, presentationKey }: SlideRichNodeProps & {presentationKey?: string}): JSX.Element {
   const plugin = node.workshop_plugin;
-  const title = plugin?.title || node.name || '万象工坊插件';
-  const category = plugin?.category || '工坊插件';
+  const title = plugin?.title || node.name || '定象坊插件';
+  const category = plugin?.category || '定象坊插件';
   const showInstrument = editing || interactive;
   const previewHost = useRef<HTMLDivElement>(null);
   useWorkshopPluginPreview(previewHost, plugin ?? undefined, editing && !node.locked, preview => {
@@ -189,7 +189,7 @@ export function SlideWorkshopPluginNode({ node, editing, interactive, onPatch, p
       style={richNodeStyle(node, showInstrument)}
     >
       {editing && interactive && !node.locked && (
-        <div className="slideRichGrip" title="拖动调整工坊插件位置">
+        <div className="slideRichGrip" title="拖动调整定象坊插件位置">
           <span>🎛️ {category} · {title}</span>
           <span className="slideWorkshopBadge">原生离线支持</span>
         </div>
@@ -222,14 +222,14 @@ export function SlideWorkshopPluginNode({ node, editing, interactive, onPatch, p
             <div className="slideDemoPreview">
               <span className="slideWorkshopTag">{category}</span>
               <strong>{title}</strong>
-              <p>万象工坊交互插件 · 演示态可直接拖动滑杆与时间轴</p>
+              <p>定象坊交互插件 · 演示态可直接拖动滑杆与时间轴</p>
               <span>▶ 原位交互插件</span>
             </div>
           )
         ) : (
           <div className="slideDemoPreview">
-            <strong>未绑定工坊插件</strong>
-            <p>请在右侧属性面板选择一个万象工坊交互模板。</p>
+            <strong>未绑定定象坊插件</strong>
+            <p>请在右侧属性面板选择一个定象坊交互模板。</p>
           </div>
         )}
       </div>

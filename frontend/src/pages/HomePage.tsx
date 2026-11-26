@@ -1,98 +1,75 @@
 /**
- * HomePage.tsx —— 万象首页（围绕万象工坊 × 万象活页生态闭环构建）
+ * HomePage.tsx —— 万象首页（围绕定象坊 × 通文册生态闭环构建）
  */
-import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useLayoutEffect } from 'react';
+import { Link, useLocation, useNavigationType } from 'react-router-dom';
 
 import markUrl from '@/assets/brand/wanxiang-mark.png';
-import { SiteNav } from '@/components/home/SiteNav';
-import { useUploadDialog } from '@/components/home/deck/useUploadDialog';
+import { MainSiteNav } from '@/components/home/MainSiteNav';
 import { GuidedWalkthrough } from '@/components/home/ecosystem/GuidedWalkthrough';
-import { HeroStackVisual } from '@/components/home/ecosystem/HeroStackVisual';
+import { HeroDynamicalStage } from '@/components/home/ecosystem/HeroDynamicalStage';
 import { LivingCompareSection } from '@/components/home/ecosystem/LivingCompareSection';
 import { WorkshopLabsSection } from '@/components/home/ecosystem/WorkshopLabsSection';
 import { prefetchCommonRoutes } from '@/components/navigation/routePrefetch';
-import { LivingUploadPanel } from '@/components/upload/LivingUploadPanel';
 import './HomeRedesign.css';
 
 const WORKSHOP_TEMPLATES = [
-  { label: '斜率场与 RK4', to: '/workshop' },
-  { label: '黎曼和收敛', to: '/canvas?template=ftc-sweep' },
-  { label: 'CPU 调度', to: '/canvas?template=cpuScheduleLab' },
+  { label: '斜率场与 RK4', to: '/canvas?template=ch07-ode-dynamics' },
+  { label: '积分与 FTC', to: '/canvas?template=ch04-integrals' },
+  { label: 'CPU 调度', to: '/canvas?template=os01-process-sched' },
   { label: '梯度下降', to: '/canvas?template=dlOptimizer' },
-  { label: '图遍历 BFS', to: '/canvas?template=dsTraversal' },
+  { label: '树·哈夫曼·AVL', to: '/canvas?template=ds02-trees' },
 ] as const;
 
+const HOME_SCROLL_KEY = 'xiangsheng.home.scrollY';
+
 export function HomePage(): JSX.Element {
-  const { open: uploadOpen, openUpload, closeUpload, closeRef, dialogRef } = useUploadDialog();
+  const location = useLocation();
+  const navigationType = useNavigationType();
 
   useEffect(() => {
     prefetchCommonRoutes();
   }, []);
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-  }, []);
+  useLayoutEffect(() => {
+    const navState = location.state as { restoreScroll?: boolean } | null;
+    const shouldRestore = navigationType === 'POP' || navState?.restoreScroll === true;
+    let savedY = 0;
+    if (shouldRestore) {
+      try {
+        const raw = Number(window.sessionStorage.getItem(HOME_SCROLL_KEY));
+        if (Number.isFinite(raw) && raw > 0) savedY = raw;
+      } catch {
+        /* ignore storage failures */
+      }
+    }
+    const raf = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: savedY, left: 0, behavior: 'auto' });
+    });
+    return () => {
+      window.cancelAnimationFrame(raf);
+      try {
+        window.sessionStorage.setItem(HOME_SCROLL_KEY, String(window.scrollY));
+      } catch {
+        /* ignore storage failures */
+      }
+    };
+  }, [location.state, navigationType]);
 
   return (
-    <>
-      <SiteNav current="home" onUpload={openUpload} />
-
+    <MainSiteNav current="home">{openUpload => (
       <div className="wx-home">
         <main id="top">
-          {/* 1. HERO：双轮主线 + 2.5D 立体悬浮生态架构 */}
-          <section className="hero">
-            <div className="container">
-              <div className="hero__grid">
-                <div>
-                  <div className="hero__badge">
-                    <i aria-hidden="true" /> 万象工坊 × 万象活页 · 双引擎教学与推演生态
-                  </div>
-                  <h1 className="hero__title">
-                    在工坊造<span className="highlight">活仪器</span>，<br />
-                    在活页把课讲活。
-                  </h1>
-                  <p className="hero__lead">
-                    <strong>万象工坊</strong>把公式、算法与沙盘连成可调参的真实计算模型；
-                    <strong>万象活页</strong>把静态 PPT 与 PDF 变成能现场推演的动态课件。
-                    一次建模，随处嵌入，让讲台与思考真正流动起来。
-                  </p>
-                  <div className="hero__actions">
-                    <Link className="btn btn--primary" to="/workshop">
-                      进入万象工坊 <span aria-hidden="true">↗</span>
-                    </Link>
-                    <Link className="btn" to="/living">
-                      把课件做成活页 <span aria-hidden="true">↗</span>
-                    </Link>
-                  </div>
-                  <div className="hero__metrics">
-                    <div className="hero__metric">
-                      <strong>真内核</strong>
-                      <span>实时数值与符号计算</span>
-                    </div>
-                    <div className="hero__metric">
-                      <strong>双向贯通</strong>
-                      <span>工坊与活页一键互转</span>
-                    </div>
-                    <div className="hero__metric">
-                      <strong>离线可演</strong>
-                      <span>单文件断网照常推演</span>
-                    </div>
-                  </div>
-                </div>
-
-                <HeroStackVisual />
-              </div>
-            </div>
-          </section>
+          {/* 1. HERO：「一式定象，万象皆通」建筑高对比 Slogan + 波动场×相轨演化自动舞台 */}
+          <HeroDynamicalStage />
 
           {/* 2. §01 新人引导式动态剧场 */}
           <GuidedWalkthrough />
 
-          {/* 3. §02 万象工坊精选 3 个真交互例子 */}
+          {/* 3. §02 定象坊精选 3 个真交互例子 */}
           <WorkshopLabsSection />
 
-          {/* 4. §03 万象活页 Before/After 可拖拽卷帘 */}
+          {/* 4. §03 通文册 Before/After 可拖拽卷帘 */}
           <LivingCompareSection />
 
           {/* 5. §04 工程原则 + 双子收口 */}
@@ -120,21 +97,25 @@ export function HomePage(): JSX.Element {
                 <div className="cta-card cta-card--workshop">
                   <div>
                     <p className="eyebrow cta-eyebrow--dark">
-                      <span className="sec-no cta-secno--teal">TRACK A</span> 从万象工坊出发
+                      <span className="sec-no cta-secno--teal">TRACK A</span> 从定象坊出发
                     </p>
                     <h3>搭一个能亲手推演的活仪器</h3>
                     <p>挑选学科模板或空白画布，连线、调参、封装成你的第一块可复用积木与活页插件。</p>
                   </div>
                   <div className="cta-chips">
                     {WORKSHOP_TEMPLATES.map((tpl) => (
-                      <Link key={tpl.label} to={tpl.to}>
+                      <Link
+                        key={tpl.label}
+                        to={tpl.to}
+                        state={{ from: '/', fromLabel: '← 返回主页', restoreScroll: true }}
+                      >
                         {tpl.label}
                       </Link>
                     ))}
                   </div>
                   <div>
                     <Link className="btn btn--light" to="/workshop">
-                      进入万象工坊 <span aria-hidden="true">↗</span>
+                      进入定象坊 <span aria-hidden="true">↗</span>
                     </Link>
                   </div>
                 </div>
@@ -142,10 +123,10 @@ export function HomePage(): JSX.Element {
                 <div className="cta-card cta-card--living">
                   <div>
                     <p className="eyebrow">
-                      <span className="sec-no">TRACK B</span> 从万象活页出发
+                      <span className="sec-no">TRACK B</span> 从通文册出发
                     </p>
                     <h3>把手头现成的课件变成活页</h3>
-                    <p>拖入你已有的 PPTX、PDF 或讲义图片，保留原有版式，几分钟内挂载工坊交互仪器。</p>
+                    <p>拖入你已有的 PPTX、PDF 或讲义图片，保留原有版式，几分钟内挂载定象坊交互仪器。</p>
                   </div>
                   <button type="button" className="drop-zone" onClick={openUpload}>
                     <span className="file-badges">
@@ -154,11 +135,11 @@ export function HomePage(): JSX.Element {
                       <span>PNG / JPG</span>
                       <span>.ZIP 工程包</span>
                     </span>
-                    <span className="drop-zone__hint">点击这里上传教学材料，直接进入横向动态活页工作台</span>
+                    <span className="drop-zone__hint">点击这里上传教学材料，直接进入通文册工作台</span>
                   </button>
                   <div>
                     <Link className="btn btn--primary" to="/living">
-                      进入万象活页工作台 <span aria-hidden="true">↗</span>
+                      进入通文册工作台 <span aria-hidden="true">↗</span>
                     </Link>
                   </div>
                 </div>
@@ -171,42 +152,18 @@ export function HomePage(): JSX.Element {
           <div className="container site-foot__inner">
             <div className="site-foot__brand">
               <img className="site-foot__mark" src={markUrl} width={22} height={22} alt="" />
-              <span><strong>万象 WANXIANG</strong> · 万象工坊 × 万象活页 · 纸 / 墨 / 真计算内核</span>
+              <span><strong>万象 WANXIANG</strong> · 定象坊 × 通文册 · 纸 / 墨 / 真计算内核</span>
             </div>
             <nav className="site-foot__links" aria-label="页脚导航">
-              <Link to="/workshop">万象工坊</Link>
-              <Link to="/living">万象活页</Link>
+              <Link to="/workshop">定象坊</Link>
+              <Link to="/living">通文册</Link>
               <Link to="/space">个人主页</Link>
               <a href="#top">返回顶部 ↑</a>
             </nav>
           </div>
         </footer>
       </div>
-
-      {uploadOpen ? (
-        <div
-          className="wx-upload-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeUpload();
-          }}
-        >
-          <div ref={dialogRef} className="wx-upload-dialog" role="dialog" aria-modal="true" aria-label="上传教学材料">
-            <button
-              ref={closeRef}
-              type="button"
-              className="wx-upload-close"
-              onClick={closeUpload}
-              aria-label="关闭上传窗口"
-            >
-              ×
-            </button>
-            <div className="wx-upload-body">
-              <LivingUploadPanel />
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </>
+    )}</MainSiteNav>
   );
 }
 

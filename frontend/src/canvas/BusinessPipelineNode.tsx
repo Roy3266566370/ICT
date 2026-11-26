@@ -2,7 +2,7 @@ import type { NodeBodyProps } from './nodes.tsx';
 import { findBusinessStage } from './businessPipeline.ts';
 import { ScienceStagePanel } from './SciencePipelineScene.tsx';
 import { BusinessParameterEditor, BusinessUnitEditor } from './BusinessParameterEditor.tsx';
-import { isBusinessTemplateKind } from './businessTemplates.ts';
+import { isBusinessPipelineKind } from './businessTemplates.ts';
 import { readBusinessUnits } from './businessUnits.ts';
 
 export function BusinessPipelineNode({ node, self, onParams, onText, timeline }: NodeBodyProps): JSX.Element {
@@ -10,7 +10,7 @@ export function BusinessPipelineNode({ node, self, onParams, onText, timeline }:
   if (!definition) return <p role="status">这个办公决策模块的配置无法读取。</p>;
   const { pipeline, stage } = definition;
   const output = self?.kind === 'businessData' ? self : null;
-  if (stage.id !== 'source' || !isBusinessTemplateKind(pipeline)) {
+  if (stage.id !== 'source' || !isBusinessPipelineKind(pipeline)) {
     return <ScienceStagePanel node={node} stage={stage} output={output} timeline={timeline} subject="business" />;
   }
   const units = readBusinessUnits(pipeline, node.text);

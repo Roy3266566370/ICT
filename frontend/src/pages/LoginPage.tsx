@@ -141,7 +141,12 @@ export default function LoginPage(): JSX.Element {
     [applyLogin, enterAccount, location.search, mockMode],
   );
 
-  const { status, message, submit } = useLoginSubmit({ onSuccess: handleSuccess });
+  const { status, message, submit, reset } = useLoginSubmit({ onSuccess: handleSuccess });
+
+  const handleChange = (next: LoginFormValues): void => {
+    setValues(next);
+    if (status === 'error' && (next.identifier !== values.identifier || next.password !== values.password)) reset();
+  };
 
   const handleSubmit = useCallback(
     (next: LoginFormValues): void => {
@@ -164,7 +169,7 @@ export default function LoginPage(): JSX.Element {
       variant="login"
       eyebrow="ACCESS DESK / 准入登记"
       headline={['欢迎回来，', '实验还开着。']}
-      lead="验证身份，回到个人空间或题目实验室。账号现在保存显示名与默认入口；材料与实验仍按当前浏览器会话保留。"
+      lead="登录后可在个人空间管理显示名、默认入口与账号资料。"
       passName={values.identifier.trim().split('@')[0] ?? ''}
       notice={showForm ? notice : null}
       statusText={statusText}
@@ -174,7 +179,7 @@ export default function LoginPage(): JSX.Element {
           values={values}
           status={status}
           errorMessage={message}
-          onChange={setValues}
+          onChange={handleChange}
           onSubmit={handleSubmit}
           mockMode={mockMode}
           serviceHint={serviceHint}

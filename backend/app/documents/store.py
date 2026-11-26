@@ -183,7 +183,7 @@ def _create(page,identifier,data):
         style={'font_size':28,'font_family':'Arial','color':'#18233D','align':'left','vertical_align':'top','line_height':1.15,
                'padding_left':0,'padding_right':0,'padding_top':0,'padding_bottom':0}
         style.update(data.get('style',{}))
-        node={'id':identifier,'type':kind,'name':{'text':'新文字','shape':'新图形','vector':'线条','diagram':'原位流程图','demo':'AI 演示框','workshop_plugin':'万象工坊插件','table':'教学表格','chart':'教学图表'}.get(kind,'新图片'),
+        node={'id':identifier,'type':kind,'name':{'text':'新文字','shape':'新图形','vector':'线条','diagram':'原位流程图','demo':'AI 演示框','workshop_plugin':'定象坊插件','table':'教学表格','chart':'教学图表'}.get(kind,'新图片'),
           'x':80,'y':80,'width':300,'height':70,'rotation':0,'z':max((n['z'] for n in page['nodes']),default=0)+1,
           'text':data.get('text','新文字'),'base_text':None,'style':style,'base_style':{},'paragraphs':[],
           'opacity':1,'locked':False,'hidden':False,'deleted':False,'source_element_id':None,'source_shape_id':None,

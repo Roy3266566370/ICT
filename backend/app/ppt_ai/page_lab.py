@@ -637,7 +637,11 @@ def generate_page_lab(
                 payload,
                 PAGE_LAB_VERSION,
                 budget,
-                instructions="为这一页课件设计一个可播放、暂停并在检查点观察中间状态的时间轴实验，必须有 timeline，program 实际使用 input.t 连续演示本页机制；严格按 output_contract 输出 JSON；若有 previous_error，先修复它。",
+                instructions=(
+                    "为这一页课件设计一个可播放、暂停并在检查点观察中间状态的时间轴实验，必须有 timeline，"
+                    "program 实际使用 input.t 连续演示本页机制；严格按 output_contract 输出 JSON；若有 previous_error，先修复它。"
+                    "阶段名称和专业术语优先沿用课件原文；翻译时结合上下文，不确定含义时保留原词。"
+                ),
                 max_output_tokens=MAX_OUTPUT_TOKENS,
                 timeout_s=LLM_TIMEOUT_S,
                 thinking=False,

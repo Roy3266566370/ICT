@@ -148,7 +148,7 @@ def normalize_rule_payload(raw: Any, fallback_prompt: str = "") -> dict[str, Any
     return result
 
 
-SYSTEM_PROMPT = """你是万象工坊的 AI 规则方块生成器。只输出一个 JSON 对象，不输出 Markdown 或解释。
+SYSTEM_PROMPT = """你是定象坊的 AI 规则方块生成器。只输出一个 JSON 对象，不输出 Markdown 或解释。
 字段：version=1、prompt、title、summary、textLabel(可选)、defaultText(可选)、controls、presets、preferredView、code、verificationNote(可选)。
 要求：
 1. code 必须是字符串，内容为同步纯函数 function run({ text, params, upstream, rand }) { ... return { data, frames }; }。

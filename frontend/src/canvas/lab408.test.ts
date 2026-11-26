@@ -7,7 +7,8 @@ import {
   treeTraversal,
   TRAVERSAL_LABELS,
 } from './lab408.ts';
-import { LAB408_TEMPLATES, LAB408_TOPICS, lab408TemplateDoc, type Lab408Kind } from './lab408Templates.ts';
+import { LAB408_TEMPLATES, LAB408_TOPICS, VISIBLE_LAB408_TEMPLATES, lab408TemplateDoc, type Lab408Kind } from './lab408Templates.ts';
+import { isLab408SandboxKind } from './lab408Sandboxes.ts';
 import { WORKSHOP_PLUGIN_CATALOG } from './templateCatalog.ts';
 import { evalOutput, makeCtx } from './engine.ts';
 
@@ -54,18 +55,25 @@ test('IPv4 子网划分给出网络地址、广播地址与可用范围', () => 
   assert.equal(subnetInfo(26, 9).index, 3);
 });
 
-test('408 工坊的 21 张模板都生成可求值的模块接线和结果面板', () => {
+test('408 定象坊保留 21 张 legacy 模板 + 16 张全景沙盘，均生成结果面板', () => {
   assert.deepEqual(LAB408_TOPICS.map(topic => topic.id), ['l01', 'l02', 'l03', 'l04']);
-  assert.equal(LAB408_TEMPLATES.length, 21);
-  assert.deepEqual(LAB408_TEMPLATES.map(template => template.kind), [
-    'dsTraversal', 'avl', 'kmpSort', 'graphAlgo',
-    'cacheSimLab', 'pipelineLab', 'ieee754Lab',
-    'cpuScheduleLab', 'bankerLab', 'pageReplace',
-    'tcpCongestionLab', 'slidingWindowLab', 'ipSubnet',
-    'btreeLab', 'hashTableLab', 'cpuDatapathLab', 'aluBoothLab',
-    'diskScheduleLab', 'pvSyncLab', 'csmaCdLab', 'routingLab',
+  assert.equal(LAB408_TEMPLATES.length, 37);
+  assert.equal(VISIBLE_LAB408_TEMPLATES.length, 16);
+  assert.deepEqual(VISIBLE_LAB408_TEMPLATES.map(template => template.kind), [
+    'ds01-linear-string', 'ds02-trees', 'ds03-graphs', 'ds04-search-sort',
+    'co01-data-alu', 'co02-memory-cache', 'co03-isa-cpu', 'co04-pipeline-io',
+    'os01-process-sched', 'os02-sync-deadlock', 'os03-memory-vm', 'os04-file-io',
+    'cn01-phys-datalink', 'cn02-ip-routing', 'cn03-tcp-transport', 'cn04-app-fullpath',
   ]);
-  for (const template of LAB408_TEMPLATES) {
+  assert.ok(LAB408_TEMPLATES.filter(t => t.legacy).every(t => !isLab408SandboxKind(t.kind)));
+  for (const template of LAB408_TEMPLATES.filter(t => !t.legacy)) {
+    const doc = lab408TemplateDoc(template.kind);
+    assert.equal(doc.title, template.name);
+    assert.ok(doc.nodes.some(node => node.type === 'aiRuleBlock'), template.kind);
+    assert.ok(doc.panel, `${template.kind} 必须有 panel`);
+    assert.ok((doc.panel?.view_node_ids.length ?? 0) > 0, `${template.kind} panel 需要停靠视图`);
+  }
+  for (const template of LAB408_TEMPLATES.filter(t => t.legacy)) {
     const doc = lab408TemplateDoc(template.kind);
     assert.equal(doc.title, template.name);
     assert.ok(doc.wires.length >= 2, template.kind);
@@ -100,15 +108,14 @@ test('编辑 408 源会更新末端，断开边后会等待有效输入', () => 
 });
 
 test('408 题型工作台模板已从目录与模板构造器中移除', () => {
-  assert.equal(LAB408_TEMPLATES.length, 21);
+  assert.equal(LAB408_TEMPLATES.length, 37);
   for (const kind of ['dsWorkbench', 'coWorkbench', 'osWorkbench', 'netWorkbench'] as const) {
     assert.throws(() => lab408TemplateDoc(kind as Lab408Kind), /未知 408 模板/);
   }
 });
 
-test('8 个新增 408 实验进入活页插件目录', () => {
-  const added = ['btreeLab', 'hashTableLab', 'cpuDatapathLab', 'aluBoothLab', 'diskScheduleLab', 'pvSyncLab', 'csmaCdLab', 'routingLab'];
-  for (const kind of added) {
-    assert.ok(WORKSHOP_PLUGIN_CATALOG.some((entry) => entry.kind === kind), kind);
-  }
+test('活页插件目录只列 16 张全景沙盘，legacy 模板不再出现', () => {
+  const catalogKinds = new Set(WORKSHOP_PLUGIN_CATALOG.map((entry) => entry.kind));
+  for (const template of VISIBLE_LAB408_TEMPLATES) assert.ok(catalogKinds.has(template.kind), template.kind);
+  for (const template of LAB408_TEMPLATES.filter(t => t.legacy)) assert.ok(!catalogKinds.has(template.kind), template.kind);
 });

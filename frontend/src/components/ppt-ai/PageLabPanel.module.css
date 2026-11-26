@@ -21,6 +21,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .head {
@@ -32,6 +34,7 @@
   border-bottom: 1px solid var(--hairline, #e7e0d3);
   font-size: 13px;
   font-weight: 700;
+  flex-wrap: wrap;
 }
 
 .head button {
@@ -119,6 +122,7 @@
   border-radius: 12px;
   background: #f8fafc;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .view {
@@ -198,6 +202,7 @@
 }
 
 .player { display:flex; flex-direction:column; gap:8px; min-height:0; width:100%; }
+.body > .player { flex-shrink: 0; }
 .playback { display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-size:12px; }
 .playback input { flex:1; min-width:70px; }
 .player button { cursor:pointer; border:1px solid #cbd5e1; background:white; color:#334155; border-radius:5px; padding:4px 8px; }

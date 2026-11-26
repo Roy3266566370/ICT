@@ -32,7 +32,7 @@ def _num(value: Any, lo: float = -1e6, hi: float = 1e6) -> float | None:
 
 _PORT_KINDS = {
     "matrix2", "scalar", "body", "function", "tensor2d", "dataset2d", "lab408Data",
-    "series", "field2d", "algoData", "customFrames",
+    "series", "field2d", "algoData", "customFrames", "function2d", "vectorFunction2d",
 }
 
 

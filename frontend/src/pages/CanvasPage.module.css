@@ -134,7 +134,7 @@
   white-space: nowrap;
 }
 .dockToggle:hover { background: rgb(24 29 36 / 97%); }
-@media (max-width: 980px) {
+@media (max-width: 1180px) {
   .toolbar { grid-template-columns: minmax(0, 1fr) auto; padding: 8px 12px; gap: 6px; }
   .modes { grid-row: 2; grid-column: 1 / -1; justify-self: center; }
   .actions { grid-row: 1; grid-column: 2; }
@@ -425,8 +425,8 @@
 .objectSubcategories button { padding: 4px 8px; border: 1px solid var(--hairline); border-radius: 6px; background: transparent; color: var(--ink-700); font-size: 12px; cursor: pointer; }
 .objectSubcategories button:hover, .objectSubcategories button[aria-pressed="true"] { background: var(--color-indigo-softer, #eeedff); color: var(--color-indigo, #3830a4); }
 .paletteEmpty { margin: 0; color: var(--ink-500); font-size: 12.5px; line-height: 1.65; }
-.customBlockRow { display: flex; align-items: stretch; gap: 4px; min-width: 0; }
-.customBlockRow .objectItem { flex: 1; }
+.customBlockRow { grid-column: 1 / -1; display: flex; align-items: stretch; gap: 6px; min-width: 0; }
+.customBlockRow .objectItem { flex: 1; min-width: 0; }
 .customBlockRemove {
   flex-shrink: 0;
   width: 30px;

@@ -1,0 +1,384 @@
+.hero {
+  position: relative;
+  width: 100%;
+  min-height: clamp(580px, calc(100vh - 68px), 780px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 64% 48%, rgba(27, 42, 107, 0.062), transparent 48%),
+    radial-gradient(circle at 24% 26%, rgba(214, 69, 49, 0.032), transparent 38%),
+    var(--paper, #f3f0e7);
+}
+
+/* 贯穿左右的极淡建筑图纸网格 */
+.bgGrid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(20, 24, 33, 0.028) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(20, 24, 33, 0.028) 1px, transparent 1px);
+  background-size: 46px 46px;
+  mask-image: radial-gradient(ellipse 76% 74% at 58% 50%, #000 32%, transparent 88%);
+  -webkit-mask-image: radial-gradient(ellipse 76% 74% at 58% 50%, #000 32%, transparent 88%);
+}
+
+/* 紧致居中主舞台：让左右视觉紧密咬合 */
+.container {
+  position: relative;
+  width: min(1240px, 100%);
+  min-height: clamp(560px, calc(100vh - 76px), 740px);
+  margin: 0 auto;
+  padding: 0 clamp(20px, 3.2vw, 44px);
+  display: grid;
+  grid-template-columns: minmax(380px, 43%) minmax(0, 57%);
+  align-items: center;
+  gap: 0;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ==================== 左侧：建筑高对比 Slogan ==================== */
+.left {
+  position: relative;
+  z-index: 10;
+  padding: 36px 8px 36px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.brandMark {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 30px;
+}
+
+.seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  background: #d64531;
+  color: #fffaf5;
+  font-family: var(--serif);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 3px 10px rgba(214, 69, 49, 0.28);
+  position: relative;
+}
+
+.seal::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(255, 250, 245, 0.45);
+  border-radius: 2px;
+}
+
+.brandNames {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: #4e5666;
+}
+
+.brandNames strong {
+  color: #141821;
+  font-weight: 600;
+}
+
+.brandCross {
+  color: #d64531;
+  font-family: var(--mono);
+  font-weight: 600;
+}
+
+.sloganBlock {
+  position: relative;
+  margin-bottom: 26px;
+}
+
+.slogan {
+  margin: 0;
+  color: #141821;
+  user-select: none;
+}
+
+.sloganLine {
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+/* 上行：纤细建筑无衬线 */
+.line1 {
+  font-family: var(--sans);
+  font-size: clamp(36px, 4vw, 56px);
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  color: #4e5666;
+  line-height: 1.24;
+  margin-bottom: 4px;
+}
+
+/* 下行：厚重高对比衬线 */
+.line2 {
+  font-family: var(--serif);
+  font-size: clamp(48px, 5.2vw, 76px);
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  color: #141821;
+  line-height: 1.1;
+}
+
+.glyphFormula {
+  position: relative;
+  display: inline-block;
+}
+
+.glyphFormula::before {
+  content: "y″ + 2ζy′ + ω²y = 0";
+  position: absolute;
+  top: -16px;
+  left: 2px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: #344ec4;
+  opacity: 0.72;
+  white-space: nowrap;
+}
+
+.glyphDingxiang {
+  position: relative;
+  display: inline-block;
+  font-family: var(--serif);
+  font-weight: 700;
+  color: #1b2a6b;
+  padding: 0 4px;
+}
+
+.corner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: rgba(27, 42, 107, 0.44);
+  border-style: solid;
+}
+
+.cornerTl {
+  top: 4px;
+  left: -2px;
+  border-width: 1.5px 0 0 1.5px;
+}
+
+.cornerBr {
+  bottom: 6px;
+  right: -1px;
+  border-width: 0 1.5px 1.5px 0;
+}
+
+.glyphJietong {
+  position: relative;
+  display: inline-block;
+  background: linear-gradient(115deg, #1b2a6b 12%, #0f8b8d 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.waveUnderline {
+  position: absolute;
+  left: 0;
+  right: 4px;
+  bottom: -8px;
+  height: 12px;
+  width: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.punct {
+  color: #d64531;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-left: 2px;
+}
+
+.sloganEn {
+  margin-top: 15px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #8890a0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sloganEn i {
+  display: inline-block;
+  width: 26px;
+  height: 1px;
+  background: rgba(20, 24, 33, 0.24);
+}
+
+.desc {
+  max-width: 400px;
+  font-size: 15px;
+  line-height: 1.82;
+  color: #4e5666;
+  margin: 0 0 30px;
+}
+
+.desc strong {
+  color: #141821;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 36px;
+}
+
+.pillars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(20, 24, 33, 0.1);
+}
+
+.pillar {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pillarIdx {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: #8890a0;
+  letter-spacing: 0.1em;
+}
+
+.pillar strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #141821;
+}
+
+/* ==================== 右侧：自动演化状态极细遥测 ==================== */
+.right {
+  position: relative;
+  z-index: 8;
+  height: clamp(540px, calc(100vh - 96px), 700px);
+  pointer-events: none;
+}
+
+.telemetry {
+  position: absolute;
+  top: 28px;
+  right: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #8890a0;
+}
+
+.liveBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #0f8b8d;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+}
+
+.liveBadge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #0f8b8d;
+  box-shadow: 0 0 0 4px rgba(15, 139, 141, 0.16);
+}
+
+.stateName {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #141821;
+  letter-spacing: 0.04em;
+}
+
+.stateParams {
+  font-size: 11.5px;
+  color: #4e5666;
+}
+
+.stateParams b {
+  color: #1b2a6b;
+  font-weight: 600;
+}
+
+.cycleBar {
+  width: 128px;
+  height: 2px;
+  background: rgba(20, 24, 33, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.cycleBar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #1b2a6b, #0f8b8d, #d64531);
+  border-radius: 99px;
+}
+
+@media (max-width: 1020px) {
+  .hero {
+    min-height: auto;
+    padding: 20px 0 12px;
+  }
+  .container {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+  .left {
+    padding: 20px 0 8px;
+  }
+  .right {
+    height: 440px;
+  }
+  .telemetry {
+    top: 12px;
+  }
+}

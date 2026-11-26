@@ -555,7 +555,7 @@
 }
 
 /* ==========================================================================
- * 纸面生态顶栏（与新首页 / 万象工坊 / 万象活页 / 个人主页统一）
+ * 纸面生态顶栏（与新首页 / 定象坊 / 通文册 / 个人主页统一）
  * 保持导航结构、账号菜单语义（C-NAV-ACCOUNT@1）与移动端行为不变。
  * ========================================================================== */
 
@@ -726,8 +726,7 @@
 
 .panel {
   top: 68px;
-  background: rgba(255, 253, 248, 0.96);
-  backdrop-filter: blur(14px);
+  background: #fffdf8;
   border-bottom: 1px solid rgba(17, 19, 18, 0.1);
   box-shadow: 0 18px 40px rgba(17, 19, 18, 0.1);
 }
@@ -806,7 +805,7 @@
   font-weight: 600;
 }
 .header[data-appearance='studio'] .accountRegisterLink:hover { background: #111b5e; border-color: #111b5e; }
-.header[data-appearance='studio'] .panel { top: 68px; background: rgba(255, 253, 248, 0.96); }
+.header[data-appearance='studio'] .panel { top: 68px; }
 .header[data-appearance='studio'] .menuButton { background: #fffdf8; border-radius: 9px; }
 
 @media (max-width: 1050px) {

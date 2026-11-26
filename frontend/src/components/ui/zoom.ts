@@ -23,5 +23,9 @@ export function fitZoom(
 ): number {
   const width = (viewport.width - padding) / page.width;
   const height = (viewport.height - padding) / page.height;
-  return clampZoom(Math.min(width, height), min, max);
+  const raw = Math.min(width, height);
+  if (!Number.isFinite(raw)) return min;
+  // 向下截断而非四舍五入，避免 page * fit + padding 超出视口 0.1~0.5px 触发滚动条震荡循环
+  const floored = Math.floor(raw * 1000) / 1000;
+  return Math.min(max, Math.max(min, floored));
 }

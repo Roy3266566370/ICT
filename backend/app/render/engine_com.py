@@ -97,27 +97,40 @@ def find_powerpoint_exe() -> Path | None:
 
 
 def _probe_com() -> bool:
-    """实际 Dispatch 一次再 Quit，确认 COM 可用（约 1 秒，结果缓存）。"""
+    """实际 Dispatch 一次再安全退出，确认 COM 可用（约 1 秒，结果缓存）。"""
 
     try:
         import pythoncom  # noqa: PLC0415
         import win32com.client  # noqa: PLC0415
     except Exception:  # pragma: no cover - 非 Windows / 未装 pywin32
         return False
+    from app.render.com_export_runner import (  # noqa: PLC0415
+        _count_presentations,
+        _has_existing_powerpoint,
+        _is_powerpoint_visible,
+        _safe_quit_powerpoint,
+    )
+
     pythoncom.CoInitialize()
     app = None
+    had_existing_instance = False
+    existing_presentations: int | None = None
     try:
+        had_existing_instance = _has_existing_powerpoint(win32com.client)
         app = win32com.client.DispatchEx("PowerPoint.Application")
+        existing_presentations = _count_presentations(app)
+        if _is_powerpoint_visible(app):
+            had_existing_instance = True
         return True
     except Exception as exc:  # pragma: no cover - 未安装 Office
         logger.info("PowerPoint COM 探测失败：%s", type(exc).__name__)
         return False
     finally:
-        if app is not None:
-            try:
-                app.Quit()
-            except Exception:  # pragma: no cover - 已退出
-                pass
+        _safe_quit_powerpoint(
+            app,
+            had_existing_instance=had_existing_instance,
+            existing_presentations=existing_presentations,
+        )
         try:
             pythoncom.CoUninitialize()
         except Exception:  # pragma: no cover

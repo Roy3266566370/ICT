@@ -1,4 +1,4 @@
-/** 万象工坊 AI 规则生成端点。 */
+/** 定象坊 AI 规则生成端点。 */
 import { requestJson } from './client';
 import type { AiRuleBlockPayload } from '@/canvas/aiRuleBlock';
 import { normalizeAiRulePayload } from '@/canvas/aiRuleBlock';

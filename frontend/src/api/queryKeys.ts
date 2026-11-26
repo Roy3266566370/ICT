@@ -83,6 +83,7 @@ export interface ScopedQueryKeys {
   readonly checksRoot: (objectId?: string) => readonly unknown[];
   readonly checks: (objectId: string) => readonly unknown[];
   readonly labs: () => readonly unknown[];
+  readonly works: () => readonly unknown[];
 }
 
 export function scopedQueryKeys(scope: AccountScope): ScopedQueryKeys {
@@ -111,6 +112,7 @@ export function scopedQueryKeys(scope: AccountScope): ScopedQueryKeys {
         : ([PRIVATE_KEY_TAG, scope, 'checks', objectId] as const),
     checks: (objectId: string) => [PRIVATE_KEY_TAG, scope, 'checks', objectId, 'list'] as const,
     labs: () => [PRIVATE_KEY_TAG, scope, 'labs', 'list'] as const,
+    works: () => [PRIVATE_KEY_TAG, scope, 'works', 'list'] as const,
   };
 }
 

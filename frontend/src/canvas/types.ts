@@ -68,6 +68,7 @@ export type PortValue =
   | { kind: 'dataset2d'; points: DatasetPoint[]; featureMap?: 'linear' | 'quadratic' }
   | { kind: 'function'; expression: string; a: number; b: number; c: number }
   | { kind: 'function2d'; expression: string; a: number; b: number }
+  | { kind: 'vectorFunction2d'; p: string; q: string }
   | { kind: 'matrix2'; a: number; b: number; c: number; d: number }
   | { kind: 'scalar'; v: number }
   | { kind: 'body'; x: number; y: number; vx: number; vy: number;
@@ -86,7 +87,7 @@ export type NodeType =
   | 'svmLab' | 'resnetLab' | 'sequenceMemory' | 'multiheadLab' | 'autoencoderLab' | 'diffusionLab' | 'qLearningLab'
   | 'functionSource' | 'functionPlot' | 'limitProbe' | 'derivative' | 'integral' | 'taylor'
   // 高数进阶：变上限积分、傅里叶、斜率场/ODE、二元函数与二重积分
-  | 'ftcView' | 'fourierLab' | 'odeSlopeField' | 'func2dSource' | 'gradientContour' | 'doubleIntegralView'
+  | 'ftcView' | 'fourierLab' | 'odeSlopeField' | 'func2dSource' | 'gradientContour' | 'doubleIntegralView' | 'vectorFieldSource'
   // 高数/线代自由组合扩展：函数复合、SVD 分解、线性方程组、概率分布
   | 'funcCombineOp' | 'svdDecomposeOp' | 'linearSolveView' | 'probDistSource'
   // 源：只有输出
@@ -125,6 +126,7 @@ export type NodeType =
   | 'ipSubnet'       // IPv4 子网划分
   | 'arraySource' | 'sortCompareView' | 'graphSource' | 'shortestPathView'
   | 'memAddrSource' | 'addrTranslateView' | 'cacheMapView'
+  | 'pageRefSource' | 'bitSliceView' // 高频沉淀：页面/磁道序列源、位段拆解器
   | 'lab408Workbench' // 408 全题型工作台：科目 → 题型 → 原文 → 本地内核
   | 'lab408Stage'     // 408 数据流模块，payload 指向管线和环节
   | 'physicsStage'    // 大学物理数据流模块

@@ -312,6 +312,41 @@ export function memoryAddressStream(params: Record<string, number>, text = ''): 
   return { kind: 'algoData', mode: 'addrStream', addresses: addresses.map((value) => Math.max(0, Math.round(value))) };
 }
 
+/** 页面访问串 / 磁道请求 / 通用整数序列源：局部性、随机、Belady 经典串与手动四种模式。 */
+export const BELADY_REFERENCES = [1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5];
+
+export function pageRefStream(params: Record<string, number>, text = ''): AlgoData {
+  const mode = Math.round(clampNumber(params.mode ?? 0, 0, 0, 3));
+  const count = Math.round(clampNumber(params.count ?? 12, 12, 4, 40));
+  const maxPage = Math.max(2, Math.round(clampNumber(params.maxPage ?? 9, 9, 2, 200)));
+  const seed = Math.round(Number.isFinite(params.seed ?? Number.NaN) ? params.seed! : 7);
+  let values: number[];
+  if (mode === 3) {
+    if (!text.trim()) throw new Error('手动模式需要输入至少一个数值');
+    values = parseNumberArray(text);
+  } else if (mode === 2) {
+    values = [...BELADY_REFERENCES];
+  } else {
+    const random = mulberry32(seed);
+    if (mode === 1) {
+      values = Array.from({ length: count }, () => 1 + Math.floor(random() * maxPage));
+    } else {
+      // 局部性：在以 3 页为窗口的小区段内游走，间或跳转
+      const refs: number[] = [];
+      let windowBase = 1;
+      while (refs.length < count) {
+        const span = Math.min(3, maxPage - windowBase + 1);
+        for (let i = 0; i < span * 2 && refs.length < count; i++) {
+          refs.push(windowBase + Math.floor(random() * span));
+        }
+        windowBase = 1 + Math.floor(random() * Math.max(1, maxPage - 2));
+      }
+      values = refs;
+    }
+  }
+  return { kind: 'algoData', mode: 'addrStream', addresses: values.slice(0, MAX_VALUES).map((v) => Math.max(0, Math.round(v))) };
+}
+
 export interface AddrTranslateConfig {
   pageSize: number;
   tlbEntries: number;

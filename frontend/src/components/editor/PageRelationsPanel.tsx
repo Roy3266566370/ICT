@@ -137,6 +137,7 @@ export function PageRelationsPanel({
   const [toAnchor, setToAnchor] = useState<GuideAnchor>('end');
 
   const [formError, setFormError] = useState<string>('');
+  const [manualOpen, setManualOpen] = useState<boolean>(false);
   const [nlInput, setNlInput] = useState<string>('');
   const [nlBusy, setNlBusy] = useState<boolean>(false);
   const [nlError, setNlError] = useState<string>('');
@@ -197,6 +198,7 @@ export function PageRelationsPanel({
     setEditingId(rel.id);
     setKind(rel.kind);
     setFormError('');
+    setManualOpen(true);
     if (rel.kind === 'expr') {
       setTargetId(rel.targetId);
       setTargetProperty(rel.targetProperty);
@@ -319,7 +321,7 @@ export function PageRelationsPanel({
     <section aria-label="页面动态关系">
       <h3>动态关系 ({relations.length})</h3>
       <p className={styles.hint}>
-        定义对象之间的几何或表达式联动关系；拖动源向量时目标文字、虚线与属性实时更新，并在分享页与离线网页中同步生效。
+        让对象之间产生联动：拖动一个对象，另一个对象实时跟随更新，分享页与离线网页中同样生效。
       </p>
 
       {onSuggestRelations && (
@@ -525,11 +527,15 @@ export function PageRelationsPanel({
         <p className={styles.hint}>当前页面暂无动态关系。</p>
       )}
 
-      <div
+      <details
         aria-label="新增或编辑动态关系"
+        open={manualOpen}
+        onToggle={(e) => setManualOpen(e.currentTarget.open)}
         style={{ borderTop: '1px solid #e6dfd3', paddingTop: 8, marginTop: 8 }}
       >
-        <h4>{editingId ? `编辑关系 (${editingId})` : '新增动态关系'}</h4>
+        <summary style={{ cursor: 'pointer', color: '#7f7691', fontSize: 11, padding: '2px 0' }}>
+          {editingId ? `编辑关系 (${editingId})` : '高级：手动绑定表达式'}
+        </summary>
         <div className={styles.numberGrid}>
           <label className={styles.fullField}>
             关系类型
@@ -883,7 +889,7 @@ export function PageRelationsPanel({
             </button>
           )}
         </div>
-      </div>
+      </details>
     </section>
   );
 }

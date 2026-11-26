@@ -450,9 +450,27 @@ def export_pages(results: Sequence[CaseResult]) -> VisualExport:
         return summary
 
     application = None
+    had_existing_instance = False
+    existing_presentations: int | None = None
+    prev_display_alerts: int | None = None
     try:
+        try:
+            win32com.client.GetActiveObject("PowerPoint.Application")
+            had_existing_instance = True
+        except Exception:
+            had_existing_instance = False
         application = win32com.client.DispatchEx("PowerPoint.Application")
         try:
+            existing_presentations = int(application.Presentations.Count)
+        except Exception:
+            existing_presentations = None
+        try:
+            if bool(application.Visible):
+                had_existing_instance = True
+        except Exception:
+            pass
+        try:
+            prev_display_alerts = int(application.DisplayAlerts)
             application.DisplayAlerts = 0
         except Exception:  # pragma: no cover - 部分版本只读
             pass
@@ -502,10 +520,25 @@ def export_pages(results: Sequence[CaseResult]) -> VisualExport:
                 except OSError:  # pragma: no cover
                     pass
     finally:
-        try:
-            application.Quit()
-        except Exception:  # pragma: no cover - 退出失败可忽略
-            pass
+        if prev_display_alerts is not None and had_existing_instance:
+            try:
+                application.DisplayAlerts = prev_display_alerts
+            except Exception:  # pragma: no cover
+                pass
+        should_quit = (
+            not had_existing_instance
+            and existing_presentations == 0
+        )
+        if should_quit:
+            try:
+                remaining = int(application.Presentations.Count)
+            except Exception:
+                remaining = None
+            if remaining == 0:
+                try:
+                    application.Quit()
+                except Exception:  # pragma: no cover - 退出失败可忽略
+                    pass
     return summary
 
 

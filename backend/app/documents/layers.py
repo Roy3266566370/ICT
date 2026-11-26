@@ -7,7 +7,7 @@ import json,os,re,shutil,subprocess,sys,threading,time
 from zipfile import BadZipFile
 from pptx.exc import PackageNotFoundError
 from .store import LOCK,document_root,read_document,write_document
-from .importer import import_document
+from .importer import NATIVE_IMPORT_VERSION,import_document
 from .capabilities import layer_editor_available
 from .layer_export import EXPORTER_VERSION
 from ..editing import working_path
@@ -31,7 +31,8 @@ def ensure_document(material_id:str,title:str)->dict:
         root=document_root(material_id)
         source=root/'source.pptx'
         original=working_path(material_id)
-        if document is None or not document.get('native_import_version') or (original.is_file() and not source.is_file()):
+        if (document is None or (document.get('native_import_version') or 0)<NATIVE_IMPORT_VERSION
+                or (original.is_file() and not source.is_file())):
             if not source.is_file() and original.is_file():
                 root.mkdir(parents=True,exist_ok=True)
                 shutil.copyfile(original,source)
@@ -51,14 +52,14 @@ def ensure_document(material_id:str,title:str)->dict:
                         raise ValueError('这份材料的 PPTX 结构无法读取') from error
             if document is None:
                 document=rendered_document(material_id,title)
-            document['native_import_version']=1
+            document['native_import_version']=NATIVE_IMPORT_VERSION
             write_document(material_id,document)
         return hydrate_document(material_id,document)
 
 
 def _upgrade_document(document, imported):
     source_pages={page['page_no']:page for page in imported['pages']}
-    for page in document['pages']:
+    for page in [*document['pages'],*document.get('archived_pages',[])]:
         source=source_pages.get(page.get('source_page_no',page['page_no']))
         if source is None or page.get('rendered_only'):
             continue
@@ -80,10 +81,14 @@ def _upgrade_document(document, imported):
                 node['shape']=original['shape']
             if not page.get('modified'):
                 node['opacity']=original['opacity']
-            node['style']={**original['style'],**node['style']}
-            node['base_style']={**original['base_style'],**node['base_style']}
-            if 'paragraphs' in original and node.get('text')==node.get('base_text'):
-                node.setdefault('paragraphs',original['paragraphs'])
+            style_changes={key:value for key,value in node['style'].items()
+                           if key in node.get('style_modified',[]) or node['base_style'].get(key)!=value}
+            node['style']={**original['style'],**style_changes}
+            node['base_style']=dict(original['base_style'])
+            if 'text_rotation_offset' in original:
+                node['text_rotation_offset']=original['text_rotation_offset']
+            if 'paragraphs' in original and not node.get('rich_text_edited') and node.get('text')==node.get('base_text'):
+                node['paragraphs']=original['paragraphs']
 
 
 def source_page_number(page):
@@ -216,6 +221,7 @@ def hydrate_document(material_id:str,document:dict)->dict:
             entry=manifest.get('objects',{}).get(node.get('asset_id'))
             if not entry:continue
             if ((node.get('native_file') and node.get('image_url'))
+                    or node.get('text_rotation_offset')
                     or (node.get('base_opacity',1)!=1 and not node.get('native_fallback'))):
                 continue
             node['image_url']=prefix+entry['asset']

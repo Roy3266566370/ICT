@@ -8,7 +8,7 @@ import { findPhysicsStage } from './physicsPipeline.ts';
 import { findBusinessStage } from './businessPipeline.ts';
 import { BusinessParameterEditor, BusinessUnitEditor } from './BusinessParameterEditor.tsx';
 import { readBusinessUnits } from './businessUnits.ts';
-import { isBusinessTemplateKind } from './businessTemplates.ts';
+import { isBusinessPipelineKind } from './businessTemplates.ts';
 import { find408Stage } from './lab408Pipeline.ts';
 import { Lab408PipelineNode, PipelineFrameDetails } from './Lab408PipelineNode.tsx';
 import { SciencePipelineScene } from './SciencePipelineScene.tsx';
@@ -16,7 +16,7 @@ import { FunctionSourceControls } from './CalculusNodes.tsx';
 import { MatrixSvg, RealImagePanel, CsvDatasetPanel } from './NodeInspector.tsx';
 import { NODE_DEFS, type NodeBodyProps } from './nodes.tsx';
 import { parseAiRulePayload } from './aiRuleBlock.ts';
-import { findWorkshopTemplate, workshopFormula } from './templateCatalog.ts';
+import { findWorkshopTemplate, workshopCategory, workshopFormula } from './templateCatalog.ts';
 import type { WorkshopPluginPreset } from '../document/types.ts';
 import type { WorkshopEmbedOptions } from './pluginPresets.ts';
 import type { CanvasDoc, CanvasNode, CanvasPanelParam, PortValue } from './types.ts';
@@ -88,15 +88,35 @@ function SeriesChart({ series, position }: {
   const x = (index: number) => 20 + index / (count - 1) * 208;
   const y = (value: number) => 96 - (value - low) / (high - low || 1) * 76;
   return <svg viewBox="0 0 240 110" role="img" aria-label={series.map(({ label }) => label).join('、')}>
-    <path d="M20 18V96H228M20 57H228" fill="none" stroke="#e0dcd2" />
-    {series.map(({ label, values: points, color }) => <polyline key={label} fill="none" stroke={color ?? '#4f46e5'} strokeWidth="2"
+    <path d="M20 18V96H228M20 57H228" fill="none" stroke="#ddd8ca" />
+    {series.map(({ label, values: points, color }) => <polyline key={label} fill="none" stroke={color ?? '#1c2ecb'} strokeWidth="2"
       points={points.map((value, i) => x(i) + ',' + y(value)).join(' ')} />)}
-    {position !== undefined && <line x1={x(Math.min(position, count - 1))} x2={x(Math.min(position, count - 1))} y1="16" y2="96" stroke="#ea580c" strokeDasharray="4 3" />}
+    {position !== undefined && <line x1={x(Math.min(position, count - 1))} x2={x(Math.min(position, count - 1))} y1="16" y2="96" stroke="#de421f" strokeDasharray="4 3" />}
   </svg>;
 }
 
-function Readouts({ rows }: { rows: readonly { label: string; value: string }[] }) {
+type Reading = { label: string; value: string; emphasis?: boolean };
+
+function Readouts({ rows }: { rows: readonly Reading[] }) {
   return <dl className={styles.readouts}>{rows.map(({ label, value }, i) => <div key={i}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
+}
+
+function Gauges({ rows }: { rows: readonly Reading[] }) {
+  const lead = rows.findIndex(({ emphasis }) => emphasis);
+  return <dl className={styles.gauges} aria-label="实时读数" data-stage-readouts>
+    {rows.map(({ label, value }, i) => <div key={i} data-lead={i === lead || undefined}><dt>{label}</dt><dd>{value}</dd></div>)}
+  </dl>;
+}
+
+function ConclusionContent({ content }: { content: ReactNode }) {
+  if (typeof content !== 'string') return <span>{content}</span>;
+  const parts = content.split(/\s*[·|；;]\s*/).map((item) => item.trim()).filter(Boolean);
+  if (parts.length >= 2 && parts.length <= 6 && parts.every((item) => item.length <= 36)) {
+    return <div className={styles.metricChips}>
+      {parts.map((part, index) => <span key={index} className={styles.metricChip}>{part}</span>)}
+    </div>;
+  }
+  return <span>{content}</span>;
 }
 
 function Timeline({ last, position, onPosition, duration, label, display, presentationKey, processKey, pauseSignal, tickOffset = 0 }: {
@@ -182,6 +202,7 @@ function Timeline({ last, position, onPosition, duration, label, display, presen
     if (playing || remotePlaying) playback(false);
     onPosition(Math.max(0, Math.min(last, value)));
   };
+  if (last <= 0) return null;
   const running = playing || remotePlaying;
   return <div ref={timeline} className={styles.timeline} role="group" aria-label="连续时间轴">
     <div className={styles.transport}>
@@ -214,13 +235,13 @@ interface Process {
   main: ReactNode;
   detail: ReactNode;
   history: ReactNode;
-  rows: { label: string; value: string }[];
+  rows: Reading[];
   conclusion: ReactNode;
   detailTitle: string;
   historyTitle: string;
 }
 
-const processColors = ['#4f46e5', '#ea580c', '#0d9488', '#0284c7'];
+const processColors = ['#1c2ecb', '#de421f', '#0f7b5f', '#9a5b08'];
 const terrainLabels = ['二次碗', '鞍点', '狭长山谷'];
 
 function optimizerProcess({ props, position, setStart }: {
@@ -335,8 +356,8 @@ function deepProcess({ ancestors, getBodyProps, cursors, setCursor, scope }: {
         ariaLabel: '十层累计梯度', grid: true, axes: true,
         rects: values.map((value, i) => ({
           x: 42 + i * 34, width: 22, y: 119 - Math.max(0, value) / maximum * 75,
-          height: Math.max(1, Math.abs(value) / maximum * 75), stroke: '#4f46e5',
-          fill: i < layer ? '#4f46e5' : '#eef2ff', opacity: i < layer ? 1 : i === layer ? (position % 1) * .6 + .2 : .2,
+          height: Math.max(1, Math.abs(value) / maximum * 75), stroke: '#1c2ecb',
+          fill: i < layer ? '#1c2ecb' : '#e8e9f8', opacity: i < layer ? 1 : i === layer ? (position % 1) * .6 + .2 : .2,
         })),
         labels: values.map((_, i) => ({ x: 53 + i * 34, y: 224, anchor: 'middle', text: String(i + 1), size: 10 })),
       }} />,
@@ -619,6 +640,8 @@ function Observation({ storageKey }: { storageKey: string }) {
 export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel, slideInstrument, onCompose, getBodyProps, nodeTitle,
   cursors, setCursor, pipelineScope, presentationKey, workshopEmbed, audienceParams, onPreset }: StageProps) {
   const [activeId, setActiveId] = useState<string>();
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [compareId, setCompareId] = useState<string>();
   const [showPin, setShowPin] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activePreset, setActivePreset] = useState<string>();
@@ -655,7 +678,7 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
   const customFrames = customInput?.result.frames ?? [];
   const customKey = 'custom:' + (view?.id ?? doc.title);
   const customLast = Math.max(0, customFrames.length - 1);
-  const customPosition = Math.max(0, Math.min(customLast, cursors[customKey] ?? 0));
+  const customPosition = Math.floor(Math.max(0, Math.min(customLast, cursors[customKey] ?? 0)));
   const customProcess = customInput ? {
     key: customKey,
     last: customLast,
@@ -663,10 +686,10 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
     main: customInput.error
       ? <p role="status">{customInput.error}</p>
       : customFrames[customPosition]
-        ? <PipelineFrameDetails frame={customFrames[customPosition]!} />
+        ? <PipelineFrameDetails frame={customFrames[customPosition]!} showTitle={false} showSummary={false} />
         : <p role="status">通用舞台还没有可用帧。</p>,
     conclusion: customInput.error ?? customFrames[customPosition]?.summary ?? customPayload?.summary ?? 'AI 规则方块已运行。',
-    rows: [] as { label: string; value: string }[],
+    rows: [] as Reading[],
     display: `${customPosition + 1}/${customLast + 1}`,
     detail: undefined,
     detailTitle: '上游输入',
@@ -731,7 +754,7 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
   }, [cursorTarget, cursorLast, presetCursor, setCursor]);
 
   const exposed = audienceParams ?? doc.panel?.exposed_params.filter((param) => nodes.has(param.node_id)) ?? [];
-  const businessKind = kind && isBusinessTemplateKind(kind) ? kind : undefined;
+  const businessKind = kind && isBusinessPipelineKind(kind) ? kind : undefined;
   const units = businessKind ? readBusinessUnits(businessKind, source?.text) : {};
   const textSource = customPayload ? undefined : sources.find((node) => node.type !== 'businessStage' && node.text !== undefined);
   const formula = customPayload ? undefined : ((metadata && 'formula' in metadata ? metadata.formula : undefined) ?? workshopFormula(metadata?.kind ?? kind));
@@ -751,66 +774,118 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
   const main = process ? process.main : props ? <Body key={props.node.id} props={props} /> : null;
   const slideProcess = slideInstrument && target?.kind === 'businessData' && process?.detail && process.history ? process : undefined;
   const selectedChart = displayMode !== 'stage_only' && slideProcess && slideChart !== 'main' ? slideProcess[slideChart] : main;
+  const otherViews = views.filter((item) => item.id !== view?.id);
+  const canCompare = !slideInstrument && displayMode !== 'compact' && displayMode !== 'stage_only' && otherViews.length > 0;
+  const compareView = canCompare && compareOpen
+    ? (otherViews.find((item) => item.id === compareId) ?? otherViews[0])
+    : undefined;
+  const compareProps = compareView ? getBodyProps(compareView) : undefined;
+  const compareCustomValue = compareView?.type === 'aiRuleBlock' ? compareProps?.self
+    : compareView?.type === 'universalStageView' ? compareProps?.values.in : undefined;
+  const compareCustom = compareCustomValue?.kind === 'customFrames' ? compareCustomValue : undefined;
+  const compareFrame = compareCustom?.result.frames?.[0];
+  const compareChart = compareView && compareProps
+    ? (compareCustom
+      ? (compareCustom.error
+        ? <p role="status">{compareCustom.error}</p>
+        : compareFrame
+          ? <PipelineFrameDetails frame={compareFrame} showTitle={false} showSummary={false} />
+          : <p role="status">暂无可展示帧。</p>)
+      : <Body key={compareProps.node.id} props={compareProps} />)
+    : null;
+  const miniCards: Array<{ key: string; kicker: string; title: string; body: ReactNode }> = [];
+  if (process?.detail) miniCards.push({ key: 'detail', kicker: '局部', title: process.detailTitle, body: process.detail });
+  if (process?.history) miniCards.push({ key: 'history', kicker: '历程', title: process.historyTitle, body: process.history });
+  const category = workshopCategory(templateKind, metadata?.kind, kind);
+  const plateMeta = [category ?? (customPayload ? 'AI 规则仪器' : '交互仪器'),
+    process && process.last > 0 ? (process.last + 1) + ' ' + process.label + '连续过程' : '参数联动'].join(' · ');
+  const stageTitle = customInput?.title || (primary ? nodeTitle(primary) : '主观察舞台');
+  const hasMinis = miniCards.length > 0;
+  const StageEl = slideInstrument ? 'div' : 'main';
   return <div className={styles.workspace} data-instrument-stage data-slide-instrument={slideInstrument || undefined}
     data-display-mode={displayMode} data-transparent-bg={workshopEmbed?.transparent_bg || undefined}
     data-hide-border={workshopEmbed?.hide_border || undefined} data-instrument-theme={workshopEmbed?.theme ?? 'auto'}
     data-restricted-parameters={audienceParams !== undefined || undefined}
     data-no-public-parameters={audienceParams?.length === 0 || undefined}
-    data-business-instrument={target?.kind === 'businessData' || undefined}>
-    <main className={styles.stage}>
+    data-business-instrument={target?.kind === 'businessData' || undefined}
+    data-has-minis={hasMinis || undefined}>
+    <StageEl className={styles.stage}>
       <div className={styles.scroll}>
-        <section className={styles.question}>
-          <div><strong>探究</strong><span>{customPayload?.summary || metadata?.question || (view ? '改变参数时，当前视图如何响应？' : '从积木编排态添加并钉选观察视图。')}</span></div>
-          <details>
-            <summary>步骤与观察</summary>
-            {customPayload ? <>
-              <p>{customPayload.summary || '调节 AI 规则方块参数，观察通用舞台的逐帧变化。'}</p>
-              {customPayload.verificationNote ? <p>核对：{customPayload.verificationNote}</p> : null}
-            </> : metadata ? <><p>{metadata.steps}</p><p>{metadata.observation}</p></> : notes.length ? notes.map((note) => <p key={note.id}>{note.text}</p>) : <p>调整外露参数，比较前后的读数和图形。</p>}
-          </details>
-        </section>
         {main ? <>
-          <section className={styles.mainCard} data-stage-card>
+          <section className={styles.mainCard} data-stage-card data-compare={Boolean(compareView) || undefined}>
             {namedPresets.length > 0 && <div className={styles.workshopPresets} role="group" aria-label="情景预设">
               {namedPresets.map(preset => <button key={preset.id} type="button" disabled={!onPreset}
                 aria-pressed={activePreset === preset.id} onClick={() => choosePreset(preset)}>{preset.label}</button>)}
             </div>}
             <header>
-              <h2>{customInput?.title || (primary ? nodeTitle(primary) : '主观察舞台')}</h2>
-              {slideProcess ? <select aria-label="沙盘图表" value={slideChart}
-                onChange={(e) => setSlideChart(e.currentTarget.value as typeof slideChart)}>
-                <option value="main">主视图</option>
-                <option value="detail">{slideProcess.detailTitle}</option>
-                <option value="history">{slideProcess.historyTitle}</option>
-              </select> : canShowPin && <button type="button" aria-pressed={showPin} onClick={() => setShowPin((show) => !show)}>{showPin ? '过程视图' : '钉选结果'}</button>}
-              {views.length > 1 && <select aria-label="主舞台视图" value={view?.id} onChange={(e) => { setActiveId(e.currentTarget.value); setShowPin(false); }}>
-                {views.map((item) => <option key={item.id} value={item.id}>{nodeTitle(item)}</option>)}
-              </select>}
+              <div className={styles.plate}>
+                <span className={styles.plateMeta}>{plateMeta}</span>
+                <h2>{stageTitle}</h2>
+              </div>
+              {formula && !slideInstrument && <p className={styles.plateFormula} data-stage-enrichment>{formula}</p>}
+              <div className={styles.headerActions}>
+                {slideProcess ? <select aria-label="沙盘图表" value={slideChart}
+                  onChange={(e) => setSlideChart(e.currentTarget.value as typeof slideChart)}>
+                  <option value="main">主视图</option>
+                  <option value="detail">{slideProcess.detailTitle}</option>
+                  <option value="history">{slideProcess.historyTitle}</option>
+                </select> : canShowPin && <button type="button" aria-pressed={showPin} onClick={() => setShowPin((show) => !show)}>{showPin ? '过程视图' : '钉选结果'}</button>}
+                {canCompare && <button type="button" className={styles.compareBtn} aria-pressed={compareOpen}
+                  onClick={() => setCompareOpen((open) => !open)}>
+                  {compareOpen ? '单图聚焦' : '双图对照'}
+                </button>}
+              </div>
+              {views.length > 1 && <div className={styles.viewTabs} role="tablist" aria-label="观察视角">
+                {views.map((item) => {
+                  const selected = item.id === view?.id;
+                  return <button key={item.id} type="button" role="tab" aria-selected={selected}
+                    aria-pressed={selected}
+                    onClick={() => { setActiveId(item.id); setShowPin(false); }}>
+                    {nodeTitle(item)}
+                  </button>;
+                })}
+              </div>}
             </header>
-            <div className={styles.chart} data-stage-chart data-fallback-chart={!process || undefined}>
+            {compareView && compareChart ? <div className={styles.splitStage}>
+              <div className={styles.comparePane}>
+                <div className={styles.compareBar}>
+                  <span className={styles.compareTag}>主视角</span>
+                  <strong>{stageTitle}</strong>
+                </div>
+                <div className={styles.chart} data-stage-chart data-fallback-chart={!process || undefined}>
+                  {primaryOutput?.error ? <p role="status">{primaryOutput.error}</p> : selectedChart}
+                </div>
+              </div>
+              <div className={styles.comparePane}>
+                <div className={styles.compareBar}>
+                  <span className={styles.compareTag}>对照视角</span>
+                  <select aria-label="对照视角" value={compareView.id} onChange={(e) => setCompareId(e.currentTarget.value)}>
+                    {otherViews.map((item) => <option key={item.id} value={item.id}>{nodeTitle(item)}</option>)}
+                  </select>
+                </div>
+                <div className={styles.chart} data-stage-chart data-fallback-chart={!compareCustom || undefined}>
+                  {compareChart}
+                </div>
+              </div>
+            </div> : <div className={styles.chart} data-stage-chart data-fallback-chart={!process || undefined}>
               {primaryOutput?.error ? <p role="status">{primaryOutput.error}</p> : selectedChart}
-            </div>
+            </div>}
+            {!!process?.rows.length && <Gauges rows={process.rows} />}
           </section>
-          <div className={styles.conclusion}><strong>当前结论</strong><span>{primaryOutput?.error ? '请检查输入和数据流。'
-            : process ? process.conclusion
-              : <>正在观察 <b>{view ? nodeTitle(view) : doc.title}</b>。{metadata?.observation}</>}</span></div>
-          <div className={styles.minis} data-process-minis>
-            <section className={styles.miniCard}><h3>{process?.detailTitle ?? '上游输入'}</h3>
-              <div>{process?.detail ?? (ancestors.length > 1 ? <Readouts rows={ancestors.filter((node) => node !== view).slice(-4).map((node) => ({
-                label: nodeTitle(node), value: tensor(getBodyProps(node).self)?.length ? '张量' : format(scalar(getBodyProps(node).self)),
-              }))} /> : <p>此视图没有上游连线。</p>)}</div>
-            </section>
-            <section className={styles.miniCard}><h3>{process?.historyTitle ?? '并列视图'}</h3>
-              <div>{process?.history ?? (views.length > 1 ? <div className={styles.flow}>{views.filter((item) => item !== view).map((item) =>
-                <button key={item.id} type="button" onClick={() => { setActiveId(item.id); setShowPin(false); }}>{nodeTitle(item)}</button>)}</div>
-                : <p>在编排态钉选更多视图即可对照。</p>)}</div>
-            </section>
-            <section className={styles.miniCard}><h3>实时读数</h3>
-              <div><Readouts rows={process?.rows.length ? process.rows : exposed.slice(0, 6).map(({ label, param_key, node_id }) => ({
-                label: label ?? param_key, value: format(nodes.get(node_id)?.params[param_key]),
-              }))} /></div>
-            </section>
+          <div className={styles.conclusion}>
+            <strong>当前结论</strong>
+            <ConclusionContent content={primaryOutput?.error ? '请检查输入和数据流。'
+              : process ? process.conclusion
+                : <>正在观察 <b>{view ? nodeTitle(view) : doc.title}</b>。{metadata?.observation}</>} />
           </div>
+          {hasMinis && <div className={styles.minis} data-process-minis data-cols={miniCards.length}>
+            {miniCards.map((card) => (
+              <section key={card.key} className={styles.miniCard}>
+                <h3><span>{card.kicker}</span>{card.title}</h3>
+                <div>{card.body}</div>
+              </section>
+            ))}
+          </div>}
         </> : <section className={styles.empty}>
           <h2>添加主舞台视图</h2>
           {onCompose && <button type="button" onClick={onCompose}>打开积木编排态</button>}
@@ -822,7 +897,7 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
         pauseSignal={presetCursor?.sequence}
         presentationKey={presentationKey} processKey={process?.key}
         onPosition={(value) => { if (process) setCursor(process.key, value); }} />
-    </main>
+    </StageEl>
 
     {displayMode === 'stage_only' && (exposed.length > 0 || hasFunctionControls) && <button className={styles.drawerToggle}
       type="button" aria-controls={drawerId} aria-expanded={drawerOpen} onClick={() => setDrawerOpen(open => !open)}>
@@ -834,8 +909,8 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
         <h2>精密控制舱</h2>
         {functionProps && <FunctionSourceControls key={functionProps.node.id} {...functionProps}
           exposedKeys={exposed.filter((param) => param.node_id === functionProps.node.id).map((param) => param.param_key)} />}
-        {(formula || textSource) && <div className={styles.formula} data-stage-enrichment>
-          {formula && <p>{formula}</p>}
+        {((formula && slideInstrument) || textSource) && <div className={styles.formula} data-stage-enrichment>
+          {formula && slideInstrument && <p>{formula}</p>}
           {textSource && <code>{textSource.text}</code>}
         </div>}
         {!audienceParams && (source && sourceProps && sourceDef && target?.kind === 'lab408Data' ? <div data-stage-enrichment>
@@ -854,14 +929,21 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
               onChange={(event) => customBlockProps.onText?.(event.currentTarget.value)} />
           </label> : null}
           {customPayload.presets?.length ? <div className={styles.presets} role="group" aria-label="AI 规则情景预设">
-            {customPayload.presets.map((preset) => <button key={preset.label} type="button" disabled={!customBlockProps.onParams}
+            {customPayload.presets.map((preset) => <button key={preset.label} type="button"
+              disabled={customPayload.presetSource ? !customBlockProps.onRulePreset : !customBlockProps.onParams}
               onClick={() => {
-                customBlockProps.onParams?.(preset.params);
-                if (preset.text !== undefined) customBlockProps.onText?.(preset.text);
+                if (customBlockProps.onRulePreset) customBlockProps.onRulePreset(preset);
+                else {
+                  customBlockProps.onParams?.(preset.params);
+                  if (preset.text !== undefined) customBlockProps.onText?.(preset.text);
+                }
                 if (process) setCursor(process.key, 0);
               }}>{preset.label}</button>)}
           </div> : null}
           {customPayload.controls.map((control) => {
+            if (exposed.some((param) => param.node_id === customBlock?.id && param.param_key === control.key)) return null;
+            if (customBlockProps.values.in?.kind === 'scalar' && typeof customPayload.presetSource === 'object'
+              && customPayload.presetSource.param === control.key) return null;
             const value = customBlock?.params[control.key] ?? control.value;
             return <label key={control.key} className={styles.parameter}>
               <span>{control.label}</span><output>{format(value)}</output>
@@ -910,6 +992,7 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
               {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select> : <input type="range" className={styles.range} aria-label={param.label || key} min={min} max={max} step={step}
               value={value} style={fill((value - min) / (max - min))} disabled={!canEditParameters} onChange={(e) => change(e.currentTarget.valueAsNumber)} />}
+            {!options && <span className={styles.rangeEnds} aria-hidden="true"><span>{format(min)}</span><span>{format(max)}</span></span>}
           </label>;
         })}
         {businessKind && source?.type === 'businessStage' && canAuthor && <BusinessUnitEditor key={source.id}
@@ -926,16 +1009,17 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
         })}
       </details>}
       {!readOnly && <section data-stage-secondary><Observation key={storageKey} storageKey={storageKey} /></section>}
-      {ancestors.length > 0 && <section data-stage-secondary>
-        <h3>数据流</h3>
-        <ol className={styles.topology}>{ancestors.map((item) => {
-          const incoming = doc.wires.filter((wire) => wire.to === item.id && branch.has(wire.from));
-          return <li key={item.id} title={incoming.map(({ from }) => nodes.get(from)).map((node) => node && nodeTitle(node)).join('、')}>
-            {incoming.length ? '↳ ' : ''}{nodeTitle(item)}
-          </li>;
-        })}</ol>
-        {onCompose && <button type="button" onClick={onCompose}>积木连线 →</button>}
-      </section>}
+      {(customPayload?.verificationNote || metadata?.steps || notes.length > 0) && <details className={styles.inputDetails} data-stage-secondary>
+        <summary>实验步骤与核对</summary>
+        <div className={styles.guideNotes}>
+          {customPayload?.verificationNote ? <p>核对：{customPayload.verificationNote}</p> : null}
+          {!customPayload && metadata ? <><p>{metadata.steps}</p><p>{metadata.observation}</p></> : null}
+          {!customPayload && !metadata && notes.map((note) => <p key={note.id}>{note.text}</p>)}
+        </div>
+      </details>}
+      {onCompose && <div className={styles.composeFooter} data-stage-secondary>
+        <button type="button" onClick={onCompose}>切换到积木编排态修改连线 →</button>
+      </div>}
     </aside>
   </div>;
 }

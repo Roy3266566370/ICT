@@ -109,9 +109,10 @@ test('M6 活页 L3 演示框新 ViewAST 原语、drag-handle 画布拖动与断�
 
   // 5. 导出离线单文件 HTML，在严格断网（file://）环境下验证公式与 drag-handle 依然可用
   const offlineHtmlPath = join(CAPTURE_DIR, 'm6-exported-offline.html');
+  await page.locator('summary[aria-label="导出与分享"]').click();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: '下载交互网页' }).click(),
+    page.getByRole('button', { name: '下载离线交互网页' }).click(),
   ]);
   await download.saveAs(offlineHtmlPath);
 

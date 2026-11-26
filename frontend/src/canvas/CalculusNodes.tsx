@@ -64,7 +64,9 @@ export function Graph({ curves, min, max, rectangles = [], point, band }: {
   const low = Math.min(0, ys[Math.floor((ys.length - 1) * 0.04)]!);
   const high = Math.max(0, ys[Math.floor((ys.length - 1) * 0.96)]!);
   const pad = Math.max((high - low) * 0.16, 0.5), bottom = low - pad, top = high + pad;
-  const px = (x: number) => 34 + (x - min) / (max - min) * 310;
+  const plotLeft = 64, plotRight = 344;
+  const plotWidth = plotRight - plotLeft;
+  const px = (x: number) => plotLeft + (x - min) / (max - min) * plotWidth;
   const py = (y: number) => 185 - (y - bottom) / (top - bottom) * 165;
   const bandTop = band ? Math.min(py(band.level + band.eps), py(band.level - band.eps)) : 0;
   const bandHeight = band ? Math.abs(py(band.level + band.eps) - py(band.level - band.eps)) : 0;
@@ -82,13 +84,13 @@ export function Graph({ curves, min, max, rectangles = [], point, band }: {
   });
   return <>
     <svg className={styles.graph} viewBox="0 0 360 215" role="img" aria-label={curves.map((c) => c.name).join('与') + '，横轴 ' + num(min) + ' 到 ' + num(max)}>
-      <defs><clipPath id={id}><rect x="34" y="20" width="310" height="165" /></clipPath></defs>
+      <defs><clipPath id={id}><rect x={plotLeft} y="20" width={plotWidth} height="165" /></clipPath></defs>
       {[0, 1, 2, 3, 4].map((i) => <g key={i}>
-        <line x1="34" x2="344" y1={20 + i * 41.25} y2={20 + i * 41.25} stroke="#e8e2d5" />
-        <text x="30" y={24 + i * 41.25} textAnchor="end">{num(top - i * (top - bottom) / 4).slice(0, 7)}</text>
+        <line x1={plotLeft} x2={plotRight} y1={20 + i * 41.25} y2={20 + i * 41.25} stroke="#e8e2d5" />
+        <text x={plotLeft - 4} y={24 + i * 41.25} textAnchor="end">{formatNumber(top - i * (top - bottom) / 4, 3)}</text>
       </g>)}
       <g clipPath={`url(#${id})`}>
-        <line x1="34" x2="344" y1={py(0)} y2={py(0)} stroke="#aaa496" />
+        <line x1={plotLeft} x2={plotRight} y1={py(0)} y2={py(0)} stroke="#aaa496" />
         <line x1={px(0)} x2={px(0)} y1="20" y2="185" stroke="#aaa496" />
         {band ? <g>
           <rect x="34" y={bandTop} width="310" height={bandHeight} fill="#b65a3c1f" stroke="#b65a3c66" strokeWidth="0.8" strokeDasharray="5 4" />
@@ -100,7 +102,7 @@ export function Graph({ curves, min, max, rectangles = [], point, band }: {
         {curves.map((curve, i) => <path key={curve.name} d={paths[i]} fill="none" stroke={curve.color} strokeWidth="2" strokeDasharray={curve.dashed ? '5 4' : undefined} />)}
         {point && <circle cx={px(point.x)} cy={py(point.y)} r="4" fill={orange} stroke="white" strokeWidth="1.5" />}
       </g>
-      {[0, 1, 2, 3, 4].map((i) => <text key={i} x={34 + i * 77.5} y="201" textAnchor="middle">{num(min + i * (max - min) / 4).slice(0, 8)}</text>)}
+      {[0, 1, 2, 3, 4].map((i) => <text key={i} x={plotLeft + i * plotWidth / 4} y="201" textAnchor="middle">{num(min + i * (max - min) / 4).slice(0, 8)}</text>)}
     </svg>
     <div className={styles.legend}>{curves.map((c) => <span key={c.name}><i style={{ background: c.color }} />{c.name}</span>)}</div>
   </>;
@@ -175,23 +177,33 @@ function ObservationPoint(props: NodeBodyProps) {
 
 export function DerivativeBody(props: NodeBodyProps) {
   const { inCard } = props;
-  const x = position(props), h = props.node.params.h ?? 0.5;
+  const connectedH = props.values.h?.kind === 'scalar' ? props.values.h.v : undefined;
+  const x = position(props), h = connectedH ?? props.node.params.h ?? 0.5;
   const showDerivative = !!props.node.params.showDerivative;
   const controls = <>
     <ObservationPoint {...props} />
-    <Field label="割线步长 h" value={h} min={0.000001} max={2} step={0.01} onChange={(v) => props.onParams?.({ h: v })} />
+    {connectedH === undefined && <Field label="割线步长 h" value={h} min={0.000001} max={2} step={0.01} onChange={(v) => props.onParams?.({ h: v })} />}
     <label className={styles.check}><input type="checkbox" checked={showDerivative} onChange={(e) => props.onParams?.({ showDerivative: Number(e.target.checked) })} />叠加 f′(x)</label>
   </>;
   try {
-    const f = inputFunction(props.values), y = finiteAt(f, x), slope = derivativeAt(f, x);
-    const secant = (finiteAt(f, x + h) - y) / h;
+    const f = inputFunction(props.values), y = finiteAt(f, x);
+    const endpoint = f(x + h);
+    const secant = h === 0 || endpoint === null ? null : (endpoint - y) / h;
+    let slope: number | null = null;
+    let slopeError = '';
+    try { slope = derivativeAt(f, x); } catch (error) { slopeError = errorText(error); }
     // 导数曲线只在自动微分可用的点取值，不可导处断线而不是让整幅图报错。
     const derivativeCurve: RealFunction = (t) => { try { return derivativeAt(f, t); } catch { return null; } };
     const curveOfDerivative = showDerivative ? [{ name: 'f′(x)', f: derivativeCurve, color: '#c08a2e', dashed: true }] : [];
     return <div className={styles.body}>
-      <Graph curves={[{ name: 'f(x)', f, color: blue }, { name: '切线', f: (t) => y + slope * (t - x), color: orange }, { name: '割线', f: (t) => y + secant * (t - x), color: '#629184', dashed: true }, ...curveOfDerivative]} min={x - 2} max={x + 2} point={{ x, y }} />
+      <Graph curves={[{ name: 'f(x)', f, color: blue },
+        ...(slope === null ? [] : [{ name: '切线', f: (t: number) => y + slope! * (t - x), color: orange }]),
+        ...(secant === null ? [] : [{ name: '割线', f: (t: number) => y + secant * (t - x), color: '#629184', dashed: true }]),
+        ...curveOfDerivative]} min={x - 2} max={x + 2} point={{ x, y }} />
+      {connectedH !== undefined && <p className={styles.readout}>接线 h = {num(h)} · 差商 {num(secant)} · 导数 {num(slope)}</p>}
       {!inCard && <>{controls}<p className={styles.readout}>差商 ≈ {num(secant)}<br />导数 f′(x₀) ≈ <strong>{num(slope)}</strong></p>
-      <p className={styles.tip}>切线：y ≈ {num(y)} + ({num(slope)})(x − {num(x)})。逐渐减小 h，比较割线与切线。</p>
+      {slope === null ? <Notice>{slopeError}</Notice>
+        : <p className={styles.tip}>切线：y ≈ {num(y)} + ({num(slope)})(x − {num(x)})。逐渐减小 h，比较割线与切线。</p>}
       <p className={styles.tip}>导数由表达式自动微分，左右分支的导数不一致时停止输出。割线仍按所选 h 计算差商。</p>
       {showDerivative && <p className={styles.tip}>叠加的 f′(x) 虚线是各点导数连成的曲线：切点处切线的斜率应等于该曲线在同一点的纵坐标。</p>}</>}
     </div>;
@@ -200,11 +212,12 @@ export function DerivativeBody(props: NodeBodyProps) {
 
 export function LimitBody(props: NodeBodyProps) {
   const { inCard } = props;
-  const x = position(props), side = props.node.params.side ?? 0, eps = props.node.params.eps ?? 0.1;
+  const connectedEps = props.values.eps?.kind === 'scalar' ? Math.max(0, props.values.eps.v) : undefined;
+  const x = position(props), side = props.node.params.side ?? 0, eps = connectedEps ?? props.node.params.eps ?? 0.1;
   const controls = <>
     <ObservationPoint {...props} />
     <label className={styles.field}>趋近方向<select aria-label="趋近方向" value={side} onChange={(e) => props.onParams?.({ side: Number(e.target.value) })}><option value="0">双侧</option><option value="-1">左极限</option><option value="1">右极限</option></select></label>
-    <Field label="容差 ε" value={eps} min={0.000001} max={10} step={0.01} onChange={(v) => props.onParams?.({ eps: v })} />
+    {connectedEps === undefined && <Field label="容差 ε" value={eps} min={0.000001} max={10} step={0.01} onChange={(v) => props.onParams?.({ eps: v })} />}
   </>;
   try {
     const f = inputFunction(props.values), result = approachLimit(f, x, side);
@@ -215,6 +228,7 @@ export function LimitBody(props: NodeBodyProps) {
     return <div className={styles.body}>
       <Graph curves={[{ name: 'f(x)', f, color: blue }]} min={x - span} max={x + span}
         band={hasBand ? { x0: x, level: band.level!, eps, delta: band.delta! } : undefined} />
+      {connectedEps !== undefined && <p className={styles.readout}>接线 ε = {num(eps)} · δ = {num(band.delta)}</p>}
       {!inCard && <>
         {controls}
         <table className={styles.table}><caption>逐步靠近 x₀（不取 x₀ 本身）</caption><thead><tr><th>距离 h</th><th>f(x₀−h)</th><th>f(x₀+h)</th></tr></thead><tbody>{result.rows.map((r) => <tr key={r.h}><td>{r.h.toExponential(0)}</td><td>{num(r.left)}</td><td>{num(r.right)}</td></tr>)}</tbody></table>
@@ -229,10 +243,11 @@ export function LimitBody(props: NodeBodyProps) {
 
 export function IntegralBody(props: NodeBodyProps) {
   const { node, onParams, inCard } = props;
-  const lower = node.params.lower ?? 0, upper = node.params.upper ?? 1, n = node.params.n ?? 12, method = node.params.method ?? 1, area = !!node.params.area;
+  const connectedN = props.values.n?.kind === 'scalar' ? Math.max(1, Math.min(200, Math.round(props.values.n.v))) : undefined;
+  const lower = node.params.lower ?? 0, upper = node.params.upper ?? 1, n = connectedN ?? node.params.n ?? 12, method = node.params.method ?? 1, area = !!node.params.area;
   const controls = <>
     <div className={styles.fields}><Field label="积分下限" value={lower} onChange={(v) => onParams?.({ lower: v })} /><Field label="积分上限" value={upper} onChange={(v) => onParams?.({ upper: v })} /></div>
-    <Field label="分割数 n" value={n} min={1} max={200} step={1} onChange={(v) => onParams?.({ n: Math.round(v) })} />
+    {connectedN === undefined && <Field label="分割数 n" value={n} min={1} max={200} step={1} onChange={(v) => onParams?.({ n: Math.round(v) })} />}
     <label className={styles.field}>取样方式<select aria-label="黎曼和取样方式" value={method} onChange={(e) => onParams?.({ method: Number(e.target.value) })}><option value="0">左端点</option><option value="1">中点</option><option value="2">右端点</option></select></label>
     <label className={styles.check}><input type="checkbox" checked={area} onChange={(e) => onParams?.({ area: Number(e.target.checked) })} />计算几何面积 ∫|f(x)| dx</label>
   </>;
@@ -241,6 +256,7 @@ export function IntegralBody(props: NodeBodyProps) {
     const lo = Math.min(lower, upper), hi = Math.max(lower, upper), pad = Math.max((hi - lo) * 0.12, 0.2);
     return <div className={styles.body}>
       <Graph curves={[{ name: area ? '|f(x)|' : 'f(x)', f: area ? (x) => { const y = f(x); return y === null ? null : Math.abs(y); } : f, color: blue }]} min={lo - pad} max={hi + pad} rectangles={result.rectangles} />
+      {connectedN !== undefined && <p className={styles.readout}>接线 n = {n} · 黎曼和 ≈ {num(result.sum)}</p>}
       {!inCard && <>
         {controls}
         <p className={styles.readout}>黎曼和 Sₙ ≈ <strong>{num(result.sum)}</strong><br />数值参考 ≈ {num(result.reference)}<br />与参考差值 ≈ {num(result.error)}</p>
@@ -252,7 +268,8 @@ export function IntegralBody(props: NodeBodyProps) {
 
 export function TaylorBody(props: NodeBodyProps) {
   const { node, values, onParams, inCard } = props;
-  const center = node.params.center ?? 0, degree = node.params.degree ?? 3, x = position(props), span = node.params.span ?? 2;
+  const connectedCenter = values.center?.kind === 'scalar' ? values.center.v : undefined;
+  const center = connectedCenter ?? node.params.center ?? 0, degree = node.params.degree ?? 3, x = position(props), span = node.params.span ?? 2;
   const calculation = useMemo(() => {
     try {
       const f = inputFunction(values);
@@ -260,7 +277,10 @@ export function TaylorBody(props: NodeBodyProps) {
       return { f, ...result, error: '' };
     } catch (e) { return { error: errorText(e) }; }
   }, [values.in?.kind === 'function' ? JSON.stringify(values.in) : null, center, degree]);
-  const controls = <><div className={styles.fields}><Field label="展开中心 a₀" value={center} onChange={(v) => onParams?.({ center: v })} /><Field label="展开阶数" value={degree} min={1} max={5} step={1} onChange={(v) => onParams?.({ degree: Math.round(v) })} /></div><ObservationPoint {...props} /><Field label="观察半径" value={span} min={0.2} max={8} onChange={(v) => onParams?.({ span: v })} /></>;
+  const controls = <><div className={styles.fields}>{connectedCenter === undefined
+    ? <Field label="展开中心 a₀" value={center} onChange={(v) => onParams?.({ center: v })} />
+    : <p className={styles.tip}>接线展开中心 a₀ = {num(center)}</p>}
+    <Field label="展开阶数" value={degree} min={1} max={5} step={1} onChange={(v) => onParams?.({ degree: Math.round(v) })} /></div><ObservationPoint {...props} /><Field label="观察半径" value={span} min={0.2} max={8} onChange={(v) => onParams?.({ span: v })} /></>;
   if (!('value' in calculation)) return <div className={styles.body}>{!inCard && controls}<Notice>{calculation.error}</Notice></div>;
   const polynomial = compileFunction(calculation.value), original = calculation.f(x), approximation = polynomial(x);
   return <div className={styles.body}>

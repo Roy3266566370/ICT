@@ -111,7 +111,7 @@ const NodeView=memo(function NodeView({node,pageWidth,pageHeight,editing,editing
   const changed=textChanged(node);
   const clean=node.type==='image'&&node.cleaned_asset_id&&node.cleaned_url;
   const src=(!proofFigures&&clean)||node.image_data||node.image_url;
-  const transform=`rotate(${node.rotation}deg)${node.text_transform?` matrix(${node.text_transform.join(',')},0,0)`:''}`;
+  const transform=`rotate(${node.rotation+(node.text_rotation_offset??0)}deg)${node.text_transform?` matrix(${node.text_transform.join(',')},0,0)`:''}`;
   const crop=node.crop;const imageStyle:CSSProperties=crop?{position:'absolute',width:`${100/(1-crop.left-crop.right)}%`,height:`${100/(1-crop.top-crop.bottom)}%`,
     left:`${-100*crop.left/(1-crop.left-crop.right)}%`,top:`${-100*crop.top/(1-crop.top-crop.bottom)}%`}:{};
   const tableChanged=node.type==='table'&&!same(node.table,node.base_table);
@@ -138,10 +138,10 @@ const NodeView=memo(function NodeView({node,pageWidth,pageHeight,editing,editing
 });
 interface Props {page:ScenePage;scale:number;editing?:boolean;editingId?:string|null;preview?:Record<string,Partial<SceneNode>>;children?:ReactNode;
   onText?:(id:string,text:string,paragraphs?:SceneParagraph[])=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void; presentVectors?:boolean; vectorId?:string;
-  resetHost?:HTMLElement|null; inlineAllDemos?:boolean;
+  resetHost?:HTMLElement|null; lineControlsHost?:HTMLElement|null; onResetPresentation?:()=>void; resetForAi?:boolean; inlineAllDemos?:boolean;
   onVectorSelect?:(id:string)=>void; onVectorPatch?:(id:string, patch:import('@/document/types').NodePatch,key?:string)=>void;
   onGenerateDemo?:(id:string)=>void;generating?:Record<string,boolean>;proofFigures?:boolean;}
-export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur,presentVectors,vectorId,onVectorSelect,onVectorPatch,onGenerateDemo,generating,proofFigures,resetHost,inlineAllDemos}:Props){
+export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur,presentVectors,vectorId,onVectorSelect,onVectorPatch,onGenerateDemo,generating,proofFigures,resetHost,lineControlsHost,onResetPresentation,resetForAi,inlineAllDemos}:Props){
   const frozen=page.preparation?.frozen_ids??[];
   const rawVisible = page.nodes.filter(n=>!n.deleted&&!n.hidden&&!frozen.includes(n.id));
   const [liveDrafts, setLiveDrafts] = useState<Record<string, NodePatch>>({});
@@ -255,8 +255,25 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
     setChoice(id);
     setOverrides(current=>({...current,[id]:{...current[id],...patch,style:{...current[id]?.style,...patch.style}}}));
   };
+  const vectorControls=presentVectors&&selected&&!fixed(selected)&&<div className={styles.vectorControls} data-external={!!lineControlsHost} data-no-pan aria-label="放映线条控制">
+    {vectors.filter(node=>!fixed(node)).length>1 && <select aria-label="选择线条" value={selected.id} onChange={e=>setChoice(e.target.value)}>
+      {vectors.filter(node=>!fixed(node)).map((node,i)=><option key={node.id} value={node.id}>{node.name} {i+1}</option>)}
+    </select>}
+    {editableVector(selected) && <VectorControls node={selected} onPatch={patch=>change(selected.id,patch)}/>}
+    {hasScaleBind && <label>联动倍率<input type="range" aria-label="联动倍率" min="0.2" max="2.5" step="0.05"
+      value={scaleFactor} onChange={e=>setScaleFactor(Number(e.target.value))}/></label>}
+    {hasRotateBind && <label>联动角度<input type="range" aria-label="联动角度" min="-180" max="180" step="1"
+      value={rotateOffset} onChange={e=>setRotateOffset(Number(e.target.value))}/></label>}
+    <button type="button" onClick={()=>{setOverrides({});setLiveDrafts({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});}}>重置线条</button>
+    {animSteps.map(step => <button key={step} type="button" onClick={()=>setStepState({target:step,progress:0})}>第 {step} 步</button>)}
+    {animSteps.length>0 && stepState.target!==null && <button type="button" onClick={()=>setStepState({target:null,progress:1})}>全部显示</button>}
+    {basisActive && <>
+      <button type="button" disabled={!!playback.animation} onClick={()=>playback.play(1)}>第 1 步：沿 b₁</button>
+      <button type="button" disabled={!!playback.animation || playback.completed<1} onClick={()=>playback.play(2)}>第 2 步：沿 b₂</button>
+    </>}
+  </div>;
   return <div className={styles.canvas} style={{width:page.width,height:page.height,backgroundColor:page.background_color??'#fff',transform:`scale(${scale})`}} data-scene-page={page.page_no}>
-    <div className={styles.contentLayer} data-editing={editing || undefined}>
+    <div className={styles.contentLayer}>
       {page.background_url&&!page.background_modified&&<img className={styles.pageBackground} src={page.background_url} alt="" draggable={false}/>}
       {visible.filter(node=>node.type!=='vector'&&node.type!=='diagram'&&node.type!=='demo'&&node.type!=='workshop_plugin').map(node=><NodeView key={node.id} node={node} pageWidth={page.width} pageHeight={page.height}
         basisCoordLabel={basisLabelIds.has(node.id)}
@@ -287,23 +304,7 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
       })}
       {relationEval.overlays.map(ov => <BasisRelationOverlay key={ov.relationId} overlay={ov} progress={playback.value}/>)}
     </div>
-    {presentVectors && selected && !fixed(selected) && <div className={styles.vectorControls} data-no-pan aria-label="放映线条控制">
-      {vectors.filter(node=>!fixed(node)).length>1 && <select aria-label="选择线条" value={selected.id} onChange={e=>setChoice(e.target.value)}>
-        {vectors.filter(node=>!fixed(node)).map((node,i)=><option key={node.id} value={node.id}>{node.name} {i+1}</option>)}
-      </select>}
-      {editableVector(selected) && <VectorControls node={selected} onPatch={patch=>change(selected.id,patch)}/>}
-      {hasScaleBind && <label>联动倍率<input type="range" aria-label="联动倍率" min="0.2" max="2.5" step="0.05"
-        value={scaleFactor} onChange={e=>setScaleFactor(Number(e.target.value))}/></label>}
-      {hasRotateBind && <label>联动角度<input type="range" aria-label="联动角度" min="-180" max="180" step="1"
-        value={rotateOffset} onChange={e=>setRotateOffset(Number(e.target.value))}/></label>}
-      <button type="button" onClick={()=>{setOverrides({});setLiveDrafts({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});}}>重置线条</button>
-      {animSteps.map(step => <button key={step} type="button" onClick={()=>setStepState({target:step,progress:0})}>第 {step} 步</button>)}
-      {animSteps.length>0 && stepState.target!==null && <button type="button" onClick={()=>setStepState({target:null,progress:1})}>全部显示</button>}
-      {basisActive && <>
-        <button type="button" disabled={!!playback.animation} onClick={()=>playback.play(1)}>第 1 步：沿 b₁</button>
-        <button type="button" disabled={!!playback.animation || playback.completed<1} onClick={()=>playback.play(2)}>第 2 步：沿 b₂</button>
-      </>}
-    </div>}
+    {lineControlsHost?createPortal(vectorControls,lineControlsHost):vectorControls}
     {editing&&visible.find(node=>node.id===vectorId&&node.type==='vector'&&!node.locked)&&(()=>{
       const node=visible.find(node=>node.id===vectorId)!;
       const toolbarWidth=Math.min(530,page.width*scale-16);
@@ -315,9 +316,9 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
         <VectorControls node={node} onPatch={(patch,key)=>onVectorPatch?.(node.id,patch,key)} author/>
       </div>;
     })()}
-    {presentVectors&&resetHost&&(vectors.length>0||richNodes.length>0)&&createPortal(<button type="button" onClick={()=>{
-      setOverrides({});setLiveDrafts({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});setResetVersion(v=>v+1);
-    }}>一键重置</button>,resetHost)}
+    {presentVectors&&resetHost&&(vectors.length>0||richNodes.length>0||separateIds.size>0||resetForAi)&&createPortal(<button type="button" onClick={()=>{
+      setOverrides({});setLiveDrafts({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});setResetVersion(v=>v+1);onResetPresentation?.();
+    }}>↺ 重置本页状态</button>,resetHost)}
     {children}
   </div>;
 }

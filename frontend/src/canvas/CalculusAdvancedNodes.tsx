@@ -7,6 +7,8 @@ import {
   polarSandbox, rectSandbox, slopeFieldGrid,
 } from './calculus.ts';
 import { formatNumber } from '../labs/expr.ts';
+import { sampleDiskDensity } from './calculusDisk.ts';
+import { VECTOR_FIELDS, vectorFieldParts, vectorFieldValue } from './calculusField.ts';
 import styles from './calculus.module.css';
 
 const num = (v: number | null | undefined) => formatNumber(v, 6);
@@ -156,13 +158,16 @@ function Plot({ series, xMin, xMax, yMin, yMax, aria, onPick, children }: {
 }
 
 export function FtcViewBody({ node, values, onParams, inCard }: NodeBodyProps): JSX.Element {
-  const a = node.params.a ?? 0, x = node.params.x ?? 1, n = node.params.n ?? 122;
+  const connectedN = values.n?.kind === 'scalar' ? Math.max(2, Math.min(600, Math.round(values.n.v))) : undefined;
+  const a = node.params.a ?? 0, x = node.params.x ?? 1, n = connectedN ?? node.params.n ?? 122;
+  const constant = node.params.constant;
   const controls = <>
     <div className={styles.fields}>
       <Field label="下限 a" value={a} onChange={(v) => onParams?.({ a: v })} />
       <Field label="上限 x" value={x} onChange={(v) => onParams?.({ x: v })} />
     </div>
-    <Field label="采样段数 n" value={n} min={2} max={600} step={1} onChange={(v) => onParams?.({ n: Math.round(v) })} />
+    {connectedN === undefined && <Field label="采样段数 n" value={n} min={2} max={600} step={1} onChange={(v) => onParams?.({ n: Math.round(v) })} />}
+    {constant !== undefined && <Field label="积分常数 C" value={constant} min={-3} max={3} step={0.1} onChange={(v) => onParams?.({ constant: v })} />}
   </>;
   try {
     const f = inputFunction1d(values);
@@ -170,21 +175,32 @@ export function FtcViewBody({ node, values, onParams, inCard }: NodeBodyProps): 
     const pad = Math.max((hi - lo) * 0.25, 0.5);
     const samples = antiderivativeSamples(f, a, lo - pad, hi + pad, Math.round(n));
     const area = integrate(f, a, x, 128);
+    const graphSamples = samples.map((p) => ({ x: p.x, y: p.f }));
+    const areaSamples = [{ x: lo, y: f(lo) }, ...graphSamples.filter(p => p.x > lo && p.x < hi), { x: hi, y: f(hi) }];
     const slopeError = samples.map((p) => p.slopeError).filter((v): v is number => v !== null && Number.isFinite(v));
     return <div data-calculus="ftcView" className={styles.body}>
       <div className={styles.calcGrid}>
         <Plot aria={`f(x) 在 ${num(a)} 到 ${num(x)} 下方的面积`} xMin={lo - pad} xMax={hi + pad}
-          series={[{ name: 'f(x)', color: INDIGO, samples: samples.map((p) => ({ x: p.x, y: p.f })) }]}>
-          {(scale) => <path d={areaPath(samples.map((p) => ({ x: p.x, y: p.f })), a, x, scale)} fill={CORAL_SOFT} stroke={CORAL} strokeWidth="1" />}
+          series={[{ name: 'f(x)', color: INDIGO, samples: graphSamples }]}>
+          {(scale) => <path d={areaPath(areaSamples, a, x, scale)} fill={CORAL_SOFT} stroke={CORAL} strokeWidth="1" />}
         </Plot>
         <Plot aria={`变上限积分 F(x)=∫ f 在 ${num(lo - pad)} 到 ${num(hi + pad)}`} xMin={lo - pad} xMax={hi + pad}
-          series={[{ name: 'F(x)', color: CORAL, samples: samples.map((p) => ({ x: p.x, y: p.integral })) }]} />
+          series={[
+            { name: 'F(x)', color: CORAL, samples: samples.map((p) => ({ x: p.x, y: p.integral })) },
+            ...(constant !== undefined && constant !== 0 ? [{
+              name: 'F(x)+C', color: INDIGO, dashed: true,
+              samples: samples.map((p) => ({ x: p.x, y: p.integral === null ? null : p.integral + constant })),
+            }] : []),
+          ]} />
       </div>
+      {connectedN !== undefined && <p className={styles.readout}>接线 n = {n} · F(x) ≈ {num(area.sum)}
+        {constant !== undefined && ` · F(x)+C ≈ ${num(area.sum + constant)}`}</p>}
       {!inCard && <>
         {controls}
         <p className={styles.readout}>左：面积 f 下方（{num(lo)} → {num(hi)}）<br />F(x) = ∫ₐˣ f ≈ <b data-readout="ftc-integral">{num(area.sum)}</b><br />
           f(x) = <b data-readout="ftc-function">{num(f(x))}</b></p>
         <p className={styles.tip}>右图为同一 f 的变上限积分曲线；曲线斜率与 f 的最大偏差 ≈ {num(slopeError.length ? Math.max(...slopeError) : null)}（样本差分估计）。数值积分只作观察，不是解析原函数。</p>
+        {constant !== undefined && <p className={styles.tip}>积分常数 C 让原函数图像整体平移，导数保持为 f(x)。</p>}
       </>}
     </div>;
   } catch (error) {
@@ -192,10 +208,11 @@ export function FtcViewBody({ node, values, onParams, inCard }: NodeBodyProps): 
   }
 }
 
-export function FourierLabBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
+export function FourierLabBody({ node, values, onParams, inCard }: NodeBodyProps): JSX.Element {
   const index = Math.max(0, Math.min(2, Math.round(node.params.waveform ?? 0)));
   const waveform: Waveform = WAVEFORMS[index] ?? 'square';
-  const n = Math.max(1, Math.round(node.params.n ?? 5));
+  const connectedN = values.n?.kind === 'scalar' ? values.n.v : undefined;
+  const n = Math.max(1, Math.min(199, Math.round(connectedN ?? node.params.n ?? 5)));
   const span = Math.max(2, Math.min(20, node.params.span ?? Math.PI * 2));
   const half = span / 2;
   const curve = useMemo(() => {
@@ -215,7 +232,9 @@ export function FourierLabBody({ node, onParams, inCard }: NodeBodyProps): JSX.E
       <option value="0">方波</option><option value="1">三角波</option><option value="2">锯齿波</option>
     </select></label>
     <div className={styles.fields}>
-      <Field label="谐波上限 n" value={n} min={1} max={199} step={2} onChange={(v) => onParams?.({ n: Math.round(v) })} />
+      {connectedN === undefined
+        ? <Field label="谐波上限 n" value={n} min={1} max={199} step={2} onChange={(v) => onParams?.({ n: Math.round(v) })} />
+        : <p className={styles.tip}>接线谐波上限 N = {n}</p>}
       <Field label="显示跨度" value={span} min={2} max={20} step={0.1} onChange={(v) => onParams?.({ span: v })} />
     </div>
   </>;
@@ -249,11 +268,14 @@ export function FourierLabBody({ node, onParams, inCard }: NodeBodyProps): JSX.E
   </div>;
 }
 
-export function OdeSlopeFieldBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
+export function OdeSlopeFieldBody({ node, values, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
   const expression = node.text ?? '-y';
   const x0 = node.params.x0 ?? 0, y0 = node.params.y0 ?? 1;
   const min = node.params.min ?? -3, max = node.params.max ?? 3;
-  const step = node.params.step ?? 0.02, steps = Math.round(node.params.steps ?? 150);
+  const connectedStep = values.step?.kind === 'scalar' ? values.step.v : undefined;
+  const step = connectedStep === undefined ? node.params.step ?? 0.02 : Math.max(0.005, Math.min(0.8, connectedStep));
+  const steps = connectedStep === undefined ? Math.round(node.params.steps ?? 150)
+    : Math.min(600, Math.ceil(Math.max(x0 - min, max - x0) / step));
   let error = '';
   let grid: ReturnType<typeof slopeFieldGrid> | null = null;
   let forward: { x: number; y: number }[] = [], backward: { x: number; y: number }[] = [];
@@ -299,9 +321,12 @@ export function OdeSlopeFieldBody({ node, onParams, onText, inCard }: NodeBodyPr
         </div>
         <div className={styles.fields}>
           <Field label="场范围" value={max} min={0.5} max={10} onChange={(v) => onParams?.({ min: -v, max: v })} />
-          <Field label="步长 h" value={step} min={0.001} max={0.5} step={0.005} onChange={(v) => onParams?.({ step: v })} />
+          {connectedStep === undefined &&
+            <Field label="步长 h" value={step} min={0.001} max={0.5} step={0.005} onChange={(v) => onParams?.({ step: v })} />}
         </div>
-        <Field label="积分步数" value={steps} min={1} max={2000} step={1} onChange={(v) => onParams?.({ steps: Math.round(v) })} />
+        {connectedStep === undefined
+          ? <Field label="积分步数" value={steps} min={1} max={2000} step={1} onChange={(v) => onParams?.({ steps: Math.round(v) })} />
+          : <p className={styles.tip}>接线步长 h = {num(step)}，积分步数 = {steps}</p>}
         <p className={styles.readout}>末点 (x, y) ≈ (<b data-readout="ode-x">{num(last?.x ?? null)}</b>, <b data-readout="ode-y">{num(last?.y ?? null)}</b>)</p>
         <p className={styles.tip}>短线段为斜率场（灰色），朱砂为正向 RK4 解曲线，蓝色虚线为从初值反向积分。点击平面任意位置把 (x₀, y₀) 设为新初值；解只在有限区间内有效。</p>
       </>}
@@ -309,8 +334,9 @@ export function OdeSlopeFieldBody({ node, onParams, onText, inCard }: NodeBodyPr
   </div>;
 }
 
-export function Func2dSourceBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
-  const a = node.params.a ?? 1, b = node.params.b ?? 1;
+export function Func2dSourceBody({ node, values, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
+  const connectedA = values.a?.kind === 'scalar' ? values.a.v : undefined;
+  const a = connectedA ?? node.params.a ?? 1, b = node.params.b ?? 1;
   const expression = node.text ?? 'a*x^2+b*y^2';
   const preview = useMemo(() => {
     try {
@@ -325,7 +351,7 @@ export function Func2dSourceBody({ node, onParams, onText, inCard }: NodeBodyPro
   }, [expression, a, b]);
   const controls = <>
     <div className={styles.fields}>
-      <Field label="参数 a" value={a} onChange={(v) => onParams?.({ a: v })} />
+      {connectedA === undefined && <Field label="参数 a" value={a} onChange={(v) => onParams?.({ a: v })} />}
       <Field label="参数 b" value={b} onChange={(v) => onParams?.({ b: v })} />
     </div>
     <p className={styles.tip}>x、y 为自变量，a、b 为系数；乘号写 *，幂写 ^。输出端口把整条 f(x,y) 传给「梯度等高线」等多元积木。</p>
@@ -344,6 +370,7 @@ export function Func2dSourceBody({ node, onParams, onText, inCard }: NodeBodyPro
         { name: 'f(x, 0)', color: INDIGO, samples: preview.middle },
         { name: 'f(x, 1)', color: CORAL, dashed: true, samples: preview.offset },
       ]} />
+    {connectedA !== undefined && <p className={styles.readout}>接线参数 a = {num(a)}</p>}
     {!inCard && <>
       {controls}
       <p className={styles.readout}>f(1, 1) = <b data-readout="func2d-value">{num(middle)}</b></p>
@@ -436,7 +463,8 @@ export function GradientContourBody({ node, values, onParams, onText, inCard }: 
       : null;
     const heading = { x: x + Math.cos(theta) * span * 0.4, y: y + Math.sin(theta) * span * 0.4 };
     return <div data-calculus="gradientContour" className={styles.body}>
-      <svg className={styles.plot} viewBox={`0 0 ${W + PAD * 2} ${W + PAD * 2}`} role="img" aria-label="等高线热图、梯度箭头与约束线">
+      <svg className={styles.plot} style={inCard ? { maxHeight: 270 } : undefined}
+        viewBox={`0 0 ${W + PAD * 2} ${W + PAD * 2}`} role="img" aria-label="等高线热图、梯度箭头与约束线">
         <rect x={PAD} y={PAD} width={W} height={W} fill="var(--paper-1)" stroke={HAIRLINE} />
         {valuesGrid.map((v, k) => {
           if (v === null) return null;
@@ -474,7 +502,51 @@ export function GradientContourBody({ node, values, onParams, onText, inCard }: 
   }
 }
 
-export function DoubleIntegralBody({ node, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
+export function VectorFieldSourceBody({ node, onText, inCard }: NodeBodyProps): JSX.Element {
+  const { p, q } = vectorFieldParts(node.text);
+  let error = '';
+  try { vectorFieldValue(node.text); } catch (cause) { error = errorText(cause); }
+  return <div data-calculus="vectorFieldSource" className={styles.body}>
+    <label className={styles.expression}>P(x,y) =
+      <input aria-label="向量场分量 P" maxLength={240} spellCheck={false} value={p} readOnly={!onText}
+        onChange={event => onText?.(event.currentTarget.value + '\n' + q)} />
+    </label>
+    <label className={styles.expression}>Q(x,y) =
+      <input aria-label="向量场分量 Q" maxLength={240} spellCheck={false} value={q} readOnly={!onText}
+        onChange={event => onText?.(p + '\n' + event.currentTarget.value)} />
+    </label>
+    {onText && <label className={styles.field}>场预设
+      <select aria-label="向量场预设" value={VECTOR_FIELDS.find(field => field.text === p + '\n' + q)?.text ?? ''}
+        onChange={event => onText(event.currentTarget.value)}>
+        <option value="" disabled>自定义向量场</option>
+        {VECTOR_FIELDS.map(field => <option key={field.label} value={field.text}>{field.label}</option>)}
+      </select>
+    </label>}
+    {error && <Notice>{error}</Notice>}
+    {!inCard && <p className={styles.tip}>填写 P 和 Q 后，把 (P,Q) 输出接到可以读取二维向量场的积木。</p>}
+  </div>;
+}
+
+function ConnectedDiskIntegral({ field, inCard }: { field: Function2dValue; inCard?: boolean }) {
+  const sample = sampleDiskDensity(field);
+  return <div data-calculus="doubleIntegralView" className={styles.body}>
+    <svg className={styles.plot} viewBox="0 0 340 188" role="img" aria-label="单位圆盘的同心积分环带">
+      <circle cx="170" cy="91" r="76" fill={INDIGO_SOFT} stroke={INDIGO} />
+      {[19, 38, 57].map(r => <circle key={r} cx="170" cy="91" r={r} fill="none" stroke={HAIRLINE_STRONG} strokeDasharray="3 3" />)}
+      <path d="M110 91a60 60 0 1 0 120 0a60 60 0 1 0 -120 0M126 91a44 44 0 1 0 88 0a44 44 0 1 0 -88 0"
+        fill={CORAL_SOFT} fillRule="evenodd" stroke={CORAL} />
+      <path d="M80 91h180M170 9v164" stroke={HAIRLINE_STRONG} opacity=".7" />
+      <text x="21" y="171" fill={INK_MUTED} fontSize="11">区域 x²+y²≤1</text>
+    </svg>
+    {sample.mass === undefined ? <Notice>{sample.error}</Notice>
+      : <p className={styles.readout}>{sample.negative ? '带符号积分' : '质量'} ∬ρ dA ≈ <b data-readout="disk-mass">{num(sample.mass)}</b></p>}
+    {!inCard && <p className={styles.tip}>接线提供密度 ρ(x,y)。按同心环带与等角微元做中点和，面积权重为 r·Δr·Δθ。</p>}
+  </div>;
+}
+
+export function DoubleIntegralBody({ node, values, onParams, onText, inCard }: NodeBodyProps): JSX.Element {
+  if (values.in?.kind === 'function2d') return <ConnectedDiskIntegral field={values.in} inCard={inCard} />;
+  if (Object.hasOwn(values, 'in')) return <Notice>接线暂未提供可计算的圆盘密度，请检查二元函数表达式。</Notice>;
   const mode = Math.round(node.params.mode ?? 0) === 1 ? 1 : 0;
   const n = Math.max(4, Math.min(80, Math.round(node.params.n ?? 20)));
   const rMax = Math.max(0.2, Math.min(3, node.params.rMax ?? 1));

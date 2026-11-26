@@ -20,7 +20,7 @@ import {
   FunctionSourceBody, FunctionPlotBody, DerivativeBody, LimitBody, IntegralBody, TaylorBody,
   CALCULUS_BLOCK_DEFS, CALCULUS_BLOCK_DEFAULTS,
 } from './CalculusNodes';
-import { DoubleIntegralBody, FourierLabBody, FtcViewBody, Func2dSourceBody, GradientContourBody, OdeSlopeFieldBody } from './CalculusAdvancedNodes';
+import { DoubleIntegralBody, FourierLabBody, FtcViewBody, Func2dSourceBody, GradientContourBody, OdeSlopeFieldBody, VectorFieldSourceBody } from './CalculusAdvancedNodes';
 import { PHYSICS_BLOCK_DEFS, PHYSICS_BLOCK_DEFAULTS } from './PhysicsBlockNodes';
 import {
   CollisionBody, EnergyBody, InclineBody, PendulumBody, ProjectileBody, ResonanceBody, SpringBody, TrailBody, WaveBody,
@@ -46,6 +46,8 @@ import { DEEP_FIRST_DEFS, deepFirstDefaults } from './DeepFirstNodes';
 import { DEEP_CORE_DEFS, deepCoreDefaults } from './DeepCoreNodes';
 import { DEEP_ADVANCED_DEFS, deepAdvancedDefaults } from './DeepAdvancedNodes';
 import styles from './canvas.module.css';
+import { parseAiRulePayload } from './aiRuleBlock.ts';
+import type { RulePreset } from './types.ts';
 
 export interface NodeBodyProps {
   node: CanvasNode;
@@ -56,6 +58,7 @@ export interface NodeBodyProps {
   /** 本节点输出的求值结果（无输出为 null），供源/变换节点自显 */
   self: PortValue | null;
   upstreamLabel?: string;
+  onRulePreset?: (preset: RulePreset) => void;
   /** 参数写回（画布负责传播与持久化） */
   onParams?: (patch: Record<string, number>) => void;
   /** 文本写回 */
@@ -642,6 +645,10 @@ export function nodePorts(node: CanvasNode, dir: 'in' | 'out'): readonly PortSpe
       .map((p) => ({ id: p.id, label: p.label, kind: p.kind }));
   }
   const def = NODE_DEFS[node.type];
+  if (node.type === 'aiRuleBlock' && dir === 'in') {
+    const kind = parseAiRulePayload(node.payload)?.auxiliaryKind;
+    if (kind) return [...(def.inputs ?? []), { id: 'aux', label: kind === 'scalar' ? '数值' : 'f(x,y)', kind }];
+  }
   return (dir === 'in' ? def?.inputs : def?.outputs) ?? [];
 }
 
@@ -659,16 +666,19 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   ...UNIVERSAL_STAGE_DEFS,
   functionSource: { title: '函数源', badge: '源', width: 280, outputs: [{ id: 'out', label: 'f(x)', kind: 'function' }], Body: FunctionSourceBody },
   functionPlot: { title: '函数图像', badge: '视图', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], Body: FunctionPlotBody },
-  limitProbe: { title: '极限观察', badge: '实验', width: 310, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], outputs: [{ id: 'out', label: '数值候选', kind: 'scalar' }], Body: LimitBody },
-  derivative: { title: '导数切线', badge: '实验', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], outputs: [{ id: 'out', label: '斜率', kind: 'scalar' }], Body: DerivativeBody },
-  integral: { title: '黎曼积分', badge: '实验', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }], outputs: [{ id: 'out', label: '数值参考', kind: 'scalar' }], Body: IntegralBody },
-  taylor: { title: '泰勒近似', badge: '变换', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], outputs: [{ id: 'out', label: 'Pₙ(x)', kind: 'function' }], Body: TaylorBody },
-  ftcView: { title: '变上限积分', badge: '变换', width: 380, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }], outputs: [{ id: 'out', label: 'F(x)', kind: 'scalar' }], Body: FtcViewBody },
-  fourierLab: { title: '傅里叶合成', badge: '实验', width: 400, Body: FourierLabBody },
-  odeSlopeField: { title: '斜率场', badge: '实验', width: 400, Body: OdeSlopeFieldBody },
-  func2dSource: { title: '二元函数源', badge: '源', width: 280, outputs: [{ id: 'out', label: 'f(x,y)', kind: 'function2d' }], Body: Func2dSourceBody },
+  limitProbe: { title: '极限观察', badge: '实验', width: 310, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }, { id: 'eps', label: '容差 ε', kind: 'scalar' }], outputs: [{ id: 'out', label: '数值候选', kind: 'scalar' }], Body: LimitBody },
+  derivative: { title: '导数切线', badge: '实验', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }, { id: 'h', label: '增量 h', kind: 'scalar' }], outputs: [{ id: 'out', label: '斜率', kind: 'scalar' }], Body: DerivativeBody },
+  integral: { title: '黎曼积分', badge: '实验', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'n', label: '分割数 n', kind: 'scalar' }], outputs: [{ id: 'out', label: '数值参考', kind: 'scalar' }], Body: IntegralBody },
+  taylor: { title: '泰勒近似', badge: '变换', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: '观察点', kind: 'scalar' }, { id: 'center', label: '展开中心', kind: 'scalar' }], outputs: [{ id: 'out', label: 'Pₙ(x)', kind: 'function' }], Body: TaylorBody },
+  ftcView: { title: '变上限积分', badge: '变换', width: 380, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'n', label: '采样段数 n', kind: 'scalar' }], outputs: [{ id: 'out', label: 'F(x)', kind: 'scalar' }], Body: FtcViewBody },
+  fourierLab: { title: '傅里叶合成', badge: '实验', width: 400, inputs: [{ id: 'n', label: '谐波上限', kind: 'scalar' }], Body: FourierLabBody },
+  odeSlopeField: { title: '斜率场', badge: '实验', width: 400, inputs: [{ id: 'step', label: '步长 h', kind: 'scalar' }], Body: OdeSlopeFieldBody },
+  func2dSource: { title: '二元函数源', badge: '源', width: 280, inputs: [{ id: 'a', label: '系数 a', kind: 'scalar' }], outputs: [{ id: 'out', label: 'f(x,y)', kind: 'function2d' }], Body: Func2dSourceBody },
   gradientContour: { title: '梯度等高线', badge: '变换', width: 400, inputs: [{ id: 'in', label: 'f(x,y)', kind: 'function2d' }], outputs: [{ id: 'out', label: 'D_θ f', kind: 'scalar' }], Body: GradientContourBody },
-  doubleIntegralView: { title: '二重积分微元', badge: '实验', width: 400, Body: DoubleIntegralBody },
+  doubleIntegralView: { title: '二重积分微元', badge: '实验', width: 400,
+    inputs: [{ id: 'in', label: '圆盘密度 ρ', kind: 'function2d' }], outputs: [{ id: 'out', label: '积分值', kind: 'scalar' }], Body: DoubleIntegralBody },
+  vectorFieldSource: { title: '二维向量场源', badge: '源', width: 280,
+    outputs: [{ id: 'out', label: '(P,Q)', kind: 'vectorFunction2d' }], Body: VectorFieldSourceBody },
   matrixSource: { title: '矩阵源', badge: '源', width: 200, outputs: [OUT_M2], Body: MatrixSourceBody },
   slider: { title: '滑杆源', badge: '源', width: 190, outputs: [{ id: 'out', label: 'v', kind: 'scalar' }], Body: SliderBody },
   ticker: { title: '时间源', badge: '源', width: 190, outputs: [{ id: 'out', label: 't', kind: 'scalar' }], Body: TickerBody },
@@ -768,10 +778,11 @@ export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[
     ...(Object.keys(studyStages) as StudyStage[]).filter((type) => studyStages[type].outputs.length === 0), 'activationProbe', 'attentionAB',
     'kvCache', 'resnetLab', 'sequenceMemory', 'multiheadLab', 'autoencoderLab', 'diffusionLab', 'samplingDecoderView'] },
   { label: '高数 · 一元与级数', types: ['functionSource', 'functionPlot', 'limitProbe', 'derivative', 'integral', 'taylor', 'ftcView', 'fourierLab', 'odeSlopeField', 'funcCombineOp', 'probDistSource'] },
-  { label: '高数 · 多元与线代', types: ['func2dSource', 'gradientContour', 'doubleIntegralView', 'matrixSource', 'transformView', 'eigRead', 'svdDecomposeOp', 'linearSolveView'] },
+  { label: '高数 · 多元与线代', types: ['func2dSource', 'vectorFieldSource', 'gradientContour', 'doubleIntegralView', 'matrixSource', 'transformView', 'eigRead', 'svdDecomposeOp', 'linearSolveView'] },
   { label: '408', types: ['cacheSimLab', 'pipelineLab', 'ieee754Lab', 'cpuScheduleLab', 'bankerLab',
     'tcpCongestionLab', 'slidingWindowLab', 'dsStepLab', 'dsTraversal', 'cacheSplit', 'pageReplace', 'ipSubnet',
-    'arraySource', 'sortCompareView', 'graphSource', 'shortestPathView', 'memAddrSource', 'addrTranslateView', 'cacheMapView'] },
+    'arraySource', 'sortCompareView', 'graphSource', 'shortestPathView', 'memAddrSource', 'addrTranslateView', 'cacheMapView',
+    'pageRefSource', 'bitSliceView'] },
   { label: '办公 · 数据与决策', types: ['bizTableSource', 'bizGrowthSource', 'bizScenarioFork', 'bizDiscountOp', 'bizDecisionMatrix', 'bizWaterfallView'] },
   { label: 'AI · 创作引擎', types: ['aiRuleBlock', 'universalStageView'] },
   { label: '源', types: ['slider', 'ticker'] },

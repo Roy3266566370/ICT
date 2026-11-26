@@ -3,10 +3,12 @@ import type { NodeBodyProps, NodeDef } from './nodes.tsx';
 import type { NodeType, PortSpec } from './types.ts';
 import {
   arrayFromParams,
+  BELADY_REFERENCES,
   cacheMap,
   DEFAULT_GRAPH_TEXT,
   graphOf,
   memoryAddressStream,
+  pageRefStream,
   parseGraph,
   shortestPathSteps,
   sortRace,
@@ -338,6 +340,83 @@ export function CacheMapViewBody(props: NodeBodyProps): JSX.Element {
   </div>;
 }
 
+export function PageRefSourceBody(props: NodeBodyProps): JSX.Element {
+  const { node, onParams, onText, inCard } = props;
+  let data: AlgoData | null = null;
+  let error = '';
+  try {
+    data = pageRefStream(node.params, node.text ?? '');
+  } catch (cause) {
+    error = errorText(cause);
+  }
+  const refs = addressesOf(data);
+  const modeNames = ['局部性游走', '均匀随机', 'Belady 经典串', '手动输入'];
+  return <div className={styles.root}>
+    {error ? <Notice>{error}</Notice> : <BarChart labels={refs.map((_, index) => String(index + 1))} values={refs} compact={inCard} ariaLabel="页面 / 磁道序列柱状图" />}
+    <div className={styles.tagRow}>
+      <span className={styles.tag}>{modeNames[Math.round(node.params.mode ?? 0)] ?? '序列'}</span>
+      <span className={styles.tag}>{refs.length} 次引用</span>
+    </div>
+    {!inCard && <div className={styles.controls}>
+      <SelectControl label="生成方式" value={node.params.mode ?? 0} options={modeNames} onChange={(value) => onParams?.({ mode: value })} />
+      {Math.round(node.params.mode ?? 0) === 3 ? <label className={`${styles.field} ${styles.wide}`}>手动序列
+        <textarea className={styles.textarea} rows={4} value={node.text ?? ''} spellCheck={false}
+          onChange={(event) => onText?.(event.currentTarget.value)} placeholder={BELADY_REFERENCES.join(' ')} />
+      </label> : <>
+        <RangeControl label="引用次数" value={node.params.count ?? 12} min={4} max={40} step={1} onChange={(value) => onParams?.({ count: value })} />
+        <RangeControl label="页号 / 磁道上限" value={node.params.maxPage ?? 9} min={2} max={200} step={1} onChange={(value) => onParams?.({ maxPage: value })} />
+        <RangeControl label="随机种子" value={node.params.seed ?? 7} min={1} max={9999} step={1} onChange={(value) => onParams?.({ seed: value })} />
+      </>}
+      <p className={styles.tip}>输出页面访问串、磁道请求或整数序列（algoData），可同时接页面置换、磁盘调度与 Cache 视图；Belady 模式固定输出 {BELADY_REFERENCES.join(',')}。</p>
+    </div>}
+  </div>;
+}
+
+export function BitSliceViewBody(props: NodeBodyProps): JSX.Element {
+  const { node, onParams, inCard } = props;
+  const value = props.values.in;
+  const raw = value?.kind === 'scalar' ? value.v
+    : value?.kind === 'algoData' ? (value.addresses?.[0] ?? value.values?.[0])
+    : undefined;
+  if (raw === undefined || !Number.isFinite(raw)) return <Notice>把标量或 algoData 源接到本视图，拆解其位段。</Notice>;
+  const bits = Math.max(4, Math.min(64, Math.round(node.params.bits ?? 32)));
+  const lowBits = Math.max(0, Math.min(bits - 2, Math.round(node.params.lowBits ?? 6)));
+  const midBits = Math.max(0, Math.min(bits - lowBits - 1, Math.round(node.params.midBits ?? 6)));
+  const highBits = bits - lowBits - midBits;
+  const v = Math.abs(Math.round(raw));
+  const mask = (width: number) => width >= 31 ? 0x7fffffff : (1 << width) - 1;
+  const low = v & mask(lowBits);
+  const mid = (v >> lowBits) & mask(midBits);
+  const high = (v >> (lowBits + midBits)) & mask(Math.min(highBits, 30));
+  const parts = [
+    { name: '高位段', width: highBits, value: high, fill: '#4f46e5' },
+    { name: '中间段', width: midBits, value: mid, fill: '#b15236' },
+    { name: '低位段', width: lowBits, value: low, fill: '#8c95a4' },
+  ];
+  return <div className={styles.root}>
+    <svg className={styles.chart} viewBox="0 0 300 64" role="img" aria-label="位段拆解">
+      {parts.reduce<{ x: number; els: JSX.Element[] }>((acc, part) => {
+        const w = Math.max(8, 268 * part.width / bits);
+        acc.els.push(<g key={part.name}>
+          <rect x={acc.x} y="8" width={w} height="26" rx="3" fill={part.fill} opacity="0.85" />
+          <text x={acc.x + w / 2} y="24" textAnchor="middle" fill="#fff" fontSize="9">{part.width}位={part.value}</text>
+          <text x={acc.x + w / 2} y="48" textAnchor="middle" fontSize="7.5" fill="var(--ink-400)" fontFamily="var(--font-family-mono)">{part.name}</text>
+        </g>);
+        acc.x += w;
+        return acc;
+      }, { x: 16, els: [] }).els}
+      <text x="16" y="62" fontSize="8" fill="var(--ink-300)" fontFamily="var(--font-family-mono)">0x{Math.round(raw).toString(16).toUpperCase()} · 共 {bits} 位</text>
+    </svg>
+    {!inCard && <div className={styles.controls}>
+      <SelectControl label="总位宽" value={[8, 16, 24, 32, 48, 64].indexOf(bits) >= 0 ? [8, 16, 24, 32, 48, 64].indexOf(bits) : 3}
+        options={['8 位', '16 位', '24 位', '32 位', '48 位', '64 位']} onChange={(value) => onParams?.({ bits: [8, 16, 24, 32, 48, 64][value] ?? 32 })} />
+      <RangeControl label="低位段宽度" value={lowBits} min={0} max={Math.max(1, bits - 2)} step={1} onChange={(value) => onParams?.({ lowBits: value })} />
+      <RangeControl label="中间段宽度" value={midBits} min={0} max={Math.max(1, bits - lowBits - 1)} step={1} onChange={(value) => onParams?.({ midBits: value })} />
+      <p className={styles.tip}>左起高位→低位三段；接 Cache 地址 = tag/index/offset，接 IPv4 = 网络/子网/主机位，接指令 = op/操作数字段。</p>
+    </div>}
+  </div>;
+}
+
 export const LAB408_BLOCK_DEFS: Partial<Record<NodeType, NodeDef>> = {
   arraySource: { title: '序列输入源', badge: '源', width: 320, outputs: [algoOut('数组')], Body: ArraySourceBody },
   sortCompareView: { title: '排序步进对比仪', badge: '视图', width: 340, inputs: [algoIn('数组')], Body: SortCompareViewBody },
@@ -346,6 +425,8 @@ export const LAB408_BLOCK_DEFS: Partial<Record<NodeType, NodeDef>> = {
   memAddrSource: { title: '访存地址流源', badge: '源', width: 320, outputs: [algoOut('地址流')], Body: MemAddrSourceBody },
   addrTranslateView: { title: 'TLB / 页表翻译', badge: '视图', width: 340, inputs: [algoIn('地址流')], Body: AddrTranslateViewBody },
   cacheMapView: { title: 'Cache 映射视图', badge: '视图', width: 340, inputs: [algoIn('地址流')], Body: CacheMapViewBody },
+  pageRefSource: { title: '页面 / 磁道序列源', badge: '源', width: 320, outputs: [algoOut('序列')], Body: PageRefSourceBody },
+  bitSliceView: { title: '位段拆解器', badge: '视图', width: 320, inputs: [{ id: 'in', label: '数值', accepts: ['scalar', 'algoData'] }], Body: BitSliceViewBody },
 };
 
 export const LAB408_BLOCK_DEFAULTS: Partial<Record<NodeType, Record<string, number>>> = {
@@ -356,4 +437,6 @@ export const LAB408_BLOCK_DEFAULTS: Partial<Record<NodeType, Record<string, numb
   memAddrSource: { mode: 0, count: 16, base: 4096, stride: 96, seed: 7 },
   addrTranslateView: { pageSize: 256, tlbEntries: 4, policy: 0 },
   cacheMapView: { blockBytes: 64, cacheKB: 4, ways: 2, policy: 1 },
+  pageRefSource: { mode: 2, count: 12, maxPage: 9, seed: 7 },
+  bitSliceView: { bits: 32, lowBits: 6, midBits: 8 },
 };

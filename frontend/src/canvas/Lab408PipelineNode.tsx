@@ -182,7 +182,7 @@ const gridRed = [171, 38, 47] as const;
 
 function gridColor(t: number, palette: FrameGrid['palette']): { background: string; color: string } {
   const middle = palette === 'diverging' ? [250, 250, 250] : [255, 225, 112];
-  const start = t < 0.5 ? gridBlue : middle;
+  const start = t < 0.5 ? palette === 'error' ? [22, 122, 86] : gridBlue : middle;
   const end = t < 0.5 ? middle : gridRed;
   const ratio = t < 0.5 ? t * 2 : t * 2 - 1;
   const rgb = palette === 'binary' ? (t < 0.5 ? [232, 238, 245] : [41, 55, 77])
@@ -196,7 +196,7 @@ function gridColor(t: number, palette: FrameGrid['palette']): { background: stri
 }
 
 function GridView({ grid, compact }: { grid: FrameGrid; compact: boolean }): JSX.Element {
-  const values = grid.cells.flat();
+  const values = grid.cells.flatMap((row, r) => row.filter((_, c) => !grid.mask?.[r]?.[c]));
   const columns = Math.max(0, ...grid.cells.map((row) => row.length));
   const showValues = grid.showValues !== false && (!compact || Math.max(grid.cells.length, columns) <= 12);
   const low = grid.min ?? Math.min(...values);
@@ -204,7 +204,7 @@ function GridView({ grid, compact }: { grid: FrameGrid; compact: boolean }): JSX
   const scale = Math.max(1, Math.abs(low), Math.abs(high));
   const span = high / scale - low / scale;
   return <div className={styles.gridScroll} tabIndex={0} role="region" aria-label="当前帧网格热图">
-    <table className={styles.frameGrid} data-values={showValues || undefined}>
+    <table className={styles.frameGrid} data-palette={grid.palette} data-values={showValues || undefined}>
       {grid.colLabels?.length ? <thead><tr>
         {grid.rowLabels?.length ? <td /> : null}
         {Array.from({ length: columns }, (_, col) => <th key={col} scope="col">{grid.colLabels?.[col]}</th>)}
@@ -214,12 +214,15 @@ function GridView({ grid, compact }: { grid: FrameGrid; compact: boolean }): JSX
         {Array.from({ length: columns }, (_, c) => {
           const value = row[c];
           if (value === undefined) return <td key={c} />;
+          if (grid.mask?.[r]?.[c]) return <td key={c} aria-label="区域外" />;
           const normalized = span > 0 ? Math.max(0, Math.min(1, (value / scale - low / scale) / span))
             : grid.palette === 'binary' ? Number(value > 0) : 0.5;
           const active = grid.activeCell?.[0] === r && grid.activeCell[1] === c;
-          return <td key={c} style={gridColor(normalized, grid.palette)} data-active={active || undefined}
-            title={String(value)} aria-label={active ? `当前单元格 ${value}` : String(value)}>
-            {showValues ? Number(value.toPrecision(3)) : null}
+          const undefinedError = grid.palette === 'error' && value > high;
+          const display = undefinedError ? '未定义' : String(value);
+          return <td key={c} style={undefinedError ? { background: '#cbd5e1', color: '#101722' } : gridColor(normalized, grid.palette)}
+            data-active={active || undefined} title={display} aria-label={active ? `当前单元格 ${display}` : display}>
+            {showValues ? undefinedError ? '—' : Number(value.toPrecision(3)) : null}
           </td>;
         })}
       </tr>)}</tbody>
@@ -233,9 +236,19 @@ export function PipelineFrameDetails({ frame, showTitle = true, showSummary = tr
   const state = frame.title.startsWith('Hit') ? 'hit' : frame.title.startsWith('Miss') ? 'miss' : undefined;
   const hasShapes = Boolean(frame.shapes?.items.length);
   const hasGrid = Boolean(frame.grid?.cells.some((row) => row.length));
-  const graphOnly = !!frame.graph && !hasShapes && !hasGrid && !frame.rows?.length && !frame.series?.length && !frame.timeline?.length;
+  const hasGraph = Boolean(frame.graph);
+  const hasSeries = Boolean(frame.series?.length);
+  const hasTimeline = Boolean(frame.timeline?.length);
+  const hasRows = Boolean(frame.rows?.length);
+  const visualCount = Number(hasShapes) + Number(hasGrid) + Number(hasGraph) + Number(hasSeries) + Number(hasTimeline) + Number(hasRows);
+  const graphOnly = (hasGraph || hasShapes) && visualCount === 1;
+  const stageLayout = !compact && visualCount === 2 && ((hasShapes || hasGraph || hasSeries || hasTimeline) && (hasGrid || hasRows || hasSeries))
+    ? 'split'
+    : visualCount === 1 ? 'single' : undefined;
   return (
     <div className={styles.frame} data-cache-state={state} data-pipeline-graph={graphOnly || undefined}
+      data-stage-layout={stageLayout}
+      data-combined={compact && hasGrid && hasShapes || undefined}
       data-compact={compact || undefined}>
       {showTitle && <h4>{frame.title}</h4>}
       {showSummary && frame.summary && frame.summary !== frame.title && <p>{frame.summary}</p>}
@@ -277,7 +290,7 @@ function OriginalQuestion({ pipeline }: { pipeline: keyof typeof subjects }): JS
       <textarea rows={4} value={raw} onChange={(event) => setRaw(event.target.value)} />
     </label>
     <CheckOriginalButton key={raw} subject={subjects[pipeline]} text={raw} />
-    <a href="/workshop">返回万象工坊目录 →</a>
+    <a href="/workshop">返回定象坊目录 →</a>
   </details>;
 }
 

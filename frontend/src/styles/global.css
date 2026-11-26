@@ -250,12 +250,32 @@ samp {
 }
 
 .not-found {
-  padding-block: var(--space-16);
+  width: min(calc(100% - 2 * var(--layout-gutter)), 640px);
+  margin-block: clamp(var(--space-8), 12vh, var(--space-24));
+  padding-block: var(--space-12);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-xl);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+
+.not-found p {
+  margin-block: var(--space-3) var(--space-6);
 }
 
 .not-found__link {
-  color: var(--color-indigo);
-  text-decoration: underline;
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--ink-900);
+  color: var(--paper-0);
+  text-decoration: none;
+}
+
+.not-found__link:hover {
+  color: var(--paper-0);
+  background: var(--color-indigo-strong);
 }
 
 /* ==========================================================================

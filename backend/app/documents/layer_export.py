@@ -259,6 +259,38 @@ def _measured_export(slide, shape_id: int, path: Path, slide_w: float, slide_h: 
     return result
 
 
+def _has_existing_powerpoint(win32com_client) -> bool:
+    """检查当前是否已有运行中的 PowerPoint COM 实例。"""
+    try:
+        win32com_client.GetActiveObject('PowerPoint.Application')
+        return True
+    except Exception:
+        return False
+
+
+def _count_presentations(app) -> int | None:
+    """安全读取当前打开的演示文稿数量；读取失败返回 None。"""
+    try:
+        return int(app.Presentations.Count)
+    except Exception:
+        return None
+
+
+def _safe_quit_powerpoint(app, *, had_existing_instance: bool, existing_presentations: int | None) -> None:
+    """仅当原本没有运行中的用户 PowerPoint 实例且剩余文档数为 0 时才退出。"""
+    if app is None or had_existing_instance:
+        return
+    if existing_presentations is None or existing_presentations > 0:
+        return
+    remaining = _count_presentations(app)
+    if remaining is None or remaining > 0:
+        return
+    try:
+        app.Quit()
+    except Exception:
+        pass
+
+
 def export_page(source: Path, target: Path, page: int, timeout_s: float | None = None) -> dict:
     import pythoncom
     import win32com.client
@@ -267,12 +299,16 @@ def export_page(source: Path, target: Path, page: int, timeout_s: float | None =
     deck = None
     started = time.monotonic()
     target.mkdir(parents=True, exist_ok=True)
-    holder = {'app': None, 'deck': None}
+    holder = {
+        'app': None,
+        'deck': None,
+        'had_existing_instance': False,
+        'existing_presentations': None,
+    }
     watchdog = None
     if timeout_s is not None and timeout_s > 0:
         def abort() -> None:
-            # Best effort: ask this dedicated automation instance to quit before
-            # the parent force-kills the Python process tree.
+            # 尽量关闭本次打开的演示文稿；若存在用户正在使用的 PowerPoint 实例则绝不调用 Quit。
             try:
                 pythoncom.CoInitialize()
             except Exception:
@@ -282,18 +318,28 @@ def export_page(source: Path, target: Path, page: int, timeout_s: float | None =
                     holder['deck'].Close()
             except Exception:
                 pass
-            try:
-                if holder['app'] is not None:
-                    holder['app'].Quit()
-            except Exception:
-                pass
+            _safe_quit_powerpoint(
+                holder['app'],
+                had_existing_instance=bool(holder['had_existing_instance']),
+                existing_presentations=holder['existing_presentations'],
+            )
             os._exit(124)
         watchdog = threading.Timer(timeout_s, abort)
         watchdog.daemon = True
         watchdog.start()
     try:
+        had_existing_instance = _has_existing_powerpoint(win32com.client)
+        holder['had_existing_instance'] = had_existing_instance
         app = win32com.client.DispatchEx('PowerPoint.Application')
         holder['app'] = app
+        existing_presentations = _count_presentations(app)
+        holder['existing_presentations'] = existing_presentations
+        try:
+            if bool(app.Visible):
+                had_existing_instance = True
+                holder['had_existing_instance'] = True
+        except Exception:
+            pass
         app.AutomationSecurity = 3
         deck = app.Presentations.Open(str(source.resolve()), ReadOnly=True, Untitled=False, WithWindow=False)
         holder['deck'] = deck
@@ -405,11 +451,11 @@ def export_page(source: Path, target: Path, page: int, timeout_s: float | None =
                 deck.Close()
             except Exception:
                 pass
-        if app is not None:
-            try:
-                app.Quit()
-            except Exception:
-                pass
+        _safe_quit_powerpoint(
+            app,
+            had_existing_instance=bool(holder['had_existing_instance']),
+            existing_presentations=holder['existing_presentations'],
+        )
         pythoncom.CoUninitialize()
 
 

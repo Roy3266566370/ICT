@@ -1073,6 +1073,7 @@ export interface RevokePublishResult {
 
 /** 公开页图：URL 由后端按 share_id 生成，不是 `data/renders` 的静态地址。 */
 export interface SharePageImage {
+  title?: string | null;
   width?: number;
   height?: number;
   elements?: SlideElement[];

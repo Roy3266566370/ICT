@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '@/api/client';
@@ -6,6 +6,7 @@ import { fetchSession } from '@/api/hooks';
 import { useScopedQueryKeys } from '@/api/queryKeys';
 import { readEmbeddedSpecs } from '@/components/reader/specData';
 import { DeckPlayer, DeckModeSwitch, type DeckMode } from '@/components/presentation/DeckPlayer';
+import { DeckTopBar } from '@/components/presentation/DeckTopBar';
 import { getPptAiActive } from '@/api/pptAI';
 import { fromActive } from '@/ppt-ai/runtime/snapshot';
 import { getDocument, patchDocument } from '@/api/documents';
@@ -25,8 +26,139 @@ const STAGE_TEXT: Record<string, string> = {
   queued: '正在排队准备转换…',
   parsing: '正在解析课件页面与版式结构…',
   rendering: '正在高清渲染幻灯片底图…',
-  extracting: '底图已就绪，正在收尾进入工作台…',
+  extracting: '底图已就绪，正在识别图表公式并收尾…',
 };
+
+const CONVERT_STEPS = [
+  { key: 'parsing', label: '解析结构' },
+  { key: 'rendering', label: '高清渲染' },
+  { key: 'extracting', label: '识别图表公式' },
+  { key: 'assembling', label: '组装活页' },
+] as const;
+
+const CONVERT_TIPS = [
+  '原页与可交互对象准备就绪后会自动打开演示文稿。',
+  '小贴士：转换完成后，点击页面中的公式或图表即可直接调参演练。',
+  '小贴士：可在任意一页插入定象坊全景沙盘，现场联动推演。',
+] as const;
+
+function resolveStepIndex(stage: string, pct: number): number {
+  if (stage === 'ready' || stage === 'awaiting_confirmation' || pct >= 92) return 3;
+  if (stage === 'extracting') return 2;
+  if (stage === 'rendering') return 1;
+  return 0;
+}
+
+function PptxConvertLoader({
+  stage,
+  stageLabel,
+  pct,
+  renderedCount,
+  totalCount,
+  hasRenderedSlides,
+  onPreviewEarly,
+}: {
+  stage: string;
+  stageLabel: string;
+  pct: number;
+  renderedCount: number;
+  totalCount: number;
+  hasRenderedSlides: boolean;
+  onPreviewEarly: () => void;
+}) {
+  const gradId = useId();
+  const [tipIndex, setTipIndex] = useState(0);
+  useEffect(() => {
+    const timer = window.setInterval(() => setTipIndex((i) => (i + 1) % CONVERT_TIPS.length), 4500);
+    return () => window.clearInterval(timer);
+  }, []);
+  const clampedPct = Math.min(100, Math.max(8, Math.round(pct)));
+  const activeStep = resolveStepIndex(stage, clampedPct);
+  const cellCount = totalCount > 0 ? Math.min(totalCount, 48) : 0;
+  const filledCells = cellCount > 0 ? Math.min(cellCount, Math.round((renderedCount / totalCount) * cellCount)) : 0;
+
+  return (
+    <div className={styles.loaderPage} role="status">
+      <section className={styles.loaderCard}>
+        <svg className={styles.awakeSvg} viewBox="0 0 240 150" fill="none" aria-hidden="true">
+          <rect x="44" y="18" width="152" height="104" rx="12" fill="#f0ece3" stroke="#e2dcd0" />
+          <rect x="36" y="25" width="152" height="104" rx="12" fill="#f7f4ed" stroke="#e5dfd3" />
+          <g className={styles.cardFloat}>
+            <rect x="28" y="32" width="152" height="104" rx="12" fill="#ffffff" stroke="#dcd6c8" strokeWidth="1.4" />
+            <rect x="42" y="46" width="54" height="6" rx="3" fill="#d9d4c7" />
+            <rect x="42" y="57" width="34" height="4" rx="2" fill="#e9e5dc" />
+            <path d="M44 106 H164 M44 72 V106" stroke="#e4e0d6" strokeWidth="1.2" strokeLinecap="round" />
+            <path d="M48 100 Q76 74 104 90 T160 76" stroke="#e5e1d8" strokeWidth="2" fill="none" />
+            <path className={styles.waveAlive} d="M48 100 Q76 74 104 90 T160 76" stroke="#4f46e5" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+            <circle className={styles.dotPulse} cx="104" cy="90" r="4" fill="#c25928" />
+            <circle className={styles.dotPulse} cx="160" cy="76" r="3.5" fill="#0d9488" />
+            <rect x="44" y="118" width="78" height="4" rx="2" fill="#eceae4" />
+            <rect x="44" y="118" width="40" height="4" rx="2" fill="#c25928" opacity="0.7" />
+            <circle className={styles.knobSlide} cx="62" cy="120" r="5" fill="#ffffff" stroke="#c25928" strokeWidth="2" />
+            <g className={styles.scanBeam}>
+              <rect x="26" y="34" width="22" height="100" fill={`url(#${gradId})`} />
+              <line x1="48" y1="34" x2="48" y2="134" stroke="#4f46e5" strokeWidth="1.5" opacity="0.7" />
+            </g>
+          </g>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#4f46e5" stopOpacity="0" />
+              <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.18" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        <h1 className={styles.loaderTitle}>正在将课件转为通文册</h1>
+        <p className={styles.loaderSubtitle}>{stageLabel}</p>
+
+        <div className={styles.stepsRail} aria-label="转换阶段">
+          {CONVERT_STEPS.map((step, index) => {
+            const state = index < activeStep ? 'done' : index === activeStep ? 'active' : 'pending';
+            return (
+              <div key={step.key} className={styles.stepItem} data-state={state}>
+                <div className={styles.stepDot}>{state === 'done' ? '✓' : index + 1}</div>
+                <span className={styles.stepLabel}>{step.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className={styles.progressBox}>
+          <div className={styles.progressTrack}>
+            <div className={styles.progressFill} style={{ width: `${clampedPct}%` }} />
+          </div>
+          <div className={styles.progressMeta}>
+            <span>当前阶段：<strong>{CONVERT_STEPS[activeStep]?.label ?? stage}</strong></span>
+            <span>约 {clampedPct}%{totalCount > 0 ? ` · 已准备 ${renderedCount} / ${totalCount} 页` : ''}</span>
+          </div>
+        </div>
+
+        {cellCount > 0 && (
+          <div className={styles.matrixWrap}>
+            <div className={styles.matrixHead}>
+              <span>逐页渲染进度</span>
+              <span>{renderedCount} / {totalCount} 页</span>
+            </div>
+            <div className={styles.matrixGrid} aria-hidden="true">
+              {Array.from({ length: cellCount }, (_, i) => {
+                const cellState = i < filledCells ? 'done' : i === filledCells && filledCells < cellCount ? 'current' : 'pending';
+                return <div key={i} className={styles.pageCell} data-cell={cellState} />;
+              })}
+            </div>
+          </div>
+        )}
+
+        <p className={styles.loaderTip}>{CONVERT_TIPS[tipIndex]}</p>
+
+        {hasRenderedSlides && (
+          <button type="button" className={styles.earlyBtn} onClick={onPreviewEarly}>
+            底图已就绪，先进入阅读（后台继续识别交互）
+          </button>
+        )}
+      </section>
+    </div>
+  );
+}
 
 export default function MaterialDeckPage() {
   const {materialId = ''} = useParams();
@@ -62,24 +194,17 @@ export default function MaterialDeckPage() {
     const pct = detail.job?.progress_pct ?? (stage === 'extracting' ? 65 : stage === 'rendering' ? 35 : 15);
     const renderedCount = detail.slides.filter(s => s.image_url).length;
     const totalCount = detail.material.page_count || detail.slides.length;
-    return <div className="page-container" role="status">
-      <h1>正在转换 PPTX</h1>
-      <p>{stageLabel}</p>
-      <div style={{maxWidth: 420, margin: '12px 0'}}>
-        <div style={{height: 8, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden'}}>
-          <div style={{width: `${Math.min(100, Math.max(8, pct))}%`, height: '100%', background: '#c4622d', transition: 'width .35s ease'}} />
-        </div>
-        <p style={{fontSize: 13, color: '#64748b', marginTop: 6}}>
-          当前阶段：{stage}（约 {pct}%）{totalCount > 0 ? ` · 已准备 ${renderedCount} / ${totalCount} 页` : ''}
-        </p>
-      </div>
-      <p>原页和对象准备就绪后会自动打开演示文稿。</p>
-      {hasRenderedSlides && <p style={{marginTop: 12}}>
-        <button type="button" onClick={() => setPreviewEarly(true)}>
-          底图已就绪，先进入阅读（后台继续识别交互）
-        </button>
-      </p>}
-    </div>;
+    return (
+      <PptxConvertLoader
+        stage={stage}
+        stageLabel={stageLabel}
+        pct={pct}
+        renderedCount={renderedCount}
+        totalCount={totalCount}
+        hasRenderedSlides={hasRenderedSlides}
+        onPreviewEarly={() => setPreviewEarly(true)}
+      />
+    );
   }
   if (detail.material.status === 'failed') return <div className="page-container" role="alert">
     <h1>演示文稿转换失败</h1>
@@ -100,6 +225,7 @@ function MaterialWorkbench({materialId, detail, refresh, aiSnapshot}: {
   const requestedMode = search.get('mode');
   const presenter = search.get('presenter');
   const [projecting, setProjecting] = useState(false);
+  const [headerActionsHost, setHeaderActionsHost] = useState<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState<number | 'fit'>('fit');
   const mode: DeckMode = requestedMode === 'edit' && !presenter ? 'edit' : projecting ? 'present' : 'preview';
   const [loadEditor, setLoadEditor] = useState(mode === 'edit');
@@ -181,14 +307,19 @@ function MaterialWorkbench({materialId, detail, refresh, aiSnapshot}: {
   };
   const modes = {mode, onChange: switchMode};
   return <div ref={wrapper} className={styles.workbench}>
-    {!presenter && mode !== 'present' && <header className={styles.header}>
-      <div className={styles.heading}><Link to="/" aria-label="返回首页">万象</Link><h1>{detail.material.title}</h1></div>
-      <DeckModeSwitch {...modes}/>
-    </header>}
+    {!presenter && mode !== 'present' && <DeckTopBar title={detail.material.title}
+      home={<Link to="/living" aria-label="返回通文册">← 通文册</Link>}
+      status={snapshot?.error ? { text: '保存失败', tone: 'error' }
+        : snapshot?.saving ? { text: '保存中…', tone: 'pending' }
+        : snapshot?.dirty ? { text: '有待同步的修改', tone: 'pending' }
+        : { text: '已保存', tone: 'saved' }}
+      modes={<DeckModeSwitch {...modes}/>}>
+      <div className={styles.headerActions} ref={setHeaderActionsHost}/>
+    </DeckTopBar>}
     <div className={styles.surface}>
       {mode === 'edit' && <Suspense fallback={<div className="page-container" role="status">正在打开编辑器…</div>}>
         {controller ? <FreeDeckEditor materialId={materialId} material={detail} controller={controller}
-          activePageNo={pageNo} onSelectPage={selectPage} zoom={zoom} onZoom={setZoom}/> :
+          activePageNo={pageNo} onSelectPage={selectPage} zoom={zoom} onZoom={setZoom} headerActionsHost={headerActionsHost}/> :
           <div className="page-container">
             {loadError ? <div role="alert"><h2>编辑器暂时无法打开</h2><p>{loadError}</p>
               <button onClick={() => setLoadAttempt(value => value + 1)}>重新载入</button></div> :
@@ -198,7 +329,7 @@ function MaterialWorkbench({materialId, detail, refresh, aiSnapshot}: {
       <div className={styles.preview} hidden={mode === 'edit'}>
         <DeckPlayer title={detail.material.title} pages={pages} specs={specs}
           identity={`${materialId}.r${detail.edit_revision ?? 0}${presenter ? '.presenter.' + presenter : ''}`}
-          materialId={materialId} fidelity={detail.render?.fidelity} onRefresh={refresh} sceneDocument={sceneDocument}
+          materialId={materialId} headerActionsHost={presenter ? undefined : headerActionsHost} onRefresh={refresh} sceneDocument={sceneDocument}
           formulaReviews={detail.formula_reviews} aiSnapshot={aiSnapshot} workbench={modes}
           workbenchZoom={{value: zoom, set: setZoom}} inactive={mode === 'edit'} presenter={presenter}
           saveDocument={controller?.save} readDocumentRevision={controller ? () => controller.getSnapshot().document.revision : undefined}

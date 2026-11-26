@@ -1,5 +1,5 @@
 /**
- * § 02 万象工坊精选 3 个真内核交互实验室（斜率场 RK4 / 黎曼和 / 梯度下降 + 一键切积木蓝图）
+ * § 02 定象坊精选 3 个真内核交互实验室（斜率场 RK4 / 黎曼和 / 梯度下降 + 一键切积木蓝图）
  */
 import { useMemo, useState, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
@@ -157,11 +157,11 @@ export function WorkshopLabsSection(): JSX.Element {
       <div className="container">
         <header className="section-head">
           <div>
-            <p className="eyebrow"><span className="sec-no">§ 02</span> WANXIANG WORKSHOP / 万象工坊精选实验</p>
+            <p className="eyebrow"><span className="sec-no">§ 02</span> DINGXIANG ATELIER / 定象坊精选实验</p>
             <h2>不用看假截图，<br />亲手调这三个真内核例子。</h2>
           </div>
           <p>
-            这里精选了 3 个代表性实验室——每个都能直接拖动参数实时重算，还能一键切换查看它背后的<strong>工坊积木连线蓝图</strong>。
+            这里精选了 3 个代表性实验室——每个都能直接拖动参数实时重算，还能一键切换查看它背后的<strong>定象坊积木连线蓝图</strong>。
           </p>
         </header>
 
@@ -208,12 +208,12 @@ export function WorkshopLabsSection(): JSX.Element {
                 仪表台演播态
               </button>
               <button type="button" className={showBlueprint ? 'is-active' : ''} onClick={() => setShowBlueprint(true)}>
-                查看背后工坊积木
+                查看背后定象坊积木
               </button>
             </div>
             <div className="lab-stage__right">
               <span className="lab-live-dot"><i aria-hidden="true" /> 浏览器本地真内核实时计算</span>
-              <Link className="btn btn--sm" to={bpMeta.to}>去完整工坊打开 ↗</Link>
+              <Link className="btn btn--sm" to={bpMeta.to}>去完整定象坊打开 ↗</Link>
             </div>
           </div>
 
@@ -361,7 +361,7 @@ export function WorkshopLabsSection(): JSX.Element {
 
           {showBlueprint ? (
             <div className="lab-blueprint is-active">
-              <svg viewBox="0 0 820 220" role="img" aria-label="工坊积木数据流连线图">
+              <svg viewBox="0 0 820 220" role="img" aria-label="定象坊积木数据流连线图">
                 <g stroke="#7c93ff" strokeWidth="2.2" fill="none">
                   <path d="M210 110 C255 110, 255 68, 296 68" />
                   <path d="M210 110 C255 110, 255 154, 296 154" />
@@ -388,9 +388,9 @@ export function WorkshopLabsSection(): JSX.Element {
                 <g transform="translate(594,56)">
                   <rect width="198" height="108" rx="8" fill="#0f3e40" stroke="#4fd1c5" strokeWidth="2" />
                   <text x="16" y="30" fill="#fff" fontSize="14" fontWeight="700">活页插件封装出口</text>
-                  <text x="16" y="56" fill="#9cf3e9" fontSize="12">✓ 可直接拖入万象活页</text>
+                  <text x="16" y="56" fill="#9cf3e9" fontSize="12">✓ 可直接拖入通文册</text>
                   <text x="16" y="78" fill="#b4e8e2" fontSize="11">✓ 支持情景预设与离线包</text>
-                  <text x="16" y="96" fill="#b4e8e2" fontSize="11">✓ 听众可一键反钻工坊</text>
+                  <text x="16" y="96" fill="#b4e8e2" fontSize="11">✓ 听众可一键反钻定象坊</text>
                 </g>
               </svg>
             </div>

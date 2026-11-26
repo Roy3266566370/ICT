@@ -278,7 +278,7 @@ def _interactive(shapes,box,node,snapshot):
     kind=node['type']
     data=node.get(kind) or {}
     title=data.get('title') or {'diagram':'流程图','demo':'AI 动态演示',
-                               'workshop_plugin':'万象工坊插件'}[kind]
+                               'workshop_plugin':'定象坊插件'}[kind]
     if kind=='diagram':
         extra=' → '.join(str(entry.get('label','')) for entry in data.get('nodes',[])[:6])
     else:
@@ -290,7 +290,7 @@ def _interactive(shapes,box,node,snapshot):
     frame=shape.text_frame
     frame.word_wrap=True
     frame.vertical_anchor=MSO_ANCHOR.MIDDLE
-    for i,(value,size) in enumerate(((title,18),(extra,12),('在万象活页中查看互动演示',10))):
+    for i,(value,size) in enumerate(((title,18),(extra,12),('在通文册中查看互动演示',10))):
         if value:
             paragraph=frame.add_paragraph() if i else frame.paragraphs[0]
             paragraph.text=str(value)
@@ -486,7 +486,7 @@ def _update_slide(material_id,doc,page,slide,sx,sy,work_url,snapshots,has_source
                 frame.text=notes
             if interactive and work_url:
                 paragraph=frame.add_paragraph() if frame.text else frame.paragraphs[0]
-                paragraph.add_run().text='在万象活页打开互动版：'
+                paragraph.add_run().text='在通文册打开互动版：'
                 link=paragraph.add_run()
                 link.text=f'{work_url}?page={page["page_no"]}'
                 link.hyperlink.address=link.text

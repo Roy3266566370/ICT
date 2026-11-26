@@ -1,5 +1,5 @@
 /**
- * relations.ts —— 万象活页纯函数关系求值引擎（M4）。
+ * relations.ts —— 通文册纯函数关系求值引擎（M4）。
  *
  * 设计要点：
  * 1. 纯函数、无副作用：输入 `(nodes, relations, liveDrafts, options)`，输出派生后的 `nodes`、`patches`、

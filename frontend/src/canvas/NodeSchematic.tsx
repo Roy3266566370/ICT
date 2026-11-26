@@ -39,6 +39,7 @@ function shapeText(v: PortValue | null): string {
   if (v.kind === 'dataset2d') return `${v.points.length} 样本`;
   if (v.kind === 'function') return 'f(x)';
   if (v.kind === 'function2d') return 'f(x,y)';
+  if (v.kind === 'vectorFunction2d') return '(P,Q)';
   if (v.kind === 'matrix2') return '2×2';
   if (v.kind === 'scalar') return '标量';
   if (v.kind === 'body') return '动力学';

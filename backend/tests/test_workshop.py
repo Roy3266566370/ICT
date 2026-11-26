@@ -1,4 +1,4 @@
-"""万象工坊 HTTP 端点集成测试：存取、发布画廊、fork、校验。"""
+"""定象坊 HTTP 端点集成测试：存取、发布画廊、fork、校验。"""
 
 from __future__ import annotations
 
@@ -302,6 +302,30 @@ def test_free_canvas_block_kinds_round_trip(owner: TestClient) -> None:
     fetched = owner.get(f"/api/v1/works/{created['work_id']}")
     assert fetched.status_code == 200
     assert fetched.json()["data"]["document"]["nodes"][0]["type"] == "bizTableSource"
+
+
+def test_calculus_field_ports_round_trip(owner: TestClient) -> None:
+    ports = [
+        {"id": "density", "dir": "in", "label": "圆盘密度", "kind": "function2d"},
+        {"id": "field", "dir": "out", "label": "向量场", "kind": "vectorFunction2d"},
+    ]
+    document = {
+        "version": 1, "title": "场积木", "zoom": 1, "wires": [], "strokes": [],
+        "nodes": [{
+            "id": "block", "type": "composite", "x": 0, "y": 0, "params": {},
+            "sub": {
+                "nodes": [
+                    {"id": "density", "type": "portIn", "x": 0, "y": 0, "params": {}},
+                    {"id": "field", "type": "portOut", "x": 100, "y": 0, "params": {}},
+                ],
+                "wires": [], "ports": ports,
+            },
+        }],
+    }
+    created = _create(owner, doc=document)
+    fetched = owner.get(f"/api/v1/works/{created['work_id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["data"]["document"]["nodes"][0]["sub"]["ports"] == ports
 
 
 def test_ai_rule_endpoint_reports_unavailable_and_returns_generated_payload(

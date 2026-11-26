@@ -107,6 +107,13 @@ export function LearningPanel({
   const closeRef = useRef<HTMLButtonElement>(null);
   const [mode, setMode] = useState<Mode>('explain');
   const [busy, setBusy] = useState(false);
+  const [prepareTaskId, setPrepareTaskId] = useState<string | null>(null);
+  const [finishedPrepareTask, setFinishedPrepareTask] = useState<string | null>(null);
+  const [prepareStarting, setPrepareStarting] = useState(false);
+  const [prepareStatus, setPrepareStatus] = useState('');
+  const pendingPrepare = prepareTaskId ?? page.pending_task_id;
+  const refreshRef = useRef(onRefresh);
+  refreshRef.current = onRefresh;
   const [error, setError] = useState('');
   const [card, setCard] = useState<LearningCard | null>(null);
   const [cardStale, setCardStale] = useState(false);
@@ -383,18 +390,51 @@ export function LearningPanel({
 
   const prepare = useCallback(async () => {
     if (!materialId) return;
-    await run(
-      () => prepareLearning(materialId, {
+    setError('');
+    setPrepareStatus('');
+    setPrepareStarting(true);
+    try {
+      const task = await prepareLearning(materialId, {
         expected_document_revision: page.document_revision,
         operation_id: operationId('learn_prepare'),
-      }),
-      () => {
-        setNotice('本页学习内容已准备；正在刷新。');
-        void onRefresh?.();
-        return true;
-      },
-    );
-  }, [materialId, onRefresh, page.document_revision, run]);
+      });
+      setPrepareTaskId(task.task_id);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '无法提交准备任务，请重试。');
+    } finally {
+      setPrepareStarting(false);
+    }
+  }, [materialId, page.document_revision]);
+
+  useEffect(() => {
+    if (!materialId || !pendingPrepare || pendingPrepare === finishedPrepareTask) return;
+    const abort = new AbortController();
+    const startedAt = Date.now();
+    void waitForPptAiTask(materialId, pendingPrepare, (task) => {
+      const seconds = Math.floor((Date.now() - startedAt) / 1000);
+      if (abort.signal.aborted) return;
+      if (task.status === 'queued' || task.status === 'running') {
+        const stage = task.status === 'queued' ? '任务正在排队' : '正在分析课件并整理实验';
+        setPrepareStatus(seconds < 12 ? stage + '…' : stage + '。课件较长时可能需要几分钟，你可以继续阅读或翻页。');
+      }
+    }, undefined, abort.signal).then(async (task) => {
+      if (abort.signal.aborted) return;
+      if (task.status === 'succeeded' || task.status === 'needs_review') {
+        setPrepareStatus('已完成准备，正在刷新学习内容…');
+        await refreshRef.current?.();
+      } else {
+        setError(task.error_message || String(task.result?.reason ?? '任务未完成，可以重试。'));
+      }
+    }).catch((caught: unknown) => {
+      if (!abort.signal.aborted) setError(caught instanceof Error ? caught.message : '任务未完成，可以重试。');
+    }).finally(() => {
+      if (abort.signal.aborted) return;
+      setFinishedPrepareTask(pendingPrepare);
+      setPrepareTaskId(null);
+      setPrepareStatus('');
+    });
+    return () => abort.abort();
+  }, [finishedPrepareTask, materialId, pendingPrepare]);
 
   if (!item) {
     return (
@@ -411,11 +451,13 @@ export function LearningPanel({
                 ? '正在整理公式与实验，完成后会自动出现。'
                 : page.note || '本页没有可执行的学习内容；原稿继续可读。'}
           </p>
-          {materialId && page.capabilities.can_explore_locally && page.state === 'unprepared' ? (
-            <button type="button" className={styles.primary} onClick={() => void prepare()} disabled={busy}>
-              {busy ? '准备中…' : '准备本页学习'}
+          {materialId && page.capabilities.can_explore_locally && (page.state === 'unprepared' || (page.state === 'preparing' && error)) ? (
+            <button type="button" className={styles.primary} onClick={() => void prepare()}
+              disabled={prepareStarting || Boolean(pendingPrepare && pendingPrepare !== finishedPrepareTask)}>
+              {prepareStarting || Boolean(pendingPrepare && pendingPrepare !== finishedPrepareTask) ? '准备中…' : '准备本页学习'}
             </button>
           ) : null}
+          {prepareStatus ? <p className={styles.notice} role="status">{prepareStatus}</p> : null}
           {error ? <p className={styles.error} role="alert">{error}</p> : null}
         </div>
       </aside>

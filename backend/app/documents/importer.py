@@ -13,9 +13,11 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.oxml import parse_xml
 from pptx.oxml.ns import qn
+from pptx.text.text import Font
 from ..parsers.pptx_parser import _walk_shapes
 
 EMU_PER_POINT=12700
+NATIVE_IMPORT_VERSION = 2
 NATIVE_PRESETS = {
     'rect', 'ellipse', 'roundRect', 'diamond', 'parallelogram', 'trapezoid',
     'triangle', 'rtTriangle', 'hexagon', 'octagon', 'pentagon', 'star5', 'chevron',
@@ -98,14 +100,25 @@ def _text_properties(frame, style, resolve_color=None):
     for attr in ('left','right','top','bottom'):style['padding_'+attr]=getattr(frame,'margin_'+attr)/EMU_PER_POINT
     style['vertical_align']={1:'top',3:'middle',4:'bottom'}.get(int(frame.vertical_anchor or 1),'top')
     paragraphs=[]
+    list_style=frame._txBody.find(qn('a:lstStyle'))
+    paragraph_fonts=[]
     for p in frame.paragraphs:
         align={1:'left',2:'center',3:'right',4:'justify'}.get(int(p.alignment or 1),'left')
         runs=[]
+        inherited={}
+        if list_style is not None:
+            for tag in ('a:defPPr', f'a:lvl{p.level+1}pPr'):
+                props=list_style.find(qn(tag))
+                default_font=props.find(qn('a:defRPr')) if props is not None else None
+                if default_font is not None:
+                    inherited.update(_font(Font(default_font),resolve_color))
+        paragraph_font={**inherited,**_font(p.font,resolve_color)}
+        paragraph_fonts.append(paragraph_font)
         ordinary=iter(p.runs)
         for entry in p._p:
             if entry.tag==qn('a:r'):
                 r=next(ordinary)
-                runs.append({'text':r.text,'style':_font(r.font,resolve_color)})
+                runs.append({'text':r.text,'style':{**paragraph_font,**_font(r.font,resolve_color)}})
             elif entry.tag==qn('a:br'):
                 runs.append({'text':'\v','style':{}})
             elif entry.tag==qn('a:fld'):
@@ -126,10 +139,9 @@ def _text_properties(frame, style, resolve_color=None):
             if hasattr(extent, 'pt'):paragraph[name]=extent.pt
         paragraphs.append(paragraph)
     if frame.paragraphs:
-        p=frame.paragraphs[0]
-        style.update(_font(p.font, resolve_color))
+        style.update(paragraph_fonts[0])
         style['align']=paragraphs[0]['align']
-        if p.runs:style.update(_font(p.runs[0].font, resolve_color))
+        if paragraphs[0]['runs']:style.update(paragraphs[0]['runs'][0]['style'])
     return paragraphs
 
 
@@ -427,7 +439,7 @@ def _format_style(theme, reference, list_name, offset=1):
     return styles[index] if styles is not None and 0 <= index < len(styles) else None
 
 
-def _shape_appearance(shape, style, theme, mapping):
+def _shape_appearance(shape, style, theme, mapping, background, complex_background):
     props = shape._element.spPr
     appearance = shape._element.find(qn('p:style'))
     preset = props.find(qn('a:prstGeom'))
@@ -450,8 +462,11 @@ def _shape_appearance(shape, style, theme, mapping):
         opacity=max(0,min(1,int(alpha.get('val','100000'))/100000)) if alpha is not None else 1
         return value, value is None, opacity
 
-    fill_ref = appearance.find(qn('a:fillRef')) if appearance is not None else None
-    fill, complex_fill, fill_opacity = read_paint(props, _format_style(theme, fill_ref, 'fillStyleLst'), fill_ref)
+    if shape._element.get('useBgFill') in ('1', 'true'):
+        fill, complex_fill, fill_opacity = background or '#ffffff', complex_background, 1
+    else:
+        fill_ref = appearance.find(qn('a:fillRef')) if appearance is not None else None
+        fill, complex_fill, fill_opacity = read_paint(props, _format_style(theme, fill_ref, 'fillStyleLst'), fill_ref)
     if fill:
         style['fill'] = fill
     line = props.find(qn('a:ln'))
@@ -604,7 +619,11 @@ def import_document(source:Path,title:str,*,asset_root:Path|None=None)->dict:
             elif shape.shape_type in (MSO_SHAPE_TYPE.AUTO_SHAPE, MSO_SHAPE_TYPE.TEXT_BOX,
                                       MSO_SHAPE_TYPE.PLACEHOLDER, MSO_SHAPE_TYPE.FREEFORM):
                 try:
-                    node['shape'], complex_shape, node['opacity'] = _shape_appearance(shape, style, theme, mapping)
+                    node['shape'], complex_shape, node['opacity'] = _shape_appearance(shape, style, theme, mapping, background, complex_background)
+                    transform=shape._element.spPr.xfrm
+                    if (kind=='text' and transform is not None and transform.get('flipV') in ('1','true')
+                            and not (style.get('fill') or style.get('stroke'))):
+                        node['text_rotation_offset']=180
                     paths=_shape_paths(shape)
                     if paths:
                         node['shape_paths']=paths
@@ -631,5 +650,5 @@ def import_document(source:Path,title:str,*,asset_root:Path|None=None)->dict:
                       **({'notes':notes.text} if notes is not None and notes.text else {}),
                       **({'background_color':background} if background else {})})
     return {'schema_version':'1.0','revision':0,'title':title,'source_key':sha256(source.read_bytes()).hexdigest()[:24],
-            'native_import_version':1,
+            'native_import_version':NATIVE_IMPORT_VERSION,
             'pages':pages,'applied_operations':[]}

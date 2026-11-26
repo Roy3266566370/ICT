@@ -101,6 +101,17 @@
   overflow: hidden;
 }
 
+.aiCardPreset {
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--hairline-strong, #c6cfda);
+  border-radius: 6px;
+  background: var(--paper-0, white);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
 .aiCardPlaybar {
   display: flex;
   align-items: center;

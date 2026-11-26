@@ -1,8 +1,9 @@
 /** AI 智能计算方块的载荷契约：解析、清洗与默认示例。 */
 
-import type { RuleControlSpec, RulePreset } from './types.ts';
+import type { CanvasDoc, RuleControlSpec, RulePreset } from './types.ts';
 
 export type AiRulePreferredView = 'auto' | 'shapes' | 'grid' | 'chart' | 'graph' | 'timeline' | 'table';
+export type RuleSampleProfile = 'limit' | 'differential' | 'quadrature' | 'integralApplications' | 'diskDensity';
 
 export interface AiRuleBlockPayload {
   version: 1;
@@ -13,6 +14,9 @@ export interface AiRuleBlockPayload {
   defaultText?: string;
   controls: RuleControlSpec[];
   presets?: RulePreset[];
+  auxiliaryKind?: 'scalar' | 'function2d';
+  sampleProfile?: RuleSampleProfile;
+  presetSource?: 'text' | { param: string; auxiliaryParam?: string };
   preferredView: AiRulePreferredView;
   code: string;
   verificationNote?: string;
@@ -105,6 +109,12 @@ export function normalizeAiRulePayload(value: unknown): AiRuleBlockPayload {
     ? raw.controls.map(normalizeControl).filter((item): item is RuleControlSpec => item !== null).slice(0, 8)
     : [];
   const allowed = new Set(controls.map((control) => control.key));
+  const source = raw.presetSource && typeof raw.presetSource === 'object'
+    ? raw.presetSource as { param?: unknown; auxiliaryParam?: unknown } : undefined;
+  const sourceParam = typeof source?.param === 'string' && allowed.has(source.param) ? source.param : undefined;
+  const auxiliaryParam = sourceParam && raw.auxiliaryKind === 'scalar' && typeof source?.auxiliaryParam === 'string'
+    && source.auxiliaryParam !== sourceParam && KEY_RE.test(source.auxiliaryParam) ? source.auxiliaryParam : undefined;
+  if (auxiliaryParam) allowed.add(auxiliaryParam);
   const presets = Array.isArray(raw.presets)
     ? raw.presets.map((item) => normalizePreset(item, allowed)).filter((item): item is RulePreset => item !== null).slice(0, 4)
     : [];
@@ -120,10 +130,43 @@ export function normalizeAiRulePayload(value: unknown): AiRuleBlockPayload {
     ...(text(raw.defaultText, 4000) ? { defaultText: text(raw.defaultText, 4000) } : {}),
     controls,
     ...(presets.length ? { presets } : {}),
+    ...(raw.auxiliaryKind === 'scalar' || raw.auxiliaryKind === 'function2d' ? { auxiliaryKind: raw.auxiliaryKind } : {}),
+    ...(raw.sampleProfile === 'limit' || raw.sampleProfile === 'differential'
+      || raw.sampleProfile === 'quadrature' || raw.sampleProfile === 'integralApplications' || raw.sampleProfile === 'diskDensity'
+      ? { sampleProfile: raw.sampleProfile } : {}),
+    ...(raw.presetSource === 'text' ? { presetSource: 'text' as const }
+      : sourceParam ? { presetSource: { param: sourceParam, ...(auxiliaryParam ? { auxiliaryParam } : {}) } } : {}),
     preferredView,
     code,
     ...(text(raw.verificationNote, 300) ? { verificationNote: text(raw.verificationNote, 300) } : {}),
   };
+}
+
+/** Apply a preset and update its connected source in the same undoable edit. */
+export function applyRulePreset(doc: CanvasDoc, nodeId: string, preset: RulePreset,
+  sourceSetting?: AiRuleBlockPayload['presetSource']): CanvasDoc {
+  const sourceId = sourceSetting
+    ? doc.wires.find((wire) => wire.to === nodeId && (wire.toPort ?? 'in') === 'in')?.from : undefined;
+  const auxiliaryParam = typeof sourceSetting === 'object' ? sourceSetting.auxiliaryParam : undefined;
+  const auxiliaryId = auxiliaryParam
+    ? doc.wires.find(wire => wire.to === nodeId && wire.toPort === 'aux')?.from : undefined;
+  return { ...doc, nodes: doc.nodes.map((node) => {
+    if (node.id === nodeId) return { ...node, params: { ...node.params, ...preset.params } };
+    if (node.id === auxiliaryId && node.id !== sourceId && auxiliaryParam) {
+      const value = preset.params[auxiliaryParam];
+      return node.type === 'slider' && value !== undefined ? { ...node, params: { ...node.params, v: value } } : node;
+    }
+    if (node.id !== sourceId || !sourceSetting) return node;
+    if (sourceSetting === 'text') {
+      return preset.text && (node.type === 'functionSource' || node.type === 'func2dSource' || node.type === 'vectorFieldSource'
+        || node.type === 'graphSource' || node.type === 'arraySource' || node.type === 'memAddrSource' || node.type === 'pageRefSource'
+        || node.type === 'bizTableSource')
+        ? { ...node, text: preset.text } : node;
+    }
+    const value = preset.params[sourceSetting.param];
+    return node.type === 'slider' && value !== undefined
+      ? { ...node, params: { ...node.params, v: value } } : node;
+  }) };
 }
 
 export function parseAiRulePayload(raw: string | undefined): AiRuleBlockPayload | null {

@@ -1,28 +1,292 @@
 .workbench {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   height: 100dvh;
-  background: #f7f4ed;
+  overflow: hidden;
+  background: #eceae4;
 }
 
-.header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  padding: 7px 20px;
-  border-bottom: 1px solid #e7e0d3;
-  background: #fff;
-}
-
-.heading { display: flex; align-items: center; gap: 12px; min-width: 0; color: #1e2a3b; }
-.heading a { color: inherit; font-weight: 800; text-decoration: none; white-space: nowrap; }
-.heading h1 { overflow: hidden; margin: 0; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.surface { grid-row: 2; min-height: 0; --workbench-surface-height: 100%; }
+.headerActions { display: flex; align-items: center; }
+.surface { flex: 1; min-height: 0; overflow: hidden; --workbench-surface-height: 100%; }
 .preview { height: 100%; }
+.preview[hidden] { display: none; }
 
-@media (max-width: 600px) {
-  .header { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 5px; padding: 6px 10px; }
-  .heading { max-width: 100%; }
+/* ================= PPTX 转换加载页（A + B 组合） ================= */
+.loaderPage {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px clamp(16px, 3vw, 36px);
+  background:
+    radial-gradient(circle at 14% 12%, rgba(194, 89, 40, 0.06), transparent 38%),
+    radial-gradient(circle at 86% 84%, rgba(79, 70, 229, 0.06), transparent 42%),
+    #f6f4ee;
+  color: #181d24;
+}
+
+.loaderCard {
+  width: min(100%, 580px);
+  background: #ffffff;
+  border: 1px solid rgba(24, 29, 36, 0.09);
+  border-radius: 20px;
+  padding: 32px clamp(20px, 4vw, 38px) 28px;
+  box-shadow: 0 2px 6px rgba(24, 29, 36, 0.04), 0 18px 42px rgba(24, 29, 36, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.awakeSvg {
+  width: 220px;
+  height: 132px;
+  margin-bottom: 6px;
+}
+
+.cardFloat { animation: cardFloat 3.6s ease-in-out infinite; }
+.scanBeam { animation: scanMove 2.8s ease-in-out infinite; }
+.waveAlive {
+  stroke-dasharray: 180;
+  stroke-dashoffset: 180;
+  animation: drawWave 2.8s ease-in-out infinite;
+}
+.knobSlide { animation: knobMove 2.8s ease-in-out infinite; }
+.dotPulse {
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: dotPop 2.8s ease-in-out infinite;
+}
+
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes scanMove {
+  0% { transform: translateX(-12px); opacity: 0; }
+  12% { opacity: 1; }
+  75% { transform: translateX(162px); opacity: 1; }
+  90% { transform: translateX(176px); opacity: 0; }
+  100% { transform: translateX(-12px); opacity: 0; }
+}
+@keyframes drawWave {
+  0%, 10% { stroke-dashoffset: 180; opacity: 0.2; }
+  55%, 88% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.2; }
+}
+@keyframes knobMove {
+  0%, 20% { transform: translateX(0); }
+  55% { transform: translateX(34px); }
+  82% { transform: translateX(14px); }
+  100% { transform: translateX(0); }
+}
+@keyframes dotPop {
+  0%, 25% { transform: scale(0.5); opacity: 0.2; }
+  55% { transform: scale(1.25); opacity: 1; }
+  80% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(0.5); opacity: 0.2; }
+}
+
+.loaderTitle {
+  margin: 4px 0 6px;
+  font-family: "Songti SC", "STSong", "Noto Serif SC", Georgia, serif;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.loaderSubtitle {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: #4b5563;
+  min-height: 20px;
+}
+
+.stepsRail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  margin: 4px 0 18px;
+}
+
+.stepItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.stepDot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-family-mono, Consolas, monospace);
+  background: #efede7;
+  color: #8791a0;
+  border: 2px solid transparent;
+  transition: all 0.25s ease;
+}
+
+.stepItem[data-state='done'] .stepDot {
+  background: #f0fdfa;
+  color: #0d9488;
+  border-color: #0d9488;
+}
+
+.stepItem[data-state='active'] .stepDot {
+  background: #4f46e5;
+  color: #fff;
+  box-shadow: 0 0 0 5px rgba(79, 70, 229, 0.16);
+  animation: stepPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes stepPulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.14); }
+  50% { box-shadow: 0 0 0 8px rgba(79, 70, 229, 0.24); }
+}
+
+.stepLabel {
+  font-size: 12px;
+  color: #8791a0;
+  white-space: nowrap;
+}
+
+.stepItem[data-state='done'] .stepLabel { color: #0d9488; font-weight: 500; }
+.stepItem[data-state='active'] .stepLabel { color: #4f46e5; font-weight: 600; }
+
+.progressBox {
+  width: 100%;
+  margin: 2px 0 10px;
+}
+
+.progressTrack {
+  position: relative;
+  height: 8px;
+  width: 100%;
+  border-radius: 999px;
+  background: #eceae4;
+  overflow: hidden;
+}
+
+.progressFill {
+  position: relative;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #c25928 0%, #dc6f39 60%, #4f46e5 100%);
+  transition: width 0.35s ease;
+  overflow: hidden;
+}
+
+.progressFill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.8s infinite ease-in-out;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(180%); }
+}
+
+.progressMeta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8791a0;
+  font-family: var(--font-family-mono, Consolas, monospace);
+}
+
+.progressMeta strong { color: #181d24; font-weight: 600; }
+
+.matrixWrap {
+  width: 100%;
+  margin-top: 12px;
+  text-align: left;
+}
+
+.matrixHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #8791a0;
+  margin-bottom: 6px;
+}
+
+.matrixGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.pageCell {
+  height: 14px;
+  border-radius: 4px;
+  background: #efede7;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+
+.pageCell[data-cell='done'] {
+  background: linear-gradient(135deg, #d97742, #c25928);
+  box-shadow: 0 1px 3px rgba(194, 89, 40, 0.22);
+}
+
+.pageCell[data-cell='current'] {
+  background: #eef2ff;
+  border: 1.5px solid #4f46e5;
+  animation: cellBlink 1s ease-in-out infinite;
+}
+
+@keyframes cellBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.loaderTip {
+  margin: 14px 0 0;
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: #faf8f4;
+  color: #4b5563;
+  font-size: 12px;
+  line-height: 1.55;
+  width: 100%;
+}
+
+.earlyBtn {
+  margin-top: 14px;
+  padding: 8px 16px;
+  border: 1px solid #4f46e5;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+
+.earlyBtn:hover {
+  background: #4f46e5;
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardFloat, .scanBeam, .waveAlive, .knobSlide, .dotPulse,
+  .stepItem[data-state='active'] .stepDot, .progressFill::after,
+  .pageCell[data-cell='current'] {
+    animation: none;
+  }
+  .waveAlive { stroke-dashoffset: 0; opacity: 1; }
 }

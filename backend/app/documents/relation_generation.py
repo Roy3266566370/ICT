@@ -46,7 +46,7 @@ class RelationProposal(StructuredOutput):
     warnings: list[str] = Field(default_factory=list, max_length=8)
 
 
-PROMPT = """你是万象活页的动态关系编排助手。根据用户的自然语言指令和当前页面对象列表，输出严格合法的 JSON 关系提案。
+PROMPT = """你是通文册的动态关系编排助手。根据用户的自然语言指令和当前页面对象列表，输出严格合法的 JSON 关系提案。
 只输出 JSON 对象：{"summary":"一句话中文说明","relations":[...],"viewer_updates":[...],"warnings":[]}。
 
 支持四类关系（relations 数组，每项必须有唯一 ASCII id，provenance 填 "user"，enabled 填 true）：

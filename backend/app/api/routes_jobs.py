@@ -287,7 +287,7 @@ def _persist_ispecs(material: MaterialRecord, slides_payload: Mapping[str, Any],
     识别失败不阻断上传链路（材料仍可读），只降低识别结论为"未识别"。
     产物为空数组时也必须落盘：显式表达"没有交互区域"，绝不回退示例区域。
     当 ``fast_upload=True`` 时跳过耗时的整本图片 OCR / 视觉读图 / LLM 猜测，
-    直接以极速模式生成空自动交互（用户可在编辑页直接插入万象工坊插件，或按需点击“重新提取本页交互”）。
+    直接以极速模式生成空自动交互（用户可在编辑页直接插入定象坊插件，或按需点击“重新提取本页交互”）。
     """
 
     fallback_reason = "识别层未产出 iSpec；未回退到公共示例区域"
@@ -296,7 +296,7 @@ def _persist_ispecs(material: MaterialRecord, slides_payload: Mapping[str, Any],
         errors: list[dict[str, Any]] = []
         recognition: dict[str, Any] = {
             "found": False,
-            "reason": "已跳过耗时的自动公式识别，请直接浏览 PPT 或在编辑页插入万象工坊交互插件",
+            "reason": "已跳过耗时的自动公式识别，请直接浏览 PPT 或在编辑页插入定象坊交互插件",
         }
         image_recognition: dict[str, Any] = {}
         figure_scenes: dict[str, Any] = {}
@@ -647,7 +647,7 @@ def _run_upload_pipeline(
     page_count = persist_slides(db, material, slides_payload or {})
 
     # 上传主链路默认走极速模式：跳过整本图片 OCR / 视觉读图 / LLM 猜公式，
-    # 仅渲染底图与保存版式结构，让 PPT 秒开；交互能力由编辑页直接插入万象工坊插件承接。
+    # 仅渲染底图与保存版式结构，让 PPT 秒开；交互能力由编辑页直接插入定象坊插件承接。
     _persist_ispecs(material, slides_payload or {}, fast_upload=native_changed)
 
     try:

@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
-import { PHYSICS_TEMPLATES, PHYSICS_TOPICS } from '../src/canvas/physicsTemplates';
+import { PHYSICS_TEMPLATES, PHYSICS_TOPICS, VISIBLE_PHYSICS_TEMPLATES } from '../src/canvas/physicsTemplates';
 import type { CanvasDoc } from '../src/canvas/types';
 
 const WIDE = { width: 1440, height: 900 };
+const LEGACY_TEMPLATES = PHYSICS_TEMPLATES.filter((template) => template.legacy);
 const inspector = (page: Page) => page.getByRole('complementary', { name: '结果与参数' });
 
 test.beforeEach(async ({ page }) => {
@@ -39,12 +40,19 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function openPhysicsTemplate(page: Page, kind: string): Promise<void> {
-  const template = PHYSICS_TEMPLATES.find((item) => item.kind === kind);
+  const template = VISIBLE_PHYSICS_TEMPLATES.find((item) => item.kind === kind);
   expect(template, `缺少物理模板 ${kind}`).toBeTruthy();
   await page.goto(`/workshop?subject=mechanics&q=${encodeURIComponent(template!.name)}`);
   const card = page.locator('button').filter({ has: page.getByText(template!.name, { exact: true }) }).first();
   await card.click();
   await expect(page).toHaveURL(/\/canvas\?work=/);
+  await expect(page.locator('[class*="aiCardShell"]').first()).toBeVisible();
+}
+
+async function openLegacyTemplate(page: Page, kind: string): Promise<void> {
+  const template = LEGACY_TEMPLATES.find((item) => item.kind === kind);
+  expect(template, `缺少旧物理模板 ${kind}`).toBeTruthy();
+  await page.goto(`/canvas?template=${encodeURIComponent(kind)}`);
   await expect(page.locator('[data-physics-module]').first()).toBeVisible();
 }
 
@@ -53,14 +61,15 @@ async function selectPhysicsStage(page: Page, stageId: string): Promise<void> {
   await expect(inspector(page).locator(`[data-physics-stage="${stageId}"]`)).toBeVisible();
 }
 
-test('physics catalog lists four topics and all twelve pipeline cards', async ({ page }) => {
+test('physics catalog lists five topics and the ten panorama sandboxes', async ({ page }) => {
   await page.goto('/workshop?subject=mechanics');
   await expect(page.getByRole('button', { name: /^大学物理 · \d+$/ })).toHaveAttribute('aria-pressed', 'true');
-  expect(PHYSICS_TOPICS).toHaveLength(4);
-  expect(PHYSICS_TEMPLATES).toHaveLength(12);
-  await expect(page.locator('[class*="tplCard"]')).toHaveCount(12);
+  expect(PHYSICS_TOPICS).toHaveLength(5);
+  expect(VISIBLE_PHYSICS_TEMPLATES).toHaveLength(10);
+  expect(PHYSICS_TEMPLATES).toHaveLength(22);
+  await expect(page.locator('[class*="tplCard"]')).toHaveCount(10);
   for (const topic of PHYSICS_TOPICS) {
-    const expected = PHYSICS_TEMPLATES.filter((template) => template.topic === topic.id);
+    const expected = VISIBLE_PHYSICS_TEMPLATES.filter((template) => template.topic === topic.id);
     const section = page.getByLabel(topic.name, { exact: true });
     await expect(section.getByRole('heading', { name: topic.name, exact: true })).toBeVisible();
     await expect(section.getByText(`${expected.length} 个实验`, { exact: true })).toBeVisible();
@@ -70,15 +79,26 @@ test('physics catalog lists four topics and all twelve pipeline cards', async ({
       await expect(section.getByText(template.desc, { exact: true })).toBeVisible();
     }
   }
-  await expect(page.getByText('已预设仪器面板 · 可嵌入活页', { exact: true })).toHaveCount(12);
 });
 
-test('all twelve physics pipelines load wired cards and a working inspector', async ({ page }) => {
+test('panorama sandboxes open with wired rule blocks and no page errors', async ({ page }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  for (const template of PHYSICS_TEMPLATES) {
+  for (const template of VISIBLE_PHYSICS_TEMPLATES) {
     await openPhysicsTemplate(page, template.kind);
+    expect(await page.locator('[class*="aiCardShell"]').count()).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => page.locator('[data-wire]').count()).toBeGreaterThanOrEqual(2);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('all twelve legacy pipelines still open via template URL', async ({ page }) => {
+  test.setTimeout(240_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  for (const template of LEGACY_TEMPLATES) {
+    await openLegacyTemplate(page, template.kind);
     expect(await page.locator('[data-physics-module]').count()).toBeGreaterThanOrEqual(4);
     await expect.poll(() => page.locator('[data-wire]').count()).toBeGreaterThanOrEqual(3);
     await page.locator('[data-physics-module]').first().getByRole('button', { name: /^拖动/ }).press('Enter');
@@ -92,7 +112,7 @@ test('all twelve physics pipelines load wired cards and a working inspector', as
 test('projectile preset propagates through both branches and updates the comparison', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await openPhysicsTemplate(page, 'projectile-drag');
+  await openLegacyTemplate(page, 'projectile-drag');
   await selectPhysicsStage(page, 'source');
   await inspector(page).getByRole('button', { name: '无阻力对照', exact: true }).click();
   await selectPhysicsStage(page, 'compare');

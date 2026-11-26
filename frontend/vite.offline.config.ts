@@ -23,7 +23,7 @@ export default defineConfig(({mode}) => {
     plugins:[react(),...(lite?[liteFonts()]:[])],
     resolve:{alias:[
       {find:'@',replacement:path.join(root,'src')},
-      ...(lite?[{find:/^\.\/(?:FormulaCardEditor|FormulaReviewDialog|Scene3dNodeView|MermaidNodeView)$/,replacement:liteFeatures}]:[]),
+      ...(lite?[{find:/^\.\/(?:FormulaCardEditor|Scene3dNodeView|MermaidNodeView)$/,replacement:liteFeatures}]:[]),
     ]},
     define:{'process.env.NODE_ENV':JSON.stringify('production')},
     build:{

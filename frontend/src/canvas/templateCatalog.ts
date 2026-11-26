@@ -1,16 +1,18 @@
 /**
- * templateCatalog.ts —— 万象工坊模板统一构造入口
+ * templateCatalog.ts —— 定象坊模板统一构造入口
  *
  * 供 WorkshopPage 与 CanvasPage（?template=<kind>）共用：
  * 打开内置模板直接在客户端组装 CanvasDoc，不再自动向「我的作品」写入副本。
  */
 import type { CanvasDoc } from './types.ts';
+import type { WorkshopPluginConfig } from '../document/types.ts';
 import { deepWorkshopDoc } from './deepWorkshop.ts';
 import { DEEP_TEMPLATES, isDeepTemplateKind } from './deepTemplates.ts';
-import { LAB408_TEMPLATES, isLab408Kind, lab408TemplateDoc } from './lab408Templates.ts';
-import { PHYSICS_TEMPLATES, physicsTemplateDoc, type PhysicsTemplateKind } from './physicsTemplates.ts';
-import { CALCULUS_TEMPLATES, calculusTemplateDoc } from './calculusTemplates.ts';
-import { BUSINESS_TEMPLATES, businessTemplateDoc, isBusinessTemplateKind } from './businessTemplates.ts';
+import { LAB408_TEMPLATES, VISIBLE_LAB408_TEMPLATES, isLab408Kind, lab408TemplateDoc } from './lab408Templates.ts';
+import { PHYSICS_TEMPLATES, VISIBLE_PHYSICS_TEMPLATES, physicsTemplateDoc, type PhysicsTemplateKind } from './physicsTemplates.ts';
+import { CALCULUS_TEMPLATES, VISIBLE_CALCULUS_TEMPLATES, calculusTemplateDoc } from './calculusTemplates.ts';
+import { BUSINESS_TEMPLATES, VISIBLE_BUSINESS_TEMPLATES, businessTemplateDoc, isBusinessTemplateKind } from './businessTemplates.ts';
+import { LINALG_TEMPLATES, VISIBLE_LINALG_TEMPLATES, linalgTemplateDoc, isLinalgTemplateKind } from './linalgTemplates.ts';
 
 const PHYSICS_KINDS: ReadonlySet<string> = new Set(PHYSICS_TEMPLATES.map((t) => t.kind));
 
@@ -23,10 +25,11 @@ export function buildTemplateDoc(kind: string): CanvasDoc {
   if (isLab408Kind(kind)) return lab408TemplateDoc(kind);
   if (isPhysicsTemplateKind(kind)) return physicsTemplateDoc(kind);
   if (isBusinessTemplateKind(kind)) return businessTemplateDoc(kind);
+  if (isLinalgTemplateKind(kind)) return linalgTemplateDoc(kind);
   return calculusTemplateDoc(kind);
 }
 
-const workshopTemplates = [...CALCULUS_TEMPLATES, ...PHYSICS_TEMPLATES, ...LAB408_TEMPLATES, ...DEEP_TEMPLATES, ...BUSINESS_TEMPLATES];
+const workshopTemplates = [...CALCULUS_TEMPLATES, ...LINALG_TEMPLATES, ...PHYSICS_TEMPLATES, ...LAB408_TEMPLATES, ...DEEP_TEMPLATES, ...BUSINESS_TEMPLATES];
 
 export function findWorkshopTemplate(kind: string | undefined, title: string) {
   return workshopTemplates.find((template) => template.kind === kind)
@@ -35,6 +38,7 @@ export function findWorkshopTemplate(kind: string | undefined, title: string) {
 
 const workshopFormulas: Record<string, string> = {
   ...Object.fromEntries(BUSINESS_TEMPLATES.map(({ kind, formula }) => [kind, formula])),
+  ...Object.fromEntries(LINALG_TEMPLATES.map(({ kind, formula }) => [kind, formula])),
   'projectile-drag': 'm·dv/dt = mg − kv',
   'incline-friction': 'tan α = μ',
   'collision-momentum': 'Σp初 = Σp末',
@@ -88,19 +92,43 @@ export interface WorkshopPluginEntry {
   kind: string;
   name: string;
   desc: string;
-  category: '高等数学' | '大学物理' | '408 专题' | '深度学习' | '办公决策';
+  category: '高等数学' | '线性代数' | '大学物理' | '408 专题' | '深度学习' | '办公决策';
   formula?: string;
   keywords?: readonly string[];
 }
 
+export function workshopPluginConfigForTemplate(
+  { kind, name, category }: Pick<WorkshopPluginEntry, 'kind' | 'name' | 'category'>,
+): WorkshopPluginConfig {
+  const config = { template_kind: kind, title: name, category };
+  // Older offline runtimes can run the shipped rule nodes without a new catalog entry.
+  return isLinalgTemplateKind(kind) ? { ...config, display_mode: 'full', doc: linalgTemplateDoc(kind) } : config;
+}
+
 export const WORKSHOP_PLUGIN_CATALOG: readonly WorkshopPluginEntry[] = [
-  ...CALCULUS_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '高等数学' as const, formula: t.formula ?? workshopFormulas[t.kind] })),
-  ...PHYSICS_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '大学物理' as const, formula: workshopFormulas[t.kind] })),
-  ...LAB408_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '408 专题' as const, formula: workshopFormulas[t.kind] })),
+  ...VISIBLE_CALCULUS_TEMPLATES.map(({ kind, name, desc, formula, keywords }) =>
+    ({ kind, name, desc, category: '高等数学' as const, formula, keywords })),
+  ...VISIBLE_LINALG_TEMPLATES.map(({ kind, name, desc, formula, keywords }) =>
+    ({ kind, name, desc, category: '线性代数' as const, formula, keywords })),
+  ...VISIBLE_PHYSICS_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '大学物理' as const, formula: t.formula ?? workshopFormulas[t.kind], keywords: t.keywords })),
+  ...VISIBLE_LAB408_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '408 专题' as const, formula: t.formula ?? workshopFormulas[t.kind], keywords: t.keywords })),
   ...DEEP_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '深度学习' as const, formula: workshopFormulas[t.kind] })),
-  ...BUSINESS_TEMPLATES.map(({ kind, name, desc, formula, keywords }) =>
+  ...VISIBLE_BUSINESS_TEMPLATES.map(({ kind, name, desc, formula, keywords }) =>
     ({ kind, name, desc, category: '办公决策' as const, formula, keywords })),
 ];
+
+const categoryGroups: ReadonlyArray<readonly [WorkshopPluginEntry['category'], readonly { kind: string }[]]> = [
+  ['高等数学', CALCULUS_TEMPLATES], ['线性代数', LINALG_TEMPLATES], ['大学物理', PHYSICS_TEMPLATES],
+  ['408 专题', LAB408_TEMPLATES], ['深度学习', DEEP_TEMPLATES], ['办公决策', BUSINESS_TEMPLATES],
+];
+
+export function workshopCategory(...kinds: (string | undefined)[]): WorkshopPluginEntry['category'] | undefined {
+  for (const kind of kinds) {
+    const group = kind ? categoryGroups.find(([, templates]) => templates.some((t) => t.kind === kind)) : undefined;
+    if (group) return group[0];
+  }
+  return undefined;
+}
 
 export function workshopFormula(kind: string | undefined): string | undefined {
   return kind && Object.hasOwn(workshopFormulas, kind) ? workshopFormulas[kind] : undefined;

@@ -28,11 +28,12 @@ export interface FrameShapes {
 
 export interface FrameGrid {
   cells: number[][];
+  mask?: boolean[][];
   rowLabels?: string[];
   colLabels?: string[];
   min?: number;
   max?: number;
-  palette?: 'heat' | 'diverging' | 'binary';
+  palette?: 'heat' | 'diverging' | 'binary' | 'error';
   showValues?: boolean;
   activeCell?: [number, number];
 }

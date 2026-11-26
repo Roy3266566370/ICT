@@ -317,7 +317,7 @@ class LabShareRecord(Base):
 
 
 class LivingPageRecord(Base):
-    """万象活页：由任意文件转换而成的"保真层 + 激活层"块序列。
+    """通文册：由任意文件转换而成的"保真层 + 激活层"块序列。
 
     ``document`` JSON 存 ``page.1`` 文档（blocks + suggestions + source），
     块级学生进度单独放 ``living_page_progress``，避免每次交互都重写整个文档。
@@ -387,7 +387,7 @@ class LivingProgressRecord(Base):
 
 
 class WorkshopWorkRecord(Base):
-    """万象工坊作品：一张画布文档（CanvasDoc JSON）。
+    """定象坊作品：一张画布文档（CanvasDoc JSON）。
 
     ``forked_from_share`` 记录作品谱系——fork 别人的发布作品时指回来源分享，
     画廊可以数出"这个作品被改造过几次"。

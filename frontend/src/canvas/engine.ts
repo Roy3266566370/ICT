@@ -17,6 +17,8 @@ import type { CanvasDoc, CanvasNode, PortValue } from './types.ts';
 import { mul2, paramsM, rot2, IDENT } from './math.ts';
 import { PHYS_TYPES, bodyAt, physCycle, type PhysNodeType } from './physics.ts';
 import { functionValue, function2dValue, compileFunction, derivativeAt, integrate, approachLimit, taylorPolynomial } from './calculus.ts';
+import { sampleDiskDensity } from './calculusDisk.ts';
+import { vectorFieldValue } from './calculusField.ts';
 import { DEEP_NODE_TYPES, validDeepValue } from './deepPorts.ts';
 import { isStudyStage, studyOutput } from './studyStages.ts';
 import { deepFirstOutput } from './deepFirst.ts';
@@ -35,7 +37,7 @@ import {
 } from './officeBlocks.ts';
 import { emFieldFromParams, opticsField, rlcWaveform, thermoCycle } from './physicsBlocks.ts';
 import { combineFunctions, probabilitySeries, svd2x2 } from './calculusBlocks.ts';
-import { arrayFromParams, graphFromText, memoryAddressStream } from './lab408Blocks.ts';
+import { arrayFromParams, graphFromText, memoryAddressStream, pageRefStream } from './lab408Blocks.ts';
 import {
   DEFAULT_LORA_MATRIX,
   DEFAULT_LOSS_PREDICTIONS,
@@ -152,11 +154,22 @@ function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | nu
       try { return functionValue(node.text ?? 'a*x^2+b*x+c', node.params); } catch { return null; }
     }
     case 'func2dSource': {
-      try { return function2dValue(node.text ?? 'a*x^2+b*y^2', node.params); } catch { return null; }
+      const a = evalInput(ctx, node, 'a');
+      const params = a?.kind === 'scalar' ? { ...node.params, a: a.v } : node.params;
+      try { return function2dValue(node.text ?? 'a*x^2+b*y^2', params); } catch { return null; }
+    }
+    case 'vectorFieldSource':
+      try { return vectorFieldValue(node.text); } catch { return null; }
+    case 'doubleIntegralView': {
+      const value = evalInput(ctx, node, 'in');
+      if (value?.kind !== 'function2d') return null;
+      const result = sampleDiskDensity(value);
+      return result.mass === undefined ? null : { kind: 'scalar', v: result.mass };
     }
     case 'derivative':
     case 'integral':
     case 'limitProbe':
+    case 'ftcView':
     case 'taylor': {
       const value = evalInput(ctx, node, 'in');
       if (value?.kind !== 'function') return null;
@@ -165,12 +178,20 @@ function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | nu
       try {
         const f = compileFunction(value);
         if (node.type === 'derivative') return { kind: 'scalar', v: derivativeAt(f, x) };
-        if (node.type === 'integral') return { kind: 'scalar', v: integrate(f, node.params.lower ?? 0, node.params.upper ?? 1, node.params.n ?? 12, node.params.method ?? 1, !!node.params.area).reference };
+        if (node.type === 'integral') {
+          const divisions = evalInput(ctx, node, 'n');
+          const n = divisions?.kind === 'scalar' ? divisions.v : node.params.n ?? 12;
+          return { kind: 'scalar', v: integrate(f, node.params.lower ?? 0, node.params.upper ?? 1, n, node.params.method ?? 1, !!node.params.area).reference };
+        }
+        if (node.type === 'ftcView') {
+          return { kind: 'scalar', v: integrate(f, node.params.a ?? 0, node.params.x ?? 1, 128).sum };
+        }
         if (node.type === 'limitProbe') {
           const candidate = approachLimit(f, x, node.params.side ?? 0).candidate;
           return candidate === null ? null : { kind: 'scalar', v: candidate };
         }
-        return taylorPolynomial(f, node.params.center ?? 0, node.params.degree ?? 3).value;
+        const center = evalInput(ctx, node, 'center');
+        return taylorPolynomial(f, center?.kind === 'scalar' ? center.v : node.params.center ?? 0, node.params.degree ?? 3).value;
       } catch { return null; }
     }
     case 'bizTableSource':
@@ -268,6 +289,8 @@ function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | nu
       try { return graphFromText(node.text ?? ''); } catch { return null; }
     case 'memAddrSource':
       try { return memoryAddressStream(node.params, node.text ?? ''); } catch { return null; }
+    case 'pageRefSource':
+      try { return pageRefStream(node.params, node.text ?? ''); } catch { return null; }
     case 'lossProbeOp': {
       const input = evalInput(ctx, node, 'in');
       const matrix = input?.kind === 'tensor2d' ? sanitizeMatrix(input.data) : null;

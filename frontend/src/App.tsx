@@ -9,8 +9,6 @@
  */
 import {
   Component,
-  useEffect,
-  useState,
   type ErrorInfo,
   type ReactElement,
   type ReactNode,
@@ -63,78 +61,6 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, AppErrorBounda
 }
 
 /**
- * 全局一步回首页（P0-03）。
- *
- * `RouterProvider` 内部不暴露公共的全局导航容器，而 `routes.tsx` 的写集属于 #27；
- * 因此这里订阅 `router` 的位置变化，在任意非首页路由上挂一个固定的"回首页"入口，
- * 保证工作台 / 准备页 / 分享页 / 404 都能一步回到 `/`。
- */
-function GlobalHomeShortcut(): ReactElement | null {
-  const [pathname, setPathname] = useState<string>(() => router.state.location.pathname);
-
-  useEffect(() => {
-    const unsubscribe = router.subscribe(() => {
-      setPathname(router.state.location.pathname);
-    });
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  if (
-    pathname === '/' ||
-    // /login、/register 页头右上角已有「返回首页」，不重复挂全局快捷入口（R8-7）
-    pathname === '/login' ||
-    pathname === '/register' ||
-    pathname === '/canvas' ||
-    pathname === '/workshop' ||
-    pathname.startsWith('/work-shares/') ||
-    pathname.startsWith('/p/') ||
-    pathname.startsWith('/labs') ||
-    pathname.startsWith('/lab-share/') ||
-    pathname.startsWith('/examples') ||
-    pathname.startsWith('/settings') ||
-    pathname === '/trust-demo' ||
-    pathname.endsWith('/work')
-  ) {
-    // 这些页面已经有 SiteNav / 自身返回入口，不再叠加浮动「首页」按钮。
-    return null;
-  }
-
-  return (
-    <a
-      className="app-home-shortcut"
-      href="/"
-      aria-label="返回首页"
-      style={{
-        position: 'fixed',
-        right: '18px',
-        bottom: '18px',
-        zIndex: 90,
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '7px 11px',
-        borderRadius: 0,
-        border: '1px solid #101211',
-        background: 'rgba(250, 248, 241, 0.94)',
-        color: '#34372f',
-        fontSize: '10px',
-        fontFamily: 'var(--font-family-mono)',
-        letterSpacing: '.05em',
-        textDecoration: 'none',
-        boxShadow: '3px 3px 0 #de421f',
-      }}
-    >
-      <span aria-hidden="true" style={{ fontSize: '10px', color: '#ac2c10' }}>
-        ↑
-      </span>
-      首页
-    </a>
-  );
-}
-
-/**
  * 私有查询 401 的唯一收口（R4-AC8 / §2.2 C-SESSION@1 `App.tsx` 变更点）。
  *
  * 只对「私有 queryKey **且** 错误码为 AUTH_REQUIRED」生效：其它错误（含访客会话的
@@ -171,7 +97,6 @@ export default function App(): ReactElement {
         {/* 账号恢复必须在 Provider 内、路由之前：所有页面共享同一份账号状态 */}
         <AccountSessionBootstrap />
         <MotionPreferenceProvider>
-          <GlobalHomeShortcut />
           <RouterProvider
             router={router}
             future={{ v7_startTransition: true }}

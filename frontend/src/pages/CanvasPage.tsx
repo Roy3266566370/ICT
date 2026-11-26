@@ -1,8 +1,8 @@
 /**
- * CanvasPage.tsx —— 万象工坊·画布（/canvas）
+ * CanvasPage.tsx —— 定象坊·画布（/canvas）
  *
  * 万象的主功能形态：一张自由画布，活对象可摆可连线，空白处可手写。
- * 持久化双轨：localStorage 兜底（离线不丢）+ 工坊后端（?work=wk_id 已存作品）。
+ * 持久化双轨：localStorage 兜底（离线不丢）+ 定象坊后端（?work=wk_id 已存作品）。
  * 撤销/重做按编辑突发合并（400ms 内连续改动算一步）；发布后走 work-shares 快照。
  * 对象端口协议、多级求值（engine）、命名端口连线、动画源见 `canvas/` 目录。
  */
@@ -12,6 +12,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { CanvasBoard, type RuleWireRequest } from '@/canvas/CanvasBoard.tsx';
 import { PALETTE_GROUPS, NODE_DEFS } from '@/canvas/nodes.tsx';
 import { buildTemplateDoc } from '@/canvas/templateCatalog.ts';
+import { isCalculusSandboxKind } from '@/canvas/calculusSandboxes.ts';
 import { defaultAiRuleParams, serializeAiRulePayload, type AiRuleBlockPayload } from '@/canvas/aiRuleBlock.ts';
 import { customBlockBadge, instantiateCustomBlock, listCustomBlocks, removeCustomBlock, saveCustomAiRuleBlock, type CustomBlockRecord } from '@/canvas/customBlocks.ts';
 import { BlockCreatorModal } from '@/canvas/BlockCreatorModal.tsx';
@@ -97,7 +98,7 @@ function seedDoc(): CanvasDoc {
   const P = nextId('n');
   return {
     version: 1,
-    title: '我的工坊画布',
+    title: '我的定象坊画布',
     zoom: 1,
     nodes: [
       { id: nextId('n'), type: 'textNote', x: 70, y: 40, params: {}, text: '上面是数学链：改矩阵源，六个连着的对象同变。\n中间是自动链：时间源推着旋转器跑。\n下面是力学实验台：抛体自己跑，轨迹仪和能量表跟着动。' },
@@ -166,13 +167,30 @@ function loadDoc(): CanvasDoc | null {
 }
 
 export function CanvasPage(): JSX.Element {
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const { state: navigationState } = useLocation();
   const navigate = useNavigate();
+  const returnOriginRef = useRef<{ from: string; fromLabel: string; restoreScroll?: boolean }>({
+    from: '/workshop',
+    fromLabel: '← 定象坊目录',
+  });
+  const navOrigin = navigationState as { from?: string; fromLabel?: string; restoreScroll?: boolean } | null;
+  if (typeof navOrigin?.from === 'string' && navOrigin.from.startsWith('/')) {
+    returnOriginRef.current = {
+      from: navOrigin.from,
+      fromLabel: typeof navOrigin.fromLabel === 'string' && navOrigin.fromLabel ? navOrigin.fromLabel : '← 定象坊目录',
+      restoreScroll: navOrigin.restoreScroll,
+    };
+  }
+  const backOrigin = returnOriginRef.current;
   const workIdParam = params.get('work');
   const templateParam = params.get('template');
+  const customBlockParam = params.get('customBlock');
+  const handledCustomBlock = useRef<string | null>(null);
+  const blankBlockFallback = useRef<CanvasDoc | null>(null);
+  const [customBlockNotice, setCustomBlockNotice] = useState('');
   const [doc, setDocRaw] = useState<CanvasDoc>(() => {
-    if (navigationState?.blank === true) {
+    if (navigationState?.blank === true || (customBlockParam !== null && !workIdParam)) {
       return { version: 1, title: '空白画布', zoom: 1, nodes: [], wires: [], strokes: [] };
     }
     if (templateParam) {
@@ -197,7 +215,8 @@ export function CanvasPage(): JSX.Element {
     try { localStorage.setItem(DOCK_KEY, hidden ? '1' : '0'); } catch { /* 隐私模式静默失败 */ }
   };
   const paletteButton = useRef<HTMLButtonElement>(null);
-  const [activeMode, setMode] = useState<'instrument' | 'compose'>(() => doc.panel ? 'instrument' : 'compose');
+  const [activeMode, setMode] = useState<'instrument' | 'compose'>(() =>
+    doc.panel && !isCalculusSandboxKind(templateParam) ? 'instrument' : 'compose');
   useEffect(() => { if (paletteOpen) paletteSearch.current?.focus(); }, [paletteOpen]);
   const closePalette = () => {
     setPaletteOpen(false);
@@ -312,24 +331,63 @@ export function CanvasPage(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (navigationState?.blank === true) navigate('/canvas', { replace: true, state: null });
-  }, [navigationState, navigate]);
+    if (navigationState?.blank === true && customBlockParam === null) {
+      navigate('/canvas', { replace: true, state: returnOriginRef.current });
+    }
+  }, [navigationState, navigate, customBlockParam]);
+
+  useEffect(() => {
+    if (customBlockParam === null) {
+      handledCustomBlock.current = null;
+      return;
+    }
+    if (workIdParam || handledCustomBlock.current === customBlockParam) return;
+    handledCustomBlock.current = customBlockParam;
+    const block = listCustomBlocks().find(item => item.id === customBlockParam);
+    const next: CanvasDoc = {
+      version: 1, title: block?.title ?? '空白画布', zoom: 1, wires: [], strokes: [],
+      nodes: block ? [instantiateCustomBlock(block, 240, 160)] : [],
+    };
+    const present = docRef.current;
+    const previous = present.nodes.length || present.strokes.length ? present : loadDoc();
+    const history = previous && (previous.nodes.length || previous.strokes.length) ? [previous] : [];
+    setWorkId(null);
+    remote.current = undefined;
+    hist.current = { past: history, future: [], lastPush: -Infinity };
+    setHistInfo({ undo: history.length, redo: 0 });
+    setCloudState('idle');
+    setMode('compose');
+    setCustomBlockNotice(block ? '' : '未找到这块积木，已打开空白画布。');
+    blankBlockFallback.current = block ? null : next;
+    writeDoc(next);
+    if (block) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch { /* The new canvas remains usable when browser storage is unavailable. */ }
+    }
+    setParams(previous => {
+      const clean = new URLSearchParams(previous);
+      clean.delete('customBlock');
+      clean.delete('template');
+      return clean;
+    }, { replace: true, state: null });
+  }, [customBlockParam, workIdParam, writeDoc, setParams]);
 
   /* 指定模板（?template=<kind>）：客户端直接构造，不向「我的作品」自动建档 */
   useEffect(() => {
-    if (!templateParam || workIdParam) return;
+    if (!templateParam || workIdParam || customBlockParam !== null) return;
     try {
       const next = buildTemplateDoc(templateParam);
       setWorkId(null);
       remote.current = undefined;
       hist.current = { past: [], future: [], lastPush: 0 };
       setHistInfo({ undo: 0, redo: 0 });
-      setMode(next.panel ? 'instrument' : 'compose');
+      setMode(next.panel && !isCalculusSandboxKind(templateParam) ? 'instrument' : 'compose');
       writeDoc(next);
     } catch {
       /* 忽略未知模板名 */
     }
-  }, [templateParam, workIdParam, writeDoc]);
+  }, [templateParam, workIdParam, customBlockParam, writeDoc]);
 
   /* 指定作品（?work=wk_id / fork 后跳转）：从后端装载 */
   useEffect(() => {
@@ -347,7 +405,7 @@ export function CanvasPage(): JSX.Element {
       setCloudState('saved');
       writeDoc(d);
     }).catch(() => {
-      if (!dead) window.alert('工坊作品加载失败（可能已删除或不属于你），已保留本地画布。');
+      if (!dead) window.alert('定象坊作品加载失败（可能已删除或不属于你），已保留本地画布。');
     });
     return () => { dead = true; };
   }, [workIdParam, writeDoc]);
@@ -356,6 +414,7 @@ export function CanvasPage(): JSX.Element {
   useEffect(() => {
     setSavedFlash(false);
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
+    if (doc === blankBlockFallback.current || (customBlockParam !== null && !workIdParam)) return;
     saveTimer.current = window.setTimeout(() => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(doc));
@@ -365,7 +424,7 @@ export function CanvasPage(): JSX.Element {
       }
     }, 450);
     return () => { if (saveTimer.current !== null) window.clearTimeout(saveTimer.current); };
-  }, [doc]);
+  }, [doc, customBlockParam, workIdParam]);
 
   const saveExisting = useCallback((id: string, snapshot: CanvasDoc): Promise<void> => {
     const record = remote.current;
@@ -399,6 +458,19 @@ export function CanvasPage(): JSX.Element {
     const node = createCanvasNode(type, x ?? 110 + offset, y ?? 120 + offset);
     setDoc((d) => ({ ...d, nodes: [...d.nodes, node] }));
   }, [setDoc]);
+
+  const addPaletteNode = (node: CanvasDoc['nodes'][number]) => {
+    setDoc((current) => {
+      const width = node.w ?? NODE_DEFS[node.type].width;
+      let y = node.y;
+      const sameColumn = current.nodes.filter((other) =>
+        other.x < node.x + width && other.x + (other.w ?? NODE_DEFS[other.type].width) > node.x);
+      for (const other of sameColumn.sort((a, b) => a.y - b.y)) {
+        if (Math.abs(other.y - y) < 48) y = other.y + 48;
+      }
+      return { ...current, nodes: [...current.nodes, { ...node, y }] };
+    });
+  };
 
   const clearInk = useCallback(() => {
     setDoc((d) => ({ ...d, strokes: [] }));
@@ -462,7 +534,7 @@ export function CanvasPage(): JSX.Element {
     URL.revokeObjectURL(url);
   }, [doc]);
 
-  /* 保存到工坊：未建档 → create；已建档 → 立即 PATCH 一次 */
+  /* 保存到定象坊：未建档 → create；已建档 → 立即 PATCH 一次 */
   const saveToWorkshop = useCallback(async () => {
     try {
       setCloudState('saving');
@@ -475,14 +547,19 @@ export function CanvasPage(): JSX.Element {
         await saveExisting(workId, doc);
       }
       setCloudState('saved');
+      setCustomBlockNotice('已保存到我的作品。');
+      window.setTimeout(() => setCustomBlockNotice((cur) => (cur === '已保存到我的作品。' ? '' : cur)), 2500);
     } catch {
       setCloudState('error');
-      window.alert('保存到工坊失败：请确认后端已启动（画布仍保存在本地）。');
+      window.alert('保存到定象坊失败：请确认后端已启动（画布仍保存在本地）。');
     }
   }, [doc, saveExisting, workId]);
 
   /* 发布：先确保已建档，再生成快照分享链接 */
   const publish = useCallback(async () => {
+    if (doc.nodes.length === 0 && doc.strokes.length === 0) {
+      if (!window.confirm('当前画布还没有任何积木或笔迹，确定要发布空白作品吗？')) return;
+    }
     try {
       let wid = workId;
       if (!wid) {
@@ -667,7 +744,13 @@ export function CanvasPage(): JSX.Element {
     <div className={styles.page}>
       <header className={styles.toolbar}>
         <div className={styles.identity}>
-          <Link className={styles.backLink} to="/workshop">← 工坊目录</Link>
+          <Link
+            className={styles.backLink}
+            to={backOrigin.from}
+            state={backOrigin.restoreScroll ? { restoreScroll: true } : undefined}
+          >
+            {backOrigin.fromLabel}
+          </Link>
           <input className={styles.title} value={doc.title} spellCheck={false} aria-label="画布标题"
             onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} />
           <span role="status" className={styles.savepill} data-state={cloudState === 'error' ? 'error' : savedFlash && cloudState !== 'saving' ? 'saved' : 'busy'}>
@@ -682,8 +765,8 @@ export function CanvasPage(): JSX.Element {
           <button type="button" className={styles.tbtn} disabled={!histInfo.undo} aria-label="撤销" title="撤销 (Ctrl+Z)" onClick={undo}>↶</button>
           <button type="button" className={styles.tbtn} disabled={!histInfo.redo} aria-label="重做" title="重做 (Ctrl+Shift+Z)" onClick={redo}>↷</button>
           <button type="button" className={styles.tbtn} onClick={() => setBlockCreatorOpen(true)}>＋ 创建积木</button>
-          <button type="button" className={styles.tbtn} disabled={cloudState === 'saving'} onClick={() => void saveToWorkshop()}>保存到工坊</button>
-          <button type="button" className={styles.tbtn + ' ' + styles.primary} onClick={() => void publish()}>发布 / 嵌入活页</button>
+          <button type="button" className={styles.tbtn} disabled={cloudState === 'saving'} onClick={() => void saveToWorkshop()}>保存到定象坊</button>
+          <button type="button" className={styles.tbtn + ' ' + styles.primary} onClick={() => void publish()}>发布 / 嵌入通文册</button>
           <details className={styles.menu}>
             <summary className={styles.tbtn} aria-label="更多操作">···</summary>
             <div className={styles.menuItems} onClick={(e) => { if ((e.target as HTMLElement).closest('button')) e.currentTarget.closest('details')?.removeAttribute('open'); }}>
@@ -705,7 +788,7 @@ export function CanvasPage(): JSX.Element {
           {share.embedUrl && <>
             <a href={share.embedUrl} target="_blank" rel="noreferrer">预览嵌入</a>
             <button type="button" className={styles.tbtn} onClick={async () => {
-              const markup = '<iframe title="万象工坊交互仪器" src="' + share.embedUrl + '" width="100%" height="720" loading="lazy"></iframe>';
+              const markup = '<iframe title="定象坊交互仪器" src="' + share.embedUrl + '" width="100%" height="720" loading="lazy"></iframe>';
               try { await navigator.clipboard.writeText(markup); setEmbedCopied(true); }
               catch { window.prompt('复制嵌入代码', markup); }
             }}>{embedCopied ? '嵌入代码已复制' : '复制嵌入代码'}</button>
@@ -713,6 +796,11 @@ export function CanvasPage(): JSX.Element {
           <button type="button" className={styles.tbtn} onClick={() => setShare(null)}>关闭</button>
         </div>
       )}
+
+      {customBlockNotice && <div className={styles.sharebar} role="status">
+        <span>{customBlockNotice}</span>
+        <button type="button" onClick={() => setCustomBlockNotice('')} aria-label="关闭提示">×</button>
+      </div>}
 
       <BlockCreatorModal
         open={blockCreatorOpen}
@@ -862,7 +950,11 @@ export function CanvasPage(): JSX.Element {
                     {types.map((type) => <button key={type} type="button" className={styles.objectItem}
                       aria-label={NODE_DEFS[type].title} draggable
                       onDragStart={(e) => { e.dataTransfer.setData('application/x-wanxiang-node', type); e.dataTransfer.effectAllowed = 'copy'; }}
-                      onClick={() => { const point = spawnPoint(); const offset = (spawn.current % 5) * 18; addNode(type, point.x + offset, point.y + offset); setLastPaletteItem(NODE_DEFS[type].title); }}>
+                      onClick={() => {
+                        const point = spawnPoint();
+                        addPaletteNode(createCanvasNode(type, point.x, point.y));
+                        setLastPaletteItem(NODE_DEFS[type].title);
+                      }}>
                       <span>{NODE_DEFS[type].title}</span>
                       <small>{NODE_DEFS[type].badge}</small>
                     </button>)}
@@ -887,11 +979,7 @@ export function CanvasPage(): JSX.Element {
                               }}
                               onClick={() => {
                                 const point = spawnPoint();
-                                const offset = (spawn.current % 5) * 18;
-                                setDoc((current) => ({
-                                  ...current,
-                                  nodes: [...current.nodes, instantiateCustomBlock(block, point.x + offset, point.y + offset)],
-                                }));
+                                addPaletteNode(instantiateCustomBlock(block, point.x, point.y));
                                 setLastPaletteItem(block.title);
                               }}>
                               <span>{block.title}</span>

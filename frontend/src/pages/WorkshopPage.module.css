@@ -1,4 +1,4 @@
-/* 万象工坊：门面 + 播放器 */
+/* 定象坊：门面 + 播放器 */
 
 .page {
   min-height: 100vh;
@@ -288,7 +288,12 @@
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
-.topicPills button[aria-pressed="true"] small { color: #ffffffb3; }
+.topicPills button[aria-pressed="true"] {
+  border-color: var(--ink-900);
+  background: var(--ink-900);
+  color: #fff;
+}
+.topicPills button[aria-pressed="true"] small { color: #ffffffcc; }
 .topicRename {
   margin-left: auto;
   padding: 5px 9px;
@@ -309,7 +314,7 @@
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: all .15s ease;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
 .templateFilters button:hover { border-color: var(--ink-900); color: var(--ink-900); }
 .templateFilters button[aria-pressed="true"] {
@@ -768,11 +773,6 @@
   position: relative;
 }
 
-/* 只读：动画照跑，交互全关 */
-.frozenBoard:not([data-pipeline]) [class*='inner'] {
-  pointer-events: none;
-}
-
 .frozenBoard[data-pipeline] > div {
   height: 100%;
 }
@@ -790,3 +790,84 @@
 .errCard a { color: var(--color-coral-ink, #b8431f); }
 
 .embeddedPlayer { height: 100dvh; overflow: hidden; }
+
+.catalogPage:global(.atelier-paper) .pageHead {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 56px);
+  padding: clamp(36px, 5.4vw, 72px) 0 42px;
+}
+.catalogPage .title { isolation: isolate; font-size: clamp(44px, 5.1vw, 76px); line-height: 1.04; }
+.catalogPage .lead { max-width: 39ch; margin-top: 24px; line-height: 1.8; }
+.catalogPage .headActions { flex-direction: row; flex-wrap: wrap; margin-top: 26px; }
+.catalogPage .headMetrics { margin-top: 28px; }
+.catalogPage .section { margin-top: clamp(48px, 6vw, 84px); }
+.catalogPage .sectionTitle { font-size: clamp(25px, 3vw, 34px); }
+
+.typeCase, .makerSteps > * {
+  border: 1px solid #12151322;
+  background: #fbf9f2;
+  border-radius: 14px;
+  box-shadow: 0 5px 18px #1c160a0c;
+}
+.typeCase {
+  display: grid;
+  grid-template-columns: 185px minmax(0, 1fr);
+  gap: 16px;
+  padding: 14px 16px;
+  align-items: center;
+}
+.typeCase > div:first-child { border-right: 1px solid #12151320; }
+.typeCase > div:first-child span, .makerSteps > * > span {
+  font: 11px var(--font-mono);
+  color: #a82f16;
+}
+.typeCase h2 { margin: 5px 0; font: 700 19px var(--font-serif); }
+.typeCaseBricks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.typeCaseBricks a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  color: inherit;
+  background: #fffdf8;
+  border: 1px solid #12151320;
+  border-radius: 9px;
+  text-decoration: none;
+}
+.typeCaseBricks a:hover, .makerSteps > *:hover { border-color: #a47a2f; color: #111b5e; }
+.typeCaseBricks a > span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 36px;
+  color: #2234d4;
+  background: linear-gradient(#fffdf8, #efe7d5);
+  box-shadow: 2px 3px 0 #c9bda4;
+  border: 1px solid #c9bda4;
+  border-left: 3px solid currentColor;
+  border-radius: 4px;
+  font: 700 19px var(--font-serif);
+}
+.typeCaseBricks a:nth-child(2) > span { color: #0f766e; }
+.typeCaseBricks a:nth-child(3) > span { color: #a82f16; }
+.typeCaseBricks a:nth-child(4) > span { color: #493997; }
+.typeCaseBricks a:nth-child(5) > span { color: #806123; }
+.typeCaseBricks strong, .typeCaseBricks small { display: block; }
+.typeCaseBricks strong { font-size: 13px; }
+.typeCaseBricks small { font-size: 11px; color: var(--ink-500); }
+.makerSteps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.makerSteps > * { display: block; text-align: left; color: inherit; padding: 22px; font: inherit; text-decoration: none; }
+.makerSteps h3 { margin: 8px 0 6px; font: 700 19px var(--font-serif); }
+.makerSteps p { margin: 0; color: var(--ink-500); font-size: 13px; }
+@media (max-width: 1000px) {
+  .catalogPage:global(.atelier-paper) .pageHead { grid-template-columns: 1fr; }
+  .typeCase { grid-template-columns: 1fr; }
+  .typeCase > div:first-child { border: 0; }
+}
+@media (max-width: 650px) {
+  .typeCaseBricks { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+  .makerSteps { grid-template-columns: 1fr; }
+}

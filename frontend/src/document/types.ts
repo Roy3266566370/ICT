@@ -138,7 +138,7 @@ export interface SceneNode {
   paragraphs?:SceneParagraph[];base_paragraphs?:SceneParagraph[];rich_text_edited?:boolean;
   image_url?:string|null;background_url?:string|null;image_data?:string;asset_id?:string|null;background_asset_id?:string|null;
   cleaned_asset_id?:string|null;cleaned_url?:string|null;figure_scene?:FigureScene|null;
-  figure_source_id?:string;figure_object_id?:string;figure_provenance?:FigureProvenance;text_transform?:[number,number,number,number];
+  figure_source_id?:string;figure_object_id?:string;figure_provenance?:FigureProvenance;text_transform?:[number,number,number,number];text_rotation_offset?:180;
   image_frame?:[number,number];image_scale?:number;image_size?:[number,number];
   background_frame?:[number,number];background_scale?:number;background_size?:[number,number];word_wrap?:boolean;
   shape?:SceneShape;duplicate_from?:string;table?:string[][];base_table?:string[][];chart?:ChartData|null;base_chart?:ChartData|null;

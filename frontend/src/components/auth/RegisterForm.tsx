@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent, KeyboardEvent, MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -101,9 +101,16 @@ export function RegisterForm({
   duplicateUsername = false,
   serviceHint = null,
 }: RegisterFormProps): JSX.Element {
+  const formRef = useRef<HTMLFormElement>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [capsField, setCapsField] = useState<'password' | 'confirm' | null>(null);
+
+  useEffect(() => {
+    if (Object.keys(fieldErrors).length > 0) {
+      formRef.current?.querySelector<HTMLInputElement>('input[aria-invalid="true"]')?.focus();
+    }
+  }, [fieldErrors]);
 
   const submitting = status === 'submitting';
   const hasError = status === 'error' && errorMessage !== null && errorMessage.length > 0;
@@ -180,7 +187,7 @@ export function RegisterForm({
   };
 
   return (
-    <form className={styles.form} onSubmit={handleSubmit} aria-busy={submitting || undefined} noValidate>
+    <form ref={formRef} className={styles.form} onSubmit={handleSubmit} aria-busy={submitting || undefined} noValidate>
       {hasServiceHint ? (
         <p className={styles.serviceHint} role="status">
           {serviceHint}

@@ -105,6 +105,14 @@
 
 .frame[data-compact] .gridScroll { max-height: 180px; }
 
+.frame[data-combined] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.frame[data-combined] > :not(.shapes, .gridScroll) { grid-column: 1 / -1; }
+.frame[data-combined] .gridScroll { align-self: center; }
+
 .frame .frameGrid {
   width: 100%;
   border-collapse: separate;
@@ -122,4 +130,6 @@
 }
 
 .frame .frameGrid[data-values] :is(td, th) { padding: 2px 4px; }
+.frame .frameGrid[data-palette="error"] { table-layout: fixed; }
+.frame .frameGrid[data-palette="error"] thead th { font-size: 8px; }
 .frame .frameGrid td[data-active] { box-shadow: inset 0 0 0 2px #172134, inset 0 0 0 4px #fff; }

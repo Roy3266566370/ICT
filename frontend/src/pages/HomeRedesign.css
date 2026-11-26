@@ -1,5 +1,5 @@
 /* ============================================================
-   万象首页 · 万象工坊 × 万象活页生态闭环（限定在 .wx-home 作用域内）
+   万象首页 · 定象坊 × 通文册生态闭环（限定在 .wx-home 作用域内）
    ============================================================ */
 
 .wx-home {
@@ -50,47 +50,6 @@
 .wx-home #loop,
 .wx-home #workshop,
 .wx-home #living { scroll-margin-top: 84px; }
-
-/* 上传弹窗 */
-.wx-upload-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(16, 18, 17, .56);
-}
-.wx-upload-dialog {
-  position: relative;
-  width: min(980px, 100%);
-  max-height: 88dvh;
-  overflow: auto;
-  border: 1px solid var(--ink-900, #111312);
-  border-radius: 14px;
-  background: var(--paper-0, #fffdf8);
-  box-shadow: 0 24px 60px rgba(17, 19, 18, .28);
-}
-.wx-upload-close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(17, 19, 18, .2);
-  border-radius: 8px;
-  background: var(--paper-0, #fff);
-  color: var(--ink-900, #111312);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-}
-.wx-upload-close:hover { background: #f3f0e7; }
-.wx-upload-body { padding: 26px; }
-.wx-upload-body #upload-panel-title { padding-right: 34px; }
 
 /* 通用按钮 */
 .wx-home .btn {
@@ -155,184 +114,9 @@
 }
 .wx-home .section-head p { margin: 0; color: var(--ink-2); font-size: 15px; }
 
-/* ================= 1. HERO ================= */
-.wx-home .hero {
-  position: relative;
-  padding: clamp(42px, 6vw, 80px) 0 clamp(50px, 6.5vw, 82px);
-  overflow: hidden;
-}
-.wx-home .hero__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
-  gap: clamp(28px, 4vw, 56px);
-  align-items: center;
-}
-.wx-home .hero__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(17, 19, 18, .12);
-  background: rgba(255, 253, 248, .8);
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--ink-2);
-  margin-bottom: 20px;
-}
-.wx-home .hero__badge i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--red);
-  box-shadow: 0 0 0 4px rgba(222, 66, 31, .16);
-}
-.wx-home .hero__title {
-  font-family: var(--serif);
-  font-size: clamp(40px, 5vw, 66px);
-  line-height: 1.12;
-  margin: 0 0 22px;
-  letter-spacing: -.025em;
-}
-.wx-home .hero__title .highlight {
-  position: relative;
-  color: var(--blue-deep);
-  display: inline-block;
-}
-.wx-home .hero__title .highlight::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 5px;
-  height: 10px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, rgba(222, 66, 31, .28), rgba(34, 52, 212, .2));
-  z-index: -1;
-}
-.wx-home .hero__lead {
-  font-size: 17px;
-  line-height: 1.75;
-  color: var(--ink-2);
-  margin: 0 0 30px;
-  max-width: 46ch;
-}
-.wx-home .hero__lead strong { color: var(--ink); font-weight: 600; }
-.wx-home .hero__actions { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 32px; }
-.wx-home .hero__metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 24px;
-  padding-top: 22px;
-  border-top: 1px solid rgba(17, 19, 18, .1);
-}
-.wx-home .hero__metric strong { display: block; font-family: var(--serif); font-size: 20px; color: var(--ink); }
-.wx-home .hero__metric span { font-size: 12px; color: var(--muted); }
-
-/* Hero 右侧 2.5D 立体悬浮生态架构 */
-.wx-home .hero-emblem {
-  position: relative;
-  border-radius: 24px;
-  border: 1px solid rgba(17, 19, 18, .1);
-  background:
-    radial-gradient(460px 320px at 26% 22%, rgba(34, 52, 212, .07), transparent 62%),
-    radial-gradient(420px 300px at 78% 78%, rgba(222, 66, 31, .06), transparent 60%),
-    linear-gradient(150deg, #fffdf9 0%, #f4efe3 100%);
-  padding: 18px 18px 16px;
-  box-shadow:
-    0 28px 64px rgba(17, 19, 18, .09),
-    0 2px 6px rgba(17, 19, 18, .04),
-    inset 0 1px 0 rgba(255, 255, 255, .95);
-  overflow: hidden;
-}
-.wx-home .iso-stage {
-  position: relative;
-  border-radius: 16px;
-  background:
-    radial-gradient(circle at 1px 1px, rgba(17, 19, 18, .06) 1px, transparent 0) 0 0 / 20px 20px,
-    rgba(255, 253, 248, .65);
-  border: 1px solid rgba(17, 19, 18, .07);
-  overflow: hidden;
-}
-.wx-home .iso-stage__bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 11px 16px;
-  border-bottom: 1px solid rgba(17, 19, 18, .06);
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-  background: rgba(255, 253, 248, .75);
-}
-.wx-home .iso-stage__bar b { color: var(--ink); font-weight: 700; letter-spacing: .04em; }
-.wx-home .iso-stage__pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--teal);
-  font-weight: 600;
-}
-.wx-home .iso-stage__pill i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--teal);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, .16);
-}
-.wx-home .iso-stage svg { display: block; width: 100%; height: auto; }
-.wx-home .iso-layer { transition: transform .22s ease-out, opacity .28s ease; will-change: transform, opacity; }
-.wx-home .iso-hit { cursor: pointer; transition: filter .25s ease, opacity .28s ease; outline: none; }
-.wx-home .iso-stage.has-focus .iso-hit { opacity: .34; }
-.wx-home .iso-stage.has-focus .iso-hit.is-focused { opacity: 1; filter: drop-shadow(0 14px 24px rgba(17, 27, 94, .22)); }
-.wx-home .iso-tag-rect { transition: stroke .2s ease, fill .2s ease; }
-.wx-home .iso-hit.is-focused .iso-tag-rect { stroke: var(--ink); fill: #fff; }
-.wx-home .iso-float-1 { animation: wxIsoFloat 6s ease-in-out infinite; }
-.wx-home .iso-float-2 { animation: wxIsoFloat 6s ease-in-out -2s infinite; }
-.wx-home .iso-float-3 { animation: wxIsoFloat 6s ease-in-out -4s infinite; }
-@keyframes wxIsoFloat {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-5px); }
-}
-.wx-home .beam-flow { stroke-dasharray: 6 9; animation: wxBeamFlow 2.6s linear infinite; }
-.wx-home .beam-flow-slow { stroke-dasharray: 5 9; animation: wxBeamFlow 4.2s linear infinite; }
-@keyframes wxBeamFlow { from { stroke-dashoffset: 60; } to { stroke-dashoffset: 0; } }
-
-.wx-home .iso-tooltip {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  bottom: 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(17, 19, 18, .12);
-  background: rgba(255, 253, 248, .94);
-  backdrop-filter: blur(14px);
-  padding: 13px 16px;
-  box-shadow: 0 14px 34px rgba(17, 19, 18, .12);
-  display: grid;
-  gap: 4px;
-  opacity: 0;
-  transform: translateY(10px);
-  pointer-events: none;
-  transition: opacity .22s ease, transform .22s ease;
-}
-.wx-home .iso-tooltip.is-show { opacity: 1; transform: translateY(0); }
-.wx-home .iso-tooltip__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.wx-home .iso-tooltip__badge { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--blue); letter-spacing: .04em; }
-.wx-home .iso-tooltip__title { font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--ink); margin: 0; }
-.wx-home .iso-tooltip__desc { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--ink-2); }
-.wx-home .hero-emblem__foot {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 10px;
-  padding: 2px 4px 0;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-}
-
 /* ================= 2. §01 新人引导式动态剧场 ================= */
+.wx-home .tour-heading { text-wrap: balance; }
+.wx-home .tour-heading span { white-space: nowrap; }
 .wx-home .loop-section { background: transparent; color: var(--ink); }
 .wx-home .tour-shell { display: grid; grid-template-columns: minmax(290px, 0.86fr) minmax(0, 1.34fr); gap: 24px; align-items: stretch; }
 .wx-home .tour-rail {
@@ -568,7 +352,7 @@
 .wx-home .share-pass h4 { margin: 2px 0 0; font-size: 16px; color: var(--ink); }
 .wx-home .share-pass p { margin: 0; font-size: 12.5px; color: var(--muted); }
 
-/* ================= 3. §02 万象工坊精选 3 例子 ================= */
+/* ================= 3. §02 定象坊精选 3 例子 ================= */
 .wx-home .lab-switcher { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 22px; }
 .wx-home .lab-tab {
   text-align: left;
@@ -667,7 +451,7 @@
   background: radial-gradient(circle at 1px 1px, rgba(164, 182, 255, .16) 1px, transparent 0) 0 0 / 22px 22px, #10183d;
 }
 
-/* ================= 4. §03 万象活页 Before/After 拖拽卷帘 ================= */
+/* ================= 4. §03 通文册 Before/After 拖拽卷帘 ================= */
 .wx-home .compare-shell {
   border-radius: 20px;
   border: 1px solid rgba(17, 19, 18, .14);
@@ -870,6 +654,7 @@
   box-shadow: 0 22px 48px rgba(17, 19, 18, .08);
 }
 .wx-home .cta-card h3 { font-family: var(--serif); font-size: 28px; line-height: 1.24; margin: 0 0 10px; }
+.wx-home .cta-card--workshop h3 { color: #f4f6ff; }
 .wx-home .cta-card p { margin: 0; font-size: 14.5px; }
 .wx-home .cta-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .wx-home .cta-chips a {
@@ -917,7 +702,6 @@
 .wx-home .site-foot__links a:hover { color: var(--ink); }
 
 @media (max-width: 980px) {
-  .wx-home .hero__grid,
   .wx-home .section-head,
   .wx-home .tour-shell,
   .wx-home .lab-panel,

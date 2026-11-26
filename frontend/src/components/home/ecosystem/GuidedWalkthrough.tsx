@@ -10,25 +10,25 @@ const TOUR_STEPS = [
     desc: '传统 PPT 或讲义里的图都是写死的截图，讲到关键处学生问“把频率调大点会怎样”，只能干讲。',
     winTitle: '01 · 传统静态讲义（第 03 页 · 简谐波）',
     winTag: 'BEFORE',
-    nextLabel: '下一步：用工坊让它活起来 →',
+    nextLabel: '下一步：用定象坊让它活起来 →',
   },
   {
-    title: '用万象工坊，把公式连成“活仪器”',
+    title: '用定象坊，把公式连成“活仪器”',
     desc: '拖两块积木接上线，数学公式立刻变成可调参、真内核实时重算的交互波形——你现在就能拖右边的滑杆试试。',
-    winTitle: '02 · 万象工坊：积木连线与实时重算',
+    winTitle: '02 · 定象坊：积木连线与实时重算',
     winTag: 'WORKSHOP',
     nextLabel: '下一步：一键装进刚才的 PPT →',
   },
   {
-    title: '装进万象活页，原地升级你的 PPT',
+    title: '装进通文册，原地升级你的 PPT',
     desc: '不用推翻原稿。把造好的活仪器直接嵌进刚才那页幻灯片，讲台一键切情景预设，不用切出 PPT 找别的软件。',
-    winTitle: '03 · 万象活页：原稿原地升级为动态课件',
+    winTitle: '03 · 通文册：原稿原地升级为动态课件',
     winTag: 'LIVING PAGES',
     nextLabel: '下一步：看课后如何分享与沉淀 →',
   },
   {
     title: '发出去或存离线包，课后还能反钻探究',
-    desc: '导成单文件 HTML 断网也能演播；发给学生后，他们不仅能动手试，还能一键点回工坊改公式，沉淀为长期资产。',
+    desc: '导成单文件 HTML 断网也能演播；发给学生后，他们不仅能动手试，还能一键点回定象坊改公式，沉淀为长期资产。',
     winTitle: '04 · 分享、离线包与课后反钻闭环',
     winTag: 'ECOSYSTEM',
     nextLabel: '重头再看一遍 ↺',
@@ -64,7 +64,7 @@ export function GuidedWalkthrough(): JSX.Element {
         <header className="section-head">
           <div>
             <p className="eyebrow"><span className="sec-no">§ 01</span> GUIDED WALKTHROUGH / 30 秒看懂万象能干什么</p>
-            <h2>跟着这四步，<br />看一份死课件如何一步步活起来。</h2>
+            <h2 className="tour-heading">跟着这四步，看一份死课件如何一步步<span>活起来。</span></h2>
           </div>
           <p>
             第一次来不用背概念。像过新手引导一样点「下一步」，在右侧的模拟工作台里亲眼看万象怎么帮你把公式变仪器、把 PPT 变活页、再沉淀成可复用的资产。
@@ -151,7 +151,7 @@ export function GuidedWalkthrough(): JSX.Element {
                     </div>
                   </div>
                   <div className="guide-callout">
-                    <span><strong>引导提示：</strong> 平时我们手里大多是这样的静态页——公式和图是割裂的、死的。点击「下一步」，看看万象工坊怎么把它变活。</span>
+                    <span><strong>引导提示：</strong> 平时我们手里大多是这样的静态页——公式和图是割裂的、死的。点击「下一步」，看看定象坊怎么把它变活。</span>
                   </div>
                 </div>
               ) : null}
@@ -173,7 +173,7 @@ export function GuidedWalkthrough(): JSX.Element {
                     </div>
                     <div className="live-wave-card spotlight-box">
                       <div className="live-wave-card__head">
-                        <strong>万象工坊 · 实时波形仪器</strong>
+                        <strong>定象坊 · 实时波形仪器</strong>
                         <span className="mono live-wave-card__stat">
                           ω = {omega.toFixed(1)} · 周期 T = {(2 * Math.PI / omega).toFixed(2)}
                         </span>
@@ -209,9 +209,9 @@ export function GuidedWalkthrough(): JSX.Element {
                 <div className="tour-scene is-active" key="scene-2">
                   <div className="mock-living-slide">
                     <div>
-                      <span className="mono mock-living-slide__tag">万象活页 · SLIDE 03（已激活）</span>
+                      <span className="mono mock-living-slide__tag">通文册 · SLIDE 03（已激活）</span>
                       <h4 className="mock-living-slide__title">简谐波与角频率 ω</h4>
-                      <p className="mock-living-slide__desc">原有版式一字未动，右侧死截图已替换为工坊活仪器。讲台上点一下预设即可对比：</p>
+                      <p className="mock-living-slide__desc">原有版式一字未动，右侧死截图已替换为定象坊活仪器。讲台上点一下预设即可对比：</p>
                       <div className="preset-row spotlight-box mock-living-slide__presets">
                         {WAVE_PRESETS.map((preset) => (
                           <button
@@ -253,16 +253,16 @@ export function GuidedWalkthrough(): JSX.Element {
                     <div className="share-pass spotlight-box">
                       <span className="share-pass__tag">OFFLINE · 单文件离线包</span>
                       <h4>教室断网，照样现场重算</h4>
-                      <p>把整套活页与工坊内核打包成单个 HTML 或 .zip 工程包，拷进 U 盘就能在任何教室电脑上离线流畅演播。</p>
+                      <p>把整套活页与定象坊内核打包成单个 HTML 或 .zip 工程包，拷进 U 盘就能在任何教室电脑上离线流畅演播。</p>
                     </div>
                     <div className="share-pass share-pass--red">
-                      <span className="share-pass__tag share-pass__tag--red">REVERSE · 课后反钻工坊</span>
+                      <span className="share-pass__tag share-pass__tag--red">REVERSE · 课后反钻定象坊</span>
                       <h4>学生不仅能看，还能拆开改</h4>
-                      <p>拿到分享链接后，在活页里调完参数，点击「拆开积木」即可回到万象工坊自己改公式、加节点，沉淀到个人空间。</p>
+                      <p>拿到分享链接后，在活页里调完参数，点击「拆开积木」即可回到定象坊自己改公式、加节点，沉淀到个人空间。</p>
                     </div>
                   </div>
                   <div className="guide-callout">
-                    <span><strong>闭环达成：</strong> 从「静态原稿」→「工坊建模」→「活页演播」→「课后反钻沉淀」，这就是万象能为你做的完整闭环。</span>
+                    <span><strong>闭环达成：</strong> 从「静态原稿」→「定象坊建模」→「活页演播」→「课后反钻沉淀」，这就是万象能为你做的完整闭环。</span>
                   </div>
                 </div>
               ) : null}

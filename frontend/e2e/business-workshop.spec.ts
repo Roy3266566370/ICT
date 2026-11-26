@@ -1,20 +1,94 @@
-import { expect, test } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import type { CanvasDoc } from '../src/canvas/types';
+import { BUSINESS_TEMPLATES, BUSINESS_TOPICS, VISIBLE_BUSINESS_TEMPLATES } from '../src/canvas/businessTemplates';
 
-test('办公决策目录可搜索并打开四个可播放的沙盘', async ({ page }) => {
+const WIDE = { width: 1440, height: 900 };
+const LEGACY_TEMPLATES = BUSINESS_TEMPLATES.filter((template) => template.legacy);
+
+test.beforeEach(async ({ page }) => {
+  const works = new Map<string, { document: CanvasDoc; revision: number }>();
+  await page.setViewportSize(WIDE);
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname.slice('/api/v1/'.length);
+    const method = route.request().method();
+    const reply = (data: unknown) => route.fulfill({ json: { data } });
+    if (path.startsWith('sessions')) return reply({ session_id: 'biz-e2e', csrf_token: 'biz-csrf' });
+    if (path === 'works' && method === 'GET') return reply({ works: [] });
+    if (path === 'work-shares') return reply({ items: [] });
+    if (path === 'works' && method === 'POST') {
+      const { document } = route.request().postDataJSON() as { document: CanvasDoc };
+      const work_id = `biz-work-${works.size + 1}`;
+      const record = { document, revision: 1 };
+      works.set(work_id, record);
+      return reply({ work_id, ...record });
+    }
+    const [collection, id] = path.split('/');
+    if (collection === 'works' && id) {
+      const work = works.get(id);
+      if (!work) return route.fulfill({ status: 404 });
+      if (method === 'PATCH') {
+        const { document, expected_revision } = route.request().postDataJSON() as { document: CanvasDoc; expected_revision: number };
+        if (work.revision !== expected_revision) return route.fulfill({ status: 409 });
+        work.document = document;
+        work.revision += 1;
+      }
+      return reply({ work_id: id, ...work });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+});
+
+async function openPanorama(page: Page, kind: string): Promise<void> {
+  const template = VISIBLE_BUSINESS_TEMPLATES.find((item) => item.kind === kind);
+  expect(template, `缺少办公沙盘 ${kind}`).toBeTruthy();
+  await page.goto('/workshop?subject=business&q=' + encodeURIComponent(template!.name));
+  await page.locator('button').filter({ has: page.getByText(template!.name, { exact: true }) }).click();
+  await expect(page).toHaveURL(/\/canvas\?work=/);
+  await expect(page.locator('[class*="aiCardShell"]').first()).toBeVisible();
+}
+
+async function openLegacy(page: Page, kind: string): Promise<void> {
+  const template = LEGACY_TEMPLATES.find((item) => item.kind === kind);
+  expect(template, `缺少旧办公模板 ${kind}`).toBeTruthy();
+  await page.goto('/canvas?template=' + encodeURIComponent(kind));
+  await expect(page.locator('[data-instrument-stage]')).toBeVisible();
+}
+
+test('办公决策目录列出四个专题与八个全景沙盘', async ({ page }) => {
+  await page.goto('/workshop?subject=business');
+  expect(BUSINESS_TOPICS).toHaveLength(4);
+  expect(VISIBLE_BUSINESS_TEMPLATES).toHaveLength(8);
+  expect(LEGACY_TEMPLATES).toHaveLength(4);
+  await expect(page.locator('[class*="tplCard"]')).toHaveCount(8);
+  for (const topic of BUSINESS_TOPICS) {
+    const expected = VISIBLE_BUSINESS_TEMPLATES.filter((template) => template.topic === topic.id);
+    const section = page.getByLabel(topic.name, { exact: true });
+    await expect(section.getByRole('heading', { name: topic.name, exact: true })).toBeVisible();
+    await expect(section.getByText(expected.length + ' 个实验', { exact: true })).toBeVisible();
+    for (const template of expected) {
+      await expect(section.getByText(template.name, { exact: true })).toBeVisible();
+    }
+  }
+});
+
+test('八个全景沙盘打开后规则块连线渲染且无页面错误', async ({ page }) => {
+  test.setTimeout(240_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  const templates = [
-    ['盈亏', '经营盈亏平衡与定价沙盘'],
-    ['漏斗', '增长漏斗与留存复利推演'],
-    ['甘特图', '项目排期与关键路径风险模拟器'],
-    ['AB实验', 'A/B 实验样本量与统计显著性计算器'],
-  ];
-  await page.goto('/workshop');
-  await expect(page.getByRole('button', { name: '办公决策 · 4' })).toBeVisible({ timeout: 5_000 });
-  for (const [query, title] of templates) {
-    await page.getByRole('button', { name: '办公决策 · 4' }).click();
-    await page.getByRole('searchbox').fill(query!);
-    await page.getByRole('button', { name: new RegExp(title!) }).click();
+  for (const template of VISIBLE_BUSINESS_TEMPLATES) {
+    await openPanorama(page, template.kind);
+    expect(await page.locator('[class*="aiCardShell"]').count()).toBeGreaterThanOrEqual(1);
+    await expect.poll(() => page.locator('[data-wire]').count()).toBeGreaterThanOrEqual(2);
+  }
+  expect(errors).toEqual([]);
+});
+
+test('旧四个流水线模板仍可通过模板 URL 打开并播放', async ({ page }) => {
+  test.setTimeout(240_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  for (const template of LEGACY_TEMPLATES) {
+    await openLegacy(page, template.kind);
     const stage = page.locator('[data-instrument-stage]');
     const chart = stage.locator('[data-stage-chart]');
     await expect(chart.getByRole('img')).toBeVisible();
@@ -30,7 +104,6 @@ test('办公决策目录可搜索并打开四个可播放的沙盘', async ({ pa
     await expect.poll(async () => Number(await timeline.inputValue())).toBeGreaterThan(0);
     await timeline.press('End');
     await expect(timeline).toHaveValue((await timeline.getAttribute('max'))!);
-    await page.goto('/workshop?subject=business');
   }
   expect(errors).toEqual([]);
 });
@@ -60,7 +133,7 @@ test('办公沙盘可以输入精确值并自定义对应单位', async ({ page 
 
   const [saved] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/api/v1/works') && response.request().method() === 'POST'),
-    page.getByRole('button', { name: '保存到工坊' }).click(),
+    page.getByRole('button', { name: '保存到定象坊' }).click(),
   ]);
   expect(saved.ok()).toBe(true);
   const { data: { work_id: workId } } = await saved.json();

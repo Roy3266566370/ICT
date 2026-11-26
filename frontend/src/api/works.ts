@@ -1,5 +1,5 @@
 /**
- * works.ts —— 万象工坊 API 客户端：作品存取、发布画廊、fork。
+ * works.ts —— 定象坊 API 客户端：作品存取、发布画廊、fork。
  */
 import { requestJson } from './client';
 import type { CanvasDoc } from '@/canvas/types.ts';

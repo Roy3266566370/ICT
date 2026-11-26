@@ -1,4 +1,4 @@
-/** 万象工坊顶部动态引入区：真实纯前端计算驱动的「活体电路标本」。 */
+/** 定象坊顶部动态引入区：真实纯前端计算驱动的「活体电路标本」。 */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './PageIntros.module.css';
@@ -240,17 +240,17 @@ export function WorkshopIntroBanner(): JSX.Element {
 
   return (
     <section
-      className={`${styles.introShell} ${collapsed ? styles.isCollapsed : ''}`}
-      aria-label="万象工坊功能演示导览"
+      className={`${styles.introShell} ${styles.atelierBench} ${collapsed ? styles.isCollapsed : ''}`}
+      aria-label="定象坊排字台演示"
     >
       <div className={styles.introHead}>
         <div className={styles.introHeadLeft}>
           <span className={styles.eyebrowPill}>
             <span className={`${styles.dot} ${styles.dotCobalt}`} />
-            活体电路标本
+            排字台
           </span>
           <span className={styles.introHeadTitle}>
-            拖积木连线，或用一句话让 AI 造出真计算实验
+            实时内核
           </span>
           <span className={styles.introHeadSub}>沙箱实时计算 · 拖动滑杆立即响应</span>
         </div>
@@ -262,9 +262,9 @@ export function WorkshopIntroBanner(): JSX.Element {
       {!collapsed ? (
         <div className={styles.introBody}>
           <div className={styles.circuitGrid}>
-            <div className={styles.cNode}>
+            <div className={`${styles.cNode} ${styles.typeTray}`}>
               <div className={styles.cNodeHead}>
-                <span className={styles.cStep}>01 灵感输入</span>
+                <span className={styles.cStep}>选取象砖</span>
                 <span className={styles.cHint}>点选切换</span>
               </div>
               <div className={styles.cTitle}>自然语言 / 学科预设</div>
@@ -295,9 +295,9 @@ export function WorkshopIntroBanner(): JSX.Element {
               </svg>
             </div>
 
-            <div className={styles.cNode}>
+            <div className={`${styles.cNode} ${styles.pressCheck}`}>
               <div className={styles.cNodeHead}>
-                <span className={`${styles.cStep} ${styles.cStepVermilion}`}>02 AI 计算方块</span>
+                <span className={`${styles.cStep} ${styles.cStepVermilion}`}>实时检查器</span>
                 <span className={styles.cBadge}>{preset.perfBadge}</span>
               </div>
               <div className={styles.cTitle}>实时调参 · 安全沙箱</div>
@@ -345,6 +345,7 @@ export function WorkshopIntroBanner(): JSX.Element {
                 <span>可展开手改纯函数</span>
                 <code>{'run({ params })'}</code>
               </div>
+              <a className={styles.bindLink} href="#workshop-maker">付印并装订 ↗</a>
             </div>
 
             <div className={styles.wireSlot} aria-hidden="true">
@@ -357,9 +358,9 @@ export function WorkshopIntroBanner(): JSX.Element {
               </svg>
             </div>
 
-            <div className={styles.cNode}>
+            <div className={`${styles.cNode} ${styles.proofSheet}`}>
               <div className={styles.cNodeHead}>
-                <span className={`${styles.cStep} ${styles.cStepTeal}`}>03 通用舞台</span>
+                <span className={`${styles.cStep} ${styles.cStepTeal}`}>试印 · 实时曲线</span>
                 <span className={styles.cHint}>{preset.stageTag}</span>
               </div>
               <div className={styles.stageCanvasBox}>

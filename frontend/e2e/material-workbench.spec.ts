@@ -116,7 +116,7 @@ test('旧编辑链接进入工作台，保留编辑状态，并与演讲者控�
   const chart = editStage.locator('[data-stage-chart]');
   const chartSize = await chart.evaluate(element => [element.clientWidth, element.clientHeight]);
   await editPlugin.click();
-  await expect(editPlugin.getByTitle('拖动调整工坊插件位置')).toBeVisible();
+  await expect(editPlugin.getByTitle('拖动调整定象坊插件位置')).toBeVisible();
   await expect(editPlugin.locator('[inert]')).toHaveCount(0);
   expect(await editStage.evaluate((node, original) => node === original, stageElement)).toBe(true);
   expect(await chart.evaluate(element => [element.clientWidth, element.clientHeight])).toEqual(chartSize);

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('自定义工坊作品嵌入课件后保持参数并在缩略图中显示真实图形', async ({ page }) => {
+test('自定义定象坊作品嵌入课件后保持参数并在缩略图中显示真实图形', async ({ page }) => {
   await page.goto('/canvas?template=biz-breakeven');
   const source = page.locator('[data-instrument-stage]');
   const originalPrice = source.getByRole('spinbutton', { name: '客单价（元）数值' });
@@ -10,7 +10,7 @@ test('自定义工坊作品嵌入课件后保持参数并在缩略图中显示�
   await page.getByRole('textbox', { name: '画布标题' }).fill(workTitle);
   const [created] = await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/api/v1/works') && response.request().method() === 'POST'),
-    page.getByRole('button', { name: '保存到工坊' }).click(),
+    page.getByRole('button', { name: '保存到定象坊' }).click(),
   ]);
   expect(created.ok()).toBe(true);
   const { data: { work_id: workId } } = await created.json();
@@ -26,13 +26,13 @@ test('自定义工坊作品嵌入课件后保持参数并在缩略图中显示�
     return canvas.toDataURL('image/png').split(',')[1]!;
   });
   await page.locator('input[type=file][accept*=".pptx"]').setInputFiles({
-    name: '我的工坊作品验收.png', mimeType: 'image/png', buffer: Buffer.from(blankPage, 'base64'),
+    name: '我的定象坊作品验收.png', mimeType: 'image/png', buffer: Buffer.from(blankPage, 'base64'),
   });
   await expect(page).toHaveURL(/\/materials\/[^/]+\/work/);
   await page.getByRole('button', { name: '编辑课件', exact: true }).click();
   const editor = page.locator('[data-free-editor]');
-  await editor.getByRole('button', { name: '插入工坊插件' }).click();
-  const picker = page.getByRole('dialog', { name: '插入万象工坊交互插件' });
+  await editor.getByRole('button', { name: '插入定象坊插件' }).first().click();
+  const picker = page.getByRole('dialog', { name: '插入定象坊交互插件' });
   await picker.getByRole('tab', { name: '我的作品' }).click({ timeout: 5_000 });
   await picker.getByRole('searchbox').fill('盈亏');
   const [inserted] = await Promise.all([

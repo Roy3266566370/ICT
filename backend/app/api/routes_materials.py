@@ -43,6 +43,7 @@ from ..ispec.persistence import clear_values, save_values
 from ..parsers.pdf_to_pptx import PdfConvertError, convert_pdf_to_pptx
 from ..project_package import MAX_PACKAGE_BYTES, ProjectPackageError, build_project_archive, import_project_file
 from ..documents.presentation import apply_document_specs,current_document
+from ..documents.store import read_document
 from ..schemas.api_models import (
     CandidateObject,
     MaterialSummary,
@@ -301,19 +302,49 @@ def inspect_pptx_archive(path: Path) -> int:
 # ---------------------------------------------------------------------------
 
 
-#: 材料统计：对象数、模板归属、运行数（一次查询批量取，避免列表 N+1）。
+#: 材料统计：合并场景文档里的交互节点与数据库里的知识对象。
 MaterialStats = dict[str, dict[str, Any]]
+
+_INTERACTIVE_SCENE_TYPES = frozenset({"workshop_plugin", "math_scene", "diagram", "demo"})
+
+
+def _scene_object_count(material_id: str) -> int:
+    try:
+        document = read_document(material_id)
+    except (OSError, ValueError):
+        logger.warning("Unable to read scene statistics for %s", material_id, exc_info=True)
+        return 0
+
+    count = 0
+    for page in (document or {}).get("pages", []):
+        relation_targets = {
+            relation.get("targetId") or relation.get("resultId")
+            for relation in page.get("relations", [])
+            if relation.get("enabled", True)
+        } - {None}
+        for node in page.get("nodes", []):
+            if node.get("hidden") or node.get("deleted"):
+                continue
+            kind = node.get("type")
+            if node.get("id") in relation_targets or node.get("interaction") or kind in _INTERACTIVE_SCENE_TYPES or (
+                kind == "vector" and (
+                    (not node.get("locked") and node.get("viewer_editable") is not False)
+                    or ((node.get("style") or {}).get("anim_step") or 0) > 0
+                )
+            ):
+                count += 1
+    return count
 
 
 def material_stats(db: Session, material_ids: Sequence[str]) -> MaterialStats:
-    """按材料批量统计 ``object_count`` / ``template_id`` / ``run_count``。
+    """汇总场景文档，并批量查询知识对象、模板归属与运行数。
 
     ``template_id`` 只在材料已确定模板时返回（``ready`` 且有对象），否则为 ``None``，
     由 ``summary_payload`` 省略该键（对齐 openapi 的 P1 可选追加字段说明）。
     """
 
     stats: MaterialStats = {
-        material_id: {"object_count": 0, "template_id": None, "run_count": 0}
+        material_id: {"object_count": _scene_object_count(material_id), "template_id": None, "run_count": 0}
         for material_id in material_ids
     }
     if not material_ids:

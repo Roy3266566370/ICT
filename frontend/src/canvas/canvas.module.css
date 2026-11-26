@@ -870,12 +870,14 @@
   background-image: radial-gradient(circle, rgb(24 29 36 / 16%) 1px, transparent 1px);
   background-size: 22px 22px;
   touch-action: none;
+  user-select: none;
   cursor: grab;
 }
+.composeViewport :is(input, textarea, [contenteditable]) { user-select: text; }
 .composeViewport[data-panning] { cursor: grabbing; }
 .composeViewport .inner { position: absolute; background: none; }
 .composeViewport .node { cursor: default; }
-.composeViewport .selBar { bottom: 74px; z-index: 21; }
+.composeViewport .selBar { top: auto; bottom: 74px; z-index: 21; }
 .pins { margin-inline-start: auto; display: flex; gap: 3px; }
 .pins button, .paramPicker button {
   border: 1px solid var(--hairline);
@@ -950,6 +952,9 @@
 .composeViewport .nhead { align-items: center; flex-wrap: nowrap; }
 .composeViewport .nhead > :not(.nodeTitle) { flex-shrink: 0; }
 .composeViewport .nodeTitle { flex: 1; }
+.composeViewport [data-node-type="slider"] .nhead { padding-inline: 7px; gap: 4px; }
+.composeViewport [data-node-type="slider"] .pins { gap: 2px; }
+.composeViewport [data-node-type="slider"] .pins button { padding-inline: 3px; }
 .composeViewport [data-schematic] .nhead { padding: 5px; gap: 4px; }
 .composeViewport [data-schematic] .pins { gap: 2px; }
 .composeViewport [data-schematic] .pins button { padding: 2px 3px; }

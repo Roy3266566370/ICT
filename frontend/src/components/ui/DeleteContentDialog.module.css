@@ -1,0 +1,34 @@
+.dialog {
+  width: min(395px, calc(100% - 28px));
+  box-sizing: border-box;
+  padding: 20px;
+  border: 1px solid #e3ded2;
+  border-radius: 12px;
+  background: #fffdf8;
+  color: #242822;
+  box-shadow: 0 14px 48px #19191438;
+}
+
+.dialog::backdrop { background: #25282159; }
+.dialog h2 { margin: 0 0 8px; font-size: 19px; }
+.dialog p { margin: 0 0 12px; overflow-wrap: anywhere; font-size: 14px; }
+.dialog .error { color: #9c3029; }
+.dialog > div { display: flex; gap: 8px; justify-content: flex-end; }
+
+.dialog button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 1px solid #dad4c6;
+  border-radius: 7px;
+  background: #fffdf7;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  cursor: pointer;
+}
+.dialog button:hover:not(:disabled) { background: #f1eee6; }
+.dialog .danger { border-color: transparent; background: #a93831; color: #fff; }
+.dialog .danger:hover:not(:disabled) { background: #842c26; }
+.dialog button:disabled { opacity: .6; cursor: wait; }

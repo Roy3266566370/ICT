@@ -63,7 +63,7 @@ export function AiRuleLive({ node, values, onLive }: Pick<NodeBodyProps, 'node' 
   const signature = JSON.stringify({
     text: node.text ?? payload.defaultText ?? '',
     params: payloadParams(node, payload),
-    upstream: ruleUpstream(values),
+    upstream: ruleUpstream(values, payload.sampleProfile),
   });
   const pending = useRef<{ signature: string; payload: AiRuleBlockPayload } | null>(null);
   const currentPayload = useRef(payload);
@@ -123,7 +123,7 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
   const result = props.self?.kind === 'customFrames' ? props.self : null;
   const error = result?.error;
   const busy = result === null;
-  const upstream = () => ruleUpstream(props.values);
+  const upstream = () => ruleUpstream(props.values, payload.sampleProfile);
 
   // 画布卡片极简播放进度条状态
   const frames = result?.result.frames ?? [];
@@ -224,6 +224,13 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
   };
 
   const activeFrame = frames[Math.min(frameIndex, lastFrame)];
+  const selectPreset = (preset: NonNullable<AiRuleBlockPayload['presets']>[number]) => {
+    if (props.onRulePreset) props.onRulePreset(preset);
+    else {
+      onParams?.(preset.params);
+      if (preset.text !== undefined) onText?.(preset.text);
+    }
+  };
 
   // 1) 画布卡片态：展示对应图画 + 极简 ▶ 播放/进度条 + 一行核心结论
   if (inCard) {
@@ -282,6 +289,20 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
           </div>
         ) : null}
 
+        {props.onRulePreset && !!payload.presets?.length && (
+          <select className={styles.aiCardPreset} aria-label={payload.title + '情景预设'} value="" onChange={(event) => {
+            const preset = payload.presets?.find(({ label }) => label === event.currentTarget.value);
+            if (preset) {
+              setPlaying(false);
+              setFrameIndex(0);
+              selectPreset(preset);
+            }
+          }}>
+            <option value="" disabled>选择情景预设</option>
+            {payload.presets.map(({ label }) => <option key={label}>{label}</option>)}
+          </select>
+        )}
+
         {activeFrame?.summary ? (
           <p className={styles.aiCardSummary}>{activeFrame.summary}</p>
         ) : payload.summary ? (
@@ -293,7 +314,9 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
   }
 
   // 2) 右侧检查器态：调参 + 自定义数据输入 + 预设 + AI 微调 + 规则代码 + 存入积木库
-  const valueControls = payload.controls.slice(0, 8);
+  const sourceParam = props.values.in?.kind === 'scalar' && typeof payload.presetSource === 'object'
+    ? payload.presetSource.param : undefined;
+  const valueControls = payload.controls.filter(({ key }) => key !== sourceParam).slice(0, 8);
   return (
     <div className={styles.root}>
       {!parsed ? <Notice>规则载荷无法解析；当前使用内置示例。可在下方代码抽屉重新应用。</Notice> : null}
@@ -366,10 +389,7 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
             <button
               key={preset.label}
               type="button"
-              onClick={() => {
-                onParams?.(preset.params);
-                if (preset.text !== undefined) onText?.(preset.text);
-              }}
+              onClick={() => selectPreset(preset)}
             >
               {preset.label}
             </button>
