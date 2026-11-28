@@ -2,6 +2,7 @@ import type { CanvasDoc, CanvasNode, NodeType } from './types.ts';
 import { deepTemplateDoc, type DeepTemplateKind } from './deepTemplates.ts';
 import { isDeepPanoramaTemplateKind } from './deepPanoramaTemplates.ts';
 import { nextId } from './math.ts';
+import { buildDeepPipelineDoc } from './deepPipeline.ts';
 
 const DEEP_PANORAMA_DEFAULT_PARAMS: Record<string, Record<string, number>> = {
   'dl-mlp-backprop': { scenario: 0, activation: 1, lr: 0.12, width: 6, l2: 0.0005, dropout: 0 },
@@ -30,29 +31,7 @@ const DEEP_PANORAMA_EXPOSED: Record<string, readonly [string, string, number, nu
 
 /** Workbench templates are separate from the documents used by published lessons. */
 export function deepWorkshopDoc(kind: DeepTemplateKind | string): CanvasDoc {
-  if (isDeepPanoramaTemplateKind(kind)) {
-    const node = {
-      id: nextId('n'),
-      type: 'deepPanoramaStage' as const,
-      x: 32,
-      y: 28,
-      payload: kind,
-      params: { ...DEEP_PANORAMA_DEFAULT_PARAMS[kind] },
-    };
-    return {
-      version: 1,
-      title: DEEP_PANORAMA_TITLES[kind] ?? '深度学习全景沙盘',
-      nodes: [node],
-      wires: [],
-      strokes: [],
-      zoom: 0.72,
-      panel: {
-        title: DEEP_PANORAMA_TITLES[kind] ?? '深度学习全景沙盘',
-        view_node_ids: [node.id],
-        exposed_params: (DEEP_PANORAMA_EXPOSED[kind] ?? []).map(([param_key, label, min, max, step]) => ({ node_id: node.id, param_key, label, min, max, step })),
-      },
-    };
-  }
+  if (isDeepPanoramaTemplateKind(kind)) return buildDeepPipelineDoc(kind);
 
   const older = deepTemplateDoc(kind as DeepTemplateKind);
   const doc: CanvasDoc = {

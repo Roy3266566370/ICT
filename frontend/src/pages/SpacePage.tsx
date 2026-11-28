@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { AuthUser, MaterialsListResponse, UserProfile } from '@/api/types';
 import { useDeleteAvatar, useUpdateMe, useUploadAvatar } from '@/api/accountHooks';
 import { errorMessage } from '@/api/client';
@@ -28,15 +28,11 @@ import {
   writeSpacePreferences,
   type SpacePreferences,
 } from '@/state/spacePreferences';
-import { SpaceCover } from './space/SpaceCard';
 import { SpacePublicWorks } from './space/SpacePublicWorks';
 import { SpaceCreatorCard } from './space/SpaceCreatorCard';
 import {
   buildSpaceItems,
   findEarliestExpiry,
-  relativeAssetTime,
-  SPACE_KIND_LABEL,
-  spaceItemHref,
   type SpaceItem,
 } from './space/spaceItems';
 import { CreatorPosterModal, PinShowcaseModal, spaceItemKey } from './space/SpaceModals';
@@ -265,8 +261,6 @@ function SpaceStudio({
   }, [items, savedPrefs.pinnedKeys]);
 
   const heroItem = pinnedItems[0] ?? null;
-  const secondaryPins = pinnedItems.slice(1, 3);
-  const recentItems = items.slice(0, 3);
 
   // 内容分布比例
   const distribution = useMemo(() => {
@@ -632,140 +626,7 @@ function SpaceStudio({
             </div>
           </section>
 
-          <section className={`${styles.card} ${styles.bentoRecent}`} aria-label="最近足迹">
-            <div className={styles.cardPad}>
-              <div className={styles.cardHead}>
-                <div>
-                  <p className={`${styles.kicker} ${styles.kickerMuted}`}>RECENTS · 最近足迹</p>
-                  <h3 className={styles.cardTitle}>继续上次</h3>
-                </div>
-              </div>
-              {recentItems.length > 0 ? (
-                <div className={styles.recentList}>
-                  {recentItems.map((item) => (
-                    <Link className={styles.recentItem} key={spaceItemKey(item)} to={spaceItemHref(item)}>
-                      <span className={styles.recentIcon} data-kind={item.kind} aria-hidden="true">
-                        {item.kind === 'material' ? '冊' : item.kind === 'work' ? '象' : '积'}
-                      </span>
-                      <div className={styles.recentMain}>
-                        <strong>{item.title}</strong>
-                        <small>
-                          {SPACE_KIND_LABEL[item.kind]}
-                          {relativeAssetTime(item.time, now) ? ` · ${relativeAssetTime(item.time, now)}` : ''}
-                        </small>
-                      </div>
-                      <span className={styles.recentArrow} aria-hidden="true">↗</span>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <p className={styles.emptySmall} style={{ flex: 1 }}>
-                  {materialsQuery.isLoading || worksQuery.isLoading ? '正在读取最近足迹…' : '暂无最近打开记录。'}
-                </p>
-              )}
-              <div className={styles.recentFoot}>
-                <Link className={styles.textLink} to="/living">全部通文册 →</Link>
-                <Link className={styles.textLink} to="/workshop">全部定象坊 →</Link>
-              </div>
-            </div>
-          </section>
-
-          {user && <SpacePublicWorks userId={user.user_id} />}
-
           {prefsSummaryCard}
-
-          <section className={`${styles.card} ${styles.bentoMorePins}`} aria-label="橱窗展品">
-            <div className={styles.cardPad}>
-              <div className={styles.cardHead}>
-                <div>
-                  <p className={`${styles.kicker} ${styles.kickerMuted}`}>CURATED · 更多精选</p>
-                  <h3 className={styles.cardTitle}>橱窗展品</h3>
-                </div>
-                <div className={styles.inlineRow}>
-                  <button
-                    type="button"
-                    className={`${styles.btn} ${styles.btnSm} ${styles.btnSoft}`}
-                    onClick={() => setNewDeckOpen(true)}
-                  >
-                    ＋ 新建 PPT
-                  </button>
-                  {items.length > 1 ? (
-                    <button
-                      type="button"
-                      className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
-                      onClick={() => setPinModalOpen(true)}
-                    >
-                      替换精选
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              {secondaryPins.length > 0 ? (
-                <div className={styles.pinPair}>
-                  {secondaryPins.map((item) => (
-                    <Link key={spaceItemKey(item)} className={styles.pinMini} to={spaceItemHref(item)}>
-                      <div className={styles.pinMiniCover}>
-                        <SpaceCover item={item} />
-                      </div>
-                      <div className={styles.pinMiniBody}>
-                        <h4 title={item.title}>{item.title}</h4>
-                        <div className={styles.pinMiniFoot}>
-                          <span>
-                            {item.kind === 'material'
-                              ? `${item.record.page_count} 页`
-                              : item.kind === 'work'
-                                ? `${item.record.node_count} 个积木`
-                                : '本机积木'}
-                            {relativeAssetTime(item.time, now) ? ` · ${relativeAssetTime(item.time, now)}` : ''}
-                          </span>
-                          <span className={styles.textLink}>进入 ↗</span>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                  {secondaryPins.length === 1 ? (
-                    <div className={styles.pinSlotEmpty}>
-                      <strong>添置下一件展品</strong>
-                      <p>在通文册新建课件 或在定象坊拼装沙盘，丰富你的个人橱窗。</p>
-                      <div className={styles.inlineRow}>
-                        <button type="button" className={`${styles.btn} ${styles.btnSm} ${styles.btnPrimary}`} onClick={() => setNewDeckOpen(true)}>
-                          ＋ 新建 PPT
-                        </button>
-                        <button
-                          type="button"
-                          className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
-                          onClick={() => navigate('/canvas', { state: { blank: true } })}
-                        >
-                          ＋ 新建画布
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <div className={styles.pinPair}>
-                  <div className={styles.pinSlotEmpty}>
-                    <strong>在通文册从零制作 PPT</strong>
-                    <p>使用你设定的默认主题「{activePptTheme[1]}」与 {prefsDraft.defaultRatio} 比例开箱创作。</p>
-                    <button type="button" className={`${styles.btn} ${styles.btnSm} ${styles.btnPrimary}`} onClick={() => setNewDeckOpen(true)}>
-                      ＋ 新建课件
-                    </button>
-                  </div>
-                  <div className={styles.pinSlotEmpty}>
-                    <strong>在定象坊拼装交互沙盘</strong>
-                    <p>用可视化积木搭建公式曲线与物理/数学模型，随时嵌进课件任意一页。</p>
-                    <button
-                      type="button"
-                      className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
-                      onClick={() => navigate('/canvas', { state: { blank: true } })}
-                    >
-                      ＋ 新建空白画布
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
 
           <section className={`${styles.card} ${styles.bentoAssets}`} aria-label="个人资产与备份管家">
             <div className={styles.cardPad}>
@@ -813,6 +674,8 @@ function SpaceStudio({
               {importError ? <p className={styles.fieldError} role="alert" style={{ marginTop: 8 }}>{importError}</p> : null}
             </div>
           </section>
+
+          {user && <SpacePublicWorks userId={user.user_id} />}
         </div>
       ) : (
         <div className={`${styles.settingsSplit} ${isDirty || updateMe.isPending ? styles.withSaveBar : ''}`}>

@@ -74,7 +74,8 @@ export function WorkSharePage(): JSX.Element {
     );
   }
   if (!doc) return <div className={styles.playerShell}><p className={styles.spotLoading}>载入中…</p></div>;
-  if (embed && doc.panel) {
+  const hasDeepPipeline = doc.nodes.some((node) => node.type === 'deepStage');
+  if (embed && doc.panel && !hasDeepPipeline) {
     return <div className={workshopStyles.embeddedPlayer} aria-label={title}>
       <CanvasBoard doc={doc} mode="instrument" tool="select" inkColor="#2F3A49" readOnly interactivePanel
         setDoc={updatePreview} />
@@ -82,7 +83,7 @@ export function WorkSharePage(): JSX.Element {
   }
   // 带策展面板（视图钉选 / 参数暴露）的作品进入仪器演奏模式，与嵌入播放器口径一致；
   // 无策展信息的自由画布作品保持原样平铺。
-  const curated = Boolean(doc.panel && (doc.panel.view_node_ids.length > 0 || doc.panel.exposed_params.length > 0));
+  const curated = !hasDeepPipeline && Boolean(doc.panel && (doc.panel.view_node_ids.length > 0 || doc.panel.exposed_params.length > 0));
   const item = listing.data;
   const subjectColor = item ? SUBJECT_COLORS[item.subject] ?? SUBJECT_COLORS.general : SUBJECT_COLORS.general;
 
@@ -118,7 +119,7 @@ export function WorkSharePage(): JSX.Element {
       </header>
       <div className={styles.playerStage} data-pipeline={curated || undefined} aria-label="只读交互画布">
         <CanvasBoard doc={doc} setDoc={updatePreview} tool="select" inkColor="#2F3A49"
-          mode={curated ? 'instrument' : undefined} readOnly interactivePanel={curated} interactiveSliders={!curated}
+          mode={curated ? 'instrument' : undefined} readOnly interactivePanel={curated || hasDeepPipeline} interactiveSliders={!curated}
           focusContent={!curated}
           renderTools={curated ? undefined : ({ tidyLayout, fitAll }) => (
             <div className={workshopStyles.previewTools} role="toolbar" aria-label="画布工具坞">

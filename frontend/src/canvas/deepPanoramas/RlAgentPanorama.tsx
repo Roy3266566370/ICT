@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { DeepPanoramaShell } from '../DeepPanoramaShell';
 import { clamp, finite, rlTransition, round, trainRlPanoramaCached } from '../deepPanoramaEngine';
-import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset } from '../deepPanoramaTypes';
+import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset, DeepStageRenderState } from '../deepPanoramaTypes';
 import type { NodeBodyProps } from '../nodes';
 
 export const RL_PRESETS: readonly DeepScenarioPreset[] = [
@@ -66,7 +66,33 @@ function GridWorld({ snapshot, frame, selected, onSelect }: { snapshot: ReturnTy
   );
 }
 
-function CurvePanel({ snapshot }: { snapshot: ReturnType<typeof trainRlPanoramaCached> }) {
+function CurvePanel({ snapshot, compact = false }: { snapshot: ReturnType<typeof trainRlPanoramaCached>; compact?: boolean }) {
+  if (compact) {
+    const chartCompact = (series: number[], color: string, xOffset: number, label: string) => {
+      const min = Math.min(...series, 0);
+      const max = Math.max(...series, 1);
+      const points = series.map((value, i) => `${xOffset + i / Math.max(1, series.length - 1) * 158},${102 - (value - min) / Math.max(1e-6, max - min) * 66}`).join(' ');
+      return (
+        <g>
+          <rect x={xOffset - 6} y="14" width="170" height="98" rx="8" fill="#fcfbf5" stroke="rgba(23,35,31,.09)" />
+          <text x={xOffset} y="29" fontSize="9.5" fontWeight="600" fill="#6b746d">{label}</text>
+          <polyline points={points} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+      );
+    };
+    return (
+      <svg viewBox="0 0 380 156" style={{ width: '100%', height: '100%' }} role="img" aria-label="训练回报与回合长度曲线">
+        <rect width="380" height="156" rx="12" fill="rgba(242,240,231,.64)" />
+        {chartCompact(snapshot.returns, '#1b42cf', 18, 'Episode return')}
+        {chartCompact(snapshot.steps, '#d94824', 202, 'Steps per episode')}
+        <g transform="translate(12 120)">
+          <rect width="356" height="26" rx="7" fill="#fcfbf5" stroke="rgba(23,35,31,.12)" />
+          <text x="12" y="17" fontSize="10.5" fill="#6b746d">最新回合</text>
+          <text x="72" y="17" fontSize="12" fontWeight="700" fill="#1b42cf">R={snapshot.returns[snapshot.returns.length - 1] ?? 0} · {snapshot.steps[snapshot.steps.length - 1] ?? 0} 步</text>
+        </g>
+      </svg>
+    );
+  }
   const chart = (series: number[], color: string, yOffset: number, label: string) => {
     const min = Math.min(...series, 0);
     const max = Math.max(...series, 1);
@@ -151,5 +177,48 @@ export function RlAgentPanorama({ node, onParams }: NodeBodyProps) {
     >
       {(state) => <MainVisual {...state} />}
     </DeepPanoramaShell>
+  );
+}
+
+function rlStageSnapshot(state: DeepStageRenderState) {
+  const episodes = clamp(Math.floor(state.frame) + 1, 1, 160);
+  return trainRlPanoramaCached({
+    episodes,
+    alpha: finite(state.params.alpha, 0.18),
+    gamma: finite(state.params.gamma, 0.95),
+    epsilon: finite(state.params.epsilon, 0.22),
+    reinforce: finite(state.params.reinforce, 0, 0, 1),
+  });
+}
+
+function RlGridStage(state: DeepStageRenderState) {
+  const snapshot = rlStageSnapshot(state);
+  const selected = Math.round(finite(state.params.selectedState, 30, 0, 35));
+  return <GridWorld snapshot={snapshot} frame={state.frame} selected={selected} onSelect={(next) => state.setParam('selectedState', next)} />;
+}
+
+export function RlEnvironmentStage(state: DeepStageRenderState) {
+  return <RlGridStage {...state} />;
+}
+export function RlExploreStage(state: DeepStageRenderState) {
+  return <RlGridStage {...state} />;
+}
+export function RlPolicyStage(state: DeepStageRenderState) {
+  return <RlGridStage {...state} />;
+}
+export function RlBellmanStage(state: DeepStageRenderState) {
+  const snapshot = rlStageSnapshot(state);
+  const selected = Math.round(finite(state.params.selectedState, 30, 0, 35));
+  const row = snapshot.table[selected]!;
+  const action = row.indexOf(Math.max(...row));
+  const transition = rlTransition(selected, action);
+  const nextMax = Math.max(...snapshot.table[transition.next]!);
+  return (
+    <div style={{ height: '100%', display: 'grid', gridTemplateRows: 'minmax(0,1fr) auto', gap: 6, padding: 6 }}>
+      <CurvePanel snapshot={snapshot} compact />
+      <div style={{ padding: '6px 9px', borderRadius: 8, background: 'rgba(23,35,31,.055)', color: '#17231f', fontSize: 10.5, lineHeight: 1.4 }}>
+        Q(s,a) ← Q + α[r+γmaxQ(s′)]　<code>{round(row[action]!, 2)} + {finite(state.params.alpha, 0.18).toFixed(2)}[{transition.reward}+{finite(state.params.gamma, 0.95).toFixed(2)}×{round(nextMax, 2)}]</code>　最优 {ACTIONS[action]}
+      </div>
+    </div>
   );
 }

@@ -150,14 +150,20 @@ export function CreatorPosterModal({
   onDownloaded: () => void;
 }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [coverMode, setCoverMode] = useState<'banner' | 'full'>('full');
+  const [focusY, setFocusY] = useState(50);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+
   const updateCover = async (file: File | null) => {
     setUploading(true);
     setError('');
     try {
       onCoverChange(file ? await prepareCover(file) : null);
+      if (file) setFocusY(50);
     } catch (cause) {
       setError(cause instanceof DOMException && cause.name === 'QuotaExceededError'
         ? '浏览器存储空间不足，封面未保存。'
@@ -183,7 +189,9 @@ export function CreatorPosterModal({
     const renderPoster = (img?: HTMLImageElement, cover?: HTMLImageElement) => {
       const w = canvas.width;
       const h = canvas.height;
-      const dark = coverTheme === 'indigo-star' || coverTheme === 'chalk-board';
+      const fullBg = Boolean(cover && coverMode === 'full');
+      const bannerBg = Boolean(cover && coverMode === 'banner');
+      const dark = fullBg || coverTheme === 'indigo-star' || coverTheme === 'chalk-board';
       const bgMap: Record<SpaceCoverTheme, [string, string]> = {
         'ivory-gold': ['#faf6ea', '#efe5cf'],
         'indigo-star': ['#171f3b', '#223663'],
@@ -191,89 +199,165 @@ export function CreatorPosterModal({
         'oat-editorial': ['#f2e6d5', '#e4d3bc'],
       };
       const [c1, c2] = bgMap[coverTheme];
+
+      // 1. 底色与氛围底纹
       const grad = ctx.createLinearGradient(0, 0, w, h);
       grad.addColorStop(0, c1);
       grad.addColorStop(1, c2);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      ctx.strokeStyle = dark ? 'rgba(255,255,255,0.12)' : 'rgba(184,68,35,0.14)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let x = 0; x <= w; x += 8) {
-        const y = h * 0.72 + Math.sin(x / 110) * 34 + Math.cos(x / 48) * 14;
-        if (x === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
+      const drawCovered = (
+        image: HTMLImageElement,
+        x: number,
+        y: number,
+        boxW: number,
+        boxH: number,
+        posYRatio: number,
+      ) => {
+        const scale = Math.max(boxW / image.width, boxH / image.height);
+        const drawW = image.width * scale;
+        const drawH = image.height * scale;
+        const drawX = x + (boxW - drawW) / 2;
+        const drawY = y + (boxH - drawH) * posYRatio;
+        ctx.drawImage(image, drawX, drawY, drawW, drawH);
+      };
 
-      if (cover) {
-        const band = 116;
-        const scale = Math.max(w / cover.width, band / cover.height);
+      const posY = Math.max(0, Math.min(1, focusY / 100));
+
+      if (fullBg && cover) {
+        // 全卡氛围背景：铺满整张名片 + 多层柔和渐暗遮罩，保证文字通透清晰
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, 0, w, band);
-        ctx.clip();
-        ctx.drawImage(cover, (w - cover.width * scale) / 2, (band - cover.height * scale) / 2,
-          cover.width * scale, cover.height * scale);
-        ctx.fillStyle = '#0006';
-        ctx.fillRect(0, 0, w, band);
+        drawCovered(cover, 0, 0, w, h, posY);
+        const scrim = ctx.createLinearGradient(0, 0, w * 0.9, h);
+        scrim.addColorStop(0, 'rgba(15, 20, 26, 0.72)');
+        scrim.addColorStop(0.55, 'rgba(15, 20, 26, 0.50)');
+        scrim.addColorStop(1, 'rgba(15, 20, 26, 0.76)');
+        ctx.fillStyle = scrim;
+        ctx.fillRect(0, 0, w, h);
         ctx.restore();
-      }
-      ctx.fillStyle = cover ? '#fffdf8' : dark ? '#ffd38e' : '#b84423';
-      ctx.font = '600 18px ui-monospace, monospace';
-      ctx.fillText('WANXIANG · 万象创作者名片', 64, 72);
+      } else {
+        // 纸墨波形装饰线
+        ctx.strokeStyle = dark ? 'rgba(255,255,255,0.12)' : 'rgba(184,68,35,0.13)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let x = 0; x <= w; x += 8) {
+          const y = h * 0.74 + Math.sin(x / 110) * 32 + Math.cos(x / 48) * 12;
+          if (x === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
 
+        if (bannerBg && cover) {
+          // 顶部杂志横幅：自然覆盖上方 166px，底部柔焦羽化融入底色
+          const band = 166;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, w, band);
+          ctx.clip();
+          drawCovered(cover, 0, 0, w, band, posY);
+          const topShade = ctx.createLinearGradient(0, 0, 0, band);
+          topShade.addColorStop(0, 'rgba(14, 18, 22, 0.48)');
+          topShade.addColorStop(0.65, 'rgba(14, 18, 22, 0.24)');
+          topShade.addColorStop(1, 'rgba(14, 18, 22, 0.06)');
+          ctx.fillStyle = topShade;
+          ctx.fillRect(0, 0, w, band);
+          ctx.restore();
+
+          // 底部柔和过渡条，消除硬边割裂
+          const fade = ctx.createLinearGradient(0, band - 42, 0, band + 6);
+          fade.addColorStop(0, 'rgba(0,0,0,0)');
+          fade.addColorStop(1, c1);
+          ctx.fillStyle = fade;
+          ctx.fillRect(0, band - 42, w, 48);
+        }
+      }
+
+      // 2. 顶部品牌眉标
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillStyle = (fullBg || bannerBg) ? 'rgba(255, 253, 248, 0.92)' : dark ? '#ffd38e' : '#b84423';
+      ctx.font = '600 18px ui-monospace, monospace';
+      ctx.fillText('WANXIANG  ·  万象创作者名片', 64, 64);
+
+      // 3. 头像（带精致外环描边与柔和阴影）
       const name = draft.displayName.trim() || username;
+      const avatarCx = 118;
+      const avatarCy = bannerBg ? 174 : 180;
+      const avatarR = 54;
+
+      ctx.save();
+      ctx.shadowColor = 'rgba(14, 18, 22, 0.22)';
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 6;
+      ctx.beginPath();
+      ctx.arc(avatarCx, avatarCy, avatarR + 4, 0, Math.PI * 2);
+      ctx.fillStyle = fullBg ? 'rgba(255, 253, 248, 0.92)' : (dark ? '#233252' : '#fffdf8');
+      ctx.fill();
+      ctx.restore();
+
       ctx.save();
       ctx.beginPath();
-      ctx.arc(118, 178, 52, 0, Math.PI * 2);
+      ctx.arc(avatarCx, avatarCy, avatarR, 0, Math.PI * 2);
       ctx.clip();
       if (img) {
-        ctx.drawImage(img, 66, 126, 104, 104);
+        drawCovered(img, avatarCx - avatarR, avatarCy - avatarR, avatarR * 2, avatarR * 2, 0.5);
       } else {
         ctx.fillStyle = dark ? '#3c5aa0' : '#2e457a';
-        ctx.fillRect(66, 126, 104, 104);
+        ctx.fillRect(avatarCx - avatarR, avatarCy - avatarR, avatarR * 2, avatarR * 2);
         ctx.fillStyle = '#fffdf8';
         ctx.font = '700 42px Georgia, serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(Array.from(name)[0] ?? '象', 118, 180);
+        ctx.fillText(Array.from(name)[0] ?? '象', avatarCx, avatarCy + 2);
       }
       ctx.restore();
 
+      // 4. 昵称与身份信息
+      const nameY = bannerBg ? 218 : 176;
+      const metaY = bannerBg ? 254 : 216;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = dark ? '#ffffff' : '#141816';
       ctx.font = '700 46px "Songti SC", Georgia, serif';
-      ctx.fillText(name.slice(0, 18), 198, 174);
+      ctx.fillText(name.slice(0, 18), 198, nameY);
 
-      ctx.fillStyle = dark ? 'rgba(255,255,255,0.72)' : '#5a635e';
+      ctx.fillStyle = dark ? 'rgba(255,255,255,0.78)' : '#5a635e';
       ctx.font = '500 22px sans-serif';
       const meta = [draft.occupation.trim(), draft.school.trim(), `@${username}`].filter(Boolean).join(' · ');
-      ctx.fillText(meta.slice(0, 44), 198, 214);
+      ctx.fillText(meta.slice(0, 44), 198, metaY);
 
-      ctx.fillStyle = dark ? 'rgba(255,255,255,0.88)' : '#323a35';
+      // 5. 个人简介
+      const bioY = bannerBg ? 316 : 302;
+      ctx.fillStyle = dark ? 'rgba(255,255,255,0.92)' : '#323a35';
       ctx.font = '400 24px sans-serif';
       const bioLine = (draft.bio.trim() || '在万象探索动态教学与可视化创作').slice(0, 38);
-      ctx.fillText(bioLine, 64, 300);
+      ctx.fillText(bioLine, 64, bioY);
 
+      // 6. 兴趣标签胶囊
       let tx = 64;
+      const tagY = bannerBg ? 356 : 346;
       ctx.font = '500 19px sans-serif';
       for (const tag of draft.interests.slice(0, 5)) {
         const text = `# ${tag}`;
         const tw = ctx.measureText(text).width + 28;
         if (tx + tw > w - 64) break;
-        ctx.fillStyle = dark ? 'rgba(255,255,255,0.12)' : 'rgba(20,24,22,0.07)';
+        ctx.fillStyle = fullBg
+          ? 'rgba(255,255,255,0.16)'
+          : dark
+            ? 'rgba(255,255,255,0.12)'
+            : 'rgba(20,24,22,0.07)';
         ctx.beginPath();
-        ctx.roundRect(tx, 344, tw, 38, 19);
+        ctx.roundRect(tx, tagY, tw, 38, 19);
         ctx.fill();
-        ctx.fillStyle = dark ? '#eef4ff' : '#2c3430';
-        ctx.fillText(text, tx + 14, 370);
+        ctx.fillStyle = dark ? '#f4f7ff' : '#2c3430';
+        ctx.fillText(text, tx + 14, tagY + 26);
         tx += tw + 12;
       }
 
-      ctx.strokeStyle = dark ? 'rgba(255,255,255,0.14)' : 'rgba(20,24,22,0.12)';
+      // 7. 底部分割线与创作数据
+      ctx.strokeStyle = dark ? 'rgba(255,255,255,0.18)' : 'rgba(20,24,22,0.12)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(64, 456);
       ctx.lineTo(w - 64, 456);
@@ -282,6 +366,11 @@ export function CreatorPosterModal({
       ctx.fillStyle = dark ? '#ffffff' : '#141816';
       ctx.font = '700 26px Georgia, serif';
       ctx.fillText(`${totalSlides} 页动态幻灯片   ·   ${workCount} 个交互沙盘   ·   ${blockCount} 块自研积木`, 64, 514);
+
+      // 8. 精致内边框
+      ctx.strokeStyle = dark ? 'rgba(255,255,255,0.14)' : 'rgba(20,24,22,0.08)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, w - 2, h - 2);
     };
 
     let active = true;
@@ -291,7 +380,7 @@ export function CreatorPosterModal({
       setReady(true);
     });
     return () => { active = false; };
-  }, [draft, username, avatarUrl, coverTheme, coverImage, totalSlides, workCount, blockCount]);
+  }, [draft, username, avatarUrl, coverTheme, coverImage, coverMode, focusY, totalSlides, workCount, blockCount]);
 
   const download = () => {
     const canvas = canvasRef.current;
@@ -314,28 +403,118 @@ export function CreatorPosterModal({
     <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-label="创作者名片预览" onClick={onClose}>
       <div className={`${styles.modalCard} ${styles.posterModalCard}`} onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHead}>
-          <h3>创作者名片预览</h3>
+          <div>
+            <h3>创作者名片预览</h3>
+            <p className={styles.posterSub}>可上传自定义图片作为名片背景，或直接拖拽图片到下方预览区</p>
+          </div>
           <button type="button" className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`} onClick={onClose}>
             关闭
           </button>
         </div>
-        <div className={styles.inlineRow}>
-          <label>上传封面图片{' '}
-            <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading}
-              onChange={event => {
-                const file = event.currentTarget.files?.[0];
-                event.currentTarget.value = '';
-                if (file) void updateCover(file);
-              }} />
-          </label>
-          {coverImage && <button type="button" className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
-            disabled={uploading} onClick={() => void updateCover(null)}>恢复默认封面</button>}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          hidden
+          disabled={uploading}
+          onChange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            event.currentTarget.value = '';
+            if (file) void updateCover(file);
+          }}
+        />
+
+        <div className={styles.posterToolbar}>
+          <div className={styles.inlineRow}>
+            <button
+              type="button"
+              className={`${styles.btn} ${styles.btnSm} ${styles.btnSoft}`}
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? '正在处理图片…' : coverImage ? '更换自定义图片' : '↑ 上传自定义图片'}
+            </button>
+            {coverImage ? (
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnSm} ${styles.btnGhost}`}
+                disabled={uploading}
+                onClick={() => void updateCover(null)}
+              >
+                恢复默认主题
+              </button>
+            ) : null}
+          </div>
+
+          {coverImage ? (
+            <div className={styles.posterAdjust}>
+              <div className={styles.posterModeGroup} role="group" aria-label="背景铺设方式">
+                <button
+                  type="button"
+                  aria-pressed={coverMode === 'full'}
+                  onClick={() => setCoverMode('full')}
+                >
+                  全卡背景
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={coverMode === 'banner'}
+                  onClick={() => setCoverMode('banner')}
+                >
+                  顶部横幅
+                </button>
+              </div>
+              <label className={styles.posterRange}>
+                <span>构图</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={focusY}
+                  aria-label="调整封面纵向构图位置"
+                  onChange={(e) => setFocusY(Number(e.target.value))}
+                />
+              </label>
+            </div>
+          ) : (
+            <span className={styles.posterFormatHint}>支持 JPG / PNG / WebP（10 MB 以内）</span>
+          )}
         </div>
-        {error && <p role="alert">{error}</p>}
-        <canvas ref={canvasRef} width={1040} height={580} className={styles.posterCanvas} />
+
+        {error ? <p className={styles.fieldError} role="alert" style={{ marginBottom: 10 }}>{error}</p> : null}
+
+        <div
+          className={styles.posterStage}
+          data-dragging={dragging ? 'true' : undefined}
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (!dragging) setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragging(false);
+            const file = e.dataTransfer.files?.[0];
+            if (file) void updateCover(file);
+          }}
+        >
+          <canvas ref={canvasRef} width={1040} height={580} className={styles.posterCanvas} />
+          {dragging ? (
+            <div className={styles.posterDropMask} aria-hidden="true">
+              松开即可设为名片封面图
+            </div>
+          ) : null}
+        </div>
+
         <div className={styles.modalFoot}>
           <span className={styles.modalCount}>自动同步当前头像、简介、学科标签与真实创作数据</span>
-          <button type="button" className={`${styles.btn} ${styles.btnSm} ${styles.btnPrimary}`} onClick={download} disabled={!ready || uploading}>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnSm} ${styles.btnPrimary}`}
+            onClick={download}
+            disabled={!ready || uploading}
+          >
             下载高清 PNG 名片
           </button>
         </div>

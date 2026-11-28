@@ -34,7 +34,7 @@ function buildUnitEconomics(): CanvasDoc {
   const price = slider('price', '客单价（元）', 60, 120, 50, 300, 5);
   const growth = node('growth', 'bizGrowthSource', 40, 300,
     { initial: 2500, rate: 0.08, months: 12, seasonality: 0.1 });
-  const sensGrid = rule('sensGrid', 430, 40, {
+  const sensGrid = rule('sensGrid', 420, 40, {
     title: '敏感性热图：价格×成本率',
     summary: '拖动客单价或调变动成本率，看月净利在二维平面上何处转亏。',
     preferredView: 'grid',
@@ -54,13 +54,14 @@ function buildUnitEconomics(): CanvasDoc {
     presetSource: { param: 'price' },
     verificationNote: '月净利 = 客单价×(1-变动成本率)×销量 - 固定开销 - 营销预算。',
   });
-  const waterfall = node('waterfall', 'bizWaterfallView', 430, 340);
-  const payback = rule('payback', 430, 540, {
+  const waterfall = node('waterfall', 'bizWaterfallView', 860, 40);
+  const payback = rule('payback', 860, 330, {
     title: '累计净利与回本',
     summary: '销量序列 × 单笔贡献毛利 - 月固定开销，看累计曲线第几期转正。',
     preferredView: 'chart',
     code: paybackRule,
     auxiliaryKind: 'scalar',
+    presetSource: { param: 'price', auxiliaryParam: 'price' },
     controls: [
       control('price', '客单价（联动滑杆）', 120, 50, 300, 5),
       control('varRate', '变动成本率', 0.35, 0.1, 0.8, 0.01),

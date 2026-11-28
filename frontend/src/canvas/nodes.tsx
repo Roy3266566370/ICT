@@ -50,6 +50,8 @@ import { DEEP_FIRST_DEFS, deepFirstDefaults } from './DeepFirstNodes';
 import { DEEP_CORE_DEFS, deepCoreDefaults } from './DeepCoreNodes';
 import { DEEP_ADVANCED_DEFS, deepAdvancedDefaults } from './DeepAdvancedNodes';
 import { DeepPanoramaNodeBody } from './DeepPanoramaNode';
+import { DeepStageNodeBody } from './DeepStageNode';
+import { deepPipelinePorts } from './deepPipeline.ts';
 import styles from './canvas.module.css';
 import { parseAiRulePayload } from './aiRuleBlock.ts';
 import type { RulePreset } from './types.ts';
@@ -946,6 +948,7 @@ export function nodePorts(node: CanvasNode, dir: 'in' | 'out'): readonly PortSpe
   if (node.type === 'physicsStage') return physicsPipelinePorts(node, dir);
   if (node.type === 'calculusStage') return calculusPipelinePorts(node, dir);
   if (node.type === 'businessStage') return businessPipelinePorts(node, dir);
+  if (node.type === 'deepStage') return deepPipelinePorts(node, dir);
   if (node.type === 'composite') {
     return (node.sub?.ports ?? [])
       .filter((p) => p.dir === dir)
@@ -990,6 +993,7 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   ...AI_RULE_DEFS,
   ...UNIVERSAL_STAGE_DEFS,
   universalStageView: { ...UNIVERSAL_STAGE_DEFS.universalStageView!, cockpitWeight: 'hero' },
+  deepStage: { title: '深度学习模块', badge: '实验', width: 420, cockpitWeight: 'hero', Body: DeepStageNodeBody },
   deepPanoramaStage: { title: '深度学习全景沙盘', badge: '实验', width: 960, cockpitWeight: 'hero', Body: DeepPanoramaNodeBody },
   functionSource: { title: '函数源', badge: '源', width: 280, outputs: [{ id: 'out', label: 'f(x)', kind: 'function' }], Body: FunctionSourceBody },
   functionPlot: { title: '函数图像', badge: '视图', cockpitWeight: 'hero', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], Body: FunctionPlotBody },

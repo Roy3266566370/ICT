@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { DeepPanoramaShell, PanoramaCanvas } from '../DeepPanoramaShell';
 import { clamp, finite, forwardMlp, round, trainMlpPanoramaCached, transformMlpGrid, type MlpSnapshot } from '../deepPanoramaEngine';
-import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset } from '../deepPanoramaTypes';
+import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset, DeepStageRenderState } from '../deepPanoramaTypes';
 import { dfOptimRun, dfTerrain } from '../deepFirst';
 import type { NodeBodyProps } from '../nodes';
 
@@ -66,25 +66,27 @@ function DecisionCanvas({ snapshot, activation, stage, epoch }: { snapshot: MlpS
       }
       lowCtx.putImageData(image, 0, 0);
     }
+    const plotW = Math.max(40, width - 36);
+    const plotH = Math.max(40, height - 46);
     ctx.save();
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(low, 18, 14, width - 36, height - 36);
+    ctx.drawImage(low, 18, 12, plotW, plotH);
     ctx.restore();
     ctx.strokeStyle = 'rgba(23,35,31,.18)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(18, 14, width - 36, height - 36);
+    ctx.strokeRect(18, 12, plotW, plotH);
     if (stage === 1 && epoch > 4) {
       const grid = transformMlpGrid(snapshot.weights, activation, epoch > 45 ? 2 : 1, 9);
       const maxAbs = Math.max(0.5, ...grid.flat().flat().map(Math.abs));
       ctx.save();
-      ctx.translate(width * 0.55, height * 0.48);
+      ctx.translate(width * 0.55, 12 + plotH * 0.5);
       ctx.strokeStyle = 'rgba(27,66,207,.52)';
       ctx.lineWidth = 1;
       for (let r = 0; r < grid.length; r += 1) {
         ctx.beginPath();
         grid[r]!.forEach((point, c) => {
           const x = point[0]! / maxAbs * width * 0.18 + c * 2;
-          const y = -point[1]! / maxAbs * height * 0.22 + r * 1.4;
+          const y = -point[1]! / maxAbs * plotH * 0.24 + r * 1.4;
           if (c === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         });
         ctx.stroke();
@@ -92,18 +94,18 @@ function DecisionCanvas({ snapshot, activation, stage, epoch }: { snapshot: MlpS
       ctx.restore();
     }
     for (const point of snapshot.points) {
-      const [x, y] = dataTransform(point.x, point.y, width - 36, height - 36);
+      const [x, y] = dataTransform(point.x, point.y, plotW, plotH);
       ctx.beginPath();
-      ctx.arc(18 + x, 14 + y, point.split === 'validation' ? 4.1 : 3.2, 0, Math.PI * 2);
+      ctx.arc(18 + x, 12 + y, point.split === 'validation' ? 4.1 : 3.2, 0, Math.PI * 2);
       ctx.fillStyle = point.label ? '#1b42cf' : '#d94824';
       ctx.fill();
       ctx.lineWidth = point.split === 'validation' ? 1.4 : 0.7;
       ctx.strokeStyle = point.split === 'validation' ? '#fcfbf5' : 'rgba(252,251,245,.75)';
       ctx.stroke();
     }
-    ctx.fillStyle = 'rgba(23,35,31,.68)';
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.fillText(stage === 1 ? '输入平面 → 隐层坐标被连续折叠' : '训练点 ●  验证点 ◉', 28, height - 20);
+    ctx.fillStyle = 'rgba(23,35,31,.72)';
+    ctx.font = '10.5px system-ui, sans-serif';
+    ctx.fillText(stage === 1 ? '输入平面 → 隐层坐标连续折叠' : '训练点 ●  验证点 ◉', 20, height - 12);
   }, [snapshot, activation, stage, epoch]);
   return <PanoramaCanvas draw={draw} label="二维分类概率场、训练数据与隐层流形折叠" />;
 }
@@ -265,4 +267,18 @@ export function MlpBackpropPanorama({ node, onParams }: NodeBodyProps) {
       {(state) => <MainVisual {...state} />}
     </DeepPanoramaShell>
   );
+}
+
+
+export function MlpSourceStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={0} />;
+}
+export function MlpFoldStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={1} />;
+}
+export function MlpGradientStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={3} />;
+}
+export function MlpOptimizerStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={2} />;
 }

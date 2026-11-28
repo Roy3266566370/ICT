@@ -16,6 +16,7 @@ import { find408Stage } from './lab408Pipeline.ts';
 import { findPhysicsStage } from './physicsPipeline.ts';
 import { findCalculusStage } from './calculusPipeline.ts';
 import { findBusinessStage } from './businessPipeline.ts';
+import { findDeepStage } from './deepPipeline.ts';
 import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasDoc, CanvasNode, CanvasTool, CompositeSub, ExposedParam, InkStroke, NodeType, PortValue, ValueKind, Wire } from './types.ts';
 import { nextId, clamp } from './math.ts';
@@ -178,7 +179,7 @@ const pinKey = (nodeId: string, portId: string): string => `pin|${nodeId}|${port
 const poutKey = (nodeId: string, portId: string): string => `pout|${nodeId}|${portId}`;
 /** 卡片整面拖拽时，落在这些交互元素上的按下不触发拖动（交给控件自身）。 */
 const NODE_DRAG_IGNORE = 'button,input,select,textarea,summary,a[href],label,math-field,[data-port],[data-node-x],[data-node-resize],[data-node-drag-ignore],[contenteditable="true"]';
-const PIPELINE_STAGE_TYPES: ReadonlySet<NodeType> = new Set<NodeType>(['lab408Stage', 'physicsStage', 'calculusStage', 'businessStage']);
+const PIPELINE_STAGE_TYPES: ReadonlySet<NodeType> = new Set<NodeType>(['lab408Stage', 'physicsStage', 'calculusStage', 'businessStage', 'deepStage']);
 const isPipelineStage = (type: NodeType): boolean => PIPELINE_STAGE_TYPES.has(type);
 
 function strokePath(pts: [number, number][]): string {
@@ -202,6 +203,7 @@ export function CanvasBoard({ doc, setDoc, tool, encapsulating, onEndEncapsulate
   const nodeDragging = useRef(false);
   const focusedOnce = useRef(false);
   const composedOnce = useRef(false);
+  const deepFitKey = useRef('');
   const restoredViewport = useRef(false);
   const zoomRef = useRef(doc.zoom);
   zoomRef.current = doc.zoom;
@@ -301,10 +303,15 @@ export function CanvasBoard({ doc, setDoc, tool, encapsulating, onEndEncapsulate
   }, [simPlaying, hasDelayRegister, stepSimulation]);
 
   const schematic = composing && !inSubCanvas && activeNodes.some((node) => isPipelineStage(node.type) || isStudyStage(node.type));
-  const nodeWidth = (node: CanvasNode) => schematic && node.type !== 'textNote' && node.type !== 'latexNote' && node.type !== 'functionSource'
+  const nodeWidth = (node: CanvasNode) => schematic && node.type !== 'textNote' && node.type !== 'latexNote' && node.type !== 'functionSource' && node.type !== 'deepStage'
     ? COMPACT_CARD_WIDTH : node.w ?? NODE_DEFS[node.type]?.width ?? 240;
   const nodeRole = (node: CanvasNode | undefined): string => {
     if (!node) return 'operator';
+    if (node.type === 'deepStage') {
+      const deep = findDeepStage(node);
+      if (deep?.stage.id === 'source') return 'source';
+      return doc.panel?.view_node_ids.includes(node.id) ? 'view' : 'operator';
+    }
     const definition = find408Stage(node) ?? findCalculusStage(node) ?? findPhysicsStage(node) ?? findBusinessStage(node);
     if (definition) {
       if (!definition.stage.inputs?.length) return 'source';
@@ -1442,7 +1449,7 @@ export function CanvasBoard({ doc, setDoc, tool, encapsulating, onEndEncapsulate
     const cursorKey = pipelineWork + ':' + pipeline;
     const exposed = (audienceParams ?? (interactivePanel && readOnly ? doc.panel?.exposed_params : undefined))
       ?.filter((param) => param.node_id === n.id);
-    const deepPanoramaInteractive = n.type === 'deepPanoramaStage' && readOnly && interactivePanel && !audienceParams;
+    const deepPanoramaInteractive = (n.type === 'deepPanoramaStage' || n.type === 'deepStage') && readOnly && interactivePanel && !audienceParams;
 
     // Composite 2.0：解析外壳封面缩略视图（仅当非嵌套预览时渲染，防极端递归）
     let subPreview: NodeBodyProps['subPreview'] = null;
@@ -1547,7 +1554,7 @@ export function CanvasBoard({ doc, setDoc, tool, encapsulating, onEndEncapsulate
 
     const insets = {
       top: Math.max(28, Math.max(clockBar, breadcrumbBar) + (clockBar || breadcrumbBar ? 28 : 0)),
-      bottom: Math.max(28, dockHeight + (dockHeight ? 32 : 0)),
+      bottom: Math.max(28, dockHeight + (dockHeight ? 52 : 0)),
       left: 32,
       right: Math.max(32, inspectorWidth + (inspectorWidth ? 24 : 0)),
     };
@@ -1563,10 +1570,17 @@ export function CanvasBoard({ doc, setDoc, tool, encapsulating, onEndEncapsulate
   }, [activePath.length, setDoc]);
 
   useLayoutEffect(() => {
-    if (!composing || composedOnce.current || !doc.nodes.length) return;
+    const deepPipelineKey = doc.nodes.find((node) => node.type === 'deepStage')?.payload?.split('/')[0] ?? '';
+    if (deepPipelineKey && deepFitKey.current !== deepPipelineKey) {
+      deepFitKey.current = deepPipelineKey;
+      requestAnimationFrame(() => requestAnimationFrame(fitAll));
+      return;
+    }
+    const hasDeepPipeline = Boolean(deepPipelineKey);
+    if (!(composing || (readOnly && hasDeepPipeline)) || composedOnce.current || !doc.nodes.length) return;
     composedOnce.current = true;
-    if (!restoredViewport.current) fitAll();
-  }, [composing, doc.nodes.length, fitAll]);
+    if (!restoredViewport.current || hasDeepPipeline) fitAll();
+  }, [composing, readOnly, doc.nodes, fitAll]);
 
   const ruleRunners = Array.from(aiRuleInputs(ctx), ({ node, values }) =>
     <AiRuleLive key={node.id} node={node} values={values} onLive={(outputs) => publishLive(node, outputs)} />);
@@ -1755,7 +1769,7 @@ export function CanvasBoard({ doc, setDoc, tool, encapsulating, onEndEncapsulate
           const isPinned = !inSubCanvas && (doc.panel?.view_node_ids.includes(n.id) ?? false);
           const exposed = !inSubCanvas ? (doc.panel?.exposed_params.filter((param) => param.node_id === n.id) ?? []) : [];
           const bodyProps = makeBodyProps(n, activeCtx);
-          const compact = schematic && n.type !== 'textNote' && n.type !== 'latexNote' && n.type !== 'functionSource';
+          const compact = schematic && n.type !== 'textNote' && n.type !== 'latexNote' && n.type !== 'functionSource' && n.type !== 'deepStage';
           const preview = compact && n.type !== 'slider' && n.type !== 'aiRuleBlock' ? nodeSchematicMeta(n, def, bodyProps.self) : null;
           const isBoundaryPort = n.type === 'portIn' || n.type === 'portOut';
           return (
@@ -1767,7 +1781,7 @@ export function CanvasBoard({ doc, setDoc, tool, encapsulating, onEndEncapsulate
               data-node-type={n.type}
               data-custom-h={n.h !== undefined || undefined}
               data-node-role={composing ? nodeRole(n) : undefined}
-              data-schematic={schematic && n.type !== 'latexNote' && n.type !== 'functionSource' || undefined}
+              data-schematic={schematic && n.type !== 'latexNote' && n.type !== 'functionSource' && n.type !== 'deepStage' || undefined}
               data-408-module={labStage?.id}
               data-physics-module={physicsStage?.id}
               data-calculus-module={calculusStage?.id}

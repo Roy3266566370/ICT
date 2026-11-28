@@ -49,3 +49,11 @@ export interface DeepPanoramaRenderState {
   setParam: (key: string, value: number) => void;
   applyParams: (patch: Record<string, number>) => void;
 }
+
+export interface DeepStageRenderState extends DeepPanoramaRenderState {
+  /** 沿 deepData 连线累计传递的上游与本阶段计算产物 */
+  data: Record<string, unknown>;
+  /** 节点内的非持久交互状态（如 CNN 手绘矩阵），只参与实时广播 */
+  localState: Record<string, unknown>;
+  setLocalState: (patch: Record<string, unknown>) => void;
+}

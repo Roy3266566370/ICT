@@ -19,16 +19,24 @@ export function PanoramaCanvas({ draw, label }: {
   draw: (ctx: CanvasRenderingContext2D, width: number, height: number) => void;
   label: string;
 }) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
   const ref = useRef<HTMLCanvasElement | null>(null);
   const [size, setSize] = useState({ width: 640, height: 420 });
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return undefined;
+    const wrap = wrapRef.current;
+    if (!wrap) return undefined;
+    // 监听外层定位容器而非 canvas 自身，避免设置 canvas.height *= dpr 时触发布局增高循环
     const observer = new ResizeObserver(([entry]) => {
       if (!entry) return;
-      setSize({ width: Math.max(240, entry.contentRect.width), height: Math.max(220, entry.contentRect.height) });
+      const nextWidth = Math.max(240, Math.round(entry.contentRect.width));
+      const nextHeight = Math.max(220, Math.round(entry.contentRect.height));
+      setSize((prev) => (
+        Math.abs(prev.width - nextWidth) < 1 && Math.abs(prev.height - nextHeight) < 1
+          ? prev
+          : { width: nextWidth, height: nextHeight }
+      ));
     });
-    observer.observe(canvas);
+    observer.observe(wrap);
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
@@ -42,7 +50,11 @@ export function PanoramaCanvas({ draw, label }: {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     draw(ctx, size.width, size.height);
   }, [draw, size.height, size.width]);
-  return <canvas ref={ref} className={styles.canvas} role="img" aria-label={label} />;
+  return (
+    <div ref={wrapRef} className={styles.canvasWrap}>
+      <canvas ref={ref} className={styles.canvas} role="img" aria-label={label} />
+    </div>
+  );
 }
 
 export function DeepPanoramaShell(props: {

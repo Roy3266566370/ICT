@@ -58,7 +58,7 @@ function mechanicsSandbox(title: string): CanvasDoc {
         { label: '高速远射 v₀=22', params: { v0: 22, angle: 45 } },
         { label: '高抛弹道 θ=75°', params: { v0: 15, angle: 75 } },
       ],
-      auxiliaryKind: 'scalar', presetSource: { param: 'v0' },
+      auxiliaryKind: 'scalar', presetSource: { param: 'v0', auxiliaryParam: 'k' },
     }),
     rule('collision', 420, 470, {
       title: '一维碰撞实验室', summary: 'm₁v₁+m₂v₂ 始终守恒；恢复系数 e 决定动能损失比例。',

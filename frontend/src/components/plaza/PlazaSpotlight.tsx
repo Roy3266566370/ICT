@@ -69,7 +69,8 @@ export function PlazaSpotlight({ items }: { items: PlazaItem[] }) {
   return <section className={styles.spotlight} aria-label="精选活展台">
     <div className={styles.spotStage}>
       {doc ? <CanvasBoard key={active.share_id} doc={doc} setDoc={updatePreview} tool="select" inkColor="#2F3A49"
-        mode={doc.panel ? 'instrument' : undefined} readOnly interactivePanel interactiveSliders={!doc.panel}
+        mode={doc.panel && !doc.nodes.some((node) => node.type === 'deepStage') ? 'instrument' : undefined} readOnly interactivePanel
+        interactiveSliders={!doc.panel || doc.nodes.some((node) => node.type === 'deepStage')}
         slideInstrument embedded={!doc.panel} focusContent />
         : <div className={styles.spotLoading}>正在装配精选画布…</div>}
       <Link className={styles.fullscreenBadge} to={url}>全屏试玩 ↗</Link>

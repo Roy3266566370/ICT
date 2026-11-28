@@ -1021,6 +1021,8 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
             if (exposed.some((param) => param.node_id === customBlock?.id && param.param_key === control.key)) return null;
             if (customBlockProps.values.in?.kind === 'scalar' && typeof customPayload.presetSource === 'object'
               && customPayload.presetSource.param === control.key) return null;
+            if (customBlockProps.values.aux?.kind === 'scalar' && typeof customPayload.presetSource === 'object'
+              && customPayload.presetSource.auxiliaryParam === control.key) return null;
             const value = customBlock?.params[control.key] ?? control.value;
             return <label key={control.key} className={styles.parameter}>
               <span>{control.label}</span><output>{format(value)}</output>
@@ -1035,7 +1037,7 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
           })}
         </section> : null}
         {controls?.length ? <div className={styles.presets} aria-label="场景预设" data-stage-enrichment>{controls.map((preset) =>
-          <button type="button" key={preset.label} disabled={readOnly} onClick={() => {
+          <button type="button" key={preset.label} disabled={!canEditParameters} onClick={() => {
             sourceProps?.onParams?.(preset.params);
             if (preset.text !== undefined) sourceProps?.onText?.(preset.text);
             if (process) setCursor(process.key, 0);
@@ -1043,7 +1045,7 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
         {deepPresets.length > 0 && <div className={styles.presets} aria-label="模型切换" data-stage-enrichment>{deepPresets.map(({ label, field, value }) => {
           const parameter = exposed.find((item) => item.label?.startsWith(field));
           const node = parameter && nodes.get(parameter.node_id);
-          return <button key={label} type="button" disabled={readOnly || !node} aria-pressed={node && parameter ? node.params[parameter.param_key] === value : false}
+          return <button key={label} type="button" disabled={!canEditParameters || !node} aria-pressed={node && parameter ? node.params[parameter.param_key] === value : false}
             onClick={() => { if (node && parameter) getBodyProps(node).onParams?.({ [parameter.param_key]: value }); }}>{label}</button>;
         })}</div>}
       </section>

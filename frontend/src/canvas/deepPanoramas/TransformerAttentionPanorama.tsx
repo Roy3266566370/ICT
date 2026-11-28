@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { DeepPanoramaShell } from '../DeepPanoramaShell';
 import { entropy, finite, round, transformerPanorama, type Matrix } from '../deepPanoramaEngine';
-import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset } from '../deepPanoramaTypes';
+import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset, DeepStageRenderState } from '../deepPanoramaTypes';
 import type { NodeBodyProps } from '../nodes';
 
 export const TRANSFORMER_PRESETS: readonly DeepScenarioPreset[] = [
@@ -213,4 +213,18 @@ export function TransformerAttentionPanorama({ node, onParams }: NodeBodyProps) 
       {(state) => <MainVisual {...state} />}
     </DeepPanoramaShell>
   );
+}
+
+
+export function TransformerSourceStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={0} />;
+}
+export function TransformerProjectionStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={2} />;
+}
+export function TransformerArcStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={3} />;
+}
+export function TransformerMultiheadStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={4} />;
 }

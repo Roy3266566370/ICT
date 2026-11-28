@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DeepPanoramaShell } from '../DeepPanoramaShell';
 import { CNN_KERNELS, clamp, cnnInputMatrix, conv2dPanorama, finite, round, type Matrix } from '../deepPanoramaEngine';
-import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset } from '../deepPanoramaTypes';
+import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset, DeepStageRenderState } from '../deepPanoramaTypes';
 import type { NodeBodyProps } from '../nodes';
 
 export const CNN_PRESETS: readonly DeepScenarioPreset[] = [
@@ -229,4 +229,34 @@ export function CnnResnetPanorama({ node, onParams }: NodeBodyProps) {
       {(state) => <MainVisual {...state} input={input} onPaint={paint} />}
     </DeepPanoramaShell>
   );
+}
+
+function cnnStageInput(state: DeepStageRenderState): Matrix {
+  const source = state.data.source as { inputMatrix?: Matrix } | undefined;
+  return source?.inputMatrix ?? cnnInputMatrix(Math.round(finite(state.params.inputPattern, 3, 0, 3)));
+}
+
+function cnnStagePaint(state: DeepStageRenderState, input: Matrix) {
+  return (row: number, col: number) => {
+    const next = input.map((line) => [...line]);
+    next[row]![col] = next[row]![col]! > 0.5 ? 0 : 1;
+    state.setLocalState({ inputMatrix: next });
+  };
+}
+
+export function CnnSourceStage(state: DeepStageRenderState) {
+  const input = cnnStageInput(state);
+  return <MainVisual {...state} stage={0} input={input} onPaint={cnnStagePaint(state, input)} />;
+}
+export function CnnConvStage(state: DeepStageRenderState) {
+  const input = cnnStageInput(state);
+  return <MainVisual {...state} stage={1} input={input} onPaint={cnnStagePaint(state, input)} />;
+}
+export function CnnReceptiveStage(state: DeepStageRenderState) {
+  const input = cnnStageInput(state);
+  return <MainVisual {...state} stage={2} input={input} onPaint={cnnStagePaint(state, input)} />;
+}
+export function CnnResidualStage(state: DeepStageRenderState) {
+  const input = cnnStageInput(state);
+  return <MainVisual {...state} stage={3} input={input} onPaint={cnnStagePaint(state, input)} />;
 }

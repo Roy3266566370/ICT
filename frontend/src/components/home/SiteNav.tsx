@@ -40,8 +40,6 @@ export interface SiteNavProps {
   appearance?: 'default' | 'studio';
   /** 需要高亮的栏目；首页传 `'home'`，其它无对应栏目的页面传 `null`。 */
   current: NavSection | null;
-  /** 首页等场景可提供一个上传入口；不传时保持原三栏导航。 */
-  onUpload?: () => void;
 }
 
 /**
@@ -54,7 +52,7 @@ export interface SiteNavProps {
  *  - 账号按钮是 `<button type="button">`，展开菜单含「个人空间」与「退出登录」，
  *    支持 Escape 关闭与路由变化自动关闭。
  */
-export function SiteNav({ current, onUpload, appearance = 'default' }: SiteNavProps): JSX.Element {
+export function SiteNav({ current, appearance = 'default' }: SiteNavProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false);
   const [openAccountMenu, setOpenAccountMenu] = useState<AccountMenuVariant | null>(null);
   const [accountNotice, setAccountNotice] = useState<string | null>(null);
@@ -70,7 +68,7 @@ export function SiteNav({ current, onUpload, appearance = 'default' }: SiteNavPr
   const mobileAccountAreaRef = useRef<HTMLDivElement>(null);
   const desktopAccountButtonRef = useRef<HTMLButtonElement>(null);
   const mobileAccountButtonRef = useRef<HTMLButtonElement>(null);
-  const firstMenuItemRef = useRef<HTMLAnchorElement>(null);
+  const firstMenuItemRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -217,24 +215,8 @@ export function SiteNav({ current, onUpload, appearance = 'default' }: SiteNavPr
                   )}
                   <span className={styles.accountEmailText}>{entry.email}</span>
                 </p>
-                <Link
-                  ref={firstMenuItemRef}
-                  className={styles.accountMenuItem}
-                  role="menuitem"
-                  to={entry.to}
-                  onClick={() => setOpenAccountMenu(null)}
-                >
-                  个人主页
-                </Link>
-                <Link
-                  className={styles.accountMenuItem}
-                  role="menuitem"
-                  to="/space?tab=settings"
-                  onClick={() => setOpenAccountMenu(null)}
-                >
-                  个人设置
-                </Link>
                 <button
+                  ref={firstMenuItemRef}
                   type="button"
                   className={styles.accountMenuItem}
                   role="menuitem"
@@ -309,16 +291,6 @@ export function SiteNav({ current, onUpload, appearance = 'default' }: SiteNavPr
             ))}
           </nav>
 
-          {onUpload ? (
-            <button type="button" className={styles.uploadButton} onClick={onUpload}>
-              <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" focusable="false">
-                <path d="M10 13V3.5M6.4 6.8 10 3.2l3.6 3.6M4 12.5v3.2c0 .7.6 1.3 1.3 1.3h9.4c.7 0 1.3-.6 1.3-1.3v-3.2"
-                  fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              上传 PPT
-            </button>
-          ) : null}
-
           {renderAccountEntries('desktop')}
 
           <button
@@ -352,12 +324,6 @@ export function SiteNav({ current, onUpload, appearance = 'default' }: SiteNavPr
                 {item.label}
               </RouteLink>
             ))}
-            {onUpload ? (
-              <button type="button" className={styles.panelUpload}
-                onClick={() => { setMenuOpen(false); onUpload(); }}>
-                上传 PPT
-              </button>
-            ) : null}
           </nav>
           {renderAccountEntries('mobile')}
         </div>

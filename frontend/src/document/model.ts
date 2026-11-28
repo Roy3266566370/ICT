@@ -1,4 +1,4 @@
-import type {SceneDocument,SceneNode,ScenePage,SceneRelation,NodePatch,NodeChange,PageAction,PageMetadata,TextStyle} from './types';
+import type {DeckTheme,SceneDocument,SceneNode,ScenePage,SceneRelation,NodePatch,NodeChange,PageAction,PageMetadata,TextStyle} from './types';
 import {defaultDiagram} from './inlineSystems.ts';
 import {currentParagraphs,inheritRunStyle,preserveTextRuns} from './richText.ts';
 export const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
@@ -261,15 +261,46 @@ export function rebaseDocument(base:SceneDocument,draft:SceneDocument,server:Sce
   }
   return {document:applyChanges(server,changes,draft),conflicts};
 }
-export function newNode(page:ScenePage,id:string,type:SceneNode['type']='text'):SceneNode {
+function isDarkHex(hex?: string | null): boolean {
+  if (!hex || !/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(hex.trim())) return false;
+  const raw = hex.trim().slice(1);
+  const full = raw.length === 3 ? raw.split('').map((c) => c + c).join('') : raw;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.45;
+}
+
+function isDarkPageBackground(page: ScenePage, theme?: DeckTheme): boolean {
+  if (page.background) {
+    if (page.background.kind === 'solid') return isDarkHex(page.background.color);
+    if (page.background.kind === 'gradient') return isDarkHex(page.background.gradient.stops[0]?.color);
+    if (page.background.kind === 'image' && page.background.overlay_color) return isDarkHex(page.background.overlay_color);
+  }
+  if (page.background_color) return isDarkHex(page.background_color);
+  return isDarkHex(theme?.palette.background);
+}
+
+export function newNode(page:ScenePage,id:string,type:SceneNode['type']='text',theme?:DeckTheme):SceneNode {
   // 参考样式取本页字号最大的可见文字（通常就是标题），新建文字才不会继承到页脚小字；
-  // 位置放在页面中央——左上角往往压着标题，用户第一眼会以为写错了地方。
-  const reference=[...page.nodes].filter(n=>n.type==='text'&&!n.deleted&&!n.hidden&&n.text.trim())
+  // 位置放在页面中央并自动错开已有重叠对象；深色画布或深色主题自动采用高对比浅色字体。
+  const visibleNodes=page.nodes.filter(n=>!n.deleted&&!n.hidden);
+  const reference=[...visibleNodes].filter(n=>n.type==='text'&&n.text.trim())
     .sort((a,b)=>(b.style.font_size??0)-(a.style.font_size??0))[0];
+  const darkSlide=isDarkPageBackground(page,theme);
+  const defaultInk=darkSlide?(theme?.palette.text??'#F4F7FF'):(reference?.style.color??theme?.palette.text??'#18233D');
+  const darkStroke=theme?.palette.primary??'#83E8EA';
+  const darkFill=theme?.palette.surface??'rgba(131,232,234,0.18)';
   const width=type==='workshop_plugin'?Math.min(600,Math.max(1,Math.round(page.width*.65))):type==='diagram'?640:type==='demo'?620:type==='text'||type==='table'?320:type==='chart'?400:200,
     height=type==='workshop_plugin'?Math.min(350,Math.max(1,Math.round(page.height*.65))):type==='diagram'?280:type==='demo'?360:type==='chart'?250:type==='text'?70:type==='vector'?16:140;
+  let x=Math.round((page.width-width)/2),y=Math.round((page.height-height)/2);
+  for(let step=0;step<8;step+=1){
+    if(!visibleNodes.some(n=>Math.abs(n.x-x)<14&&Math.abs(n.y-y)<14))break;
+    x=Math.min(Math.max(16,page.width-width-16),x+26);
+    y=Math.min(Math.max(16,page.height-height-16),y+26);
+  }
   return {id,type,name:type==='text'?'新文字':type==='image'?'新图片':type==='vector'?'线条':type==='workshop_plugin'?'定象坊插件':'新图形',
-    x:Math.round((page.width-width)/2),y:Math.round((page.height-height)/2),
+    x,y,
     width,height,
     ...(type==='diagram'?{diagram:defaultDiagram(),viewer_editable:true,name:'原位流程图',flow:{enabled:true,speed:1}}:{}),
     ...(type==='demo'?{demo:null,viewer_editable:true,name:'AI 演示框'}:{}),
@@ -278,8 +309,8 @@ export function newNode(page:ScenePage,id:string,type:SceneNode['type']='text'):
     ...(type==='chart'?{name:'教学图表',chart:{categories:['甲','乙','丙'],series:[{name:'示例',values:[2,4,3]}],title:'教学图表',chart_type:'COLUMN_CLUSTERED'}}:{}),
     ...(type==='vector'?{flow:{enabled:false,speed:1},viewer_editable:true}:{}),
     rotation:0,z:Math.max(0,...page.nodes.map(n=>n.z))+1,opacity:1,locked:false,hidden:false,deleted:false,
-    text:type==='text'?'新文字':'',base_text:null,style:{font_size:28,font_family:reference?.style.font_family??'Arial',color:reference?.style.color??'#18233D',line_height:1.15,align:'left',vertical_align:'top',
-      ...(type==='vector'?{stroke:'#167abc',stroke_width:3}:{}),
-      ...(type==='shape'?{fill:'#E9E4FF',stroke:'#7966CE',stroke_width:1,align:'center',vertical_align:'middle',
+    text:type==='text'?'新文字':'',base_text:null,style:{font_size:28,font_family:reference?.style.font_family??'Arial',color:defaultInk,line_height:1.15,align:'left',vertical_align:'top',
+      ...(type==='vector'?{stroke:darkSlide?darkStroke:'#167abc',stroke_width:3}:{}),
+      ...(type==='shape'?{fill:darkSlide?darkFill:'#E9E4FF',stroke:darkSlide?darkStroke:'#7966CE',stroke_width:1,align:'center',vertical_align:'middle',
         padding_left:10,padding_right:10,padding_top:10,padding_bottom:10}: {})},base_style:{} as SceneNode['style'],shape:'rect',source_element_id:null};
 }

@@ -28,6 +28,7 @@ import { evaluate408Stage } from './lab408Pipeline.ts';
 import { evaluatePhysicsStage } from './physicsPipeline.ts';
 import { evaluateCalculusStage } from './calculusPipeline.ts';
 import { evaluateBusinessStage } from './businessPipeline.ts';
+import { evaluateDeepStage, evaluateDeepStageMetric } from './deepPipeline.ts';
 import {
   businessTableSeries,
   discountSeries,
@@ -152,6 +153,13 @@ function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | nu
       return portId === 'out' ? evaluateCalculusStage(node, (id) => evalInput(ctx, node, id)) : null;
     case 'businessStage':
       return portId === 'out' ? evaluateBusinessStage(node, (id) => evalInput(ctx, node, id)) : null;
+    case 'deepStage': {
+      const liveValue = ctx.live.get(`${node.id}|${portId}`);
+      if (liveValue?.kind === 'deepData' && portId === 'out') return liveValue;
+      return portId === 'out'
+        ? evaluateDeepStage(node, (id) => evalInput(ctx, node, id))
+        : evaluateDeepStageMetric(node, (id) => evalInput(ctx, node, id), portId);
+    }
     case 'functionSource': {
       try { return functionValue(node.text ?? 'a*x^2+b*x+c', node.params); } catch { return null; }
     }

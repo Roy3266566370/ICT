@@ -15,7 +15,7 @@ import { errorMessage } from '@/api/client';
 import { plazaApi } from '@/api/plaza';
 import { WORKSHOP_SUBJECTS, SUBJECT_COLORS, type ListingOptions, type PlazaItem } from '@/api/plazaTypes';
 import { worksApi } from '@/api/works';
-import { SiteNav } from '@/components/home/SiteNav';
+import { MainSiteNav } from '@/components/home/MainSiteNav';
 import { PlazaCards } from '@/components/plaza/PlazaCards';
 import { PlazaSpotlight } from '@/components/plaza/PlazaSpotlight';
 import { PlazaSpecimenSection } from '@/components/plaza/PlazaSpecimenSection';
@@ -264,7 +264,7 @@ export default function PlazaPage() {
   const communityEmpty = communityQuery.data && !communityItems.length;
 
   return <>
-    <SiteNav current="plaza" appearance="studio" />
+    <MainSiteNav current="plaza" />
     <div className={`${styles.plazaScope} studio-scope atelier-paper`}>
       <main className={styles.page}>
         <header className={styles.curatorHead}>

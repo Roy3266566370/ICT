@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { DeepPanoramaShell } from '../DeepPanoramaShell';
 import { clamp, demoLoraMatrix, finite, round, type Matrix } from '../deepPanoramaEngine';
-import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset } from '../deepPanoramaTypes';
+import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset, DeepStageRenderState } from '../deepPanoramaTypes';
 import { DF_CANDIDATES, dfCacheCounts, dfCacheLogits, dfCacheSequence, dfSampleDistribution } from '../deepFirst';
 import { loraApprox, quantizeMatrix } from '../deepModernBlocks';
 import type { NodeBodyProps } from '../nodes';
@@ -173,4 +173,18 @@ export function LlmInferenceLoraPanorama({ node, onParams }: NodeBodyProps) {
       {(state) => <MainVisual {...state} />}
     </DeepPanoramaShell>
   );
+}
+
+
+export function LlmSourceStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={0} />;
+}
+export function LlmCacheStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={1} />;
+}
+export function LlmSamplingStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={2} />;
+}
+export function LlmLoraStage(state: DeepStageRenderState) {
+  return <MainVisual {...state} stage={3} />;
 }

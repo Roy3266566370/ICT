@@ -13,6 +13,7 @@ import { CanvasBoard, type RuleFuseRequest, type RuleWireRequest } from '@/canva
 import { PALETTE_GROUPS, NODE_DEFS } from '@/canvas/nodes.tsx';
 import { buildTemplateDoc } from '@/canvas/templateCatalog.ts';
 import { isCalculusSandboxKind } from '@/canvas/calculusSandboxes.ts';
+import { isDeepPanoramaTemplateKind } from '@/canvas/deepPanoramaTemplates.ts';
 import { defaultAiRuleParams, serializeAiRulePayload, type AiRuleBlockPayload } from '@/canvas/aiRuleBlock.ts';
 import {
   cloudBlueprintToRecord,
@@ -256,7 +257,7 @@ export function CanvasPage(): JSX.Element {
   };
   const paletteButton = useRef<HTMLButtonElement>(null);
   const [activeMode, setMode] = useState<'instrument' | 'compose' | 'cockpit'>(() =>
-    doc.panel && !isCalculusSandboxKind(templateParam) ? 'instrument' : 'compose');
+    doc.panel && !isCalculusSandboxKind(templateParam) && !isDeepPanoramaTemplateKind(templateParam ?? '') ? 'instrument' : 'compose');
   useEffect(() => { if (paletteOpen) paletteSearch.current?.focus(); }, [paletteOpen]);
   const closePalette = () => {
     setPaletteOpen(false);
@@ -427,7 +428,7 @@ export function CanvasPage(): JSX.Element {
       remote.current = undefined;
       hist.current = { past: [], future: [], lastPush: 0 };
       setHistInfo({ undo: 0, redo: 0 });
-      setMode(next.panel && !isCalculusSandboxKind(templateParam) ? 'instrument' : 'compose');
+      setMode(next.panel && !isCalculusSandboxKind(templateParam) && !isDeepPanoramaTemplateKind(templateParam) ? 'instrument' : 'compose');
       writeDoc(next);
     } catch {
       /* 忽略未知模板名 */
@@ -445,7 +446,7 @@ export function CanvasPage(): JSX.Element {
       setWorkId(res.work_id);
       remote.current = { id: res.work_id, revision: res.revision, doc: d, pending: Promise.resolve() };
       hist.current = { past: [], future: [], lastPush: 0 };
-      setMode(d.panel ? 'instrument' : 'compose');
+      setMode(d.panel && !d.nodes.some((node) => node.type === 'deepStage') ? 'instrument' : 'compose');
       setHistInfo({ undo: 0, redo: 0 });
       setCloudState('saved');
       writeDoc(d);
@@ -507,13 +508,23 @@ export function CanvasPage(): JSX.Element {
   const addPaletteNode = (node: CanvasDoc['nodes'][number]) => {
     setDoc((current) => {
       const width = node.w ?? NODE_DEFS[node.type].width;
+      let x = node.x;
       let y = node.y;
-      const sameColumn = current.nodes.filter((other) =>
-        other.x < node.x + width && other.x + (other.w ?? NODE_DEFS[other.type].width) > node.x);
-      for (const other of sameColumn.sort((a, b) => a.y - b.y)) {
-        if (Math.abs(other.y - y) < 48) y = other.y + 48;
+      // 连续从积木库添加时按完整节点宽度与高度避让，避免遮住前一个节点的输出端口
+      for (let guard = 0; guard < 12; guard += 1) {
+        const hit = current.nodes.find((other) => {
+          const otherW = other.w ?? NODE_DEFS[other.type].width;
+          return x < other.x + otherW + 24 && x + width + 24 > other.x && Math.abs(other.y - y) < 160;
+        });
+        if (!hit) break;
+        const hitW = hit.w ?? NODE_DEFS[hit.type].width;
+        x = hit.x + hitW + 44;
+        if (x > node.x + 760) {
+          x = node.x;
+          y += 190;
+        }
       }
-      return { ...current, nodes: [...current.nodes, { ...node, y }] };
+      return { ...current, nodes: [...current.nodes, { ...node, x, y }] };
     });
   };
 

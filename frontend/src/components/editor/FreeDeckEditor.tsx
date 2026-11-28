@@ -272,13 +272,13 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
   };
   const add=(type:'text'|'shape'|'table'|'chart',shape:SceneNode['shape']='rect')=>{
     if(!canEdit)return;
-    const node={...newNode(page,identifier(),type),shape};
+    const node={...newNode(page,identifier(),type,document.theme),shape};
     if(type==='shape')node.name=SHAPE_CATALOG.find(item=>item.id===shape)?.label??node.name;
     controller.add(page.page_no,node);setSelected([node.id]);setEditingId(type==='text'?node.id:null);
   };
   const addVector = (arrow: boolean) => {
     if (!canEdit) return;
-    const node = newNode(page, identifier(), 'vector');
+    const node = newNode(page, identifier(), 'vector', document.theme);
     node.name = arrow ? '箭头' : '线条';
     node.y += (page.nodes.filter(item => item.type === 'vector' && !item.deleted).length % 5) * 22;
     node.style.arrow_end = arrow;
@@ -429,7 +429,7 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
       }
       if(text.trim()){
         event.preventDefault();
-        const node={...newNode(page,identifier()),text:text.slice(0,12000)};
+        const node={...newNode(page,identifier(),'text',document.theme),text:text.slice(0,12000)};
         controller.add(page.page_no,node);setSelected([node.id]);
       }
     };
@@ -724,7 +724,7 @@ export function FreeDeckEditor({materialId,controller,material,activePageNo,onSe
         <div className={styles.formulaAnchor}>
           <button type="button" aria-expanded={formulaOpen} disabled={!canEdit} onClick={()=>setFormulaOpen(value=>!value)}>∑ 插入公式</button>
           {formulaOpen&&<FormulaPopover onClose={()=>setFormulaOpen(false)} onInsert={tex=>{
-            const node=newNode(page,identifier());
+            const node=newNode(page,identifier(),'text',document.theme);
             controller.add(page.page_no,{...node,name:'公式',text:`$${tex}$`,
               style:{...node.style,align:'center',vertical_align:'middle'}});
             setSelected([node.id]);setEditingId(null);setFormulaOpen(false);

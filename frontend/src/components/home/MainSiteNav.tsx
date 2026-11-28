@@ -11,7 +11,7 @@ export function MainSiteNav({ current, children }: {
   const { open, openUpload, closeUpload, closeRef, dialogRef } = useUploadDialog();
 
   return <>
-    <SiteNav current={current} onUpload={openUpload} />
+    <SiteNav current={current} />
     {children?.(openUpload)}
     {open ? (
       <div

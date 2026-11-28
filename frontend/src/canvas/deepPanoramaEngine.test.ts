@@ -20,23 +20,23 @@ import { loraApprox, quantizeMatrix } from './deepModernBlocks.ts';
 
 function assertValidPanoramaDoc(kind: string) {
   const doc = buildTemplateDoc(kind);
-  assert.equal(doc.nodes.length, 1, `${kind} 应为单节点沙盘`);
-  const [node] = doc.nodes;
-  assert.ok(node);
-  assert.equal(node.type, 'deepPanoramaStage');
-  assert.equal(node.payload, kind);
-  assert.equal(doc.wires.length, 0);
+  assert.ok(doc.nodes.length >= 6, `${kind} 应为多积木流水线沙盘`);
+  const stages = doc.nodes.filter((node) => node.type === 'deepStage');
+  assert.equal(stages.length, 4);
+  assert.ok(stages.every((node) => node.payload?.startsWith(`${kind}/`)));
+  assert.ok(doc.wires.length >= 5);
   assert.ok(doc.panel);
-  assert.deepEqual(doc.panel!.view_node_ids, [node.id]);
+  assert.equal(doc.panel!.view_node_ids.length, 3);
   assert.ok(doc.panel!.exposed_params.length >= 2, 'panel 应声明合理的外露参数');
+  const nodeIds = new Set(doc.nodes.map((node) => node.id));
   for (const param of doc.panel!.exposed_params) {
-    assert.equal(param.node_id, node.id);
+    assert.ok(nodeIds.has(param.node_id));
     assert.ok(param.min < param.max, `${param.param_key} min 应小于 max`);
     assert.ok(param.step > 0, `${param.param_key} step 应为正`);
   }
 }
 
-test('六个深度学习全景模板都生成合法单节点 CanvasDoc', () => {
+test('六个深度学习全景模板都生成合法多积木 CanvasDoc', () => {
   assert.equal(DEEP_PANORAMA_TEMPLATES.length, 6);
   assert.equal(new Set(DEEP_PANORAMA_TEMPLATES.map((template) => template.kind)).size, 6);
   assert.ok(VISIBLE_DEEP_TEMPLATES.every((template) => template.panorama));
@@ -108,8 +108,8 @@ test('全景模板嵌入通文册时携带自身 CanvasDoc，离线/旧运行时
   for (const template of DEEP_PANORAMA_TEMPLATES) {
     const config = workshopPluginConfigForTemplate(template);
     assert.equal(config.display_mode, 'full');
-    assert.equal(config.doc?.nodes.length, 1, template.kind);
-    assert.equal(config.doc?.nodes[0]?.payload, template.kind);
+    assert.ok((config.doc?.nodes.length ?? 0) >= 6, template.kind);
+    assert.ok(config.doc?.nodes.some((node) => node.type === 'deepStage' && node.payload?.startsWith(`${template.kind}/`)));
   }
 });
 

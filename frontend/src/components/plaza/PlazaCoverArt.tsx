@@ -388,71 +388,311 @@ const OFFICIAL_ART: Record<string, () => JSX.Element> = {
   'biz-breakeven': BreakevenArt,
 };
 
-/* ---------- 层 2：用户画布的真实节点拓扑缩略图 ---------- */
+/* ---------- 层 2：用户画布的自动精排可视化拓扑封面 ---------- */
 
-const KIND_COLORS: Record<CoverTopology['nodes'][number]['kind'], string> = {
-  control: '#1c2ecb',
-  stage: '#0f766e',
-  plot: '#de421f',
-  note: '#9a9b8f',
+const KIND_THEME: Record<CoverTopology['nodes'][number]['kind'], { accent: string; soft: string; badge: string }> = {
+  control: { accent: '#2b4c7e', soft: '#edf2fa', badge: '参数' },
+  stage: { accent: '#1e6f68', soft: '#e9f5f3', badge: '计算' },
+  plot: { accent: '#b5492e', soft: '#fdf0eb', badge: '视图' },
+  note: { accent: '#8a7356', soft: '#f6f1e6', badge: '注记' },
 };
 
-function labelWidth(label: string): number {
-  let width = 0;
-  for (const ch of label) width += ch.charCodeAt(0) > 0xff ? 5.1 : 2.9;
-  return width;
+/** 把后端旧记录里可能残留的截断英文节点类型名自动映射成优雅中文名。 */
+const FRIENDLY_TYPE_PREFIXES: readonly [string, string][] = [
+  ['functionpl', '函数图像'],
+  ['functionsour', '函数源'],
+  ['func2dsour', '二元函数'],
+  ['vectorfield', '向量场源'],
+  ['matrixsour', '矩阵源'],
+  ['matrixheat', '矩阵热图'],
+  ['transformv', '变换视图'],
+  ['fieldview', '向量场'],
+  ['trailview', '轨迹仪'],
+  ['energymete', '能量表'],
+  ['boundaryvi', '决策边界'],
+  ['gradflowme', '梯度探针'],
+  ['doubleinte', '二重积分'],
+  ['gradientco', '梯度等高'],
+  ['odeslopefi', '斜率场'],
+  ['fourierlab', '傅里叶'],
+  ['derivative', '导数计算'],
+  ['integral', '定积分'],
+  ['limitprobe', '极限探针'],
+  ['taylor', '泰勒展开'],
+  ['ftcview', '微积分基本'],
+  ['projectile', '抛体实验'],
+  ['springosc', '弹簧振子'],
+  ['pendulum', '单摆实验'],
+  ['inclinelab', '斜面力学'],
+  ['collisionl', '碰撞守恒'],
+  ['mlptrainer', 'MLP 训练'],
+  ['dataset2ds', '二维点云'],
+  ['pixelgrids', '像素画板'],
+  ['tokenseqso', '词元序列'],
+  ['conv2dop', '卷积算子'],
+  ['attentiono', '注意力'],
+  ['attentiona', '注意力对照'],
+  ['activation', '激活函数'],
+  ['optimizera', '优化器'],
+  ['deeppanora', '深度沙盘'],
+  ['deepstage', '深度学习'],
+  ['physicssta', '物理实验'],
+  ['calculusst', '高数沙盘'],
+  ['lab408stag', '408 沙盘'],
+  ['businessst', '决策沙盘'],
+  ['universal', '交互舞台'],
+  ['airulebloc', 'AI 规则'],
+  ['slider', '参数滑杆'],
+  ['ticker', '时间轴'],
+  ['detgauge', '行列式'],
+  ['eigread', '特征值'],
+  ['squareview', '面积变换'],
+  ['matmul', '矩阵乘法'],
+  ['rotor', '旋转矩阵'],
+  ['spark', '波形记录'],
+  ['quiz', '预测闸门'],
+  ['textnote', '探究便签'],
+  ['latexnote', '公式卡片'],
+  ['composite', '复合积木'],
+];
+
+function formatNodeLabel(rawLabel: string, kind: CoverTopology['nodes'][number]['kind']): { title: string; subtitle?: string } {
+  const clean = rawLabel.trim();
+  const lower = clean.toLowerCase();
+  for (const [prefix, zh] of FRIENDLY_TYPE_PREFIXES) {
+    if (lower.startsWith(prefix)) return { title: zh };
+  }
+  // 像 a*x^2+b*x+ 这类数学表达式：作为副标题优雅呈现，主标题给清晰角色名
+  if (/[*^+=/]/.test(clean) && !/[\u4e00-\u9fa5]/.test(clean)) {
+    const pretty = clean.replace(/\*/g, '·').replace(/\^2/g, '²').replace(/\^3/g, '³').replace(/[+\-·]$/, '');
+    return {
+      title: kind === 'control' ? '函数表达式' : '数学公式',
+      subtitle: pretty.slice(0, 12),
+    };
+  }
+  return { title: clean.slice(0, 8) || KIND_THEME[kind].badge };
+}
+
+/** 节点内部微型可视化预览：让用户画布封面像设计师手绘的精密仪表图。 */
+function NodeMiniVisual({
+  kind,
+  x,
+  y,
+  w,
+  h,
+  accent,
+  subtitle,
+  seed,
+}: {
+  kind: CoverTopology['nodes'][number]['kind'];
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  accent: string;
+  subtitle?: string;
+  seed: number;
+}) {
+  if (kind === 'control') {
+    if (subtitle) {
+      return <g>
+        <rect x={x} y={y + 1} width={w} height={h - 2} rx="3.5" fill={accent} fillOpacity="0.08" />
+        <text x={x + w / 2} y={y + h * 0.68} textAnchor="middle"
+          fontFamily="var(--font-family-mono, ui-monospace, monospace)" fontSize="7.4" fontWeight="600" fill={accent}>
+          {subtitle}
+        </text>
+      </g>;
+    }
+    const ratio = 0.35 + ((seed * 29) % 45) / 100;
+    const midY = y + h / 2;
+    const fillW = Math.max(8, w * ratio);
+    return <g>
+      <rect x={x} y={midY - 2} width={w} height="4" rx="2" fill="#e6e0d2" />
+      <rect x={x} y={midY - 2} width={fillW} height="4" rx="2" fill={accent} opacity="0.82" />
+      <circle cx={x + fillW} cy={midY} r="3.6" fill="#fffdf8" stroke={accent} strokeWidth="1.5" />
+    </g>;
+  }
+
+  if (kind === 'plot') {
+    const baseY = y + h - 3;
+    const midX = x + w / 2;
+    const curve = seed % 2 === 0
+      ? `M${x + 4},${baseY - 3} Q${midX},${y + 1} ${x + w - 4},${baseY - 2}`
+      : `M${x + 4},${y + h * 0.62} C${x + w * 0.32},${y + 1} ${x + w * 0.68},${baseY} ${x + w - 4},${y + h * 0.32}`;
+    return <g>
+      <rect x={x} y={y} width={w} height={h} rx="4" fill="#faf7ef" stroke="#e4dfd1" strokeWidth="0.6" />
+      <line x1={x + 4} y1={baseY - 2} x2={x + w - 4} y2={baseY - 2} stroke="#cbc5b5" strokeWidth="0.6" />
+      <line x1={midX} y1={y + 3} x2={midX} y2={baseY} stroke="#cbc5b5" strokeWidth="0.6" strokeDasharray="1.6 1.6" />
+      <path d={`${curve} L${x + w - 4},${baseY - 2} L${x + 4},${baseY - 2} Z`} fill={accent} opacity="0.11" />
+      <path d={curve} fill="none" stroke={accent} strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx={midX} cy={seed % 2 === 0 ? y + h * 0.34 : y + h * 0.48} r="2" fill={accent} />
+    </g>;
+  }
+
+  if (kind === 'stage') {
+    const bars = [0.46, 0.84, 0.64, 0.92, 0.56];
+    const gap = 3.5;
+    const bw = Math.max(4, (w - 8 - gap * (bars.length - 1)) / bars.length);
+    return <g>
+      <rect x={x} y={y} width={w} height={h} rx="4" fill="#faf7ef" stroke="#e4dfd1" strokeWidth="0.6" />
+      {bars.map((r, idx) => {
+        const bh = Math.max(4, (h - 7) * r);
+        return <rect key={idx} x={x + 4 + idx * (bw + gap)} y={y + h - 3.5 - bh} width={bw} height={bh}
+          rx="1.5" fill={accent} opacity={0.45 + idx * 0.11} />;
+      })}
+    </g>;
+  }
+
+  return <g>
+    <line x1={x + 2} y1={y + h * 0.34} x2={x + w - 8} y2={y + h * 0.34} stroke="#cbc5b5" strokeWidth="1.4" strokeLinecap="round" />
+    <line x1={x + 2} y1={y + h * 0.72} x2={x + w * 0.62} y2={y + h * 0.72} stroke="#dad4c5" strokeWidth="1.4" strokeLinecap="round" />
+  </g>;
 }
 
 /**
- * 真实节点拓扑缩略图：按归一化坐标绘制圆角微模块卡片 + 平滑三次贝塞尔连线。
- * 坐标系：后端归一化到 x∈[8,92]、y∈[14,86]（百分比）；此处映射进 160×100（16:10）视窗。
+ * 创作者画布自动精排封面：
+ * - 统一 320×200（16:10）画幅，严格留出右上角计数胶囊与左下角学科胶囊的安全边距；
+ * - 节点较少（≤ 6）时自动升级为精致微仪表卡片（含迷你滑杆、函数曲线、柱状指标）；
+ * - 节点较多（7–18）时平滑切换为紧凑流线卡片，保证清晰不重叠。
  */
-export function MiniTopologyCover({ topology }: { topology: CoverTopology }) {
+export function MiniTopologyCover({ topology, subject = 'general' }: { topology: CoverTopology; subject?: Subject }) {
   const pid = useId();
-  const nodes = topology.nodes.slice(0, 18).map((node) => {
-    const w = Math.min(46, Math.max(17, labelWidth(node.label) + 9));
-    // 视窗内钳制：pill 以坐标点为中心,边缘节点的一半宽度会越出 160 宽视窗,需向内收敛。
-    const half = w / 2;
-    const cx = Math.min(160 - half - 1.5, Math.max(half + 1.5, node.x * 1.6));
-    const cy = Math.min(100 - 7, Math.max(7, node.y));
-    return { ...node, sx: cx, sy: cy, w };
+  const accent = SUBJECT_COLORS[subject] ?? SUBJECT_COLORS.general;
+  const rawNodes = topology.nodes.slice(0, 18);
+  const rich = rawNodes.length <= 6;
+
+  // 安全区内重新归一化坐标：避开顶部 34px（右上计数胶囊）和底部 38px（左下学科胶囊）
+  const xs = rawNodes.map((n) => n.x);
+  const ys = rawNodes.map((n) => n.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+
+  const padLeft = rich ? 68 : 42;
+  const padRight = rich ? 252 : 278;
+  const padTop = rich ? 62 : 46;
+  const padBottom = rich ? 140 : 152;
+
+  const nodes = rawNodes.map((node, idx) => {
+    const formatted = formatNodeLabel(node.label, node.kind);
+    const w = rich
+      ? (node.kind === 'plot' ? 100 : 88)
+      : Math.min(72, Math.max(40, formatted.title.length * 7.8 + 18));
+    const h = rich
+      ? (node.kind === 'plot' ? 50 : 38)
+      : 20;
+    const sx = spanX < 1e-3
+      ? 160
+      : padLeft + ((node.x - minX) / spanX) * (padRight - padLeft);
+    const sy = spanY < 1e-3
+      ? 100
+      : padTop + ((node.y - minY) / spanY) * (padBottom - padTop);
+    return {
+      ...node,
+      ...formatted,
+      idx,
+      w,
+      h,
+      sx: Math.min(308 - w / 2, Math.max(12 + w / 2, sx)),
+      sy: Math.min(162 - h / 2, Math.max(30 + h / 2, sy)),
+    };
   });
+
   const wires = topology.wires.filter((wire) => nodes[wire.f] && nodes[wire.t]);
-  return <svg viewBox="0 0 160 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
+
+  return <svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">
     <defs>
-      <pattern id={pid} width="8" height="8" patternUnits="userSpaceOnUse">
-        <circle cx="0.9" cy="0.9" r="0.55" fill="#121513" opacity="0.10" />
+      <linearGradient id={`${pid}-bg`} x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#fdfbf4" />
+        <stop offset="100%" stopColor="#f3ede0" />
+      </linearGradient>
+      <radialGradient id={`${pid}-glow`} cx="82%" cy="24%" r="58%">
+        <stop offset="0%" stopColor={accent} stopOpacity="0.11" />
+        <stop offset="100%" stopColor={accent} stopOpacity="0" />
+      </radialGradient>
+      <radialGradient id={`${pid}-glow2`} cx="18%" cy="84%" r="52%">
+        <stop offset="0%" stopColor="#b5492e" stopOpacity="0.06" />
+        <stop offset="100%" stopColor="#b5492e" stopOpacity="0" />
+      </radialGradient>
+      <pattern id={`${pid}-dots`} width="14" height="14" patternUnits="userSpaceOnUse">
+        <circle cx="1.6" cy="1.6" r="0.7" fill="#1b1f1c" opacity="0.11" />
       </pattern>
-      <filter id={`${pid}-shadow`} x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="0.7" stdDeviation="0.8" floodColor="#1c160a" floodOpacity="0.16" />
+      <filter id={`${pid}-shadow`} x="-25%" y="-25%" width="150%" height="165%">
+        <feDropShadow dx="0" dy="2.5" stdDeviation="3" floodColor="#1c160a" floodOpacity="0.10" />
       </filter>
     </defs>
-    <rect width="160" height="100" fill="#fffdf8" />
-    <rect width="160" height="100" fill={`url(#${pid})`} />
-    {/* 平滑三次贝塞尔连线 */}
+
+    {/* 暖纸基底 + 学科氛围光晕 + 点阵 + 淡背景波形 */}
+    <rect width="320" height="200" fill={`url(#${pid}-bg)`} />
+    <rect width="320" height="200" fill={`url(#${pid}-glow)`} />
+    <rect width="320" height="200" fill={`url(#${pid}-glow2)`} />
+    <rect width="320" height="200" fill={`url(#${pid}-dots)`} />
+    <path d="M-10,152 Q76,118 164,142 T330,116" fill="none" stroke={accent} strokeWidth="1.2" opacity="0.09" />
+    <path d="M-10,164 Q88,134 176,154 T330,132" fill="none" stroke={accent} strokeWidth="0.9" strokeDasharray="4 5" opacity="0.07" />
+
+    {/* 柔和连线：底光晕 + 主曲线 + 流向微点 */}
     <g fill="none" strokeLinecap="round">
       {wires.map((wire, i) => {
         const a = nodes[wire.f]!, b = nodes[wire.t]!;
-        const x1 = a.sx + a.w / 2, y1 = a.sy;
-        const x2 = b.sx - b.w / 2, y2 = b.sy;
-        const dx = Math.max(5, Math.abs(x2 - x1) * 0.45);
-        return <path key={i} className="topology-wire" d={`M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`}
-          stroke="#34372f" strokeWidth="0.75" opacity="0.42" />;
+        const forward = b.sx >= a.sx;
+        const x1 = forward ? a.sx + a.w / 2 : a.sx - a.w / 2;
+        const y1 = a.sy;
+        const x2 = forward ? b.sx - b.w / 2 : b.sx + b.w / 2;
+        const y2 = b.sy;
+        const dx = Math.max(24, Math.abs(x2 - x1) * 0.46) * (forward ? 1 : -1);
+        const path = `M${x1.toFixed(1)},${y1.toFixed(1)} C${(x1 + dx).toFixed(1)},${y1.toFixed(1)} ${(x2 - dx).toFixed(1)},${y2.toFixed(1)} ${x2.toFixed(1)},${y2.toFixed(1)}`;
+        const wireColor = (KIND_THEME[a.kind] ?? KIND_THEME.stage).accent;
+        // 三次贝塞尔 t=0.5 中点坐标，用于放一颗流向微圆点
+        const mx = 0.125 * x1 + 0.375 * (x1 + dx) + 0.375 * (x2 - dx) + 0.125 * x2;
+        const my = 0.5 * y1 + 0.5 * y2;
+        return <g key={i}>
+          <path d={path} stroke={wireColor} strokeWidth="4.2" opacity="0.09" />
+          <path className="topology-wire" d={path} stroke={wireColor} strokeWidth="1.55" opacity="0.58" />
+          <circle cx={mx} cy={my} r="2.2" fill="#fffdf8" stroke={wireColor} strokeWidth="1.2" opacity="0.85" />
+        </g>;
       })}
     </g>
-    {/* 圆角微模块卡片 */}
-    {nodes.map((node, i) => {
-      const x = node.sx - node.w / 2, y = node.sy - 4.6;
-      const color = KIND_COLORS[node.kind] ?? KIND_COLORS.stage;
-      return <g key={i} filter={`url(#${pid}-shadow)`}>
-        <rect x={x} y={y} width={node.w} height="9.2" rx="2" fill="#fffdf8" stroke="#d8d3c4" strokeWidth="0.45" />
-        <path d={`M${x + 2},${y} L${x + node.w - 2},${y} Q${x + node.w},${y} ${x + node.w},${y + 2} L${x + node.w},${y + 2.6} L${x},${y + 2.6} L${x},${y + 2} Q${x},${y} ${x + 2},${y} Z`}
-          fill={color} opacity="0.92" />
-        <text x={node.sx} y={y + 6.9} textAnchor="middle" fontFamily="var(--font-family-sans, sans-serif)" fontSize="4.4"
-          fill="#34372f">{node.label}</text>
-        {/* 端口小圆点 */}
-        <circle cx={x} cy={node.sy} r="0.85" fill="#fffdf8" stroke={color} strokeWidth="0.55" />
-        <circle cx={x + node.w} cy={node.sy} r="0.85" fill="#fffdf8" stroke={color} strokeWidth="0.55" />
+
+    {/* 精致微仪表节点卡片 */}
+    {nodes.map((node) => {
+      const x = node.sx - node.w / 2;
+      const y = node.sy - node.h / 2;
+      const theme = KIND_THEME[node.kind] ?? KIND_THEME.stage;
+      return <g key={node.idx} filter={`url(#${pid}-shadow)`}>
+        <rect x={x} y={y} width={node.w} height={node.h} rx={rich ? 7.5 : 5} fill="#fffdf9" stroke="#ddd7c8" strokeWidth="0.9" />
+        {/* 顶栏微色条 */}
+        <path
+          d={`M${x + (rich ? 7.5 : 5)},${y} L${x + node.w - (rich ? 7.5 : 5)},${y} Q${x + node.w},${y} ${x + node.w},${y + 3.2} L${x},${y + 3.2} Q${x},${y} ${x + (rich ? 7.5 : 5)},${y} Z`}
+          fill={theme.accent}
+          opacity="0.86"
+        />
+        {rich ? <>
+          {/* 精致头部：色点 + 中文标题 */}
+          <circle cx={x + 9.5} cy={y + 11.5} r="2.4" fill={theme.accent} />
+          <text x={x + 15.5} y={y + 14} fontFamily="var(--font-family-sans, sans-serif)" fontSize="7.6" fontWeight="650" fill="#232925">
+            {node.title}
+          </text>
+          {/* 内部微型可视化区 */}
+          <NodeMiniVisual
+            kind={node.kind}
+            x={x + 7}
+            y={y + 19}
+            w={node.w - 14}
+            h={node.h - 24}
+            accent={theme.accent}
+            subtitle={node.subtitle}
+            seed={node.idx + 1}
+          />
+        </> : <>
+          <circle cx={x + 7} cy={y + 11.6} r="1.9" fill={theme.accent} />
+          <text x={x + 12} y={y + 14} fontFamily="var(--font-family-sans, sans-serif)" fontSize="6.6" fontWeight="600" fill="#232925">
+            {node.title}
+          </text>
+        </>}
+        {/* 左右端口圆点 */}
+        <circle cx={x} cy={node.sy} r={rich ? 2.4 : 1.7} fill="#fffdf9" stroke={theme.accent} strokeWidth="1.2" />
+        <circle cx={x + node.w} cy={node.sy} r={rich ? 2.4 : 1.7} fill="#fffdf9" stroke={theme.accent} strokeWidth="1.2" />
       </g>;
     })}
   </svg>;
@@ -491,7 +731,7 @@ export function PlazaCoverArt({ item }: { item: PlazaItem }) {
     return <Art />;
   }
   if (item.cover.topology?.nodes?.length) {
-    return <MiniTopologyCover topology={item.cover.topology} />;
+    return <MiniTopologyCover topology={item.cover.topology} subject={item.subject} />;
   }
   return <SkeletonArt subject={item.subject} />;
 }

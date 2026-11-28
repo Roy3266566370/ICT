@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { DeepPanoramaShell, PanoramaCanvas } from '../DeepPanoramaShell';
 import { clamp, diffusionCenters, diffusionScore, diffusionTrajectoryCached, finite, type Matrix } from '../deepPanoramaEngine';
-import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset } from '../deepPanoramaTypes';
+import type { DeepPanoramaControl, DeepPanoramaRenderState, DeepScenarioPreset, DeepStageRenderState } from '../deepPanoramaTypes';
 import type { NodeBodyProps } from '../nodes';
 
 export const DIFFUSION_PRESETS: readonly DeepScenarioPreset[] = [
@@ -222,4 +222,41 @@ export function DiffusionLatentPanorama({ node, onParams }: NodeBodyProps) {
       {(state) => <MainVisual {...state} />}
     </DeepPanoramaShell>
   );
+}
+
+
+function diffusionStageTrajectory(state: DeepStageRenderState) {
+  const scenario = Math.round(finite(state.params.scenario, 2, 0, 3));
+  const beta = finite(state.params.beta, 3, 1, 5);
+  const steps = Math.round(finite(state.params.steps, 30, 8, 42));
+  const trajectory = diffusionTrajectoryCached({ scenario, steps, beta });
+  const phase = clamp(state.frame, 0, steps * 2);
+  const forward = phase <= steps;
+  const index = clamp(Math.round(forward ? steps - phase : phase - steps), 0, steps);
+  return { trajectory, beta, index };
+}
+
+export function DiffusionSourceStage(state: DeepStageRenderState) {
+  const { trajectory, index } = diffusionStageTrajectory(state);
+  return <div style={{ height: '100%', padding: 8 }}>
+    <SchedulePanel alphaBar={trajectory.alphaBar} logDensity={trajectory.logDensity} index={index} />
+  </div>;
+}
+export function DiffusionCoreStage(state: DeepStageRenderState) {
+  const { trajectory, beta } = diffusionStageTrajectory(state);
+  return <div style={{ height: '100%', padding: 6 }}>
+    <DiffusionCanvas trajectory={trajectory} frame={state.frame} stage={1} beta={beta} />
+  </div>;
+}
+export function DiffusionScoreStage(state: DeepStageRenderState) {
+  const { trajectory, beta } = diffusionStageTrajectory(state);
+  return <div style={{ height: '100%', padding: 6 }}>
+    <DiffusionCanvas trajectory={trajectory} frame={state.frame} stage={2} beta={beta} />
+  </div>;
+}
+export function DiffusionLatentStage(state: DeepStageRenderState) {
+  const { trajectory } = diffusionStageTrajectory(state);
+  return <div style={{ height: '100%', padding: 6 }}>
+    <LatentPanel anchorX={finite(state.params.anchorX, 0.6)} anchorY={finite(state.params.anchorY, 0.2)} centers={trajectory.mixture.centers} />
+  </div>;
 }

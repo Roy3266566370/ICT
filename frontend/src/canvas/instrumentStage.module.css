@@ -16,7 +16,7 @@
   --ease: cubic-bezier(.2, .7, .2, 1);
   --font-mono: var(--font-family-mono, Consolas, monospace);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 350px;
+  grid-template-columns: minmax(0, 1fr) clamp(270px, 30vw, 350px);
   min-height: 0;
   height: 100%;
   overflow: hidden;
@@ -101,7 +101,7 @@
 .workspace:not([data-slide-instrument], [data-display-mode='compact'], [data-display-mode='stage_only']) .mainCard:has(> .chart[data-fallback-chart]) {
   aspect-ratio: auto;
   max-height: none;
-  min-height: 0;
+  min-height: clamp(380px, 56vh, 580px);
 }
 .mainCard header {
   display: flex;
@@ -219,6 +219,7 @@
 }
 .workspace:not([data-slide-instrument], [data-display-mode='compact'], [data-display-mode='stage_only']) .chart[data-fallback-chart] {
   overflow: auto;
+  min-height: 300px;
   padding: 14px 16px;
 }
 .workspace:not([data-slide-instrument], [data-display-mode='compact'], [data-display-mode='stage_only']) .chart[data-fallback-chart] > div {
@@ -494,11 +495,11 @@
   .chart > div[data-stage-layout='split'] { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 780px) {
   .workspace:not([data-slide-instrument]) { display: flex; flex-direction: column; overflow: auto; }
   .workspace:not([data-slide-instrument]) :is(.stage, .scroll) { display: contents; }
   .workspace:not([data-slide-instrument]) .scroll > :is(.question, .mainCard, .conclusion, .minis, .empty) { margin: 8px 10px 0; }
-  .workspace:not([data-slide-instrument]) .pod { overflow: visible; flex-shrink: 0; padding: 12px; border-inline-start: 0; margin: 10px 0 0; }
+  .workspace:not([data-slide-instrument]) .pod { overflow: visible; flex-shrink: 0; padding: 12px 12px 72px; border-inline-start: 0; margin: 10px 0 0; }
   .workspace:not([data-slide-instrument]) .timeline { order: 1; position: sticky; bottom: 0; margin-top: auto; }
 }
 @media (max-width: 550px) {

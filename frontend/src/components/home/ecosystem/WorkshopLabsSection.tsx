@@ -14,7 +14,7 @@ const ODE_PRESETS = {
 } as const;
 
 const BP_INFO: Record<LabId, { source: string; kernel: string; to: string }> = {
-  ode: { source: 'y′ = a·x − b·y（斜率场方程源）', kernel: 'RK4 双向数值积分器', to: '/workshop' },
+  ode: { source: 'y′ = a·x − b·y（斜率场）', kernel: 'RK4 双向数值积分器', to: '/workshop' },
   riemann: { source: 'f(x) = x²，区间 [0, 1]', kernel: '黎曼矩形切片与误差求值', to: '/canvas?template=ftc-sweep' },
   grad: { source: 'f(x,y) = 0.5x² + 3.5y²', kernel: '梯度 ∇f 迭代与收敛检测', to: '/canvas?template=dl-mlp-backprop' },
 };
@@ -361,32 +361,32 @@ export function WorkshopLabsSection(): JSX.Element {
 
           {showBlueprint ? (
             <div className="lab-blueprint is-active">
-              <svg viewBox="0 0 820 220" role="img" aria-label="定象坊积木数据流连线图">
+              <svg viewBox="0 0 840 220" role="img" aria-label="定象坊积木数据流连线图">
                 <g stroke="#7c93ff" strokeWidth="2.2" fill="none">
-                  <path d="M210 110 C255 110, 255 68, 296 68" />
-                  <path d="M210 110 C255 110, 255 154, 296 154" />
-                  <path d="M510 68 C550 68, 550 110, 594 110" />
-                  <path d="M510 154 C550 154, 550 110, 594 110" />
+                  <path d="M236 110 C274 110, 274 68, 312 68" />
+                  <path d="M236 110 C274 110, 274 154, 312 154" />
+                  <path d="M526 68 C566 68, 566 110, 610 110" />
+                  <path d="M526 154 C566 154, 566 110, 610 110" />
                 </g>
-                <g transform="translate(26,64)">
-                  <rect width="184" height="92" rx="8" fill="#1a2760" stroke="#99adff" strokeWidth="1.6" />
-                  <text x="16" y="28" fill="#fff" fontSize="14" fontWeight="700">表达式 / 地形源</text>
-                  <text x="16" y="54" fill="#8df5e4" fontSize="12" fontFamily="monospace">{bpMeta.source}</text>
-                  <text x="16" y="76" fill="#9fb2f5" fontSize="11">外露参数已绑定滑杆</text>
+                <g transform="translate(22,64)">
+                  <rect width="214" height="92" rx="8" fill="#1a2760" stroke="#99adff" strokeWidth="1.6" />
+                  <text x="14" y="28" fill="#fff" fontSize="14" fontWeight="700">表达式 / 地形源</text>
+                  <text x="14" y="54" fill="#8df5e4" fontSize="11.5" fontFamily="monospace">{bpMeta.source}</text>
+                  <text x="14" y="76" fill="#9fb2f5" fontSize="11">外露参数已绑定滑杆</text>
                 </g>
-                <g transform="translate(296,26)">
+                <g transform="translate(312,26)">
                   <rect width="214" height="84" rx="8" fill="#1a2760" stroke="#99adff" strokeWidth="1.6" />
                   <text x="16" y="28" fill="#fff" fontSize="14" fontWeight="700">数值内核计算节点</text>
                   <text x="16" y="52" fill="#cfd8ff" fontSize="12" fontFamily="monospace">{bpMeta.kernel}</text>
                   <text x="16" y="72" fill="#9fb2f5" fontSize="11">纯前端实时重算，零延迟</text>
                 </g>
-                <g transform="translate(296,116)">
+                <g transform="translate(312,116)">
                   <rect width="214" height="78" rx="8" fill="#1a2760" stroke="#ff9a80" strokeWidth="1.6" />
                   <text x="16" y="28" fill="#fff" fontSize="14" fontWeight="700">实时读数与误差监测</text>
                   <text x="16" y="52" fill="#ffd2c4" fontSize="12" fontFamily="monospace">自动输出结论与校验状态</text>
                 </g>
-                <g transform="translate(594,56)">
-                  <rect width="198" height="108" rx="8" fill="#0f3e40" stroke="#4fd1c5" strokeWidth="2" />
+                <g transform="translate(610,56)">
+                  <rect width="204" height="108" rx="8" fill="#0f3e40" stroke="#4fd1c5" strokeWidth="2" />
                   <text x="16" y="30" fill="#fff" fontSize="14" fontWeight="700">封装为定象坊积木</text>
                   <text x="16" y="56" fill="#9cf3e9" fontSize="12">✓ 可直接拖入通文册</text>
                   <text x="16" y="78" fill="#b4e8e2" fontSize="11">✓ 支持情景预设与离线包</text>

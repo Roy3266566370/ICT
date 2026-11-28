@@ -123,6 +123,8 @@ export function serializeUpstreamValue(value: PortValue | null | undefined): Rec
     case 'function':
     case 'function2d':
       return sampledUpstream(value);
+    case 'deepData':
+      return { kind: value.kind, pipeline: value.pipeline, stage: value.stage, params: value.params, frame: value.frame, stateKeys: Object.keys(value.state) };
     case 'customFrames':
     case 'lab408Data':
     case 'physicsData':

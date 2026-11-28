@@ -1,6 +1,7 @@
 import type { StudyStage } from './studyStages.ts';
 import type { PipelineResult } from './lab408PipelineTypes.ts';
 import type { ScienceResult } from './sciencePipelineTypes.ts';
+import type { DeepPanoramaKind } from './deepPanoramaTypes.ts';
 /**
  * types.ts —— 万象画布数据模型
  *
@@ -33,6 +34,16 @@ export interface RulePreset {
 
 export type PortValue =
   | { kind: 'lab408Data'; pipeline: string; stage: string; result: PipelineResult; error?: string }
+  | {
+      kind: 'deepData';
+      pipeline: DeepPanoramaKind;
+      stage: string;
+      /** 沿连线向下游透传的当前超参、情景与播放帧 */
+      params: Record<string, number>;
+      frame: number;
+      /** 由 deepPanoramaEngine 计算出的本阶段强类型产物，供下游积木直接消费 */
+      state: Record<string, unknown>;
+    }
   | { kind: 'physicsData'; pipeline: string; stage: string; result: ScienceResult; error?: string }
   | { kind: 'calculusData'; pipeline: string; stage: string; result: ScienceResult; error?: string }
   | { kind: 'businessData'; pipeline: string; stage: string; result: ScienceResult; error?: string }
@@ -156,7 +167,8 @@ export type NodeType =
   | 'bizTableSource' | 'bizGrowthSource' | 'bizScenarioFork' | 'bizDiscountOp' | 'bizDecisionMatrix' | 'bizWaterfallView'
   // 大学物理扩展：场源、场视图、RLC、光学台、热机循环
   | 'emFieldSource' | 'emFieldView' | 'rlcCircuitLab' | 'opticsBench' | 'thermoCycle'
-  // 深度学习全景沙盘：单节点编排式实验台，payload 区分六个沙盘
+  // 深度学习全景沙盘：多阶段连线模块与遗留单节点编排式实验台
+  | 'deepStage'
   | 'deepPanoramaStage';
 
 export interface PortSpec {

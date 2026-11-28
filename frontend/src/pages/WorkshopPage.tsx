@@ -138,6 +138,7 @@ export function WorkshopPage(): JSX.Element {
           <div className={styles.typeCaseBricks}>
             {([
               ['calculus', 'ƒ', '函数砖', '高等数学'],
+              ['linalg', '⊞', '矩阵砖', '线性代数'],
               ['mechanics', '→', '场砖', '大学物理'],
               ['lab408', '⌗', '算法砖', '408 专题'],
               ['deep', '∇', '学习砖', '深度学习'],

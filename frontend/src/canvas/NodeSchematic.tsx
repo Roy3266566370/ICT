@@ -13,6 +13,7 @@ import { find408Stage } from './lab408Pipeline.ts';
 import { Lab408Diagram } from './Lab408PipelineNode';
 import { findPhysicsStage } from './physicsPipeline.ts';
 import { findCalculusStage } from './calculusPipeline.ts';
+import { findDeepStage } from './deepPipeline.ts';
 import { ScienceMiniDiagram } from './SciencePipelineScene.tsx';
 import styles from './nodeSchematic.module.css';
 
@@ -46,6 +47,7 @@ function shapeText(v: PortValue | null): string {
   if (v.kind === 'series') return `${v.values.length} 点`;
   if (v.kind === 'field2d') return v.mode === 'electric' ? '电场' : v.mode === 'magnetic' ? '磁场' : '光路';
   if (v.kind === 'algoData') return v.mode === 'graph' ? `${v.edges?.length ?? 0} 边` : v.mode === 'addrStream' ? `${v.addresses?.length ?? 0} 地址` : `${v.values?.length ?? 0} 项`;
+  if (v.kind === 'deepData') return `${v.stage} · f${Math.round(v.frame)}`;
   if (v.kind === 'customFrames') return `${v.result.frames.length} 帧`;
   return '';
 }
@@ -68,6 +70,13 @@ export function nodeSchematicMeta(
     spec: physics.stage.inputs?.length ? (physics.stage.controls?.length ? '可调' : '物理') : '输入',
     accent: physics.stage.inputs?.length ? COLORS.physics : COLORS.source,
     foot: '',
+  };
+  const deep = findDeepStage(node);
+  if (deep) return {
+    title: deep.stage.title,
+    spec: deep.stage.id === 'source' ? '输入' : deep.stage.outputLabel,
+    accent: deep.stage.id === 'source' ? COLORS.source : deep.stage.id.startsWith('view') ? COLORS.view : COLORS.learn,
+    foot: shapeText(self) || '深度学习流水线',
   };
   const calculus = findCalculusStage(node);
   if (calculus) return {
@@ -188,6 +197,18 @@ export function SchematicGraphic({ node }: { node: CanvasNode }): JSX.Element {
   if (physics) return <ScienceMiniDiagram diagram={physics.stage.diagram} />;
   const calculus = findCalculusStage(node);
   if (calculus) return <ScienceMiniDiagram diagram={calculus.stage.diagram} />;
+  const deep = findDeepStage(node);
+  if (deep) {
+    const source = deep.stage.id === 'source';
+    return (
+      <svg viewBox="0 0 148 56" aria-hidden="true">
+        <path d="M22 28h104" stroke="#cbd5e1" strokeWidth="1.2" strokeDasharray="3 3" />
+        {[34, 74, 114].map((x, index) => <circle key={x} cx={x} cy="28" r={index === 1 ? 9 : 6} fill={index === 1 ? 'rgba(27,66,207,.22)' : '#fff'} stroke={source || index === 0 ? '#2563eb' : '#0f766e'} strokeWidth="1.8" />)}
+        <path d="M43 28h20m-5-4 5 4-5 4M83 28h20m-5-4 5 4-5 4" fill="none" stroke="#64748b" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M28 47 Q74 14 120 47" fill="none" stroke="#d96236" strokeWidth="1.3" strokeDasharray="3 2.5" opacity=".65" />
+      </svg>
+    );
+  }
   // 1. 卷积核：清晰 3×3 九宫格图示（按当前核正负权重着色，无杂乱数字）
   if (node.type === 'conv2dOp') {
     const k = kernelData(node.params);
