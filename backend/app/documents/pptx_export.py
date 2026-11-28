@@ -19,11 +19,11 @@ from pptx.oxml.ns import qn
 from pptx.oxml.xmlchemy import OxmlElement
 from pptx.util import Emu, Pt
 
-from .importer import shape_path_steps, valid_shape_paths
+from .importer import _group_members, shape_path_steps, valid_fill_gradient, valid_shape_paths
 from .layers import layer_dir, native_asset_path, source_page_number
 from ..render import PAGE_IMAGE_PATTERN, pages_dir
 
-INTERACTIVE_TYPES = {'workshop_plugin', 'demo', 'diagram'}
+INTERACTIVE_TYPES = {'workshop_plugin', 'diagram'}
 PRESETS = {item.xml_value:item for item in MSO_AUTO_SHAPE_TYPE}
 ALIGN = {'left':PP_ALIGN.LEFT, 'center':PP_ALIGN.CENTER, 'right':PP_ALIGN.RIGHT, 'justify':PP_ALIGN.JUSTIFY}
 ANCHOR = {'top':MSO_ANCHOR.TOP, 'middle':MSO_ANCHOR.MIDDLE, 'bottom':MSO_ANCHOR.BOTTOM}
@@ -127,6 +127,50 @@ def _alpha(element,opacity):
         _child(fill[0],'a:alpha').set('val',str(round(opacity*100000)))
 
 
+def _write_gradient(props, gradient):
+    fill = OxmlElement('a:gradFill')
+    stops = _child(fill, 'a:gsLst')
+    for item in gradient['stops']:
+        stop = OxmlElement('a:gs')
+        linear='angle' in gradient
+        stop.set('pos', str(round(item['position']*100000)) if linear else str(item['position']))
+        color = _child(stop, 'a:srgbClr')
+        color.set('val', item['color'][1:].upper())
+        alpha=round(item.get('opacity',1)*100000) if linear else item['opacity']
+        _child(color, 'a:alpha').set('val', str(alpha))
+        stops.append(stop)
+    if 'angle' in gradient:
+        _child(fill,'a:lin').set('ang',str(round((gradient['angle']-90)%360*60000)))
+    else:
+        path = _child(fill, 'a:path')
+        path.set('path', 'circle')
+        rect = _child(path, 'a:fillToRect')
+        for key, value in zip('ltrb', gradient['bounds']):
+            rect.set(key, str(value))
+    props._remove_eg_fillProperties()
+    props.insert_element_before(fill, 'a:ln', 'a:effectLst', 'a:effectDag', 'a:extLst')
+
+
+def _write_shadow(props,shadow):
+    effects=props.find(qn('a:effectLst'))
+    if effects is not None:
+        old=effects.find(qn('a:outerShdw'))
+        if old is not None:effects.remove(old)
+    if not shadow:
+        return
+    if effects is None:
+        effects=OxmlElement('a:effectLst')
+        props.insert_element_before(effects,'a:scene3d','a:sp3d','a:extLst')
+    node=_child(effects,'a:outerShdw')
+    angle=math.degrees(math.atan2(shadow['y'],shadow['x']))%360
+    node.set('dir',str(round(angle*60000)))
+    node.set('dist',str(round(math.hypot(shadow['x'],shadow['y'])*12700)))
+    node.set('blurRad',str(round(shadow['blur']*12700)))
+    color=_child(node,'a:srgbClr')
+    color.set('val',shadow['color'][1:].upper())
+    _child(color,'a:alpha').set('val',str(round(shadow['opacity']*100000)))
+
+
 def _line(shape, style, opacity, arrows=False):
     line=shape.line
     if 'stroke' in style:
@@ -143,8 +187,8 @@ def _line(shape, style, opacity, arrows=False):
         for key,name in (('arrow_start','headEnd'),('arrow_end','tailEnd')):
             if key in style:
                 _child(line._get_or_add_ln(),'a:'+name).set('type','triangle' if style[key] else 'none')
-    if opacity!=1:
-        _alpha(line._get_or_add_ln(),opacity)
+    if opacity!=1 or 'stroke_opacity' in style:
+        _alpha(line._get_or_add_ln(),opacity*style.get('stroke_opacity',1))
 
 
 def _write_text(frame,node,changed_style):
@@ -161,6 +205,7 @@ def _write_text(frame,node,changed_style):
     paragraphs=node.get('paragraphs') or []
     if '\n'.join(p.get('text','') for p in paragraphs)!=text:
         paragraphs=[{'text':line} for line in text.split('\n')]
+    ordinal=0
     for i,paragraph in enumerate(paragraphs):
         out=frame.add_paragraph() if i else frame.paragraphs[0]
         out.alignment=ALIGN.get(changed_style.get('align',paragraph.get('align',style.get('align'))))
@@ -171,7 +216,13 @@ def _write_text(frame,node,changed_style):
         for key in ('space_before','space_after'):
             if key in paragraph:
                 setattr(out,key,Pt(paragraph[key]))
-        if paragraph.get('bullet'):
+        ordered=paragraph.get('list_type')=='ordered'
+        ordinal=ordinal+1 if ordered else 0
+        if ordered:
+            bullet=_child(out._p.get_or_add_pPr(),'a:buAutoNum')
+            bullet.set('type','arabicPeriod')
+            bullet.set('startAt',str(ordinal))
+        elif paragraph.get('bullet') or paragraph.get('list_type')=='bullet':
             _child(out._p.get_or_add_pPr(),'a:buChar').set('char','•')
         for entry in paragraph.get('runs') or [paragraph]:
             attrs={**style,**entry.get('style',{}),**changed_style}
@@ -236,7 +287,7 @@ def _picture(material_id,doc,page,node):
     return None
 
 
-def _chart(shapes,box,config):
+def _chart(shapes,box,config,palette=None):
     categories=config.get('categories',[])
     series=config.get('series',[])
     if not categories or not series:
@@ -253,22 +304,62 @@ def _chart(shapes,box,config):
         graphic=shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED,*box,data)
     if config.get('title'):
         graphic.chart.chart_title.text_frame.text=config['title']
+    if palette:
+        colors=[palette['primary'],palette['accent'],palette['secondary'],'#7760A1','#B18739','#408B8D']
+        for i,item in enumerate(graphic.chart.series):
+            if kind in (XL_CHART_TYPE.PIE,XL_CHART_TYPE.DOUGHNUT):
+                for j,point in enumerate(item.points):
+                    point.format.fill.solid()
+                    point.format.fill.fore_color.rgb=_rgb(colors[j%len(colors)])
+            elif kind==XL_CHART_TYPE.LINE:
+                item.format.line.color.rgb=_rgb(colors[i%len(colors)])
+            else:
+                item.format.fill.solid()
+                item.format.fill.fore_color.rgb=_rgb(colors[i%len(colors)])
     return graphic
 
 
-def _table(shapes,box,rows,existing):
+def _table(shapes,box,rows,existing,settings=None,palette=None):
     cols=max((len(row) for row in rows),default=0)
     if not cols:
         return existing
     if (existing is None or len(existing.table.rows)!=len(rows)
             or len(existing.table.columns)!=cols):
         existing=shapes.add_table(len(rows),cols,*box)
+    settings=settings or {}
+    palette=palette or {}
     for i,row in enumerate(rows):
         for j in range(cols):
             cell=existing.table.cell(i,j)
             value=row[j] if j<len(row) else ''
             if cell.text!=value:
                 cell.text=value
+            if not settings:
+                continue
+            header=i==0 and settings.get('header_row')
+            banded=i%2 and settings.get('banded_rows')
+            fill=_rgb(settings.get('header_fill',palette.get('primary','#233A63')) if header else
+                      settings.get('band_fill','#EDF1F7') if banded else '#FFFFFF')
+            if fill:
+                cell.fill.solid()
+                cell.fill.fore_color.rgb=fill
+            cell.vertical_anchor=MSO_ANCHOR.MIDDLE
+            if header:
+                color=_rgb(settings.get('header_color','#FFFFFF'))
+                for paragraph in cell.text_frame.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.bold=True
+                        if color:run.font.color.rgb=color
+            border=_rgb(settings.get('border_color',palette.get('border','#B9C4D6')))
+            if border:
+                properties=cell._tc.get_or_add_tcPr()
+                for side in ('lnL','lnR','lnT','lnB'):
+                    line=properties.find(qn('a:'+side))
+                    if line is None:
+                        line=OxmlElement('a:'+side)
+                        properties.insert_element_before(line,'a:cell3D','a:noFill','a:solidFill','a:gradFill','a:blipFill','a:pattFill','a:grpFill')
+                    line.set('w','12700')
+                    _child(_child(line,'a:solidFill'),'a:srgbClr').set('val',str(border))
     return existing
 
 
@@ -277,7 +368,7 @@ def _interactive(shapes,box,node,snapshot):
         return shapes.add_picture(BytesIO(snapshot),*box)
     kind=node['type']
     data=node.get(kind) or {}
-    title=data.get('title') or {'diagram':'流程图','demo':'AI 动态演示',
+    title=data.get('title') or {'diagram':'流程图',
                                'workshop_plugin':'定象坊插件'}[kind]
     if kind=='diagram':
         extra=' → '.join(str(entry.get('label','')) for entry in data.get('nodes',[])[:6])
@@ -319,11 +410,11 @@ def _apply_node(material_id,doc,page,slide,node,shape,sx,sy,snapshot):
                                              Emu(round((cx+dx)*sx)),Emu(round((cy+dy)*sy)))
         _line(shape,style if shape is not initial else changes,opacity,arrows=True)
         return shape
-    if kind=='table' and (shape is None or node.get('table')!=node.get('base_table')):
-        shape=_table(slide.shapes,box,node.get('table') or [],shape)
+    if kind=='table' and (shape is None or node.get('table')!=node.get('base_table') or node.get('table_style')):
+        shape=_table(slide.shapes,box,node.get('table') or [],shape,node.get('table_style'),(doc.get('theme') or {}).get('palette'))
     elif kind=='chart' and (shape is None or node.get('chart')!=node.get('base_chart')):
-        shape=_chart(slide.shapes,box,node.get('chart') or {}) or shape
-    elif kind=='image' and (shape is None or node.get('cleaned_asset_id')):
+        shape=_chart(slide.shapes,box,node.get('chart') or {},(doc.get('theme') or {}).get('palette')) or shape
+    elif kind=='image' and (shape is None or node.get('cleaned_asset_id') or node.get('image_data')):
         picture=_picture(material_id,doc,page,node)
         if picture:
             shape=slide.shapes.add_picture(picture,*box)
@@ -352,21 +443,45 @@ def _apply_node(material_id,doc,page,slide,node,shape,sx,sy,snapshot):
             blip=shape._element.find('.//'+qn('a:blip'))
             _child(blip,'a:alphaModFix').set('amt',str(round(opacity*100000)))
     elif kind in ('text','shape') and hasattr(shape,'fill'):
-        if new or 'fill' in changes:
+        if new and not style.get('fill') and valid_fill_gradient(node.get('fill_gradient')):
+            _write_gradient(shape._element.spPr, node['fill_gradient'])
+        elif new or 'fill' in changes:
             fill=_rgb(style.get('fill'))
             if fill is None:
                 shape.fill.background()
             else:
                 shape.fill.solid()
                 shape.fill.fore_color.rgb=fill
-        if (new and opacity!=1) or opacity!=node.get('base_opacity',1):
-            _alpha(shape._element.spPr,opacity)
+        if style.get('linear_gradient'):
+            _write_gradient(shape._element.spPr,style['linear_gradient'])
+        elif 'linear_gradient' in changes and not node.get('fill_gradient'):
+            fill=_rgb(style.get('fill'))
+            if fill:
+                shape.fill.solid()
+                shape.fill.fore_color.rgb=fill
+            else:
+                shape.fill.background()
+        if 'shadow' in style:
+            _write_shadow(shape._element.spPr,style['shadow'])
+        if kind=='shape' and 'border_radius' in style and node.get('shape') in (None,'rect','roundRect'):
+            geometry=shape._element.spPr.find(qn('a:prstGeom'))
+            if geometry is not None:
+                radius=style['border_radius']
+                geometry.set('prst','roundRect' if radius or node.get('shape')=='roundRect' else 'rect')
+                values=_child(geometry,'a:avLst')
+                for item in list(values):values.remove(item)
+                if radius:
+                    adjustment=_child(values,'a:gd')
+                    adjustment.set('name','adj')
+                    adjustment.set('fmla',f'val {round(100000*min(.5,radius/min(node["width"],node["height"])))}')
+        if (new and (opacity!=1 or 'fill_opacity' in style)) or opacity!=node.get('base_opacity',1) or 'fill_opacity' in changes:
+            _alpha(shape._element.spPr,opacity*style.get('fill_opacity',1))
         if new and not style.get('stroke'):
             shape.line.fill.background()
         else:
             _line(shape,style if new else changes,opacity)
         text_changes={k:v for k,v in changes.items() if k in TEXT_STYLE}
-        if kind=='text' and shape.has_text_frame and (new or node.get('text')!=node.get('base_text') or text_changes
+        if (kind=='text' or kind=='shape' and (node.get('text') or node.get('base_text'))) and shape.has_text_frame and (new or node.get('text')!=node.get('base_text') or text_changes
                 or opacity!=node.get('base_opacity',1)
                 or ('base_paragraphs' in node and node.get('paragraphs')!=node['base_paragraphs'])):
             if 'base_paragraphs' in node:
@@ -413,7 +528,72 @@ def _referenced_relations(element):
     return {value for child in element.iter() for key,value in child.attrib.items() if key.startswith(REL_NS)}
 
 
+def _write_master(doc,page,slide,sx,sy):
+    theme=doc.get('theme') or {}
+    master=theme.get('master') or {}
+    if not master or page.get('hide_master'):
+        return
+    width,height=page['width'],page['height']
+    palette=theme.get('palette') or {}
+    accent=_rgb(palette.get('accent'))
+    bar=master.get('accent_bar')
+    boxes={'top':(0,0,width,5),'left':(0,0,5,height),'bottom':(0,height-5,width,5)}
+    if accent and bar in boxes:
+        x,y,w,h=boxes[bar]
+        shape=slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.RECTANGLE,Emu(round(x*sx)),Emu(round(y*sy)),
+                                    Emu(round(w*sx)),Emu(round(h*sy)))
+        shape.fill.solid()
+        shape.fill.fore_color.rgb=accent
+        shape.line.fill.background()
+    number=next(index for index,other in enumerate(doc['pages'],1) if other['page_no']==page['page_no'])
+    labels=[(master.get('header_text'),24,14,width-48,'left'),
+            (master.get('footer_text'),24,height-30,width-160,'left')]
+    if master.get('show_page_number'):
+        labels.append((f'{number} / {len(doc["pages"])}',width-124,height-30,100,'right'))
+    for text,x,y,w,align in labels:
+        if not text:
+            continue
+        box=slide.shapes.add_textbox(Emu(round(x*sx)),Emu(round(y*sy)),Emu(round(w*sx)),Emu(round(18*sy)))
+        _write_text(box.text_frame,{'text':text,'style':{'font_size':13,'font_family':(theme.get('fonts') or {}).get('body','Arial'),
+                    'color':palette.get('muted','#444444'),'align':align,'padding_left':0,'padding_top':0,
+                    'padding_right':0,'padding_bottom':0}}, {})
+
+
+def _write_page_background(material_id,doc,page,slide,sx,sy):
+    background=page.get('background')
+    if not background:
+        return
+    kind=background['kind']
+    if kind=='solid':
+        slide.background.fill.solid()
+        slide.background.fill.fore_color.rgb=_rgb(background['color'])
+    elif kind=='gradient':
+        _write_gradient(slide.background._cSld.get_or_add_bgPr(),background['gradient'])
+    elif kind=='image':
+        picture=_picture(material_id,doc,page,{'image_data':background['image_data']})
+        if picture is not None:
+            if background.get('overlay_color'):
+                slide.background.fill.solid()
+                slide.background.fill.fore_color.rgb=_rgb(background['overlay_color'])
+            shape=slide.shapes.add_picture(picture,0,0,Emu(round(page['width']*sx)),Emu(round(page['height']*sy)))
+            opacity=background.get('image_opacity',1)
+            if opacity<1:
+                _child(shape._element.blipFill.blip,'a:alphaModFix').set('amt',str(round(opacity*100000)))
+
+
 def _update_slide(material_id,doc,page,slide,sx,sy,work_url,snapshots,has_source):
+    if 'transition' in page:
+        slide_xml=slide._element
+        for old in slide_xml.xpath('./p:transition'):
+            slide_xml.remove(old)
+        kind=(page.get('transition') or {}).get('kind')
+        tag={'fade':'fade','slide':'wipe','push':'push','zoom':'zoom'}.get(kind)
+        if tag:
+            transition=OxmlElement('p:transition')
+            effect=OxmlElement(f'p:{tag}')
+            if tag in ('push','wipe'):effect.set('dir','l')
+            transition.append(effect)
+            slide_xml.insert_element_before(transition,'p:timing','p:extLst')
     initial=list(slide.shapes)
     old_relations=_referenced_relations(slide._element)
     by_id={shape.shape_id:shape for shape in initial}
@@ -422,7 +602,7 @@ def _update_slide(material_id,doc,page,slide,sx,sy,work_url,snapshots,has_source
         for shape in initial:
             shape._element.getparent().remove(shape._element)
     def native_children(group):
-        for child in group.shapes:
+        for child in _group_members(group):
             if child.shape_type==MSO_SHAPE_TYPE.GROUP:
                 yield from native_children(child)
             else:
@@ -434,7 +614,10 @@ def _update_slide(material_id,doc,page,slide,sx,sy,work_url,snapshots,has_source
     for shape in by_id.values():
         if shape.shape_type!=MSO_SHAPE_TYPE.GROUP or shape.shape_id in nodes_by_source:
             continue
-        children=[nodes_by_source.get(number) for number in native_children(shape)]
+        try:
+            children=[nodes_by_source.get(number) for number in native_children(shape)]
+        except ValueError:
+            continue
         if not children or not all(n and n.get('figure_provenance')=='native' for n in children):
             continue
         if any(_changed(node) for node in children):
@@ -452,6 +635,8 @@ def _update_slide(material_id,doc,page,slide,sx,sy,work_url,snapshots,has_source
         background=_picture(material_id,doc,page,{'image_data':page['background_url']})
         if background:
             slide.shapes.add_picture(background,Emu(0),Emu(0),Emu(round(page['width']*sx)),Emu(round(page['height']*sy)))
+    _write_page_background(material_id,doc,page,slide,sx,sy)
+    _write_master(doc,page,slide,sx,sy)
     ordered=[]
     interactive=False
     for node in sorted(page['nodes'],key=lambda item:item['z']):
@@ -461,7 +646,7 @@ def _update_slide(material_id,doc,page,slide,sx,sy,work_url,snapshots,has_source
                 ordered.append(element)
             continue
         original=by_id.get(node.get('source_shape_id'))
-        if node.get('hidden') or node.get('deleted'):
+        if node.get('hidden') or node.get('deleted') or node['type']=='demo':
             if original is not None:
                 original._element.getparent().remove(original._element)
             continue

@@ -14,7 +14,11 @@ import { studyStages, type StudyStage } from './studyStages';
  */
 import { lazy, Suspense, useEffect, useRef, useState, type ComponentType } from 'react';
 import { Formula } from '@/components/showcase/Formula';
-import type { CanvasNode, NodeType, PortSpec, PortValue } from './types.ts';
+import type { CanvasNode, CompositeSub, ExposedParam, NodeType, PortSpec, PortValue } from './types.ts';
+import {
+  collectCandidateExposedParams,
+  updateSubNodeParams,
+} from './compositeUtils.ts';
 import { det, tr, eigen, rankOf, fmt, clamp, paramsM, type M2 } from './math.ts';
 import {
   FunctionSourceBody, FunctionPlotBody, DerivativeBody, LimitBody, IntegralBody, TaylorBody,
@@ -45,14 +49,19 @@ import { LAB408_BLOCK_DEFS, LAB408_BLOCK_DEFAULTS } from './Lab408BlockNodes';
 import { DEEP_FIRST_DEFS, deepFirstDefaults } from './DeepFirstNodes';
 import { DEEP_CORE_DEFS, deepCoreDefaults } from './DeepCoreNodes';
 import { DEEP_ADVANCED_DEFS, deepAdvancedDefaults } from './DeepAdvancedNodes';
+import { DeepPanoramaNodeBody } from './DeepPanoramaNode';
 import styles from './canvas.module.css';
 import { parseAiRulePayload } from './aiRuleBlock.ts';
 import type { RulePreset } from './types.ts';
+import type { CockpitWeight } from './cockpitLayout.ts';
+export type { CockpitWeight } from './cockpitLayout.ts';
 
 export interface NodeBodyProps {
   node: CanvasNode;
   /** 渲染在画布卡片内为 true（检查器/仪器台复用同一 Body 时为缺省 false），供卡片精简内容用 */
   inCard?: boolean;
+  displayContext?: 'canvas' | 'cockpit' | 'instrument' | 'inspector';
+  wiredOutputs?: ReadonlySet<string>;
   /** 各输入端口的当前值（键 = 端口 id），无输入节点为空对象 */
   values: Record<string, PortValue | null>;
   /** 本节点输出的求值结果（无输出为 null），供源/变换节点自显 */
@@ -69,6 +78,16 @@ export interface NodeBodyProps {
   onExplode?: () => void;
   /** composite：存入跨画布个人积木库 */
   onSaveBlock?: () => void;
+  /** composite：钻入内部子画布 */
+  onDrillIn?: () => void;
+  /** composite：外壳更新子图配置或透出参数 */
+  onUpdateSub?: (sub: CompositeSub) => void;
+  /** composite：外壳封面预览节点及求值 props */
+  subPreview?: { node: CanvasNode; props: NodeBodyProps } | null;
+  /** composite：一键 AI 自动命名与摘要 */
+  onAiNameComposite?: () => Promise<void>;
+  /** composite：AI 命名请求进行中 */
+  aiNaming?: boolean;
   onLive?: (outputs: Record<string, PortValue>) => void;
   timeline?: { step: number; last: number; onStep: (step: number) => void };
 }
@@ -77,6 +96,7 @@ export interface NodeDef {
   title: string;
   badge: '源' | '变换' | '视图' | '学习' | '文字' | '实验';
   width: number;
+  cockpitWeight?: CockpitWeight;
   inputs?: readonly PortSpec[];
   outputs?: readonly PortSpec[];
   Body: ComponentType<NodeBodyProps>;
@@ -581,59 +601,346 @@ function CobwebBody({ node, onParams, inCard }: NodeBodyProps): JSX.Element {
   );
 }
 
-/* ============================== 自制积木 ============================== */
-
-function HiddenPortBody(): JSX.Element {
-  return <></>;
-}
-
-function CompositeBody({ node, onText, onExplode, onSaveBlock }: NodeBodyProps): JSX.Element {
-  const sub = node.sub;
-  if (!sub) return unconnected('自制积木');
-  const ins = sub.ports.filter((p) => p.dir === 'in');
-  const outs = sub.ports.filter((p) => p.dir === 'out');
-  const innerKinds = [...new Set(sub.nodes.filter((n) => n.type !== 'portIn' && n.type !== 'portOut').map((n) => NODE_DEFS[n.type]?.title ?? n.type))];
+function DelayRegisterBody({ node, values, self, onParams }: NodeBodyProps): JSX.Element {
+  const initVal = node.params.init ?? 0;
+  const formatPort = (val: PortValue | null | undefined): string => {
+    if (!val) return '未接入';
+    if (val.kind === 'scalar') return fmt(val.v, 3);
+    if (val.kind === 'series') return `序列(${val.values.length})`;
+    if (val.kind === 'matrix2') return `[${fmt(val.a, 1)}, ${fmt(val.b, 1)}; …]`;
+    if (val.kind === 'body') return `(${fmt(val.x, 1)}, ${fmt(val.y, 1)})`;
+    return val.kind;
+  };
+  const nextVal = values.next ?? values.in;
   return (
-    <div>
-      <input
-        className={styles.brickName}
-        value={node.text ?? ''}
-        placeholder="给积木起个名字…"
-        aria-label="积木名称"
-        spellCheck={false}
-        onChange={(e) => onText?.(e.target.value)}
-      />
-      <div className={styles.miniRead}>
-        <span className={styles.dim}>{sub.nodes.length - ins.length - outs.length} 个对象封装在内</span>
+    <div className={styles.delayBox}>
+      <div className={styles.readouts}>
+        <div className={styles.ro}>
+          <span>当前输出 (t)</span>
+          <b>{formatPort(self)}</b>
+        </div>
+        <div className={styles.ro}>
+          <span>待提交 (t+1)</span>
+          <b>{formatPort(nextVal)}</b>
+        </div>
       </div>
-      {ins.length > 0 ? (
-        <div className={styles.portList}>
-          {ins.map((p) => <span key={p.id} className={styles.portInChip}>▸ {p.label}</span>)}
-        </div>
-      ) : null}
-      {outs.length > 0 ? (
-        <div className={styles.portList}>
-          {outs.map((p) => <span key={p.id} className={styles.portOutChip}>{p.label} ▸</span>)}
-        </div>
-      ) : null}
-      {innerKinds.length > 0 ? (
-        <div className={styles.miniRead}>
-          <span className={styles.dim}>内含：{innerKinds.slice(0, 4).join(' · ')}{innerKinds.length > 4 ? ` +${innerKinds.length - 4}` : ''}</span>
-        </div>
-      ) : null}
-      <div className={styles.miniRead}>
-        <button type="button" className={styles.tbtn} onClick={() => onSaveBlock?.()}>
-          💾 存入我的积木库
-        </button>
+      <label className={styles.delayInitRow}>
+        <span>初值 init (t=0)</span>
+        <input
+          type="number"
+          step="any"
+          aria-label="状态寄存器初始值"
+          value={Number.isFinite(initVal) ? initVal : 0}
+          onChange={(e) => {
+            const parsed = parseFloat(e.target.value);
+            if (Number.isFinite(parsed)) onParams?.({ init: clamp(parsed, -1e6, 1e6) });
+          }}
+        />
+      </label>
+      <div className={styles.eigVerdict}>
+        用于打破反馈环：每点击顶部时钟步进 +1，原子提交 next → out。
       </div>
-      <button type="button" className={styles.tbtn} onClick={() => onExplode?.()}>
-        ↩ 展开积木
-      </button>
     </div>
   );
 }
 
-/** 动态端口解析：composite 的端口来自 sub.ports，其余类型取 NODE_DEFS 静态声明 */
+/* ============================== 自制积木 ============================== */
+
+function PortInBody({ node, self }: NodeBodyProps): JSX.Element {
+  const read = self?.kind === 'scalar' ? fmt(self.v, 3) : self ? self.kind : '外层未接';
+  return (
+    <div className={styles.boundaryChip}>
+      <span className={styles.portInChip}>▸ 外部入口</span>
+      <span className={styles.miniRead}>{node.text || node.id} · <b className={styles.live}>{read}</b></span>
+    </div>
+  );
+}
+
+function PortOutBody({ node, values }: NodeBodyProps): JSX.Element {
+  const val = values.in;
+  const read = val?.kind === 'scalar' ? fmt(val.v, 3) : val ? val.kind : '未连线';
+  return (
+    <div className={styles.boundaryChip}>
+      <span className={styles.portOutChip}>外部出口 ▸</span>
+      <span className={styles.miniRead}>{node.text || node.id} · <b className={styles.live}>{read}</b></span>
+    </div>
+  );
+}
+
+function CompositeBody({
+  node,
+  inCard,
+  onText,
+  onExplode,
+  onSaveBlock,
+  onDrillIn,
+  onUpdateSub,
+  subPreview,
+  onAiNameComposite,
+  aiNaming,
+}: NodeBodyProps): JSX.Element {
+  const sub = node.sub;
+  if (!sub) return unconnected('自制积木');
+  const ins = sub.ports.filter((p) => p.dir === 'in');
+  const outs = sub.ports.filter((p) => p.dir === 'out');
+  const innerNodes = sub.nodes.filter((n) => n.type !== 'portIn' && n.type !== 'portOut');
+  const innerKinds = [...new Set(innerNodes.map((n) => NODE_DEFS[n.type]?.title ?? n.type))];
+  const exposed = sub.exposedParams ?? [];
+
+  const renderParamValue = (ep: ExposedParam): number => {
+    const target = sub.nodes.find((item) => item.id === ep.nodeId);
+    const val = target?.params[ep.paramKey];
+    return typeof val === 'number' && Number.isFinite(val) ? val : ep.min ?? 0;
+  };
+
+  const PreviewBody = subPreview ? NODE_DEFS[subPreview.node.type]?.Body : undefined;
+
+  if (inCard) {
+    return (
+      <div className={styles.compositeShell}>
+        {sub.summary ? (
+          <p className={styles.compositeSummary} title={sub.summary}>{sub.summary}</p>
+        ) : null}
+
+        {PreviewBody && subPreview ? (
+          <div className={styles.compositePreview} aria-label="模块封面预览">
+            <div className={styles.compositePreviewInner}>
+              <PreviewBody {...subPreview.props} inCard />
+            </div>
+          </div>
+        ) : null}
+
+        {exposed.length > 0 ? (
+          <div className={styles.compositeParams} data-node-drag-ignore="true">
+            {exposed.slice(0, 6).map((ep) => {
+              const current = renderParamValue(ep);
+              const min = ep.min ?? (current < 0 ? Math.floor(current * 2) : 0);
+              const max = ep.max ?? (current > 1 ? Math.ceil(current * 2) : 1);
+              const safeMax = max > min ? max : min + 1;
+              const step = ep.step && ep.step > 0 ? ep.step : Number(((safeMax - min) / 100).toPrecision(2)) || 0.01;
+              return (
+                <label key={`${ep.nodeId}:${ep.paramKey}`} className={styles.compositeParamRow}>
+                  <span className={styles.compositeParamHead}>
+                    <span>{ep.label}</span>
+                    <b className={styles.live}>{fmt(current, 3)}</b>
+                  </span>
+                  <input
+                    type="range"
+                    className={styles.slider}
+                    aria-label={ep.label}
+                    min={min}
+                    max={safeMax}
+                    step={step}
+                    value={clamp(current, min, safeMax)}
+                    onChange={(e) => {
+                      const nextVal = parseFloat(e.target.value);
+                      if (Number.isFinite(nextVal) && onUpdateSub) {
+                        onUpdateSub(updateSubNodeParams(sub, ep.nodeId, { [ep.paramKey]: nextVal }));
+                      }
+                    }}
+                  />
+                </label>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <div className={styles.miniRead}>
+          <span className={styles.dim}>
+            {innerNodes.length} 个对象{innerKinds.length ? ` · ${innerKinds.slice(0, 3).join(' / ')}` : ''}
+          </span>
+        </div>
+
+        {(ins.length > 0 || outs.length > 0) ? (
+          <div className={styles.portList}>
+            {ins.map((p) => <span key={p.id} className={styles.portInChip}>▸ {p.label}</span>)}
+            {outs.map((p) => <span key={p.id} className={styles.portOutChip}>{p.label} ▸</span>)}
+          </div>
+        ) : null}
+
+        <div className={styles.compositeActions}>
+          {onDrillIn ? (
+            <button type="button" className={styles.tbtn} onClick={() => onDrillIn()} title="双击卡片也可进入子画布编辑">
+              🔍 钻入子画布
+            </button>
+          ) : null}
+          {onSaveBlock ? (
+            <button type="button" className={styles.tbtn} onClick={() => onSaveBlock()} title="保存到个人积木库以便跨画布复用">
+              💾 存库
+            </button>
+          ) : null}
+          {onExplode ? (
+            <button
+              type="button"
+              className={styles.tbtn}
+              title="取消封装：将内部积木与连线展开还原到当前画布"
+              onClick={() => {
+                if (window.confirm('取消封装并展开还原到当前画布？（内部积木和外部连线都会原样恢复，支持 Ctrl+Z 撤销）')) {
+                  onExplode();
+                }
+              }}
+            >
+              ↩ 解封
+            </button>
+          ) : null}
+        </div>
+        <div className={styles.miniRead}>
+          <span className={styles.dim}>双击钻入内部 · 点「↩ 解封」或在检查器中展开还原</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 右侧检查器态：支持模块命名、AI 自动命名与摘要、透出参数勾选、封面预览节点选择、钻入与展开
+  const candidates = collectCandidateExposedParams(
+    sub.nodes,
+    (child) => NODE_DEFS[child.type]?.title ?? child.type,
+  );
+  const previewCandidates = innerNodes.filter((n) => n.type !== 'slider' && n.type !== 'ticker' && n.type !== 'textNote' && n.type !== 'latexNote');
+
+  const toggleExposed = (candidate: ExposedParam): void => {
+    if (!onUpdateSub) return;
+    const exists = exposed.some((p) => p.nodeId === candidate.nodeId && p.paramKey === candidate.paramKey);
+    const nextExposed = exists
+      ? exposed.filter((p) => !(p.nodeId === candidate.nodeId && p.paramKey === candidate.paramKey))
+      : [...exposed, candidate].slice(0, 6);
+    onUpdateSub({ ...sub, exposedParams: nextExposed.length ? nextExposed : undefined });
+  };
+
+  return (
+    <div className={styles.compositeShell}>
+      <div className={styles.compositeNameRow}>
+        <input
+          className={styles.brickName}
+          value={node.text ?? ''}
+          placeholder="给积木起个名字…"
+          aria-label="积木名称"
+          spellCheck={false}
+          onChange={(e) => onText?.(e.target.value)}
+        />
+        {onAiNameComposite ? (
+          <button
+            type="button"
+            className={styles.tbtn}
+            disabled={aiNaming}
+            onClick={() => void onAiNameComposite()}
+          >
+            {aiNaming ? '命名中…' : '✨ AI 命名'}
+          </button>
+        ) : null}
+      </div>
+
+      <label className={styles.compositeField}>
+        <span>一句话简介</span>
+        <input
+          type="text"
+          className={styles.compositeInput}
+          value={sub.summary ?? ''}
+          placeholder="说明该模块接收什么输入、输出什么结果"
+          maxLength={200}
+          onChange={(e) => onUpdateSub?.({ ...sub, summary: e.target.value || undefined })}
+        />
+      </label>
+
+      {exposed.length > 0 ? (
+        <div className={styles.compositeParams}>
+          <span className={styles.compositeSectionTitle}>外露参数实时调节</span>
+          {exposed.map((ep) => {
+            const current = renderParamValue(ep);
+            const min = ep.min ?? 0;
+            const max = ep.max && ep.max > min ? ep.max : min + 1;
+            const step = ep.step && ep.step > 0 ? ep.step : 0.01;
+            return (
+              <label key={`${ep.nodeId}:${ep.paramKey}`} className={styles.compositeParamRow}>
+                <span className={styles.compositeParamHead}>
+                  <span>{ep.label}</span>
+                  <b className={styles.live}>{fmt(current, 3)}</b>
+                </span>
+                <input
+                  type="range"
+                  className={styles.slider}
+                  aria-label={ep.label}
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={clamp(current, min, max)}
+                  onChange={(e) => {
+                    const nextVal = parseFloat(e.target.value);
+                    if (Number.isFinite(nextVal) && onUpdateSub) {
+                      onUpdateSub(updateSubNodeParams(sub, ep.nodeId, { [ep.paramKey]: nextVal }));
+                    }
+                  }}
+                />
+              </label>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {candidates.length > 0 && onUpdateSub ? (
+        <div className={styles.compositeConfigBlock}>
+          <span className={styles.compositeSectionTitle}>勾选透出到外壳的参数（最多 6 个）</span>
+          <div className={styles.compositeCheckList}>
+            {candidates.map((cand) => {
+              const checked = exposed.some((p) => p.nodeId === cand.nodeId && p.paramKey === cand.paramKey);
+              return (
+                <label key={`${cand.nodeId}:${cand.paramKey}`} className={styles.compositeCheckItem}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleExposed(cand)}
+                  />
+                  <span>{cand.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {previewCandidates.length > 0 && onUpdateSub ? (
+        <label className={styles.compositeField}>
+          <span>外壳封面缩略视图</span>
+          <select
+            className={styles.compositeInput}
+            value={sub.previewNodeId ?? ''}
+            onChange={(e) => onUpdateSub({ ...sub, previewNodeId: e.target.value || undefined })}
+          >
+            <option value="">不显示封面预览</option>
+            {previewCandidates.map((child) => (
+              <option key={child.id} value={child.id}>
+                {(child.type === 'aiRuleBlock' ? parseAiRulePayload(child.payload)?.title : undefined)
+                  ?? (child.text && !child.text.includes('\n') ? child.text : undefined)
+                  ?? NODE_DEFS[child.type]?.title
+                  ?? child.type}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      <div className={styles.compositeActions}>
+        {onDrillIn ? (
+          <button type="button" className={styles.tbtn} onClick={() => onDrillIn()}>
+            🔍 钻入子画布编辑
+          </button>
+        ) : null}
+        {onSaveBlock ? (
+          <button type="button" className={styles.tbtn} onClick={() => onSaveBlock()}>
+            💾 存入我的积木库
+          </button>
+        ) : null}
+        {onExplode ? (
+          <button type="button" className={styles.tbtn} onClick={() => onExplode()}>
+            ↩ 展开还原到本层
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** 动态端口解析：composite 的端口来自 sub.ports，aiRuleBlock 支持自定义多输入/多输出 */
 export function nodePorts(node: CanvasNode, dir: 'in' | 'out'): readonly PortSpec[] {
   if (node.type === 'lab408Stage') return pipelinePorts(node, dir);
   if (node.type === 'physicsStage') return physicsPipelinePorts(node, dir);
@@ -644,10 +951,28 @@ export function nodePorts(node: CanvasNode, dir: 'in' | 'out'): readonly PortSpe
       .filter((p) => p.dir === dir)
       .map((p) => ({ id: p.id, label: p.label, kind: p.kind }));
   }
+  if (node.type === 'portIn') {
+    return dir === 'out' ? [{ id: 'out', label: node.text || '入口' }] : [];
+  }
+  if (node.type === 'portOut') {
+    return dir === 'in' ? [{ id: 'in', label: node.text || '出口' }] : [];
+  }
   const def = NODE_DEFS[node.type];
-  if (node.type === 'aiRuleBlock' && dir === 'in') {
-    const kind = parseAiRulePayload(node.payload)?.auxiliaryKind;
-    if (kind) return [...(def.inputs ?? []), { id: 'aux', label: kind === 'scalar' ? '数值' : 'f(x,y)', kind }];
+  if (node.type === 'aiRuleBlock') {
+    const payload = parseAiRulePayload(node.payload);
+    if (dir === 'in') {
+      if (payload?.inputs?.length) {
+        return payload.inputs.map((p) => ({ id: p.id, label: p.label, ...(p.kind ? { kind: p.kind } : {}) }));
+      }
+      const kind = payload?.auxiliaryKind;
+      if (kind) return [...(def.inputs ?? []), { id: 'aux', label: kind === 'scalar' ? '数值' : 'f(x,y)', kind }];
+    } else if (payload?.outputs?.length) {
+      const baseOut: PortSpec = { id: 'out', label: '实验数据', kind: 'customFrames' };
+      const custom = payload.outputs
+        .filter((p) => p.id !== 'out')
+        .map((p): PortSpec => ({ id: p.id, label: p.label, kind: p.kind }));
+      return [baseOut, ...custom];
+    }
   }
   return (dir === 'in' ? def?.inputs : def?.outputs) ?? [];
 }
@@ -664,17 +989,19 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   ...DEEP_MODERN_DEFS,
   ...AI_RULE_DEFS,
   ...UNIVERSAL_STAGE_DEFS,
+  universalStageView: { ...UNIVERSAL_STAGE_DEFS.universalStageView!, cockpitWeight: 'hero' },
+  deepPanoramaStage: { title: '深度学习全景沙盘', badge: '实验', width: 960, cockpitWeight: 'hero', Body: DeepPanoramaNodeBody },
   functionSource: { title: '函数源', badge: '源', width: 280, outputs: [{ id: 'out', label: 'f(x)', kind: 'function' }], Body: FunctionSourceBody },
-  functionPlot: { title: '函数图像', badge: '视图', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], Body: FunctionPlotBody },
+  functionPlot: { title: '函数图像', badge: '视图', cockpitWeight: 'hero', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }], Body: FunctionPlotBody },
   limitProbe: { title: '极限观察', badge: '实验', width: 310, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }, { id: 'eps', label: '容差 ε', kind: 'scalar' }], outputs: [{ id: 'out', label: '数值候选', kind: 'scalar' }], Body: LimitBody },
   derivative: { title: '导数切线', badge: '实验', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: 'x₀', kind: 'scalar' }, { id: 'h', label: '增量 h', kind: 'scalar' }], outputs: [{ id: 'out', label: '斜率', kind: 'scalar' }], Body: DerivativeBody },
   integral: { title: '黎曼积分', badge: '实验', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'n', label: '分割数 n', kind: 'scalar' }], outputs: [{ id: 'out', label: '数值参考', kind: 'scalar' }], Body: IntegralBody },
   taylor: { title: '泰勒近似', badge: '变换', width: 370, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'x', label: '观察点', kind: 'scalar' }, { id: 'center', label: '展开中心', kind: 'scalar' }], outputs: [{ id: 'out', label: 'Pₙ(x)', kind: 'function' }], Body: TaylorBody },
   ftcView: { title: '变上限积分', badge: '变换', width: 380, inputs: [{ id: 'in', label: 'f(x)', kind: 'function' }, { id: 'n', label: '采样段数 n', kind: 'scalar' }], outputs: [{ id: 'out', label: 'F(x)', kind: 'scalar' }], Body: FtcViewBody },
   fourierLab: { title: '傅里叶合成', badge: '实验', width: 400, inputs: [{ id: 'n', label: '谐波上限', kind: 'scalar' }], Body: FourierLabBody },
-  odeSlopeField: { title: '斜率场', badge: '实验', width: 400, inputs: [{ id: 'step', label: '步长 h', kind: 'scalar' }], Body: OdeSlopeFieldBody },
+  odeSlopeField: { title: '斜率场', badge: '实验', cockpitWeight: 'hero', width: 400, inputs: [{ id: 'step', label: '步长 h', kind: 'scalar' }], Body: OdeSlopeFieldBody },
   func2dSource: { title: '二元函数源', badge: '源', width: 280, inputs: [{ id: 'a', label: '系数 a', kind: 'scalar' }], outputs: [{ id: 'out', label: 'f(x,y)', kind: 'function2d' }], Body: Func2dSourceBody },
-  gradientContour: { title: '梯度等高线', badge: '变换', width: 400, inputs: [{ id: 'in', label: 'f(x,y)', kind: 'function2d' }], outputs: [{ id: 'out', label: 'D_θ f', kind: 'scalar' }], Body: GradientContourBody },
+  gradientContour: { title: '梯度等高线', badge: '变换', cockpitWeight: 'hero', width: 400, inputs: [{ id: 'in', label: 'f(x,y)', kind: 'function2d' }], outputs: [{ id: 'out', label: 'D_θ f', kind: 'scalar' }], Body: GradientContourBody },
   doubleIntegralView: { title: '二重积分微元', badge: '实验', width: 400,
     inputs: [{ id: 'in', label: '圆盘密度 ρ', kind: 'function2d' }], outputs: [{ id: 'out', label: '积分值', kind: 'scalar' }], Body: DoubleIntegralBody },
   vectorFieldSource: { title: '二维向量场源', badge: '源', width: 280,
@@ -682,6 +1009,12 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   matrixSource: { title: '矩阵源', badge: '源', width: 200, outputs: [OUT_M2], Body: MatrixSourceBody },
   slider: { title: '滑杆源', badge: '源', width: 190, outputs: [{ id: 'out', label: 'v', kind: 'scalar' }], Body: SliderBody },
   ticker: { title: '时间源', badge: '源', width: 190, outputs: [{ id: 'out', label: 't', kind: 'scalar' }], Body: TickerBody },
+  delayRegister: {
+    title: '延迟寄存器', badge: '变换', width: 220,
+    inputs: [{ id: 'next', label: '下一拍 next' }],
+    outputs: [{ id: 'out', label: '上一拍 prev' }],
+    Body: DelayRegisterBody,
+  },
   rotor: { title: '旋转器', badge: '变换', width: 190, inputs: [{ id: 'in', label: 't', kind: 'scalar' }], outputs: [OUT_M2], Body: RotorBody },
   matmul: {
     title: '乘法器', badge: '变换', width: 200,
@@ -689,13 +1022,13 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
     outputs: [{ id: 'out', label: 'A×B', kind: 'matrix2' }],
     Body: MatmulBody,
   },
-  transformView: { title: '变换视图', badge: '视图', width: 400, inputs: [IN_M2], Body: TransformViewBody },
+  transformView: { title: '变换视图', badge: '视图', cockpitWeight: 'hero', width: 400, inputs: [IN_M2], Body: TransformViewBody },
   fieldView: { title: '向量场', badge: '视图', width: 240, inputs: [IN_M2], Body: FieldViewBody },
-  detGauge: { title: 'det 仪表', badge: '视图', width: 200, inputs: [IN_M2], Body: DetGaugeBody },
-  eigRead: { title: '特征值读数', badge: '视图', width: 200, inputs: [IN_M2], Body: EigReadBody },
+  detGauge: { title: 'det 仪表', badge: '视图', cockpitWeight: 'compact', width: 200, inputs: [IN_M2], Body: DetGaugeBody },
+  eigRead: { title: '特征值读数', badge: '视图', cockpitWeight: 'compact', width: 200, inputs: [IN_M2], Body: EigReadBody },
   squareView: { title: '像的形状', badge: '视图', width: 200, inputs: [IN_M2], Body: SquareViewBody },
   quiz: { title: '预测闸门', badge: '学习', width: 210, inputs: [IN_M2], Body: QuizBody },
-  spark: { title: '记录仪', badge: '学习', width: 210, inputs: [{ id: 'in', label: '训练', accepts: sparkInputKinds }, { id: 'validation', label: '验证', accepts: sparkInputKinds }], Body: SparkBody },
+  spark: { title: '记录仪', badge: '学习', cockpitWeight: 'compact', width: 210, inputs: [{ id: 'in', label: '训练', accepts: sparkInputKinds }, { id: 'validation', label: '验证', accepts: sparkInputKinds }], Body: SparkBody },
   textNote: { title: '便签', badge: '文字', width: 230, Body: TextNoteBody },
   latexNote: { title: '公式卡', badge: '文字', width: 240, Body: LatexNoteBody },
   cobweb: { title: '蛛网图', badge: '实验', width: 230, Body: CobwebBody },
@@ -718,7 +1051,7 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
     Body: PendulumBody,
   },
   trailView: { title: '轨迹仪', badge: '实验', width: 210, inputs: [{ id: 'in', label: 'body', kind: 'body' }], Body: TrailBody },
-  energyMeter: { title: '能量表', badge: '实验', width: 210, inputs: [{ id: 'in', label: 'body', kind: 'body' }], Body: EnergyBody },
+  energyMeter: { title: '能量表', badge: '实验', cockpitWeight: 'compact', width: 210, inputs: [{ id: 'in', label: 'body', kind: 'body' }], Body: EnergyBody },
   inclineLab: {
     title: '斜面', badge: '源', width: 300,
     inputs: [{ id: 't', label: 't', kind: 'scalar' }],
@@ -762,10 +1095,10 @@ export const NODE_DEFS: Record<NodeType, NodeDef> = {
   dsStepLab: { title: '数据结构步进器', badge: '实验', width: 380, Body: DsStepBody },
   attentionSim: { title: '注意力实验', badge: '实验', width: 340, Body: AttentionSimBody },
   pageLabSim: { title: 'AI 交互模型', badge: '实验', width: 400, Body: PageLabSimBody },
-  composite: { title: '自制积木', badge: '实验', width: 230, Body: CompositeBody },
-  // 边界节点只存在于 sub 子图内部（不渲染、不进调色板），注册仅为类型完备
-  portIn: { title: '入口', badge: '源', width: 0, Body: HiddenPortBody },
-  portOut: { title: '出口', badge: '视图', width: 0, Body: HiddenPortBody },
+  composite: { title: '自制积木', badge: '实验', width: 268, Body: CompositeBody },
+  // 边界节点仅存在于 sub 子图内部（钻入子画布时展示为边界端口卡片，不进调色板）
+  portIn: { title: '外部入口', badge: '源', width: 164, Body: PortInBody },
+  portOut: { title: '外部出口', badge: '视图', width: 164, Body: PortOutBody },
 } as Record<NodeType, NodeDef>;
 
 /** 调色板（按类别分组） */
@@ -786,7 +1119,7 @@ export const PALETTE_GROUPS: readonly { label: string; types: readonly NodeType[
   { label: '办公 · 数据与决策', types: ['bizTableSource', 'bizGrowthSource', 'bizScenarioFork', 'bizDiscountOp', 'bizDecisionMatrix', 'bizWaterfallView'] },
   { label: 'AI · 创作引擎', types: ['aiRuleBlock', 'universalStageView'] },
   { label: '源', types: ['slider', 'ticker'] },
-  { label: '变换', types: ['rotor', 'matmul'] },
+  { label: '变换', types: ['delayRegister', 'rotor', 'matmul'] },
   { label: '视图', types: ['fieldView', 'detGauge', 'squareView', 'cobweb'] },
   { label: '学习', types: ['quiz', 'spark', 'attentionSim'] },
   { label: '大学物理 · 力学', types: ['projectile', 'springOsc', 'pendulum', 'trailView', 'energyMeter', 'inclineLab', 'collisionLab', 'resonanceLab', 'waveLab'] },
@@ -825,6 +1158,7 @@ export function defaultParams(type: NodeType): Record<string, number> {
     case 'matrixSource': return { a: 1, b: 0.5, c: 0, d: 1 };
     case 'slider': return { v: 0.3, min: 0, max: 1 };
     case 'ticker': return { period: 6, running: 1 };
+    case 'delayRegister': return { init: 0 };
     case 'rotor': return { theta: 0 };
     case 'cobweb': return { r: 3.2 };
     case 'projectile': return { v0: 8, angle: 55, g: 9.8, m: 1, running: 1, showForce: 0, showVelocity: 0, showStrobe: 0, compare: 0, fan: 0 };

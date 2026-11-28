@@ -2,7 +2,7 @@
 .body p { margin: 0; }
 .graph { display: block; width: 100%; height: auto; background: var(--paper-1, #fbfaf7); border: 1px solid var(--hairline, #dedfd6); border-radius: 7px; }
 .graph text { font: 8px var(--font-family-mono, monospace); fill: #7c8176; }
-.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 10px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11.5px; }
 .legend span { display: inline-flex; align-items: center; gap: 5px; }
 .legend i { width: 12px; height: 2px; }
 .expression { display: grid; gap: 6px; font-size: 12px; font-weight: 600; }
@@ -10,7 +10,7 @@
 .expression input, .field input, .field select { border: 1px solid var(--hairline, #dedfd6); border-radius: 5px; color: inherit; background: var(--paper-0, white); min-width: 0; }
 .expression input:focus-visible, .field input:focus-visible, .field select:focus-visible, .presets button:focus-visible { outline: 2px solid #6265be; outline-offset: 2px; }
 .presets { display: flex; flex-wrap: wrap; gap: 5px; }
-.presets button { padding: 4px 7px; font: inherit; font-size: 10px; color: #6265be; background: #6265be0c; border: 1px solid #6265be30; border-radius: 4px; cursor: pointer; }
+.presets button { padding: 4px 7px; font: inherit; font-size: 11.5px; color: #6265be; background: #6265be0c; border: 1px solid #6265be30; border-radius: 4px; cursor: pointer; }
 .presets .editExpression { background: #4038c7; border-color: #4038c7; color: white; }
 .fields { display: flex; flex-wrap: wrap; gap: 8px; }
 .field { display: flex; flex: 1; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; }
@@ -20,13 +20,13 @@
 .field select { padding: 5px; font: inherit; }
 .readout { padding: 9px 10px; background: #b65a3c0a; border-left: 2px solid #b65a3c70; font: 11px/1.9 var(--font-family-mono, monospace); overflow-wrap: anywhere; }
 .readout strong { color: #b65a3c; }
-.tip, .help { color: var(--ink-500, #686f61); font-size: 10px; line-height: 1.75; overflow-wrap: anywhere; }
+.tip, .help { color: var(--ink-500, #686f61); font-size: 13px; line-height: 1.75; overflow-wrap: anywhere; }
 .help summary { cursor: pointer; color: #6265be; }
 .notice { margin: 0; padding: 10px; color: #8b4c25; background: #b65a3c0a; border-radius: 5px; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
-.table { width: 100%; border-collapse: collapse; font: 10px/1.8 var(--font-family-mono, monospace); }
+.table { width: 100%; border-collapse: collapse; font: 11.5px/1.8 var(--font-family-mono, monospace); }
 .table th, .table td { text-align: right; padding: 4px 3px; border-bottom: 1px solid var(--hairline, #dedfd6); }
 .table th { font-weight: 500; color: var(--ink-500, #686f61); }
-.table caption { text-align: left; font-size: 10px; margin-bottom: 5px; }
+.table caption { text-align: left; font-size: 11.5px; margin-bottom: 5px; }
 .check { display: flex; align-items: center; gap: 5px; font-size: 11px; }
 
 /* 高数高级节点：图面、双面板与频谱柱 */

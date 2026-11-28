@@ -9,7 +9,7 @@ import { navAccountEntries } from './navAccountItems';
 import type { NavAccountEntry } from './navAccountItems';
 import styles from './SiteNav.module.css';
 
-export type NavSection = 'home' | 'canvas' | 'workspace' | 'examples' | 'labs' | 'living';
+export type NavSection = 'home' | 'canvas' | 'workspace' | 'examples' | 'labs' | 'living' | 'plaza';
 
 interface NavItem {
   section: NavSection;
@@ -22,6 +22,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { section: 'home', label: '首页', to: '/' },
   { section: 'canvas', label: '定象坊', to: '/workshop' },
   { section: 'living', label: '通文册', to: '/living' },
+  { section: 'plaza', label: '广场', to: '/plaza' },
   { section: 'workspace', label: '个人主页', to: '/space' },
 ];
 
@@ -228,7 +229,7 @@ export function SiteNav({ current, onUpload, appearance = 'default' }: SiteNavPr
                 <Link
                   className={styles.accountMenuItem}
                   role="menuitem"
-                  to="/settings/profile"
+                  to="/space?tab=settings"
                   onClick={() => setOpenAccountMenu(null)}
                 >
                   个人设置

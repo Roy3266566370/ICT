@@ -1,22 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { VectorLine, VectorControls } from './VectorLine';
 import {SlideDiagramNode} from './SlideDiagramNode';
-import {SlideDemoNode} from './SlideDemoNode';
-import {standaloneDemos} from './standaloneDemos';
 import {SlideWorkshopPluginNode} from './SlideWorkshopPluginNode';
 import { BasisRelationOverlay, useBasisPlayback } from './BasisComposition';
 import {memo,type CSSProperties,type ReactNode} from 'react';
 import { allowsViewerParameter, evaluatePageRelations, normalizePageRelations, relationDependencies } from '@/document/relations';
-import type {NodePatch,SceneNode,ScenePage,SceneParagraph,TextStyle} from '@/document/types';
+import {MasterLayer} from './MasterLayer';
+import type {DeckTheme,NodePatch,SceneNode,ScenePage,SceneParagraph,TextStyle} from '@/document/types';
 import {SHAPE_CATALOG} from '@/document/shapeCatalog';
 import {displayParagraphs} from '@/document/richText';
 import {InlineRichText} from './InlineRichText';
 import {Formula} from '@/components/showcase/Formula';
 import {resizeVector} from '@/document/vectorGeometry';
 import {same} from '@/document/model';
-import {VegaSpecView} from '@/components/ispec/views/VegaSpecView';
-import type {ISpec} from '@/ispec/types';
+import {SlideChart} from './SlideChart';
 import styles from './ScenePageView.module.css';
 
 export function textCss(style:Partial<TextStyle>):CSSProperties {
@@ -42,7 +40,7 @@ export function rasterCss(node:SceneNode,which:'image'|'background'):CSSProperti
 export function textChanged(node:SceneNode){return node.text!==node.base_text||!same(node.style,node.base_style)||
   (node.base_paragraphs!==undefined&&!same(node.paragraphs??[],node.base_paragraphs))||
   (node.base_width!==undefined&&node.width!==node.base_width)||(node.base_height!==undefined&&node.height!==node.base_height);}
-function TextRuns({paragraph}:{paragraph:SceneParagraph}){
+function TextRuns({paragraph,compactMatrix}:{paragraph:SceneParagraph;compactMatrix?:boolean}){
   let offset=0;
   const spans=paragraph.runs.flatMap(run=>{
     const start=paragraph.text.indexOf(run.text,offset);
@@ -59,7 +57,10 @@ function TextRuns({paragraph}:{paragraph:SceneParagraph}){
   for(const match of paragraph.text.matchAll(/(?<!\\)\$([^$\n\v]+)(?<!\\)\$/g)){
     const position=match.index;
     const style=spans.find(span=>span.start<=position&&span.end>position)?.style??{};
-    parts.push(...styled(start,position),<span key={`formula-${position}`} style={textCss(style)}><Formula tex={match[1]!} label={match[1]}/></span>);
+    const tex=match[1]!;
+    const displayTex=compactMatrix?tex.replace(/(\\left\[\s*)\\begin\{gathered\}(.+?)\\end\{gathered\}(\s*\\right\])/g,
+      (_,start:string,rows:string,end:string)=>`${start}\\begin{smallmatrix}${rows.replaceAll('\\;', ' & ')}\\end{smallmatrix}${end}`):tex;
+    parts.push(...styled(start,position),<span key={`formula-${position}`} style={textCss(style)}><Formula tex={displayTex} label={tex}/></span>);
     start=position+match[0].length;
   }
   parts.push(...styled(start,paragraph.text.length));
@@ -68,80 +69,152 @@ function TextRuns({paragraph}:{paragraph:SceneParagraph}){
 function TextContent({node}:{node:SceneNode}){
   const style=node.style;
   const changedFields=(Object.keys(style) as Array<keyof TextStyle>).filter(k=>!same(style[k],node.base_style[k]));
-  const nowrap=node.word_wrap===false;
+  const nativeFormula=node.figure_provenance==='native'&&/\$[^$]+\$/.test(node.text??'');
+  const nowrap=node.word_wrap===false||nativeFormula;
   const textParagraphs=displayParagraphs(node);
+  let listIndex=0;
   return <div className={styles.textFrame} style={{padding:`${style.padding_top??0}px ${style.padding_right??0}px ${style.padding_bottom??0}px ${style.padding_left??0}px`,
     justifyContent:style.vertical_align==='middle'?'center':style.vertical_align==='bottom'?'flex-end':'flex-start',
     whiteSpace:nowrap?'pre':'pre-wrap',...textCss(style)}}>
     <div className={styles.textContent} data-text-content
-      style={nowrap?{width:'max-content',overflowWrap:'normal',wordBreak:'normal'}:undefined}>
-      {textParagraphs.map((p,i)=><p key={i} className={p.bullet?styles.bullet:undefined} style={{
+      style={nowrap?{whiteSpace:'pre',width:nativeFormula?'100%':'max-content',overflowWrap:'normal',wordBreak:'normal'}:undefined}>
+      {textParagraphs.map((p,i)=>{
+        listIndex=p.list_type==='ordered'?listIndex+1:0;
+        return <p key={i} className={p.bullet||p.list_type==='bullet'?styles.bullet:undefined} style={{
         textAlign:changedFields.includes('align')?style.align:p.align,
+        whiteSpace:nowrap?'pre':undefined,
         lineHeight:typeof p.line_spacing_pt==='number'?`${p.line_spacing_pt}px`:(p.line_height??style.line_height??1.15),
         marginTop:p.space_before, marginBottom:p.space_after,
       }}>
-        <TextRuns paragraph={p}/>
-      </p>)}
+        {listIndex>0&&<span>{listIndex}. </span>}<TextRuns paragraph={p} compactMatrix={nativeFormula&&node.text===node.base_text}/>
+      </p>;})}
     </div>
   </div>;
 }
 function ShapeContent({node}:{node:SceneNode}){
+  const gradientId=useId();
+  const gradient=node.fill_gradient;
+  const dash=node.style.line_style==='dashed'?'7 4':node.style.line_style==='dotted'?'2 3':undefined;
+  const linear=node.style.linear_gradient;
+  const fill=linear?`url(#${gradientId})`:node.style.fill??(gradient?`url(#${gradientId})`:'none');
+  let gradientDef:ReactNode;
+  if(linear){
+    gradientDef=<defs><linearGradient id={gradientId} gradientTransform={`rotate(${linear.angle-90},.5,.5)`}>
+      {linear.stops.map((stop,index)=><stop key={index} offset={stop.position} stopColor={stop.color} stopOpacity={stop.opacity??1}/>)}
+    </linearGradient></defs>;
+  }else if(gradient&&!node.style.fill){
+    const [left,top,right,bottom]=gradient.bounds;
+    const cx=(100000+left-right)/200000,cy=(100000+top-bottom)/200000;
+    const radius=Math.hypot(Math.max(Math.abs(cx),Math.abs(1-cx)),Math.max(Math.abs(cy),Math.abs(1-cy)));
+    gradientDef=<defs><radialGradient id={gradientId} cx={cx} cy={cy} r={radius}>
+      {gradient.stops.map((stop,index)=><stop key={index} offset={stop.position/100000} stopColor={stop.color} stopOpacity={stop.opacity/100000}/>)}
+    </radialGradient></defs>;
+  }
   if(node.shape_paths?.length)return <>{node.shape_paths.map((shape,index)=><svg key={index} className={styles.shape}
     viewBox={`0 0 ${shape.width} ${shape.height}`} preserveAspectRatio="none" aria-hidden="true">
     <path d={shape.path} fill={shape.fill?node.style.fill??'none':'none'} stroke={shape.stroke?node.style.stroke??'none':'none'}
-      strokeWidth={node.style.stroke_width??0} vectorEffect="non-scaling-stroke"/>
+      fillOpacity={node.style.fill_opacity} strokeOpacity={node.style.stroke_opacity}
+      strokeWidth={node.style.stroke_width??0} strokeDasharray={dash} vectorEffect="non-scaling-stroke"/>
   </svg>)}</>;
   const shape=SHAPE_CATALOG.find(candidate=>candidate.id===node.shape)??SHAPE_CATALOG[0];
+  const rounded=(node.style.border_radius??0)>0&&(node.shape==='rect'||node.shape==='roundRect'||!node.shape);
+  const decoration={fill:'open' in shape?'none':fill,fillOpacity:node.style.fill_opacity,strokeOpacity:node.style.stroke_opacity,
+    stroke:node.style.stroke??('open' in shape?node.style.color:'none'),strokeWidth:node.style.stroke_width??('open' in shape?1:0),
+    strokeDasharray:dash,vectorEffect:'non-scaling-stroke'};
   return <svg className={styles.shape} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-    <path d={shape.path} fill={'open' in shape?'none':(node.style.fill??'none')}
-      stroke={node.style.stroke??('open' in shape?node.style.color:'none')}
-      strokeWidth={node.style.stroke_width??('open' in shape?1:0)} vectorEffect="non-scaling-stroke"/>
+    {gradientDef}
+    {rounded?<rect width={100} height={100} rx={Math.min(50,100*node.style.border_radius!/node.width)}
+      ry={Math.min(50,100*node.style.border_radius!/node.height)} {...decoration}/>:<path d={shape.path} {...decoration}/>}
   </svg>;
 }
-function ChartContent({node}:{node:SceneNode}){
-  const data=node.chart;if(!data)return null;
-  const rows=data.series.flatMap(series=>data.categories.map((category,i)=>[category,series.name,series.values[i]??0]));
-  const spec:ISpec={spec_version:'1.0',object_id:node.id,kind:'filter',parameters:[],
-    datasets:[{id:'data',columns:['category','series','value'],rows}],views:[]};
-  return <div className={styles.chart}><VegaSpecView spec={spec} evaluation={{values:{},derived:{},violations:[]}}
-    view={{type:'vega',spec_ref:data.chart_type?.includes('LINE')?'line':'bar',dataset:'data',x:'category',y:'value',title:data.title??node.name}} reducedMotion/></div>;
+function TableContent({node,editing,onPatch,theme}:{node:SceneNode;editing:boolean;
+  onPatch?:(id:string,patch:NodePatch,key?:string)=>void;theme?:DeckTheme}){
+  const [cell,setCell]=useState<{row:number;col:number}|null>(null);
+  const [draft,setDraft]=useState('');
+  const table=node.table??[];
+  const settings=node.table_style;
+  const start=(row:number,col:number)=>{
+    if(!editing||node.locked||table[row]?.[col]===undefined)return;
+    setDraft(table[row]![col]!);setCell({row,col});
+  };
+  const commit=()=>{
+    if(!cell||table[cell.row]?.[cell.col]===draft)return;
+    onPatch?.(node.id,{table:table.map((row,i)=>i===cell.row?row.map((value,j)=>j===cell.col?draft:value):row)},
+      `table.${cell.row}.${cell.col}`);
+  };
+  return <table className={styles.table} style={textCss(node.style)}><tbody>{table.map((row,i)=><tr key={i}>
+    {row.map((value,j)=>{
+      const header=i===0&&settings?.header_row;
+      const active=cell?.row===i&&cell.col===j;
+      return <td key={j} onDoubleClick={event=>{event.stopPropagation();start(i,j);}} style={{
+        ...(header?{fontWeight:700,background:settings.header_fill??theme?.palette.primary??'#233a63',color:settings.header_color??'#ffffff'}:
+          settings?.banded_rows&&i%2===1?{background:settings.band_fill??'#edf1f7'}:{}),
+        borderColor:settings?.border_color??theme?.palette.border,
+      }}>{active?<input autoFocus value={draft} maxLength={2000} aria-label={`编辑第 ${i+1} 行第 ${j+1} 列`}
+        onChange={event=>setDraft(event.target.value)}
+        onBlur={()=>{commit();setCell(null);}}
+        onKeyDown={event=>{
+          if(event.key==='Escape'){event.stopPropagation();setCell(null);return;}
+          if(event.key!=='Enter'&&event.key!=='Tab')return;
+          event.preventDefault();event.stopPropagation();commit();
+          if(event.key==='Enter'&&table[i+1]?.[j]!==undefined)start(i+1,j);
+          else if(event.key==='Tab'&&table[i]?.[j+1]!==undefined)start(i,j+1);
+          else if(event.key==='Tab'&&table[i+1]?.[0]!==undefined)start(i+1,0);
+          else setCell(null);
+        }}/>:value}</td>;
+    })}
+  </tr>)}</tbody></table>;
 }
-const NodeView=memo(function NodeView({node,pageWidth,pageHeight,editing,editingText,onText,onCompose,onTextBlur,selectable,proofFigures,basisCoordLabel}:{node:SceneNode;pageWidth:number;pageHeight:number;editing:boolean;editingText:boolean;proofFigures?:boolean;
-  onText?:(id:string,text:string,paragraphs?:SceneParagraph[])=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void;selectable:boolean;basisCoordLabel?:boolean}){
+const NodeView=memo(function NodeView({node,pageWidth,pageHeight,editing,editingText,onText,onCompose,onTextBlur,selectable,basisCoordLabel,coveredByFallback,onNodePatch,theme,build}:{node:SceneNode;pageWidth:number;pageHeight:number;editing:boolean;editingText:boolean;
+  build?:boolean;
+  onNodePatch?:(id:string,patch:NodePatch,key?:string)=>void;theme?:DeckTheme;
+  onText?:(id:string,text:string,paragraphs?:SceneParagraph[])=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void;selectable:boolean;basisCoordLabel?:boolean;coveredByFallback?:boolean}){
   const changed=textChanged(node);
+  const shadow=node.style.shadow;
   const clean=node.type==='image'&&node.cleaned_asset_id&&node.cleaned_url;
-  const src=(!proofFigures&&clean)||node.image_data||node.image_url;
+  const src=node.image_data||clean||node.image_url;
   const transform=`rotate(${node.rotation+(node.text_rotation_offset??0)}deg)${node.text_transform?` matrix(${node.text_transform.join(',')},0,0)`:''}`;
   const crop=node.crop;const imageStyle:CSSProperties=crop?{position:'absolute',width:`${100/(1-crop.left-crop.right)}%`,height:`${100/(1-crop.top-crop.bottom)}%`,
     left:`${-100*crop.left/(1-crop.left-crop.right)}%`,top:`${-100*crop.top/(1-crop.top-crop.bottom)}%`}:{};
   const tableChanged=node.type==='table'&&!same(node.table,node.base_table);
   const chartChanged=node.type==='chart'&&!same(node.chart,node.base_chart);
+  const moved=(node.base_x!==undefined&&node.x!==node.base_x)||(node.base_y!==undefined&&node.y!==node.base_y)||
+    (node.base_width!==undefined&&node.width!==node.base_width)||(node.base_height!==undefined&&node.height!==node.base_height);
+  const hideForFallback=Boolean(coveredByFallback&&!editingText&&!changed&&!tableChanged&&!chartChanged&&!moved);
   const underlay=node.background_url?<img className={styles.raster} src={node.background_url} style={rasterCss(node,'background')} alt="" draggable={false}/>:
-    (node.style.fill||node.style.stroke)?<ShapeContent node={node}/>:null;
+    (node.style.fill||node.style.stroke||node.fill_gradient)?<ShapeContent node={node}/>:null;
   return <div className={styles.node} data-node-id={node.id} data-node-type={node.type} data-locked={node.locked}
+    data-build-entry={build||undefined}
     data-basis-coordinates={basisCoordLabel?true:undefined}
     role={selectable?'button':undefined} tabIndex={selectable?0:undefined} aria-label={selectable?`选择：${node.text?.slice(0,28)||node.name}`:undefined}
-    style={{left:node.x,top:node.y,width:node.width,height:node.height,transform,zIndex:editingText?35000:node.z+10001,opacity:node.opacity*(proofFigures&&clean?0.35:1),
-      pointerEvents:editing?'auto':'none'}}>
+    style={{left:node.x,top:node.y,width:node.width,height:node.height,transform,zIndex:editingText?35000:node.z+10001,opacity:hideForFallback?0:node.opacity,
+      pointerEvents:editing?'auto':'none',
+      filter:shadow?`drop-shadow(${shadow.x}px ${shadow.y}px ${shadow.blur}px color-mix(in srgb, ${shadow.color} ${shadow.opacity*100}%, transparent))`:undefined}}>
     {editingText?<>
       {underlay}<InlineRichText node={node} pageSize={{width:pageWidth,height:pageHeight}} css={textCss} onText={onText} onCompose={onCompose} onClose={onTextBlur}/>
     </>:node.type==='text'&&(changed||!src)?<>
       {underlay}
       <TextContent node={node}/>
-    </>:node.type==='table'&&node.table&&(!src||tableChanged)?<table className={styles.table} style={textCss(node.style)}><tbody>{node.table.map((row,i)=><tr key={i}>{row.map((cell,j)=><td key={j}>{cell}</td>)}</tr>)}</tbody></table>:
-      node.type==='chart'&&node.chart&&(!src||chartChanged)?<ChartContent node={node}/>:
-      node.type==='shape'&&(!src||!same(node.style,node.base_style))?<ShapeContent node={node}/>:
-      src?(crop?<div className={styles.imageClip}><img className={styles.raster} src={src} style={imageStyle} alt="" draggable={false}/></div>:
-        <img className={styles.raster} src={src} style={rasterCss(node,'image')} alt="" draggable={false}/>):
+    </>:node.type==='table'&&node.table&&(!src||tableChanged||node.table_style||editing)?
+      <TableContent node={node} editing={editing} onPatch={onNodePatch} theme={theme}/>:
+      node.type==='chart'&&node.chart&&(!src||chartChanged)?<div className={styles.chart} style={{backgroundColor:theme?.palette.surface}}><SlideChart data={node.chart} theme={theme}/></div>:
+      node.type==='shape'&&(!src||changed)?<>
+        <ShapeContent node={node}/>{node.text&&<TextContent node={node}/>}
+      </>:
+      src?<div className={styles.imageClip} style={{borderRadius:node.style.border_radius}}>
+        <img className={styles.raster} src={src} style={crop?imageStyle:rasterCss(node,'image')} alt="" draggable={false}/>
+      </div>:
       node.type==='text'?<TextContent node={node}/>:null}
   </div>;
 });
 interface Props {page:ScenePage;scale:number;editing?:boolean;editingId?:string|null;preview?:Record<string,Partial<SceneNode>>;children?:ReactNode;
+  buildStep?:number;
+  master?:{theme:DeckTheme;index:number;total:number};
   onText?:(id:string,text:string,paragraphs?:SceneParagraph[])=>void;onCompose?:(composing:boolean)=>void;onTextBlur?:()=>void; presentVectors?:boolean; vectorId?:string;
-  resetHost?:HTMLElement|null; lineControlsHost?:HTMLElement|null; onResetPresentation?:()=>void; resetForAi?:boolean; inlineAllDemos?:boolean;
+  resetHost?:HTMLElement|null; lineControlsHost?:HTMLElement|null;
   onVectorSelect?:(id:string)=>void; onVectorPatch?:(id:string, patch:import('@/document/types').NodePatch,key?:string)=>void;
-  onGenerateDemo?:(id:string)=>void;generating?:Record<string,boolean>;proofFigures?:boolean;}
-export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur,presentVectors,vectorId,onVectorSelect,onVectorPatch,onGenerateDemo,generating,proofFigures,resetHost,lineControlsHost,onResetPresentation,resetForAi,inlineAllDemos}:Props){
+  fallbackImageUrl?:string;}
+export function ScenePageView({page,scale,editing=false,editingId,preview,children,onText,onCompose,onTextBlur,presentVectors,vectorId,onVectorSelect,onVectorPatch,resetHost,lineControlsHost,fallbackImageUrl,buildStep,master}:Props){
   const frozen=page.preparation?.frozen_ids??[];
   const rawVisible = page.nodes.filter(n=>!n.deleted&&!n.hidden&&!frozen.includes(n.id));
   const [liveDrafts, setLiveDrafts] = useState<Record<string, NodePatch>>({});
@@ -196,10 +269,24 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
     liveDrafts,
     { basisProgress: playback.value },
   );
-  const visible = relationEval.nodes;
+  const visible = buildStep===undefined?relationEval.nodes:
+    relationEval.nodes.filter(node=>(node.style.anim_step??0)<=buildStep);
+  const shapeAnchors=editing?visible.filter(node=>node.type==='shape').flatMap(node=>{
+    const angle=node.rotation*Math.PI/180;
+    const cx=node.x+node.width/2,cy=node.y+node.height/2;
+    return [[-node.width/2,0],[node.width/2,0],[0,-node.height/2],[0,node.height/2]].map(([x,y])=>
+      [cx+x!*Math.cos(angle)-y!*Math.sin(angle),cy+x!*Math.sin(angle)+y!*Math.cos(angle)] as [number,number]);
+  }):[];
+  const snapEndpoint=(point:[number,number])=>{
+    let result=point,distance=10/scale;
+    for(const anchor of shapeAnchors){
+      const gap=Math.hypot(anchor[0]-point[0],anchor[1]-point[1]);
+      if(gap<distance){result=anchor;distance=gap;}
+    }
+    return result;
+  };
   const vectors = visible.filter(node=>node.type==='vector');
-  const separateIds = new Set(inlineAllDemos ? [] : standaloneDemos(page).map(node=>node.id));
-  const richNodes = visible.filter(node=>node.type==='diagram'||(node.type==='demo'&&!separateIds.has(node.id))||node.type==='workshop_plugin');
+  const richNodes = visible.filter(node=>node.type==='diagram'||node.type==='workshop_plugin');
   const basisActive = relationEval.overlays.length > 0;
   const basisLabelIds = new Set(
     normalizedRelations
@@ -272,12 +359,22 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
       <button type="button" disabled={!!playback.animation || playback.completed<1} onClick={()=>playback.play(2)}>第 2 步：沿 b₂</button>
     </>}
   </div>;
-  return <div className={styles.canvas} style={{width:page.width,height:page.height,backgroundColor:page.background_color??'#fff',transform:`scale(${scale})`}} data-scene-page={page.page_no}>
+  const bg=page.background;
+  const activeFallback = !bg&&!page.background_url && !page.background_modified && fallbackImageUrl ? fallbackImageUrl : undefined;
+  const backgroundImage=bg?.kind==='gradient'?`linear-gradient(${bg.gradient.angle}deg, ${bg.gradient.stops.map(stop=>`${stop.color} ${stop.position*100}%`).join(', ')})`:undefined;
+  return <div className={styles.canvas} style={{width:page.width,height:page.height,
+    backgroundColor:bg?.kind==='solid'?bg.color:bg?.kind==='image'?bg.overlay_color??page.background_color??master?.theme.palette.background??'#fff':page.background_color??'#fff',
+    backgroundImage,transform:`scale(${scale})`}} data-scene-page={page.page_no}>
     <div className={styles.contentLayer}>
-      {page.background_url&&!page.background_modified&&<img className={styles.pageBackground} src={page.background_url} alt="" draggable={false}/>}
+      {(!bg&&page.background_url&&!page.background_modified)&&<img className={styles.pageBackground} src={page.background_url} alt="" draggable={false}/>}
+      {bg?.kind==='image'&&<img className={styles.pageBackground} src={bg.image_data} alt="" draggable={false}
+        style={{objectFit:'cover',opacity:bg.image_opacity??1}}/>}
+      {activeFallback&&<img className={styles.pageBackground} src={activeFallback} alt="" draggable={false}/>}
+      {master&&!page.hide_master&&<MasterLayer {...master}/> }
       {visible.filter(node=>node.type!=='vector'&&node.type!=='diagram'&&node.type!=='demo'&&node.type!=='workshop_plugin').map(node=><NodeView key={node.id} node={node} pageWidth={page.width} pageHeight={page.height}
-        basisCoordLabel={basisLabelIds.has(node.id)}
-        editing={editing} editingText={editingId===node.id} selectable={editing} proofFigures={proofFigures} onText={onText} onCompose={onCompose} onTextBlur={onTextBlur}/>)}
+        basisCoordLabel={basisLabelIds.has(node.id)} coveredByFallback={Boolean(activeFallback)}
+        editing={editing} editingText={editingId===node.id} selectable={editing} onText={onText} onCompose={onCompose} onTextBlur={onTextBlur}
+        onNodePatch={onVectorPatch} theme={master?.theme} build={buildStep!==undefined&&(node.style.anim_step??0)>0}/>)}
       {vectors.map(node=>{
         const canEditVector = !node.locked && (
           (!!presentVectors && !fixed(node) && canChangeGeometry(node)) ||
@@ -286,7 +383,9 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
         const dragStart = editing ? true : (allowsViewerParameter(node, 'start', false) && !(legacySecondOnlyIds.has(node.id) && !node.viewer_parameters));
         const dragEnd = editing ? true : allowsViewerParameter(node, 'end', false);
         return <VectorLine key={node.id} node={node}
+          build={buildStep!==undefined&&(node.style.anim_step??0)>0}
           progress={vectorProgress(node)}
+          snapEndpoint={editing?snapEndpoint:undefined}
           onSelect={presentVectors && !fixed(node) ? ()=>setChoice(node.id) : editing && onVectorSelect ? ()=>onVectorSelect(node.id) : undefined}
           canDragStart={dragStart}
           canDragEnd={dragEnd}
@@ -296,10 +395,10 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
       {richNodes.map(node=>{
         const props={node,editing,interactive:!!presentVectors||(editing&&vectorId===node.id),onPatch:(patch:NodePatch,key?:string)=>change(node.id,patch,key)};
         return <div key={node.id} data-node-id={node.id} data-node-type={node.type} style={{display:'contents'}}
+          data-build-entry={buildStep!==undefined&&(node.style.anim_step??0)>0||undefined}
           onPointerDown={()=>{if(editing)onVectorSelect?.(node.id);}}>
           {node.type==='diagram'?<SlideDiagramNode key={`${node.id}:${resetVersion}`} {...props}/>:
-            node.type==='workshop_plugin'?<SlideWorkshopPluginNode key={`${node.id}:${resetVersion}`} {...props} presentationKey={`${page.page_no}:${node.id}`}/>:
-            <SlideDemoNode key={`${node.id}:${resetVersion}`} {...props} generating={generating?.[node.id]} onGenerate={onGenerateDemo?()=>onGenerateDemo(node.id):undefined}/>}
+            <SlideWorkshopPluginNode key={`${node.id}:${resetVersion}`} {...props} presentationKey={`${page.page_no}:${node.id}`}/>}
         </div>;
       })}
       {relationEval.overlays.map(ov => <BasisRelationOverlay key={ov.relationId} overlay={ov} progress={playback.value}/>)}
@@ -316,8 +415,8 @@ export function ScenePageView({page,scale,editing=false,editingId,preview,childr
         <VectorControls node={node} onPatch={(patch,key)=>onVectorPatch?.(node.id,patch,key)} author/>
       </div>;
     })()}
-    {presentVectors&&resetHost&&(vectors.length>0||richNodes.length>0||separateIds.size>0||resetForAi)&&createPortal(<button type="button" onClick={()=>{
-      setOverrides({});setLiveDrafts({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});setResetVersion(v=>v+1);onResetPresentation?.();
+    {presentVectors&&resetHost&&(vectors.length>0||richNodes.length>0)&&createPortal(<button type="button" onClick={()=>{
+      setOverrides({});setLiveDrafts({});setScaleFactor(1);setRotateOffset(0);setStepState({target:null,progress:1});setResetVersion(v=>v+1);
     }}>↺ 重置本页状态</button>,resetHost)}
     {children}
   </div>;

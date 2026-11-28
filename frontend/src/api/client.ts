@@ -184,7 +184,7 @@ export interface ApiClient {
    * P2-10：POST /api/v1/materials/{material_id}/publish
    * 冻结当前材料并返回不可枚举的 `share_id` 与学生端链接。
    */
-  publishMaterial(materialId: string, selection?: LearningPublishSelection): Promise<PublishResult>;
+  publishMaterial(materialId: string, selection?: LearningPublishSelection | { plaza: import('./plazaTypes').ListingOptions }): Promise<PublishResult>;
   /** P2-10：DELETE /api/v1/materials/{material_id}/publish（撤销全部活链接，幂等） */
   revokeMaterialPublish(materialId: string): Promise<RevokePublishResult>;
   /**
@@ -378,7 +378,9 @@ export async function requestJson<T>(
   if (
     !isAuthOrMePath &&
     !path.startsWith('/api/v1/sessions') &&
-    !path.startsWith('/api/v1/p/') &&
+    !(path.startsWith('/api/v1/p/') && !path.endsWith('/fork')) &&
+    !path.startsWith('/api/v1/plaza') &&
+    !path.startsWith('/api/v1/creators/') &&
     !path.startsWith('/api/v1/lab-shares/')
   ) {
     await ensureHttpSession();

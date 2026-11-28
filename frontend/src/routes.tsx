@@ -1,16 +1,18 @@
 /**
  * routes.tsx —— 路由表（懒加载 + 骨架占位）
  */
-import { lazy, Suspense, type ReactElement } from 'react';
+import { lazy, Suspense, useEffect, type ReactElement } from 'react';
 import { createBrowserRouter, Link, Navigate, Outlet, ScrollRestoration, useLocation, useParams, type RouteObject } from 'react-router-dom';
 import { SiteNav } from './components/home/SiteNav';
 import { RouteSkeleton } from './components/navigation/RouteSkeleton';
 import { routeLoaders } from './components/navigation/routePrefetch';
+import { recordVisitedOrigin } from './utils/returnOrigin';
 
 const HomePage = lazy(routeLoaders.home);
 const CanvasPage = lazy(routeLoaders.canvas);
+const PlazaPage = lazy(routeLoaders.plaza);
+const CreatorPage = lazy(routeLoaders.creator);
 const SpacePage = lazy(routeLoaders.space);
-const SettingsProfilePage = lazy(routeLoaders.settings);
 const SharePage = lazy(routeLoaders.share);
 const MaterialDeckPage = lazy(routeLoaders.workbench);
 const LivingPagesPage = lazy(routeLoaders.living);
@@ -43,8 +45,12 @@ function RouteErrorPage(): ReactElement {
   );
 }
 
-/** 应用骨架：只提供跳转链接与 Outlet，全局导航由 SiteNav 负责。 */
+/** 应用骨架：只提供跳转链接与 Outlet，全局导航由 SiteNav 负责，并自动记录画布返回来源。 */
 function RootLayout(): ReactElement {
+  const location = useLocation();
+  useEffect(() => {
+    recordVisitedOrigin(location.pathname, location.search);
+  }, [location.pathname, location.search]);
   return (
     <>
       <a className="skip-link" href="#main-content">
@@ -93,14 +99,16 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <HomePage /> },
       { path: 'canvas', element: <CanvasPage /> },
-      { path: 'examples', element: <Navigate to="/workshop" replace /> },
-      { path: 'examples/*', element: <Navigate to="/workshop" replace /> },
+      { path: 'examples', element: <Navigate to="/plaza?tab=specimens" replace /> },
+      { path: 'examples/*', element: <Navigate to="/plaza?tab=specimens" replace /> },
+      { path: 'plaza', element: <PlazaPage /> },
+      { path: 'u/:userId', element: <CreatorPage /> },
       { path: 'space', element: <SpacePage /> },
-      { path: 'settings/profile', element: <SettingsProfilePage /> },
+      { path: 'settings/profile', element: <Navigate to="/space?tab=settings" replace /> },
       { path: 'login', element: <LoginPage /> },
       { path: 'register', element: <RegisterPage /> },
-      { path: 'labs', element: <Navigate to="/workshop" replace /> },
-      { path: 'labs/*', element: <Navigate to="/workshop" replace /> },
+      { path: 'labs', element: <Navigate to="/plaza?tab=specimens" replace /> },
+      { path: 'labs/*', element: <Navigate to="/plaza?tab=specimens" replace /> },
       { path: 'lab-share/*', element: <Navigate to="/workshop" replace /> },
       { path: 'living', element: <LivingPagesPage /> },
       { path: 'workshop', element: <WorkshopPage /> },

@@ -11,16 +11,37 @@ import { RULE_TIMEOUT_MS, runRuleInSandbox } from './ruleSandbox.ts';
 import type { RuleUpstreamContext } from './aiRulePorts.ts';
 import { verifyAiRulePayload } from './AiRuleBlockNode.tsx';
 import { PipelineFrameDetails } from './Lab408PipelineNode.tsx';
-import { generateAiRuleBlock } from '@/api/workshopAi';
+import { fuseAiRuleBlock, generateAiRuleBlock } from '@/api/workshopAi';
 import { errorMessage } from '@/api/client';
 import blockStyles from './blocks.module.css';
 import styles from './blockCreator.module.css';
 
+export interface RuleFuseContext {
+  nodeIds: string[];
+  nodeTitles: string[];
+  defaultPrompt: string;
+  nodesSummary: Array<Record<string, unknown>>;
+  wiresSummary: Array<Record<string, unknown>>;
+  externalPorts: {
+    inputs: Array<{ id: string; label: string; kind?: string; fromNodeTitle?: string }>;
+    outputs: Array<{ id: string; label: string; kind?: string; toNodeTitle?: string }>;
+  };
+  sampleInputs: Record<string, unknown>;
+  sampleUpstream: Record<string, unknown>[];
+}
+
 interface BlockCreatorModalProps {
   open: boolean;
   upstreamContext?: RuleUpstreamContext | null;
+  fuseContext?: RuleFuseContext | null;
   onClose: () => void;
-  onInsert: (payload: AiRuleBlockPayload, params: Record<string, number>, text: string, saveToLibrary: boolean) => void;
+  onInsert: (
+    payload: AiRuleBlockPayload,
+    params: Record<string, number>,
+    text: string,
+    saveToLibrary: boolean,
+    options?: { keepOriginals?: boolean },
+  ) => void;
 }
 
 type CreatorTab = 'ai' | 'manual';
@@ -251,14 +272,19 @@ const STARTER_TEMPLATES: Record<Exclude<PreferredView, 'auto'>, AiRuleBlockPaylo
   },
 };
 
-export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: BlockCreatorModalProps): JSX.Element | null {
+export function BlockCreatorModal({ open, upstreamContext, fuseContext, onClose, onInsert }: BlockCreatorModalProps): JSX.Element | null {
+  const isFuse = Boolean(fuseContext);
   const [tab, setTab] = useState<CreatorTab>('ai');
   const [payload, setPayload] = useState<AiRuleBlockPayload>(() => defaultAiRulePayload());
   const [params, setParams] = useState<Record<string, number>>(() => defaultAiRuleParams(defaultAiRulePayload()));
   const [textInput, setTextInput] = useState<string>(() => defaultAiRulePayload().defaultText ?? '');
-  const [aiPrompt, setAiPrompt] = useState(() => upstreamContext
-    ? `根据「${upstreamContext.nodeTitle}」的${upstreamContext.portLabel}，创建一个能随上游数据变化的可视化积木`
-    : '');
+  const [aiPrompt, setAiPrompt] = useState(() => fuseContext
+    ? fuseContext.defaultPrompt
+    : upstreamContext
+      ? `根据「${upstreamContext.nodeTitle}」的${upstreamContext.portLabel}，创建一个能随上游数据变化的可视化积木`
+      : '');
+  const [keepOriginals, setKeepOriginals] = useState(false);
+  const [fuseGenerated, setFuseGenerated] = useState(false);
   const [preferredView, setPreferredView] = useState<PreferredView>('auto');
   const [codeDraft, setCodeDraft] = useState(() => defaultAiRulePayload().code);
   const [titleDraft, setTitleDraft] = useState(() => defaultAiRulePayload().title);
@@ -274,7 +300,14 @@ export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: 
   const [frameIndex, setFrameIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
 
-  const upstream = useMemo(() => upstreamContext?.value ? [upstreamContext.value] : [], [upstreamContext]);
+  const upstream = useMemo(
+    () => fuseContext ? fuseContext.sampleUpstream : upstreamContext?.value ? [upstreamContext.value] : [],
+    [fuseContext, upstreamContext],
+  );
+  const sampleInputs = useMemo(
+    () => fuseContext ? fuseContext.sampleInputs : {},
+    [fuseContext],
+  );
   const previewSig = useMemo(
     () => JSON.stringify({ code: payload.code, params, text: textInput }),
     [payload.code, params, textInput],
@@ -284,7 +317,7 @@ export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: 
     if (!open) return undefined;
     let dead = false;
     setPreviewError('');
-    void runRuleInSandbox(payload.code, { text: textInput, params, upstream })
+    void runRuleInSandbox(payload.code, { text: textInput, params, upstream, inputs: sampleInputs })
       .then((res) => {
         if (dead) return;
         setPreviewRun(res);
@@ -297,7 +330,7 @@ export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: 
         setPreviewError(cause instanceof Error ? cause.message : '沙箱试跑失败');
       });
     return () => { dead = true; };
-  }, [open, previewSig, payload.code, params, textInput, upstream]);
+  }, [open, previewSig, payload.code, params, textInput, upstream, sampleInputs]);
 
   const frames = previewRun?.result.frames ?? [];
   const lastFrame = Math.max(0, frames.length - 1);
@@ -340,16 +373,26 @@ export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: 
     let current: AiRuleBlockPayload | null = fixError ? { ...payload, code: codeDraft, title: titleDraft } : null;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const next = await generateAiRuleBlock({
-          prompt: `${rawPrompt}${viewHint}`,
-          current_payload: current,
-          ...(lastError ? { last_error: lastError } : {}),
-          upstream_hints: upstreamContext ? [upstreamContext.hint] : [],
-        });
-        const failure = await verifyAiRulePayload(next, defaultAiRuleParams(next), next.defaultText, upstream);
+        const next = fuseContext
+          ? await fuseAiRuleBlock({
+              user_prompt: `${rawPrompt}${viewHint}`,
+              nodes_summary: fuseContext.nodesSummary,
+              wires_summary: fuseContext.wiresSummary,
+              external_ports: fuseContext.externalPorts,
+              current_payload: current,
+              ...(lastError ? { last_error: lastError } : {}),
+            })
+          : await generateAiRuleBlock({
+              prompt: `${rawPrompt}${viewHint}`,
+              current_payload: current,
+              ...(lastError ? { last_error: lastError } : {}),
+              upstream_hints: upstreamContext ? [upstreamContext.hint] : [],
+            });
+        const failure = await verifyAiRulePayload(next, defaultAiRuleParams(next), next.defaultText, upstream, sampleInputs);
         if (!failure) {
           applyPayloadToDraft(next);
-          setStatusOk(`✓ 已生成「${next.title}」· ${next.controls.length} 个可调参数`);
+          if (fuseContext) setFuseGenerated(true);
+          setStatusOk(`✓ 已${fuseContext ? '融合生成' : '生成'}「${next.title}」· ${next.controls.length} 个可调参数`);
           setAiBusy(false);
           return;
         }
@@ -361,7 +404,10 @@ export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: 
         return;
       }
     }
-    setStatusError(`规则试跑未通过：${lastError}`);
+    const timeoutTip = /超时/.test(lastError) && fuseContext
+      ? '（计算超出 300ms 沙箱预算，建议改用「📦 封装成积木」进行无损结构封装）'
+      : '';
+    setStatusError(`规则试跑未通过：${lastError}${timeoutTip}`);
     setAiBusy(false);
   };
 
@@ -376,12 +422,13 @@ export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: 
         textLabel: textLabelDraft.trim() || undefined,
         code: codeDraft,
       });
-      const failure = await verifyAiRulePayload(next, params, textInput, upstream);
+      const failure = await verifyAiRulePayload(next, params, textInput, upstream, sampleInputs);
       if (failure) {
         setStatusError(failure);
         return;
       }
       setPayload(next);
+      if (fuseContext) setFuseGenerated(true);
       setStatusOk('✓ 规则校验通过，右侧已更新实时图画预览');
     } catch (cause) {
       setStatusError(errorMessage(cause));
@@ -395,13 +442,22 @@ export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: 
       <div className={styles.modal}>
         <header className={styles.header}>
           <div className={styles.headerTitle}>
-            <h2>＋ 创建积木</h2>
-            <span className={styles.headerSub}>AI 一句话生成或按规则手写 · 卡片自带实时图画，选中后可在检查器调参</span>
+            <h2>{isFuse ? '✨ AI 积木语义融合' : '＋ 创建积木'}</h2>
+            <span className={styles.headerSub}>
+              {isFuse
+                ? '将多块选中积木按意图重铸为单块同屏联动积木 · 试跑通过才落地，支持 Ctrl+Z 无损还原'
+                : 'AI 一句话生成或按规则手写 · 卡片自带实时图画，选中后可在检查器调参'}
+            </span>
           </div>
           <button type="button" className={styles.closeBtn} aria-label="关闭创建积木" onClick={onClose}>×</button>
         </header>
 
-        {upstreamContext && <p className={styles.upstreamContext}>
+        {fuseContext && <p className={styles.upstreamContext}>
+          待融合积木（{fuseContext.nodeTitles.length} 块）：{fuseContext.nodeTitles.join(' + ')}
+          {fuseContext.externalPorts.inputs.length > 0 ? ` · 外部入边 ${fuseContext.externalPorts.inputs.length} 路` : ''}
+          {fuseContext.externalPorts.outputs.length > 0 ? ` · 外部出边 ${fuseContext.externalPorts.outputs.length} 路` : ''}
+        </p>}
+        {upstreamContext && !fuseContext && <p className={styles.upstreamContext}>
           将自动连接「{upstreamContext.nodeTitle}」的{upstreamContext.portLabel}
         </p>}
         <div className={styles.body}>
@@ -481,7 +537,7 @@ export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: 
                     disabled={aiBusy || !aiPrompt.trim()}
                     onClick={() => void handleAiGenerate()}
                   >
-                    {aiBusy ? 'AI 正在生成并试跑…' : '✨ AI 生成积木'}
+                    {aiBusy ? (isFuse ? 'AI 正在融合并试跑…' : 'AI 正在生成并试跑…') : (isFuse ? '✨ AI 融合生成' : '✨ AI 生成积木')}
                   </button>
                   <button
                     type="button"
@@ -684,26 +740,37 @@ export function BlockCreatorModal({ open, upstreamContext, onClose, onInsert }: 
         </div>
 
         <footer className={styles.footer}>
-          <span className={styles.footerHint}>
-            放入画布不会清空已有内容；选中卡片后，在右侧检查器即可调参或输入自己的数据。
-          </span>
+          {isFuse ? (
+            <label className={styles.footerHint} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={keepOriginals}
+                onChange={(e) => setKeepOriginals(e.currentTarget.checked)}
+              />
+              保留原积木，在旁边生成融合块（不勾选则替换并自动重接外连线，支持 Ctrl+Z 撤销）
+            </label>
+          ) : (
+            <span className={styles.footerHint}>
+              放入画布不会清空已有内容；选中卡片后，在右侧检查器即可调参或输入自己的数据。
+            </span>
+          )}
           <div className={styles.actionRow}>
             <button type="button" className={styles.secondaryBtn} onClick={onClose}>取消</button>
             <button
               type="button"
               className={styles.secondaryBtn}
-              disabled={!previewRun || completedPreview !== previewSig || Boolean(previewError) || aiBusy}
-              onClick={() => onInsert(payload, params, textInput, false)}
+              disabled={!previewRun || completedPreview !== previewSig || Boolean(previewError) || aiBusy || (isFuse && !fuseGenerated)}
+              onClick={() => onInsert(payload, params, textInput, false, isFuse ? { keepOriginals } : undefined)}
             >
-              放到当前画布
+              {isFuse ? (keepOriginals ? '在旁生成融合块' : '确认融合替换') : '放到当前画布'}
             </button>
             <button
               type="button"
               className={styles.primaryBtn}
-              disabled={!previewRun || completedPreview !== previewSig || Boolean(previewError) || aiBusy}
-              onClick={() => onInsert(payload, params, textInput, true)}
+              disabled={!previewRun || completedPreview !== previewSig || Boolean(previewError) || aiBusy || (isFuse && !fuseGenerated)}
+              onClick={() => onInsert(payload, params, textInput, true, isFuse ? { keepOriginals } : undefined)}
             >
-              放到画布并存入我的积木库
+              {isFuse ? '融合并存入我的积木库' : '放到画布并存入我的积木库'}
             </button>
           </div>
         </footer>

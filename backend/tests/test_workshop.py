@@ -107,7 +107,9 @@ def test_publish_gallery_fork(owner: TestClient, guest: TestClient) -> None:
     sid = pub.json()["data"]["share_id"]
 
     items = owner.get("/api/v1/work-shares").json()["data"]["items"]
-    assert any(i["share_id"] == sid for i in items)
+    assert next(i for i in items if i["share_id"] == sid)["can_delete"] is True
+    public_items = guest.get("/api/v1/work-shares").json()["data"]["items"]
+    assert all(i["share_id"] != sid for i in public_items)
 
     snap = guest.get(f"/api/v1/work-shares/{sid}")
     assert snap.status_code == 200
@@ -122,8 +124,11 @@ def test_publish_gallery_fork(owner: TestClient, guest: TestClient) -> None:
     item = next(i for i in owner.get("/api/v1/work-shares").json()["data"]["items"] if i["share_id"] == sid)
     assert item["forks"] == 1
 
+    assert guest.delete(f"/api/v1/work-shares/{sid}", headers=_h(gsession)).status_code == 404
     assert owner.delete(f"/api/v1/work-shares/{sid}", headers=_h(session)).status_code == 204
     assert guest.get(f"/api/v1/work-shares/{sid}").status_code == 404
+    assert all(i["share_id"] != sid for i in owner.get("/api/v1/work-shares").json()["data"]["items"])
+    assert owner.get(f"/api/v1/works/{wid}").status_code == 200
 
 
 def test_validation_and_ownership(owner: TestClient, guest: TestClient) -> None:
@@ -359,3 +364,143 @@ def test_ai_rule_endpoint_reports_unavailable_and_returns_generated_payload(
     assert created.status_code == 200
     assert created.json()["data"]["title"] == "二次函数扫描"
     assert created.json()["data"]["presets"][0]["params"]["a"] == 1
+
+
+def test_composite_2_0_fields_and_deep_nesting_round_trip(owner: TestClient) -> None:
+    """Composite 2.0 透出参数、封面预览、简介及多层嵌套（5层）通过校验并完整保留。"""
+    doc = {
+        "version": 1, "title": "宏观分层系统", "zoom": 1, "wires": [], "strokes": [],
+        "nodes": [{
+            "id": "comp_root", "type": "composite", "x": 10, "y": 10, "params": {}, "text": "市场模块",
+            "sub": {
+                "nodes": [
+                    {"id": "s1", "type": "slider", "x": 0, "y": 0, "params": {"v": 0.4}},
+                    {"id": "v1", "type": "spark", "x": 160, "y": 0, "params": {}},
+                ],
+                "wires": [{"id": "w1", "from": "s1", "to": "v1", "toPort": "in"}],
+                "ports": [],
+                "exposedParams": [
+                    {"nodeId": "s1", "paramKey": "v", "label": "价格弹性", "min": 0, "max": 2, "step": 0.05},
+                    {"nodeId": "ghost", "paramKey": "v", "label": "应被过滤"},
+                ],
+                "previewNodeId": "v1",
+                "summary": "封装供需核心参数与趋势观察",
+            },
+        }],
+    }
+    created = _create(owner, doc=doc)
+    sub = created["document"]["nodes"][0]["sub"]
+    assert len(sub["exposedParams"]) == 1
+    assert sub["exposedParams"][0]["label"] == "价格弹性"
+    assert sub["previewNodeId"] == "v1"
+    assert sub["summary"] == "封装供需核心参数与趋势观察"
+
+
+def test_ai_rule_fuse_and_composite_summary_endpoints(owner: TestClient, monkeypatch: Any) -> None:
+    from app.workshop import ai_rule
+
+    session = _session(owner)
+    monkeypatch.setattr(ai_rule, "fuse_ai_rule", lambda *args, **kwargs: {
+        "version": 1, "prompt": "融合三曲线", "title": "运动能量综合仪", "summary": "同屏展示位移、速度、能量",
+        "controls": [{"key": "k", "label": "刚度", "value": 2, "min": 0.5, "max": 10, "step": 0.5}],
+        "presets": [{"label": "弱刚度", "params": {"k": 1}}, {"label": "强刚度", "params": {"k": 8}}],
+        "inputs": [{"id": "in_1", "label": "初速度", "kind": "scalar"}],
+        "outputs": [{"id": "energy", "label": "总能量", "kind": "scalar"}],
+        "preferredView": "chart",
+        "code": "function run({ params, inputs }) { return { data: { value: params.k, outputs: { energy: params.k } }, frames: [{ title: '1', summary: '1' }] }; }",
+        "verificationNote": "k=2 时 energy=2",
+    })
+    fused = owner.post(
+        "/api/v1/workshop/ai-rule-fuse",
+        headers=_h(session),
+        json={
+            "user_prompt": "将位移、速度、能量融合成一块同屏三曲线综合积木",
+            "nodes_summary": [{"id": "n1", "type": "springOsc"}, {"id": "n2", "type": "energyMeter"}],
+            "wires_summary": [{"from": "n1", "to": "n2"}],
+            "external_ports": {"inputs": [{"id": "in_1", "label": "初速度", "kind": "scalar"}], "outputs": []},
+        },
+    )
+    assert fused.status_code == 200, fused.text
+    assert fused.json()["data"]["title"] == "运动能量综合仪"
+    assert fused.json()["data"]["outputs"][0]["id"] == "energy"
+
+    monkeypatch.setattr(ai_rule, "summarize_composite", lambda *args, **kwargs: {
+        "title": "二阶阻尼分析组", "summary": "调节阻尼比并输出时域衰减曲线",
+    })
+    named = owner.post(
+        "/api/v1/workshop/summarize-composite",
+        headers=_h(session),
+        json={"nodes_summary": [{"id": "n1", "type": "slider", "title": "阻尼比"}], "wires_summary": [], "ports_summary": []},
+    )
+    assert named.status_code == 200, named.text
+    assert named.json()["data"]["title"] == "二阶阻尼分析组"
+
+
+def test_blueprints_crud_and_session_isolation(owner: TestClient, guest: TestClient) -> None:
+    session = _session(owner)
+    # 1) 保存 composite 蓝图
+    comp_resp = owner.post(
+        "/api/v1/workshop/blueprints",
+        headers=_h(session),
+        json={
+            "kind": "composite",
+            "title": "经典 PID 控制器",
+            "summary": "比例积分微分控制模块",
+            "blueprint": {
+                "sub": {
+                    "nodes": [
+                        {"id": "pi1", "type": "portIn", "x": 0, "y": 0, "params": {}},
+                        {"id": "r1", "type": "delayRegister", "x": 120, "y": 0, "params": {"init": 0}},
+                        {"id": "po1", "type": "portOut", "x": 260, "y": 0, "params": {}},
+                    ],
+                    "wires": [
+                        {"id": "w1", "from": "pi1", "to": "r1", "toPort": "next"},
+                        {"id": "w2", "from": "r1", "to": "po1", "toPort": "in"},
+                    ],
+                    "ports": [
+                        {"id": "pi1", "dir": "in", "label": "误差 e", "kind": "scalar"},
+                        {"id": "po1", "dir": "out", "label": "控制量 u", "kind": "scalar"},
+                    ],
+                    "exposedParams": [{"nodeId": "r1", "paramKey": "init", "label": "初值", "min": -10, "max": 10, "step": 0.5}],
+                    "summary": "比例积分微分控制模块",
+                },
+            },
+        },
+    )
+    assert comp_resp.status_code == 201, comp_resp.text
+    bp_id = comp_resp.json()["data"]["id"]
+    assert comp_resp.json()["data"]["blueprint"]["sub"]["exposedParams"][0]["label"] == "初值"
+
+    # 2) 保存 aiRule 蓝图
+    ai_resp = owner.post(
+        "/api/v1/workshop/blueprints",
+        headers=_h(session),
+        json={
+            "kind": "aiRule",
+            "title": "M/M/1 排队引擎",
+            "summary": "计算平均队长",
+            "blueprint": {
+                "payload": json.dumps({
+                    "version": 1, "prompt": "排队", "title": "M/M/1", "summary": "排队",
+                    "controls": [{"key": "lam", "label": "到达率", "value": 2, "min": 1, "max": 9, "step": 1}],
+                    "preferredView": "chart",
+                    "code": "function run({ params }) { return { data: { value: params.lam }, frames: [{ title: '1', summary: '1' }] }; }",
+                }),
+                "params": {"lam": 2},
+            },
+        },
+    )
+    assert ai_resp.status_code == 201, ai_resp.text
+
+    # 3) 列表可见 2 个蓝图，且 guest 会话不可见/不可删
+    items = owner.get("/api/v1/workshop/blueprints").json()["data"]["items"]
+    assert len(items) >= 2
+    assert any(item["id"] == bp_id for item in items)
+
+    gsession = _session(guest)
+    assert guest.get("/api/v1/workshop/blueprints").json()["data"]["items"] == []
+    assert guest.delete(f"/api/v1/workshop/blueprints/{bp_id}", headers=_h(gsession)).status_code == 404
+
+    # 4) owner 删除成功
+    assert owner.delete(f"/api/v1/workshop/blueprints/{bp_id}", headers=_h(session)).status_code == 204
+    assert not any(item["id"] == bp_id for item in owner.get("/api/v1/workshop/blueprints").json()["data"]["items"])

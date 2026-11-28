@@ -1,4 +1,6 @@
 import math
+from pathlib import Path
+from collections import Counter
 
 import pytest
 from pptx import Presentation
@@ -106,7 +108,7 @@ def test_native_group_with_unrepresented_content_preserves_whole_raster(tmp_path
     slide = ppt.slides.add_slide(ppt.slide_layouts[6])
     group = slide.shapes.add_group_shape()
     group.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Pt(20), Pt(20), Pt(70), Pt(35))
-    group.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.OVAL, Pt(30), Pt(30), Pt(40), Pt(40))
+    group.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.ARC, Pt(30), Pt(30), Pt(40), Pt(40))
     path = tmp_path / "mixed.pptx"
     ppt.save(path)
     nodes = importer.import_document(path, "mixed")["pages"][0]["nodes"]
@@ -115,6 +117,68 @@ def test_native_group_with_unrepresented_content_preserves_whole_raster(tmp_path
     assert nodes[0]["whole_group"] is True
     assert nodes[0]["asset_id"] == f"n_{group.shape_id}"
     assert importer.native_group_nodes(Presentation(path).slides[0].shapes[0], nodes[0]) is None
+
+
+def test_linear_algebra_slide_two_matrix_group_is_editable():
+    from app.documents.pptx_export import _update_slide
+
+    path = Path(__file__).resolve().parents[2] / 'the_art_of_linear_algebra.pptx'
+    page = importer.import_document(path, 'linear-algebra')['pages'][1]
+    root = next(node for node in page['nodes'] if node['whole_group'])
+    group = next(shape for shape in Presentation(path).slides[1].shapes
+                 if shape.shape_id == root['source_shape_id'])
+    nodes = importer.native_group_nodes(group, root)
+
+    assert nodes is not None
+    assert Counter(node['type'] for node in nodes) == {'shape': 32, 'text': 4}
+    assert len({node['id'] for node in nodes}) == len(nodes)
+    assert all(node['asset_id'] is None and not node['whole_group'] for node in nodes)
+    assert sum(bool(node.get('shape_paths')) for node in nodes) == 8
+    assert sum(node['text'] == '$=$' for node in nodes) == 3
+    equation = next(node['text'] for node in nodes if 'gathered' in (node['text'] or ''))
+    assert equation.count(r'\begin{gathered}') == 3
+    page['nodes'] = [node for node in page['nodes'] if node is not root] + nodes
+    original_deck = Presentation(path)
+    original_slide = original_deck.slides[1]
+    scale = importer.EMU_PER_POINT
+    _update_slide('linear-algebra', {}, page, original_slide, scale, scale, '', {}, True)
+    assert len(original_slide.shapes) == 5
+
+    edited_deck = Presentation(path)
+    edited_slide = edited_deck.slides[1]
+    nodes[0]['x'] += 10
+    _update_slide('linear-algebra', {}, page, edited_slide, scale, scale, '', {}, True)
+    assert len(edited_slide.shapes) == 40
+    assert all(shape.shape_type.name != 'GROUP' for shape in edited_slide.shapes)
+
+
+def test_linear_algebra_groups_across_entire_deck_are_editable(tmp_path):
+    from app.documents.pptx_export import _write_gradient
+
+    source = Path(__file__).resolve().parents[2] / 'the_art_of_linear_algebra.pptx'
+    deck = Presentation(source)
+    count = 0
+    types = set()
+    for page_no, slide in enumerate(deck.slides, 1):
+        for group in slide.shapes:
+            if group.shape_type.name != 'GROUP':
+                continue
+            nodes = importer.native_group_nodes(
+                group, {'style': {}, 'z': 0, 'opacity': 1}, asset_root=tmp_path / str(page_no),
+            )
+            assert nodes and len(nodes) > 1, (page_no, group.name)
+            count += 1
+            for node in nodes:
+                types.add(node['type'])
+                if 'fill_gradient' in node:
+                    assert importer.valid_fill_gradient(node['fill_gradient'])
+                    shape = slide.shapes.add_shape(MSO_AUTO_SHAPE_TYPE.RECTANGLE, Pt(0), Pt(0), Pt(10), Pt(10))
+                    _write_gradient(shape._element.spPr, node['fill_gradient'])
+                    assert shape._element.spPr.xpath('./a:gradFill/a:path/a:fillToRect')
+                if node['type'] == 'image':
+                    assert (tmp_path / str(page_no) / node['native_file']).is_file()
+    assert count == 102
+    assert types == {'image', 'shape', 'text', 'vector'}
 
 
 def test_native_group_preserves_raster_when_connector_uses_effect(tmp_path):
@@ -156,6 +220,8 @@ def test_upload_switches_only_groups_excluded_from_exported_background(tmp_path,
         slide.shapes.add_textbox(Pt(5), Pt(5), Pt(30), Pt(10)).text = "Front"
     ppt.save(source)
     doc = importer.import_document(source, "layered")
+    doc["pages"][0]["modified"] = True
+    doc["pages"][0]["nodes"][1]["x"] += 10
     for module in (auto_vectors, layers, store):
         monkeypatch.setattr(module, "document_root", lambda _: root)
     monkeypatch.setattr(capabilities, "layer_editor_available", lambda: (True, None))
@@ -171,13 +237,14 @@ def test_upload_switches_only_groups_excluded_from_exported_background(tmp_path,
                     "frozen_ids": [] if number == 1 else [group_id]}
         (target / "manifest.json").write_text(json.dumps(manifest))
 
-    auto_vectors.prepare_source_vectors("test", "layered")
+    auto_vectors.prepare_source_vectors("test", "layered", retry_groups=True)
 
     updated = store.read_document("test")
     extracted, frozen = updated["pages"]
     assert [node["type"] for node in extracted["nodes"]] == ["text", "vector", "text", "text"]
     assert [node["z"] for node in extracted["nodes"]] == [0, 1, 2, 3]
     assert [node["figure_provenance"] for node in extracted["nodes"][1:3]] == ["native", "native"]
+    assert all(node["x"] == pytest.approx(node["base_x"] + 10) for node in extracted["nodes"][1:3])
     assert frozen == doc["pages"][1]
     assert updated["revision"] == 1
 

@@ -8,24 +8,31 @@ const require=createRequire(import.meta.url);
 const dir=mkdtempSync(path.join(tmpdir(),'xiangsheng-core-'));
 try {
   execFileSync(process.execPath,['node_modules/typescript/lib/tsc.js',
-    'src/ispec/functionSeries.ts','src/components/presentation/deckHistory.ts','src/components/presentation/editorDraft.ts',
+    'src/ispec/dataset.ts','src/components/presentation/deckHistory.ts',
     '--target','ES2022','--module','commonjs','--rewriteRelativeImportExtensions','--outDir',dir,'--strict','--skipLibCheck'],{stdio:'inherit'});
-  const {sampleFunction}=require(path.join(dir,'ispec/functionSeries.js'));
+  const {resolveChartDataset}=require(path.join(dir,'ispec/dataset.js'));
+  const {evaluateSpec}=require(path.join(dir,'ispec/evaluate.js'));
   const {createHistory,commitHistory,undoHistory,redoHistory,changeDeckParameter}=require(path.join(dir,'components/presentation/deckHistory.js'));
-  const {inferMatrix,initialEditorMode,elementText}=require(path.join(dir,'components/presentation/editorDraft.js'));
   const source={page:1,element_id:'p01_s01',bbox:null,status:'original',excerpt:'y=a*x^2'};
   const p=(id,value)=>({id,label:id,default:value,type:'number',min:-10,max:10,source});
-  const spec={spec_version:'1.0',object_id:'formula',kind:'parametric',parameters:[p('a',2),p('x',3)],
-    expressions:[{id:'y',expr:'a*x**2'}],views:[{type:'text',template:'y={{y}}'}]};
-  let points=sampleFunction(spec,{a:2,x:3},'x','y',-2,2,5);
-  assert.deepEqual(points.map(p=>p?.y),[8,2,0,2,8]);
-  assert.equal(sampleFunction(spec,{a:3,x:3},'x','y',-2,2,5)[0].y,12,'Changing another coefficient must update the curve');
-  assert.equal(sampleFunction({...spec,expressions:[{id:'y',expr:'1/x'}]},{a:2,x:3},'x','y',-1,1,3)[1],null,'Undefined values must create gaps');
-  assert.equal(sampleFunction({...spec,expressions:[{id:'y',expr:'1/(1/x)'}]},{a:2,x:3},'x','y',-1,1,3)[1],null,'An undefined intermediate cannot turn into a finite plotted value');
-  assert.deepEqual(sampleFunction(spec,{},'x','y',2,-2),[],'Invalid ranges do not sample');
-  assert.deepEqual(sampleFunction(spec,{},'missing','y',-1,1),[]);
-  assert.equal(points.length,5);
-  assert.equal(spec.parameters[1].default,3,'Sampling never mutates the original');
+  const view={type:'vega',spec_ref:'line',x:'x',y:'y'};
+  const spec={spec_version:'1.0',object_id:'formula',kind:'parametric',
+    parameters:[p('a',2),{...p('x',1),options:[-2,-1,0,1,2]}],
+    expressions:[{id:'y',expr:'a*x**2'}],views:[view]};
+  const chart=(formula,values={},chartView=view)=>resolveChartDataset(formula,evaluateSpec(formula,values),chartView);
+  const points=chart(spec);
+  assert.equal(points.origin,'option_sweep');
+  assert.deepEqual(points.rows,[{x:-2,y:8},{x:-1,y:2},{x:0,y:0},{x:1,y:2},{x:2,y:8}]);
+  assert.equal(chart(spec,{a:3}).rows[0].y,12,'Changing another coefficient must update the curve');
+  for(const expr of ['1/x','1/(1/x)']){
+    const result=chart({...spec,expressions:[{id:'y',expr}]});
+    assert.deepEqual(result.rows[2],{x:0},'An undefined value must leave a gap in the curve');
+    assert.equal(result.missing,false,'Other samples in the curve remain available');
+  }
+  const missing=chart(spec,{},{...view,x:'unknown'});
+  assert.equal(missing.missing,true);
+  assert.deepEqual(missing.rows,[]);
+  assert.equal(spec.parameters[1].default,1,'Evaluating a chart never mutates its defaults');
 
   const original={one:{a:1,b:2},two:{a:3}};
   let h=createHistory(original);
@@ -42,11 +49,7 @@ try {
     {...spec,object_id:'other',parameters:[{...p('a',1),source:{...source,excerpt:'different'}}]}];
   const next=changeDeckParameter(linked,{one:{a:1},two:{b:1},other:{a:1}},'one','a',4);
   assert.deepEqual(next,{one:{a:4},two:{b:4},other:{a:1}},'A declared shared parameter changes atomically');
-  const steps={...spec,kind:'step',parameters:[p('steps_rotate_angle_deg',90)],views:[{type:'figure',spec_ref:'step_diagram'}]};
-  assert.equal(inferMatrix(steps),undefined,'A step figure must never become a zero matrix');
-  assert.equal(initialEditorMode({kind:'picture'},steps),'keep','Text correction preserves the existing interaction');
-  assert.equal(elementText({text:'',math_text:'y=x+1'}),'y=x+1','Native math is editable even with empty DrawingML text');
-  console.log('PASS: formula sampling, undefined gaps, immutable history, shared values, and safe editor defaults');
+  console.log('PASS: chart formula sampling, undefined gaps, immutable history and shared values');
 } finally {
   assert.equal(path.dirname(dir),path.resolve(tmpdir()));
   assert.ok(path.basename(dir).startsWith('xiangsheng-core-'));

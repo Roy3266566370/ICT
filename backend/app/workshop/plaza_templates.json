@@ -1,0 +1,1079 @@
+{
+  "projectile-drag": {
+    "subject": "physics",
+    "summary": "初速、角度与阻力共同驱动轨迹、受力和机械能对照。",
+    "document": {
+      "version": 1,
+      "title": "理想与阻力抛体",
+      "zoom": 0.69,
+      "nodes": [
+        {
+          "id": "n_mwz1o660_1",
+          "type": "physicsStage",
+          "x": 48,
+          "y": 128,
+          "payload": "projectile-drag/source",
+          "params": {
+            "v0": 18,
+            "angle": 55,
+            "g": 9.8,
+            "m": 1,
+            "k": 0.12
+          }
+        },
+        {
+          "id": "n_mwz1o660_2",
+          "type": "physicsStage",
+          "x": 340,
+          "y": 48,
+          "payload": "projectile-drag/ideal",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o660_3",
+          "type": "physicsStage",
+          "x": 340,
+          "y": 208,
+          "payload": "projectile-drag/drag",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o660_4",
+          "type": "physicsStage",
+          "x": 632,
+          "y": 208,
+          "payload": "projectile-drag/energy",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o660_5",
+          "type": "physicsStage",
+          "x": 632,
+          "y": 48,
+          "payload": "projectile-drag/compare",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o660_11",
+          "type": "textNote",
+          "x": 48,
+          "y": 396,
+          "params": {},
+          "text": "探究：空气阻力怎样改变射程、顶点与落地速度？机械能减少量去了哪里？\n步骤：固定初速与角度，先比较理想和阻力轨迹；再只改变阻力系数，记录射程、顶点高度和机械能损耗。\n观察：阻力持续反向于速度，使轨迹不再对称并耗散机械能；水平方向也不再保持匀速。"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w_mwz1o660_6",
+          "from": "n_mwz1o660_1",
+          "fromPort": "out",
+          "to": "n_mwz1o660_2",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o660_7",
+          "from": "n_mwz1o660_1",
+          "fromPort": "out",
+          "to": "n_mwz1o660_3",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o660_8",
+          "from": "n_mwz1o660_3",
+          "fromPort": "out",
+          "to": "n_mwz1o660_4",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o660_9",
+          "from": "n_mwz1o660_2",
+          "fromPort": "out",
+          "to": "n_mwz1o660_5",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o660_10",
+          "from": "n_mwz1o660_3",
+          "fromPort": "out",
+          "to": "n_mwz1o660_5",
+          "toPort": "in2"
+        }
+      ],
+      "strokes": [],
+      "panel": {
+        "title": "理想与阻力抛体",
+        "view_node_ids": [
+          "n_mwz1o660_4",
+          "n_mwz1o660_5"
+        ],
+        "exposed_params": [
+          {
+            "node_id": "n_mwz1o660_1",
+            "param_key": "v0",
+            "label": "初速率 v₀ (m/s)",
+            "min": 1,
+            "max": 60,
+            "step": 0.5
+          },
+          {
+            "node_id": "n_mwz1o660_1",
+            "param_key": "angle",
+            "label": "发射角 θ (°)",
+            "min": 5,
+            "max": 85,
+            "step": 1
+          },
+          {
+            "node_id": "n_mwz1o660_1",
+            "param_key": "g",
+            "label": "重力加速度 g (m/s²)",
+            "min": 1,
+            "max": 25,
+            "step": 0.1
+          },
+          {
+            "node_id": "n_mwz1o660_1",
+            "param_key": "m",
+            "label": "质量 m (kg)",
+            "min": 0.1,
+            "max": 10,
+            "step": 0.1
+          },
+          {
+            "node_id": "n_mwz1o660_1",
+            "param_key": "k",
+            "label": "线性阻力系数 k (N·s/m)",
+            "min": 0,
+            "max": 2,
+            "step": 0.01
+          }
+        ]
+      }
+    }
+  },
+  "charged-particle": {
+    "subject": "physics",
+    "summary": "速度选择器连接洛伦兹力、圆弧轨道与周期。",
+    "document": {
+      "version": 1,
+      "title": "带电粒子偏转与磁轨道",
+      "zoom": 0.69,
+      "nodes": [
+        {
+          "id": "n_mwz1o661_12",
+          "type": "physicsStage",
+          "x": 48,
+          "y": 48,
+          "payload": "charged-particle/particle-selector",
+          "text": "调节粒子速度与场强，观察 v=E/B 的筛选条件。",
+          "params": {
+            "mass": 1.67262192369e-27,
+            "charge": 1.602176634e-19,
+            "polarity": 1,
+            "speed": 200000,
+            "electricField": 4000,
+            "magneticField": 0.02
+          }
+        },
+        {
+          "id": "n_mwz1o661_13",
+          "type": "physicsStage",
+          "x": 340,
+          "y": 48,
+          "payload": "charged-particle/particle-orbit",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o661_14",
+          "type": "physicsStage",
+          "x": 632,
+          "y": 48,
+          "payload": "charged-particle/particle-lorentz",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o661_15",
+          "type": "physicsStage",
+          "x": 924,
+          "y": 48,
+          "payload": "charged-particle/particle-summary",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o661_19",
+          "type": "textNote",
+          "x": 48,
+          "y": 236,
+          "params": {},
+          "text": "探究：为什么只有 v=E/B 的粒子能直线通过选择器？进入磁场后半径和周期由什么决定？\n步骤：调整 E、B 和入射速度观察筛选条件，再改变电荷、质量或磁感应强度，比较轨道半径、受力方向和周期。\n观察：速度选择器平衡电场力与磁场力；匀强磁场中的圆周半径 R=mv/(|q|B)，磁力不做功。"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w_mwz1o661_16",
+          "from": "n_mwz1o661_12",
+          "fromPort": "out",
+          "to": "n_mwz1o661_13",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o661_17",
+          "from": "n_mwz1o661_13",
+          "fromPort": "out",
+          "to": "n_mwz1o661_14",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o661_18",
+          "from": "n_mwz1o661_14",
+          "fromPort": "out",
+          "to": "n_mwz1o661_15",
+          "toPort": "in"
+        }
+      ],
+      "strokes": [],
+      "panel": {
+        "title": "带电粒子偏转与磁轨道",
+        "view_node_ids": [
+          "n_mwz1o661_15"
+        ],
+        "exposed_params": [
+          {
+            "node_id": "n_mwz1o661_12",
+            "param_key": "mass",
+            "label": "粒子质量 m (kg)",
+            "min": 1e-30,
+            "max": 1e-24,
+            "step": 1e-28
+          },
+          {
+            "node_id": "n_mwz1o661_12",
+            "param_key": "charge",
+            "label": "电荷量大小 |q| (C)",
+            "min": 1.6021766339999998e-21,
+            "max": 1.602176634e-17,
+            "step": 1.602176634e-19
+          },
+          {
+            "node_id": "n_mwz1o661_12",
+            "param_key": "polarity",
+            "label": "电荷符号"
+          },
+          {
+            "node_id": "n_mwz1o661_12",
+            "param_key": "speed",
+            "label": "入射速度 v (m/s)",
+            "min": 1,
+            "max": 10000000,
+            "step": 1000
+          },
+          {
+            "node_id": "n_mwz1o661_12",
+            "param_key": "electricField",
+            "label": "选择器电场 E (V/m)",
+            "min": 0,
+            "max": 1000000,
+            "step": 100
+          },
+          {
+            "node_id": "n_mwz1o661_12",
+            "param_key": "magneticField",
+            "label": "磁感应强度 B (T)",
+            "min": 0.00001,
+            "max": 10,
+            "step": 0.001
+          }
+        ]
+      }
+    }
+  },
+  "rc-circuit": {
+    "subject": "physics",
+    "summary": "时间常数驱动电压、电流、储能和焦耳热曲线。",
+    "document": {
+      "version": 1,
+      "title": "RC 充放电与能量",
+      "zoom": 0.69,
+      "nodes": [
+        {
+          "id": "n_mwz1o661_20",
+          "type": "physicsStage",
+          "x": 48,
+          "y": 48,
+          "payload": "rc-circuit/rc-source",
+          "text": "切换充电或放电，观察 τ=RC 如何决定暂态。",
+          "params": {
+            "mode": 1,
+            "resistance": 1000,
+            "capacitance": 0.001,
+            "sourceVoltage": 5,
+            "initialVoltage": 0
+          }
+        },
+        {
+          "id": "n_mwz1o661_21",
+          "type": "physicsStage",
+          "x": 340,
+          "y": 48,
+          "payload": "rc-circuit/rc-transient",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o661_22",
+          "type": "physicsStage",
+          "x": 632,
+          "y": 48,
+          "payload": "rc-circuit/rc-energy",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o661_23",
+          "type": "physicsStage",
+          "x": 924,
+          "y": 48,
+          "payload": "rc-circuit/rc-balance",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o661_27",
+          "type": "textNote",
+          "x": 48,
+          "y": 236,
+          "params": {},
+          "text": "探究：R 与 C 怎样改变暂态快慢？充电过程中电源能量如何分配？\n步骤：切换充电和放电模式，分别改变 R、C；在时间轴上读取电压、电流，并比较电容储能与电阻焦耳热。\n观察：特征时间由 τ=RC 决定；充电时电压趋近电源值而电流衰减，能量在储能与耗散之间分配。"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w_mwz1o661_24",
+          "from": "n_mwz1o661_20",
+          "fromPort": "out",
+          "to": "n_mwz1o661_21",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o661_25",
+          "from": "n_mwz1o661_21",
+          "fromPort": "out",
+          "to": "n_mwz1o661_22",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o661_26",
+          "from": "n_mwz1o661_22",
+          "fromPort": "out",
+          "to": "n_mwz1o661_23",
+          "toPort": "in"
+        }
+      ],
+      "strokes": [],
+      "panel": {
+        "title": "RC 充放电与能量",
+        "view_node_ids": [
+          "n_mwz1o661_23"
+        ],
+        "exposed_params": [
+          {
+            "node_id": "n_mwz1o661_20",
+            "param_key": "mode",
+            "label": "电路状态"
+          },
+          {
+            "node_id": "n_mwz1o661_20",
+            "param_key": "resistance",
+            "label": "电阻 R (Ω)",
+            "min": 0.001,
+            "max": 1000000000,
+            "step": 100
+          },
+          {
+            "node_id": "n_mwz1o661_20",
+            "param_key": "capacitance",
+            "label": "电容 C (F)",
+            "min": 1e-9,
+            "max": 1,
+            "step": 0.0001
+          },
+          {
+            "node_id": "n_mwz1o661_20",
+            "param_key": "sourceVoltage",
+            "label": "电源电压 Us (V)",
+            "min": 0,
+            "max": 1000000,
+            "step": 0.1
+          },
+          {
+            "node_id": "n_mwz1o661_20",
+            "param_key": "initialVoltage",
+            "label": "初始电容电压 U₀ (V)",
+            "min": 0,
+            "max": 1000000,
+            "step": 0.1
+          }
+        ]
+      }
+    }
+  },
+  "fourier-gibbs": {
+    "subject": "math",
+    "summary": "谐波叠加、系数频谱和跳变处过冲同步观察。",
+    "document": {
+      "version": 1,
+      "title": "Fourier 频谱与 Gibbs 现象",
+      "zoom": 0.69,
+      "nodes": [
+        {
+          "id": "n_mwz1o662_28",
+          "type": "calculusStage",
+          "x": 48,
+          "y": 48,
+          "payload": "fourier-gibbs/waveform-source",
+          "text": "square",
+          "params": {
+            "waveform": 0,
+            "harmonics": 9
+          }
+        },
+        {
+          "id": "n_mwz1o662_29",
+          "type": "calculusStage",
+          "x": 340,
+          "y": 48,
+          "payload": "fourier-gibbs/partial-sum",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o662_30",
+          "type": "calculusStage",
+          "x": 632,
+          "y": 48,
+          "payload": "fourier-gibbs/frequency-spectrum",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o662_31",
+          "type": "calculusStage",
+          "x": 924,
+          "y": 48,
+          "payload": "fourier-gibbs/gibbs-error",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o662_35",
+          "type": "textNote",
+          "x": 48,
+          "y": 236,
+          "params": {},
+          "text": "探究：为什么增加谐波后跳变附近仍保留过冲？不同波形的频谱衰减为何不同？\n步骤：逐步增加谐波数 N，观察波形和频谱；切换方波、三角波与锯齿波，比较跳变过冲及系数衰减。\n观察：更多谐波改善连续区域的逼近，但跳变处出现过冲且不随 N 消失，这就是 Gibbs 现象。"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w_mwz1o662_32",
+          "from": "n_mwz1o662_28",
+          "fromPort": "out",
+          "to": "n_mwz1o662_29",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o662_33",
+          "from": "n_mwz1o662_29",
+          "fromPort": "out",
+          "to": "n_mwz1o662_30",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o662_34",
+          "from": "n_mwz1o662_30",
+          "fromPort": "out",
+          "to": "n_mwz1o662_31",
+          "toPort": "in"
+        }
+      ],
+      "strokes": [],
+      "panel": {
+        "title": "Fourier 频谱与 Gibbs 现象",
+        "view_node_ids": [
+          "n_mwz1o662_31"
+        ],
+        "exposed_params": [
+          {
+            "node_id": "n_mwz1o662_28",
+            "param_key": "waveform",
+            "label": "目标波形",
+            "min": 0,
+            "max": 2,
+            "step": 1
+          },
+          {
+            "node_id": "n_mwz1o662_28",
+            "param_key": "harmonics",
+            "label": "最高谐波 N",
+            "min": 1,
+            "max": 40,
+            "step": 1
+          }
+        ]
+      }
+    }
+  },
+  "la05-eigen-dynamics": {
+    "subject": "math",
+    "summary": "寻找实特征方向或复根，播放矩阵幂轨迹，并观察马尔可夫链稳态。",
+    "document": {
+      "version": 1,
+      "title": "特征值、相似对角化与动态系统",
+      "nodes": [
+        {
+          "id": "scene",
+          "type": "slider",
+          "x": 40,
+          "y": 60,
+          "params": {
+            "v": 0,
+            "min": 0,
+            "max": 3,
+            "step": 1
+          },
+          "text": "情景编号（0–3）"
+        },
+        {
+          "id": "amount",
+          "type": "slider",
+          "x": 40,
+          "y": 260,
+          "params": {
+            "v": 1,
+            "min": 0,
+            "max": 2,
+            "step": 0.05
+          },
+          "text": "谱变换与转移强度"
+        },
+        {
+          "id": "eigen",
+          "type": "aiRuleBlock",
+          "x": 430,
+          "y": 40,
+          "params": {
+            "scene": 0
+          },
+          "payload": "{\"version\":1,\"prompt\":\"识别不变直线、重根与共轭复根，核对迹与行列式。\",\"title\":\"特征方向与复特征值\",\"summary\":\"识别不变直线、重根与共轭复根，核对迹与行列式。\",\"preferredView\":\"shapes\",\"code\":\"function run({params,upstream}) {\\n  \\n  const source = port => upstream.find(v => v.kind === \\\"scalar\\\" && (v.port || \\\"in\\\") === port)?.v;\\n  const scene = Math.round(Math.max(0, Math.min(3, source(\\\"in\\\") ?? params.scene ?? 0)));\\n  const amount = Math.max(0, Math.min(2, source(\\\"aux\\\") ?? params.amount ?? 1));\\n  const fmt = v => Number(v.toPrecision(5));\\n\\n  \\n  const dot = (a,b) => a.reduce((sum,x,j) => sum + x*b[j], 0);\\n  const transpose = A => A[0].map((_,j) => A.map(row => row[j]));\\n  const product = (A,B) => {\\n    const columns = transpose(B);\\n    return A.map(row => columns.map(col => dot(row,col)));\\n  };\\n  const apply = (A,v) => A.map(row => dot(row,v));\\n  const det2 = A => A[0][0]*A[1][1] - A[0][1]*A[1][0];\\n  const rotation = angle => [[Math.cos(angle),-Math.sin(angle)],[Math.sin(angle),Math.cos(angle)]];\\n  const norm = v => Math.hypot(...v);\\n\\n  \\n  const blue = \\\"#2346a0\\\", red = \\\"#b93e2d\\\", green = \\\"#187669\\\", faint = \\\"#c2c7d1\\\", ink = \\\"#26334b\\\";\\n  const line = (a,b,stroke=faint,dashed=false) =>\\n    ({kind:\\\"line\\\",x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke,strokeWidth:1.5,dashed});\\n  const arrow = (a,b,stroke) => ({\\n    kind:\\\"arrow\\\",x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke,strokeWidth:2,\\n  });\\n  const point = (p,fill,r=3) => ({kind:\\\"circle\\\",cx:p[0],cy:p[1],fill,r});\\n  const label = (x,y,text,fill=ink) => ({kind:\\\"text\\\",x,y,text,fill,size:12,anchor:\\\"middle\\\"});\\n  const axis = (x,y,w,h) => [line([x-w,y],[x+w,y]),line([x,y-h],[x,y+h])];\\n  const project = (p,x,y,s) => [x+p[0]*s,y-p[1]*s];\\n  const segments = (points,color,dashed=false) =>\\n    points.slice(1).map((p,j) => line(points[j],p,color,dashed));\\n\\n  \\n  const models = [\\n    [[1.14 + .13*amount,.23],[0,.66 - .05*amount]],\\n    rotation(.28 + .3*amount).map(row => row.map(x => x*(.55 + .18*amount))),\\n    [[1,.35 + .22*amount],[0,1]],\\n    [[.59 + .09*amount,.27],[.41 - .09*amount,.73]],\\n  ];\\n  const A = models[scene];\\n  const [[a,b],[c,d]] = A;\\n  const trace = a+d, det = det2(A);\\n  const rawDiscriminant = (a-d)*(a-d)+4*b*c;\\n  const discriminant = Math.abs(rawDiscriminant) < 1e-13 ? 0 : rawDiscriminant;\\n  const isComplex = discriminant < 0;\\n  const root = Math.sqrt(Math.abs(discriminant))/2;\\n  const eigenvalues = isComplex ? [[trace/2,root],[trace/2,-root]] : [[trace/2+root,0],[trace/2-root,0]];\\n  const spectralRadius = Math.max(...eigenvalues.map(norm));\\n  const scalar = Math.max(Math.abs(b),Math.abs(c),Math.abs(a-d)) < 1e-12;\\n  const diagonalizable = discriminant !== 0 || scalar;\\n  const traceError = Math.hypot(eigenvalues[0][0]+eigenvalues[1][0]-trace,eigenvalues[0][1]+eigenvalues[1][1]);\\n  const detError = Math.hypot(\\n    eigenvalues[0][0]*eigenvalues[1][0]-eigenvalues[0][1]*eigenvalues[1][1]-det,\\n    eigenvalues[0][0]*eigenvalues[1][1]+eigenvalues[0][1]*eigenvalues[1][0],\\n  );\\n  const dynamics = {trace,det,discriminant,isComplex,spectralRadius,diagonalizable,\\n    diagonalizableOverReal:diagonalizable && !isComplex,eigenvalues,traceError,detError};\\n  const orbit = initial => {\\n    const points = [initial];\\n    for (let j=1;j<=16;j++) points.push(apply(A,points[j-1]));\\n    return points;\\n  };\\n  const eigenvector = lambda => {\\n    const u = [-b,a-lambda], v = [d-lambda,-c];\\n    const best = norm(u) >= norm(v) ? u : v;\\n    return best.map(x => x/norm(best));\\n  };\\n  const directions = isComplex ? [] : scalar ? [[1,0],[0,1]] :\\n    (discriminant === 0 ? eigenvalues.slice(0,1) : eigenvalues).map(pair => eigenvector(pair[0]));\\n  const spectrumRows = [[\\\"tr A\\\",fmt(trace)],[\\\"det A\\\",fmt(det)],[\\\"判别式 Δ\\\",fmt(discriminant)],\\n    [\\\"谱半径 ρ\\\",fmt(spectralRadius)],[\\\"特征值和残差\\\",fmt(traceError)],[\\\"特征值积残差\\\",fmt(detError)]];\\n  const eigenLabel = ([re,im]) => im === 0 ? String(fmt(re)) : fmt(re)+\\\" \\\"+(im < 0 ? \\\"− \\\" : \\\"+ \\\")+fmt(Math.abs(im))+\\\"i\\\";\\n\\n  const items = [...axis(118,136,85,70),...axis(340,136,87,70),\\n    label(118,42,isComplex ? \\\"实平面 · 旋转轨线\\\" : \\\"实平面 · 不变方向\\\"),\\n    label(340,42,\\\"复平面 · 特征根\\\")];\\n  if (isComplex) {\\n    const spiral = orbit([1,0]).map(p => project(p,118,136,62));\\n    items.push(...segments(spiral,green),point(spiral[0],blue),point(spiral.at(-1),red));\\n    items.push(label(118,224,\\\"首点为蓝，末点为朱\\\"));\\n  } else {\\n    directions.forEach((v,j) => {\\n      const color = j === 0 ? blue : red;\\n      items.push(line(project(v,118,136,63),project(v,118,136,-63),color,true));\\n      items.push(arrow([118,136],project(v,118,136,43*eigenvalues[j][0]),color));\\n    });\\n    items.push(label(118,224,\\\"箭头长度及方向由 λ 决定\\\"));\\n  }\\n  const scale = 63 / Math.max(1.55,spectralRadius);\\n  const roots = eigenvalues.map(p => project(p,340,136,scale));\\n  if (discriminant === 0) items.push(point(roots[0],blue,5));\\n  else roots.forEach((p,j) => items.push(point(p,j === 0 ? blue : red,4)));\\n  items.push(label(340,224,discriminant === 0 ? \\\"重根 λ = \\\"+eigenLabel(eigenvalues[0]) : \\\"两根见下方核对表\\\"));\\n  const summary = isComplex ? \\\"共轭复根没有实特征直线；在复数域可对角化，实平面呈旋转轨线。\\\"\\n    : diagonalizable ? \\\"特征方向在 A 作用下保持不变，负特征值会反转箭头。\\\"\\n    : \\\"代数重数为 2，几何重数为 1，只有一条特征直线；不能相似对角化。\\\";\\n  return { data: dynamics, frames: [{\\n    title:\\\"特征直线与复根\\\", summary,\\n    shapes:{viewBox:[460,252],items},\\n    columns:[\\\"核对项\\\",\\\"数值\\\"], rows:[[\\\"λ₁\\\",eigenLabel(eigenvalues[0])],[\\\"λ₂\\\",eigenLabel(eigenvalues[1])],...spectrumRows],\\n  }] };\\n}\",\"controls\":[{\"key\":\"scene\",\"label\":\"情景编号（0–3）\",\"value\":0,\"min\":0,\"max\":3,\"step\":1}],\"auxiliaryKind\":\"scalar\",\"presets\":[{\"label\":\"双实根鞍点\",\"params\":{\"scene\":0,\"amount\":1}},{\"label\":\"复特征值阻尼螺旋\",\"params\":{\"scene\":1,\"amount\":1}},{\"label\":\"剪切重根不可对角化\",\"params\":{\"scene\":2,\"amount\":1}},{\"label\":\"马尔可夫稳态收敛\",\"params\":{\"scene\":3,\"amount\":1}}],\"presetSource\":{\"param\":\"scene\",\"auxiliaryParam\":\"amount\"}}"
+        },
+        {
+          "id": "powers",
+          "type": "aiRuleBlock",
+          "x": 430,
+          "y": 360,
+          "params": {
+            "scene": 0
+          },
+          "payload": "{\"version\":1,\"prompt\":\"从 k=0 推进到 k=16，对照谱半径与轨迹长期行为。\",\"title\":\"幂次演化 Aᵏx₀\",\"summary\":\"从 k=0 推进到 k=16，对照谱半径与轨迹长期行为。\",\"preferredView\":\"shapes\",\"code\":\"function run({params,upstream}) {\\n  \\n  const source = port => upstream.find(v => v.kind === \\\"scalar\\\" && (v.port || \\\"in\\\") === port)?.v;\\n  const scene = Math.round(Math.max(0, Math.min(3, source(\\\"in\\\") ?? params.scene ?? 0)));\\n  const amount = Math.max(0, Math.min(2, source(\\\"aux\\\") ?? params.amount ?? 1));\\n  const fmt = v => Number(v.toPrecision(5));\\n\\n  \\n  const dot = (a,b) => a.reduce((sum,x,j) => sum + x*b[j], 0);\\n  const transpose = A => A[0].map((_,j) => A.map(row => row[j]));\\n  const product = (A,B) => {\\n    const columns = transpose(B);\\n    return A.map(row => columns.map(col => dot(row,col)));\\n  };\\n  const apply = (A,v) => A.map(row => dot(row,v));\\n  const det2 = A => A[0][0]*A[1][1] - A[0][1]*A[1][0];\\n  const rotation = angle => [[Math.cos(angle),-Math.sin(angle)],[Math.sin(angle),Math.cos(angle)]];\\n  const norm = v => Math.hypot(...v);\\n\\n  \\n  const blue = \\\"#2346a0\\\", red = \\\"#b93e2d\\\", green = \\\"#187669\\\", faint = \\\"#c2c7d1\\\", ink = \\\"#26334b\\\";\\n  const line = (a,b,stroke=faint,dashed=false) =>\\n    ({kind:\\\"line\\\",x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke,strokeWidth:1.5,dashed});\\n  const arrow = (a,b,stroke) => ({\\n    kind:\\\"arrow\\\",x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke,strokeWidth:2,\\n  });\\n  const point = (p,fill,r=3) => ({kind:\\\"circle\\\",cx:p[0],cy:p[1],fill,r});\\n  const label = (x,y,text,fill=ink) => ({kind:\\\"text\\\",x,y,text,fill,size:12,anchor:\\\"middle\\\"});\\n  const axis = (x,y,w,h) => [line([x-w,y],[x+w,y]),line([x,y-h],[x,y+h])];\\n  const project = (p,x,y,s) => [x+p[0]*s,y-p[1]*s];\\n  const segments = (points,color,dashed=false) =>\\n    points.slice(1).map((p,j) => line(points[j],p,color,dashed));\\n\\n  \\n  const models = [\\n    [[1.14 + .13*amount,.23],[0,.66 - .05*amount]],\\n    rotation(.28 + .3*amount).map(row => row.map(x => x*(.55 + .18*amount))),\\n    [[1,.35 + .22*amount],[0,1]],\\n    [[.59 + .09*amount,.27],[.41 - .09*amount,.73]],\\n  ];\\n  const A = models[scene];\\n  const [[a,b],[c,d]] = A;\\n  const trace = a+d, det = det2(A);\\n  const rawDiscriminant = (a-d)*(a-d)+4*b*c;\\n  const discriminant = Math.abs(rawDiscriminant) < 1e-13 ? 0 : rawDiscriminant;\\n  const isComplex = discriminant < 0;\\n  const root = Math.sqrt(Math.abs(discriminant))/2;\\n  const eigenvalues = isComplex ? [[trace/2,root],[trace/2,-root]] : [[trace/2+root,0],[trace/2-root,0]];\\n  const spectralRadius = Math.max(...eigenvalues.map(norm));\\n  const scalar = Math.max(Math.abs(b),Math.abs(c),Math.abs(a-d)) < 1e-12;\\n  const diagonalizable = discriminant !== 0 || scalar;\\n  const traceError = Math.hypot(eigenvalues[0][0]+eigenvalues[1][0]-trace,eigenvalues[0][1]+eigenvalues[1][1]);\\n  const detError = Math.hypot(\\n    eigenvalues[0][0]*eigenvalues[1][0]-eigenvalues[0][1]*eigenvalues[1][1]-det,\\n    eigenvalues[0][0]*eigenvalues[1][1]+eigenvalues[0][1]*eigenvalues[1][0],\\n  );\\n  const dynamics = {trace,det,discriminant,isComplex,spectralRadius,diagonalizable,\\n    diagonalizableOverReal:diagonalizable && !isComplex,eigenvalues,traceError,detError};\\n  const orbit = initial => {\\n    const points = [initial];\\n    for (let j=1;j<=16;j++) points.push(apply(A,points[j-1]));\\n    return points;\\n  };\\n  const eigenvector = lambda => {\\n    const u = [-b,a-lambda], v = [d-lambda,-c];\\n    const best = norm(u) >= norm(v) ? u : v;\\n    return best.map(x => x/norm(best));\\n  };\\n  const directions = isComplex ? [] : scalar ? [[1,0],[0,1]] :\\n    (discriminant === 0 ? eigenvalues.slice(0,1) : eigenvalues).map(pair => eigenvector(pair[0]));\\n  const spectrumRows = [[\\\"tr A\\\",fmt(trace)],[\\\"det A\\\",fmt(det)],[\\\"判别式 Δ\\\",fmt(discriminant)],\\n    [\\\"谱半径 ρ\\\",fmt(spectralRadius)],[\\\"特征值和残差\\\",fmt(traceError)],[\\\"特征值积残差\\\",fmt(detError)]];\\n  const eigenLabel = ([re,im]) => im === 0 ? String(fmt(re)) : fmt(re)+\\\" \\\"+(im < 0 ? \\\"− \\\" : \\\"+ \\\")+fmt(Math.abs(im))+\\\"i\\\";\\n\\n  const points = orbit([.42,.76]);\\n  const scale = 73 / Math.max(1.1,...points.map(norm));\\n  const projected = points.map(p => project(p,230,137,scale));\\n  const behavior = spectralRadius < 1-1e-10 ? \\\"谱半径小于 1，所有初值衰减\\\"\\n    : spectralRadius > 1+1e-10 ? \\\"谱半径大于 1，含主特征分量的初值增长\\\"\\n    : diagonalizable ? \\\"谱半径等于 1，主模态保留\\\" : \\\"谱半径等于 1，但 Jordan 剪切可导致线性增长\\\";\\n  const frames = points.map((p,k) => ({\\n    title:\\\"第 \\\"+k+\\\" 次迭代\\\", summary:behavior+\\\"；‖xₖ‖₂ = \\\"+fmt(norm(p))+\\\"。所有帧共用比例尺。\\\",\\n    shapes:{viewBox:[460,252],items:[...axis(230,137,166,75),\\n      label(230,42,\\\"xₖ = Aᵏx₀\\\"),\\n      ...segments(projected, faint,true),...segments(projected.slice(0,k+1),green),\\n      point(projected[0],blue),point(projected[k],red,5),\\n      label(230,220,\\\"xₖ = (\\\"+fmt(p[0])+\\\", \\\"+fmt(p[1])+\\\")\\\")]},\\n    columns:[\\\"k\\\",\\\"x₁\\\",\\\"x₂\\\",\\\"‖xₖ‖₂\\\"],\\n    rows:points.slice(0,k+1).map((value,i) => [i,fmt(value[0]),fmt(value[1]),fmt(norm(value))]),\\n    highlightRows:[k],\\n  }));\\n  return {data:{...dynamics,trajectory:points},frames};\\n}\",\"controls\":[{\"key\":\"scene\",\"label\":\"情景编号（0–3）\",\"value\":0,\"min\":0,\"max\":3,\"step\":1}],\"auxiliaryKind\":\"scalar\",\"presets\":[{\"label\":\"双实根鞍点\",\"params\":{\"scene\":0,\"amount\":1}},{\"label\":\"复特征值阻尼螺旋\",\"params\":{\"scene\":1,\"amount\":1}},{\"label\":\"剪切重根不可对角化\",\"params\":{\"scene\":2,\"amount\":1}},{\"label\":\"马尔可夫稳态收敛\",\"params\":{\"scene\":3,\"amount\":1}}],\"presetSource\":{\"param\":\"scene\",\"auxiliaryParam\":\"amount\"}}"
+        },
+        {
+          "id": "markov",
+          "type": "aiRuleBlock",
+          "x": 430,
+          "y": 680,
+          "params": {
+            "scene": 0
+          },
+          "payload": "{\"version\":1,\"prompt\":\"观察三种状态的占比演化，核对 λ=1 对应的稳态分布。\",\"title\":\"马尔可夫链稳态\",\"summary\":\"观察三种状态的占比演化，核对 λ=1 对应的稳态分布。\",\"preferredView\":\"chart\",\"code\":\"function run({text,params,upstream}) {\\n  \\n  const source = port => upstream.find(v => v.kind === \\\"scalar\\\" && (v.port || \\\"in\\\") === port)?.v;\\n  const scene = Math.round(Math.max(0, Math.min(3, source(\\\"in\\\") ?? params.scene ?? 0)));\\n  const amount = Math.max(0, Math.min(2, source(\\\"aux\\\") ?? params.amount ?? 1));\\n  const fmt = v => Number(v.toPrecision(5));\\n\\n  \\n  const dot = (a,b) => a.reduce((sum,x,j) => sum + x*b[j], 0);\\n  const transpose = A => A[0].map((_,j) => A.map(row => row[j]));\\n  const product = (A,B) => {\\n    const columns = transpose(B);\\n    return A.map(row => columns.map(col => dot(row,col)));\\n  };\\n  const apply = (A,v) => A.map(row => dot(row,v));\\n  const det2 = A => A[0][0]*A[1][1] - A[0][1]*A[1][0];\\n  const rotation = angle => [[Math.cos(angle),-Math.sin(angle)],[Math.sin(angle),Math.cos(angle)]];\\n  const norm = v => Math.hypot(...v);\\n\\n  const defaults = [\\n    [[.40,.20,.25],[.45,.65,.25],[.15,.15,.50]],\\n    [[.35,.20,.50],[.40,.55,.20],[.25,.25,.30]],\\n    [[.75,.10,.10],[.15,.78,.16],[.10,.12,.74]],\\n    [[.62,.20,.15],[.24,.65,.25],[.14,.15,.60]],\\n  ];\\n  const raw = (text || \\\"\\\").trim();\\n  const draft = raw ? raw.split(/[;\\\\r\\\\n]+/).map(row => row.trim().split(/[\\\\s,，]+/).map(Number)) : defaults[scene];\\n  const valid = draft.length === 3\\n    && draft.every(row => row.length === 3 && row.every(v => Number.isFinite(v) && v >= 0))\\n    && [0,1,2].every(j => draft.some(row => row[j] > 0));\\n  const supplied = valid ? draft : defaults[scene];\\n  const B = supplied.map(row => row.slice());\\n  for (let j=0;j<3;j++) {\\n    const max = Math.max(...B.map(row => row[j]));\\n    const sum = B.reduce((total,row) => total+row[j]/max,0);\\n    B.forEach(row => row[j] = (row[j]/max)/sum);\\n  }\\n  const fast = product(B,B);\\n  const mix = amount <= 1 ? .35+.65*amount : .6*(amount-1);\\n  const P = B.map((row,i) => row.map((v,j) => amount <= 1 ? mix*v+(i === j ? 1-mix : 0) : (1-mix)*v+mix*fast[i][j]));\\n  // Replace one dependent balance equation with total mass 1, then solve by partial pivoting.\\n  const system = [\\n    P[0].map((v,j) => v-(j === 0 ? 1 : 0)).concat(0),\\n    P[1].map((v,j) => v-(j === 1 ? 1 : 0)).concat(0),\\n    [1,1,1,1],\\n  ];\\n  let stationary = null;\\n  for (let j=0;j<3;j++) {\\n    let pivot = j;\\n    for (let i=j+1;i<3;i++) if (Math.abs(system[i][j]) > Math.abs(system[pivot][j])) pivot = i;\\n    if (Math.abs(system[pivot][j]) < 1e-12) break;\\n    [system[j],system[pivot]] = [system[pivot],system[j]];\\n    const divisor = system[j][j];\\n    system[j] = system[j].map(v => v/divisor);\\n    for (let i=0;i<3;i++) {\\n      if (i === j) continue;\\n      const multiplier = system[i][j];\\n      system[i] = system[i].map((v,k) => v-multiplier*system[j][k]);\\n    }\\n    if (j === 2) stationary = system.map(row => Math.max(0,row[3]));\\n  }\\n  const trajectory = [[.80,.15,.05]];\\n  for (let k=1;k<=32;k++) trajectory.push(apply(P, trajectory[k-1]));\\n  const observed = trajectory.at(-1);\\n  const stationaryError = stationary ? Math.max(...apply(P,stationary).map((v,j) => Math.abs(v-stationary[j]))) : null;\\n  const endpointError = stationary ? Math.max(...observed.map((v,j) => Math.abs(v-stationary[j]))) : null;\\n  const notice = valid ? \\\"\\\" : \\\"输入未组成非负且各列非零的 3×3 矩阵，已显示本情景的矩阵。\\\";\\n  const summary = notice + (stationary\\n    ? \\\"π 由 (P−I)π=0、Σπ=1 解出；第 32 步距 π 的最大偏差为 \\\"+fmt(endpointError)+\\\"。\\\"\\n    : \\\"稳态分布不唯一；曲线显示从指定初值开始的迭代，并不假定必然收敛。\\\");\\n  const states = [\\\"状态 1\\\",\\\"状态 2\\\",\\\"状态 3\\\"];\\n  return {data:{P,trajectory,stationary,stationaryError,endpointError,valid},frames:[{\\n    title:\\\"列随机转移与稳态分布\\\", summary,\\n    series:states.map((label,j) => ({label,values:trajectory.map(value => 100*value[j])})),\\n    grid:{cells:P,rowLabels:states,colLabels:states,min:0,max:1,showValues:true},\\n    columns:[\\\"状态\\\",\\\"第 0 步 / %\\\",\\\"第 32 步 / %\\\",\\\"稳态 π / %\\\",\\\"转移矩阵 P（按行）\\\"],\\n    rows:states.map((s,j) => [s,fmt(100*trajectory[0][j]),fmt(100*observed[j]),\\n      stationary ? fmt(100*stationary[j]) : \\\"非唯一\\\",P[j].map(fmt).join(\\\"，\\\")]),\\n  }]};\\n}\",\"textLabel\":\"转移矩阵（每行 3 项，按列归一化；留空使用当前情景）\",\"controls\":[{\"key\":\"scene\",\"label\":\"情景编号（0–3）\",\"value\":0,\"min\":0,\"max\":3,\"step\":1}],\"auxiliaryKind\":\"scalar\",\"presets\":[{\"label\":\"双实根鞍点\",\"params\":{\"scene\":0,\"amount\":1}},{\"label\":\"复特征值阻尼螺旋\",\"params\":{\"scene\":1,\"amount\":1}},{\"label\":\"剪切重根不可对角化\",\"params\":{\"scene\":2,\"amount\":1}},{\"label\":\"马尔可夫稳态收敛\",\"params\":{\"scene\":3,\"amount\":1}}],\"presetSource\":{\"param\":\"scene\",\"auxiliaryParam\":\"amount\"}}"
+        }
+      ],
+      "wires": [
+        {
+          "id": "scene-eigen-in",
+          "from": "scene",
+          "to": "eigen"
+        },
+        {
+          "id": "amount-eigen-aux",
+          "from": "amount",
+          "to": "eigen",
+          "toPort": "aux"
+        },
+        {
+          "id": "scene-powers-in",
+          "from": "scene",
+          "to": "powers"
+        },
+        {
+          "id": "amount-powers-aux",
+          "from": "amount",
+          "to": "powers",
+          "toPort": "aux"
+        },
+        {
+          "id": "scene-markov-in",
+          "from": "scene",
+          "to": "markov"
+        },
+        {
+          "id": "amount-markov-aux",
+          "from": "amount",
+          "to": "markov",
+          "toPort": "aux"
+        }
+      ],
+      "strokes": [],
+      "zoom": 0.85,
+      "panel": {
+        "title": "特征值、相似对角化与动态系统",
+        "view_node_ids": [
+          "eigen",
+          "powers",
+          "markov"
+        ],
+        "exposed_params": [
+          {
+            "node_id": "scene",
+            "param_key": "v",
+            "label": "情景编号（0–3）",
+            "min": 0,
+            "max": 3,
+            "step": 1
+          },
+          {
+            "node_id": "amount",
+            "param_key": "v",
+            "label": "谱变换与转移强度",
+            "min": 0,
+            "max": 2,
+            "step": 0.05
+          }
+        ]
+      }
+    }
+  },
+  "dlOptimizer": {
+    "subject": "ai",
+    "summary": "在碗、鞍点、狭长山谷上同起点释放 SGD、Momentum、RMSProp、Adam。",
+    "document": {
+      "version": 1,
+      "title": "优化器 · 四种地形赛跑",
+      "nodes": [
+        {
+          "id": "n_mwz1o663_38",
+          "type": "studyOptim",
+          "x": 322,
+          "y": 28,
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o663_39",
+          "type": "slider",
+          "x": 32,
+          "y": 28,
+          "params": {
+            "v": 0,
+            "min": 0,
+            "max": 2,
+            "step": 1
+          },
+          "text": "地形（碗 / 鞍点 / 山谷）"
+        },
+        {
+          "id": "n_mwz1o663_41",
+          "type": "slider",
+          "x": 32,
+          "y": 278,
+          "params": {
+            "v": -1.5,
+            "min": -5,
+            "max": 5,
+            "step": 0.05
+          },
+          "text": "起点 x"
+        },
+        {
+          "id": "n_mwz1o663_43",
+          "type": "slider",
+          "x": 32,
+          "y": 528,
+          "params": {
+            "v": 1.5,
+            "min": -5,
+            "max": 5,
+            "step": 0.05
+          },
+          "text": "起点 y"
+        },
+        {
+          "id": "n_mwz1o663_45",
+          "type": "slider",
+          "x": 32,
+          "y": 778,
+          "params": {
+            "v": 0.05,
+            "min": 0.001,
+            "max": 1,
+            "step": 0.001
+          },
+          "text": "学习率"
+        },
+        {
+          "id": "n_mwz1o663_47",
+          "type": "slider",
+          "x": 32,
+          "y": 1028,
+          "params": {
+            "v": 60,
+            "min": 0,
+            "max": 200,
+            "step": 1
+          },
+          "text": "步数"
+        },
+        {
+          "id": "n_mwz1o663_49",
+          "type": "studyTrajectory",
+          "x": 612,
+          "y": 28,
+          "params": {}
+        }
+      ],
+      "wires": [
+        {
+          "id": "w_mwz1o663_40",
+          "from": "n_mwz1o663_39",
+          "to": "n_mwz1o663_38",
+          "fromPort": "out",
+          "toPort": "地形"
+        },
+        {
+          "id": "w_mwz1o663_42",
+          "from": "n_mwz1o663_41",
+          "to": "n_mwz1o663_38",
+          "fromPort": "out",
+          "toPort": "起点 x"
+        },
+        {
+          "id": "w_mwz1o663_44",
+          "from": "n_mwz1o663_43",
+          "to": "n_mwz1o663_38",
+          "fromPort": "out",
+          "toPort": "起点 y"
+        },
+        {
+          "id": "w_mwz1o663_46",
+          "from": "n_mwz1o663_45",
+          "to": "n_mwz1o663_38",
+          "fromPort": "out",
+          "toPort": "学习率"
+        },
+        {
+          "id": "w_mwz1o663_48",
+          "from": "n_mwz1o663_47",
+          "to": "n_mwz1o663_38",
+          "fromPort": "out",
+          "toPort": "步数"
+        },
+        {
+          "id": "w_mwz1o663_50",
+          "from": "n_mwz1o663_38",
+          "to": "n_mwz1o663_49",
+          "fromPort": "SGD",
+          "toPort": "SGD"
+        },
+        {
+          "id": "w_mwz1o663_51",
+          "from": "n_mwz1o663_38",
+          "to": "n_mwz1o663_49",
+          "fromPort": "Momentum",
+          "toPort": "Momentum"
+        },
+        {
+          "id": "w_mwz1o663_52",
+          "from": "n_mwz1o663_38",
+          "to": "n_mwz1o663_49",
+          "fromPort": "RMSProp",
+          "toPort": "RMSProp"
+        },
+        {
+          "id": "w_mwz1o663_53",
+          "from": "n_mwz1o663_38",
+          "to": "n_mwz1o663_49",
+          "fromPort": "Adam",
+          "toPort": "Adam"
+        }
+      ],
+      "strokes": [],
+      "zoom": 0.9,
+      "panel": {
+        "title": "优化器 · 四种地形赛跑",
+        "view_node_ids": [
+          "n_mwz1o663_49"
+        ],
+        "exposed_params": [
+          {
+            "node_id": "n_mwz1o663_39",
+            "param_key": "v",
+            "label": "地形（碗 / 鞍点 / 山谷）",
+            "min": 0,
+            "max": 2,
+            "step": 1
+          },
+          {
+            "node_id": "n_mwz1o663_41",
+            "param_key": "v",
+            "label": "起点 x",
+            "min": -5,
+            "max": 5,
+            "step": 0.05
+          },
+          {
+            "node_id": "n_mwz1o663_43",
+            "param_key": "v",
+            "label": "起点 y",
+            "min": -5,
+            "max": 5,
+            "step": 0.05
+          },
+          {
+            "node_id": "n_mwz1o663_45",
+            "param_key": "v",
+            "label": "学习率",
+            "min": 0.001,
+            "max": 1,
+            "step": 0.001
+          },
+          {
+            "node_id": "n_mwz1o663_47",
+            "param_key": "v",
+            "label": "步数",
+            "min": 0,
+            "max": 200,
+            "step": 1
+          }
+        ]
+      }
+    }
+  },
+  "graphAlgo": {
+    "subject": "cs",
+    "summary": "对照 Dijkstra、Prim 与拓扑排序的选点、松弛和入度变化。",
+    "document": {
+      "version": 1,
+      "title": "图算法逐步推演",
+      "zoom": 0.69,
+      "nodes": [
+        {
+          "id": "n_mwz1o663_54",
+          "type": "lab408Stage",
+          "x": 48,
+          "y": 128,
+          "payload": "graphAlgo/graphInput",
+          "text": "A B 7\nA C 9\nA F 14\nB C 10\nB D 15\nC D 11\nC F 2\nD E 6\nF E 9",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o663_55",
+          "type": "lab408Stage",
+          "x": 340,
+          "y": 128,
+          "payload": "graphAlgo/graphRun",
+          "params": {
+            "algorithm": 0,
+            "start": 0,
+            "undirected": 0
+          }
+        },
+        {
+          "id": "n_mwz1o664_56",
+          "type": "lab408Stage",
+          "x": 632,
+          "y": 48,
+          "payload": "graphAlgo/graphColor",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o664_57",
+          "type": "lab408Stage",
+          "x": 632,
+          "y": 208,
+          "payload": "graphAlgo/graphState",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o664_61",
+          "type": "textNote",
+          "x": 48,
+          "y": 396,
+          "params": {},
+          "text": "探究：最短路径树和最小生成树为什么可能不同？\n搭建：编辑边权、切换算法，逐步对照图上的高亮与内部表格。\n观察：Dijkstra 比较从源点出发的距离，Prim 比较连接生成树的边权，拓扑排序每次取入度为零的顶点。"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w_mwz1o664_58",
+          "from": "n_mwz1o663_54",
+          "fromPort": "out",
+          "to": "n_mwz1o663_55",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o664_59",
+          "from": "n_mwz1o663_55",
+          "fromPort": "out",
+          "to": "n_mwz1o664_56",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o664_60",
+          "from": "n_mwz1o663_55",
+          "fromPort": "out",
+          "to": "n_mwz1o664_57",
+          "toPort": "in"
+        }
+      ],
+      "strokes": [],
+      "panel": {
+        "title": "图算法逐步推演",
+        "view_node_ids": [
+          "n_mwz1o664_56",
+          "n_mwz1o664_57"
+        ],
+        "exposed_params": []
+      }
+    }
+  },
+  "biz-breakeven": {
+    "subject": "business",
+    "summary": "调节定价、成本和销量，观察盈亏交点、利润拆解和累计回本月份。",
+    "document": {
+      "version": 1,
+      "title": "经营盈亏平衡与定价沙盘",
+      "zoom": 0.69,
+      "nodes": [
+        {
+          "id": "n_mwz1o664_62",
+          "type": "businessStage",
+          "x": 48,
+          "y": 48,
+          "payload": "biz-breakeven/source",
+          "params": {
+            "price": 99,
+            "varRate": 0.35,
+            "fixedCost": 200000,
+            "monthlySales": 2500,
+            "growthRate": 0.08,
+            "adBudget": 50000
+          }
+        },
+        {
+          "id": "n_mwz1o664_63",
+          "type": "businessStage",
+          "x": 340,
+          "y": 48,
+          "payload": "biz-breakeven/main",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o664_64",
+          "type": "businessStage",
+          "x": 632,
+          "y": 48,
+          "payload": "biz-breakeven/analysis",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o664_65",
+          "type": "businessStage",
+          "x": 924,
+          "y": 48,
+          "payload": "biz-breakeven/summary",
+          "params": {}
+        },
+        {
+          "id": "n_mwz1o664_69",
+          "type": "textNote",
+          "x": 48,
+          "y": 236,
+          "params": {},
+          "text": "探究：当前定价和成本下，每月至少要卖出多少单才能盈亏平衡？\n步骤：先拖动时间轴查看累计净利，再分别调整客单价和变动成本率，对比盈亏平衡销量与回本月份。\n观察：单笔贡献毛利越高，覆盖固定和营销开销所需的销量越低。累计回本还取决于各月销量的增长。"
+        }
+      ],
+      "wires": [
+        {
+          "id": "w_mwz1o664_66",
+          "from": "n_mwz1o664_62",
+          "fromPort": "out",
+          "to": "n_mwz1o664_63",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o664_67",
+          "from": "n_mwz1o664_63",
+          "fromPort": "out",
+          "to": "n_mwz1o664_64",
+          "toPort": "in"
+        },
+        {
+          "id": "w_mwz1o664_68",
+          "from": "n_mwz1o664_64",
+          "fromPort": "out",
+          "to": "n_mwz1o664_65",
+          "toPort": "in"
+        }
+      ],
+      "strokes": [],
+      "panel": {
+        "title": "经营盈亏平衡与定价沙盘",
+        "view_node_ids": [
+          "n_mwz1o664_65"
+        ],
+        "exposed_params": [
+          {
+            "node_id": "n_mwz1o664_62",
+            "param_key": "price",
+            "label": "客单价（元）",
+            "min": 20,
+            "max": 500,
+            "step": 1
+          },
+          {
+            "node_id": "n_mwz1o664_62",
+            "param_key": "varRate",
+            "label": "变动成本率（%）",
+            "min": 0.1,
+            "max": 0.8,
+            "step": 0.01
+          },
+          {
+            "node_id": "n_mwz1o664_62",
+            "param_key": "fixedCost",
+            "label": "月固定开销（元）",
+            "min": 50000,
+            "max": 1000000,
+            "step": 5000
+          },
+          {
+            "node_id": "n_mwz1o664_62",
+            "param_key": "monthlySales",
+            "label": "首月销量（单）",
+            "min": 500,
+            "max": 10000,
+            "step": 100
+          },
+          {
+            "node_id": "n_mwz1o664_62",
+            "param_key": "growthRate",
+            "label": "月销量增长率（%）",
+            "min": -0.1,
+            "max": 0.3,
+            "step": 0.01
+          },
+          {
+            "node_id": "n_mwz1o664_62",
+            "param_key": "adBudget",
+            "label": "月营销预算（元）",
+            "min": 0,
+            "max": 500000,
+            "step": 5000
+          }
+        ]
+      }
+    }
+  }
+}

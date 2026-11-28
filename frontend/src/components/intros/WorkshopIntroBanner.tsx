@@ -24,13 +24,11 @@ interface PresetSpec {
   c2: ControlDef;
 }
 
-const STORAGE_KEY = 'wanxiang.intro.workshop.collapsed.v1';
-
 const PRESETS: Record<PresetKey, PresetSpec> = {
   scan: {
     key: 'scan',
     label: '磁盘调度 SCAN',
-    prompt: '“演示电梯磁盘调度 SCAN 的磁头轨迹，并对比 FCFS 总寻道长度”',
+    prompt: '演示 SCAN 磁头轨迹，对比 FCFS 的寻道距离',
     stageTag: '磁头轨迹 · SCAN',
     perfBadge: '✓ 18 帧 · 0.9ms',
     c1: { label: '初始磁头位置', min: 10, max: 180, step: 1, defaultVal: 53 },
@@ -46,7 +44,7 @@ const PRESETS: Record<PresetKey, PresetSpec> = {
   damping: {
     key: 'damping',
     label: '二阶欠阻尼',
-    prompt: '“展示二阶阻尼振子 y\'\' + 2ζωy\' + ω²y = 0 在不同阻尼比下的响应”',
+    prompt: '展示二阶阻尼振子 y\'\' + 2ζωy\' + ω²y = 0 的阻尼响应',
     stageTag: '实时 ODE 数值积分',
     perfBadge: '✓ 60 帧 · 1.2ms',
     c1: {
@@ -69,7 +67,7 @@ const PRESETS: Record<PresetKey, PresetSpec> = {
   gd: {
     key: 'gd',
     label: '梯度下降',
-    prompt: '“对比不同学习率 η 下梯度下降在二次凸面上的收敛与震荡行为”',
+    prompt: '对比不同学习率 η 在二次凸面上的收敛与震荡',
     stageTag: '优化步进轨迹',
     perfBadge: '✓ 14 步 · 0.6ms',
     c1: {
@@ -91,16 +89,7 @@ const PRESETS: Record<PresetKey, PresetSpec> = {
   },
 };
 
-function readCollapsed(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 export function WorkshopIntroBanner(): JSX.Element {
-  const [collapsed, setCollapsed] = useState<boolean>(readCollapsed);
   const [presetKey, setPresetKey] = useState<PresetKey>('scan');
   const preset = PRESETS[presetKey];
   const [v1, setV1] = useState<number>(preset.c1.defaultVal);
@@ -108,18 +97,6 @@ export function WorkshopIntroBanner(): JSX.Element {
   const [progress, setProgress] = useState<number>(1);
   const [typedPrompt, setTypedPrompt] = useState<string>(preset.prompt);
   const rafRef = useRef<number | null>(null);
-
-  const toggleCollapsed = (): void => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(STORAGE_KEY, next ? '1' : '0');
-      } catch {
-        /* 隐私模式静默忽略 */
-      }
-      return next;
-    });
-  };
 
   const triggerReplay = (): void => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
@@ -240,7 +217,7 @@ export function WorkshopIntroBanner(): JSX.Element {
 
   return (
     <section
-      className={`${styles.introShell} ${styles.atelierBench} ${collapsed ? styles.isCollapsed : ''}`}
+      className={`${styles.introShell} ${styles.atelierBench}`}
       aria-label="定象坊排字台演示"
     >
       <div className={styles.introHead}>
@@ -254,230 +231,225 @@ export function WorkshopIntroBanner(): JSX.Element {
           </span>
           <span className={styles.introHeadSub}>沙箱实时计算 · 拖动滑杆立即响应</span>
         </div>
-        <button type="button" className={styles.collapseBtn} onClick={toggleCollapsed}>
-          {collapsed ? '展开导览 ▾' : '收起导览 ▴'}
-        </button>
       </div>
 
-      {!collapsed ? (
-        <div className={styles.introBody}>
-          <div className={styles.circuitGrid}>
-            <div className={`${styles.cNode} ${styles.typeTray}`}>
-              <div className={styles.cNodeHead}>
-                <span className={styles.cStep}>选取象砖</span>
-                <span className={styles.cHint}>点选切换</span>
-              </div>
-              <div className={styles.cTitle}>自然语言 / 学科预设</div>
-              <div className={styles.presetPills}>
-                {(['scan', 'damping', 'gd'] as PresetKey[]).map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`${styles.presetPill} ${presetKey === key ? styles.presetPillActive : ''}`}
-                    onClick={() => selectPreset(key)}
-                  >
-                    {PRESETS[key].label}
-                  </button>
-                ))}
-              </div>
-              <div className={styles.promptPreview}>
-                <span>
-                  {typedPrompt}
-                  <span className={styles.cursorBlink} aria-hidden="true" />
-                </span>
-              </div>
+      <div className={styles.introBody}>
+        <div className={styles.circuitGrid}>
+          <div className={`${styles.cNode} ${styles.typeTray}`}>
+            <div className={styles.cNodeHead}>
+              <span className={styles.cStep}>选择积木</span>
+              <span className={styles.cHint}>点选切换</span>
             </div>
-
-            <div className={styles.wireSlot} aria-hidden="true">
-              <svg className={styles.wireSvg} viewBox="0 0 48 26">
-                <path className={styles.wireBase} d="M 0 13 C 16 13, 32 13, 48 13" />
-                <path className={styles.wireFlow} d="M 0 13 C 16 13, 32 13, 48 13" />
-              </svg>
-            </div>
-
-            <div className={`${styles.cNode} ${styles.pressCheck}`}>
-              <div className={styles.cNodeHead}>
-                <span className={`${styles.cStep} ${styles.cStepVermilion}`}>实时检查器</span>
-                <span className={styles.cBadge}>{preset.perfBadge}</span>
-              </div>
-              <div className={styles.cTitle}>实时调参 · 安全沙箱</div>
-              <div className={styles.miniControl}>
-                <div className={styles.miniControlTop}>
-                  <span>{preset.c1.label}</span>
-                  <output>{preset.c1.format ? preset.c1.format(v1) : v1}</output>
-                </div>
-                <input
-                  className={styles.paperRange}
-                  type="range"
-                  aria-label={preset.c1.label}
-                  min={preset.c1.min}
-                  max={preset.c1.max}
-                  step={preset.c1.step}
-                  value={v1}
-                  onChange={(e) => {
-                    const next = parseFloat(e.currentTarget.value);
-                    setProgress(1);
-                    setV1(next);
-                  }}
-                />
-              </div>
-              <div className={styles.miniControl}>
-                <div className={styles.miniControlTop}>
-                  <span>{preset.c2.label}</span>
-                  <output>{preset.c2.format ? preset.c2.format(v2) : v2}</output>
-                </div>
-                <input
-                  className={styles.paperRange}
-                  type="range"
-                  aria-label={preset.c2.label}
-                  min={preset.c2.min}
-                  max={preset.c2.max}
-                  step={preset.c2.step}
-                  value={v2}
-                  onChange={(e) => {
-                    const next = parseFloat(e.currentTarget.value);
-                    setProgress(1);
-                    setV2(next);
-                  }}
-                />
-              </div>
-              <div className={styles.codePillHint}>
-                <span>可展开手改纯函数</span>
-                <code>{'run({ params })'}</code>
-              </div>
-              <a className={styles.bindLink} href="#workshop-maker">付印并装订 ↗</a>
-            </div>
-
-            <div className={styles.wireSlot} aria-hidden="true">
-              <svg className={styles.wireSvg} viewBox="0 0 48 26">
-                <path className={styles.wireBase} d="M 0 13 C 16 13, 32 13, 48 13" />
-                <path
-                  className={`${styles.wireFlow} ${styles.wireFlowTeal}`}
-                  d="M 0 13 C 16 13, 32 13, 48 13"
-                />
-              </svg>
-            </div>
-
-            <div className={`${styles.cNode} ${styles.proofSheet}`}>
-              <div className={styles.cNodeHead}>
-                <span className={`${styles.cStep} ${styles.cStepTeal}`}>试印 · 实时曲线</span>
-                <span className={styles.cHint}>{preset.stageTag}</span>
-              </div>
-              <div className={styles.stageCanvasBox}>
-                <svg className={styles.stageSvg} viewBox="0 0 280 118" aria-label={preset.stageTag}>
-                  {stageModel.kind === 'scan' ? (
-                    <>
-                      <line
-                        x1="14"
-                        y1="14"
-                        x2="266"
-                        y2="14"
-                        stroke="rgba(17,19,18,0.14)"
-                        strokeDasharray="3 3"
-                      />
-                      <line
-                        x1="14"
-                        y1="104"
-                        x2="266"
-                        y2="104"
-                        stroke="rgba(17,19,18,0.14)"
-                        strokeDasharray="3 3"
-                      />
-                      <polyline
-                        points={stageModel.points.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}
-                        fill="none"
-                        stroke="#2234d4"
-                        strokeWidth="2.2"
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                      />
-                      {stageModel.points.map((p, i) => (
-                        <circle
-                          key={`${p[0]}-${p[1]}-${i}`}
-                          cx={p[0]}
-                          cy={p[1]}
-                          r={i === stageModel.points.length - 1 ? 4.2 : 2.8}
-                          fill={i === 0 ? '#de421f' : '#2234d4'}
-                        />
-                      ))}
-                      <text x="14" y="115" fontSize="9" fill="#83867f" fontFamily="monospace">
-                        0
-                      </text>
-                      <text x="248" y="115" fontSize="9" fill="#83867f" fontFamily="monospace">
-                        199
-                      </text>
-                    </>
-                  ) : null}
-
-                  {stageModel.kind === 'damping' ? (
-                    <>
-                      <line x1="14" y1="59" x2="266" y2="59" stroke="rgba(17,19,18,0.16)" />
-                      {stageModel.underdamped ? (
-                        <>
-                          <polyline
-                            points={stageModel.envTop}
-                            fill="none"
-                            stroke="rgba(222,66,31,0.35)"
-                            strokeDasharray="3 3"
-                            strokeWidth="1.2"
-                          />
-                          <polyline
-                            points={stageModel.envBot}
-                            fill="none"
-                            stroke="rgba(222,66,31,0.35)"
-                            strokeDasharray="3 3"
-                            strokeWidth="1.2"
-                          />
-                        </>
-                      ) : null}
-                      <polyline
-                        points={stageModel.curve}
-                        fill="none"
-                        stroke="#0f766e"
-                        strokeWidth="2.3"
-                        strokeLinecap="round"
-                      />
-                    </>
-                  ) : null}
-
-                  {stageModel.kind === 'gd' ? (
-                    <>
-                      <polyline
-                        points={stageModel.curve}
-                        fill="none"
-                        stroke="rgba(17,19,18,0.22)"
-                        strokeWidth="1.8"
-                      />
-                      <polyline
-                        points={stageModel.steps.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}
-                        fill="none"
-                        stroke={stageModel.oscillating ? '#de421f' : '#2234d4'}
-                        strokeWidth="2"
-                        strokeDasharray="4 3"
-                      />
-                      {stageModel.steps.map((p, i) => (
-                        <circle
-                          key={`${p[0]}-${i}`}
-                          cx={p[0]}
-                          cy={p[1]}
-                          r={i === stageModel.steps.length - 1 ? 4.2 : 2.6}
-                          fill={stageModel.oscillating ? '#de421f' : '#2234d4'}
-                        />
-                      ))}
-                    </>
-                  ) : null}
-                </svg>
-              </div>
-              <div className={styles.stageFoot}>
-                <span className={styles.stageMetric}>{stageModel.metric}</span>
-                <button type="button" className={styles.miniAction} onClick={triggerReplay}>
-                  重播演化 ↻
+            <div className={styles.cTitle}>自然语言 / 学科预设</div>
+            <div className={styles.presetPills}>
+              {(['scan', 'damping', 'gd'] as PresetKey[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`${styles.presetPill} ${presetKey === key ? styles.presetPillActive : ''}`}
+                  onClick={() => selectPreset(key)}
+                >
+                  {PRESETS[key].label}
                 </button>
+              ))}
+            </div>
+            <div className={styles.promptPreview}>
+              <span>
+                {typedPrompt}
+                <span className={styles.cursorBlink} aria-hidden="true" />
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.wireSlot} aria-hidden="true">
+            <svg className={styles.wireSvg} viewBox="0 0 48 26">
+              <path className={styles.wireBase} d="M 0 13 C 16 13, 32 13, 48 13" />
+              <path className={styles.wireFlow} d="M 0 13 C 16 13, 32 13, 48 13" />
+            </svg>
+          </div>
+
+          <div className={`${styles.cNode} ${styles.pressCheck}`}>
+            <div className={styles.cNodeHead}>
+              <span className={`${styles.cStep} ${styles.cStepVermilion}`}>实时检查器</span>
+              <span className={styles.cBadge}>{preset.perfBadge}</span>
+            </div>
+            <div className={styles.cTitle}>实时调参 · 安全沙箱</div>
+            <div className={styles.miniControl}>
+              <div className={styles.miniControlTop}>
+                <span>{preset.c1.label}</span>
+                <output>{preset.c1.format ? preset.c1.format(v1) : v1}</output>
               </div>
+              <input
+                className={styles.paperRange}
+                type="range"
+                aria-label={preset.c1.label}
+                min={preset.c1.min}
+                max={preset.c1.max}
+                step={preset.c1.step}
+                value={v1}
+                onChange={(e) => {
+                  const next = parseFloat(e.currentTarget.value);
+                  setProgress(1);
+                  setV1(next);
+                }}
+              />
+            </div>
+            <div className={styles.miniControl}>
+              <div className={styles.miniControlTop}>
+                <span>{preset.c2.label}</span>
+                <output>{preset.c2.format ? preset.c2.format(v2) : v2}</output>
+              </div>
+              <input
+                className={styles.paperRange}
+                type="range"
+                aria-label={preset.c2.label}
+                min={preset.c2.min}
+                max={preset.c2.max}
+                step={preset.c2.step}
+                value={v2}
+                onChange={(e) => {
+                  const next = parseFloat(e.currentTarget.value);
+                  setProgress(1);
+                  setV2(next);
+                }}
+              />
+            </div>
+            <div className={styles.codePillHint}>
+              <span>可展开手改纯函数</span>
+              <code>{'run({ params })'}</code>
+            </div>
+            <a className={styles.bindLink} href="#workshop-maker">付印并装订 ↗</a>
+          </div>
+
+          <div className={styles.wireSlot} aria-hidden="true">
+            <svg className={styles.wireSvg} viewBox="0 0 48 26">
+              <path className={styles.wireBase} d="M 0 13 C 16 13, 32 13, 48 13" />
+              <path
+                className={`${styles.wireFlow} ${styles.wireFlowTeal}`}
+                d="M 0 13 C 16 13, 32 13, 48 13"
+              />
+            </svg>
+          </div>
+
+          <div className={`${styles.cNode} ${styles.proofSheet}`}>
+            <div className={styles.cNodeHead}>
+              <span className={`${styles.cStep} ${styles.cStepTeal}`}>试印 · 实时曲线</span>
+              <span className={styles.cHint}>{preset.stageTag}</span>
+            </div>
+            <div className={styles.stageCanvasBox}>
+              <svg className={styles.stageSvg} viewBox="0 0 280 118" aria-label={preset.stageTag}>
+                {stageModel.kind === 'scan' ? (
+                  <>
+                    <line
+                      x1="14"
+                      y1="14"
+                      x2="266"
+                      y2="14"
+                      stroke="rgba(17,19,18,0.14)"
+                      strokeDasharray="3 3"
+                    />
+                    <line
+                      x1="14"
+                      y1="104"
+                      x2="266"
+                      y2="104"
+                      stroke="rgba(17,19,18,0.14)"
+                      strokeDasharray="3 3"
+                    />
+                    <polyline
+                      points={stageModel.points.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}
+                      fill="none"
+                      stroke="#2234d4"
+                      strokeWidth="2.2"
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                    />
+                    {stageModel.points.map((p, i) => (
+                      <circle
+                        key={`${p[0]}-${p[1]}-${i}`}
+                        cx={p[0]}
+                        cy={p[1]}
+                        r={i === stageModel.points.length - 1 ? 4.2 : 2.8}
+                        fill={i === 0 ? '#de421f' : '#2234d4'}
+                      />
+                    ))}
+                    <text x="14" y="115" fontSize="9" fill="#83867f" fontFamily="monospace">
+                      0
+                    </text>
+                    <text x="248" y="115" fontSize="9" fill="#83867f" fontFamily="monospace">
+                      199
+                    </text>
+                  </>
+                ) : null}
+
+                {stageModel.kind === 'damping' ? (
+                  <>
+                    <line x1="14" y1="59" x2="266" y2="59" stroke="rgba(17,19,18,0.16)" />
+                    {stageModel.underdamped ? (
+                      <>
+                        <polyline
+                          points={stageModel.envTop}
+                          fill="none"
+                          stroke="rgba(222,66,31,0.35)"
+                          strokeDasharray="3 3"
+                          strokeWidth="1.2"
+                        />
+                        <polyline
+                          points={stageModel.envBot}
+                          fill="none"
+                          stroke="rgba(222,66,31,0.35)"
+                          strokeDasharray="3 3"
+                          strokeWidth="1.2"
+                        />
+                      </>
+                    ) : null}
+                    <polyline
+                      points={stageModel.curve}
+                      fill="none"
+                      stroke="#0f766e"
+                      strokeWidth="2.3"
+                      strokeLinecap="round"
+                    />
+                  </>
+                ) : null}
+
+                {stageModel.kind === 'gd' ? (
+                  <>
+                    <polyline
+                      points={stageModel.curve}
+                      fill="none"
+                      stroke="rgba(17,19,18,0.22)"
+                      strokeWidth="1.8"
+                    />
+                    <polyline
+                      points={stageModel.steps.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}
+                      fill="none"
+                      stroke={stageModel.oscillating ? '#de421f' : '#2234d4'}
+                      strokeWidth="2"
+                      strokeDasharray="4 3"
+                    />
+                    {stageModel.steps.map((p, i) => (
+                      <circle
+                        key={`${p[0]}-${i}`}
+                        cx={p[0]}
+                        cy={p[1]}
+                        r={i === stageModel.steps.length - 1 ? 4.2 : 2.6}
+                        fill={stageModel.oscillating ? '#de421f' : '#2234d4'}
+                      />
+                    ))}
+                  </>
+                ) : null}
+              </svg>
+            </div>
+            <div className={styles.stageFoot}>
+              <span className={styles.stageMetric}>{stageModel.metric}</span>
+              <button type="button" className={styles.miniAction} onClick={triggerReplay}>
+                重播演化 ↻
+              </button>
             </div>
           </div>
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }

@@ -16,7 +16,7 @@ const ODE_PRESETS = {
 const BP_INFO: Record<LabId, { source: string; kernel: string; to: string }> = {
   ode: { source: 'y′ = a·x − b·y（斜率场方程源）', kernel: 'RK4 双向数值积分器', to: '/workshop' },
   riemann: { source: 'f(x) = x²，区间 [0, 1]', kernel: '黎曼矩形切片与误差求值', to: '/canvas?template=ftc-sweep' },
-  grad: { source: 'f(x,y) = 0.5x² + 3.5y²', kernel: '梯度 ∇f 迭代与收敛检测', to: '/canvas?template=dlOptimizer' },
+  grad: { source: 'f(x,y) = 0.5x² + 3.5y²', kernel: '梯度 ∇f 迭代与收敛检测', to: '/canvas?template=dl-mlp-backprop' },
 };
 
 export function WorkshopLabsSection(): JSX.Element {
@@ -205,7 +205,7 @@ export function WorkshopLabsSection(): JSX.Element {
           <div className="lab-stage__head">
             <div className="mode-pills" role="tablist">
               <button type="button" className={!showBlueprint ? 'is-active' : ''} onClick={() => setShowBlueprint(false)}>
-                仪表台演播态
+                驾驶舱态
               </button>
               <button type="button" className={showBlueprint ? 'is-active' : ''} onClick={() => setShowBlueprint(true)}>
                 查看背后定象坊积木
@@ -387,7 +387,7 @@ export function WorkshopLabsSection(): JSX.Element {
                 </g>
                 <g transform="translate(594,56)">
                   <rect width="198" height="108" rx="8" fill="#0f3e40" stroke="#4fd1c5" strokeWidth="2" />
-                  <text x="16" y="30" fill="#fff" fontSize="14" fontWeight="700">活页插件封装出口</text>
+                  <text x="16" y="30" fill="#fff" fontSize="14" fontWeight="700">封装为定象坊积木</text>
                   <text x="16" y="56" fill="#9cf3e9" fontSize="12">✓ 可直接拖入通文册</text>
                   <text x="16" y="78" fill="#b4e8e2" fontSize="11">✓ 支持情景预设与离线包</text>
                   <text x="16" y="96" fill="#b4e8e2" fontSize="11">✓ 听众可一键反钻定象坊</text>

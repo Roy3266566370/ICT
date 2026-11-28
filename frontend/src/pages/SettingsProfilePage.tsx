@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useDeleteAvatar, useUpdateMe, useUploadAvatar } from '@/api/accountHooks';
-import type { AccountDefaultEntry } from '@/api/types';
 import { SiteNav } from '@/components/home/SiteNav';
 import { AccountAvatar } from '@/components/account/AccountAvatar';
 import { AvatarCropper } from '@/components/account/AvatarCropper';
@@ -23,6 +22,7 @@ const INTEREST_MAX = 24;
 const INTEREST_COUNT_MAX = 8;
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const SUGGESTED_INTERESTS = ['高等数学', '线性代数', '大学物理', '408 专题', '深度学习', '办公决策', '可视化教学'];
 
 /** 中国大陆手机号：11 位、1 开头、第二位 3–9（与后端 `PHONE_PATTERN` 一致）。 */
 const PHONE_PATTERN = /^1[3-9]\d{9}$/;
@@ -37,19 +37,6 @@ function normalizePhone(raw: string): string | null {
   if (digits.length === 13 && digits.startsWith('86')) digits = digits.slice(2);
   return PHONE_PATTERN.test(digits) ? digits : null;
 }
-
-const SUBJECT_OPTIONS: readonly { value: string; label: string }[] = [
-  { value: '', label: '未设置' },
-  { value: 'calculus', label: '微积分' },
-  { value: 'optimization', label: '最优化' },
-  { value: 'algorithm', label: '数据结构与算法' },
-  { value: 'deep_learning', label: '深度学习' },
-];
-
-const DEFAULT_ENTRY_OPTIONS: readonly { value: AccountDefaultEntry; label: string; hint: string }[] = [
-  { value: 'space', label: '个人主页', hint: '登录后先看到资料与材料' },
-  { value: 'labs', label: '题目实验室', hint: '登录后直接开始做题' },
-];
 
 interface PageNotice {
   kind: 'success' | 'error';
@@ -69,9 +56,7 @@ function formatDate(iso: string): string {
 /**
  * 个人设置 `/settings/profile`。
  *
- * 第一版：头像（上传/裁剪/恢复默认）、昵称、简介、职业、学校、兴趣标签、
- * 常用学科与登录默认入口；账号信息只读展示用户名、邮箱与注册时间。
- * 修改密码与换绑邮箱需要额外的验证流程，界面上明确标注"后续开放"。
+ * 管理个人资料与头像。
  */
 export default function SettingsProfilePage(): JSX.Element {
   const status = useAccountStatus();
@@ -93,30 +78,36 @@ export default function SettingsProfilePage(): JSX.Element {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [interests, setInterests] = useState<readonly string[]>([]);
   const [interestDraft, setInterestDraft] = useState('');
-  const [subject, setSubject] = useState('');
-  const [defaultEntry, setDefaultEntry] = useState<AccountDefaultEntry>('space');
+  const [interestError, setInterestError] = useState('');
+
+  const restoreFields = useCallback((name: string, saved: NonNullable<typeof profile>): void => {
+    setDisplayName(name);
+    setBio(saved.bio);
+    setOccupation(saved.occupation);
+    setSchool(saved.school);
+    setPhone(saved.phone);
+    setPhoneError(null);
+    setInterests(saved.interests);
+    setInterestDraft('');
+    setInterestError('');
+  }, []);
 
   const hydratedUserIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (user === null || profile === null) return;
     if (hydratedUserIdRef.current === user.user_id) return;
     hydratedUserIdRef.current = user.user_id;
-    setDisplayName(user.display_name);
-    setBio(profile.bio);
-    setOccupation(profile.occupation);
-    setSchool(profile.school);
-    setPhone(profile.phone);
-    setPhoneError(null);
-    setInterests(profile.interests);
-    setSubject(profile.preferred_subject);
-    setDefaultEntry(profile.default_entry);
-  }, [profile, user]);
+    restoreFields(user.display_name, profile);
+  }, [profile, restoreFields, user]);
 
   const [pageNotice, setPageNotice] = useState<PageNotice | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarStatus, setAvatarStatus] = useState('');
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
+  const previewRef = useRef<HTMLElement>(null);
 
   if (status === 'restoring') {
     return (
@@ -140,7 +131,7 @@ export default function SettingsProfilePage(): JSX.Element {
             <p className={styles.eyebrow}>个人设置</p>
             <h1 className={styles.title}>登录后管理你的账号</h1>
             <p className={styles.lead}>
-              登录后可以设置头像、昵称、简介与使用偏好。
+              登录后可以设置头像、昵称和简介。
               {status === 'unavailable' ? '账号服务暂时不可用，请稍后重试。' : ''}
             </p>
             <div className={styles.headActions}>
@@ -171,12 +162,24 @@ export default function SettingsProfilePage(): JSX.Element {
     );
   }
 
-  const label = displayName.trim() === '' ? user.email : displayName.trim();
+  const name = displayName.trim();
+  const label = name || user.username;
+  const normalizedPhone = normalizePhone(phone);
+  const isDirty = hydratedUserIdRef.current === user.user_id && (
+    name !== user.display_name || bio.trim() !== profile.bio ||
+    occupation.trim() !== profile.occupation || school.trim() !== profile.school ||
+    normalizedPhone !== profile.phone || interests.length !== profile.interests.length ||
+    interests.some((interest, index) => interest !== profile.interests[index])
+  );
+  const completion = [
+    user.avatar_url, name, bio.trim(), occupation.trim() || school.trim(), interests.length,
+  ].filter(Boolean).length;
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>): void => {
     const file = event.target.files?.[0] ?? null;
     event.target.value = '';
     setAvatarError(null);
+    setAvatarStatus('');
     if (file === null) return;
     if (!(AVATAR_TYPES as readonly string[]).includes(file.type)) {
       setAvatarError('头像仅支持 JPG、PNG 或 WebP');
@@ -196,7 +199,7 @@ export default function SettingsProfilePage(): JSX.Element {
       {
         onSuccess: () => {
           setCropFile(null);
-          setPageNotice({ kind: 'success', text: '头像已更新，顶栏与个人主页会同步显示。' });
+          setAvatarStatus('头像已更新。');
         },
         onError: (error) => {
           setAvatarError(readApiError(error).message);
@@ -207,10 +210,11 @@ export default function SettingsProfilePage(): JSX.Element {
 
   const handleResetAvatar = (): void => {
     setAvatarError(null);
+    setAvatarStatus('');
     deleteAvatar.mutate(undefined, {
       onSuccess: () => {
         setConfirmReset(false);
-        setPageNotice({ kind: 'success', text: '已恢复默认头像。' });
+        setAvatarStatus('已恢复默认头像。');
       },
       onError: (error) => {
         setConfirmReset(false);
@@ -219,39 +223,41 @@ export default function SettingsProfilePage(): JSX.Element {
     });
   };
 
-  const addInterest = (): void => {
-    const text = interestDraft.trim();
+  const addInterest = (value: string): void => {
+    const text = value.trim();
     if (text === '') return;
     if (Array.from(text).length > INTEREST_MAX) {
-      setPageNotice({ kind: 'error', text: `单个兴趣标签最多 ${INTEREST_MAX} 个字符` });
+      setInterestError(`单个兴趣标签最多 ${INTEREST_MAX} 个字符`);
       return;
     }
     if (interests.includes(text)) {
-      setInterestDraft('');
+      if (value === interestDraft) setInterestDraft('');
       return;
     }
     if (interests.length >= INTEREST_COUNT_MAX) {
-      setPageNotice({ kind: 'error', text: `兴趣标签最多 ${INTEREST_COUNT_MAX} 个` });
+      setInterestError(`兴趣标签最多 ${INTEREST_COUNT_MAX} 个`);
       return;
     }
     setInterests([...interests, text]);
-    setInterestDraft('');
+    if (value === interestDraft) setInterestDraft('');
+    setInterestError('');
   };
 
   const removeInterest = (value: string): void => {
     setInterests(interests.filter((item) => item !== value));
+    setInterestError('');
   };
 
   const handleSave = (): void => {
-    const name = displayName.trim();
+    if (!isDirty || updateMe.isPending) return;
     if (name === '') {
       setPageNotice({ kind: 'error', text: '昵称不能为空' });
       return;
     }
-    const normalizedPhone = normalizePhone(phone);
     if (normalizedPhone === null) {
       setPhoneError(PHONE_ERROR);
       setPageNotice(null);
+      phoneInputRef.current?.focus();
       return;
     }
     setPhoneError(null);
@@ -264,8 +270,6 @@ export default function SettingsProfilePage(): JSX.Element {
         school: school.trim(),
         phone: normalizedPhone,
         interests: [...interests],
-        preferred_subject: subject,
-        default_entry: defaultEntry,
       },
       {
         onSuccess: () => {
@@ -285,50 +289,52 @@ export default function SettingsProfilePage(): JSX.Element {
       <main id="main" className={styles.main}>
         <header className={styles.head}>
           <div>
-            <p className={styles.eyebrow}>个人设置</p>
+            <p className={styles.eyebrow}>ACCOUNT · PROFILE</p>
             <h1 className={styles.title}>个人设置</h1>
             <p className={styles.lead}>
-              管理头像、昵称与简介，设置常用学科和登录后的默认入口。
+              编辑个人主页资料。
             </p>
           </div>
-          <Link className={styles.ghost} to="/space">
-            返回个人主页
-          </Link>
+          <div className={styles.headActions}>
+            <button type="button" className={`${styles.ghost} ${styles.previewLink}`} onClick={() => {
+              previewRef.current?.focus({ preventScroll: true });
+              previewRef.current?.scrollIntoView();
+            }}>名片预览</button>
+            <Link className={styles.ghost} to="/space">
+              查看个人主页 <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
         </header>
 
-        {pageNotice === null ? null : (
-          <p
-            className={pageNotice.kind === 'success' ? styles.success : styles.errorNotice}
-            role="status"
-          >
-            {pageNotice.text}
-          </p>
-        )}
-
-        <div className={styles.layout}>
+        <div className={`${styles.layout} ${isDirty || updateMe.isPending ? styles.withSaveBar : ''}`}>
           <div className={styles.column}>
             <section className={styles.card} aria-labelledby="settings-basic-title">
               <div className={styles.cardHead}>
                 <h2 className={styles.cardTitle} id="settings-basic-title">
                   基本资料
                 </h2>
-                <p className={styles.cardHint}>昵称用于展示，用户名用于登录，两者分开。</p>
               </div>
 
               <div className={styles.avatarRow}>
-                <AccountAvatar size="xl" label={label} avatarUrl={user.avatar_url ?? null} />
+                <button type="button" className={styles.avatarButton} aria-label="更换头像"
+                  disabled={uploadAvatar.isPending || deleteAvatar.isPending}
+                  onClick={() => fileInputRef.current?.click()}>
+                  <AccountAvatar size="xl" label={label} avatarUrl={user.avatar_url ?? null} />
+                  <span className={styles.avatarOverlay} aria-hidden="true">更换头像</span>
+                </button>
                 <div className={styles.avatarInfo}>
+                  <p className={styles.previewName}>{label}</p>
                   <p className={styles.avatarHint}>
-                    JPG / PNG / WebP，不超过 2MB。保存前可以拖动裁剪为正方形，界面显示为圆形。
+                    JPG、PNG 或 WebP，最大 2 MB
                   </p>
                   <div className={styles.avatarActions}>
                     <button
                       type="button"
-                      className={styles.primary}
+                      className={styles.ghost}
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploadAvatar.isPending}
                     >
-                      {uploadAvatar.isPending ? '正在上传…' : '更换头像'}
+                      {uploadAvatar.isPending ? '正在上传…' : '上传图片'}
                     </button>
                     {user.avatar_url ? (
                       confirmReset ? (
@@ -375,6 +381,7 @@ export default function SettingsProfilePage(): JSX.Element {
                       {avatarError}
                     </p>
                   )}
+                  {avatarStatus && <p className={styles.avatarHint} role="status">{avatarStatus}</p>}
                 </div>
               </div>
 
@@ -392,6 +399,7 @@ export default function SettingsProfilePage(): JSX.Element {
                 <label className={styles.field}>
                   <span className={styles.fieldLabel}>手机号（选填）</span>
                   <input
+                    ref={phoneInputRef}
                     className={styles.input}
                     value={phone}
                     maxLength={20}
@@ -410,7 +418,7 @@ export default function SettingsProfilePage(): JSX.Element {
                   />
                   {phoneError === null ? (
                     <p className={styles.fieldHint} id="settings-phone-hint">
-                      中国大陆 11 位手机号；仅用于账号联系，不展示在个人主页。
+                      仅用于账号联系。
                     </p>
                   ) : (
                     <p className={styles.fieldError} id="settings-phone-hint" role="alert">
@@ -432,6 +440,13 @@ export default function SettingsProfilePage(): JSX.Element {
                     {bio.length} / {BIO_MAX}
                   </span>
                 </label>
+              </div>
+            </section>
+            <section className={styles.card} aria-labelledby="settings-interests-title">
+              <div className={styles.cardHead}>
+                <h2 className={styles.cardTitle} id="settings-interests-title">身份与学科兴趣</h2>
+              </div>
+              <div className={styles.fieldGrid}>
                 <label className={styles.field}>
                   <span className={styles.fieldLabel}>职业（选填）</span>
                   <input
@@ -472,111 +487,98 @@ export default function SettingsProfilePage(): JSX.Element {
                       className={styles.tagInput}
                       value={interestDraft}
                       maxLength={INTEREST_MAX}
-                      onChange={(event) => setInterestDraft(event.target.value)}
+                      onChange={(event) => {
+                        setInterestDraft(event.target.value);
+                        setInterestError('');
+                      }}
                       onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
+                        if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
                           event.preventDefault();
-                          addInterest();
+                          addInterest(interestDraft);
                         }
                       }}
                       placeholder="输入后回车添加"
                       aria-label="新增兴趣标签"
                     />
-                    <button type="button" className={styles.tagAdd} onClick={addInterest}>
+                    <button type="button" className={styles.tagAdd} onClick={() => addInterest(interestDraft)}>
                       添加
                     </button>
                   </div>
-                  <p className={styles.fieldHint}>兴趣标签只用于展示，不参与权限判断。</p>
+                  {interestError && <p className={styles.fieldError} role="alert">{interestError}</p>}
+                  <div className={styles.suggestions} role="group" aria-label="推荐兴趣标签">
+                    {SUGGESTED_INTERESTS.map((interest) => (
+                      <button type="button" key={interest} disabled={interests.includes(interest)}
+                        onClick={() => addInterest(interest)}>
+                        <span aria-hidden="true">{interests.includes(interest) ? '✓' : '+'}</span> {interest}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </section>
-
-            <section className={styles.card} aria-labelledby="settings-pref-title">
-              <div className={styles.cardHead}>
-                <h2 className={styles.cardTitle} id="settings-pref-title">
-                  使用偏好
-                </h2>
-                <p className={styles.cardHint}>偏好只影响展示与登录后的落地页，不作为权限依据。</p>
-              </div>
-
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>常用学科</span>
-                <select
-                  className={styles.select}
-                  value={subject}
-                  onChange={(event) => setSubject(event.target.value)}
-                >
-                  {SUBJECT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <fieldset className={styles.radioGroup}>
-                <legend className={styles.fieldLabel}>登录后默认进入</legend>
-                {DEFAULT_ENTRY_OPTIONS.map((option) => (
-                  <label className={styles.radioOption} key={option.value}>
-                    <input
-                      type="radio"
-                      name="default-entry"
-                      value={option.value}
-                      checked={defaultEntry === option.value}
-                      onChange={() => setDefaultEntry(option.value)}
-                    />
-                    <span>
-                      <span className={styles.radioLabel}>{option.label}</span>
-                      <span className={styles.radioHint}>{option.hint}</span>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
-            </section>
-
-            <div className={styles.saveRow}>
-              <button
-                type="button"
-                className={styles.primary}
-                onClick={handleSave}
-                disabled={updateMe.isPending}
-              >
-                {updateMe.isPending ? '正在保存…' : '保存修改'}
-              </button>
-              <span className={styles.saveHint}>
-                保存后，顶栏昵称与头像会立即更新；默认入口在下次登录时生效。
-              </span>
-            </div>
+            {!isDirty && pageNotice?.kind === 'success' &&
+              <p className={styles.success} role="status">{pageNotice.text}</p>}
           </div>
 
           <aside className={styles.sideColumn}>
-            <section className={styles.card} aria-labelledby="settings-account-title">
-              <div className={styles.cardHead}>
-                <h2 className={styles.cardTitle} id="settings-account-title">
-                  账号信息
-                </h2>
+            <section className={styles.preview} id="settings-preview" ref={previewRef} tabIndex={-1}
+              aria-labelledby="settings-preview-title">
+              <div className={styles.previewCover}>
+                <h2 id="settings-preview-title">名片预览</h2>
               </div>
-              <dl className={styles.accountList}>
-                <div className={styles.accountRow}>
-                  <dt>用户名</dt>
-                  <dd>@{user.username}</dd>
+              <div className={styles.previewBody}>
+                <div className={styles.previewAvatar}>
+                  <AccountAvatar size="xl" label={label} avatarUrl={user.avatar_url ?? null} />
                 </div>
-                <div className={styles.accountRow}>
-                  <dt>邮箱</dt>
-                  <dd>{user.email}</dd>
+                <p className={styles.previewName}>{label}</p>
+                <p className={styles.username}>@{user.username}</p>
+                {(occupation.trim() || school.trim()) && <div className={styles.identity}>
+                  {occupation.trim() && <span>{occupation.trim()}</span>}
+                  {school.trim() && <span>{school.trim()}</span>}
+                </div>}
+                {bio.trim() && <p className={styles.previewBio}>{bio.trim()}</p>}
+                {interests.length > 0 && <ul className={styles.previewTags} aria-label="兴趣标签">
+                  {interests.map((interest) => <li className={styles.tag} key={interest}>{interest}</li>)}
+                </ul>}
+                <div className={styles.completion}>
+                  <div>
+                    <label htmlFor="profile-completion">{completion === 5 ? '资料已填完整' : '资料完整度'}</label>
+                    <span>{completion * 20}%</span>
+                  </div>
+                  <progress id="profile-completion" value={completion} max={5} />
                 </div>
-                <div className={styles.accountRow}>
-                  <dt>注册时间</dt>
-                  <dd>{formatDate(user.created_at)}</dd>
-                </div>
-              </dl>
-              <p className={styles.accountNote}>
-                修改密码与换绑邮箱需要额外的验证流程，后续版本开放。
-              </p>
+                <dl className={styles.accountList}>
+                  <div className={styles.accountRow}>
+                    <dt>邮箱</dt>
+                    <dd>{user.email}</dd>
+                  </div>
+                  <div className={styles.accountRow}>
+                    <dt>注册时间</dt>
+                    <dd>{formatDate(user.created_at)}</dd>
+                  </div>
+                </dl>
+              </div>
             </section>
           </aside>
         </div>
       </main>
+
+      {(isDirty || updateMe.isPending) && <div className={styles.saveBar}>
+        <div className={styles.saveRow}>
+          <div className={styles.saveMessage}>
+            <p role="status">{updateMe.isPending ? '正在保存资料…' : '有未保存的修改'}</p>
+            {pageNotice?.kind === 'error' && <p className={styles.errorNotice} role="alert">{pageNotice.text}</p>}
+          </div>
+          <div className={styles.saveActions}>
+            <button type="button" className={styles.ghost} disabled={updateMe.isPending} onClick={() => {
+              restoreFields(user.display_name, profile);
+              setPageNotice(null);
+            }}>重置</button>
+            <button type="button" className={styles.primary} disabled={updateMe.isPending}
+              onClick={handleSave}>保存修改</button>
+          </div>
+        </div>
+      </div>}
 
       {cropFile === null ? null : (
         <AvatarCropper

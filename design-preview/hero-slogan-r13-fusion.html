@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万象 WANXIANG · 一式定象，万象皆通（建筑高对比 · 波动场 × 相轨演化）</title>
+  <style>
+    :root {
+      --paper: #f5f2eb;
+      --ink: #141821;
+      --ink-soft: #4e5666;
+      --ink-mute: #8890a0;
+      --indigo: #1b2a6b;
+      --indigo-bright: #344ec4;
+      --teal: #0f8b8d;
+      --vermilion: #d64531;
+      --line: rgba(20, 24, 33, 0.1);
+      --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, serif;
+      --sans: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+      --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* 外层铺满暖米白纸面 + 柔和环境光 */
+    .hero-shell {
+      position: relative;
+      min-height: 100vh;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 64% 48%, rgba(27, 42, 107, 0.062), transparent 48%),
+        radial-gradient(circle at 24% 26%, rgba(214, 69, 49, 0.032), transparent 38%),
+        var(--paper);
+    }
+
+    /* 贯穿左右的极淡建筑图纸网格 */
+    .bg-grid {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(to right, rgba(20, 24, 33, 0.028) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(20, 24, 33, 0.028) 1px, transparent 1px);
+      background-size: 46px 46px;
+      mask-image: radial-gradient(ellipse 76% 74% at 58% 50%, #000 32%, transparent 88%);
+      -webkit-mask-image: radial-gradient(ellipse 76% 74% at 58% 50%, #000 32%, transparent 88%);
+    }
+
+    /* 紧致居中主舞台：让左右两侧视觉紧密咬合，不再疏离 */
+    .hero-container {
+      position: relative;
+      width: min(1240px, 100%);
+      min-height: min(760px, 100vh);
+      margin: 0 auto;
+      padding: 0 clamp(24px, 3.6vw, 48px);
+      display: grid;
+      grid-template-columns: minmax(380px, 43%) minmax(0, 57%);
+      align-items: center;
+      gap: 0;
+    }
+
+    /* 铺在主容器内的宏观融合 Canvas（跨越中缝，使左右真正浑然一体） */
+    .fusion-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    /* ==================== 左侧：建筑高对比 Slogan ==================== */
+    .hero-left {
+      position: relative;
+      z-index: 10;
+      padding: 40px 8px 40px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+
+    .seal {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      background: var(--vermilion);
+      color: #fffaf5;
+      font-family: var(--serif);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      box-shadow: 0 3px 10px rgba(214, 69, 49, 0.28);
+      position: relative;
+    }
+    .seal::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      border: 1px solid rgba(255, 250, 245, 0.45);
+      border-radius: 2px;
+    }
+
+    .brand-names {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      letter-spacing: 0.16em;
+      color: var(--ink-soft);
+    }
+    .brand-names strong { color: var(--ink); font-weight: 600; }
+    .brand-names .x { color: var(--vermilion); font-family: var(--mono); font-weight: 600; }
+
+    /* 定版：建筑高对比字体设计 */
+    .slogan-block {
+      position: relative;
+      margin-bottom: 28px;
+    }
+
+    .slogan {
+      margin: 0;
+      color: var(--ink);
+      user-select: none;
+    }
+
+    .slogan-line {
+      display: flex;
+      align-items: baseline;
+      white-space: nowrap;
+    }
+
+    /* 上行：纤细建筑无衬线，疏朗理性 */
+    .slogan .line-1 {
+      font-family: var(--sans);
+      font-size: clamp(38px, 4.1vw, 58px);
+      font-weight: 300;
+      letter-spacing: 0.15em;
+      color: var(--ink-soft);
+      line-height: 1.24;
+      margin-bottom: 4px;
+    }
+
+    /* 下行：重磅高对比衬线，雕塑级视觉重心 */
+    .slogan .line-2 {
+      font-family: var(--serif);
+      font-size: clamp(50px, 5.4vw, 78px);
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      color: var(--ink);
+      line-height: 1.1;
+    }
+
+    /* 「一式」极细二阶方程锚标（与右侧波动场 × 相轨演化严丝合缝） */
+    .glyph-formula {
+      position: relative;
+      display: inline-block;
+    }
+    .glyph-formula::before {
+      content: "y″ + 2ζy′ + ω²y = 0";
+      position: absolute;
+      top: -16px;
+      left: 2px;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      color: var(--indigo-bright);
+      opacity: 0.72;
+      white-space: nowrap;
+    }
+
+    /* 「定象」深靛衬线 + 双角几何锚框 */
+    .glyph-dingxiang {
+      position: relative;
+      display: inline-block;
+      font-family: var(--serif);
+      font-weight: 700;
+      color: var(--indigo);
+      padding: 0 4px;
+    }
+    .glyph-dingxiang .corner {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-color: rgba(27, 42, 107, 0.44);
+      border-style: solid;
+    }
+    .glyph-dingxiang .c-tl { top: 4px; left: -2px; border-width: 1.5px 0 0 1.5px; }
+    .glyph-dingxiang .c-br { bottom: 6px; right: -1px; border-width: 0 1.5px 1.5px 0; }
+
+    /* 「皆通」渐变墨韵 + 实时同步波动线 */
+    .glyph-jietong {
+      position: relative;
+      display: inline-block;
+      background: linear-gradient(115deg, var(--indigo) 12%, var(--teal) 92%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .wave-underline {
+      position: absolute;
+      left: 0;
+      right: 4px;
+      bottom: -8px;
+      height: 12px;
+      width: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .punct {
+      color: var(--vermilion);
+      font-weight: 400;
+      opacity: 0.85;
+      margin-left: 2px;
+    }
+
+    .slogan-en {
+      margin-top: 16px;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .slogan-en i {
+      display: inline-block;
+      width: 26px;
+      height: 1px;
+      background: rgba(20, 24, 33, 0.24);
+    }
+
+    .hero-desc {
+      max-width: 400px;
+      font-size: 15px;
+      line-height: 1.82;
+      color: var(--ink-soft);
+      margin-bottom: 32px;
+    }
+    .hero-desc strong { color: var(--ink); font-weight: 600; }
+
+    .hero-cta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 45px;
+      padding: 0 22px;
+      border-radius: 10px;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: #fff;
+      font: 500 14px/1 var(--sans);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      background: var(--indigo);
+      border-color: var(--indigo);
+      box-shadow: 0 10px 24px rgba(27, 42, 107, 0.22);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 45px;
+      padding: 0 20px;
+      border-radius: 10px;
+      border: 1px solid rgba(20, 24, 33, 0.16);
+      background: rgba(255, 253, 248, 0.76);
+      color: var(--ink);
+      font: 500 14px/1 var(--sans);
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      transition: all 0.2s ease;
+    }
+    .btn-secondary:hover {
+      border-color: var(--ink);
+      background: #fff;
+      transform: translateY(-1px);
+    }
+
+    .hero-pillars {
+      display: flex;
+      gap: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+    .pillar { display: flex; flex-direction: column; gap: 3px; }
+    .pillar-idx { font-family: var(--mono); font-size: 9.5px; color: var(--ink-mute); letter-spacing: 0.1em; }
+    .pillar strong { font-size: 13px; font-weight: 600; color: var(--ink); }
+
+    /* ==================== 右侧：自动演化状态极细遥测（无任何滑杆/切换按钮） ==================== */
+    .hero-right {
+      position: relative;
+      z-index: 8;
+      height: min(740px, 96vh);
+      min-height: 580px;
+      pointer-events: none;
+    }
+
+    .auto-telemetry {
+      position: absolute;
+      top: 42px;
+      right: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-mute);
+    }
+
+    .auto-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--teal);
+      font-weight: 600;
+      letter-spacing: 0.12em;
+    }
+    .auto-badge::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 0 4px rgba(15, 139, 141, 0.16);
+    }
+
+    .auto-state-name {
+      font-family: var(--sans);
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: 0.04em;
+    }
+
+    .auto-params {
+      font-size: 11.5px;
+      color: var(--ink-soft);
+    }
+    .auto-params b { color: var(--indigo); font-weight: 600; }
+
+    /* 极细自动演化时间丝（静默展示当前周期进度，无需操作） */
+    .cycle-bar {
+      width: 128px;
+      height: 2px;
+      background: rgba(20, 24, 33, 0.08);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 2px;
+    }
+    .cycle-bar i {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--indigo), var(--teal), var(--vermilion));
+      border-radius: 99px;
+    }
+
+    @media (max-width: 1020px) {
+      .hero-container {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding-top: 28px;
+      }
+      .hero-left { padding: 24px 0 12px; }
+      .hero-right { height: 480px; min-height: 440px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="hero-shell">
+    <div class="bg-grid" aria-hidden="true"></div>
+
+    <div class="hero-container" id="heroContainer">
+      <!-- 跨越左右中缝的融合 Canvas：R1 3D 波动场 × R3 相轨演化 -->
+      <canvas class="fusion-canvas" id="fusionCanvas"></canvas>
+
+      <!-- 左侧：建筑高对比 Slogan -->
+      <section class="hero-left">
+        <div class="brand-mark">
+          <span class="seal" aria-hidden="true">象</span>
+          <span class="brand-names">
+            <strong>定象坊</strong>
+            <span class="x">×</span>
+            <strong>通文册</strong>
+          </span>
+        </div>
+
+        <div class="slogan-block">
+          <h1 class="slogan">
+            <span class="slogan-line line-1">
+              <span class="glyph-formula">一式</span><span class="glyph-dingxiang">定象<i class="corner c-tl"></i><i class="corner c-br"></i></span><span class="punct">，</span>
+            </span>
+            <span class="slogan-line line-2">
+              万象<span class="glyph-jietong">皆通<svg class="wave-underline" viewBox="0 0 180 14" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1b2a6b"/><stop offset="65%" stop-color="#0f8b8d"/><stop offset="100%" stop-color="#d64531" stop-opacity="0.85"/></linearGradient></defs><path id="sloganWavePath" d="" fill="none" stroke="url(#waveGrad)" stroke-width="2.4" stroke-linecap="round"/></svg></span><span class="punct">。</span>
+            </span>
+          </h1>
+          <div class="slogan-en">
+            <i></i>
+            <span>ONE FORMULA · EVERY PHENOMENON</span>
+          </div>
+        </div>
+
+        <p class="hero-desc">
+          <strong>定象坊</strong>将公式、算法与沙盘化作可调参的真实计算模型；<strong>通文册</strong>让静态课件即刻通电演播——一次定象，随处贯通。
+        </p>
+
+        <div class="hero-cta">
+          <button class="btn-primary" type="button">进入定象坊 ↗</button>
+          <button class="btn-secondary" type="button">打开通文册 ↗</button>
+        </div>
+
+        <div class="hero-pillars">
+          <div class="pillar">
+            <span class="pillar-idx">01 / KERNEL</span>
+            <strong>真计算内核</strong>
+          </div>
+          <div class="pillar">
+            <span class="pillar-idx">02 / BRIDGE</span>
+            <strong>坊册实时贯通</strong>
+          </div>
+          <div class="pillar">
+            <span class="pillar-idx">03 / OFFLINE</span>
+            <strong>单文件离线可演</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- 右侧：纯自动演化的无控件舞台 + 极简遥测 -->
+      <section class="hero-right">
+        <div class="auto-telemetry">
+          <span class="auto-badge">LIVE DYNAMICAL FIELD</span>
+          <span class="auto-state-name" id="stateName">轻阻尼谐振</span>
+          <span class="auto-params" id="stateParams">ζ = <b>0.16</b> · ω = <b>2.60</b> rad/s</span>
+          <div class="cycle-bar"><i id="cycleFill"></i></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    /* ================= 自动周期性参数演化剧本（无需任何底部滑动按钮） ================= */
+    const REGIMES = [
+      { name: '轻阻尼谐振 · 涟漪螺旋', zeta: 0.14, omega: 2.55, amp: 1.00 },
+      { name: '高频干涉态 · 紧致收束', zeta: 0.24, omega: 3.75, amp: 0.92 },
+      { name: '临界阻尼态 · 无超调归稳', zeta: 0.66, omega: 2.05, amp: 0.72 },
+      { name: '舒展长波态 · 慢速呼吸', zeta: 0.28, omega: 1.50, amp: 1.06 },
+    ];
+    const HOLD_SEC = 3.2;     // 每个稳态停留时长
+    const MORPH_SEC = 1.6;    // 平滑插值演化时长
+    const PERIOD_SEC = HOLD_SEC + MORPH_SEC;
+
+    function easeInOutCubic(x) {
+      return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+    }
+
+    function sampleAutoParams(t) {
+      const totalIdx = Math.floor(t / PERIOD_SEC);
+      const idx = totalIdx % REGIMES.length;
+      const nextIdx = (idx + 1) % REGIMES.length;
+      const local = t - totalIdx * PERIOD_SEC;
+      const a = REGIMES[idx];
+      const b = REGIMES[nextIdx];
+
+      let blend = 0;
+      if (local > HOLD_SEC) {
+        blend = easeInOutCubic((local - HOLD_SEC) / MORPH_SEC);
+      }
+
+      return {
+        zeta: a.zeta + (b.zeta - a.zeta) * blend,
+        omega: a.omega + (b.omega - a.omega) * blend,
+        amp: a.amp + (b.amp - a.amp) * blend,
+        label: blend > 0.55 ? b.name : a.name,
+        progress: local / PERIOD_SEC,
+      };
+    }
+
+    /* ================= 极轻鼠标空间视差（自然交互感） ================= */
+    const mouse = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
+    const container = document.getElementById('heroContainer');
+    window.addEventListener('pointermove', (e) => {
+      const rect = container.getBoundingClientRect();
+      mouse.tx = Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(1, rect.width)));
+      mouse.ty = Math.max(0, Math.min(1, (e.clientY - rect.top) / Math.max(1, rect.height)));
+    });
+
+    /* ================= 高清 Canvas ================= */
+    const canvas = document.getElementById('fusionCanvas');
+    const ctx = canvas.getContext('2d');
+    let W = 1200, H = 720;
+
+    function resize() {
+      const rect = container.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      W = Math.max(360, Math.floor(rect.width));
+      H = Math.max(520, Math.floor(rect.height));
+      canvas.width = Math.floor(W * dpr);
+      canvas.height = Math.floor(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    /* ================= 左侧「皆通」呼吸曲线（与右侧 ζ、ω 实时同频） ================= */
+    const wavePathEl = document.getElementById('sloganWavePath');
+    function updateSloganWave(t, zeta, omega) {
+      let d = '';
+      const freq = 0.8 + omega * 0.55;
+      const amp = 3.4 - zeta * 1.4;
+      for (let i = 0; i <= 36; i++) {
+        const u = i / 36;
+        const x = u * 180;
+        const env = Math.sin(u * Math.PI);
+        const y = 7 + Math.sin(u * Math.PI * 2 * freq - t * 2.2) * amp * env;
+        d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(2) + ' ';
+      }
+      wavePathEl.setAttribute('d', d);
+    }
+
+    function roundRect(c, x, y, w, h, r) {
+      c.beginPath();
+      c.moveTo(x + r, y);
+      c.arcTo(x + w, y, x + w, y + h, r);
+      c.arcTo(x + w, y + h, x, y + h, r);
+      c.arcTo(x, y + h, x, y, r);
+      c.arcTo(x, y, x + w, y, r);
+      c.closePath();
+    }
+
+    function drawGlassSlice(x, y, w, h, tag, dotColor, drawContent) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(20, 24, 33, 0.095)';
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 12;
+      ctx.fillStyle = 'rgba(255, 253, 248, 0.85)';
+      ctx.strokeStyle = 'rgba(20, 24, 33, 0.1)';
+      ctx.lineWidth = 1;
+      roundRect(ctx, x, y, w, h, 11);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.stroke();
+
+      ctx.fillStyle = dotColor;
+      ctx.beginPath();
+      ctx.arc(x + 14, y + 16, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#5e6678';
+      ctx.font = '600 10.5px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText(tag, x + 22, y + 19.5);
+
+      drawContent();
+      ctx.restore();
+    }
+
+    /* ================= 主循环：R1 3D 波动场 × R3 相轨演化融合渲染 ================= */
+    const stateNameEl = document.getElementById('stateName');
+    const stateParamsEl = document.getElementById('stateParams');
+    const cycleFillEl = document.getElementById('cycleFill');
+    const start = performance.now();
+
+    function render(now) {
+      const t = (now - start) / 1000;
+      mouse.x += (mouse.tx - mouse.x) * 0.055;
+      mouse.y += (mouse.ty - mouse.y) * 0.055;
+
+      const { zeta, omega, amp, label, progress } = sampleAutoParams(t);
+      updateSloganWave(t, zeta, omega);
+
+      stateNameEl.textContent = label;
+      stateParamsEl.innerHTML = `ζ = <b>${zeta.toFixed(2)}</b> · ω = <b>${omega.toFixed(2)}</b> rad/s`;
+      cycleFillEl.style.width = `${(progress * 100).toFixed(1)}%`;
+
+      ctx.clearRect(0, 0, W, H);
+
+      const isNarrow = W <= 1020;
+      const px = (mouse.x - 0.5) * 18;
+      const py = (mouse.y - 0.5) * 12;
+
+      // 关键构图：右侧舞台圆心更靠近中轴（0.69 而不是 0.78），让左右视觉紧密结合！
+      const cx = isNarrow ? W * 0.5 : W * 0.695 + px * 0.35;
+      const cy = isNarrow ? H * 0.72 : H * 0.52 + py * 0.3;
+
+      // 1. 柔和中心辐射氛围光
+      const span = isNarrow ? Math.min(W * 0.38, 220) : Math.min(W * 0.255, H * 0.39);
+      const glow = ctx.createRadialGradient(cx, cy, 8, cx, cy, span * 1.65);
+      glow.addColorStop(0, 'rgba(27, 42, 107, 0.07)');
+      glow.addColorStop(0.55, 'rgba(15, 139, 141, 0.032)');
+      glow.addColorStop(1, 'rgba(245, 242, 235, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, W, H);
+
+      // 2. R1 核心：3D 实时阻尼波动曲面场（作为空间基底悬浮铺开）
+      ctx.save();
+      const N = 22;
+      const isoX = (u, v) => cx + (u - v) * span * 0.96;
+      const isoY = (u, v, z) => cy + (u + v) * span * 0.44 - z * span * 0.34;
+      const evalWave = (u, v) => {
+        const r = Math.hypot(u, v);
+        return Math.sin(r * omega * 3.0 - t * 2.1) * Math.exp(-r * (0.65 + zeta * 1.65)) * amp * 0.92;
+      };
+
+      // 经线（带波峰朱砂红过渡）
+      for (let i = 0; i <= N; i++) {
+        const u = (i / N) * 2 - 1;
+        ctx.beginPath();
+        let peak = -9;
+        for (let j = 0; j <= N; j++) {
+          const v = (j / N) * 2 - 1;
+          const z = evalWave(u, v);
+          if (z > peak) peak = z;
+          const sx = isoX(u, v);
+          const sy = isoY(u, v, z);
+          if (j === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+        }
+        const mix = Math.max(0, Math.min(1, (peak + 0.35) / 1.05));
+        ctx.strokeStyle = mix > 0.72
+          ? `rgba(214, 69, 49, ${(0.18 + mix * 0.28).toFixed(2)})`
+          : `rgba(27, 42, 107, ${(0.09 + mix * 0.22).toFixed(2)})`;
+        ctx.lineWidth = i % 4 === 0 ? 1.25 : 0.75;
+        ctx.stroke();
+      }
+
+      // 纬线（青碧柔光）
+      for (let j = 0; j <= N; j += 2) {
+        const v = (j / N) * 2 - 1;
+        ctx.beginPath();
+        for (let i = 0; i <= N; i++) {
+          const u = (i / N) * 2 - 1;
+          const z = evalWave(u, v);
+          const sx = isoX(u, v);
+          const sy = isoY(u, v, z);
+          if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+        }
+        ctx.strokeStyle = 'rgba(15, 139, 141, 0.17)';
+        ctx.lineWidth = 0.75;
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 3. R3 核心：同心悬浮的二阶阻尼系统相轨演化族（与波动场共享同一 ζ、ω 参数与吸引子中心！）
+      ctx.save();
+      const phaseCx = cx + px * 0.25;
+      const phaseCy = cy - span * 0.08 + py * 0.2;
+      const phaseScale = span * 0.94;
+      const tracks = 14;
+      const omegaNorm = 0.72 + (omega / 3.8) * 0.65;
+
+      // 极淡相平面正交基准轴
+      ctx.strokeStyle = 'rgba(20, 24, 33, 0.11)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath();
+      ctx.moveTo(phaseCx - phaseScale * 1.08, phaseCy);
+      ctx.lineTo(phaseCx + phaseScale * 1.08, phaseCy);
+      ctx.moveTo(phaseCx, phaseCy - phaseScale * 0.72);
+      ctx.lineTo(phaseCx, phaseCy + phaseScale * 0.72);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      for (let s = 0; s < tracks; s++) {
+        const ang = (s / tracks) * Math.PI * 2 + t * 0.14;
+        let x = Math.cos(ang);
+        let v = Math.sin(ang);
+        const dt = 0.048;
+        const steps = 110;
+        const highlight = s % 4 === 0;
+
+        // 实时沿轨道运动的发光粒子位置
+        const particleStep = Math.floor(((t * 22 + s * 11) % steps));
+        let pX = phaseCx, pY = phaseCy;
+
+        ctx.beginPath();
+        for (let k = 0; k < steps; k++) {
+          // 带轻微等距透视压扁，使相轨自然悬浮贴合于 3D 波动场上方
+          const sx = phaseCx + x * phaseScale * 1.04;
+          const sy = phaseCy - v * phaseScale * 0.68;
+          if (k === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+          if (k === particleStep) { pX = sx; pY = sy; }
+          const acc = -2 * zeta * omegaNorm * v - (omegaNorm * omegaNorm) * x;
+          v += acc * dt;
+          x += v * dt;
+        }
+        ctx.strokeStyle = highlight
+          ? 'rgba(214, 69, 49, 0.56)'
+          : s % 2 === 0
+            ? 'rgba(27, 42, 107, 0.34)'
+            : 'rgba(15, 139, 141, 0.38)';
+        ctx.lineWidth = highlight ? 1.85 : 1.05;
+        ctx.stroke();
+
+        // 仅在重点轨线上点亮沿轨线滑向吸引子的相态粒子
+        if (highlight) {
+          ctx.fillStyle = '#d64531';
+          ctx.beginPath(); ctx.arc(pX, pY, 3.2, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(214, 69, 49, 0.18)';
+          ctx.beginPath(); ctx.arc(pX, pY, 7.5, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      // 中心平衡吸引子（波动源与相轨汇合点）
+      ctx.fillStyle = 'rgba(27, 42, 107, 0.14)';
+      ctx.beginPath(); ctx.arc(phaseCx, phaseCy, 13, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1b2a6b';
+      ctx.beginPath(); ctx.arc(phaseCx, phaseCy, 4.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+      // 4. 极轻产品闭环浮片（紧密贴近主舞台对角，绝不偏远）
+      if (!isNarrow) {
+        const fx = cx - span * 1.18 + px * 0.65;
+        const fy = cy - span * 0.96 + py * 0.55;
+        const tx = cx + span * 0.34 + px * 0.85;
+        const ty = cy + span * 0.58 + py * 0.72;
+
+        // 流动光贯通线：定象坊算子 → 共享吸引子 → 通文册活页
+        ctx.save();
+        ctx.setLineDash([4, 5]);
+        ctx.lineDashOffset = -t * 24;
+        ctx.strokeStyle = 'rgba(27, 42, 107, 0.42)';
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        ctx.moveTo(fx + 162, fy + 40);
+        ctx.bezierCurveTo(fx + 215, fy + 40, phaseCx - 42, phaseCy - 48, phaseCx, phaseCy);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(214, 69, 49, 0.48)';
+        ctx.beginPath();
+        ctx.moveTo(phaseCx, phaseCy);
+        ctx.bezierCurveTo(phaseCx + 58, phaseCy + 34, tx - 22, ty + 18, tx, ty + 44);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const p = (t * 0.42) % 1;
+        ctx.fillStyle = '#0f8b8d';
+        ctx.beginPath();
+        ctx.arc(fx + 162 + (phaseCx - (fx + 162)) * p, fy + 40 + (phaseCy - (fy + 40)) * p, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // 左上轻浮片：定象坊 · 自动推演参数核
+        drawGlassSlice(fx, fy, 162, 78, '定象坊 · 微分算子', '#1b2a6b', () => {
+          ctx.font = '600 11.5px Consolas, monospace';
+          ctx.fillStyle = '#141821';
+          ctx.fillText(`ζ = ${zeta.toFixed(2)}`, fx + 14, fy + 42);
+          ctx.fillStyle = '#0f8b8d';
+          ctx.fillText(`ω = ${omega.toFixed(2)}`, fx + 86, fy + 42);
+
+          // 双通道实时参数条（自动平滑伸缩，展示参数正在活态演变）
+          ctx.fillStyle = 'rgba(27,42,107,0.1)';
+          ctx.fillRect(fx + 14, fy + 51, 134, 4);
+          ctx.fillStyle = '#1b2a6b';
+          ctx.fillRect(fx + 14, fy + 51, 134 * Math.min(1, zeta / 0.8), 4);
+
+          ctx.fillStyle = 'rgba(15,139,141,0.12)';
+          ctx.fillRect(fx + 14, fy + 60, 134, 4);
+          ctx.fillStyle = '#0f8b8d';
+          ctx.fillRect(fx + 14, fy + 60, 134 * Math.min(1, (omega - 1) / 3.2), 4);
+        });
+
+        // 右下轻浮片：通文册 · 实时同步时域波形活页
+        const sw = 204, sh = 114;
+        drawGlassSlice(tx, ty, sw, sh, '通文册 · 活页同步', '#d64531', () => {
+          ctx.fillStyle = 'rgba(20, 24, 33, 0.14)';
+          ctx.fillRect(tx + 14, ty + 30, 72, 4);
+          ctx.fillStyle = 'rgba(20, 24, 33, 0.08)';
+          ctx.fillRect(tx + 14, ty + 38, 44, 3.5);
+
+          const gx = tx + 14, gy = ty + 48, gw = sw - 28, gh = 52;
+          ctx.fillStyle = 'rgba(27, 42, 107, 0.032)';
+          ctx.strokeStyle = 'rgba(27, 42, 107, 0.14)';
+          roundRect(ctx, gx, gy, gw, gh, 6);
+          ctx.fill(); ctx.stroke();
+
+          // 同一 (ζ, ω) 精确解出的二阶阻尼时域响应曲线 y(τ) = e^(-ζωτ) cos(ω_d τ)
+          ctx.beginPath();
+          for (let i = 0; i <= 60; i++) {
+            const u = i / 60;
+            const tau = u * 5.2;
+            const wd = omega * Math.sqrt(Math.max(0.05, 1 - zeta * zeta));
+            const val = Math.exp(-zeta * omega * tau * 0.45) * Math.cos(wd * tau - t * 1.8);
+            const sx = gx + 6 + u * (gw - 12);
+            const sy = gy + gh * 0.5 - val * (gh * 0.38);
+            if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+          }
+          ctx.strokeStyle = '#d64531';
+          ctx.lineWidth = 1.9;
+          ctx.stroke();
+
+          // 滑动观测点
+          const obsU = (t * 0.25) % 1;
+          const obsTau = obsU * 5.2;
+          const obsWd = omega * Math.sqrt(Math.max(0.05, 1 - zeta * zeta));
+          const obsVal = Math.exp(-zeta * omega * obsTau * 0.45) * Math.cos(obsWd * obsTau - t * 1.8);
+          ctx.fillStyle = '#0f8b8d';
+          ctx.beginPath();
+          ctx.arc(gx + 6 + obsU * (gw - 12), gy + gh * 0.5 - obsVal * (gh * 0.38), 3.6, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      // 左侧文字防干扰轻羽化（只覆盖最左 43%，保证左右紧贴又不抢文字可读性）
+      if (!isNarrow) {
+        const mask = ctx.createLinearGradient(0, 0, W * 0.46, 0);
+        mask.addColorStop(0, 'rgba(245, 242, 235, 0.94)');
+        mask.addColorStop(0.75, 'rgba(245, 242, 235, 0.65)');
+        mask.addColorStop(1, 'rgba(245, 242, 235, 0)');
+        ctx.fillStyle = mask;
+        ctx.fillRect(0, 0, W * 0.46, H);
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+  </script>
+</body>
+</html>

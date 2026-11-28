@@ -1,0 +1,2419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万象 · 个人主页 × 个人设置 融合设计原型（方案 A / 方案 B 对比）</title>
+  <style>
+    :root {
+      --paper-bg: #f6f4ee;
+      --paper-card: #fffdf8;
+      --paper-pure: #ffffff;
+      --paper-subtle: #f1ede3;
+      --paper-warm: #ebe4d5;
+      --ink-950: #141816;
+      --ink-900: #1f2421;
+      --ink-700: #3d4540;
+      --ink-500: #66706a;
+      --ink-400: #8e9690;
+      --line: rgba(24, 28, 25, 0.10);
+      --line-strong: rgba(24, 28, 25, 0.18);
+      --cinnabar: #b84423;
+      --cinnabar-soft: #fdf0eb;
+      --indigo: #2e457a;
+      --indigo-soft: #edf1fa;
+      --teal: #116f68;
+      --teal-soft: #eaf6f4;
+      --gold: #9a6e24;
+      --gold-soft: #fbf4e4;
+      --font-serif: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --shadow-xs: 0 1px 2px rgba(24, 22, 16, 0.04);
+      --shadow-sm: 0 2px 8px rgba(24, 22, 16, 0.05), 0 8px 22px rgba(24, 22, 16, 0.04);
+      --shadow-md: 0 6px 18px rgba(24, 22, 16, 0.06), 0 18px 40px rgba(24, 22, 16, 0.06);
+      --radius-lg: 18px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink-900);
+      background:
+        radial-gradient(circle at 6% 8%, rgba(184, 68, 35, 0.05), transparent 34%),
+        radial-gradient(circle at 94% 12%, rgba(46, 69, 122, 0.055), transparent 36%),
+        var(--paper-bg);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+    }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+
+    /* ================= 顶部原型切换控制台 ================= */
+    .proto-bar {
+      position: sticky;
+      top: 0;
+      z-index: 90;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      padding: 9px clamp(14px, 3vw, 36px);
+      background: #171b19;
+      color: #f4efe3;
+      font-size: 12.5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .proto-left { display: flex; align-items: center; gap: 10px; }
+    .proto-badge {
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.11);
+      color: #e9cfa1;
+      font: 600 11px var(--font-mono);
+      letter-spacing: 0.04em;
+    }
+    .proto-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .proto-seg {
+      display: inline-flex;
+      padding: 3px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.08);
+      gap: 2px;
+    }
+    .proto-seg button {
+      border: 0;
+      background: transparent;
+      color: rgba(244, 239, 227, 0.72);
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: all 0.16s ease;
+    }
+    .proto-seg button:hover { color: #fff; }
+    .proto-seg button.active {
+      background: #fffdf8;
+      color: #141816;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    .proto-tip { color: rgba(244, 239, 227, 0.6); font-size: 12px; }
+
+    /* ================= 模拟万象主导航 ================= */
+    .site-nav {
+      position: sticky;
+      top: 46px;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      height: 62px;
+      padding: 0 clamp(16px, 3.5vw, 44px);
+      background: rgba(246, 244, 238, 0.86);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-family: var(--font-serif);
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--ink-950);
+      letter-spacing: 0.04em;
+    }
+    .nav-mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #1b2220, #36456c);
+      color: #f8f2e4;
+      display: grid;
+      place-items: center;
+      font: 700 14px var(--font-serif);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-link {
+      padding: 6px 13px;
+      border-radius: 8px;
+      color: var(--ink-500);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 500;
+    }
+    .nav-link.current {
+      color: var(--ink-950);
+      background: rgba(20, 24, 22, 0.065);
+      font-weight: 600;
+    }
+    .nav-account {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px 4px 4px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--paper-card);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* ================= 公共组件与按钮 ================= */
+    .container {
+      width: min(1200px, calc(100% - clamp(24px, 5vw, 64px)));
+      margin: 0 auto;
+      padding: 26px 0 88px;
+    }
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      font: 600 10.5px/1.4 var(--font-mono);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--cinnabar);
+    }
+    .kicker.muted { color: var(--ink-500); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 36px;
+      padding: 0 14px;
+      border-radius: 9px;
+      border: 1px solid transparent;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all 0.16s ease;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--ink-950);
+      color: #fffdf8;
+    }
+    .btn-primary:hover { background: #2c3532; transform: translateY(-1px); }
+    .btn-accent {
+      background: var(--cinnabar);
+      color: #fff;
+    }
+    .btn-accent:hover { background: #9e371a; }
+    .btn-ghost {
+      background: var(--paper-card);
+      border-color: var(--line-strong);
+      color: var(--ink-900);
+    }
+    .btn-ghost:hover { background: var(--paper-subtle); }
+    .btn-soft {
+      background: var(--paper-subtle);
+      color: var(--ink-900);
+    }
+    .btn-soft:hover { background: var(--paper-warm); }
+    .btn-sm { height: 30px; padding: 0 11px; font-size: 12px; border-radius: 7px; }
+    .btn-danger-ghost {
+      background: transparent;
+      border-color: rgba(184, 68, 35, 0.28);
+      color: #a33219;
+    }
+    .btn-danger-ghost:hover { background: #fdf0eb; }
+
+    .avatar {
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      font-family: var(--font-serif);
+      font-weight: 700;
+      color: #fffdf8;
+      overflow: hidden;
+      flex: none;
+      position: relative;
+      user-select: none;
+    }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .avatar-sm { width: 26px; height: 26px; font-size: 12px; }
+    .avatar-lg { width: 74px; height: 74px; font-size: 28px; }
+    .avatar-xl { width: 92px; height: 92px; font-size: 34px; }
+
+    .avatar-editable { cursor: pointer; border: 0; padding: 0; background: none; position: relative; border-radius: 50%; }
+    .avatar-editable .avatar-mask {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: rgba(20, 24, 22, 0.54);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 600;
+      display: grid;
+      place-items: center;
+      opacity: 0;
+      transition: opacity 0.18s ease;
+    }
+    .avatar-editable:hover .avatar-mask { opacity: 1; }
+
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: var(--paper-subtle);
+      color: var(--ink-700);
+      border: 1px solid rgba(24, 28, 25, 0.06);
+    }
+    .tag-remove {
+      border: 0;
+      background: none;
+      color: var(--ink-400);
+      padding: 0 2px;
+      font-size: 14px;
+      line-height: 1;
+    }
+    .tag-remove:hover { color: var(--cinnabar); }
+
+    .card {
+      background: var(--paper-card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    /* ================= 4 套封面 / 名片氛围主题 ================= */
+    .cover-surface {
+      position: relative;
+      overflow: hidden;
+    }
+    .cover-surface[data-theme="ivory-gold"] {
+      background:
+        radial-gradient(circle at 88% 20%, rgba(184, 68, 35, 0.14), transparent 45%),
+        radial-gradient(circle at 14% 85%, rgba(154, 110, 36, 0.16), transparent 50%),
+        linear-gradient(125deg, #f8f3e6 0%, #efe6d2 55%, #f4ecdb 100%);
+      color: #252019;
+    }
+    .cover-surface[data-theme="indigo-star"] {
+      background:
+        radial-gradient(circle at 82% 24%, rgba(131, 232, 234, 0.24), transparent 42%),
+        radial-gradient(circle at 20% 80%, rgba(255, 194, 103, 0.16), transparent 48%),
+        linear-gradient(125deg, #171f3b 0%, #243866 56%, #18274a 100%);
+      color: #f3f6ff;
+    }
+    .cover-surface[data-theme="chalk-board"] {
+      background:
+        radial-gradient(circle at 80% 30%, rgba(242, 201, 111, 0.18), transparent 44%),
+        linear-gradient(125deg, #16332c 0%, #234c42 60%, #193830 100%);
+      color: #f6f1e4;
+    }
+    .cover-surface[data-theme="oat-editorial"] {
+      background:
+        radial-gradient(circle at 85% 25%, rgba(116, 68, 46, 0.16), transparent 46%),
+        linear-gradient(125deg, #efe2d0 0%, #e4d2bc 58%, #eadbc8 100%);
+      color: #2f2621;
+    }
+    .cover-pattern {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      opacity: 0.35;
+    }
+
+    /* ================= 方案 A：Bento 便当盒展厅 ================= */
+    .scheme-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .scheme-header h1 {
+      margin: 4px 0 0;
+      font: 700 clamp(24px, 2.8vw, 31px)/1.18 var(--font-serif);
+      color: var(--ink-950);
+    }
+    .scheme-tabs {
+      display: inline-flex;
+      padding: 4px;
+      border-radius: 11px;
+      background: var(--paper-subtle);
+      border: 1px solid var(--line);
+      gap: 4px;
+    }
+    .scheme-tabs button {
+      border: 0;
+      background: transparent;
+      padding: 7px 15px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink-500);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.16s ease;
+    }
+    .scheme-tabs button.active {
+      background: var(--paper-pure);
+      color: var(--ink-950);
+      box-shadow: var(--shadow-xs);
+    }
+    .dirty-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--cinnabar);
+      display: none;
+    }
+    .dirty-dot.show { display: inline-block; }
+
+    .bento-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 16px;
+      align-items: stretch;
+    }
+    .bento-profile { grid-column: span 5; display: flex; flex-direction: column; }
+    .bento-hero-pin { grid-column: span 7; display: flex; flex-direction: column; }
+    .bento-stats { grid-column: span 4; display: flex; flex-direction: column; }
+    .bento-recent { grid-column: span 4; display: flex; flex-direction: column; }
+    .bento-prefs { grid-column: span 4; display: flex; flex-direction: column; }
+    .bento-more-pins { grid-column: span 7; display: flex; flex-direction: column; }
+    .bento-assets { grid-column: span 5; display: flex; flex-direction: column; }
+
+    .bento-profile-banner {
+      height: 92px;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-start;
+    }
+    .bento-profile-body {
+      padding: 0 22px 22px;
+      margin-top: -36px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .bento-avatar-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .bento-avatar-ring {
+      padding: 4px;
+      background: var(--paper-card);
+      border-radius: 50%;
+      box-shadow: 0 6px 18px rgba(24, 22, 16, 0.12);
+    }
+    .profile-name {
+      margin: 0;
+      font: 700 26px/1.2 var(--font-serif);
+      color: var(--ink-950);
+    }
+    .profile-handle {
+      margin: 3px 0 0;
+      font: 500 12.5px var(--font-mono);
+      color: var(--ink-400);
+    }
+    .profile-meta-line {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--ink-700);
+    }
+    .meta-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: var(--indigo-soft);
+      color: var(--indigo);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .profile-bio {
+      margin: 12px 0 14px;
+      font-size: 13.5px;
+      line-height: 1.7;
+      color: var(--ink-700);
+    }
+    .profile-footer {
+      margin-top: auto;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .profile-joined { font-size: 12px; color: var(--ink-400); }
+
+    /* Bento Hero Pin (活态交互展柜) */
+    .card-pad { padding: 20px 22px; display: flex; flex-direction: column; flex: 1; }
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      margin: 2px 0 0;
+      font: 700 18px/1.3 var(--font-serif);
+      color: var(--ink-950);
+    }
+    .live-stage {
+      position: relative;
+      border-radius: 13px;
+      background: linear-gradient(160deg, #161c2c 0%, #1d2740 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 14px 16px 12px;
+      color: #f3f6ff;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+    }
+    .live-stage-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(243, 246, 255, 0.78);
+    }
+    .live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      background: rgba(131, 232, 234, 0.14);
+      color: #83e8ea;
+      font: 600 11px var(--font-mono);
+    }
+    .live-pill i {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #83e8ea;
+      box-shadow: 0 0 8px #83e8ea;
+    }
+    .fourier-canvas {
+      width: 100%;
+      height: 158px;
+      display: block;
+      border-radius: 8px;
+      background: rgba(9, 13, 23, 0.5);
+    }
+    .live-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      font-size: 12px;
+    }
+    .live-controls label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 180px;
+      color: rgba(243, 246, 255, 0.85);
+    }
+    .live-controls input[type="range"] {
+      flex: 1;
+      accent-color: #f0a756;
+      cursor: pointer;
+    }
+    .live-controls strong {
+      font-family: var(--font-mono);
+      color: #ffd38e;
+      min-width: 22px;
+      text-align: right;
+    }
+    .stage-caption {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .stage-caption p {
+      margin: 2px 0 0;
+      font-size: 12.5px;
+      color: var(--ink-500);
+    }
+
+    /* Bento 创作画像 */
+    .metric-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 8px 0 16px;
+    }
+    .metric-box {
+      padding: 11px 10px;
+      border-radius: 10px;
+      background: var(--paper-subtle);
+    }
+    .metric-box strong {
+      display: block;
+      font: 700 24px/1.1 var(--font-serif);
+      color: var(--ink-950);
+    }
+    .metric-box span {
+      display: block;
+      margin-top: 4px;
+      font-size: 11.5px;
+      color: var(--ink-500);
+    }
+    .dist-bar {
+      display: flex;
+      height: 10px;
+      border-radius: 999px;
+      overflow: hidden;
+      gap: 2px;
+      margin-bottom: 10px;
+    }
+    .dist-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      font-size: 12px;
+      color: var(--ink-700);
+    }
+    .dist-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .dist-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+
+    /* Bento 最近足迹 */
+    .recent-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex: 1;
+    }
+    .recent-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 10px;
+      border-radius: 10px;
+      background: var(--paper-subtle);
+      text-decoration: none;
+      color: inherit;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .recent-item:hover { background: var(--paper-warm); transform: translateX(2px); }
+    .recent-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      flex: none;
+    }
+    .recent-icon.deck { background: var(--cinnabar-soft); color: var(--cinnabar); }
+    .recent-icon.work { background: var(--indigo-soft); color: var(--indigo); }
+    .recent-icon.block { background: var(--teal-soft); color: var(--teal); }
+    .recent-main { min-width: 0; flex: 1; }
+    .recent-main strong {
+      display: block;
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .recent-main small { font-size: 11.5px; color: var(--ink-500); }
+    .recent-foot {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+    }
+    .text-link {
+      color: var(--indigo);
+      font-weight: 600;
+      text-decoration: none;
+      background: none;
+      border: 0;
+      padding: 0;
+    }
+    .text-link:hover { text-decoration: underline; }
+
+    /* Bento 全站偏好摘要 */
+    .pref-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      flex: 1;
+    }
+    .pref-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 9px;
+      background: var(--paper-subtle);
+      font-size: 12.5px;
+    }
+    .pref-row span { color: var(--ink-500); }
+    .pref-row strong {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-900);
+    }
+    .swatch-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+      display: inline-block;
+    }
+
+    /* 更多精选卡片 */
+    .pin-pair {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      flex: 1;
+    }
+    .pin-mini {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--paper-pure);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .pin-mini:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+    .pin-thumb {
+      height: 98px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+    .pin-thumb.slide-style {
+      background: linear-gradient(135deg, #faf6ea, #ede4cf);
+      color: #233a63;
+    }
+    .pin-thumb.sim-style {
+      background: linear-gradient(135deg, #e7f3f1, #d5ebe7);
+      color: #0e5852;
+    }
+    .pin-type-badge {
+      align-self: flex-start;
+      padding: 2px 8px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.88);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-900);
+    }
+    .pin-mini-body { padding: 11px 13px 13px; flex: 1; display: flex; flex-direction: column; }
+    .pin-mini-body h4 { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink-950); }
+    .pin-mini-body p { margin: 4px 0 10px; font-size: 12px; color: var(--ink-500); line-height: 1.5; flex: 1; }
+    .pin-mini-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--ink-400);
+    }
+
+    /* 资产与备份管家 */
+    .asset-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; flex: 1; }
+    .asset-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 11px;
+      border-radius: 9px;
+      background: var(--paper-subtle);
+      font-size: 12.5px;
+    }
+    .asset-row strong { color: var(--ink-950); }
+    .asset-status {
+      font-size: 11.5px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .asset-status.ok { background: var(--teal-soft); color: var(--teal); }
+    .asset-status.warn { background: var(--gold-soft); color: var(--gold); }
+    .asset-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    /* ================= 方案 A：设置分栏视图（左侧真名片实时联动） ================= */
+    .settings-split {
+      display: grid;
+      grid-template-columns: 350px minmax(0, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+    .sticky-side { position: sticky; top: 124px; display: flex; flex-direction: column; gap: 14px; }
+
+    /* ================= 方案 B：宽幅封面策展主页 ================= */
+    .banner-shell {
+      border-radius: 20px;
+      overflow: hidden;
+      background: var(--paper-card);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-md);
+      margin-bottom: 22px;
+    }
+    .banner-hero {
+      height: 186px;
+      padding: 18px 26px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .banner-theme-switcher {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(20, 24, 22, 0.1);
+      color: var(--ink-900);
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .theme-dot-btn {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+      padding: 0;
+      transition: transform 0.15s ease;
+    }
+    .theme-dot-btn:hover { transform: scale(1.14); }
+    .theme-dot-btn.active { box-shadow: 0 0 0 2px var(--cinnabar); }
+
+    .banner-identity {
+      padding: 0 28px 22px;
+      position: relative;
+    }
+    .banner-id-top {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: -46px;
+      margin-bottom: 14px;
+    }
+    .banner-id-left {
+      display: flex;
+      align-items: flex-end;
+      gap: 18px;
+      flex-wrap: wrap;
+    }
+    .banner-avatar-ring {
+      padding: 5px;
+      background: var(--paper-card);
+      border-radius: 50%;
+      box-shadow: 0 8px 24px rgba(24, 22, 16, 0.14);
+    }
+    .banner-name-group { padding-bottom: 4px; }
+    .banner-name-group h1 {
+      margin: 0;
+      font: 700 clamp(26px, 3vw, 34px)/1.15 var(--font-serif);
+      color: var(--ink-950);
+    }
+    .banner-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 4px; }
+    .banner-bio-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px 28px;
+    }
+    .banner-bio-col { flex: 1; min-width: 260px; max-width: 660px; }
+    .banner-stats-inline {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      padding: 10px 18px;
+      border-radius: 12px;
+      background: var(--paper-subtle);
+      border: 1px solid var(--line);
+    }
+    .banner-stat strong {
+      display: block;
+      font: 700 22px/1.1 var(--font-serif);
+      color: var(--ink-950);
+    }
+    .banner-stat span { font-size: 11.5px; color: var(--ink-500); }
+
+    .banner-tabs {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 28px;
+      border-top: 1px solid var(--line);
+      background: rgba(241, 237, 227, 0.45);
+    }
+    .banner-tabs button {
+      position: relative;
+      border: 0;
+      background: transparent;
+      padding: 13px 16px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--ink-500);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .banner-tabs button:hover { color: var(--ink-950); }
+    .banner-tabs button.active { color: var(--ink-950); }
+    .banner-tabs button.active::after {
+      content: "";
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 0;
+      height: 2.5px;
+      border-radius: 2px 2px 0 0;
+      background: var(--cinnabar);
+    }
+
+    .b-showcase-grid {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .b-secondary-stack { display: flex; flex-direction: column; gap: 14px; }
+    .b-lower-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+
+    /* ================= 共享设置表单样式 ================= */
+    .settings-stack { display: flex; flex-direction: column; gap: 16px; }
+    .form-card { padding: 22px 24px; }
+    .form-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .form-card-head h3 {
+      margin: 0;
+      font: 700 17px var(--font-serif);
+      color: var(--ink-950);
+    }
+    .form-card-head span { font-size: 12px; color: var(--ink-400); }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 16px;
+    }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field.wide { grid-column: 1 / -1; }
+    .field label { font-size: 12.5px; font-weight: 600; color: var(--ink-700); }
+    .field input[type="text"],
+    .field input[type="tel"],
+    .field select,
+    .field textarea {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      background: var(--paper-pure);
+      font-size: 13.5px;
+      color: var(--ink-950);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .field :is(input, select, textarea):focus {
+      outline: none;
+      border-color: var(--indigo);
+      box-shadow: 0 0 0 3px rgba(46, 69, 122, 0.12);
+    }
+    .field textarea { resize: vertical; min-height: 76px; }
+    .field-hint { font-size: 11.5px; color: var(--ink-400); display: flex; justify-content: space-between; }
+
+    .avatar-setting-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .swatch-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .theme-card-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .theme-pick {
+      border: 1.5px solid var(--line);
+      border-radius: 10px;
+      padding: 6px;
+      background: var(--paper-pure);
+      text-align: left;
+      transition: all 0.16s ease;
+    }
+    .theme-pick.active {
+      border-color: var(--cinnabar);
+      box-shadow: 0 0 0 3px rgba(184, 68, 35, 0.12);
+    }
+    .theme-pick-preview {
+      height: 40px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+    .theme-pick span { display: block; font-size: 12px; font-weight: 600; color: var(--ink-900); }
+
+    .ppt-theme-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .ppt-theme-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 9px;
+      border: 1.5px solid var(--line);
+      background: var(--paper-pure);
+      font-size: 12.5px;
+      font-weight: 500;
+      text-align: left;
+    }
+    .ppt-theme-btn.active {
+      border-color: var(--indigo);
+      background: var(--indigo-soft);
+      color: var(--indigo);
+      font-weight: 600;
+    }
+
+    .tag-editor {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid var(--line-strong);
+      border-radius: 9px;
+      background: var(--paper-pure);
+      align-items: center;
+    }
+    .tag-editor input {
+      border: 0 !important;
+      padding: 3px 6px !important;
+      flex: 1;
+      min-width: 120px;
+      box-shadow: none !important;
+    }
+    .suggest-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .suggest-btn {
+      border: 1px dashed var(--line-strong);
+      background: var(--paper-subtle);
+      color: var(--ink-700);
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+    }
+    .suggest-btn:hover:not(:disabled) { border-style: solid; border-color: var(--indigo); color: var(--indigo); }
+    .suggest-btn:disabled { opacity: 0.42; cursor: default; }
+
+    .completion-box {
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: var(--paper-subtle);
+      border: 1px solid var(--line);
+    }
+    .completion-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .completion-track {
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(24, 28, 25, 0.1);
+      overflow: hidden;
+    }
+    .completion-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--cinnabar), var(--gold));
+      transition: width 0.25s ease;
+    }
+
+    /* 访客卡片 */
+    .guest-box {
+      padding: 18px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #fbf4e4, #f7ecd6);
+      border: 1px solid #e4cfa2;
+      color: #4f3a17;
+    }
+    .guest-box h3 { margin: 0 0 6px; font: 700 18px var(--font-serif); color: #3d2c10; }
+    .guest-box p { margin: 0 0 14px; font-size: 13px; line-height: 1.65; }
+
+    /* 吸底未保存条 */
+    .save-bar {
+      position: fixed;
+      left: 50%;
+      bottom: 20px;
+      transform: translateX(-50%) translateY(90px);
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 14px 10px 18px;
+      border-radius: 14px;
+      background: #171b19;
+      color: #fffdf8;
+      box-shadow: 0 12px 34px rgba(15, 18, 16, 0.28);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.22s ease;
+    }
+    .save-bar.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .save-bar span { font-size: 13px; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      top: 122px;
+      right: 24px;
+      z-index: 120;
+      padding: 10px 16px;
+      border-radius: 10px;
+      background: #171b19;
+      color: #fffdf8;
+      font-size: 13px;
+      box-shadow: var(--shadow-md);
+      opacity: 0;
+      transform: translateY(-8px);
+      pointer-events: none;
+      transition: all 0.2s ease;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* 简单弹窗（置顶管理 / 名片预览） */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 110;
+      background: rgba(20, 24, 22, 0.48);
+      backdrop-filter: blur(4px);
+      display: none;
+      place-items: center;
+      padding: 20px;
+    }
+    .modal-backdrop.open { display: grid; }
+    .modal-card {
+      width: min(520px, 100%);
+      background: var(--paper-card);
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+      padding: 22px 24px;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .modal-head h3 { margin: 0; font: 700 19px var(--font-serif); }
+    .pin-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--paper-pure);
+      margin-bottom: 8px;
+      cursor: pointer;
+    }
+    .pin-option:has(input:checked) { border-color: var(--cinnabar); background: var(--cinnabar-soft); }
+
+    .hidden { display: none !important; }
+
+    /* 响应式 */
+    @media (max-width: 1024px) {
+      .bento-profile, .bento-hero-pin, .bento-more-pins, .bento-assets { grid-column: span 12; }
+      .bento-stats, .bento-recent, .bento-prefs { grid-column: span 6; }
+      .bento-prefs { grid-column: span 12; }
+      .settings-split { grid-template-columns: 1fr; }
+      .sticky-side { position: static; }
+      .b-showcase-grid, .b-lower-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 680px) {
+      .bento-stats, .bento-recent { grid-column: span 12; }
+      .pin-pair, .form-grid, .theme-card-grid, .ppt-theme-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+      .proto-tip { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ================= 顶部原型切换控制台 ================= -->
+  <div class="proto-bar" role="region" aria-label="原型对比控制条">
+    <div class="proto-left">
+      <span class="proto-badge">DESIGN PREVIEW</span>
+      <span>个人主页 × 个人设置融合方案对比</span>
+    </div>
+    <div class="proto-controls">
+      <div class="proto-seg" role="group" aria-label="切换方案">
+        <button id="btn-scheme-a" class="active" type="button">方案 A · Bento 便当盒展厅</button>
+        <button id="btn-scheme-b" type="button">方案 B · 宽幅封面策展主页</button>
+      </div>
+      <div class="proto-seg" role="group" aria-label="切换视图">
+        <button id="btn-tab-showcase" class="active" type="button">个人展厅</button>
+        <button id="btn-tab-settings" type="button">资料与偏好设置</button>
+      </div>
+      <div class="proto-seg" role="group" aria-label="切换登录态">
+        <button id="btn-mode-auth" class="active" type="button">已登录态</button>
+        <button id="btn-mode-guest" type="button">访客态</button>
+      </div>
+    </div>
+    <span class="proto-tip">提示：在「资料与偏好设置」修改内容，名片会实时同步</span>
+  </div>
+
+  <!-- ================= 模拟万象主导航 ================= -->
+  <header class="site-nav">
+    <div class="nav-brand">
+      <span class="nav-mark">象</span>
+      <span>万象</span>
+    </div>
+    <nav class="nav-links" aria-label="主导航">
+      <a class="nav-link" href="javascript:void(0)">首页</a>
+      <a class="nav-link" href="javascript:void(0)">定象坊</a>
+      <a class="nav-link" href="javascript:void(0)">通文册</a>
+      <a class="nav-link current" href="javascript:void(0)">个人主页</a>
+    </nav>
+    <div class="nav-account" id="nav-account-chip"></div>
+  </header>
+
+  <input type="file" id="global-avatar-input" accept="image/jpeg,image/png,image/webp" hidden />
+
+  <!-- ================= 主容器 ================= -->
+  <main class="container">
+    <!-- 方案 A 容器 -->
+    <section id="scheme-a-root"></section>
+    <!-- 方案 B 容器 -->
+    <section id="scheme-b-root" class="hidden"></section>
+  </main>
+
+  <!-- 吸底未保存条 -->
+  <div id="save-bar" class="save-bar" role="status">
+    <span>有未保存的资料或偏好修改</span>
+    <div style="display:flex;gap:8px;">
+      <button type="button" class="btn btn-sm" style="background:rgba(255,255,255,0.12);color:#fff;" id="btn-reset-draft">重置</button>
+      <button type="button" class="btn btn-sm btn-accent" id="btn-save-draft">保存修改</button>
+    </div>
+  </div>
+
+  <!-- Toast 提示 -->
+  <div id="toast" class="toast" role="status"></div>
+
+  <!-- 管理置顶弹窗 -->
+  <div id="pin-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="管理置顶作品">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>管理主页置顶代表作</h3>
+        <button type="button" class="btn btn-sm btn-ghost" id="btn-close-pin">关闭</button>
+      </div>
+      <p style="margin:0 0 14px;font-size:13px;color:var(--ink-500);">选择最多 3 项最满意的沙盘或课件展示在个人主页（全部文件仍在定象坊与通文册中管理）。</p>
+      <div id="pin-options-list"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+        <button type="button" class="btn btn-primary" id="btn-apply-pin">完成置顶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 名片海报导出预览弹窗 -->
+  <div id="poster-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="创作者名片预览">
+    <div class="modal-card" style="width:min(580px,100%);">
+      <div class="modal-head">
+        <h3>创作者名片预览</h3>
+        <button type="button" class="btn btn-sm btn-ghost" id="btn-close-poster">关闭</button>
+      </div>
+      <canvas id="poster-canvas" width="1040" height="580" style="width:100%;border-radius:12px;border:1px solid var(--line);display:block;"></canvas>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:12px;color:var(--ink-500);">自动同步当前头像、简介、学科标签与创作数据</span>
+        <button type="button" class="btn btn-primary" id="btn-download-poster">下载高清 PNG 名片</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ================= 数据定义 ================= */
+    const COVER_THEMES = [
+      { id: 'ivory-gold', name: '宣纸金线', dot: '#e9dec4' },
+      { id: 'indigo-star', name: '靛蓝星图', dot: '#243866' },
+      { id: 'chalk-board', name: '学院黑板', dot: '#1f443b' },
+      { id: 'oat-editorial', name: '燕麦人文', dot: '#dfd0ba' },
+    ];
+
+    const AVATAR_SWATCHES = [
+      'linear-gradient(135deg, #2b4172, #4b6cb7)',
+      'linear-gradient(135deg, #b84423, #de7e4f)',
+      'linear-gradient(135deg, #155e57, #2f9489)',
+      'linear-gradient(135deg, #3c364f, #6e5ea6)',
+    ];
+
+    const PPT_THEMES = [
+      { id: 'academic-paper', name: '象牙学术', color: '#FAF7EE', accent: '#233A63' },
+      { id: 'midnight-tech', name: '深海科技', color: '#151B36', accent: '#83E8EA' },
+      { id: 'minimal-ink', name: '清墨极简', color: '#FFFFFF', accent: '#345ADD' },
+      { id: 'warm-chalk', name: '学院黑板', color: '#193831', accent: '#F2C96F' },
+      { id: 'executive-slate', name: '商务青蓝', color: '#EDF2F6', accent: '#087D72' },
+      { id: 'editorial-sand', name: '燕麦人文', color: '#F5EADD', accent: '#74442E' },
+    ];
+
+    const SUGGESTED_INTERESTS = ['高等数学', '线性代数', '大学物理', '408', '深度学习', '办公决策', '可视化教学', '傅里叶分析'];
+
+    const CATALOG_ITEMS = [
+      {
+        id: 'work-fourier',
+        kind: 'work',
+        kindLabel: '定象坊沙盘',
+        title: '傅里叶级数与方波合成仪器',
+        note: '课堂拖动谐波阶数 N，直观观察吉布斯现象与频谱收敛。',
+        meta: '高等数学 · 6 个联动积木',
+        time: '2 小时前',
+        interactive: true,
+      },
+      {
+        id: 'deck-linalg',
+        kind: 'deck',
+        kindLabel: '通文册活页',
+        title: '线性代数第 3 讲 · 特征值与矩阵变换',
+        note: '含 24 页动态幻灯片与 3 个原位嵌入的特征向量交互沙盘。',
+        meta: '24 页 · 象牙学术主题',
+        time: '昨天 21:15',
+      },
+      {
+        id: 'work-taylor',
+        kind: 'work',
+        kindLabel: '定象坊沙盘',
+        title: '泰勒多项式局部逼近与余项误差',
+        note: '实时调节展开点与阶数，观察多项式贴合原函数的过程。',
+        meta: '高等数学 · 5 个联动积木',
+        time: '3 天前',
+      },
+      {
+        id: 'deck-physics',
+        kind: 'deck',
+        kindLabel: '通文册活页',
+        title: '大学物理 · 简谐振动与阻尼共振',
+        note: '包含相位图与阻尼系数实时演练的 16 页互动讲义。',
+        meta: '16 页 · 深海科技主题',
+        time: '5 天前',
+      },
+      {
+        id: 'work-breakeven',
+        kind: 'work',
+        kindLabel: '定象坊沙盘',
+        title: '盈亏平衡点与成本敏感度沙盘',
+        note: '固定成本、单价、变动成本三滑块联动推演利润拐点。',
+        meta: '办公决策 · 4 个联动积木',
+        time: '1 周前',
+      },
+    ];
+
+    const RECENT_ITEMS = [
+      { kind: 'deck', title: '线性代数第 3 讲 · 特征值与矩阵变换', sub: '通文册 · 24 页', time: '2 小时前' },
+      { kind: 'work', title: '傅里叶级数与方波合成仪器', sub: '定象坊 · 高等数学', time: '昨天' },
+      { kind: 'block', title: '二阶阻尼响应封装积木', sub: '自定义积木 · 本机', time: '3 天前' },
+    ];
+
+    const INITIAL_SAVED = {
+      displayName: '林清源',
+      username: 'linqingyuan',
+      occupation: '高校数学教师',
+      school: '中国石油大学',
+      bio: '把微积分与线性代数的抽象概念，做成课堂上伸手可调的动态直觉。',
+      phone: '13812346219',
+      email: 'linqingyuan@wanxiang.edu.cn',
+      joinedAt: '2026 年 9 月',
+      interests: ['高等数学', '线性代数', '可视化教学', '傅里叶分析'],
+      coverTheme: 'ivory-gold',
+      avatarSwatch: AVATAR_SWATCHES[0],
+      avatarUrl: null,
+      defaultPptTheme: 'academic-paper',
+      defaultRatio: '16:9',
+      defaultSubject: '高等数学',
+      reducedMotion: false,
+      pinnedIds: ['work-fourier', 'deck-linalg', 'work-taylor'],
+    };
+
+    let saved = structuredClone(INITIAL_SAVED);
+    let draft = structuredClone(INITIAL_SAVED);
+    let ui = {
+      scheme: 'a',          // 'a' | 'b'
+      tab: 'showcase',      // 'showcase' | 'settings'
+      auth: true,           // true | false (访客态)
+      harmonics: 5,
+      playing: true,
+      phase: 0,
+    };
+
+    /* ================= 工具函数 ================= */
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    const isDirty = () => JSON.stringify(draft) !== JSON.stringify(saved);
+    const completionScore = (s) => [s.avatarUrl || s.avatarSwatch, s.displayName.trim(), s.bio.trim(), s.occupation.trim() || s.school.trim(), s.interests.length > 0].filter(Boolean).length;
+    const pptThemeObj = (id) => PPT_THEMES.find((t) => t.id === id) || PPT_THEMES[0];
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+    }
+
+    function coverPatternSvg() {
+      return `<svg class="cover-pattern" viewBox="0 0 600 200" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <pattern id="gridDots" width="24" height="24" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1" fill="currentColor" opacity="0.45"/>
+          </pattern>
+        </defs>
+        <rect width="600" height="200" fill="url(#gridDots)"/>
+        <path d="M-20 140 Q 140 50, 300 120 T 620 75" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>
+        <path d="M-20 165 Q 170 90, 330 145 T 620 110" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 5" opacity="0.4"/>
+        <circle cx="485" cy="68" r="34" fill="none" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+        <circle cx="485" cy="68" r="14" fill="none" stroke="currentColor" stroke-width="1" opacity="0.45"/>
+      </svg>`;
+    }
+
+    function avatarHtml(sizeClass, editable = false) {
+      const name = draft.displayName.trim() || draft.username;
+      const initial = Array.from(name)[0] || '象';
+      const inner = draft.avatarUrl
+        ? `<img src="${esc(draft.avatarUrl)}" alt="${esc(name)}"/>`
+        : esc(initial);
+      const core = `<span class="avatar ${sizeClass}" style="background:${draft.avatarSwatch};">${inner}</span>`;
+      if (!editable || !ui.auth) return core;
+      return `<button type="button" class="avatar-editable" data-action="pick-avatar" title="点击更换头像">
+        ${core}
+        <span class="avatar-mask">更换头像</span>
+      </button>`;
+    }
+
+    function pinnedList() {
+      const items = draft.pinnedIds.map((id) => CATALOG_ITEMS.find((x) => x.id === id)).filter(Boolean);
+      return items.length ? items : [CATALOG_ITEMS[0], CATALOG_ITEMS[1], CATALOG_ITEMS[2]];
+    }
+
+    /* ================= 共享子块渲染 ================= */
+    function renderHeroFourierCard(compact = false) {
+      const hero = pinnedList()[0];
+      return `
+        <div class="card bento-hero-pin">
+          <div class="card-pad">
+            <div class="card-head">
+              <div>
+                <p class="kicker">★ FEATURED SHOWCASE · 置顶代表作</p>
+                <h2 class="card-title">${esc(hero.title)}</h2>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <button type="button" class="btn btn-sm btn-soft" data-action="open-pin-modal">管理置顶</button>
+              </div>
+            </div>
+            <div class="live-stage">
+              <div class="live-stage-top">
+                <span class="live-pill"><i></i>LIVE · 可在主页直接试玩</span>
+                <span style="font-family:var(--font-mono);font-size:11px;">f(x) = Σ (4/πn)·sin(nx)</span>
+              </div>
+              <canvas class="fourier-canvas" data-fourier-canvas height="${compact ? 148 : 168}"></canvas>
+              <div class="live-controls">
+                <label>
+                  <span>谐波阶数 N</span>
+                  <input type="range" min="1" max="15" step="2" value="${ui.harmonics}" data-fourier-slider />
+                  <strong data-fourier-val>${ui.harmonics}</strong>
+                </label>
+                <button type="button" class="btn btn-sm" style="background:rgba(255,255,255,0.12);color:#fff;" data-action="toggle-fourier-play">
+                  ${ui.playing ? '⏸ 暂停波形' : '▶ 播放波形'}
+                </button>
+              </div>
+            </div>
+            <div class="stage-caption">
+              <div>
+                <strong style="font-size:13px;">${esc(hero.meta)}</strong>
+                <p>${esc(hero.note)}</p>
+              </div>
+              <button type="button" class="btn btn-sm btn-primary" data-action="toast" data-msg="已跳转至定象坊打开「${esc(hero.title)}」">打开沙盘 ↗</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderStatsCard() {
+      return `
+        <div class="card bento-stats">
+          <div class="card-pad">
+            <div class="card-head">
+              <div>
+                <p class="kicker muted">CREATOR PROFILE · 教学资产画像</p>
+                <h3 class="card-title">创作沉淀</h3>
+              </div>
+            </div>
+            <div class="metric-row">
+              <div class="metric-box"><strong>48</strong><span>动态幻灯片页</span></div>
+              <div class="metric-box"><strong>7</strong><span>交互沙盘</span></div>
+              <div class="metric-box"><strong>5</strong><span>自研积木</span></div>
+            </div>
+            <p style="margin:0 0 8px;font-size:12px;color:var(--ink-500);">学科涉猎分布</p>
+            <div class="dist-bar" aria-label="学科分布">
+              <span style="width:46%;background:#2e457a;" title="高等数学 46%"></span>
+              <span style="width:31%;background:#b84423;" title="线性代数 31%"></span>
+              <span style="width:15%;background:#116f68;" title="大学物理 15%"></span>
+              <span style="width:8%;background:#9a6e24;" title="通用 8%"></span>
+            </div>
+            <div class="dist-legend">
+              <span><i style="background:#2e457a;"></i>高数 46%</span>
+              <span><i style="background:#b84423;"></i>线代 31%</span>
+              <span><i style="background:#116f68;"></i>物理 15%</span>
+              <span><i style="background:#9a6e24;"></i>其他 8%</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRecentCard() {
+      return `
+        <div class="card bento-recent">
+          <div class="card-pad">
+            <div class="card-head">
+              <div>
+                <p class="kicker muted">RECENTS · 最近足迹</p>
+                <h3 class="card-title">继续上次</h3>
+              </div>
+            </div>
+            <div class="recent-list">
+              ${RECENT_ITEMS.map((item) => `
+                <a class="recent-item" href="javascript:void(0)" data-action="toast" data-msg="继续打开「${esc(item.title)}」">
+                  <span class="recent-icon ${item.kind}">${item.kind === 'deck' ? '冊' : item.kind === 'work' ? '象' : '积'}</span>
+                  <div class="recent-main">
+                    <strong>${esc(item.title)}</strong>
+                    <small>${esc(item.sub)} · ${esc(item.time)}</small>
+                  </div>
+                  <span style="color:var(--ink-400);font-size:13px;">↗</span>
+                </a>
+              `).join('')}
+            </div>
+            <div class="recent-foot">
+              <button type="button" class="text-link" data-action="toast" data-msg="前往通文册查看全部课件">全部通文册 →</button>
+              <button type="button" class="text-link" data-action="toast" data-msg="前往定象坊查看全部沙盘">全部定象坊 →</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPrefsSummaryCard() {
+      const theme = pptThemeObj(draft.defaultPptTheme);
+      return `
+        <div class="card bento-prefs">
+          <div class="card-pad">
+            <div class="card-head">
+              <div>
+                <p class="kicker muted">PREFERENCES · 全站偏好</p>
+                <h3 class="card-title">创作默认设置</h3>
+              </div>
+              <button type="button" class="text-link" style="font-size:12px;" data-action="go-settings">修改 →</button>
+            </div>
+            <div class="pref-summary">
+              <div class="pref-row">
+                <span>新建 PPT 主题</span>
+                <strong><i class="swatch-dot" style="background:${theme.color};border-color:${theme.accent};"></i>${esc(theme.name)}</strong>
+              </div>
+              <div class="pref-row">
+                <span>默认画布比例</span>
+                <strong>${esc(draft.defaultRatio)}</strong>
+              </div>
+              <div class="pref-row">
+                <span>优先展示学科</span>
+                <strong>${esc(draft.defaultSubject)}</strong>
+              </div>
+              <div class="pref-row">
+                <span>界面动效</span>
+                <strong>${draft.reducedMotion ? '精简动效' : '标准平滑'}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSecondaryPins(asStack = false) {
+      const rest = pinnedList().slice(1, 3);
+      const cards = rest.map((item) => `
+        <div class="pin-mini">
+          <div class="pin-thumb ${item.kind === 'deck' ? 'slide-style' : 'sim-style'}">
+            <span class="pin-type-badge">${esc(item.kindLabel)}</span>
+            <div style="font:700 15px/1.25 var(--font-serif);opacity:0.9;">${esc(item.title)}</div>
+          </div>
+          <div class="pin-mini-body">
+            <p>${esc(item.note)}</p>
+            <div class="pin-mini-foot">
+              <span>${esc(item.meta)}</span>
+              <button type="button" class="text-link" style="font-size:12px;" data-action="toast" data-msg="打开「${esc(item.title)}」">进入 ↗</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      if (asStack) {
+        return `<div class="b-secondary-stack">${cards}</div>`;
+      }
+      return `
+        <div class="card bento-more-pins">
+          <div class="card-pad">
+            <div class="card-head">
+              <div>
+                <p class="kicker muted">CURATED · 更多精选</p>
+                <h3 class="card-title">橱窗展品</h3>
+              </div>
+              <button type="button" class="btn btn-sm btn-ghost" data-action="open-pin-modal">＋ 替换精选</button>
+            </div>
+            <div class="pin-pair">${cards}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAssetsCard() {
+      return `
+        <div class="card bento-assets">
+          <div class="card-pad">
+            <div class="card-head">
+              <div>
+                <p class="kicker muted">ASSETS & BACKUP · 资产管家</p>
+                <h3 class="card-title">数据与备份</h3>
+              </div>
+            </div>
+            <div class="asset-rows">
+              <div class="asset-row">
+                <span>☁ 云端通文册与沙盘</span>
+                <span class="asset-status ok">${ui.auth ? '已同步 · 长期保留' : '访客会话 · 23h 后清理'}</span>
+              </div>
+              <div class="asset-row">
+                <span>🧩 本机自定义积木</span>
+                <span class="asset-status warn">5 块 · 建议导出备份</span>
+              </div>
+            </div>
+            <div class="asset-actions">
+              <button type="button" class="btn btn-sm btn-ghost" data-action="toast" data-msg="已导出 5 块自定义积木备份（wanxiang-blocks.json）">↓ 导出积木备份</button>
+              <button type="button" class="btn btn-sm btn-ghost" data-action="toast" data-msg="请选择 .xsproj / .html 恢复工程">↑ 导入工程 / HTML</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderLiveBentoProfileCard(inSettings = false) {
+      if (!ui.auth) {
+        return `
+          <div class="card bento-profile">
+            <div class="bento-profile-banner cover-surface" data-theme="${draft.coverTheme}">
+              ${coverPatternSvg()}
+            </div>
+            <div class="bento-profile-body" style="margin-top:-24px;">
+              <div class="guest-box">
+                <h3>访客模式</h3>
+                <p>当前浏览器会话中已有 <strong>3 份活页</strong> 与 <strong>5 块本地积木</strong>。最早一份访客活页将在 <b>23 小时 14 分钟</b> 后自动清理。</p>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <button type="button" class="btn btn-primary" data-action="switch-auth">登录管理资料</button>
+                  <button type="button" class="btn btn-ghost" data-action="switch-auth">注册账号</button>
+                </div>
+              </div>
+              <p style="margin:14px 0 0;font-size:12.5px;color:var(--ink-500);">登录后可自定义头像、个人名片、置顶代表作，并同步全站 PPT 主题与创作偏好。</p>
+            </div>
+          </div>
+        `;
+      }
+      const name = draft.displayName.trim() || draft.username;
+      const score = completionScore(draft);
+      return `
+        <div class="card bento-profile">
+          <div class="bento-profile-banner cover-surface" data-theme="${draft.coverTheme}">
+            ${coverPatternSvg()}
+            ${inSettings ? `<span style="position:relative;z-index:2;padding:3px 9px;border-radius:999px;background:rgba(255,253,248,0.86);color:#141816;font-size:11px;font-weight:600;">实时预览中</span>` : ''}
+          </div>
+          <div class="bento-profile-body">
+            <div class="bento-avatar-row">
+              <div class="bento-avatar-ring">${avatarHtml('avatar-lg', true)}</div>
+              ${!inSettings ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button type="button" class="btn btn-sm btn-ghost" data-action="open-poster">名片图</button>
+                <button type="button" class="btn btn-sm btn-primary" data-action="go-settings">✎ 编辑资料</button>
+              </div>` : `<button type="button" class="btn btn-sm btn-ghost" data-action="open-poster">导出名片</button>`}
+            </div>
+            <h2 class="profile-name">${esc(name)}</h2>
+            <p class="profile-handle">@${esc(draft.username)}</p>
+            ${(draft.occupation.trim() || draft.school.trim()) ? `
+              <div class="profile-meta-line">
+                ${draft.occupation.trim() ? `<span class="meta-pill">${esc(draft.occupation.trim())}</span>` : ''}
+                ${draft.school.trim() ? `<span>${esc(draft.school.trim())}</span>` : ''}
+              </div>
+            ` : ''}
+            <p class="profile-bio">${draft.bio.trim() ? esc(draft.bio.trim()) : '<span style="color:var(--ink-400);">还没有填写简介，介绍一下你的教学与研究方向吧。</span>'}</p>
+            ${draft.interests.length ? `
+              <div class="tag-list">
+                ${draft.interests.map((t) => `<span class="tag"># ${esc(t)}</span>`).join('')}
+              </div>
+            ` : ''}
+            <div class="profile-footer">
+              <span class="profile-joined">${esc(draft.email)} · 加入于 ${esc(draft.joinedAt)}</span>
+              ${score < 5 ? `<span style="font-size:11.5px;color:var(--cinnabar);font-weight:600;">完整度 ${score * 20}%</span>` : `<span style="font-size:11.5px;color:var(--teal);font-weight:600;">✓ 档案已完善</span>`}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    /* ================= 共享设置表单面板 ================= */
+    function renderSettingsForms() {
+      if (!ui.auth) {
+        return `
+          <div class="card form-card">
+            <div class="guest-box" style="margin:0;">
+              <h3>登录后解锁个人资料与云端偏好</h3>
+              <p>你当前处于访客模式，可先体验本机积木与临时活页；登录后即可设置头像、个人名片、主页氛围主题，并将偏好同步至定象坊与通文册。</p>
+              <button type="button" class="btn btn-primary" data-action="switch-auth">立即切换为已登录态体验</button>
+            </div>
+          </div>
+        `;
+      }
+      return `
+        <div class="settings-stack">
+          <!-- 卡片 1：基本资料与头像 -->
+          <section class="card form-card">
+            <div class="form-card-head">
+              <h3>基本资料与头像</h3>
+              <span>修改会即时反映在个人名片上</span>
+            </div>
+            <div class="avatar-setting-row">
+              ${avatarHtml('avatar-lg', true)}
+              <div style="flex:1;min-width:200px;">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                  <button type="button" class="btn btn-sm btn-ghost" data-action="pick-avatar">上传新头像</button>
+                  ${draft.avatarUrl ? `<button type="button" class="btn btn-sm btn-danger-ghost" data-action="clear-avatar">恢复文字头像</button>` : ''}
+                </div>
+                <div class="swatch-row">
+                  <span style="font-size:12px;color:var(--ink-500);">默认底色：</span>
+                  ${AVATAR_SWATCHES.map((sw) => `
+                    <button type="button" class="theme-dot-btn ${draft.avatarSwatch === sw && !draft.avatarUrl ? 'active' : ''}"
+                      style="background:${sw};" data-action="pick-avatar-swatch" data-swatch="${sw}" title="切换头像底色"></button>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="f-name">昵称</label>
+                <input id="f-name" type="text" maxlength="64" value="${esc(draft.displayName)}" data-bind="displayName" placeholder="用于主页展示的名字" />
+              </div>
+              <div class="field">
+                <label for="f-phone">手机号（选填）</label>
+                <input id="f-phone" type="tel" maxlength="20" value="${esc(draft.phone)}" data-bind="phone" placeholder="11 位中国大陆手机号" />
+              </div>
+              <div class="field wide">
+                <label for="f-bio">个人简介</label>
+                <textarea id="f-bio" maxlength="200" data-bind="bio" placeholder="一句话介绍你正在教什么或做什么">${esc(draft.bio)}</textarea>
+                <div class="field-hint"><span>展示在个人名片与导出的创作者名片图中</span><span>${draft.bio.length} / 200</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 卡片 2：身份与学科兴趣 -->
+          <section class="card form-card">
+            <div class="form-card-head">
+              <h3>身份与学科兴趣</h3>
+              <span>用于名片展示与推荐模板</span>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label for="f-occ">职业（选填）</label>
+                <input id="f-occ" type="text" maxlength="64" value="${esc(draft.occupation)}" data-bind="occupation" placeholder="如：高校教师、学生、科普作者" />
+              </div>
+              <div class="field">
+                <label for="f-school">学校 / 单位（选填）</label>
+                <input id="f-school" type="text" maxlength="64" value="${esc(draft.school)}" data-bind="school" placeholder="如：中国石油大学" />
+              </div>
+              <div class="field wide">
+                <label>学科兴趣标签（最多 8 个）</label>
+                <div class="tag-editor">
+                  ${draft.interests.map((tag) => `
+                    <span class="tag">${esc(tag)}<button type="button" class="tag-remove" data-action="remove-tag" data-tag="${esc(tag)}" aria-label="删除">×</button></span>
+                  `).join('')}
+                  <input id="f-tag-input" type="text" maxlength="24" placeholder="输入标签后按回车添加" />
+                </div>
+                <div class="suggest-row">
+                  ${SUGGESTED_INTERESTS.map((tag) => `
+                    <button type="button" class="suggest-btn" ${draft.interests.includes(tag) ? 'disabled' : ''} data-action="add-tag" data-tag="${esc(tag)}">
+                      ${draft.interests.includes(tag) ? '✓' : '+'} ${esc(tag)}
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 卡片 3：主页氛围与全站创作偏好 -->
+          <section class="card form-card">
+            <div class="form-card-head">
+              <h3>主页氛围与全站创作偏好</h3>
+              <span>联动定象坊与通文册新建默认项</span>
+            </div>
+            <div class="form-grid">
+              <div class="field wide">
+                <label>个人主页封面与名片风格</label>
+                <div class="theme-card-grid">
+                  ${COVER_THEMES.map((t) => `
+                    <button type="button" class="theme-pick ${draft.coverTheme === t.id ? 'active' : ''}" data-action="pick-cover" data-cover="${t.id}">
+                      <div class="theme-pick-preview cover-surface" data-theme="${t.id}"></div>
+                      <span>${esc(t.name)}</span>
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+              <div class="field wide">
+                <label>通文册新建 PPT 默认主题</label>
+                <div class="ppt-theme-grid">
+                  ${PPT_THEMES.map((t) => `
+                    <button type="button" class="ppt-theme-btn ${draft.defaultPptTheme === t.id ? 'active' : ''}" data-action="pick-ppt-theme" data-ppt="${t.id}">
+                      <i class="swatch-dot" style="background:${t.color};border-color:${t.accent};width:14px;height:14px;"></i>
+                      <span>${esc(t.name)}</span>
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+              <div class="field">
+                <label for="f-ratio">通文册默认画布比例</label>
+                <select id="f-ratio" data-bind="defaultRatio">
+                  <option value="16:9" ${draft.defaultRatio === '16:9' ? 'selected' : ''}>16:9 宽屏演示（推荐）</option>
+                  <option value="4:3" ${draft.defaultRatio === '4:3' ? 'selected' : ''}>4:3 传统投影</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="f-subject">定象坊优先学科</label>
+                <select id="f-subject" data-bind="defaultSubject">
+                  ${['高等数学', '线性代数', '大学物理', '408 计算机', '办公决策'].map((s) => `
+                    <option value="${s}" ${draft.defaultSubject === s ? 'selected' : ''}>${s}</option>
+                  `).join('')}
+                </select>
+              </div>
+              <div class="field wide">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" ${draft.reducedMotion ? 'checked' : ''} data-bind-check="reducedMotion" />
+                  <span>偏好精简动效（减少翻页与页面切换动画）</span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- 卡片 4：账号与数据安全 -->
+          <section class="card form-card">
+            <div class="form-card-head">
+              <h3>账号信息与数据说明</h3>
+              <span>只读账号凭据</span>
+            </div>
+            <div class="pref-summary" style="margin-bottom:14px;">
+              <div class="pref-row"><span>登录邮箱</span><strong>${esc(draft.email)}</strong></div>
+              <div class="pref-row"><span>用户名</span><strong style="font-family:var(--font-mono);">@${esc(draft.username)}</strong></div>
+              <div class="pref-row"><span>注册时间</span><strong>${esc(draft.joinedAt)}</strong></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <span style="font-size:12px;color:var(--ink-500);">自定义积木存于本机浏览器，建议在「资产管家」定期导出 JSON 备份。</span>
+              <button type="button" class="btn btn-sm btn-danger-ghost" data-action="toast" data-msg="（原型演示）点击将退出当前账号登录">退出登录</button>
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    /* ================= 渲染方案 A ================= */
+    function renderSchemeA() {
+      const root = document.getElementById('scheme-a-root');
+      const dirty = isDirty();
+      const header = `
+        <div class="scheme-header">
+          <div>
+            <p class="kicker">PERSONAL STUDIO · 方案 A（Bento 便当盒展厅）</p>
+            <h1>${ui.tab === 'showcase' ? '我的创作者展厅' : '资料与全站偏好设置'}</h1>
+          </div>
+          <div class="scheme-tabs" role="tablist">
+            <button type="button" class="${ui.tab === 'showcase' ? 'active' : ''}" data-action="go-showcase">个人展厅</button>
+            <button type="button" class="${ui.tab === 'settings' ? 'active' : ''}" data-action="go-settings">
+              资料与偏好设置 <i class="dirty-dot ${dirty ? 'show' : ''}"></i>
+            </button>
+          </div>
+        </div>
+      `;
+
+      if (ui.tab === 'showcase') {
+        root.innerHTML = header + `
+          <div class="bento-grid">
+            ${renderLiveBentoProfileCard(false)}
+            ${renderHeroFourierCard(false)}
+            ${renderStatsCard()}
+            ${renderRecentCard()}
+            ${renderPrefsSummaryCard()}
+            ${renderSecondaryPins(false)}
+            ${renderAssetsCard()}
+          </div>
+        `;
+      } else {
+        const score = completionScore(draft);
+        root.innerHTML = header + `
+          <div class="settings-split">
+            <aside class="sticky-side">
+              ${renderLiveBentoProfileCard(true)}
+              <div class="completion-box">
+                <div class="completion-head">
+                  <span>${score === 5 ? '✓ 档案已填写完整' : '创作者档案完整度'}</span>
+                  <span>${score * 20}%</span>
+                </div>
+                <div class="completion-track"><div class="completion-fill" style="width:${score * 20}%;"></div></div>
+              </div>
+              ${renderPrefsSummaryCard()}
+            </aside>
+            <div>${renderSettingsForms()}</div>
+          </div>
+        `;
+      }
+    }
+
+    /* ================= 渲染方案 B ================= */
+    function renderSchemeB() {
+      const root = document.getElementById('scheme-b-root');
+      const dirty = isDirty();
+      const name = draft.displayName.trim() || draft.username;
+
+      const bannerCard = `
+        <section class="banner-shell">
+          <div class="banner-hero cover-surface" data-theme="${draft.coverTheme}">
+            ${coverPatternSvg()}
+            <span style="position:relative;z-index:2;padding:4px 11px;border-radius:999px;background:rgba(255,253,248,0.82);color:#141816;font:600 11px var(--font-mono);letter-spacing:0.06em;">
+              CREATOR SPACE · 方案 B（宽幅封面策展主页）
+            </span>
+            <div style="position:relative;z-index:2;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <div class="banner-theme-switcher" title="切换封面氛围">
+                <span>氛围</span>
+                ${COVER_THEMES.map((t) => `
+                  <button type="button" class="theme-dot-btn ${draft.coverTheme === t.id ? 'active' : ''}"
+                    style="background:${t.dot};" data-action="pick-cover" data-cover="${t.id}" title="${t.name}"></button>
+                `).join('')}
+              </div>
+              ${ui.auth ? `<button type="button" class="btn btn-sm btn-ghost" data-action="open-poster">导出名片</button>` : ''}
+            </div>
+          </div>
+
+          <div class="banner-identity">
+            ${ui.auth ? `
+              <div class="banner-id-top">
+                <div class="banner-id-left">
+                  <div class="banner-avatar-ring">${avatarHtml('avatar-xl', true)}</div>
+                  <div class="banner-name-group">
+                    <h1>${esc(name)}</h1>
+                    <div class="profile-meta-line" style="margin-top:5px;">
+                      <span style="font-family:var(--font-mono);color:var(--ink-400);font-size:12.5px;">@${esc(draft.username)}</span>
+                      ${draft.occupation.trim() ? `<span class="meta-pill">${esc(draft.occupation.trim())}</span>` : ''}
+                      ${draft.school.trim() ? `<span>${esc(draft.school.trim())}</span>` : ''}
+                    </div>
+                  </div>
+                </div>
+                <div class="banner-actions">
+                  <button type="button" class="btn btn-ghost" data-action="toast" data-msg="前往通文册工作台">通文册 ↗</button>
+                  <button type="button" class="btn btn-ghost" data-action="toast" data-msg="前往定象坊工坊">定象坊 ↗</button>
+                  <button type="button" class="btn btn-primary" data-action="${ui.tab === 'settings' ? 'go-showcase' : 'go-settings'}">
+                    ${ui.tab === 'settings' ? '← 返回展厅' : '✎ 编辑资料与偏好'}
+                  </button>
+                </div>
+              </div>
+              <div class="banner-bio-row">
+                <div class="banner-bio-col">
+                  <p class="profile-bio" style="margin:0 0 10px;">${draft.bio.trim() ? esc(draft.bio.trim()) : '<span style="color:var(--ink-400);">点击编辑资料，添加你的教学与创作简介…</span>'}</p>
+                  <div class="tag-list">
+                    ${draft.interests.map((t) => `<span class="tag"># ${esc(t)}</span>`).join('')}
+                  </div>
+                </div>
+                <div class="banner-stats-inline">
+                  <div class="banner-stat"><strong>48</strong><span>动态幻灯片页</span></div>
+                  <div class="banner-stat"><strong>7</strong><span>交互沙盘</span></div>
+                  <div class="banner-stat"><strong>5</strong><span>自定义积木</span></div>
+                </div>
+              </div>
+            ` : `
+              <div style="padding-top:18px;">
+                <div class="guest-box" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
+                  <div>
+                    <h3>当前为访客模式</h3>
+                    <p style="margin:0;">本地会话已有 3 份临时活页与 5 块积木（最早一份将在 23 小时后自动清理）。登录后即可拥有专属个人主页封面与名片。</p>
+                  </div>
+                  <div style="display:flex;gap:8px;">
+                    <button type="button" class="btn btn-primary" data-action="switch-auth">登录</button>
+                    <button type="button" class="btn btn-ghost" data-action="switch-auth">注册</button>
+                  </div>
+                </div>
+              </div>
+            `}
+          </div>
+
+          <div class="banner-tabs" role="tablist">
+            <button type="button" class="${ui.tab === 'showcase' ? 'active' : ''}" data-action="go-showcase">个人展厅</button>
+            <button type="button" class="${ui.tab === 'settings' ? 'active' : ''}" data-action="go-settings">
+              资料与偏好设置 <i class="dirty-dot ${dirty ? 'show' : ''}"></i>
+            </button>
+          </div>
+        </section>
+      `;
+
+      let body = '';
+      if (ui.tab === 'showcase') {
+        body = `
+          <div class="b-showcase-grid">
+            ${renderHeroFourierCard(true)}
+            ${renderSecondaryPins(true)}
+          </div>
+          <div class="b-lower-grid">
+            ${renderStatsCard()}
+            ${renderRecentCard()}
+            ${renderAssetsCard()}
+          </div>
+        `;
+      } else {
+        const score = completionScore(draft);
+        body = `
+          <div class="settings-split" style="grid-template-columns:minmax(0,1fr) 310px;">
+            <div>${renderSettingsForms()}</div>
+            <aside class="sticky-side">
+              <div class="completion-box">
+                <div class="completion-head">
+                  <span>${score === 5 ? '✓ 档案已完整' : '资料完整度'}</span>
+                  <span>${score * 20}%</span>
+                </div>
+                <div class="completion-track"><div class="completion-fill" style="width:${score * 20}%;"></div></div>
+                <p style="margin:9px 0 0;font-size:12px;color:var(--ink-500);">上方宽幅封面与名片正在实时预览你的修改效果。</p>
+              </div>
+              ${renderPrefsSummaryCard()}
+              ${renderAssetsCard()}
+            </aside>
+          </div>
+        `;
+      }
+
+      root.innerHTML = bannerCard + body;
+    }
+
+    function renderNavAccount() {
+      const chip = document.getElementById('nav-account-chip');
+      if (!ui.auth) {
+        chip.innerHTML = `<button type="button" class="btn btn-sm btn-primary" style="height:28px;" data-action="switch-auth">登录 / 注册</button>`;
+        chip.style.border = '0';
+        chip.style.padding = '0';
+        chip.style.background = 'transparent';
+        return;
+      }
+      chip.style.border = '';
+      chip.style.padding = '';
+      chip.style.background = '';
+      chip.innerHTML = `${avatarHtml('avatar-sm', false)}<span>${esc(draft.displayName.trim() || draft.username)}</span>`;
+    }
+
+    function syncControlBar() {
+      document.getElementById('btn-scheme-a').classList.toggle('active', ui.scheme === 'a');
+      document.getElementById('btn-scheme-b').classList.toggle('active', ui.scheme === 'b');
+      document.getElementById('btn-tab-showcase').classList.toggle('active', ui.tab === 'showcase');
+      document.getElementById('btn-tab-settings').classList.toggle('active', ui.tab === 'settings');
+      document.getElementById('btn-mode-auth').classList.toggle('active', ui.auth);
+      document.getElementById('btn-mode-guest').classList.toggle('active', !ui.auth);
+      document.getElementById('scheme-a-root').classList.toggle('hidden', ui.scheme !== 'a');
+      document.getElementById('scheme-b-root').classList.toggle('hidden', ui.scheme !== 'b');
+      document.getElementById('save-bar').classList.toggle('show', ui.auth && isDirty());
+    }
+
+    function renderAll(preserveFocusId = null, selStart = null, selEnd = null) {
+      renderNavAccount();
+      if (ui.scheme === 'a') renderSchemeA();
+      else renderSchemeB();
+      syncControlBar();
+      bindDynamicEvents();
+      drawFourierFrame();
+      if (preserveFocusId) {
+        const el = document.getElementById(preserveFocusId);
+        if (el) {
+          el.focus({ preventScroll: true });
+          if (typeof selStart === 'number' && el.setSelectionRange) {
+            try { el.setSelectionRange(selStart, selEnd ?? selStart); } catch {}
+          }
+        }
+      }
+    }
+
+    /* ================= 交互事件绑定 ================= */
+    function bindDynamicEvents() {
+      document.querySelectorAll('[data-bind]').forEach((el) => {
+        el.oninput = (e) => {
+          const key = el.dataset.bind;
+          draft[key] = e.target.value;
+          renderAll(el.id, e.target.selectionStart, e.target.selectionEnd);
+        };
+        if (el.tagName === 'SELECT') {
+          el.onchange = (e) => {
+            draft[el.dataset.bind] = e.target.value;
+            renderAll();
+          };
+        }
+      });
+
+      document.querySelectorAll('[data-bind-check]').forEach((el) => {
+        el.onchange = (e) => {
+          draft[el.dataset.bindCheck] = e.target.checked;
+          renderAll();
+        };
+      });
+
+      const tagInput = document.getElementById('f-tag-input');
+      if (tagInput) {
+        tagInput.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            const val = tagInput.value.trim();
+            if (!val) return;
+            if (draft.interests.length >= 8) { showToast('兴趣标签最多添加 8 个'); return; }
+            if (!draft.interests.includes(val)) {
+              draft.interests = [...draft.interests, val];
+              renderAll('f-tag-input');
+            }
+          }
+        };
+      }
+
+      document.querySelectorAll('[data-fourier-slider]').forEach((slider) => {
+        slider.oninput = (e) => {
+          ui.harmonics = Number(e.target.value);
+          document.querySelectorAll('[data-fourier-val]').forEach((v) => v.textContent = String(ui.harmonics));
+          drawFourierFrame();
+        };
+      });
+    }
+
+    document.addEventListener('click', (e) => {
+      const target = e.target.closest('[data-action]');
+      if (!target) return;
+      const action = target.dataset.action;
+
+      if (action === 'go-settings') { ui.tab = 'settings'; renderAll(); }
+      else if (action === 'go-showcase') { ui.tab = 'showcase'; renderAll(); }
+      else if (action === 'switch-auth') { ui.auth = true; renderAll(); showToast('已切换为已登录态'); }
+      else if (action === 'pick-avatar') { document.getElementById('global-avatar-input').click(); }
+      else if (action === 'clear-avatar') { draft.avatarUrl = null; renderAll(); showToast('已恢复默认文字头像'); }
+      else if (action === 'pick-avatar-swatch') { draft.avatarUrl = null; draft.avatarSwatch = target.dataset.swatch; renderAll(); }
+      else if (action === 'pick-cover') { draft.coverTheme = target.dataset.cover; renderAll(); }
+      else if (action === 'pick-ppt-theme') { draft.defaultPptTheme = target.dataset.ppt; renderAll(); }
+      else if (action === 'add-tag') {
+        const tag = target.dataset.tag;
+        if (draft.interests.length >= 8) { showToast('兴趣标签最多 8 个'); return; }
+        if (!draft.interests.includes(tag)) { draft.interests = [...draft.interests, tag]; renderAll(); }
+      }
+      else if (action === 'remove-tag') {
+        const tag = target.dataset.tag;
+        draft.interests = draft.interests.filter((x) => x !== tag);
+        renderAll();
+      }
+      else if (action === 'toggle-fourier-play') { ui.playing = !ui.playing; renderAll(); }
+      else if (action === 'open-pin-modal') { openPinModal(); }
+      else if (action === 'open-poster') { openPosterModal(); }
+      else if (action === 'toast') { showToast(target.dataset.msg || '操作成功'); }
+    });
+
+    /* 顶部原型控制条 */
+    document.getElementById('btn-scheme-a').onclick = () => { ui.scheme = 'a'; renderAll(); };
+    document.getElementById('btn-scheme-b').onclick = () => { ui.scheme = 'b'; renderAll(); };
+    document.getElementById('btn-tab-showcase').onclick = () => { ui.tab = 'showcase'; renderAll(); };
+    document.getElementById('btn-tab-settings').onclick = () => { ui.tab = 'settings'; renderAll(); };
+    document.getElementById('btn-mode-auth').onclick = () => { ui.auth = true; renderAll(); };
+    document.getElementById('btn-mode-guest').onclick = () => { ui.auth = false; renderAll(); };
+
+    /* 头像文件选择实时预览 */
+    document.getElementById('global-avatar-input').onchange = (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        draft.avatarUrl = String(reader.result);
+        renderAll();
+        showToast('头像已更新（实时同步至名片与顶栏）');
+      };
+      reader.readAsDataURL(file);
+    };
+
+    /* 吸底保存/重置 */
+    document.getElementById('btn-reset-draft').onclick = () => {
+      draft = structuredClone(saved);
+      renderAll();
+      showToast('已重置未保存的修改');
+    };
+    document.getElementById('btn-save-draft').onclick = () => {
+      if (!draft.displayName.trim()) { showToast('昵称不能为空'); return; }
+      saved = structuredClone(draft);
+      renderAll();
+      showToast('✓ 个人资料与全站偏好已保存');
+    };
+
+    /* 置顶管理弹窗 */
+    const pinModal = document.getElementById('pin-modal');
+    function openPinModal() {
+      const list = document.getElementById('pin-options-list');
+      list.innerHTML = CATALOG_ITEMS.map((item) => `
+        <label class="pin-option">
+          <div>
+            <strong style="display:block;font-size:13.5px;">${esc(item.title)}</strong>
+            <small style="color:var(--ink-500);">${esc(item.kindLabel)} · ${esc(item.meta)}</small>
+          </div>
+          <input type="checkbox" value="${item.id}" ${draft.pinnedIds.includes(item.id) ? 'checked' : ''} />
+        </label>
+      `).join('');
+      pinModal.classList.add('open');
+    }
+    document.getElementById('btn-close-pin').onclick = () => pinModal.classList.remove('open');
+    document.getElementById('btn-apply-pin').onclick = () => {
+      const picked = [...pinModal.querySelectorAll('input:checked')].map((i) => i.value);
+      if (!picked.length) { showToast('请至少选择 1 项展示作品'); return; }
+      if (picked.length > 3) { showToast('最多置顶 3 项代表作'); return; }
+      draft.pinnedIds = picked;
+      pinModal.classList.remove('open');
+      renderAll();
+      showToast('置顶展柜已更新');
+    };
+    pinModal.onclick = (e) => { if (e.target === pinModal) pinModal.classList.remove('open'); };
+
+    /* 名片海报导出弹窗 */
+    const posterModal = document.getElementById('poster-modal');
+    function openPosterModal() {
+      drawPosterCanvas();
+      posterModal.classList.add('open');
+    }
+    document.getElementById('btn-close-poster').onclick = () => posterModal.classList.remove('open');
+    posterModal.onclick = (e) => { if (e.target === posterModal) posterModal.classList.remove('open'); };
+    document.getElementById('btn-download-poster').onclick = () => {
+      const url = document.getElementById('poster-canvas').toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(draft.displayName.trim() || 'wanxiang')}-创作者名片.png`;
+      a.click();
+      showToast('已下载高清 PNG 创作者名片');
+    };
+
+    function drawPosterCanvas() {
+      const canvas = document.getElementById('poster-canvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+      const dark = draft.coverTheme === 'indigo-star' || draft.coverTheme === 'chalk-board';
+      const bgColors = {
+        'ivory-gold': ['#faf6ea', '#efe5cf'],
+        'indigo-star': ['#171f3b', '#223663'],
+        'chalk-board': ['#16332c', '#204a3f'],
+        'oat-editorial': ['#f2e6d5', '#e4d3bc'],
+      }[draft.coverTheme] || ['#faf6ea', '#efe5cf'];
+
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, bgColors[0]);
+      grad.addColorStop(1, bgColors[1]);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      // 装饰曲线
+      ctx.strokeStyle = dark ? 'rgba(255,255,255,0.12)' : 'rgba(184,68,35,0.14)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = 0; x <= w; x += 8) {
+        const y = h * 0.72 + Math.sin(x / 110) * 34 + Math.cos(x / 48) * 14;
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // 品牌标
+      ctx.fillStyle = dark ? '#ffd38e' : '#b84423';
+      ctx.font = '600 18px ui-monospace, monospace';
+      ctx.fillText('WANXIANG · 万象创作者名片', 64, 72);
+
+      // 头像圆
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(118, 178, 52, 0, Math.PI * 2);
+      ctx.fillStyle = dark ? '#3c5aa0' : '#2e457a';
+      ctx.fill();
+      ctx.fillStyle = '#fffdf8';
+      ctx.font = '700 42px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(Array.from(draft.displayName.trim() || '象')[0], 118, 180);
+      ctx.restore();
+
+      // 姓名与身份
+      ctx.fillStyle = dark ? '#ffffff' : '#141816';
+      ctx.font = '700 46px "Songti SC", Georgia, serif';
+      ctx.fillText(draft.displayName.trim() || draft.username, 198, 172);
+      ctx.fillStyle = dark ? 'rgba(255,255,255,0.72)' : '#5a635e';
+      ctx.font = '500 22px sans-serif';
+      const meta = [draft.occupation.trim(), draft.school.trim(), '@' + draft.username].filter(Boolean).join(' · ');
+      ctx.fillText(meta, 198, 214);
+
+      // 简介
+      ctx.fillStyle = dark ? 'rgba(255,255,255,0.88)' : '#323a35';
+      ctx.font = '400 24px sans-serif';
+      ctx.fillText((draft.bio.trim() || '探索动态教学与可视化创作').slice(0, 36), 64, 300);
+
+      // 标签
+      let tx = 64;
+      ctx.font = '500 19px sans-serif';
+      for (const tag of draft.interests.slice(0, 5)) {
+        const label = '# ' + tag;
+        const tw = ctx.measureText(label).width + 28;
+        ctx.fillStyle = dark ? 'rgba(255,255,255,0.12)' : 'rgba(20,24,22,0.07)';
+        ctx.beginPath();
+        ctx.roundRect(tx, 344, tw, 38, 19);
+        ctx.fill();
+        ctx.fillStyle = dark ? '#eef4ff' : '#2c3430';
+        ctx.fillText(label, tx + 14, 370);
+        tx += tw + 12;
+      }
+
+      // 底部数据
+      ctx.strokeStyle = dark ? 'rgba(255,255,255,0.14)' : 'rgba(20,24,22,0.12)';
+      ctx.beginPath();
+      ctx.moveTo(64, 456);
+      ctx.lineTo(w - 64, 456);
+      ctx.stroke();
+
+      ctx.fillStyle = dark ? '#ffffff' : '#141816';
+      ctx.font = '700 26px Georgia, serif';
+      ctx.fillText('48 页动态幻灯片   ·   7 个交互沙盘   ·   5 块自研积木', 64, 514);
+    }
+
+    /* ================= 傅里叶实时波形动画 ================= */
+    function drawFourierFrame() {
+      const canvases = document.querySelectorAll('[data-fourier-canvas]');
+      canvases.forEach((canvas) => {
+        const rect = canvas.getBoundingClientRect();
+        if (!rect.width) return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const w = Math.round(rect.width * dpr);
+        const h = Math.round(rect.height * dpr);
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, w, h);
+
+        // 网格轴
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = 1 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(0, h / 2);
+        ctx.lineTo(w, h / 2);
+        ctx.stroke();
+
+        // 目标方波参考线
+        ctx.strokeStyle = 'rgba(131, 232, 234, 0.22)';
+        ctx.setLineDash([5 * dpr, 5 * dpr]);
+        ctx.beginPath();
+        for (let px = 0; px <= w; px += 4) {
+          const theta = (px / w) * Math.PI * 4 + ui.phase;
+          const sq = Math.sin(theta) >= 0 ? 1 : -1;
+          const py = h / 2 - sq * h * 0.30;
+          if (px === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 傅里叶合成波形
+        ctx.strokeStyle = '#f3b75c';
+        ctx.lineWidth = 2.4 * dpr;
+        ctx.beginPath();
+        for (let px = 0; px <= w; px += 2) {
+          const theta = (px / w) * Math.PI * 4 + ui.phase;
+          let sum = 0;
+          for (let n = 1; n <= ui.harmonics; n += 2) {
+            sum += (4 / (Math.PI * n)) * Math.sin(n * theta);
+          }
+          const py = h / 2 - sum * h * 0.30;
+          if (px === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      });
+    }
+
+    function tick() {
+      if (ui.playing && !draft.reducedMotion) {
+        ui.phase += 0.025;
+        drawFourierFrame();
+      }
+      requestAnimationFrame(tick);
+    }
+
+    renderAll();
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

@@ -31,6 +31,8 @@ def ensure_document(material_id:str,title:str)->dict:
         root=document_root(material_id)
         source=root/'source.pptx'
         original=working_path(material_id)
+        if document is not None and not source.is_file() and not original.is_file():
+            return hydrate_document(material_id,document)
         if (document is None or (document.get('native_import_version') or 0)<NATIVE_IMPORT_VERSION
                 or (original.is_file() and not source.is_file())):
             if not source.is_file() and original.is_file():
@@ -71,6 +73,14 @@ def _upgrade_document(document, imported):
             original=source_nodes.get(node.get('source_shape_id'))
             if not original or node.get('figure_provenance') or (node['type']!=original['type'] and page.get('modified')):
                 continue
+            geometry = ('x', 'y', 'width', 'height')
+            if (tuple(node.get(f'base_{key}') for key in geometry) == (0, 0, .1, .1)
+                    and min(original['width'], original['height']) > .1):
+                for key in geometry:
+                    base_key = f'base_{key}'
+                    if node.get(key) == node[base_key]:
+                        node[key] = original[key]
+                    node[base_key] = original[base_key]
             if node['type']!=original['type']:
                 node.update({k:original[k] for k in ('type','x','y','height','width','rotation',
                     'base_x','base_y','base_width','base_height','base_rotation','locked')})
@@ -89,6 +99,17 @@ def _upgrade_document(document, imported):
                 node['text_rotation_offset']=original['text_rotation_offset']
             if 'paragraphs' in original and not node.get('rich_text_edited') and node.get('text')==node.get('base_text'):
                 node['paragraphs']=original['paragraphs']
+                if original.get('text') is not None and original.get('text')!=node.get('base_text'):
+                    node['text']=original['text']
+                    node['base_text']=original['base_text']
+        if not page.get('modified'):
+            existing_shape_ids={node.get('source_shape_id') for node in page['nodes'] if node.get('source_shape_id') is not None}
+            for original in source['nodes']:
+                sid=original.get('source_shape_id')
+                if sid is not None and sid not in existing_shape_ids:
+                    page['nodes'].append(deepcopy(original))
+            if source.get('native_fallback'):
+                page['native_fallback']=True
 
 
 def source_page_number(page):
@@ -184,7 +205,7 @@ def hydrate_document(material_id:str,document:dict)->dict:
     result=deepcopy(document);result.pop('applied_operations',None);result.pop('archived_pages',None)
     for page in result['pages']:
         asset_page=source_page_number(page)
-        if page.get('background_modified'):
+        if page.get('background_modified') and not (page.get('background_url') or '').startswith('data:image/'):
             page.pop('background_url',None)
         for node in page['nodes']:
             identifier=node.get('cleaned_asset_id')

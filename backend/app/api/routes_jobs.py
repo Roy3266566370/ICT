@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor
 import json
 import logging
 import os
@@ -604,6 +605,32 @@ def _render_pages(
     return outcome
 
 
+def _seed_pending_pages(db: Session, material: MaterialRecord) -> None:
+    """在渲染开始前预写页码占位行并提交，使前端在渲染期就能按落盘页图实时展示逐页进度。"""
+
+    total = int(material.page_count or 0)
+    if total <= 0:
+        return
+    existing = db.scalars(
+        select(PageRecord.id).where(PageRecord.material_id == material.id).limit(1)
+    ).first()
+    if existing is not None:
+        return
+    for page_no in range(1, total + 1):
+        db.add(
+            PageRecord(
+                id=_page_id(),
+                material_id=material.id,
+                page_no=page_no,
+                title="",
+                paragraphs=[],
+                excerpt="",
+                image_asset_id=None,
+            )
+        )
+    db.commit()
+
+
 def _run_upload_pipeline(
     db: Session,
     job: JobRecord,
@@ -621,30 +648,44 @@ def _run_upload_pipeline(
     if not source_file.is_file():
         raise parse_failed("上传原件丢失，请重新上传", stage="parsing")
 
-    # 渲染先于识别：整页底图一落盘，材料即可读（§3.1）。
-    # 当仅修改公式核对或交互绑定（native_changed=False）且已有渲染底图时，跳过整本 PowerPoint COM 重渲染。
-    if not native_changed and has_render_manifest(material.id):
-        transition(db, job, "rendering", progress_pct=None)
-        material.status = READINESS_READABLE
-        db.commit()
-    else:
-        _render_pages(db, job, material, source_file)
-
     bundle = load_parser_bundle()
-    if bundle is None:
-        # 解析器未就绪只影响结构化内容；页图已生成，材料保持可读（§3.1 末条）。
-        raise model_unavailable(
-            "解析器尚未就绪（规则化解析未交付）；整页底图已生成，可先浏览原始页面",
-            stage="parsing",
-        )
+    parse_executor: ThreadPoolExecutor | None = None
+    parse_future: Future[tuple[dict[str, Any], dict[str, Any]]] | None = None
+    if bundle is not None:
+        # 解析 PPTX 为只读操作，与底图渲染并发执行，省去整段串行解析等待。
+        parse_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pptx-parse")
+        parse_future = parse_executor.submit(bundle.parse_pptx, str(source_file))
 
     try:
-        material_payload, slides_payload = bundle.parse_pptx(str(source_file))
-    except Exception as exc:
-        raise _map_parse_error(exc) from exc
+        # 渲染先于识别：先预置页码占位行并提交，前端轮询即可实时看到每一页底图点亮并支持提前阅读（§3.1）。
+        # 当仅修改公式核对或交互绑定（native_changed=False）且已有渲染底图时，跳过整本 PowerPoint COM 重渲染。
+        if not native_changed and has_render_manifest(material.id):
+            transition(db, job, "rendering", progress_pct=None)
+            material.status = READINESS_READABLE
+            db.commit()
+        else:
+            _seed_pending_pages(db, material)
+            _render_pages(db, job, material, source_file)
+
+        if bundle is None or parse_future is None:
+            # 解析器未就绪只影响结构化内容；页图已生成，材料保持可读（§3.1 末条）。
+            raise model_unavailable(
+                "解析器尚未就绪（规则化解析未交付）；整页底图已生成，可先浏览原始页面",
+                stage="parsing",
+            )
+
+        try:
+            material_payload, slides_payload = parse_future.result()
+        except Exception as exc:
+            raise _map_parse_error(exc) from exc
+    finally:
+        if parse_executor is not None:
+            parse_executor.shutdown(wait=False)
 
     transition(db, job, "extracting", progress_pct=STAGE_PROGRESS["extracting"])
     page_count = persist_slides(db, material, slides_payload or {})
+    # 立即提交已解析页面与元素，确保前端轮询实时拿到完整页数与底图链接。
+    db.commit()
 
     # 上传主链路默认走极速模式：跳过整本图片 OCR / 视觉读图 / LLM 猜公式，
     # 仅渲染底图与保存版式结构，让 PPT 秒开；交互能力由编辑页直接插入定象坊插件承接。
@@ -668,12 +709,8 @@ def _run_upload_pipeline(
     if material.page_count == 0:
         # §2.2.8：python-pptx 抛异常或解析结果 0 页 → PARSE_FAILED（可重试）。
         raise parse_failed("解析结果为 0 页，无法进入确认阶段", stage="extracting")
-    if native_changed:
-        try:
-            from ..documents.auto_vectors import prepare_source_vectors
-            prepare_source_vectors(material.id, material.title)
-        except Exception:
-            logger.exception("PPT 自动线条准备失败，保留原稿 material=%s", material.id)
+    # 不在上传主链路中同步逐页拉起 COM 拆图层（48 页会阻塞 8~12 分钟）；
+    # 自由编辑页已内置按需准备当前页与后台预取下一页的懒加载机制。
     material.status = "awaiting_confirmation"
 
     transition(db, job, "awaiting_confirmation", progress_pct=STAGE_PROGRESS["awaiting_confirmation"])

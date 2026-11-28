@@ -64,7 +64,7 @@ export function SpaceCard({ item, now, onDelete }: {
   }, [open]);
 
   const label = SPACE_KIND_LABEL[item.kind];
-  const action = item.kind === 'material' ? '打开活页' : item.kind === 'work' ? '在画布中打开' : '在画布中使用';
+  const action = item.kind === 'material' ? '打开课件' : item.kind === 'work' ? '在画布中打开' : '在画布中使用';
   return <article className={styles.card} data-menu-open={open || undefined}>
     <Link className={styles.cardLink} to={spaceItemHref(item)} aria-label={`${action}：${item.title}`}>
       <SpaceCover item={item}/>

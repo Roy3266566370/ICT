@@ -1,4 +1,4 @@
-﻿param([switch]$Restart)
+﻿param([switch]$Restart, [switch]$BackendOnly)
 $ErrorActionPreference = 'Stop'
 $taskRoot = $PSScriptRoot
 $logRoot = Join-Path $taskRoot 'verify'
@@ -120,7 +120,7 @@ function Wait-OwnedService($Process, [int]$Port, [string]$Url, $Record) {
     throw "New service on port $Port did not become ready within 25s."
 }
 
-# --- account route completeness check (read-only) ---------------------------
+# --- required API route completeness check (read-only) ----------------------
 # The running backend on 8000 may be a stale process started before the account
 # routes existed. "openapi.json answers 200" is NOT proof that the account API is
 # served, so read the OpenAPI document and compare its paths. This check only
@@ -129,7 +129,10 @@ $RequiredRoutes = @(
     '/api/v1/auth/register',
     '/api/v1/auth/login',
     '/api/v1/auth/logout',
-    '/api/v1/me'
+    '/api/v1/me',
+    '/api/v1/plaza',
+    '/api/v1/creators/{user_id}',
+    '/api/v1/p/{share_id}/fork'
 )
 
 function Get-OpenApiPaths([string]$BaseUrl) {
@@ -157,7 +160,7 @@ function Get-OpenApiPaths([string]$BaseUrl) {
         }
         return @($document.paths.PSObject.Properties.Name)
     } catch {
-        throw "无法验证账号路由：无法读取或解析 $BaseUrl/openapi.json。$($_.Exception.Message)"
+        throw "无法验证必要路由：无法读取或解析 $BaseUrl/openapi.json。$($_.Exception.Message)"
     } finally {
         if ($null -ne $reader) { $reader.Dispose() }
         if ($null -ne $response) { $response.Close() }
@@ -170,7 +173,7 @@ function Assert-RequiredRoutes([string]$BaseUrl) {
     $paths = @(Get-OpenApiPaths $BaseUrl)
     $missing = @($RequiredRoutes | Where-Object { $paths -cnotcontains $_ })
     if ($missing.Count -eq 0) {
-        Write-Output "Account routes OK: all $($RequiredRoutes.Count) required account endpoints are served."
+        Write-Output "API routes OK: all $($RequiredRoutes.Count) required endpoints are served."
         return
     }
     Write-Output "缺少账号路由：$($missing -join ', ')"
@@ -214,9 +217,9 @@ $frontendTarget = Join-Path $frontendRoot 'node_modules/vite/bin/vite.js'
 $backendState = Join-Path $logRoot 'dev-backend-process.json'
 $frontendState = Join-Path $logRoot 'dev-frontend-process.json'
 
-# Validate BOTH ports before stopping anything, including when -Restart is used.
+# Validate the ownership of each selected service before stopping anything.
 $backendRecord = Get-ManagedRecord 8000 $backendState $backendTarget
-$frontendRecord = Get-ManagedRecord 5173 $frontendState $frontendTarget
+if (-not $BackendOnly) { $frontendRecord = Get-ManagedRecord 5173 $frontendState $frontendTarget }
 if ($Restart) {
     foreach ($record in @($backendRecord, $frontendRecord)) {
         if ($null -ne $record) {
@@ -268,6 +271,11 @@ if ($null -ne $backendRecord) {
     Write-Output "New backend ready (PID $($backendRecord.pid), launch $launchId): http://127.0.0.1:8000/"
 }
 Assert-RequiredRoutes 'http://127.0.0.1:8000'
+if ($BackendOnly) {
+    $success = $true
+    Write-Output 'Backend: http://127.0.0.1:8000/ (logs and process identity in verify/)'
+    return
+}
 
 # --- frontend ---------------------------------------------------------------
 $frontendUrl = 'http://localhost:5173/'

@@ -1,8 +1,86 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { DF_CANDIDATES } from './deepFirst';
 import { seeded } from './deepAdvanced';
 import type { NodeBodyProps, NodeDef } from './nodes';
 import { isStudyStage, studyStages, type StudyStage } from './studyStages';
+import styles from './deepCore.module.css';
+
+const curveColors = ['#13766d', '#b54f29', '#6c55aa', '#2864a4'];
+const curveNumber = (value: number) => Number(value.toPrecision(4)).toString();
+
+function StudyCurve({ node, values }: NodeBodyProps) {
+  const fillId = useId();
+  const [sample, setSample] = useState<number | null>(null);
+  const value = values.in;
+  const series = value?.kind === 'series' ? value : null;
+  const title = node.text || series?.title || studyStages.studyCurveView.title;
+  const lines = series ? [{ name: series.title, values: series.values }, ...(series.secondary ?? [])]
+    : value?.kind === 'tensor2d' ? value.data.map((row, i) => ({ name: `序列 ${i + 1}`, values: row })) : [];
+  const data = lines.flatMap(line => line.values);
+  if (!data.length) return <p role="status">暂无曲线数据</p>;
+
+  const count = lines.reduce((length, line) => Math.max(length, line.values.length), 0);
+  const label = (i: number) => series?.labels[i] ?? String(i + 1);
+  const [min, max] = data.reduce(([lo, hi], n) => [Math.min(lo, n), Math.max(hi, n)], [Infinity, -Infinity]);
+  const magnitude = Math.max(Math.abs(min!), Math.abs(max!), Number.MIN_VALUE);
+  const low = min! / magnitude, high = max! / magnitude;
+  const left = 55, right = 350, top = 9, bottom = 62, width = right - left;
+  const x = (i: number) => count === 1 ? right : left + i / (count - 1) * width;
+  const y = (n: number) => (high === low ? (top + bottom) / 2 : bottom - (n / magnitude - low) / (high - low) * (bottom - top));
+  const index = Math.min(sample ?? count - 1, count - 1);
+  const points = lines.map(line => line.values.map((n, i) => `${x(i)},${y(n)}`).join(' '));
+  const observations = lines.map(line => {
+    const position = sample === null ? line.values.length - 1 : index;
+    return { position, value: line.values[position] };
+  });
+  const readout = observations.map(({ value }) => value === undefined ? '—' : curveNumber(value));
+  return <figure className={styles.studyCurve}>
+    <svg viewBox="0 0 360 85" width="100%" role="slider" tabIndex={0}
+      aria-label={title} aria-valuemin={1} aria-valuemax={count} aria-valuenow={index + 1}
+      aria-valuetext={`${label(index)} · ${readout.join(' / ')}`}
+      onKeyDown={(event) => {
+        const navigation: Record<string, number> = { ArrowLeft: index - 1, ArrowRight: index + 1,
+          ArrowDown: index - 1, ArrowUp: index + 1, Home: 0, End: count - 1 };
+        const next = navigation[event.key];
+        if (next === undefined) return;
+        event.preventDefault();
+        setSample(Math.max(0, Math.min(count - 1, next)));
+      }}
+      onPointerMove={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const offset = ((event.clientX - rect.left) / rect.width * 360 - left) / width;
+        setSample(Math.max(0, Math.min(count - 1, Math.round(offset * (count - 1)))));
+      }}
+      onPointerLeave={() => setSample(null)} onBlur={() => setSample(null)}>
+      <defs><linearGradient id={fillId} x2="0" y2="1">
+        <stop offset="0%" stopColor={curveColors[0]} stopOpacity=".24" />
+        <stop offset="100%" stopColor={curveColors[0]} stopOpacity=".02" />
+      </linearGradient></defs>
+      <path d={`M${left} ${top}H${right}M${left} ${bottom}H${right}`} stroke="#cbd6d5" />
+      <text x={left - 5} y={top + 3} textAnchor="end">{curveNumber(max!)}</text>
+      <text x={left - 5} y={bottom + 3} textAnchor="end">{curveNumber(min!)}</text>
+      {lines.length === 1 && count > 1 &&
+        <polygon points={`${left},${bottom} ${points[0]} ${right},${bottom}`} fill={`url(#${fillId})`} />}
+      <path d={`M${x(index)} ${top}V${bottom}`} stroke="#819291" strokeDasharray="2 3" />
+      {lines.map((line, i) => {
+        const color = curveColors[i % curveColors.length];
+        const { position, value: point } = observations[i]!;
+        return <g key={i}>
+          <polyline points={points[i]} fill="none" stroke={color} strokeWidth="1.8" />
+          {point !== undefined && <circle cx={x(position)} cy={y(point)} r="2.8" fill={color} />}
+        </g>;
+      })}
+      {count > 1 && <text x={left} y="78">{label(0)}</text>}
+      <text x={right} y="78" textAnchor="end">{label(count - 1)}</text>
+    </svg>
+    <figcaption>
+      <span>{sample === null ? '末值' : label(index)}{series?.unit ? ` · ${series.unit}` : ''}</span>
+      {lines.map((line, i) => <span key={i} style={{ color: curveColors[i % curveColors.length] }}>
+        {lines.length > 1 && `${line.name} `}<b>{readout[i]}</b>
+      </span>)}
+    </figcaption>
+  </figure>;
+}
 
 function OptimizerPlayback({ values, onLive }: NodeBodyProps) {
   const [running, setRunning] = useState(false);
@@ -43,12 +121,14 @@ function StudyStageBody(props: NodeBodyProps) {
   if (!isStudyStage(node.type)) return null;
   const stage = studyStages[node.type];
   if (node.type === 'studyOptim') return <OptimizerPlayback {...props} />;
+  if (node.type === 'studyCurveView') return <StudyCurve {...props} />;
   if (node.type === 'studyTokenView') {
     const probabilities = values.in?.kind === 'tensor2d' ? values.in.data : [];
     if (!probabilities.length || probabilities[0]?.length !== DF_CANDIDATES.length)
       return <p role="status">请连接采样概率</p>;
     const random = seeded(20261120);
-    return <ol aria-label="按当前步数生成的词元">{probabilities.map((row, i) => {
+    return <ol className={props.displayContext === 'cockpit' ? styles.tokenFlow : undefined}
+      aria-label="按当前步数生成的词元">{probabilities.map((row, i) => {
       const sample = random();
       let cumulative = 0;
       const token = row.findIndex((p) => { cumulative += p; return sample < cumulative; });
@@ -135,6 +215,12 @@ function StudyStageBody(props: NodeBodyProps) {
   </div>;
 }
 
-export const studyNodeDefs = Object.fromEntries(Object.entries(studyStages).map(([type, spec]) => [
-  type, { ...spec, badge: '变换', width: 200, Body: StudyStageBody } satisfies NodeDef,
-])) as Partial<Record<StudyStage, NodeDef>>;
+export const studyNodeDefs = Object.fromEntries(Object.entries(studyStages).map(([type, spec]) => {
+  const isView = spec.outputs.length === 0;
+  const cockpitWeight = type === 'studyTrajectory' ? 'hero'
+    : type === 'studyCloudPlot' || type === 'studyVectorPlot' ? 'standard' : 'compact';
+  return [type, {
+    ...spec, badge: isView ? '视图' : '变换', width: 200, Body: StudyStageBody,
+    ...(isView ? { cockpitWeight } : {}),
+  } satisfies NodeDef];
+})) as Partial<Record<StudyStage, NodeDef>>;

@@ -1,39 +1,29 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
-import { Link,useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { api, errorMessage, requestBinary, requestDownload } from '@/api/client';
-import { downloadProjectPackage } from '@/api/projectPackage';
 import type { SlideElement } from '@/api/types';
 import { useReducedMotion } from '@/hooks/useMotionPreference';
 import type { ISpec } from '@/ispec/types';
 import { useDeckValues } from './useDeckValues';
 import styles from './DeckPlayer.module.css';
 import {ScenePageView} from '@/components/editor/ScenePageView';
-import {StandaloneDemoDialog} from '@/components/editor/SlideDemoNode';
-import {standaloneDemos} from '@/components/editor/standaloneDemos';
 import type {SceneDocument,ScenePage} from '@/document/types';
 import {getDocument,prepareDocumentPage} from '@/api/documents';
 import {fitZoom,stepZoom,wheelZoom} from '@/components/ui/zoom';
 import {defaultPresetsForTemplate, WORKSHOP_PRESET_PREVIEW_EVENT} from '@/canvas/pluginPresets';
+import { PublishDialog } from '@/components/plaza/PublishDialog';
+import type { ListingOptions } from '@/api/plazaTypes';
 import {DeckPopover, DeckTopBar} from './DeckTopBar';
 import {isInteractiveSlide} from './deckPresentation.ts';
-import {PptAiInteraction} from '@/components/ppt-ai/PptAiInteraction';
-import {GeneratedViewFrame} from '@/components/ppt-ai/GeneratedViewFrame';
 import {LearningPanel} from '@/components/ppt-ai/learning/LearningPanel';
-import {PageLabPanel} from '@/components/ppt-ai/PageLabPanel';
-import {evaluateBundle,evaluateBundleIncremental,evaluateNode,nodeInputValues} from '@/ppt-ai/runtime/evaluate';
-import type {BundleEvaluation,CanonicalValue,CanonicalValues,OverrideValues} from '@/ppt-ai/runtime/evaluate';
-import {conclusionChanges,effectiveConceptValue,pagesForNodes,type ConclusionChange} from '@/ppt-ai/runtime/linking';
-import {nodesForPage} from '@/ppt-ai/runtime/snapshot';
+import {PageQuestionPanel} from '@/components/ppt-ai/learning/PageQuestionPanel';
 import type {PptAiRuntimeSnapshot} from '@/ppt-ai/runtime/snapshot';
-import type {InteractionBundle} from '@/ppt-ai/types';
-import type {LearningPage,LearningSourceRef} from '@/ppt-ai/learning/types';
+import type {LearningSourceRef} from '@/ppt-ai/learning/types';
 import {learningPageFromFrozen} from '@/ppt-ai/learning/fromSnapshot';
-import {getLearningPage,getPptAiBranch,getPptAiBundle,patchPptAiBranch} from '@/api/pptAI';
-import {LinkagePanel} from '@/components/ppt-ai/LinkagePanel';
 import { pageDisplayUrl } from './pageUrls';
 import { newPrefetchUrls, planPrefetch, prefetchAllowed } from './prefetch';
-import { ThumbnailRail, type ThumbnailRailBadge, type ThumbnailRailItem } from './ThumbnailRail';
+import { ThumbnailRail, type ThumbnailRailItem } from './ThumbnailRail';
 import { PresentationAnnotator, type AnnotateTool } from './PresentationAnnotator';
 import { PresenterDock } from './PresenterDock';
 import { PresentationMenu, type PresentationScreen } from './PresentationMenu';
@@ -73,8 +63,8 @@ interface Props {
   materialId?: string;
   headerActionsHost?: HTMLDivElement | null;
   downloadBackup?: () => void;
-  onRefresh?: () => Promise<unknown>;
   sceneDocument?:SceneDocument|null;
+  learningEnabled?:boolean;
   aiSnapshot?:PptAiRuntimeSnapshot|null;
   formulaReviews?: Record<string, {page_no: number; math_text: string; reason: string}>;
   workbench?: WorkbenchModes;
@@ -84,6 +74,7 @@ interface Props {
   readDocumentRevision?: () => number;
   documentPending?: boolean;
   presenter?: string | null;
+  onPlazaPublish?: () => void;
 }
 
 function boxStyle(bbox: {x: number; y: number; w: number; h: number}, page: DeckPage): CSSProperties {
@@ -103,8 +94,8 @@ function isDiagramNoiseFormula(mathText: string): boolean {
   return false;
 }
 
-export function DeckPlayer({title, pages, specs, identity, materialId, headerActionsHost, downloadBackup, onRefresh,sceneDocument,aiSnapshot,formulaReviews,
-  workbench,workbenchZoom,inactive,saveDocument,readDocumentRevision,documentPending,presenter}: Props) {
+export function DeckPlayer({title, pages, specs, identity, materialId, headerActionsHost, downloadBackup, sceneDocument,aiSnapshot,learningEnabled,
+  workbench,workbenchZoom,inactive,saveDocument,readDocumentRevision,documentPending,presenter,onPlazaPublish}: Props) {
   const [reviewId, setReviewId] = useState<string | null>(null);
   const [search, setSearch] = useSearchParams();
   const requested = Number(search.get('page'));
@@ -134,6 +125,12 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
   }, [sceneNodeStyle, page]);
   const [standalonePresentation, setPresenting] = useState(false);
   const presenting = workbench ? workbench.mode === 'present' : standalonePresentation;
+  const [buildCursors,setBuildCursors]=useState<Record<number,number>>({});
+  const builds=useMemo(()=>[...new Set((scenePage?.nodes??[])
+    .filter(node=>!node.hidden&&!node.deleted&&!scenePage?.preparation?.frozen_ids?.includes(node.id))
+    .map(node=>node.style.anim_step??0).filter(step=>step>0))].sort((a,b)=>a-b),[scenePage]);
+  const buildCount=page?buildCursors[page.page_no]??0:0;
+  useEffect(()=>{if(!presenting)setBuildCursors({});},[presenting]);
   const [presenterSession, setPresenterSession] = useState<string | null>(null);
   const presenterWindow = useRef<Window | null>(null);
   const sync = usePresentationSync(presenter ?? presenterSession);
@@ -142,16 +139,12 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
   const [annotateClearNonce, setAnnotateClearNonce] = useState(0);
   const [originalPage, setOriginalPage] = useState<number | null>(null);
   const viewingOriginal = !presenting && originalPage === page?.page_no && Boolean(scenePage && page?.image_url);
-  const [demoPage,setDemoPage] = useState<number | null>(null);
-  const separateDemos = useMemo(() => scenePage ? standaloneDemos(scenePage) : [], [scenePage]);
-  const demoOpen = separateDemos.length > 0 && demoPage === page?.page_no;
   const pagePresets = useMemo(() => (scenePage?.nodes ?? []).flatMap(node => {
     const plugin = node.workshop_plugin;
     if (node.type !== 'workshop_plugin' || !plugin || node.hidden || node.deleted || node.locked || node.viewer_editable === false) return [];
     const presets = plugin.presets ?? defaultPresetsForTemplate(plugin.template_kind);
     return presets.length ? [{ node, presets }] : [];
   }), [scenePage]);
-  const [aiActiveId, setAiActiveId] = useState<string | null>(null);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -168,7 +161,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
   const panRef = useRef<{x:number;y:number;left:number;top:number;moved:boolean} | null>(null);
   const suppressPageClick = useRef(false);
   const lastWheelAt = useRef(0);
-  const [labOpen, setLabOpen] = useState(false);
   const shell = useRef<HTMLDivElement>(null);
   const [resetHost, setResetHost] = useState<HTMLDivElement | null>(null);
   const [lineControlsHost, setLineControlsHost] = useState<HTMLDivElement | null>(null);
@@ -177,19 +169,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
   const [area, setArea] = useState({width: 900, height: 600});
   const reducedMotion = useReducedMotion();
   const state = useDeckValues(specs, identity, presenter ? undefined : materialId);
-  const aiBundle = aiSnapshot?.bundle ?? null;
-  const [liveValues, setLiveValues] = useState<CanonicalValues>({});
-  const [aiOverrides, setAiOverrides] = useState<OverrideValues>({});
-  const [linkEvaluation, setLinkEvaluation] = useState<BundleEvaluation | null>(null);
-  const [linkPanelOpen, setLinkPanelOpen] = useState(false);
-  const [linkImpact, setLinkImpact] = useState<{nonce: number; affectedPages: number[]; changes: ConclusionChange[]}>({
-    nonce: 0, affectedPages: [], changes: [],
-  });
-  const branchRevision = useRef(1);
-  const linkSaveTimer = useRef<number | null>(null);
-  const impactTimer = useRef<number | null>(null);
-  const aiNodes = useMemo(() => nodesForPage(aiBundle, page?.page_no ?? 1), [aiBundle, page?.page_no]);
-  const aiActiveNode = useMemo(() => aiNodes.find(node => node.node_id === aiActiveId) ?? null, [aiNodes, aiActiveId]);
   const prefetchedImages = useRef(new Map<string, HTMLImageElement>());
   useEffect(() => {
     const urls = pages.map(item => pageDisplayUrl(item.image_url, item.render_bytes));
@@ -228,24 +207,10 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
     const scenes = new Map(sceneDocument?.pages.map(item => [item.page_no, item]));
     return new Set(pages.filter(item => {
       const scene = scenes.get(item.page_no);
-      return isInteractiveSlide(scene?.preparation?.status === 'ready' ? scene.nodes : undefined,
-        nodesForPage(aiBundle, item.page_no).length > 0);
+      return isInteractiveSlide(scene?.preparation?.status === 'ready' ? scene.nodes : undefined);
     }).map(item => item.page_no));
-  }, [pages, sceneDocument, aiBundle]);
-  const affectedPages = useMemo(() => new Set(linkImpact.affectedPages), [linkImpact.affectedPages]);
-  const railBadges = useMemo(() => {
-    const badges = new Map<number, ThumbnailRailBadge>();
-    for (const change of linkImpact.changes) {
-      if (!badges.has(change.page)) {
-        badges.set(change.page, {
-          label: `${change.label} ${change.before} → ${change.after}`,
-          title: `${change.title}：${change.label} ${change.before} → ${change.after}`,
-        });
-      }
-    }
-    return badges;
-  }, [linkImpact.changes]);
-  const railPages = useMemo<ThumbnailRailItem[]>(() => pages.map(item => {
+  }, [pages, sceneDocument]);
+  const railPages = useMemo<ThumbnailRailItem[]>(() => pages.map((item, ordinal) => {
     const edited = sceneDocument?.pages.find(p => p.page_no === item.page_no && (p.modified || !item.image_url) && p.preparation?.status === 'ready');
     const label = (edited && sceneTitle(edited)) || item.title || '';
     return {
@@ -255,61 +220,18 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
       bytes: typeof item.render_bytes === 'number' ? item.render_bytes : null,
       aspectRatio: edited ? `${edited.width}/${edited.height}` : `${item.width ?? 16}/${item.height ?? 9}`,
       scene: edited ?? null,
+      master: sceneDocument?.theme ? {theme: sceneDocument.theme, index: ordinal + 1, total: pages.length} : undefined,
     };
   }), [pages, sceneDocument]);
-  useEffect(() => {
-    if (!aiBundle) {
-      setLiveValues({});
-      setAiOverrides({});
-      setLinkEvaluation(null);
-      return;
-    }
-    const seed = aiSnapshot?.branch?.canonical_values ?? {};
-    const nextValues = { ...aiBundle.seed_values, ...seed };
-    const nextOverrides = aiSnapshot?.branch?.overrides ?? {};
-    setLiveValues(nextValues);
-    setAiOverrides(nextOverrides);
-    setLinkEvaluation(evaluateBundle(aiBundle, nextValues, nextOverrides));
-    branchRevision.current = aiSnapshot?.branch?.revision ?? 1;
-    setLinkImpact(current => ({ ...current, affectedPages: [], changes: [] }));
-    // 只在 bundle/分支身份变化时重置；本地连续调参不被刷新覆盖。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiBundle?.bundle_id, aiSnapshot?.branch?.branch_id]);
-  const aiNodeOverrides = useMemo(
-    () => (aiActiveNode ? (aiOverrides[aiActiveNode.node_id] ?? {}) : {}),
-    [aiActiveNode?.node_id, aiOverrides],
-  );
-  const aiValues = useMemo(
-    () => aiActiveNode ? nodeInputValues(aiActiveNode, liveValues, linkEvaluation, aiNodeOverrides) : {},
-    [aiActiveNode, liveValues, linkEvaluation, aiNodeOverrides],
-  );
-  const aiArtifact = useMemo(() => {
-    if (!aiActiveNode) return null;
-    return (aiSnapshot?.artifacts ?? []).find(artifact => artifact.acceptance_status === 'accepted' && artifact.isolation?.node_id === aiActiveNode.node_id) ?? null;
-  }, [aiActiveNode, aiSnapshot]);
-  const aiGeneratedInput = useMemo(() => {
-    if (!aiActiveNode) return {};
-    const evaluation = evaluateNode(aiActiveNode, aiValues, linkEvaluation?.derivedValues ?? {}, aiNodeOverrides);
-    return {
-      series: evaluation.projection?.series ?? [],
-      rects: evaluation.projection?.rects ?? [],
-      domain: evaluation.projection?.domain ?? { x_min: -1, x_max: 1 },
-      metrics: evaluation.metrics.map(metric => ({ label: metric.label, value: metric.value })),
-    };
-  }, [aiActiveNode, aiValues, linkEvaluation, aiNodeOverrides]);
   const [learningOpen,setLearningOpen]=useState(false);
-  const learningEntryRef=useRef<HTMLElement>(null);
+  const learningEntryRef=useRef<HTMLButtonElement>(null);
   const closeLearning=useCallback(()=>{
     setLearningOpen(false);
     window.setTimeout(()=>learningEntryRef.current?.focus({preventScroll:true}),0);
   },[]);
-  const [learningPage,setLearningPage]=useState<LearningPage|null>(null);
-  const [learningBundle,setLearningBundle]=useState<InteractionBundle|null>(null);
-  const [learningLoading,setLearningLoading]=useState(false);
-  const [learningError,setLearningError]=useState('');
   const [learningHighlight,setLearningHighlight]=useState<LearningSourceRef|null>(null);
   const frozenLearningPage=useMemo(()=>learningPageFromFrozen(aiSnapshot,page?.page_no??1),[aiSnapshot,page?.page_no]);
-  const activeLearningPage=learningPage??frozenLearningPage;
+  const onlineLearning=Boolean(materialId && api.mode==='http' && (learningEnabled ?? aiSnapshot?.learningEnabled)!==false);
   // PPT 页宽是点值（约 12192000），展示缩放以场景页的像素宽为 100% 基准。
   const pageWidth = documentPage?.width ?? 960;
   const pageHeight = documentPage?.height ?? pageWidth * ((page?.height ?? 540) / (page?.width ?? 960));
@@ -349,36 +271,12 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
     node.addEventListener('wheel', onWheel, {passive: false});
     return () => node.removeEventListener('wheel', onWheel);
   }, [fitScale, presentationFit, presentationMenu, presentationScreen, presenting, setZoom, viewportNode]);
-  useEffect(() => { setAiActiveId(null); setImageFailed(false); setDemoPage(null); setOriginalPage(null);
-    setLearningOpen(false);setLearningPage(null);setLearningBundle(null);setLearningHighlight(null);setLearningError('');setLabOpen(false); }, [page?.page_no]);
+  useEffect(() => { setImageFailed(false); setOriginalPage(null);
+    setLearningOpen(false);setLearningHighlight(null); }, [materialId,page?.page_no]);
 
-  const loadLearningBundle=async(pageData:LearningPage)=>{
-    if(!materialId||!pageData.bundle_id)return aiSnapshot?.bundle??null;
-    if(aiSnapshot?.bundle?.bundle_id===pageData.bundle_id)return aiSnapshot.bundle;
-    try{return await getPptAiBundle(materialId,pageData.bundle_id);}catch{return aiSnapshot?.bundle??null;}
-  };
-  const openLearning=async()=>{
+  const openLearning=()=>{
     if(!page)return;
-    setLearningOpen(true);setLabOpen(false);setLinkPanelOpen(false);setLearningError('');setLearningHighlight(null);
-    setAiActiveId(null);
-    if(!materialId){setLearningPage(null);setLearningBundle(aiSnapshot?.bundle??null);return;}
-    setLearningLoading(true);
-    try{
-      const next=await getLearningPage(materialId,page.page_no);
-      setLearningPage(next);
-      setLearningBundle(await loadLearningBundle(next));
-    }catch(error){setLearningError(errorMessage(error));}
-    finally{setLearningLoading(false);}
-  };
-  const refreshLearning=async()=>{
-    if(!materialId||!page)return;
-    try{
-      const next=await getLearningPage(materialId,page.page_no);
-      setLearningPage(next);
-      setLearningBundle(await loadLearningBundle(next));
-      setLearningError('');
-    }catch(error){setLearningError(errorMessage(error));}
-    await onRefresh?.();
+    setLearningOpen(true);setLearningHighlight(null);
   };
   const flushDocument = useCallback(async () => {
     if (saveDocument && !await saveDocument()) throw new Error('课件修改尚未同步，请在编辑课件中检查保存状态');
@@ -399,6 +297,12 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
     }, {replace: true});
     sync?.send({kind: 'page', pageNo: target.page_no});
   }, [pages, setSearch, sync]);
+  const advance=useCallback((direction:-1|1)=>{
+    if(presenting&&page&&((direction===1&&buildCount<builds.length)||(direction===-1&&buildCount>0))){
+      setBuildCursors(current=>({...current,[page.page_no]:Math.max(0,Math.min(builds.length,
+        (current[page.page_no]??0)+direction))}));
+    }else go(index+direction);
+  },[presenting,page,buildCount,builds.length,go,index]);
   useEffect(() => sync?.subscribe(message => {
     if (message.kind === 'hello' && !presenter && page) sync.send({kind: 'page', pageNo: page.page_no});
     if (message.kind !== 'page' || !pages.some(item => item.page_no === message.pageNo)) return;
@@ -480,11 +384,11 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
       const now = Date.now();
       if (now - lastWheelAt.current < 420) return;
       lastWheelAt.current = now;
-      go(index + (event.deltaY > 0 ? 1 : -1));
+      advance(event.deltaY > 0 ? 1 : -1);
     };
     node.addEventListener('wheel', onWheel, {passive: false});
     return () => node.removeEventListener('wheel', onWheel);
-  }, [go, index, presentationMenu, presentationScreen, presenting, viewportNode]);
+  }, [advance, presentationMenu, presentationScreen, presenting, viewportNode]);
   useEffect(() => {
     viewportNode?.scrollTo({left: 0, top: 0});
   }, [page?.page_no, presenting, viewportNode]);
@@ -512,7 +416,7 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
     return () => document.removeEventListener('fullscreenchange', changed);
   }, [workbench, presenting]);
   useEffect(() => {
-    if (!presenting || inactive || demoOpen) return;
+    if (!presenting || inactive) return;
     const onEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || document.querySelector('dialog[data-workshop-fullscreen][open]')) return;
       if (presentationMenu) setPresentationMenu(null);
@@ -521,16 +425,13 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
     };
     window.addEventListener('keydown', onEscape, true);
     return () => window.removeEventListener('keydown', onEscape, true);
-  }, [presenting, inactive, demoOpen, presentationMenu, presentationScreen, exitPresentation]);
+  }, [presenting, inactive, presentationMenu, presentationScreen, exitPresentation]);
   useEffect(() => {
-    if (inactive || demoOpen) return;
+    if (inactive) return;
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         if (presenting || event.defaultPrevented) return;
         if (learningOpen) closeLearning();
-        else if (labOpen) setLabOpen(false);
-        else if (aiActiveId) setAiActiveId(null);
-        else if (linkPanelOpen) setLinkPanelOpen(false);
         else if (annotateTool !== 'off') setAnnotateTool('off');
         return;
       }
@@ -571,15 +472,15 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
       if((event.target as Element)?.closest('[data-no-pan]')) return;
       if (event.key === ' ' && (event.target as Element)?.closest('button, a')) return;
       if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
-        event.preventDefault(); go(index + 1);
+        event.preventDefault(); advance(1);
       } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'PageUp') {
-        event.preventDefault(); go(index - 1);
+        event.preventDefault(); advance(-1);
       } else if (event.key === 'Home') { event.preventDefault(); go(0); }
       else if (event.key === 'End') { event.preventDefault(); go(pages.length - 1); }
     };
     window.addEventListener('keydown', keydown);
     return () => window.removeEventListener('keydown', keydown);
-  }, [go, index, pages.length, state.undo, state.redo,state.save,busy,state.saving,materialId,flushDocument,learningOpen,closeLearning,labOpen,aiActiveId,linkPanelOpen,annotateTool,inactive,demoOpen,presentationMenu,presentationScreen,presenting]);
+  }, [go, advance, pages.length, state.undo, state.redo,state.save,busy,state.saving,materialId,flushDocument,learningOpen,closeLearning,annotateTool,inactive,presentationMenu,presentationScreen,presenting]);
   useEffect(() => {
     if (workbench) return;
     const changed = () => { if (!document.fullscreenElement) setPresenting(false); };
@@ -608,31 +509,19 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
     }
     throw new Error('页面对象准备耗时较长，请稍后重试');
   };
-  const publish = async () => {
+  const [publishOpen, setPublishOpen] = useState(false);
+  const publish = async (options?: ListingOptions) => {
     if (!materialId) return;
     setBusy(true); setMessage('');
     try {
       await flushDocument();
-      if (!await state.save()) return;
+      if (!await state.save()) throw new Error('参数尚未保存，请处理保存提示后重试');
       await ensureEditedPagesReady();
-      const result = await api.publishMaterial(materialId);
+      const result = await api.publishMaterial(materialId, options ? { plaza: options } : undefined);
+      if (options) onPlazaPublish?.();
       setShareUrl(new URL(result.share_url, window.location.origin).href);
       setMessage('');
-    } catch (error) { setMessage(errorMessage(error)); }
-    finally { setBusy(false); }
-  };
-  const exportProject=async()=>{
-    if(!materialId||busy)return;
-    setBusy(true);setMessage('正在打包可再次编辑的工程文件…');
-    try{
-      await flushDocument();
-      const file=await downloadProjectPackage(materialId);
-      const url=URL.createObjectURL(file);const link=document.createElement('a');
-      link.href=url;link.download=`${title.replace(/[\/:*?"<>|]/g,'_')}-工程包.xsproj`;
-      document.body.appendChild(link);link.click();link.remove();window.setTimeout(()=>URL.revokeObjectURL(url),30000);
-      setMessage('工程包已下载，可在另一台电脑导入后继续编辑');
-    }catch(error){setMessage(errorMessage(error));}
-    finally{setBusy(false);}
+    } finally { setBusy(false); }
   };
   const exportPptx=async()=>{
     if(!materialId||busy)return;
@@ -670,107 +559,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
     finally{setBusy(false);}
   };
 
-  const applyLinkChange = useCallback((
-    nextValues: CanonicalValues,
-    nextOverrides: OverrideValues,
-    changedConcepts: string[],
-    changedOverrideNodes: string[],
-  ) => {
-    if (!aiBundle || !linkEvaluation) return;
-    const result = evaluateBundleIncremental(
-      aiBundle, nextValues, linkEvaluation, changedConcepts, nextOverrides, changedOverrideNodes,
-    );
-    setLiveValues(nextValues);
-    setAiOverrides(nextOverrides);
-    setLinkEvaluation(result.evaluation);
-    const changes = conclusionChanges(aiBundle, linkEvaluation, result.evaluation, result.changed);
-    // 高亮口径 = 「结论变化」的页（changed 按节点哈希对比），
-    // 不是「被重算」的页：affected 里可能有数值完全没变的页。
-    const pages = pagesForNodes(aiBundle, result.changed);
-    if (impactTimer.current) window.clearTimeout(impactTimer.current);
-    setLinkImpact(current => ({ nonce: current.nonce + 1, affectedPages: pages, changes }));
-    impactTimer.current = window.setTimeout(() => {
-      setLinkImpact(current => ({ ...current, affectedPages: [], changes: [] }));
-      impactTimer.current = null;
-    }, 3600);
-  }, [aiBundle, linkEvaluation]);
-
-  const persistLinkState = useCallback((nextValues: CanonicalValues, nextOverrides: OverrideValues) => {
-    if (!materialId || presenter || !aiSnapshot?.branch || aiSnapshot.frozen) return;
-    const branchId = aiSnapshot.branch.branch_id;
-    if (linkSaveTimer.current) window.clearTimeout(linkSaveTimer.current);
-    const save = async (): Promise<void> => {
-      const updated = await patchPptAiBranch(materialId, branchId, {
-        expected_revision: branchRevision.current,
-        operation_id: `link_${Date.now()}`,
-        values: nextValues,
-        overrides: nextOverrides,
-      });
-      branchRevision.current = updated.revision;
-      setMessage(`全表联动已保存（revision ${updated.revision}）`);
-    };
-    linkSaveTimer.current = window.setTimeout(() => {
-      linkSaveTimer.current = null;
-      void save().catch(async error => {
-        // 409 后必须刷新本地 revision，否则之后每次保存都会继续 409。
-        try {
-          const fresh = await getPptAiBranch(materialId, branchId);
-          branchRevision.current = fresh.revision;
-          await save();
-        } catch (retryError) {
-          setMessage(`全表联动保存失败：${errorMessage(retryError ?? error)}`);
-        }
-      });
-    }, 650);
-  }, [materialId, presenter, aiSnapshot?.branch?.branch_id]);
-
-  const changeConcept = useCallback((conceptId: string, value: CanonicalValue) => {
-    if (!aiBundle || !linkEvaluation) return;
-    const nextValues = { ...liveValues, [conceptId]: value };
-    applyLinkChange(nextValues, aiOverrides, [conceptId], []);
-    if (!aiSnapshot?.branch || aiSnapshot.frozen) setMessage('冻结/离线快照：联动结果只保留在当前页面，不写入服务器');
-    persistLinkState(nextValues, aiOverrides);
-  }, [aiBundle, linkEvaluation, liveValues, aiOverrides, applyLinkChange, aiSnapshot?.branch, persistLinkState]);
-
-  const changeActiveNodeValue = useCallback((conceptId: string, value: CanonicalValue) => {
-    if (!aiActiveNode || !aiBundle || !linkEvaluation) return;
-    if (aiOverrides[aiActiveNode.node_id] && conceptId in aiOverrides[aiActiveNode.node_id]!) {
-      const nextOverrides: OverrideValues = {
-        ...aiOverrides,
-        [aiActiveNode.node_id]: { ...aiOverrides[aiActiveNode.node_id]!, [conceptId]: value },
-      };
-      applyLinkChange(liveValues, nextOverrides, [], [aiActiveNode.node_id]);
-      persistLinkState(liveValues, nextOverrides);
-      return;
-    }
-    changeConcept(conceptId, value);
-  }, [aiActiveNode, aiBundle, linkEvaluation, aiOverrides, liveValues, applyLinkChange, persistLinkState, changeConcept]);
-
-  const toggleNodeOverride = useCallback((nodeId: string, conceptId: string, enabled: boolean) => {
-    if (!aiBundle) return;
-    const nextOverrides: OverrideValues = { ...aiOverrides };
-    const current = { ...(nextOverrides[nodeId] ?? {}) };
-    if (enabled) {
-      // 基准值取该节点当前读到的生效值：linked 参数要用派生值，
-      // 取 liveValues 会让数值在开启独立的瞬间跳回被忽略的本地旧值。
-      const base = effectiveConceptValue(aiBundle, linkEvaluation, liveValues, nodeId, conceptId);
-      current[conceptId] = base ?? 0;
-      nextOverrides[nodeId] = current;
-    } else {
-      delete current[conceptId];
-      if (Object.keys(current).length) nextOverrides[nodeId] = current;
-      else delete nextOverrides[nodeId];
-    }
-    applyLinkChange(liveValues, nextOverrides, [], [nodeId]);
-    persistLinkState(liveValues, nextOverrides);
-    setMessage(enabled ? '本页已保持独立；共享变量变化不再影响该节点' : '本页已恢复联动');
-  }, [aiBundle, aiOverrides, liveValues, linkEvaluation, applyLinkChange, persistLinkState]);
-
-  useEffect(() => () => {
-    if (linkSaveTimer.current) window.clearTimeout(linkSaveTimer.current);
-    if (impactTimer.current) window.clearTimeout(impactTimer.current);
-  }, []);
-
   const jumpToPage = useCallback((pageNo: number) => {
     const target = pages.findIndex(item => item.page_no === pageNo);
     if (target >= 0) go(target);
@@ -780,49 +568,24 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
 
   const interactive = interactivePages.has(page.page_no);
   const hasOriginal = Boolean(scenePage && page.image_url);
-  const resetPageInteraction = () => {
-    setDemoPage(null);
-    if (!aiNodes.length) return;
-    const nextOverrides = { ...aiOverrides };
-    const changed = aiNodes.filter(node => node.node_id in nextOverrides).map(node => node.node_id);
-    if (!changed.length) return;
-    for (const id of changed) delete nextOverrides[id];
-    applyLinkChange(liveValues, nextOverrides, [], changed);
-    persistLinkState(liveValues, nextOverrides);
-  };
   const toggleOriginal = () => setOriginalPage(viewingOriginal ? null : page.page_no);
-  const canLearn = Boolean((materialId && aiSnapshot?.learningEnabled !== false) || frozenLearningPage);
-  const canOpenLab = Boolean(materialId && api.mode === 'http');
+  const canLearn = onlineLearning || Boolean(frozenLearningPage);
   const canPresentDual = Boolean(workbench && !presenter);
   const actionRow = <div className={styles.previewActions}>
-    {!presenter && (canLearn || canOpenLab || aiNodes.length > 0 || aiBundle) && <DeckPopover
-      label={<>✦ AI <span aria-hidden="true">▾</span></>} ariaLabel="AI" triggerRef={learningEntryRef}>
-      {canLearn && <button type="button" onClick={() => void openLearning()} aria-expanded={learningOpen} disabled={learningLoading}>
-        {learningLoading ? '正在准备…' : '本页学习'}
-      </button>}
-      {canOpenLab && <button type="button" onClick={() => {
-        setLabOpen(value => !value); setLearningOpen(false); setAiActiveId(null); setLinkPanelOpen(false);
-      }} aria-expanded={labOpen}>AI 交互</button>}
-      {aiNodes.map(node => <button key={node.node_id} type="button" onClick={() => {
-        setAiActiveId(node.node_id); setLabOpen(false); setLearningOpen(false); setLinkPanelOpen(false);
-      }}>{node.title}</button>)}
-      {aiBundle && <button type="button" onClick={() => {
-        setLinkPanelOpen(value => !value); setLabOpen(false); setLearningOpen(false); setAiActiveId(null);
-      }} aria-expanded={linkPanelOpen}>全表变量</button>}
-    </DeckPopover>}
+    {!presenter && canLearn && <button ref={learningEntryRef} type="button" onClick={learningOpen ? closeLearning : openLearning}
+      aria-expanded={learningOpen}>本页学习</button>}
     <button type="button" aria-pressed={annotateTool !== 'off'}
       onClick={() => setAnnotateTool(tool => tool === 'off' ? 'pen' : 'off')}>✏ 板书</button>
-    {((!presenter && materialId) || hasOriginal || downloadBackup) && <DeckPopover
+    {((!presenter && materialId) || (!materialId && hasOriginal) || downloadBackup) && <DeckPopover
       label={<><span className={styles.exportLabel}>导出与分享</span><span className={styles.compactExportLabel}>导出</span> ▾</>}
       ariaLabel="导出与分享">
       {!presenter && materialId && <>
-        <button type="button" onClick={() => void download()} disabled={busy || state.saving}>下载离线交互网页（.html）</button>
-        <button type="button" onClick={() => void publish()} disabled={busy || state.saving}>生成在线分享链接</button>
-        <button type="button" onClick={() => void exportPptx()} disabled={busy || state.saving}>导出 PPTX 课件（.pptx）</button>
-        <button type="button" onClick={() => void exportProject()} disabled={busy || state.saving}>导出工程包（.xsproj）</button>
+        <button type="button" onClick={() => void download()} disabled={busy || state.saving}>下载离线交互课件（.html，可播可导回）</button>
+        <button type="button" onClick={() => setPublishOpen(true)} disabled={busy || state.saving}>生成在线分享</button>
+        <button type="button" onClick={() => void exportPptx()} disabled={busy || state.saving}>导出 PPTX</button>
       </>}
       {downloadBackup && <button type="button" onClick={downloadBackup}>导出工程备份</button>}
-      {hasOriginal && <button type="button" aria-pressed={viewingOriginal} onClick={toggleOriginal}>查看原图对照</button>}
+      {!materialId && hasOriginal && <button type="button" aria-pressed={viewingOriginal} onClick={toggleOriginal}>查看原图对照</button>}
     </DeckPopover>}
     {!presenter && <div className={styles.presentGroup}>
       <button type="button" onClick={startPresentation} aria-label="演示">▶ 演示</button>
@@ -868,29 +631,29 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
         onClick={() => void state.reloadBaseline()}>重新载入基线并保存草稿</button>}
       {(state.conflict || state.loadFailed) && <button className={styles.resolveConflict} disabled={state.saving}
         onClick={() => void state.loadSaved()}>放弃本地修改并载入已保存参数</button>}</div>}
+    {publishOpen && <PublishDialog onClose={() => setPublishOpen(false)} onPublish={publish} />}
     {shareUrl && <div className={styles.shareNotice} role="status"><span>分享网页已生成</span>
       <a href={shareUrl} target="_blank" rel="noreferrer">{shareUrl}</a>
       <button onClick={() => void navigator.clipboard?.writeText(shareUrl).then(() => setMessage('分享链接已复制')).catch(() => setMessage('可选中链接手动复制'))}>复制链接</button>
       <button onClick={() => setShareUrl('')} aria-label="关闭分享提示">×</button></div>}
     <div className={styles.workspace}>
-      <ThumbnailRail pages={railPages} currentPageNo={page.page_no} affectedPages={affectedPages}
-        badges={railBadges} interactivePages={interactivePages} collapsed={railCollapsed} onCollapse={() => setRailCollapsed(true)} onSelect={jumpToPage}/>
+      <ThumbnailRail pages={railPages} currentPageNo={page.page_no} interactivePages={interactivePages} collapsed={railCollapsed} onCollapse={() => setRailCollapsed(true)} onSelect={jumpToPage}/>
       <main className={styles.main}>
         {!presenting && railCollapsed && <button type="button" className={styles.railExpand}
           aria-label="展开页导航" onClick={() => setRailCollapsed(false)}>▸</button>}
         <div className={styles.viewport} ref={setViewportNode} data-can-pan={canPan} data-panning={panning}
           onPointerDown={panDown} onPointerMove={panMove} onPointerUp={panEnd} onPointerCancel={panEnd}
           onContextMenuCapture={event => {
-            if (!presenting || demoOpen) return;
+            if (!presenting) return;
             event.preventDefault();
             event.stopPropagation();
             setPresentationMenu({x: event.clientX, y: event.clientY});
           }}
           onClick={(event) => {
-            if (!presenting || demoOpen) return;
+            if (!presenting) return;
             if (suppressPageClick.current) { suppressPageClick.current = false; return; }
             if ((event.target as Element).closest('button,a,input,select,textarea,[contenteditable="true"],[data-no-pan],[data-live-region]')) return;
-            go(index + 1);
+            advance(1);
           }}>
           <div className={styles.canvasArea} data-comparing={viewingOriginal} style={{minWidth: displayWidth, minHeight: slideHeight + gutter}}>
           {viewingOriginal&&<figure className={styles.comparisonFigure}>
@@ -903,11 +666,20 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
           </figure>}
           <div className={styles.comparisonFigure}>
           {viewingOriginal&&<div className={styles.comparisonLabel}>互动稿</div>}
-          <div ref={slideElement} className={styles.slide} style={{width: slideWidth, height: slideHeight}} aria-label={`幻灯片第 ${index + 1} 页`}>
+          <div key={page.page_no} ref={slideElement} className={styles.slide}
+            data-transition={presenting&&!reducedMotion?scenePage?.transition?.kind:undefined}
+            style={{width:slideWidth,height:slideHeight,animationDuration:`${scenePage?.transition?.duration_ms??320}ms`}}
+            aria-label={`幻灯片第 ${index + 1} 页`}
+            onDoubleClick={(event) => {
+              if (!workbench || presenting || presenter || annotateTool !== 'off') return;
+              if ((event.target as Element).closest('button,a,input,select,textarea,[contenteditable="true"],[data-no-pan],[data-live-region]')) return;
+              workbench.onChange('edit');
+            }}>
             {scenePage && (
               <ScenePageView key={scenePage.page_no} page={scenePage} scale={scale} presentVectors
-                resetHost={resetHost} lineControlsHost={scenePage.auto_vectors&&!presenting?lineControlsHost:undefined}
-                onResetPresentation={resetPageInteraction} resetForAi={aiNodes.length > 0}/>
+                master={sceneDocument?.theme?{theme:sceneDocument.theme,index:index+1,total:pages.length}:undefined}
+                buildStep={presenting?(builds[buildCount-1]??0):undefined}
+                resetHost={resetHost} lineControlsHost={scenePage.auto_vectors&&!presenting?lineControlsHost:undefined}/>
             )}
             {!scenePage && (page.image_url && !imageFailed ? <img className={styles.pageImage} src={pageDisplayUrl(page.image_url,page.render_bytes)}
               alt={`第 ${page.page_no} 页原始 PPT`} onError={() => setImageFailed(true)} draggable={false}
@@ -921,13 +693,6 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
               aria-hidden="true"/> : null}
             <PresentationAnnotator pageNo={page.page_no} tool={presenting ? presentationTool : annotateTool} color={annotateColor}
               clearNonce={annotateClearNonce} autoPen={(presenting || !!presenter) && !inactive}/>
-            {!presenting && !scenePage?.auto_vectors && aiNodes.map(node => {
-              const box=node.source.bbox;
-              return <button key={node.node_id} className={styles.aiHotspot}
-                style={{left:`${box.x*100}%`,top:`${box.y*100}%`,width:`${box.w*100}%`,height:`${box.h*100}%`}}
-                onClick={()=>{setAiActiveId(node.node_id);}}
-                aria-label={`AI 交互：${node.title}`}><span>AI · {node.title}</span></button>;
-            })}
           </div>
           </div>
           </div>
@@ -940,12 +705,10 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
             onZoom={() => setPresentationZoom(current => current === null ? presentationFit * 1.5 : null)}
             onTool={setPresentationTool} onColor={setAnnotateColor} onScreen={setPresentationScreen}
             onClear={() => setAnnotateClearNonce(value => value + 1)}
-            onDemo={separateDemos.length ? () => {setPresentationScreen(null);setDemoPage(page.page_no);} : undefined}
             onPresenter={workbench && !presenter && !documentPending ? openPresenter : undefined} onEnd={exitPresentation}/>}
-          {demoOpen&&<StandaloneDemoDialog nodes={separateDemos} onClose={()=>setDemoPage(null)}/>}
         </div>
         {!presenting&&scenePage?.auto_vectors&&<div ref={setLineControlsHost} className={styles.lineControlsHost}/>}
-        {!presenting && interactive && <div className={styles.interactionBar} role="group" aria-label="本页交互状态条">
+        {!presenting && (interactive || (materialId && hasOriginal)) && <div className={styles.interactionBar} role="group" aria-label="本页交互状态条">
           {pagePresets.length > 0 && <DeckPopover label="情景预设 ▾" ariaLabel="情景预设" above>
             {pagePresets.map(({node, presets}) => <div className={styles.presetGroup} key={node.id}>
               {pagePresets.length > 1 && <span>{node.workshop_plugin?.title || node.name}</span>}
@@ -955,17 +718,9 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
             </div>)}
           </DeckPopover>}
           <div ref={setResetHost} className={styles.resetHost}/>
-          {!scenePage && aiNodes.length > 0 &&
-            <button type="button" onClick={resetPageInteraction}>↺ 重置本页状态</button>}
-          {separateDemos.length > 0 && <button type="button" onClick={() => setDemoPage(page.page_no)}>▶ 独立演示</button>}
           {hasOriginal && <button type="button" aria-pressed={viewingOriginal} onClick={toggleOriginal}>原图对照</button>}
-          {aiNodes.length > 0 && <button type="button" onClick={() => {
-            setAiActiveId(aiNodes[0]!.node_id); setLabOpen(false); setLearningOpen(false); setLinkPanelOpen(false);
-          }}>✦ 本页交互</button>}
-          {linkImpact.changes.filter(change => change.page === page.page_no).slice(0, 2).map(change =>
-            <span key={`${change.title}:${change.label}`} className={styles.impactBadge} title={change.title}>{change.label} {change.before} → {change.after}</span>)}
         </div>}
-        {presenting && !inactive && !presentationScreen && !presentationMenu && !demoOpen &&
+        {presenting && !inactive && !presentationScreen && !presentationMenu &&
           <div className={`${styles.stageCapsule} ${styles.presentationZoom}`}>{zoomControls}</div>}
         {!presenting && <div className={styles.stageCapsule} role="group" aria-label="翻页与缩放">
           <div className={styles.capsuleGroup}>
@@ -1017,49 +772,17 @@ export function DeckPlayer({title, pages, specs, identity, materialId, headerAct
         </div>}
       </main>
       {presenter && <PresenterDock notes={documentPage?.notes} next={pages[index + 1]}
-        scene={sceneDocument?.pages.find(item => item.page_no === pages[index + 1]?.page_no)}/>}
-      {linkPanelOpen && aiBundle && linkEvaluation && (
-        <div className={styles.linkAside}>
-          <LinkagePanel bundle={aiBundle} evaluation={linkEvaluation} values={liveValues} overrides={aiOverrides}
-            onJump={jumpToPage} onValueChange={changeConcept} onOverride={toggleNodeOverride}
-            onClose={() => setLinkPanelOpen(false)} />
-        </div>
-      )}
-      {labOpen && materialId && <aside className={styles.learningAside} aria-label="本页 AI 交互面板">
-        <PageLabPanel materialId={materialId} pageNo={page.page_no} onClose={()=>setLabOpen(false)}/>
+        preview={railPages[index + 1]}/>}
+      {learningOpen && onlineLearning && materialId && <aside className={styles.learningAside} aria-label="本页学习面板">
+        <PageQuestionPanel key={`${materialId}:${page.page_no}`} materialId={materialId} pageNo={page.page_no} onClose={closeLearning}/>
       </aside>}
-      {learningOpen && activeLearningPage && <aside className={styles.learningAside} aria-label="本页学习面板">
-        <LearningPanel materialId={materialId??null} page={activeLearningPage}
-          bundle={learningBundle??aiSnapshot?.bundle??null}
+      {learningOpen && !onlineLearning && frozenLearningPage && <aside className={styles.learningAside} aria-label="本页学习面板">
+        <LearningPanel materialId={null} page={frozenLearningPage}
+          bundle={aiSnapshot?.bundle??null}
           pageImageUrl={page.image_url?pageDisplayUrl(page.image_url,page.render_bytes):undefined}
-          readOnly={!materialId}
+          readOnly
           onClose={closeLearning}
-          onLocate={(source)=>setLearningHighlight(source)}
-          onRefresh={materialId?refreshLearning:undefined}/>
-      </aside>}
-      {learningOpen && !activeLearningPage && <aside className={styles.learningAside} aria-label="本页学习面板">
-        <div className={styles.learningPlaceholder} role="status">
-          <b>本页学习</b>
-          {learningError ? <p>{learningError}</p> : <p>{learningLoading?'正在加载本页学习内容…':'本页暂无学习内容；原稿继续可读。'}</p>}
-          <button type="button" onClick={closeLearning}>关闭</button>
-        </div>
-      </aside>}
-      {aiActiveNode && aiSnapshot?.bundle && <aside className={styles.inspector} aria-label="PPT AI 交互">
-        <div className={styles.inspectorHead}><span>AI 交互 · {aiActiveNode.title}</span><button onClick={() => setAiActiveId(null)} aria-label="关闭 AI 交互">×</button></div>
-        <div className={styles.inspectorBody}>
-          {aiArtifact ? (
-            <GeneratedViewFrame artifact={aiArtifact} input={aiGeneratedInput}
-              bindings={aiActiveNode.parameters.map(parameter => parameter.concept_id)}
-              fallback={<PptAiInteraction node={aiActiveNode} values={aiValues}
-                derivedValues={linkEvaluation?.derivedValues} overrides={aiNodeOverrides}
-                onChange={changeActiveNodeValue} compact />} />
-          ) : (
-            <PptAiInteraction node={aiActiveNode} values={aiValues}
-              derivedValues={linkEvaluation?.derivedValues} overrides={aiNodeOverrides}
-              onChange={changeActiveNodeValue} compact />
-          )}
-          {materialId ? <p style={{marginTop:10,fontSize:11}}><Link to={`/materials/${materialId}/ai`}>在 AI 工作台调参、实验与验收 ↗</Link></p> : null}
-        </div>
+          onLocate={(source)=>setLearningHighlight(source)}/>
       </aside>}
     </div>
   </div></PresentationSyncContext.Provider>;

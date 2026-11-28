@@ -103,6 +103,92 @@ def _cleanup() -> Iterator[None]:
     shutil.rmtree(_TMP_DIR, ignore_errors=True)
 
 
+def test_delete_material_clears_ppt_ai_dependencies(app: Any) -> None:
+    from app.db.ppt_ai_models import (
+        PptAiArtifactRecord, PptAiBranchRecord, PptAiBundleRecord, PptAiExperimentRecord,
+        PptAiPlanRecord, PptAiTaskRecord, PptAiValidationReportRecord,
+    )
+
+    with TestClient(app) as client:
+        session = _session(client)
+        material_id = "mat_pptai_delete"
+        now = to_iso(utc_now())
+        owner = {"material_id": material_id, "session_id": session["session_id"], "created_at": now}
+        bundle = {**owner, "bundle_id": "delete_bundle"}
+        records = [
+            PptAiTaskRecord(id="delete_task", **owner, updated_at=now, kind="plan", operation_id="delete_test"),
+            PptAiPlanRecord(id="delete_plan", **owner, document={}),
+            PptAiBundleRecord(id="delete_bundle", **owner, bundle_revision=1, content_hash="test", document={}),
+            PptAiBranchRecord(id="delete_branch", **bundle, updated_at=now),
+            PptAiExperimentRecord(id="delete_experiment", **bundle, updated_at=now, draft={}),
+            PptAiArtifactRecord(id="delete_artifact", **bundle, content_hash="test"),
+            PptAiValidationReportRecord(id="delete_report", **bundle, report={}),
+        ]
+        keys = [(type(record), record.id) for record in records]
+        with session_scope() as db:
+            db.add(MaterialRecord(id=material_id, session_id=session["session_id"], title="Delete test",
+                                  status="ready", page_count=1, candidates=[], created_at=now,
+                                  expires_at=to_iso(utc_now() + timedelta(hours=1))))
+            db.flush()
+            db.add_all(records[:3])
+            db.flush()
+            db.add_all(records[3:])
+
+        response = client.delete(f"/api/v1/materials/{material_id}", headers=_headers(session))
+        assert response.status_code == 204, response.text
+        with session_scope() as db:
+            assert db.get(MaterialRecord, material_id) is None
+            assert all(db.get(model, key) is None for model, key in keys)
+
+
+def test_page_qa_prepares_neighbours_then_asks_vision(app: Any, tmp_path, monkeypatch):
+    from app.db.models import PageRecord
+    from app.ppt_ai import page_qa
+    from PIL import Image
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(page_qa, 'existing_page_images', lambda _: sorted(tmp_path.glob('*.png')))
+    monkeypatch.setattr(page_qa, 'read_document', lambda _: None)
+    monkeypatch.setattr(page_qa, 'vision_profile', lambda _: SimpleNamespace(available=True))
+    calls = []
+
+    def generate(self, task, payload, version, budget, **options):
+        assert self.vision_only
+        with pytest.raises(ValueError, match='页码'):
+            options['validator']({'answer': 'Invalid source.', 'pages': [3]})
+        calls.append((payload, options['image_urls']))
+        return SimpleNamespace(data={'answer': 'See pages 1 and 2.', 'pages': [2, 1]})
+
+    monkeypatch.setattr(page_qa.PPTAIClient, 'generate_json', generate)
+    material_id = 'mat_page_qa_test'
+    with TestClient(app) as client:
+        session = _session(client)
+        with session_scope() as db:
+            db.add(MaterialRecord(id=material_id, session_id=session['session_id'], title='Page QA',
+                                  status='ready', page_count=3, candidates=[], created_at=to_iso(utc_now()),
+                                  expires_at=to_iso(utc_now() + timedelta(hours=1))))
+            db.flush()
+            for number in (1, 2, 3):
+                db.add(PageRecord(id=f'qa_page_{number}', material_id=material_id, page_no=number,
+                                  title=f'Title {number}', paragraphs=[f'Content {number}']))
+                Image.new('RGB', (40, 30), 'white').save(tmp_path / f's{number:02d}.png')
+
+        base = f'/api/v1/materials/{material_id}/pages'
+        for number, expected in [(1, [1, 2]), (2, [1, 2, 3]), (3, [2, 3])]:
+            prepared = client.get(f'{base}/{number}/learning-qa')
+            assert prepared.status_code == 200, prepared.text
+            assert [p['page_no'] for p in prepared.json()['data']['pages']] == expected
+            assert all(p['has_image'] for p in prepared.json()['data']['pages'])
+        assert calls == []
+
+        answered = client.post(f'{base}/1/learning-qa', headers=_headers(session), json={'question': 'What is shown?'})
+        assert answered.status_code == 200, answered.text
+        assert answered.json()['data']['pages'] == [2, 1]
+        payload, images = calls[0]
+        assert [p['text'] for p in payload['pages']] == ['Content 1', 'Content 2']
+        assert len(images) == 2 and all(image.startswith('data:image/jpeg;base64,') for image in images)
+
+
 def test_ppt_ai_full_workflow(owner: TestClient) -> None:
     session = owner.get("/api/v1/sessions/current").json()["data"]
     headers = _headers(session)

@@ -63,24 +63,21 @@ test('旧编辑链接进入工作台，保留编辑状态，并与演讲者控�
   await expect(secondCanvas.getByText('为什么换个顺序结果就不一样', {exact:true})).toBeVisible();
   await expect(secondCanvas.locator('[data-scene-demo]')).toHaveCount(0);
   const diagramLabel = secondCanvas.locator('[data-node-id=u_diagram_label]');
-  const overhang = await diagramLabel.evaluate(node => {
+  const visibleLabel = await diagramLabel.evaluate(node => {
     const rect = node.getBoundingClientRect();
-    return {x: rect.left + rect.width / 2, y: rect.top + 1};
+    return {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2};
   });
-  expect(await diagramLabel.evaluate((node, {x,y}) => node.contains(document.elementFromPoint(x,y)), overhang)).toBe(true);
-  await page.mouse.click(overhang.x, overhang.y);
+  expect(await diagramLabel.evaluate((node, {x,y}) => node.contains(document.elementFromPoint(x,y)), visibleLabel)).toBe(true);
+  await page.mouse.click(visibleLabel.x, visibleLabel.y);
   await editor.getByRole('combobox', {name:'对齐对象'}).selectOption('inside-slide');
   await expect(diagramLabel).toHaveCSS('top', '0px');
   await editor.getByRole('button', {name:'撤销编辑'}).click();
   await expect(diagramLabel).toHaveCSS('top', '-9px');
   await editor.getByRole('combobox', {name:'对齐对象'}).selectOption('inside-slide');
-  await editor.getByRole('button', {name:'独立演示'}).click();
-  const demoDialog = page.getByRole('dialog', {name:'独立演示'});
-  await expect(demoDialog.getByRole('heading', {name:'矩阵乘法的中间状态观察'})).toBeVisible();
-  await demoDialog.getByRole('button', {name:'下一步'}).click();
-  await expect(demoDialog.getByRole('slider', {name:'演示进度'})).toHaveValue('1');
-  await demoDialog.getByRole('button', {name:'返回幻灯片'}).click();
-  await expect(demoDialog).toBeHidden();
+  await expect(editor.getByRole('button', {name:'独立演示'})).toHaveCount(0);
+  await expect(editor.getByRole('button', {name:/AI 演示框|AI 圈选|图示校对|＋ 流程图/})).toHaveCount(0);
+  await expect(editor.getByRole('tab', {name:/动态关系/})).toHaveCount(0);
+  await expect(editor.getByRole('button', {name:/插入定象坊插件/}).first()).toBeVisible();
   const switchBounds = await modeSwitch.boundingBox();
   const switchElement = await modeSwitch.elementHandle();
   if (!switchElement) throw new Error('Missing workbench mode switch');
@@ -88,15 +85,12 @@ test('旧编辑链接进入工作台，保留编辑状态，并与演讲者控�
   await modeSwitch.getByRole('button', {name: '互动预览'}).click();
   await expect(page.getByLabel('幻灯片第 2 页').locator('[data-node-type=shape]')).toBeVisible();
   await expect(page.getByLabel('幻灯片第 2 页').locator('[data-node-id=u_diagram_label]')).toHaveCSS('top', '0px');
-  await page.getByRole('button', {name:'独立演示'}).click();
-  const demoGraph = demoDialog.getByRole('img', {name:'专用视图'});
-  const demoSlider = demoDialog.getByRole('slider', {name:'缩放因子'});
-  await expect(demoGraph).toBeVisible();
-  await expect(demoSlider).toBeVisible();
-  const graphRect = (await demoGraph.boundingBox())!;
-  const sliderRect = (await demoSlider.boundingBox())!;
-  expect(graphRect.x + graphRect.width).toBeLessThan(sliderRect.x);
-  await demoDialog.getByRole('button', {name:'返回幻灯片'}).click();
+  await expect(page.getByRole('button', {name:'独立演示'})).toHaveCount(0);
+  await expect(page.getByRole('button', {name:'本页学习'})).toBeVisible();
+  await expect(page.getByRole('button', {name:'AI', exact:true})).toHaveCount(0);
+  await page.getByRole('button', {name:'本页学习'}).click();
+  await expect(page.getByRole('complementary', {name:'本页学习面板'})).toBeVisible();
+  await page.getByRole('button', {name:'关闭本页学习'}).click();
   expect(await modeSwitch.boundingBox()).toEqual(switchBounds);
   expect(await modeSwitch.evaluate((node, original) => node === original, switchElement)).toBe(true);
   await page.getByRole('button', {name: '编辑课件'}).click();
@@ -121,9 +115,10 @@ test('旧编辑链接进入工作台，保留编辑状态，并与演讲者控�
   expect(await editStage.evaluate((node, original) => node === original, stageElement)).toBe(true);
   expect(await chart.evaluate(element => [element.clientWidth, element.clientHeight])).toEqual(chartSize);
   await modeSwitch.getByRole('button', {name: '互动预览'}).click();
-  const previewZoom = page.getByRole('slider', {name: '自由缩放百分比'});
-  await previewZoom.fill('60');
-  await page.getByRole('button', {name: '全屏放映'}).click();
+  const previewZoom = page.getByRole('group', {name:'翻页与缩放'}).locator('output');
+  await page.getByRole('button', {name:'放大画布'}).click();
+  const previewZoomText = await previewZoom.innerText();
+  await page.getByRole('button', {name: '演示', exact: true}).click();
   const fullscreen = page.locator('[data-presenting="true"]');
   await expect(fullscreen).toBeVisible();
   await expect(modeSwitch).toBeHidden();
@@ -150,11 +145,7 @@ test('旧编辑链接进入工作台，保留编辑状态，并与演讲者控�
   const secondSlide = page.getByLabel('幻灯片第 2 页');
   await expect(secondSlide.locator('[data-scene-demo]')).toHaveCount(0);
   await secondSlide.click({button: 'right', position: {x: 4, y: 4}});
-  await menu.getByRole('menuitem', {name: '独立演示'}).click();
-  await expect(demoDialog.getByRole('slider', {name:/缩放因子/})).toBeVisible();
-  await demoDialog.getByRole('button', {name:'返回幻灯片'}).click();
-  await expect(fullscreen).toBeVisible();
-  await secondSlide.click({button: 'right', position: {x: 4, y: 4}});
+  await expect(menu.getByRole('menuitem', {name: '独立演示'})).toHaveCount(0);
   await menu.getByRole('menuitem', {name: '上一张'}).click();
 
   await slide.click({button: 'right', position: {x: 4, y: 4}});
@@ -201,9 +192,9 @@ test('旧编辑链接进入工作台，保留编辑状态，并与演讲者控�
 
   await page.keyboard.press('Escape');
   await expect(modeSwitch.getByRole('button', {name: '互动预览'})).toHaveAttribute('aria-pressed', 'true');
-  await expect(previewZoom).toHaveValue('60');
+  await expect(previewZoom).toHaveText(previewZoomText);
   await page.getByRole('button', {name: '适应', exact: true}).click();
-  await page.getByRole('button', {name: '全屏放映'}).click();
+  await page.getByRole('button', {name: '演示', exact: true}).click();
   await slide.click({button: 'right', position: {x: 4, y: 4}});
   await menu.getByRole('menuitem', {name: '结束放映'}).click();
   await expect(modeSwitch.getByRole('button', {name: '互动预览'})).toHaveAttribute('aria-pressed', 'true');
@@ -214,11 +205,12 @@ test('旧编辑链接进入工作台，保留编辑状态，并与演讲者控�
   await projectionSlider.press('End');
   if ((await projectionSlider.inputValue()) === defaultValue) await projectionSlider.press('Home');
   await expect(projectionSlider).not.toHaveValue(defaultValue);
-  await page.getByRole('button', {name: '一键重置'}).click();
+  await page.getByRole('button', {name: /重置本页状态/}).click();
   await expect(projectionSlider).toHaveValue(defaultValue);
 
   const popupOpened = page.waitForEvent('popup');
-  await page.getByRole('button', {name: '演讲者视图'}).click();
+  await page.locator('summary[aria-label="演示选项"]').click();
+  await page.getByRole('button', {name: '演讲者双屏视图'}).click();
   const presenter = await popupOpened;
   await expect(presenter.getByLabel('演讲者控台')).toBeVisible();
   await expect(presenter.getByText('提示学生先观察图形')).toBeVisible();
@@ -236,8 +228,8 @@ test('旧编辑链接进入工作台，保留编辑状态，并与演讲者控�
     expect(conclusion.y + conclusion.height).toBeLessThanOrEqual(time.y);
     expect(lastSlider.y + lastSlider.height).toBeLessThanOrEqual(pod.y + pod.height);
   }
-  await expect(page.getByRole('button', {name: '一键重置'})).toBeVisible();
-  await expect(page.getByLabel('幻灯片第 1 页').getByRole('button', {name: '一键重置'})).toHaveCount(0);
+  await expect(page.getByRole('button', {name: /重置本页状态/})).toBeVisible();
+  await expect(page.getByLabel('幻灯片第 1 页').getByRole('button', {name: /重置本页状态/})).toHaveCount(0);
   const slider = consolePlugin.locator('input[type=range]:visible').last();
   await slider.focus();
   const initial = await slider.inputValue();
@@ -269,11 +261,15 @@ test('旧编辑链接进入工作台，保留编辑状态，并与演讲者控�
   await presenter.mouse.up();
   await expect(page.getByLabel('课堂板书批注层').locator('path')).toHaveCount(2);
 
-  await page.getByRole('button', {name: '更多 ▾'}).click();
+  const exportMenu = page.locator('details').filter({has: page.locator('summary[aria-label="导出与分享"]')});
+  await exportMenu.locator('summary').click();
+  await expect(exportMenu.getByRole('button')).toHaveText([
+    '下载离线交互课件（.html，可播可导回）', '生成在线分享', '导出 PPTX',
+  ]);
   const download = page.waitForEvent('download', {timeout: 30_000});
-  await page.getByRole('menuitem', {name: /导出 PPTX 课件/}).click();
+  await page.getByRole('button', {name: "导出 PPTX", exact: true}).click();
   await download;
-  expect(capturedFrames.map(frame => [frame.page_no, frame.id])).toEqual([[1, 'u_taylor'], [2, 'u_demo']]);
+  expect(capturedFrames.map(frame => [frame.page_no, frame.id])).toEqual([[1, 'u_taylor']]);
   for (const frame of capturedFrames) expect(frame.image_data).toMatch(/^data:image\/png;base64,iVBORw0KGgo/);
 
   await presenter.getByRole('button', {name: '下一页', exact: true}).click();

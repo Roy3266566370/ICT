@@ -9,7 +9,7 @@ interface Snapshot {
 }
 
 const selector = '[data-presentation-snapshot]';
-const types = new Set(['workshop_plugin', 'demo', 'diagram']);
+const types = new Set(['workshop_plugin', 'diagram']);
 
 export async function capturePptxFrames(pages: ScenePage[], slide: HTMLElement | null, pageNo: number): Promise<Snapshot[]> {
   const candidates = pages.filter(page => page.preparation?.status === 'ready' &&
@@ -66,7 +66,7 @@ export async function capturePptxFrames(pages: ScenePage[], slide: HTMLElement |
   try {
     for (const page of remaining) {
       if (!hasRoom()) break;
-      root.render(<ScenePageView key={page.page_no} page={page} scale={1} presentVectors inlineAllDemos/>);
+      root.render(<ScenePageView key={page.page_no} page={page} scale={1} presentVectors/>);
       const renderDeadline = performance.now() + 2500;
       const workshops = page.nodes.filter(node => node.type === 'workshop_plugin' && node.workshop_plugin && !node.deleted && !node.hidden).length;
       while (performance.now() < renderDeadline && hasRoom()) {

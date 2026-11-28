@@ -127,7 +127,9 @@ def _convert_to_pdf(soffice: str, source: Path, work_dir: Path, timeout_s: float
 
 
 def _pdf_to_png(pdf_path: Path, out_dir: Path, width: int, height: int) -> list[Path]:
-    """PDF 逐页导出 PNG，返回按页序排列的文件路径。"""
+    """PDF 并发逐页导出 PNG（原子落盘），返回按页序排列的文件路径。"""
+
+    from concurrent.futures import ThreadPoolExecutor
 
     backend = _load_pdf_backend()
     if backend is None:
@@ -135,35 +137,57 @@ def _pdf_to_png(pdf_path: Path, out_dir: Path, width: int, height: int) -> list[
             "engine_unavailable",
             "未安装 pymupdf（或旧名 fitz），无法把 PDF 转成 PNG",
         )
-    files: list[Path] = []
     try:
-        document = backend.open(str(pdf_path))
+        with backend.open(str(pdf_path)) as probe:
+            total = int(getattr(probe, "page_count", 0))
     except Exception as exc:  # noqa: BLE001 - 后端可能抛多种异常
         raise RenderError("render_failed", f"PDF 打开失败：{type(exc).__name__}") from exc
 
-    try:
-        total = int(getattr(document, "page_count", 0))
-        if total <= 0:
-            raise RenderError("render_failed", "PDF 没有任何页面")
-        for index in range(total):
-            page = document.load_page(index)
-            rect = page.rect
-            if not rect.width or not rect.height:
-                raise RenderError("render_failed", f"PDF 第 {index + 1} 页尺寸异常")
-            # 精确按目标分辨率导出；pptx→pdf 后页面比例与原页一致。
-            matrix = backend.Matrix(width / rect.width, height / rect.height)
-            pixmap = page.get_pixmap(matrix=matrix, alpha=False)
-            target = out_dir / f"s{index + 1:02d}.png"
-            pixmap.save(str(target))
-            if not target.is_file() or target.stat().st_size == 0:
-                raise RenderError("render_failed", f"第 {index + 1} 页导出为空")
-            files.append(target)
-    finally:
+    if total <= 0:
+        raise RenderError("render_failed", "PDF 没有任何页面")
+
+    workers = max(1, min(8, os.cpu_count() or 4, total))
+
+    def _render_chunk(indices: list[int]) -> list[tuple[int, Path]]:
+        rendered: list[tuple[int, Path]] = []
+        document = backend.open(str(pdf_path))
         try:
-            document.close()
-        except Exception:  # pragma: no cover
-            pass
-    return files
+            for index in indices:
+                page = document.load_page(index)
+                rect = page.rect
+                if not rect.width or not rect.height:
+                    raise RenderError("render_failed", f"PDF 第 {index + 1} 页尺寸异常")
+                # 精确按目标分辨率导出；pptx→pdf 后页面比例与原页一致。
+                matrix = backend.Matrix(width / rect.width, height / rect.height)
+                pixmap = page.get_pixmap(matrix=matrix, alpha=False)
+                target = out_dir / f"s{index + 1:02d}.png"
+                tmp = out_dir / f".s{index + 1:02d}.{os.getpid()}.tmp.png"
+                try:
+                    pixmap.save(str(tmp))
+                    os.replace(tmp, target)
+                finally:
+                    tmp.unlink(missing_ok=True)
+                if not target.is_file() or target.stat().st_size == 0:
+                    raise RenderError("render_failed", f"第 {index + 1} 页导出为空")
+                rendered.append((index, target))
+        finally:
+            try:
+                document.close()
+            except Exception:  # pragma: no cover
+                pass
+        return rendered
+
+    all_indices = list(range(total))
+    chunks = [all_indices[i::workers] for i in range(workers) if all_indices[i::workers]]
+    results: list[tuple[int, Path]] = []
+    if len(chunks) == 1:
+        results = _render_chunk(chunks[0])
+    else:
+        with ThreadPoolExecutor(max_workers=len(chunks)) as pool:
+            for part in pool.map(_render_chunk, chunks):
+                results.extend(part)
+    results.sort(key=lambda item: item[0])
+    return [path for _, path in results]
 
 
 def render_pptx(

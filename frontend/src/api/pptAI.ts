@@ -288,19 +288,6 @@ export async function recordPptAiArtifactAcceptance(
 }
 
 export type { PageLabParam, PageLab } from '../ppt-ai/pageLabTypes';
-import type { PageLab } from '../ppt-ai/pageLabTypes';
-
-export async function getPageLab(materialId: string, pageNo: number): Promise<{ lab: PageLab | null }> {
-  return requestJson(`${materialPath(materialId)}/pages/${pageNo}/ai-lab`);
-}
-
-export async function createPageLab(
-  materialId: string,
-  pageNo: number,
-  force = false,
-): Promise<{ lab: PageLab; cached: boolean }> {
-  return post(`${materialPath(materialId)}/pages/${pageNo}/ai-lab`, { force });
-}
 
 export async function getPptAiCapabilities(): Promise<{
   enabled: boolean;
@@ -313,6 +300,29 @@ export async function getPptAiCapabilities(): Promise<{
 
 // ---------------------------------------------------------------------------
 // 原页学习（ppt-learning.1）
+
+export interface PageQuestionContext {
+  pages: Array<{ page_no: number; title: string; has_image: boolean }>;
+}
+
+export interface PageQuestionAnswer {
+  answer: string;
+  pages: number[];
+}
+
+const pageQuestionPath = (id: string, pageNo: number) => `${materialPath(id)}/pages/${pageNo}/learning-qa`;
+
+export function preparePageQuestion(id: string, pageNo: number, signal: AbortSignal) {
+  return requestJson<PageQuestionContext>(pageQuestionPath(id, pageNo), { signal });
+}
+
+export function askPageQuestion(
+  id: string, pageNo: number, question: string, history: Array<{question: string; answer: string}>, signal: AbortSignal,
+) {
+  return requestJson<PageQuestionAnswer>(pageQuestionPath(id, pageNo), {
+    method: 'POST', signal, body: JSON.stringify({ question, history }),
+  });
+}
 // ---------------------------------------------------------------------------
 
 export function getLearningPage(

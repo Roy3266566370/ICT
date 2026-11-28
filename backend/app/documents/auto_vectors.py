@@ -784,10 +784,12 @@ def _collect_shapes(shapes):
     return out
 
 
-def prepare_source_vectors(material_id, title):
-    """Upload imports native lines only. Raster recognition starts on demand."""
+def prepare_source_vectors(material_id, title, *, retry_groups=False):
+    """Replace independently exported native groups and lines with editable objects."""
     from .capabilities import layer_editor_available
     from .importer import native_figure_scene, native_group_nodes
+    from .layers import source_page_number
+    from .pptx_export import _changed
 
     if not layer_editor_available()[0]:
         return
@@ -797,21 +799,34 @@ def prepare_source_vectors(material_id, title):
     if not document or not source.is_file():
         return
     deck = Presentation(source)
-    for page, slide in zip(document["pages"], deck.slides):
-        if page.get("native_vectors") or (page.get("modified") and not page.get("math_recognition")):
+    for page in document["pages"]:
+        source_no = source_page_number(page)
+        if source_no is None or not 1 <= source_no <= len(deck.slides):
             continue
+        previously_prepared = page.get("native_vectors") or (page.get("modified") and not page.get("math_recognition"))
+        if previously_prepared and not retry_groups:
+            continue
+        slide = deck.slides[source_no - 1]
         shapes = _collect_shapes(slide.shapes)
         replacements = {}
+        current_ids = {node["id"] for node in page["nodes"]}
         for node in page["nodes"]:
             shape = shapes.get(node.get("source_shape_id"))
             if shape is None:
                 continue
             try:
                 if node.get("whole_group"):
-                    children = native_group_nodes(shape, node)
-                    if children:
+                    position = {key: node.get(f"base_{key}", node[key]) for key in ("x", "y")}
+                    if _changed({**node, **position}):
+                        continue
+                    children = native_group_nodes(shape, node, asset_root=source.parent / "native" /
+                                                  document["source_key"] / f"p{source_no:02d}")
+                    if children and not any(child["id"] in current_ids for child in children):
+                        for child in children:
+                            for axis, source_position in position.items():
+                                child[axis] += node[axis] - source_position
                         replacements[node["id"]] = children
-                elif node["type"] == "shape":
+                elif node["type"] == "shape" and not previously_prepared:
                     vector = native_vector(shape, node)
                     if vector:
                         replacements[node["id"]] = [{**vector, "figure_provenance": "native"}]
@@ -820,7 +835,7 @@ def prepare_source_vectors(material_id, title):
         if not replacements:
             continue
         prepare_page(material_id, page["page_no"])
-        manifest = read_manifest(material_id, document["source_key"], page["page_no"])
+        manifest = read_manifest(material_id, document["source_key"], source_no)
         if not manifest_ready(manifest):
             continue
         frozen = set(manifest.get("frozen_ids", []))

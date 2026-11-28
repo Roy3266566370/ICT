@@ -1,14 +1,9 @@
-import { requestBinary, requestJson } from './client';
+import { requestJson } from './client';
 
 export interface ImportedProject {
   material_id: string;
   page_count: number;
   title: string;
-}
-
-/** 下载可再次编辑的 .xsproj 工程包。 */
-export function downloadProjectPackage(materialId: string): Promise<Blob> {
-  return requestBinary(`/api/v1/materials/${encodeURIComponent(materialId)}/project-package`);
 }
 
 /** 导入 .xsproj 工程包或万象导出的单文件 .html 交互网页；服务端校验并重建材料。 */

@@ -73,6 +73,42 @@ test('every revised template evaluates all connected observation inputs with its
   }
 });
 
+test('SVM and Q-learning pin each detached diagnostic and consume live frames', async () => {
+  const { deepWorkshopDoc } = await import('./deepWorkshop.ts');
+  const { advancedSnapshot } = await import('./deepAdvanced.ts');
+  const { makeCtx, inputValues } = await import('./engine.ts');
+  for (const [kind, ports] of [
+    ['dlSvm', ['out', 'field', 'history']],
+    ['dlQlearning', ['policy', 'returns', 'steps']],
+  ] as const) {
+    const doc = deepWorkshopDoc(kind);
+    const [labId, ...viewIds] = doc.panel!.view_node_ids;
+    const lab = doc.nodes.find(({ id }) => id === labId)!;
+    assert.equal(viewIds.length, ports.length);
+    const initial = makeCtx(doc, new Map());
+    const labInputs = inputValues(initial, lab);
+    const frame = advancedSnapshot(lab, port => labInputs[port] ?? null, 1)!;
+    const live = makeCtx(doc, new Map(Object.entries(frame.outputs).map(([port, value]) => [`${labId}|${port}`, value])));
+    for (const [index, id] of viewIds.entries()) {
+      const view = doc.nodes.find(node => node.id === id)!;
+      const port = ports[index]!;
+      assert.ok(doc.wires.some(wire => wire.to === id && wire.from === labId && wire.fromPort === port));
+      assert.ok(inputValues(initial, view).in);
+      assert.deepEqual(inputValues(live, view).in, frame.outputs[port]);
+    }
+  }
+});
+
+test('The curve view input accepts series and matrix outputs when wiring in the editor', async () => {
+  const { studyStages } = await import('./studyStages.ts');
+  const { compatiblePorts } = await import('./wireRecommend.ts');
+  const input = studyStages.studyCurveView.inputs[0]!;
+  const view = { type: 'studyCurveView' } as const;
+  assert.ok(compatiblePorts({ type: 'svmLab' }, 'history', 'series', view, input));
+  assert.ok(compatiblePorts({ type: 'svmLab' }, 'out', 'tensor2d', view, input));
+  assert.equal(compatiblePorts({ type: 'svmLab' }, 'loss', 'scalar', view, input), false);
+});
+
 test('disconnecting and replacing a computation changes results in all four topics', async () => {
   const { deepWorkshopDoc } = await import('./deepWorkshop.ts');
   const { makeCtx, evalOutput } = await import('./engine.ts');

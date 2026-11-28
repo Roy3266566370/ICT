@@ -148,9 +148,11 @@ export function trainCliff(episodes = 30, seed = 7, alpha = 0.15, gamma = 0.95, 
   const policy = table.map(row => policyGradient ? softmax(row) : row); return { table, policy, returns, steps, lastPath, values: Array.from({ length: 6 }, (_, y) => Array.from({ length: 6 }, (_, x) => Math.max(...policy[y * 6 + x]!))) };
 }
 
-export interface AdvancedSnapshot { outputs: Record<string, PortValue>; matrices: { label: string; data: Matrix }[]; curves: { label: string; data: number[] }[]; points?: Matrix; support?: boolean[]; vectors?: Matrix; note: string; grid?: ReturnType<typeof trainCliff> }
+export interface AdvancedSnapshot { outputs: Record<string, PortValue>; matrices: { label: string; data: Matrix }[]; curves: { label: string; data: number[] }[]; points?: Matrix; support?: boolean[]; vectors?: Matrix; kpis?: { label: string; value: string; tone?: 'accent' | 'neutral' }[]; note: string; grid?: ReturnType<typeof trainCliff> }
 const tensor = (data: Matrix): PortValue => ({ kind: 'tensor2d', data: data.slice(0, 16).map(r => r.slice(0, 16)) });
 const scalar = (v: number): PortValue => ({ kind: 'scalar', v: Number.isFinite(v) ? v : 0 });
+const series = (title: string, values: number[], label: (index: number) => number): Extract<PortValue, { kind: 'series' }> =>
+  ({ kind: 'series', title, values, labels: values.map((_, i) => String(label(i))) });
 export function advancedSnapshot(node: CanvasNode, input: (port: string) => PortValue | null, frame = 0): AdvancedSnapshot | null {
   const p = { ...node.params };
   for (const key of ['mode', 'gamma', 'alpha']) {
@@ -168,13 +170,53 @@ export function advancedSnapshot(node: CanvasNode, input: (port: string) => Port
   const data = v?.kind === 'tensor2d' ? safeTensor(v.data) : TOKEN_EMBEDDINGS; const points = v?.kind === 'dataset2d' ? safePoints(v.points) : toyPoints(cp('seed', 7, 0, 10000), !!p.quadratic);
   const empty = { matrices: [], curves: [] }; frame = size(frame, 0, 700);
   switch (node.type) {
-    case 'svmLab': { const m = trainSVM(points, cp('control', 2, 0.01, 20), !!p.quadratic, cp('steps', 100, 0, 800) + frame * 10); const boundary = Array.from({ length: 16 }, (_, i) => Array.from({ length: 16 }, (_, j) => dot(m.w, svmFeatures(-2 + j * 4 / 15, 2 - i * 4 / 15, !!p.quadratic)) + m.b)); return { outputs: { out: tensor([[...m.w, m.b]]), loss: scalar(m.loss), data: { kind: 'dataset2d', points: points.filter((_, i) => m.support[i]) } }, matrices: [{ label: '决策分数 f(x,y)，域 [-2,2]²', data: boundary }], curves: [{ label: '训练 primal objective', data: m.history }], points: points.map((p, i) => [p.x, p.y, p.label, m.scores[i]!]), support: m.support, note: `½‖w‖² + C·mean hinge；验证准确率 ${(m.accuracy * 100).toFixed(1)}%。圈：训练 margin≤1.05 的支持候选（数值近似，非对偶精确判定）。${p.quadratic ? 'φ=[x,y,x²,√2xy,y²]；固定 K=φ·φ，不是任意核。' : '线性软间隔；验证点不参与优化。'}` }; }
+    case 'svmLab': {
+      const quadratic = !!p.quadratic;
+      const steps = size(cp('steps', 100, 0, 800) + frame * 10, 0, 800);
+      const m = trainSVM(points, cp('control', 2, 0.01, 20), quadratic, steps);
+      const boundary = Array.from({ length: 16 }, (_, i) => Array.from({ length: 16 }, (_, j) =>
+        dot(m.w, svmFeatures(-2 + j * 4 / 15, 2 - i * 4 / 15, quadratic)) + m.b));
+      const history = series('训练 primal objective', [...m.history, m.loss], (i) => Math.min(i * 10, steps));
+      return {
+        outputs: { out: tensor([[...m.w, m.b]]), loss: scalar(m.loss), field: tensor(boundary), history,
+          data: { kind: 'dataset2d', points: points.filter((_, i) => m.support[i]) } },
+        matrices: [{ label: '决策分数 f(x,y)，域 [-2,2]²', data: boundary }],
+        curves: [{ label: history.title, data: history.values }],
+        points: points.map((point, i) => [point.x, point.y, point.label, m.scores[i]!]),
+        support: m.support,
+        kpis: [
+          { label: 'Loss', value: m.loss.toFixed(3), tone: 'accent' },
+          { label: '验证准确率', value: (m.accuracy * 100).toFixed(1) + '%' },
+          { label: '模式', value: quadratic ? '二次' : '线性' },
+        ],
+        note: `½‖w‖² + C·mean hinge；验证准确率 ${(m.accuracy * 100).toFixed(1)}%。圈：训练 margin≤1.05 的支持候选（数值近似，非对偶精确判定）。${p.quadratic ? 'φ=[x,y,x²,√2xy,y²]；固定 K=φ·φ，不是任意核。' : '线性软间隔；验证点不参与优化。'}`,
+      };
+    }
     case 'resnetLab': { const mode: NormMode = p.norm === 1 ? 'BN' : p.norm === 2 ? 'LN' : 'none'; const a = residualNetwork(data, cp('depth', 6, 1, 12), false, 'none', cp('control', 0.65, 0.05, 2)), b = residualNetwork(data, cp('depth', 6, 1, 12), true, mode, cp('control', 0.65, 0.05, 2)); return { outputs: { out: tensor(b.out), gradient: tensor(b.inputGradient), loss: scalar(b.loss) }, matrices: [{ label: '纯堆叠末层激活', data: a.out }, { label: '残差末层激活', data: b.out }], curves: [{ label: '纯堆叠逐层方差', data: a.variances }, { label: '残差逐层方差', data: b.variances }, { label: '纯堆叠梯度 L2', data: a.gradients }, { label: '残差梯度 L2', data: b.gradients }], note: `x→tanh(Norm(Wx)) + x；对照路无归一化、无残差。${mode}：BN 按列跨样本；LN 按行跨特征。γ=1 β=0，训练态统计；真实 MSE 反传，不保证任何参数下梯度都改善。` }; }
     case 'sequenceMemory': { const m = sequenceModel(v?.kind === 'tensor2d' ? data.flat().slice(0, 8) : [1, 0, 0, 0, 0, 0, 0, 0], cp('recurrent', 0.7, -1.5, 1.5), cp('control', 2, -5, 5)); return { outputs: { out: tensor([m.rnn, m.lstm, m.cells]), attention: tensor([m.attention]), loss: scalar(m.context) }, matrices: [{ label: '每步门 f / i / o / g', data: m.gates }, { label: '末 token 查询的直接 attention 权重', data: [m.attention] }], curves: [{ label: 'RNN h', data: m.rnn }, { label: 'LSTM h', data: m.lstm }, { label: 'cell c', data: m.cells }, { label: '∂RNN h_t/∂x₀', data: m.rnnSensitivity }, { label: '∂LSTM h_t/∂x₀', data: m.lstmSensitivity }], note: '标量 RNN h=tanh(wh+x)。LSTM f=σ(bf+.2h), i=σ(-.3+.2x), o=σ(.5+.1h), g=tanh(x+.2h), c=fc+ig。Attention softmax(x末·x)；跨距 O(1) ≠ 总复杂度 O(1)，全序列注意力通常 O(n²)。' }; }
     case 'multiheadLab': { const m = multihead(data, p.mode !== 0, cp('control', 0, -100, 100)); return { outputs: { out: tensor(m.out), attention: tensor(m.heads[size(p.head ?? 0, 0, 1)]!.weights), relative: tensor(m.relative) }, matrices: [{ label: 'Head 0 权重', data: m.heads[0]!.weights }, { label: 'Head 1 权重', data: m.heads[1]!.weights }, { label: '固定内容的位置内积（未 softmax）', data: m.relative }], curves: [], note: '默认 4 个固定教学向量，非语言语义。头0取维度0/1、头1取2/3；Q=V=该对，K=交换该对；RoPE 在投影后旋转。Sinusoid 在4维输入上相加。输出为两头拼接，无输出投影。位置内积图用同一对内容隔离相对位置。' }; }
     case 'autoencoderLab': { const m = linearAutoencoder(data, cp('angle', 0, -3.14, 3.14)), anchor = [cp('ax', 0.4, -3, 3), cp('ay', 0.3, -3, 3)], candidates = [[1, 0.5], [-1, 0], [0, -1]]; const nce = infoNCE(anchor, candidates, cp('control', 0.5, 0.05, 5)); const field = Array.from({ length: 49 }, (_, k) => { const x = -1.5 + k % 7 * 0.5, y = -1.5 + Math.floor(k / 7) * 0.5; return [x, y, ...infoNCE([x, y], candidates, cp('control', 0.5, 0.05, 5)).gradient.map(v => -v)]; }); return { outputs: { out: tensor(m.latent), reconstruction: tensor(m.reconstruction), loss: scalar(m.loss), contrastive: scalar(nce.loss), gradient: tensor([nce.gradient, ...nce.candidateGradients]) }, matrices: [{ label: '高维输入（行=样本）', data }, { label: '重建', data: m.reconstruction }, { label: '正/负候选概率', data: [nce.probabilities] }], curves: [], points: [...m.latent.map(z => [...z, 0]), [...anchor, 1], ...candidates.map((z, i) => [...z, i === 0 ? 2 : 3])], vectors: field, note: `精确线性教学 AE：固定正交二维子空间投影，非训练网络/PCA；angle 旋转子空间。MSE=${m.loss.toFixed(4)}。InfoNCE=${nce.loss.toFixed(4)}，未归一化点积；橙点 anchor，绿点正样本，其余负样本；箭头是 −∇anchor loss，点击平面移动 anchor。` }; }
     case 'diffusionLab': { const t = cp('control', 0.4, 0, 4), mix = diffusionMixture(!!p.swiss, v?.kind === 'dataset2d' ? points : undefined), forward = diffusionForward(t, cp('seed', 7, 0, 10000), mix), pts = p.reverse ? forward.map(x => reverseDiffusionStep(x, t, 0.02, mix)) : forward; const field = Array.from({ length: 49 }, (_, i) => { const x = -2 + i % 7 * 4 / 6, y = -2 + Math.floor(i / 7) * 4 / 6; return [x, y, ...mixtureScore([x, y], t, mix).score]; }); return { ...empty, outputs: { out: { kind: 'dataset2d', points: pts.map(x => ({ x: x[0]!, y: x[1]!, label: 0, split: 'train' })) }, score: tensor(field.slice(0, 16)), loss: scalar(mean(pts.map(x => -mixtureScore(x, t, mix).logDensity))) }, points: pts, vectors: field, note: `ᾱ=e^(−3t)，固定 seed 闭式加噪。${p.swiss || v?.kind === 'dataset2d' ? '经验 Gaussian mixture' : '双高斯 mixture'} 解析 score（非训练去噪网络）。箭头 ∇log p_t；反向按钮从当前快照做一次 probability-flow ODE Euler 步，dt=min(.02,t)，不是精确还原。` }; }
-    case 'qLearningLab': { const m = trainCliff(cp('episodes', 30, 0, 200) + frame, cp('seed', 7, 0, 10000), cp('alpha', 0.15, 0.001, 1), cp('gamma', 0.95, 0, 1), cp('control', 0.2, 0, 1), !!p.mode, rewards); return { outputs: { out: tensor(m.values), policy: tensor(Array.from({ length: 6 }, (_, y) => Array.from({ length: 6 }, (_, x) => m.policy[y * 6 + x]!.indexOf(Math.max(...m.policy[y * 6 + x]!))))), loss: scalar(m.returns.at(-1) ?? 0) }, matrices: [], curves: [{ label: 'Episode return（原始奖励）', data: m.returns }, { label: 'Episode steps', data: m.steps }], grid: m, note: `${p.mode ? 'REINFORCE：softmax 策略，整回合 γ^t G_t∇logπ，奖励固定缩放1/100；ε不参与。logits限幅±30。' : 'Seeded ε-greedy，随机打破并列；真实 Bellman 更新。'} ↑→↓← 编码0/1/2/3。起点左下，终点右下 ${rewards?.[5]?.[5] ?? 20}；悬崖回起点 ${rewards?.[5]?.[1] ?? -100}，普通格 ${rewards?.[0]?.[0] ?? -1}。200步截断（按有限回合目标）；颜色=${p.mode ? '最大策略概率' : 'max Q'}。` }; }
+    case 'qLearningLab': {
+      const m = trainCliff(cp('episodes', 30, 0, 200) + frame, cp('seed', 7, 0, 10000),
+        cp('alpha', 0.15, 0.001, 1), cp('gamma', 0.95, 0, 1), cp('control', 0.2, 0, 1), !!p.mode, rewards);
+      const returns = series('Episode return（原始奖励）', m.returns, (i) => i + 1);
+      const steps = series('Episode steps', m.steps, (i) => i + 1);
+      const policy = Array.from({ length: 6 }, (_, y) => Array.from({ length: 6 }, (_, x) => {
+        const actions = m.policy[y * 6 + x]!;
+        return actions.indexOf(Math.max(...actions));
+      }));
+      return {
+        outputs: { out: tensor(m.values), policy: tensor(policy), loss: scalar(m.returns.at(-1) ?? 0), returns, steps },
+        matrices: [], curves: [returns, steps].map(({ title, values }) => ({ label: title, data: values })), grid: m,
+        kpis: [
+          { label: '回合', value: String(m.returns.length) },
+          { label: '最近回报', value: String(m.returns.at(-1) ?? '—'), tone: 'accent' },
+          { label: '最近步数', value: String(m.steps.at(-1) ?? '—') },
+        ],
+        note: `${p.mode ? 'REINFORCE：softmax 策略，整回合 γ^t G_t∇logπ，奖励固定缩放1/100；ε不参与。logits限幅±30。' : 'Seeded ε-greedy，随机打破并列；真实 Bellman 更新。'} ↑→↓← 编码0/1/2/3。起点左下，终点右下 ${rewards?.[5]?.[5] ?? 20}；悬崖回起点 ${rewards?.[5]?.[1] ?? -100}，普通格 ${rewards?.[0]?.[0] ?? -1}。200步截断（按有限回合目标）；颜色=${p.mode ? '最大策略概率' : 'max Q'}。`,
+      };
+    }
     default: return null;
   }
 }

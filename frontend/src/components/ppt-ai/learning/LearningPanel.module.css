@@ -271,6 +271,79 @@
 .statusLine { margin: 0; color: #6b7280; font-size: 11px; }
 
 .question { display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; font-weight: 600; color: #475569; }
+.qaForm { display: grid; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid #e9e3d8; }
+.qaAnswer { min-width: 0; overflow-x: auto; overflow-wrap: anywhere; line-height: 1.65; }
+.qaAnswer p { margin: 0 0 .65em; white-space: normal; }
+.qaAnswer :is(ul, ol) { margin: .35em 0 .75em; padding-inline-start: 1.5em; }
+.qaAnswer :global(.katex-display) { overflow-x: auto; overflow-y: hidden; padding-block: .2em; }
+
+.pageQuestion {
+  --question-accent: #374c83;
+  --question-rule: #ded9cd;
+  background: #f7f5ef;
+  border-left: 0;
+}
+
+.pageQuestion .head,
+.pageQuestion .qaForm {
+  flex: none;
+  padding: 16px;
+  background: #fffdf8;
+}
+
+.pageQuestion .head h2 { margin: 4px 0; font-size: 22px; }
+.pageQuestion .body { padding: 16px; overscroll-behavior: contain; }
+
+.pageMarker {
+  color: var(--question-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.questionStarter,
+.questionTurn {
+  border: 1px solid var(--question-rule);
+  border-radius: 12px;
+  padding: 16px;
+  background: #fffdf8;
+}
+
+.questionStarter { display: grid; gap: 8px; }
+.questionStarter h3,
+.questionTurn h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.questionStarter p { margin: 0 0 4px; font-size: 13px; line-height: 1.6; color: #596273; }
+
+.questionStarter button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--question-rule);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--question-accent);
+  font: inherit;
+  font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.questionStarter button:hover { background: #edf0f7; }
+.questionTurn + .questionTurn { margin-top: 12px; }
+.questionTurn .qaAnswer { font-size: 14px; }
+.pageQuestion .question { min-width: 0; gap: 8px; font-size: 13px; }
+.pageQuestion .question textarea { box-sizing: border-box; font-size: 14px; }
+.pageQuestion .sectionActions { justify-content: flex-end; }
+.pageQuestion :is(.primary, .ghost) { min-height: 40px; box-shadow: none; }
+.pageQuestion .primary { background: var(--question-accent); }
+.pageQuestion .primary:disabled { background: #e9eaf0; color: #626a7c; opacity: 1; cursor: default; }
+.pageQuestion :is(button, textarea):focus-visible {
+  outline: 2px solid var(--question-accent);
+  outline-offset: 2px;
+}
+
 .question textarea {
   width: 100%;
   resize: vertical;

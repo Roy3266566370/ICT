@@ -405,7 +405,7 @@
 .wx-home .lab-canvas-box { border-radius: 12px; border: 1px solid var(--line); background: #fff; padding: 14px; }
 .wx-home .lab-svg { display: block; width: 100%; height: auto; border-radius: 8px; background: var(--paper-hi); border: 1px solid var(--line); }
 .wx-home .lab-svg.is-pickable { cursor: crosshair; }
-.wx-home .lab-svg text { font: 9px var(--mono); fill: var(--muted); }
+.wx-home .lab-svg text { font: 11px var(--mono); fill: var(--ink, #343a32); }
 .wx-home .lab-control-box { display: grid; gap: 14px; align-content: start; }
 .wx-home .lab-control-box h3 { font-family: var(--serif); font-size: 24px; margin: 0; line-height: 1.25; }
 .wx-home .lab-control-box p { margin: 0; font-size: 13px; color: var(--muted); }

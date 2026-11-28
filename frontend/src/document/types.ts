@@ -1,17 +1,20 @@
 import type {SceneShape} from './shapeCatalog';
 
 export interface TextStyle {
+  border_radius?:number;
+  shadow?:{x:number;y:number;blur:number;color:string;opacity:number}|null;
+  linear_gradient?:{angle:number;stops:Array<{position:number;color:string;opacity?:number}>}|null;
   line_style?: 'solid'|'dashed'|'dotted'; arrow_start?: boolean; arrow_end?: boolean;
   anim_step?: number; bind_mode?: 'none'|'scale'|'rotate';
   font_size:number;font_family:string;color:string;bold?:boolean;italic?:boolean;underline?:boolean;letter_spacing?:number;
   align?:'left'|'center'|'right'|'justify';vertical_align?:'top'|'middle'|'bottom';line_height?:number;
   padding_left?:number;padding_right?:number;padding_top?:number;padding_bottom?:number;
-  fill?:string;stroke?:string;stroke_width?:number;
+  fill?:string;stroke?:string;stroke_width?:number;fill_opacity?:number;stroke_opacity?:number;
   baseline?:number;highlight?:string;
 }
 export interface SceneParagraph {
   text:string;align?:TextStyle['align'];line_height?:number;line_spacing_pt?:number;space_before?:number;space_after?:number;
-  bullet?:boolean;runs:Array<{text:string;style:Partial<TextStyle>}>;
+  bullet?:boolean;list_type?:'bullet'|'ordered';runs:Array<{text:string;style:Partial<TextStyle>}>;
 }
 export interface ChartData {categories:string[];series:Array<{name:string;values:number[]}>;title?:string;chart_type?:string;}
 export type InteractionTemplate='grid_transform'|'circle_ellipse'|'vectors'|'eigen_probe'|'inverse_map'|'det_area'|'basis_change';
@@ -124,6 +127,8 @@ export interface WorkshopPluginConfig {
   preview_data?: string;
 }
 export interface SceneNode {
+  group_id?:string|null;
+  table_style?:{header_row?:boolean;banded_rows?:boolean;header_fill?:string;header_color?:string;band_fill?:string;border_color?:string}|null;
   diagram?: import('../living/diagram').DiagramDoc;
   demo?: import('../ppt-ai/pageLabTypes').PageLab|null;
   workshop_plugin?: WorkshopPluginConfig | null;
@@ -136,26 +141,43 @@ export interface SceneNode {
   style:TextStyle;base_style:TextStyle;base_text:string|null;base_x?:number;base_y?:number;base_width?:number;base_height?:number;
   source_element_id?:string|null;source_shape_id?:number|null;whole_group?:boolean;content_changed?:boolean;
   paragraphs?:SceneParagraph[];base_paragraphs?:SceneParagraph[];rich_text_edited?:boolean;
-  image_url?:string|null;background_url?:string|null;image_data?:string;asset_id?:string|null;background_asset_id?:string|null;
+  image_url?:string|null;background_url?:string|null;image_data?:string|null;asset_id?:string|null;background_asset_id?:string|null;
   cleaned_asset_id?:string|null;cleaned_url?:string|null;figure_scene?:FigureScene|null;
   figure_source_id?:string;figure_object_id?:string;figure_provenance?:FigureProvenance;text_transform?:[number,number,number,number];text_rotation_offset?:180;
   image_frame?:[number,number];image_scale?:number;image_size?:[number,number];
   background_frame?:[number,number];background_scale?:number;background_size?:[number,number];word_wrap?:boolean;
   shape?:SceneShape;duplicate_from?:string;table?:string[][];base_table?:string[][];chart?:ChartData|null;base_chart?:ChartData|null;
   shape_paths?:Array<{width:number;height:number;path:string;fill:boolean;stroke:boolean}>;
+  fill_gradient?:{bounds:[number,number,number,number];stops:Array<{position:number;color:string;opacity:number}>};
   style_modified?:string[];crop?:{left:number;right:number;top:number;bottom:number};interaction?:NodeInteraction|null;
 }
 export interface ScenePage {
+  background?:PageBackground|null;
+  layout_id?:string|null;
+  hide_master?:boolean;
+  transition?:PageTransition|null;
   page_no:number;id?:string;width:number;height:number;nodes:SceneNode[];modified?:boolean;auto_vectors?:boolean;background_url?:string;
   source_page_no?:number|null;copy_from_page_no?:number;notes?:string;background_color?:string|null;background_modified?:boolean;native_fallback?:boolean;
   figure_scenes?:Record<string,FigureScene>;
   relations?:SceneRelation[];
   preparation?:{status:'unprepared'|'queued'|'preparing'|'ready'|'failed';fallback_status?:'unprepared'|'queued'|'preparing'|'ready'|'failed'|'unavailable';message?:string;errors?:string[];frozen_ids?:string[];seconds?:number};
 }
-export interface SceneDocument {schema_version:string;revision:number;title:string;source_key?:string;pages:ScenePage[];archived_pages?:ScenePage[];structure_modified?:boolean;}
-export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'text'|'paragraphs'|'table'|'chart'|'crop'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'diagram'|'demo'|'workshop_plugin'|'cleaned_asset_id'|'figure_scene'>> & {style?:Partial<TextStyle>};
-export type PageMetadata=Pick<ScenePage,'notes'|'background_color'>;
+export type PageBackground =
+  | {kind:'solid';color:string}
+  | {kind:'gradient';gradient:NonNullable<TextStyle['linear_gradient']>}
+  | {kind:'image';image_data:string;image_opacity?:number;overlay_color?:string};
+export interface PageTransition {kind:'none'|'fade'|'slide'|'push'|'zoom';duration_ms?:number}
+export interface DeckTheme {
+  id:string; name:string; aspect_ratio:'16:9'|'4:3';
+  palette:Record<'background'|'surface'|'primary'|'secondary'|'accent'|'text'|'muted'|'border',string>;
+  fonts:{heading:string;body:string};
+  master?:{show_page_number?:boolean;header_text?:string;footer_text?:string;accent_bar?:'none'|'top'|'left'|'bottom'};
+}
+export interface SceneDocument {schema_version:string;revision:number;title:string;source_key?:string;pages:ScenePage[];archived_pages?:ScenePage[];structure_modified?:boolean;theme?:DeckTheme;}
+export type NodePatch=Partial<Pick<SceneNode,'x'|'y'|'width'|'height'|'rotation'|'z'|'opacity'|'locked'|'hidden'|'deleted'|'group_id'|'text'|'paragraphs'|'table'|'table_style'|'chart'|'crop'|'image_data'|'interaction'|'basis'|'flow'|'viewer_editable'|'viewer_parameters'|'diagram'|'demo'|'workshop_plugin'|'cleaned_asset_id'|'figure_scene'>> & {style?:Partial<TextStyle>};
+export type PageMetadata=Pick<ScenePage,'notes'|'background_color'|'background'|'transition'|'hide_master'|'layout_id'>;
 export type PageAction=
+  | {kind:'document_theme';theme:DeckTheme|null}
   | {kind:'add_page';width:number;height:number}
   | {kind:'duplicate_page';from:number}
   | {kind:'delete_page'|'restore_page'}

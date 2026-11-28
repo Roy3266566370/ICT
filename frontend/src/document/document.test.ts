@@ -18,6 +18,8 @@ import {
   patchNodes,
   rebaseDocument,
 } from './model.ts';
+import { applySlideLayout, isImagePlaceholder, layoutNodes } from './layouts.ts';
+import { THEMES, presetTheme } from './themes.ts';
 import type { SceneDocument, SceneNode } from './types.ts';
 
 function node(overrides: Partial<SceneNode> = {}): SceneNode {
@@ -163,4 +165,47 @@ test('纵向分布同样保持首尾并平均分配间距', () => {
 test('不足三个对象时分布不产生改动', () => {
   const base = doc([node({ id: 'a' }), node({ id: 'b', x: 100 })]);
   assert.equal(distributeNodes(base, 1, ['a', 'b'], 'v'), base);
+});
+
+
+test('在保存前更换副本图片，仅单独上行变更后的图片', () => {
+  const source = node({type:'image', image_data:'data:image/png;base64,AAA'});
+  const copy = node({...source,id:'u_2',duplicate_from:source.id,image_data:'data:image/png;base64,BBB'});
+  const base=doc([source]);
+  assert.equal(diffDocuments(base,doc([source,{...copy,image_data:source.image_data}])).length,1);
+  const changes=diffDocuments(base,doc([source,copy]));
+  assert.equal(changes[0]?.create?.image_data,undefined);
+  assert.deepEqual(changes[1]?.patch,{image_data:copy.image_data});
+  assert.deepEqual(rebaseDocument(base,doc([source,copy]),base).conflicts,[]);
+});
+
+test('换版替换旧装饰并保留自建对象及已经填写的图片占位', () => {
+  const original=doc([node({id:'custom',type:'shape',name:'自建卡片'})]);
+  const page=original.pages[0]!;
+  const generated=layoutNodes(page,'text-image');
+  const slot=generated.find(item=>item.name==='图片占位')!;
+  const withLayout={...page,layout_id:'text-image' as const,nodes:[...page.nodes,...generated]};
+  assert.equal(isImagePlaceholder(withLayout,slot),true);
+  const repurposed={...slot,text:'讲解提示'};
+  assert.equal(isImagePlaceholder(withLayout,repurposed),false);
+  withLayout.nodes=withLayout.nodes.map(item=>item===slot?repurposed:item);
+  let count=0;
+  const identifier=()=>`u_layout_${++count}`;
+  const next=applySlideLayout({...original,pages:[withLayout]},withLayout,'agenda',identifier);
+  const current=next.pages[0]!;
+  const repeated=applySlideLayout(next,current,'agenda',identifier).pages[0]!;
+  assert.equal(repeated.nodes.filter(item=>item.name==='目录卡片').length,4);
+  assert.equal(repeated.nodes.some(item=>item.name==='左侧卡片'),false);
+  assert.ok(repeated.nodes.includes(repurposed));
+  assert.ok(repeated.nodes.includes(page.nodes[0]!));
+});
+
+test('预设主题将卡片、边框、辅助文字和图表色分开', () => {
+  for(const [id] of THEMES){
+    const {palette}=presetTheme(id,'16:9')!;
+    assert.notEqual(palette.surface,palette.background);
+    assert.notEqual(palette.muted,palette.text);
+    assert.notEqual(palette.border,palette.primary);
+    assert.equal(new Set([palette.primary,palette.accent,palette.secondary]).size,3);
+  }
 });

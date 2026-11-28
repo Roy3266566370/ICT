@@ -12,6 +12,7 @@ import io
 import json
 import re
 import zipfile
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Mapping
 from uuid import uuid4
@@ -558,7 +559,10 @@ def import_offline_html(
             "elements": item.get("elements") if isinstance(item.get("elements"), list) else [],
         }
 
-    all_page_nos = sorted(set(page_meta_by_no) | set(scene_pages_by_no))
+    page_nos = set(page_meta_by_no) | set(scene_pages_by_no)
+    exported_order = (cleaned_document or {}).get("page_order") or [*page_meta_by_no, *scene_pages_by_no]
+    all_page_nos = list(dict.fromkeys(number for number in exported_order if number in page_nos))
+    all_page_nos.extend(sorted(page_nos - set(all_page_nos)))
     if not all_page_nos:
         raise ProjectPackageError("离线 HTML 中没有可恢复的幻灯片页面")
     if len(all_page_nos) > 200:
@@ -634,6 +638,9 @@ def import_offline_html(
                     "height": height_pt,
                     "modified": True,
                     "nodes": rebuilt_nodes,
+                    **{key:deepcopy(scene_page[key]) for key in (
+                        "background_color","background_modified","background","transition","hide_master","layout_id",
+                    ) if key in scene_page},
                     **({"relations": deepcopy(scene_page["relations"])} if isinstance(scene_page.get("relations"), list) and scene_page["relations"] else {}),
                 }
             )
@@ -705,6 +712,8 @@ def import_offline_html(
         "source_key": source_key,
         "title": title,
         "pages": rebuilt_scene_pages,
+        "structure_modified": True,
+        **({"theme": deepcopy(cleaned_document["theme"])} if cleaned_document and "theme" in cleaned_document else {}),
     }
     write_document(material_id, document_to_save)
 

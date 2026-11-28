@@ -94,6 +94,7 @@ export type NodeType =
   | 'matrixSource'   // 矩阵源（可编辑 2×2 → 广播 matrix2）
   | 'slider'         // 滑杆源（标量）
   | 'ticker'         // 时间源（0→1 循环广播 scalar，驱动自动动画）
+  | 'delayRegister'  // 状态延迟寄存器（跨时间步反馈记忆积木）
   // 变换：有输入有输出
   | 'rotor'          // 旋转矩阵器（scalar 圈数 → 旋转矩阵）
   | 'matmul'         // 矩阵乘法器（A、B 两个矩阵输入 → A×B）
@@ -154,7 +155,9 @@ export type NodeType =
   // 办公决策：业务表格、增长曲线、情景分叉、折现、加权决策、瀑布 KPI
   | 'bizTableSource' | 'bizGrowthSource' | 'bizScenarioFork' | 'bizDiscountOp' | 'bizDecisionMatrix' | 'bizWaterfallView'
   // 大学物理扩展：场源、场视图、RLC、光学台、热机循环
-  | 'emFieldSource' | 'emFieldView' | 'rlcCircuitLab' | 'opticsBench' | 'thermoCycle';
+  | 'emFieldSource' | 'emFieldView' | 'rlcCircuitLab' | 'opticsBench' | 'thermoCycle'
+  // 深度学习全景沙盘：单节点编排式实验台，payload 区分六个沙盘
+  | 'deepPanoramaStage';
 
 export interface PortSpec {
   id: string;
@@ -172,11 +175,30 @@ export interface CompositePort {
   kind?: ValueKind;
 }
 
+/** 复合积木透出到外壳卡片直接调节的参数声明 */
+export interface ExposedParam {
+  /** 内部目标节点 id */
+  nodeId: string;
+  /** 内部参数 key（如 'v' / 'zeta'） */
+  paramKey: string;
+  /** 展示在外壳上的标签 */
+  label: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
 /** 封装子图：内部节点坐标保持绝对值（展开即原样还原），端口节点参与内部连线 */
 export interface CompositeSub {
   nodes: CanvasNode[];
   wires: Wire[];
   ports: CompositePort[];
+  /** 透出到外壳卡片直接调节的关键参数（建议默认勾选最多 4 个） */
+  exposedParams?: ExposedParam[];
+  /** 指定某个内部可视化节点作为外壳封面缩略视图 */
+  previewNodeId?: string;
+  /** 一句话模块说明 */
+  summary?: string;
 }
 
 export interface CanvasNode {
@@ -228,11 +250,14 @@ export interface CanvasPanelParam {
   step?: number;
 }
 
+export type CockpitLayoutMode = 'auto' | 'hero-stack' | 'grid' | 'bento-3';
+
 export interface CanvasPanel {
   title?: string;
   exposed_params: CanvasPanelParam[];
   view_node_ids: string[];
   read_only_layout?: boolean;
+  cockpit_layout?: CockpitLayoutMode;
 }
 
 export interface CanvasDoc {

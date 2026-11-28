@@ -1,0 +1,3329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>定象坊 × 通文册 · 创意提案</title>
+<style>
+/* ============================================================
+   定象坊 × 通文册 · 创意提案
+   纸 / 墨 / 真计算 语言；新增「象砖」立体工造与「会呼吸的册」
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+:root {
+  --paper: #f2efe6;
+  --paper-hi: #fbf9f2;
+  --paper-card: #fffdf8;
+  --paper-deep: #e8e2d4;
+  --paper-sink: #ded8c8;
+  --ink: #121513;
+  --ink-2: #34372f;
+  --ink-3: #6b6e62;
+  --ink-4: #919386;
+  --line: rgba(18, 21, 19, .10);
+  --line-strong: rgba(18, 21, 19, .20);
+  --blue: #2234d4;
+  --blue-deep: #111b5e;
+  --blue-soft: #e9ebfb;
+  --red: #de421f;
+  --red-ink: #ac2c10;
+  --red-soft: #fbe9e3;
+  --teal: #0f766e;
+  --teal-soft: #e6f4f1;
+  --gold: #a47a2f;
+  --gold-soft: #f3ead8;
+  --serif: "Songti SC", "Noto Serif SC", "Source Han Serif SC", "STSong", Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Cascadia Code", monospace;
+  --shadow-sm: 0 1px 2px rgba(28, 22, 10, .04), 0 6px 16px rgba(28, 22, 10, .05);
+  --shadow-md: 0 2px 4px rgba(28, 22, 10, .04), 0 18px 40px rgba(28, 22, 10, .08);
+  --shadow-lg: 0 6px 12px rgba(28, 22, 10, .05), 0 34px 80px rgba(28, 22, 10, .13);
+  --ease: cubic-bezier(.2, 0, .2, 1);
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+}
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  background-color: var(--paper);
+  background-image:
+    radial-gradient(900px 520px at 82% -6%, rgba(34, 52, 212, .055), transparent 62%),
+    radial-gradient(760px 460px at 4% 12%, rgba(222, 66, 31, .045), transparent 58%),
+    linear-gradient(to right, rgba(18, 21, 19, .026) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(18, 21, 19, .026) 1px, transparent 1px);
+  background-size: auto, auto, 56px 56px, 56px 56px;
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  box-shadow: inset 0 0 140px rgba(76, 60, 26, .09);
+}
+::selection { background: var(--red); color: var(--paper-hi); }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+a { color: inherit; }
+button { font: inherit; cursor: pointer; }
+h1, h2, h3, h4 { margin: 0; color: var(--ink); font-family: var(--serif); line-height: 1.16; letter-spacing: -.01em; }
+p { margin: 0; }
+svg { display: block; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* ---------- 顶栏 ---------- */
+.masthead {
+  position: sticky; top: 0; z-index: 50;
+  height: 68px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(243, 240, 231, .86);
+  backdrop-filter: blur(16px) saturate(1.1);
+}
+.mast-inner {
+  max-width: 1280px; height: 100%; margin: 0 auto;
+  padding: 0 clamp(20px, 3.2vw, 44px);
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+.brand { display: flex; align-items: center; gap: 11px; text-decoration: none; color: var(--ink); flex: none; }
+.brand-seal {
+  width: 34px; height: 34px; display: grid; place-items: center;
+  font-family: var(--serif); font-size: 17px; font-weight: 700; color: var(--red);
+  border: 1px solid rgba(222, 66, 31, .65); border-radius: 4px;
+  background: rgba(222, 66, 31, .05);
+  box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px rgba(222, 66, 31, .28);
+}
+.brand-name { display: block; font-family: var(--serif); font-size: 15.5px; font-weight: 700; letter-spacing: .1em; line-height: 1.2; }
+.brand-en { display: block; margin-top: 2px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .16em; color: var(--ink-4); }
+.tabs {
+  position: relative; display: flex; gap: 2px; padding: 4px;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: rgba(255, 253, 248, .72);
+  box-shadow: var(--shadow-sm);
+}
+.tab {
+  position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 21px; border-radius: 8px;
+  color: var(--ink-3); font-size: 13.5px; font-weight: 500; letter-spacing: .04em;
+  text-decoration: none; transition: color .2s var(--ease); white-space: nowrap;
+}
+.tab span { font-family: var(--mono); font-size: 9px; opacity: .55; }
+.tab:hover { color: var(--ink); }
+.tab.is-active { color: var(--paper-hi); }
+.tab-ink {
+  position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: 92px;
+  border-radius: 8px; background: var(--ink);
+  box-shadow: 0 6px 14px rgba(18, 21, 19, .2);
+  transition: left .34s var(--ease-out), width .34s var(--ease-out);
+}
+.mast-meta { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-4); white-space: nowrap; }
+.mast-meta i { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 3px rgba(15, 118, 110, .14); }
+
+/* ---------- 视图与容器 ---------- */
+.stage { position: relative; z-index: 1; }
+.view { display: none; }
+.view.is-active { display: block; animation: viewIn .45s var(--ease-out) both; }
+@keyframes viewIn {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.container { width: 100%; max-width: 1280px; margin: 0 auto; padding: 0 clamp(20px, 3.2vw, 44px); }
+.section { margin-top: clamp(54px, 6vw, 84px); }
+.sec-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 20px; padding-top: 24px; margin-bottom: 22px;
+  border-top: 1px solid var(--line);
+}
+.eyebrow {
+  display: flex; align-items: center; gap: 9px; margin-bottom: 9px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .13em;
+  color: var(--ink-3); text-transform: uppercase;
+}
+.eyebrow b { color: var(--red); font-weight: 700; letter-spacing: .04em; }
+.eyebrow::before { content: ""; width: 18px; height: 1px; background: var(--red); }
+.sec-title { font-size: clamp(25px, 3vw, 34px); font-weight: 700; letter-spacing: -.02em; }
+.sec-note { max-width: 380px; text-align: right; font-size: 12.5px; line-height: 1.7; color: var(--ink-3); }
+
+/* ---------- 按钮（三页统一） ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 20px; border-radius: 10px;
+  border: 1px solid transparent; text-decoration: none; white-space: nowrap;
+  font-size: 14px; font-weight: 600; letter-spacing: .01em;
+  transition: transform .18s var(--ease), background .18s var(--ease), border-color .18s var(--ease), box-shadow .18s var(--ease);
+}
+.btn:active { transform: translateY(0) scale(.985); }
+.btn-primary { color: var(--paper-hi); background: var(--ink); border-color: var(--ink); box-shadow: 0 7px 20px rgba(18, 21, 19, .18); }
+.btn-primary:hover { transform: translateY(-2px); background: var(--blue-deep); border-color: var(--blue-deep); box-shadow: 0 12px 26px rgba(17, 27, 94, .24); }
+.btn-ghost { color: var(--ink); background: var(--paper-card); border-color: var(--line-strong); }
+.btn-ghost:hover { transform: translateY(-2px); border-color: var(--ink); box-shadow: 0 10px 22px rgba(28, 22, 10, .08); }
+.btn-red { color: var(--paper-hi); background: var(--red); border-color: var(--red); box-shadow: 0 7px 20px rgba(222, 66, 31, .22); }
+.btn-red:hover { transform: translateY(-2px); background: var(--red-ink); border-color: var(--red-ink); }
+.btn-sm { height: 34px; padding: 0 14px; font-size: 12.5px; border-radius: 8px; }
+.btn .arr { font-family: var(--sans); transition: transform .2s var(--ease); }
+.btn:hover .arr { transform: translate(2px, -2px); }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+/* ---------- 徽记与标签 ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px; border-radius: 999px;
+  border: 1px solid var(--line); background: rgba(255, 253, 248, .8);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; color: var(--ink-2);
+}
+.badge i { width: 6px; height: 6px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 3px rgba(222, 66, 31, .14); }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--paper-card); font-size: 11px; color: var(--ink-3);
+}
+.pill b { color: var(--ink); font-weight: 600; }
+.hl { position: relative; display: inline-block; color: var(--blue-deep); }
+.hl::after {
+  content: ""; position: absolute; left: 1px; right: 1px; bottom: .06em; height: .26em;
+  background: linear-gradient(90deg, rgba(222, 66, 31, .24), rgba(34, 52, 212, .18));
+  z-index: -1; border-radius: 3px;
+}
+.stamp {
+  display: inline-grid; place-items: center; width: 44px; height: 44px;
+  border: 1.5px solid rgba(222, 66, 31, .7); border-radius: 5px;
+  color: var(--red); font-family: var(--serif); font-size: 18px; font-weight: 700;
+  letter-spacing: .08em; transform: rotate(-4deg);
+  background: rgba(222, 66, 31, .04);
+  box-shadow: inset 0 0 0 2px var(--paper-card), inset 0 0 0 3px rgba(222, 66, 31, .22);
+}
+
+/* ============================================================
+   定象坊 · DX
+   ============================================================ */
+.dx-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(28px, 4vw, 56px);
+  align-items: center;
+  padding-top: clamp(40px, 5.4vw, 72px);
+}
+.dx-copy { min-width: 0; }
+.dx-title {
+  margin: 20px 0 0;
+  font-size: clamp(42px, 5vw, 66px);
+  font-weight: 700;
+  letter-spacing: -.035em;
+  line-height: 1.08;
+}
+.dx-lead {
+  max-width: 44ch;
+  margin-top: 22px;
+  font-size: 15.5px;
+  line-height: 1.85;
+  color: var(--ink-2);
+}
+.dx-lead strong { color: var(--ink); font-weight: 600; }
+.dx-copy .actions { margin-top: 28px; }
+.dx-facts {
+  display: flex; flex-wrap: wrap; gap: 14px 30px;
+  margin: 30px 0 0; padding: 18px 0 0;
+  border-top: 1px solid var(--line); list-style: none;
+}
+.dx-facts li { display: grid; gap: 1px; }
+.dx-facts b {
+  font-family: var(--serif); font-size: 24px; font-weight: 700;
+  color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums;
+}
+.dx-facts b span { color: var(--red); font-size: .7em; }
+.dx-facts small { font-size: 10.5px; color: var(--ink-3); letter-spacing: .02em; }
+.dx-foot {
+  margin-top: 22px; font-size: 9.5px; letter-spacing: .06em;
+  color: var(--ink-4); text-transform: uppercase;
+}
+
+/* ---------- 建造台 ---------- */
+.bench-wrap { min-width: 0; position: relative; }
+.bench {
+  position: relative;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--paper-card);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+.bench::before, .bench::after {
+  content: "+"; position: absolute; z-index: 2;
+  font-family: var(--mono); font-size: 11px; color: var(--gold); line-height: 1;
+  pointer-events: none;
+}
+.bench::before { top: 54px; left: 9px; }
+.bench::after { bottom: 9px; right: 11px; }
+.bench-bar {
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(246, 243, 236, .96), rgba(246, 243, 236, .7));
+}
+.bench-title { display: flex; align-items: baseline; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+.bench-title b { font-family: var(--serif); font-size: 15px; color: var(--ink); letter-spacing: .02em; }
+.bench-title .mono { font-size: 8.5px; color: var(--ink-4); letter-spacing: .1em; }
+.seg {
+  display: flex; gap: 2px; padding: 2px; margin-left: auto;
+  border-radius: 7px; background: var(--paper-deep);
+}
+.seg button {
+  border: 0; background: transparent; padding: 4px 10px; border-radius: 5px;
+  font-size: 10.5px; color: var(--ink-3); transition: all .18s var(--ease);
+}
+.seg button:hover { color: var(--ink); }
+.seg button.on { background: var(--paper-card); color: var(--ink); box-shadow: var(--shadow-sm); }
+.bench-live { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 9px; color: var(--teal); letter-spacing: .05em; white-space: nowrap; }
+.bench-live i { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 3px rgba(15, 118, 110, .13); animation: pulse 2.4s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.bench-body {
+  position: relative;
+  height: 532px;
+  background:
+    radial-gradient(460px 280px at 48% 34%, rgba(255, 253, 248, .92), transparent 70%),
+    linear-gradient(160deg, #f7f4ec, #ede7d8 72%, #e4ddcb);
+  overflow: hidden;
+}
+.bench-body::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(rgba(18, 21, 19, .09) .7px, transparent .7px);
+  background-size: 18px 18px;
+  opacity: .5;
+  mask-image: radial-gradient(closest-side at 45% 55%, #000 30%, transparent 82%);
+}
+.bench-stage { position: absolute; inset: 0 222px 0 0; overflow: hidden; }
+#isoScene { position: relative; z-index: 1; width: 100%; height: 100%; }
+.stage-head {
+  position: absolute; z-index: 3; top: 14px; left: 16px; right: 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  pointer-events: none;
+}
+.stage-kicker { font-size: 8px; letter-spacing: .13em; color: var(--ink-4); }
+.stage-hint {
+  padding: 4px 8px; border: 1px solid var(--line); border-radius: 5px;
+  background: rgba(255, 253, 248, .74); backdrop-filter: blur(4px);
+  font-family: var(--mono); font-size: 8px; color: var(--ink-3);
+}
+.iso-plate-top { fill: #fbf8f0; stroke: #c8bfa9; stroke-width: 1; }
+.iso-plate-edge-a { fill: #ddd4c1; }
+.iso-plate-edge-b { fill: #d1c6b0; }
+.iso-plate-line { fill: none; stroke: rgba(18, 21, 19, .33); stroke-width: .7; stroke-dasharray: 2 6; }
+.iso-screw { fill: #b9ae96; stroke: rgba(18, 21, 19, .25); stroke-width: .6; }
+.iso-screw-cut { stroke: rgba(18, 21, 19, .4); stroke-width: .7; }
+.iso-engrave { font-family: var(--mono); font-size: 7px; letter-spacing: .22em; fill: rgba(18, 21, 19, .28); }
+.iso-gridline { stroke: rgba(18, 21, 19, .07); stroke-width: .8; }
+.iso-axis { stroke: rgba(18, 21, 19, .18); stroke-width: 1; stroke-dasharray: 3 4; }
+.iso-slot { fill: rgba(34, 52, 212, .035); stroke: rgba(34, 52, 212, .32); stroke-width: 1.1; stroke-dasharray: 5 5; }
+.iso-block { cursor: pointer; }
+.iso-lift { transition: transform .32s var(--ease-out); transform-box: fill-box; transform-origin: center; }
+.iso-block:hover .iso-lift, .iso-block.is-hot .iso-lift { transform: translateY(-9px); }
+.iso-block:focus-visible { outline: none; }
+.iso-block:focus-visible .iso-face-top { stroke: var(--blue); stroke-width: 2; }
+.iso-block.pop .iso-lift { animation: blockPop .5s var(--ease-out) both; }
+@keyframes blockPop {
+  0% { opacity: 0; transform: translateY(-26px) scale(.86); }
+  60% { opacity: 1; transform: translateY(3px) scale(1.02); }
+  100% { transform: translateY(0) scale(1); }
+}
+.iso-face-top { filter: drop-shadow(0 2px 0 rgba(18, 21, 19, .08)); }
+.iso-glyph { font-family: var(--serif); font-size: 19px; font-weight: 700; fill: #fffdf8; letter-spacing: .02em; }
+.iso-code { font-family: var(--mono); font-size: 6.5px; letter-spacing: .1em; fill: rgba(255, 253, 248, .56); }
+.iso-signal { fill: none; stroke: rgba(34, 52, 212, .56); stroke-width: 1.1; stroke-dasharray: 3 5; stroke-linecap: round; }
+.iso-port { fill: var(--paper-card); stroke: rgba(34, 52, 212, .62); stroke-width: 1; }
+.iso-anno { font-family: var(--mono); font-size: 7.5px; letter-spacing: .06em; fill: rgba(18, 21, 19, .48); }
+.iso-anno-line { stroke: rgba(18, 21, 19, .22); stroke-width: .8; stroke-dasharray: 2 3; }
+.iso-output { font-family: var(--mono); font-size: 10px; font-weight: 700; fill: var(--red-ink); letter-spacing: .02em; }
+.iso-output-label { font-family: var(--mono); font-size: 6.5px; letter-spacing: .1em; fill: rgba(18, 21, 19, .4); }
+.iso-run .iso-signal { animation: signalFlow 1.4s linear infinite; }
+.iso-run .iso-output { animation: outputPulse 2.2s ease-in-out infinite; }
+@keyframes signalFlow { to { stroke-dashoffset: -14; } }
+@keyframes outputPulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+.bench-hud {
+  position: absolute; z-index: 4; left: 14px; bottom: 13px;
+  display: flex; align-items: center; gap: 14px;
+  padding: 7px 9px 7px 13px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: rgba(255, 253, 248, .9);
+  box-shadow: var(--shadow-sm); backdrop-filter: blur(6px);
+  font-family: var(--mono); font-size: 9px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.bench-hud b { color: var(--ink); font-weight: 700; }
+.run-toggle {
+  border: 0; border-radius: 6px; padding: 5px 11px;
+  background: var(--ink); color: var(--paper-hi);
+  font-family: var(--mono); font-size: 9px; letter-spacing: .05em;
+  transition: background .18s var(--ease);
+}
+.run-toggle:hover { background: var(--blue-deep); }
+.run-toggle.on { background: var(--red); }
+.bench-note {
+  margin-top: 10px; text-align: right;
+  font-size: 9px; letter-spacing: .04em; color: var(--ink-4);
+}
+
+/* ---------- 活字与字盘 ---------- */
+.co-rail-label { font-family: var(--mono); font-size: 6px; letter-spacing: .12em; fill: rgba(45, 30, 10, .62); }
+.co-engrave { font-family: var(--mono); font-size: 6.5px; letter-spacing: .14em; fill: rgba(245, 236, 214, .34); }
+.co-slot-plus { font-family: var(--sans); font-size: 18px; fill: rgba(54, 40, 18, .22); }
+.co-slot-label { font-family: var(--mono); font-size: 6px; letter-spacing: .12em; fill: rgba(54, 40, 18, .34); }
+.co-slot-index { font-family: var(--mono); font-size: 6px; letter-spacing: .12em; fill: rgba(54, 40, 18, .3); }
+.co-type { cursor: pointer; }
+.co-type .co-lift { transition: transform .32s var(--ease-out); transform-box: fill-box; transform-origin: center bottom; }
+.co-type:hover .co-lift { transform: translateY(-8px); }
+.co-type:hover .co-cast { opacity: .85; }
+.co-type:focus-visible { outline: none; }
+.co-type:focus-visible .co-face { stroke: var(--blue); stroke-width: 2; }
+.co-type.pop .co-lift { animation: typeRise .55s var(--ease-out) both; }
+@keyframes typeRise {
+  0% { opacity: 0; transform: translateY(26px); }
+  60% { opacity: 1; transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+.co-cast { transition: opacity .25s var(--ease); }
+.co-code { font-family: var(--mono); font-size: 6.5px; letter-spacing: .08em; fill: rgba(54, 40, 18, .55); }
+.co-glyph-ghost { font-family: var(--serif); font-size: 34px; font-weight: 700; fill: rgba(255, 255, 255, .92); }
+.co-glyph { font-family: var(--serif); font-size: 30px; font-weight: 700; }
+.co-name { font-family: var(--sans); font-size: 8px; font-weight: 500; fill: var(--ink-2); }
+.co-proof-head { font-family: var(--mono); font-size: 6.5px; letter-spacing: .09em; fill: var(--red-ink); }
+.co-proof-meta, .co-proof-foot { font-family: var(--mono); font-size: 5.5px; letter-spacing: .06em; fill: rgba(54, 40, 18, .45); }
+.co-proof-glyph { font-family: var(--serif); font-size: 19px; font-weight: 700; }
+.co-proof-empty { font-family: var(--serif); font-size: 14px; fill: rgba(54, 40, 18, .18); }
+.co-proof-temp { font-family: var(--mono); font-size: 7px; font-weight: 700; fill: var(--red-ink); }
+.co-thread { stroke: rgba(199, 60, 29, .35); stroke-width: 1; stroke-dasharray: 2 4; fill: none; }
+.co-thread-dot { fill: #fffdf8; stroke: rgba(199, 60, 29, .55); stroke-width: .8; }
+.co-readout-label { font-family: var(--mono); font-size: 6px; letter-spacing: .1em; fill: rgba(54, 40, 18, .45); }
+.co-readout-value { font-family: var(--mono); font-size: 10.5px; font-weight: 700; fill: var(--red-ink); }
+.co-engrave-dark { font-family: var(--mono); font-size: 5.5px; letter-spacing: .2em; fill: rgba(54, 36, 12, .62); }
+.co-slot-plus { fill: rgba(255, 236, 200, .3); }
+.co-slot-label, .co-slot-index { fill: rgba(255, 236, 200, .38); }
+.co-slot.is-next .co-slot-plus, .co-slot.is-next .co-slot-label { fill: #f3c86b; }
+.co-slot.is-next { animation: nextSlot 2s ease-in-out infinite; }
+@keyframes nextSlot { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+.co-thread { stroke-width: 1; stroke-dasharray: 2 4; opacity: .4; fill: none; }
+.co-thread-dot { fill: #fffdf8; stroke-width: 1; }
+.pr-head { font-family: var(--mono); font-size: 7.5px; font-weight: 700; letter-spacing: .12em; fill: var(--red-ink); }
+.pr-meta, .pr-foot { font-family: var(--mono); font-size: 6px; letter-spacing: .1em; fill: rgba(54, 40, 18, .5); }
+.pr-glyph { font-family: var(--serif); font-size: 24px; font-weight: 700; }
+.pr-code { font-family: var(--mono); font-size: 5.5px; letter-spacing: .1em; fill: rgba(54, 40, 18, .45); }
+.pr-tick { font-family: var(--mono); font-size: 5.5px; letter-spacing: .06em; fill: rgba(54, 40, 18, .42); }
+.pr-base { fill: none; stroke: rgba(54, 40, 18, .3); stroke-width: .9; stroke-dasharray: 3 3; }
+.pr-curve { fill: none; stroke: #c73c1d; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pr-leader { stroke: rgba(199, 60, 29, .5); stroke-width: .8; stroke-dasharray: 2 2; }
+.pr-peak { font-family: var(--mono); font-size: 9px; font-weight: 700; fill: var(--red-ink); }
+.pr-seal { font-family: var(--serif); font-size: 16px; font-weight: 700; fill: #b83b24; }
+#proofPeak { transition: transform .35s var(--ease-out); }
+.pr-scan { opacity: 0; pointer-events: none; }
+.iso-run .pr-scan { animation: pressScan 2.6s cubic-bezier(.5, 0, .3, 1) infinite; }
+@keyframes pressScan {
+  0% { opacity: 0; transform: translateX(0); }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(402px); }
+}
+.iso-run .pr-curve { stroke-dasharray: 1; animation: inkDraw 2.6s cubic-bezier(.5, 0, .3, 1) infinite; }
+@keyframes inkDraw { 0% { stroke-dashoffset: 1; } 88%, 100% { stroke-dashoffset: 0; } }
+.iso-run .co-thread { opacity: .75; animation: signalFlow 1.2s linear infinite; }
+.iso-run .co-glyph { animation: inkPulse 2.4s ease-in-out infinite; }
+@keyframes inkPulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+
+/* ---------- 实时检查器 ---------- */
+.inspector {
+  position: absolute; z-index: 6; top: 12px; right: 12px; bottom: 12px;
+  width: 198px; padding: 12px 13px;
+  display: flex; flex-direction: column; gap: 9px;
+  border: 1px solid rgba(18, 21, 19, .15); border-radius: 10px;
+  background: rgba(255, 253, 248, .86);
+  box-shadow: 0 18px 36px rgba(50, 40, 18, .12), inset 0 1px 0 rgba(255, 255, 255, .72);
+  backdrop-filter: blur(15px) saturate(1.05);
+}
+.insp-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  font-size: 7.5px; letter-spacing: .13em; color: var(--ink-4);
+}
+.insp-live { display: inline-flex; align-items: center; gap: 5px; color: var(--teal); letter-spacing: .08em; }
+.insp-live i { width: 5px; height: 5px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 3px rgba(15, 118, 110, .13); animation: pulse 2.2s infinite; }
+.insp-project strong { display: block; font-family: var(--serif); font-size: 16px; line-height: 1.3; color: var(--ink); }
+.insp-project span { display: block; margin-top: 2px; font-size: 6.5px; letter-spacing: .1em; color: var(--ink-4); }
+.insp-counts { display: flex; gap: 16px; }
+.insp-counts span { display: grid; gap: 1px; font-family: var(--mono); font-size: 6.5px; letter-spacing: .06em; color: var(--ink-4); }
+.insp-counts b { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; }
+.insp-param { display: grid; gap: 5px; }
+.insp-label { display: flex; align-items: baseline; justify-content: space-between; font-size: 9px; color: var(--ink-3); }
+.insp-label output { font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.insp-param input[type="range"] {
+  width: 100%; height: 2px; margin: 3px 0; appearance: none;
+  border-radius: 2px; background: var(--paper-deep); outline: none; cursor: pointer;
+}
+.insp-param input[type="range"]::-webkit-slider-thumb {
+  appearance: none; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--red); border: 2px solid var(--paper-card);
+  box-shadow: 0 0 0 1px rgba(222, 66, 31, .3), 0 2px 4px rgba(18, 21, 19, .18);
+}
+.insp-param input[type="range"]::-moz-range-thumb {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--red);
+  border: 2px solid var(--paper-card); box-shadow: 0 0 0 1px rgba(222, 66, 31, .3);
+}
+.insp-chart { display: grid; gap: 4px; padding-top: 9px; border-top: 1px solid var(--line); }
+.insp-chart-head { display: flex; align-items: baseline; justify-content: space-between; font-size: 7px; letter-spacing: .05em; color: var(--ink-4); }
+.insp-chart-head b { font-family: var(--mono); font-size: 11px; color: var(--red-ink); }
+#inspChart { width: 100%; height: auto; overflow: visible; }
+.insp-axis { display: flex; justify-content: space-between; font-size: 6px; letter-spacing: .06em; color: var(--ink-4); opacity: .7; }
+.insp-readout {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;
+  padding: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.insp-readout span { display: grid; gap: 2px; }
+.insp-readout i { font-family: var(--mono); font-size: 6px; font-style: normal; letter-spacing: .08em; color: var(--ink-4); }
+.insp-readout b { font-family: var(--mono); font-size: 10.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.insp-layers {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  padding-top: 2px;
+}
+.insp-layers::before {
+  content: "TYPE MAP"; width: 100%;
+  font-family: var(--mono); font-size: 6.5px; letter-spacing: .1em; color: var(--ink-4);
+}
+.insp-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 5px; border: 1px solid var(--line); border-radius: 4px;
+  background: var(--paper-card); font-family: var(--mono); font-size: 7px; color: var(--ink-3);
+}
+.insp-chip i {
+  width: 14px; height: 14px; display: grid; place-items: center;
+  border-radius: 2px; border: 1px solid rgba(54, 40, 18, .16); border-left: 2px solid var(--line);
+  background: linear-gradient(155deg, #fffdf8, #f3ead8);
+  font-family: var(--serif); font-size: 8px; font-style: normal; font-weight: 700;
+  box-shadow: 0 1px 0 #ddd4c2;
+}
+.insp-save {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: auto; padding-top: 9px;
+  border-top: 1px solid var(--line);
+  font-size: 6px; letter-spacing: .09em; color: var(--ink-4);
+}
+.insp-action {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; border: 1px solid var(--ink); border-radius: 7px;
+  background: var(--ink); color: var(--paper-hi);
+  font-size: 10.5px; font-weight: 600; letter-spacing: .01em;
+  transition: background .18s var(--ease), border-color .18s var(--ease), transform .18s var(--ease);
+}
+.insp-action:hover { background: var(--blue-deep); border-color: var(--blue-deep); transform: translateY(-1px); }
+
+/* ---------- 积木匣 ---------- */
+.bin {
+  display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 18px; align-items: center;
+  margin-top: 18px; padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: 14px;
+  background: rgba(255, 253, 248, .64);
+  box-shadow: var(--shadow-sm);
+}
+.bin-lead { border-right: 1px solid var(--line); padding-right: 16px; }
+.bin-lead .mono { display: block; font-size: 8.5px; letter-spacing: .13em; color: var(--red); margin-bottom: 4px; }
+.bin-lead strong { display: block; font-family: var(--serif); font-size: 17px; color: var(--ink); }
+.bin-lead p { margin-top: 3px; font-size: 11px; line-height: 1.55; color: var(--ink-3); }
+.bricks { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.brick {
+  position: relative; display: flex; align-items: center; gap: 9px;
+  min-width: 0; padding: 9px 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--paper-card); text-align: left;
+  transition: transform .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.brick:hover { transform: translateY(-3px); border-color: var(--line-strong); box-shadow: var(--shadow-md); }
+.brick-text { display: grid; min-width: 0; line-height: 1.35; }
+.brick-text b { font-size: 12px; color: var(--ink); white-space: nowrap; }
+.brick-text small { font-size: 9px; color: var(--ink-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brick-plus {
+  margin-left: auto; flex: none; width: 17px; height: 17px; display: grid; place-items: center;
+  border: 1px solid var(--line); border-radius: 50%;
+  font-size: 10px; color: var(--ink-3); transition: all .2s var(--ease);
+}
+.brick:hover .brick-plus { background: var(--ink); border-color: var(--ink); color: var(--paper-hi); }
+.brick-glyph {
+  position: relative; flex: none; width: 34px; height: 34px; display: grid; place-items: center;
+  border-radius: 3px; color: var(--type-color);
+  border: 1px solid rgba(54, 40, 18, .2); border-left: 3px solid var(--type-color);
+  background: linear-gradient(155deg, #fffdf8, #f3ead8);
+  font-family: var(--serif); font-size: 18px; font-weight: 700;
+  box-shadow: 0 2px 0 #d8cfbd, 0 5px 9px rgba(28, 22, 10, .12), inset 0 1px 0 #fff;
+}
+.brick-glyph::after {
+  content: ""; position: absolute; right: 4px; bottom: 4px;
+  width: 4px; height: 4px; border-radius: 50%; background: var(--type-color); opacity: .75;
+}
+.brick-glyph--blue { --type-color: #2234d4; }
+.brick-glyph--red { --type-color: #c73c1d; }
+.brick-glyph--teal { --type-color: #0f766e; }
+.brick-glyph--gold { --type-color: #a47a2f; }
+.brick-glyph--ink { --type-color: #2b2f29; }
+
+/* ---------- 三步 ---------- */
+.steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; position: relative; }
+.steps::before {
+  content: ""; position: absolute; top: 44px; left: 12%; right: 12%;
+  border-top: 1px dashed rgba(18, 21, 19, .22);
+}
+.step {
+  position: relative; padding: 20px 22px 22px;
+  border: 1px solid var(--line); border-radius: 13px;
+  background: rgba(255, 253, 248, .66);
+  transition: background .25s var(--ease), transform .25s var(--ease), box-shadow .25s var(--ease);
+}
+.step:hover { background: var(--paper-card); transform: translateY(-4px); box-shadow: var(--shadow-md); }
+.step-no {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 9px; color: var(--ink-3); letter-spacing: .1em;
+}
+.step-no b { color: var(--red); font-size: 11px; }
+.step-ico {
+  position: relative; z-index: 1;
+  width: 54px; height: 54px; display: grid; place-items: center;
+  margin: 16px 0 14px; border-radius: 12px;
+  border: 1px solid var(--line); background: var(--paper-hi);
+  box-shadow: var(--shadow-sm);
+  transition: transform .3s var(--ease-out);
+}
+.step:hover .step-ico { transform: translateY(-4px) rotate(-3deg); }
+.step-ico svg { width: 30px; height: 30px; }
+.step h3 { font-size: 18px; letter-spacing: -.01em; }
+.step p { margin-top: 7px; font-size: 12.5px; line-height: 1.7; color: var(--ink-3); }
+.step .mono-tag { display: inline-block; margin-top: 12px; font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; color: var(--blue); }
+
+/* ---------- 标本柜 ---------- */
+.spec-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.fbtn {
+  padding: 6px 13px; border: 1px solid var(--line); border-radius: 999px;
+  background: rgba(255, 253, 248, .7); color: var(--ink-3);
+  font-size: 11.5px; transition: all .18s var(--ease);
+}
+.fbtn:hover { border-color: var(--line-strong); color: var(--ink); }
+.fbtn.on { background: var(--ink); border-color: var(--ink); color: var(--paper-hi); box-shadow: 0 4px 12px rgba(18, 21, 19, .16); }
+.spec-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.spec {
+  position: relative; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--paper-card); overflow: hidden; cursor: pointer;
+  transition: transform .25s var(--ease), box-shadow .25s var(--ease), border-color .25s var(--ease);
+}
+.spec:hover { transform: translateY(-5px); border-color: var(--line-strong); box-shadow: var(--shadow-md); }
+.spec.is-dim { opacity: .26; filter: grayscale(.7); pointer-events: none; }
+.spec-plot {
+  position: relative; height: 142px;
+  background:
+    radial-gradient(rgba(18, 21, 19, .13) .8px, transparent .8px) 0 0 / 16px 16px,
+    linear-gradient(180deg, #faf7ef, #f2ede1);
+  border-bottom: 1px solid var(--line);
+}
+.spec-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.spec-tag {
+  position: absolute; top: 9px; left: 9px; z-index: 2;
+  padding: 2px 7px; border-radius: 4px;
+  background: rgba(255, 253, 248, .86); border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 7.5px; letter-spacing: .08em; color: var(--ink-3);
+}
+.spec-tape {
+  position: absolute; z-index: 2; top: -7px; left: 50%; width: 58px; height: 17px;
+  transform: translateX(-50%) rotate(-2deg);
+  background: rgba(222, 66, 31, .13);
+  border-left: 1px dashed rgba(222, 66, 31, .28); border-right: 1px dashed rgba(222, 66, 31, .28);
+}
+.spec-body { padding: 13px 15px 15px; }
+.spec-kicker { font-family: var(--mono); font-size: 8px; letter-spacing: .1em; color: var(--red); }
+.spec h3 { margin-top: 5px; font-size: 16.5px; line-height: 1.3; }
+.spec p { margin-top: 5px; font-size: 11.5px; line-height: 1.65; color: var(--ink-3); }
+.spec-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 11px; padding-top: 9px; border-top: 1px dashed var(--line);
+  font-family: var(--mono); font-size: 9px; color: var(--ink-4);
+}
+.spec-foot b { font-family: var(--sans); color: var(--blue); font-size: 10.5px; font-weight: 600; }
+.spec-plot .p-dot { animation: dotFloat 4.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes dotFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+/* ---------- 实时带 ---------- */
+.liveband {
+  display: flex; align-items: center; gap: 18px; overflow: hidden;
+  margin-top: 18px; padding: 11px 0;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+}
+.liveband-label { flex: none; display: flex; align-items: center; gap: 7px; letter-spacing: .08em; color: var(--teal); }
+.liveband-label i { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); animation: pulse 2s infinite; }
+.ticker-mask { flex: 1; min-width: 0; overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
+.ticker { display: flex; gap: 34px; width: max-content; animation: ticker 30s linear infinite; }
+.liveband:hover .ticker { animation-play-state: paused; }
+.ticker span { white-space: nowrap; }
+.ticker b { color: var(--ink); font-weight: 500; }
+.ticker em { font-style: normal; color: var(--ink-4); }
+@keyframes ticker { to { transform: translateX(-50%); } }
+
+/* ============================================================
+   通文册 · TW
+   ============================================================ */
+.tw-hero { padding-top: clamp(38px, 5vw, 64px); }
+.tw-intro {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 24px; margin-bottom: 22px;
+}
+.tw-intro .badge { margin-bottom: 14px; }
+.tw-intro h1 {
+  font-size: clamp(34px, 4vw, 48px); font-weight: 700; letter-spacing: -.03em;
+}
+.tw-intro p { max-width: 420px; font-size: 13.5px; line-height: 1.75; color: var(--ink-3); text-align: right; }
+.book-zone { position: relative; perspective: none; }
+.book {
+  position: relative; display: grid; grid-template-columns: 1.02fr 1fr;
+  border: 1px solid var(--line-strong); border-radius: 5px;
+  background: var(--paper-card);
+  box-shadow:
+    0 2px 0 #e5dece, 0 4px 0 #d9d1bf,
+    0 30px 60px rgba(50, 40, 18, .16), 0 60px 120px rgba(50, 40, 18, .09);
+  transform: none;
+  transform-style: flat;
+}
+.book::before {
+  content: ""; position: absolute; z-index: 3; top: 0; bottom: 0; left: 50%;
+  width: 46px; transform: translateX(-50%); pointer-events: none;
+  background: linear-gradient(90deg, rgba(18, 21, 19, 0) 0%, rgba(18, 21, 19, .08) 34%, rgba(18, 21, 19, .16) 50%, rgba(18, 21, 19, .07) 66%, rgba(18, 21, 19, 0) 100%);
+}
+.book::after {
+  content: ""; position: absolute; z-index: -1; left: 8px; right: 8px; bottom: -8px; height: 18px;
+  border-radius: 0 0 6px 6px;
+  background: repeating-linear-gradient(180deg, #e3dccb 0 2px, #d6cdb9 2px 3px);
+  box-shadow: 0 12px 22px rgba(50, 40, 18, .13);
+}
+.page-l { position: relative; min-width: 0; padding: clamp(28px, 3.6vw, 52px); border-right: 1px solid rgba(18, 21, 19, .07); }
+.page-l .badge { margin-bottom: 18px; }
+.tw-title {
+  font-size: clamp(32px, 3.6vw, 47px); font-weight: 700; letter-spacing: -.03em; line-height: 1.14;
+}
+.tw-lead { max-width: 45ch; margin-top: 18px; font-size: 14px; line-height: 1.85; color: var(--ink-2); }
+.tw-lead strong { color: var(--ink); }
+.page-l .actions { margin-top: 24px; }
+.book-meta {
+  display: flex; flex-wrap: wrap; gap: 10px 26px;
+  margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: .06em; color: var(--ink-4);
+}
+.book-meta b { display: block; font-family: var(--serif); font-size: 20px; color: var(--ink); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.page-r {
+  position: relative; min-width: 0; display: flex; align-items: center; justify-content: center;
+  padding: clamp(18px, 2.6vw, 34px);
+  background: linear-gradient(115deg, rgba(234, 228, 215, .55), rgba(255, 253, 248, .25) 42%);
+}
+.page-r::after {
+  content: ""; position: absolute; inset: 14px; pointer-events: none;
+  border: 1px solid rgba(18, 21, 19, .08); border-radius: 4px;
+}
+.sheet {
+  position: relative; z-index: 1; width: 100%; max-width: 480px;
+  padding: 15px 17px 12px; border-radius: 8px;
+  color: #e9e6da;
+  background:
+    radial-gradient(130% 100% at 10% 0%, rgba(52, 68, 120, .3), transparent 58%),
+    linear-gradient(155deg, #171b20, #101317 62%, #0c0f12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .09), 0 20px 44px rgba(12, 14, 16, .34);
+  overflow: hidden;
+}
+.sheet::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .022) 0 1px, transparent 1px 3px);
+  mix-blend-mode: overlay;
+}
+.sheet-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, .1);
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: .05em; color: rgba(233, 230, 218, .72);
+}
+.sheet-top em {
+  font-style: normal; padding: 2px 6px; border-radius: 3px;
+  background: rgba(222, 66, 31, .18); color: #ff9b82; font-size: 7.5px; letter-spacing: .1em;
+}
+.sheet-figure { position: relative; margin-top: 10px; border-radius: 5px; overflow: hidden; background: rgba(255, 255, 255, .015); }
+#waveSvg, #matrixSvg { width: 100%; height: auto; }
+.sheet-figure > svg { width: 100%; height: auto; }
+.embed-chip {
+  position: absolute; left: 8px; bottom: 7px;
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 7px; border-radius: 4px;
+  background: rgba(9, 11, 13, .7); border: 1px solid rgba(233, 230, 218, .16);
+  font-family: var(--mono); font-size: 7px; letter-spacing: .05em; color: rgba(233, 230, 218, .7);
+  backdrop-filter: blur(4px);
+}
+.sheet-control {
+  display: flex; align-items: center; gap: 10px; margin-top: 11px;
+  font-family: var(--mono); font-size: 8px; letter-spacing: .05em; color: rgba(233, 230, 218, .55);
+}
+.sheet-control input[type="range"] { flex: 1; height: 3px; accent-color: var(--red); }
+.sheet-control output { width: 52px; text-align: right; color: #f3c86b; font-size: 8.5px; }
+.sheet-foot {
+  display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  font-family: var(--mono); font-size: 7px; letter-spacing: .05em; color: rgba(233, 230, 218, .4);
+}
+.page-r[data-page="matrix"] .sheet-control { visibility: hidden; }
+.fig-matrix { display: none; }
+.page-r[data-page="matrix"] .fig-wave { display: none; }
+.page-r[data-page="matrix"] .fig-matrix { display: block; }
+.flip-corner {
+  position: absolute; z-index: 4; right: 22px; bottom: 22px;
+  display: flex; align-items: flex-end; justify-content: flex-end;
+  width: 62px; height: 62px; padding: 6px 8px 8px 0;
+  border: 0; background: transparent;
+  font-family: var(--mono); font-size: 8px; font-weight: 600; color: var(--ink-2);
+}
+.flip-corner::before {
+  content: ""; position: absolute; right: 0; bottom: 0;
+  width: 48px; height: 48px;
+  background: linear-gradient(315deg, #eee8da 0 48%, #dcd4c2 49% 52%, #f7f4ec 53% 100%);
+  border-radius: 0 0 6px 0;
+  box-shadow: -4px -4px 10px rgba(50, 40, 18, .07);
+  transition: transform .3s var(--ease-out), box-shadow .3s;
+}
+.flip-corner:hover::before { transform: scale(1.06); box-shadow: -8px -8px 16px rgba(50, 40, 18, .1); }
+.flip-corner span { position: relative; z-index: 1; margin-right: 2px; }
+.flip-corner:hover { color: var(--red-ink); }
+.book.is-flipping .flip-corner { opacity: 0; pointer-events: none; }
+.book-caption { transition: color .2s var(--ease); }
+.book:hover .book-caption { color: var(--ink-3); }
+
+/* 真页翻转：整张右页绕书脊翻向左侧 */
+.turn-layer {
+  position: absolute; z-index: 9;
+  transform-origin: left center; transform-style: preserve-3d;
+  transition: opacity .28s ease;
+  pointer-events: none; will-change: transform;
+}
+.turn-layer.is-done { opacity: 0; }
+/* 逐段卷曲：书页拆成多条嵌套铰链的纸条 */
+.turn-layer { perspective: 2600px; perspective-origin: 0 50%; transform-style: preserve-3d; }
+.tp-strip { position: absolute; top: 0; transform-origin: left center; transform-style: preserve-3d; }
+.tp-face {
+  position: absolute; top: 0; left: 0; height: 100%; overflow: hidden;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  background: var(--paper-card);
+}
+.tp-front > .page-r { border-radius: 0; }
+.tp-front .flip-corner { display: none; }
+.tp-back { transform: rotateY(180deg); background: linear-gradient(155deg, #f8f3e7, #ece2cf); }
+.tp-verso { position: absolute; top: 0; background: linear-gradient(155deg, #f8f3e7, #ece2cf); }
+.tp-verso::after { content: ""; position: absolute; inset: 14px; pointer-events: none; border: 1px solid rgba(18, 21, 19, .07); border-radius: 3px; }
+.tp-shade { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0; background: rgb(40, 30, 12); }
+.turn-back-inner {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px; text-align: center;
+}
+.turn-back-inner .mono { font-size: 7px; letter-spacing: .18em; color: var(--ink-4); }
+.turn-back-mark { font-family: var(--serif); font-size: 76px; line-height: 1; color: rgba(18, 21, 19, .07); font-weight: 700; }
+.turn-back-page { font-size: 6.5px; letter-spacing: .16em; color: var(--ink-4); }
+.turn-back-seal {
+  display: grid; place-items: center; width: 30px; height: 30px;
+  border: 1px solid rgba(222, 66, 31, .38); border-radius: 4px;
+  color: rgba(222, 66, 31, .5); font-family: var(--serif); font-size: 15px;
+  transform: rotate(-5deg);
+}
+.turn-sweep {
+  position: absolute; z-index: 8; pointer-events: none; opacity: 0;
+  background: linear-gradient(100deg, transparent 26%, rgba(50, 40, 18, .05) 56%, rgba(50, 40, 18, .17) 92%);
+  filter: blur(6px);
+  opacity: 0;
+}
+.turn-under {
+  position: absolute; z-index: 8; pointer-events: none; opacity: 0;
+  background: linear-gradient(90deg, rgba(50, 40, 18, .28), rgba(50, 40, 18, .08) 34%, transparent 70%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .turn-layer, .turn-sweep { display: none; }
+}
+.book-ribbon {
+  position: absolute; z-index: 5; top: -3px; right: 11%;
+  width: 22px; height: 46px;
+  background: linear-gradient(90deg, #c4371a, #de421f);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+  box-shadow: 0 6px 10px rgba(112, 34, 14, .22);
+}
+.book-caption {
+  margin-top: 16px; font-size: 8.5px; letter-spacing: .12em; color: var(--ink-4); text-align: center;
+}
+.read-strip {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px;
+  margin-top: 14px; padding: 12px 2px;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+  font-size: 11px; color: var(--ink-3);
+}
+.readers { display: flex; align-items: center; gap: 10px; }
+.avatars { display: flex; }
+.avatar {
+  width: 26px; height: 26px; margin-left: -7px; display: grid; place-items: center;
+  border-radius: 50%; border: 2px solid var(--paper);
+  background: var(--paper-deep); color: var(--ink-2);
+  font-family: var(--serif); font-size: 10px; font-weight: 700;
+}
+.avatar:first-child { margin-left: 0; }
+.avatar:nth-child(2) { background: #dfe3f7; color: var(--blue-deep); }
+.avatar:nth-child(3) { background: #f6ded5; color: var(--red-ink); }
+.avatar:nth-child(4) { background: #dcebe6; color: var(--teal); }
+.read-strip b { color: var(--ink); }
+.read-strip .mono { font-size: 8.5px; letter-spacing: .06em; color: var(--ink-4); }
+
+/* ---------- 装订三步 ---------- */
+.bind-flow {
+  position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0;
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  background: rgba(255, 253, 248, .62);
+}
+.bind-flow::before {
+  content: ""; position: absolute; z-index: 1; left: 16%; right: 16%; top: 50%;
+  border-top: 1px dashed rgba(222, 66, 31, .4);
+}
+.station { position: relative; padding: 26px 26px 24px; min-height: 210px; transition: background .25s var(--ease); }
+.station + .station { border-left: 1px solid var(--line); }
+.station:hover { background: rgba(255, 253, 248, .92); }
+.station-no {
+  position: relative; z-index: 2; display: inline-grid; place-items: center;
+  width: 34px; height: 34px; margin-bottom: 18px;
+  border: 1px solid var(--line-strong); border-radius: 50%;
+  background: var(--paper-hi); font-family: var(--mono); font-size: 9px; color: var(--ink-3);
+  transition: all .25s var(--ease);
+}
+.station:hover .station-no { background: var(--red); border-color: var(--red); color: var(--paper-hi); box-shadow: 0 0 0 6px rgba(222, 66, 31, .1); }
+.station h3 { font-size: 19px; }
+.station p { margin-top: 7px; font-size: 12px; line-height: 1.7; color: var(--ink-3); max-width: 30ch; }
+.station .mono-tag { display: inline-block; margin-top: 12px; font-family: var(--mono); font-size: 8px; letter-spacing: .07em; color: var(--blue); }
+.station-art { position: absolute; right: 18px; bottom: 18px; opacity: .9; }
+
+/* ---------- 流通书架 ---------- */
+.shelf-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.atlas-card { min-width: 0; }
+.cover {
+  position: relative; aspect-ratio: 4 / 5; border-radius: 5px; overflow: hidden;
+  padding: 20px 18px 18px 34px; cursor: pointer;
+  color: #f3efe3; box-shadow: var(--shadow-md);
+  transition: transform .35s var(--ease-out), box-shadow .35s var(--ease-out);
+  display: flex; flex-direction: column;
+}
+.atlas-card:hover .cover { transform: translateY(-8px) rotate(-1deg); box-shadow: var(--shadow-lg); }
+.cover-spine {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 22px;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 16px;
+  border-right: 1px solid rgba(255, 255, 255, .16);
+  background: rgba(0, 0, 0, .22);
+  writing-mode: vertical-rl; font-family: var(--mono); font-size: 7.5px; letter-spacing: .14em; color: rgba(255, 255, 255, .5);
+}
+.cover--ink { background: linear-gradient(155deg, #242a27, #101312 68%, #0a0c0b); }
+.cover--blue { background: linear-gradient(155deg, #2b3fdd, #1a28a8 66%, #111b5e); }
+.cover--red { background: linear-gradient(155deg, #e0512d, #b83217 68%, #8a2410); }
+.cover--make { background: rgba(255, 253, 248, .5); border: 1px dashed var(--line-strong); color: var(--ink-3); box-shadow: none; align-items: center; justify-content: center; text-align: center; padding: 22px; }
+.cover--make:hover { border-color: var(--ink); }
+.cover-top { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 7px; letter-spacing: .12em; opacity: .55; }
+.cover-art { flex: 1; display: grid; place-items: center; margin: 8px -6px; }
+.cover-art svg { width: 100%; height: auto; max-height: 150px; }
+.cover-type { position: relative; z-index: 1; }
+.cover-type small { display: block; font-family: var(--mono); font-size: 7.5px; letter-spacing: .08em; opacity: .6; margin-bottom: 5px; }
+.cover-type h3 { color: inherit; font-size: clamp(20px, 2vw, 25px); font-weight: 700; letter-spacing: -.02em; line-height: 1.24; }
+.cover-type span { display: block; margin-top: 7px; font-family: var(--mono); font-size: 7.5px; letter-spacing: .05em; opacity: .5; }
+.cover-seal {
+  position: absolute; right: 14px; bottom: 14px;
+  width: 34px; height: 34px; display: grid; place-items: center;
+  border: 1px solid rgba(255, 255, 255, .4); border-radius: 4px;
+  font-family: var(--serif); font-size: 14px; opacity: .7;
+  transform: rotate(-5deg);
+}
+.cover-open {
+  position: absolute; inset: auto 0 0 0; z-index: 3;
+  padding: 26px 18px 14px; text-align: right;
+  background: linear-gradient(transparent, rgba(0, 0, 0, .5));
+  font-family: var(--mono); font-size: 8px; letter-spacing: .08em;
+  opacity: 0; transform: translateY(6px); transition: all .25s var(--ease);
+}
+.atlas-card:hover .cover-open { opacity: 1; transform: none; }
+.cover--make .cover-plus { width: 46px; height: 46px; display: grid; place-items: center; margin-bottom: 12px; border: 1px solid var(--line-strong); border-radius: 50%; font-size: 20px; color: var(--ink-2); background: var(--paper-card); }
+.cover--make strong { font-family: var(--serif); font-size: 18px; color: var(--ink); }
+.cover--make p { margin-top: 6px; font-size: 10.5px; line-height: 1.6; }
+.atlas-foot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 3px 0; font-size: 9.5px; color: var(--ink-4);
+}
+.atlas-foot b { color: var(--red); font-weight: 600; }
+.cover-line { stroke-dasharray: 4 4; opacity: .7; }
+.cover-dot { animation: dotFloat 5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+/* ============================================================
+   个人主页 · ME
+   ============================================================ */
+.btn-paper { color: var(--ink); background: var(--paper-hi); border-color: var(--paper-hi); box-shadow: 0 6px 18px rgba(0, 0, 0, .22); }
+.btn-paper:hover { transform: translateY(-2px); background: #fff; border-color: #fff; }
+.me-page { padding-top: clamp(36px, 4.6vw, 58px); }
+.me-hero { display: grid; grid-template-columns: 1.14fr .86fr; gap: 16px; align-items: stretch; }
+.id-card {
+  position: relative; padding: clamp(24px, 3vw, 36px);
+  border: 1px solid var(--line-strong); border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(255, 253, 248, .92), rgba(250, 247, 239, .8)),
+    repeating-linear-gradient(90deg, transparent 0 39px, rgba(18, 21, 19, .03) 39px 40px);
+  box-shadow: var(--shadow-md); overflow: hidden;
+}
+.id-card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--red), var(--gold) 30%, var(--blue) 72%, transparent);
+}
+.id-top { display: flex; align-items: flex-start; gap: 18px; }
+.id-avatar {
+  position: relative; flex: none; width: 82px; height: 82px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--serif); font-size: 34px; font-weight: 700; color: var(--blue-deep);
+  background:
+    radial-gradient(circle at 30% 26%, #fff 0 8%, transparent 9%),
+    radial-gradient(circle at 68% 72%, rgba(34, 52, 212, .12), transparent 46%),
+    linear-gradient(145deg, #eef0fb, #dfe4f5);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 10px 24px rgba(17, 27, 94, .1), inset 0 0 0 5px var(--paper-hi);
+}
+.id-avatar::after {
+  content: "象"; position: absolute; right: -3px; bottom: 0;
+  width: 26px; height: 26px; display: grid; place-items: center;
+  border-radius: 4px; background: var(--red); color: var(--paper-hi);
+  font-family: var(--serif); font-size: 12px;
+  box-shadow: 0 3px 8px rgba(222, 66, 31, .32); transform: rotate(4deg);
+}
+.id-meta { min-width: 0; flex: 1; }
+.id-meta .mono { display: block; font-size: 8px; letter-spacing: .13em; color: var(--ink-4); }
+.id-meta h1 { margin-top: 5px; font-size: clamp(30px, 3.2vw, 40px); letter-spacing: -.02em; }
+.id-meta h1 span { margin-left: 6px; font-family: var(--sans); font-size: 14px; font-weight: 400; color: var(--ink-3); letter-spacing: 0; }
+.id-meta p { margin-top: 5px; font-size: 12.5px; color: var(--ink-3); }
+.id-card > .stamp { position: absolute; top: 26px; right: 28px; }
+.id-bio {
+  margin-top: 18px; max-width: 48ch;
+  font-size: 13.5px; line-height: 1.8; color: var(--ink-2);
+}
+.id-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.id-tags span {
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
+  background: rgba(255, 253, 248, .7); font-size: 10px; color: var(--ink-3);
+}
+.id-stats {
+  display: flex; flex-wrap: wrap; gap: 12px 30px;
+  margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line);
+}
+.id-stats div { display: grid; gap: 1px; }
+.id-stats b { font-family: var(--serif); font-size: 23px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.id-stats small { font-size: 9.5px; color: var(--ink-4); }
+.id-stats div:nth-child(3) b { color: var(--red); }
+.id-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
+.viewswitch {
+  display: flex; gap: 2px; margin-left: auto; padding: 2px; border-radius: 8px;
+  background: var(--paper-deep);
+}
+.viewswitch button {
+  border: 0; background: transparent; padding: 5px 11px; border-radius: 6px;
+  font-size: 10.5px; color: var(--ink-3); transition: all .18s var(--ease);
+}
+.viewswitch button.on { background: var(--paper-card); color: var(--ink); box-shadow: var(--shadow-sm); }
+
+/* 名章 · 印痕 */
+.name-seal {
+  position: absolute; top: 24px; right: 26px;
+  display: grid; grid-template-columns: 1fr 1fr; width: 52px; height: 52px; padding: 4px;
+  border: 2px solid rgba(199, 60, 29, .82); border-radius: 4px;
+  background: rgba(222, 66, 31, .05); transform: rotate(-4deg);
+  box-shadow: inset 0 0 0 1.5px var(--paper-card), inset 0 0 0 2.5px rgba(199, 60, 29, .3);
+}
+.name-seal i {
+  display: grid; place-items: center; font-style: normal;
+  font-family: var(--serif); font-size: 15px; font-weight: 700; line-height: 1; color: #b8371b;
+}
+.id-now {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 9px;
+  padding: 3px 10px 3px 8px; border-radius: 999px;
+  border: 1px solid rgba(15, 118, 110, .2); background: var(--teal-soft);
+  font-size: 10.5px; color: var(--teal);
+}
+.id-now i { width: 6px; height: 6px; border-radius: 50%; background: var(--teal); box-shadow: 0 0 0 3px rgba(15, 118, 110, .15); animation: pulse 2.4s infinite; }
+.id-now b { font-family: var(--mono); font-size: 10px; }
+.id-card .id-stats {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0;
+  margin-top: 22px; padding-top: 0; border-top: 0;
+  border-block: 1px solid var(--line);
+}
+.id-card .id-stats div { padding: 14px 0 12px 16px; border-left: 1px solid var(--line); }
+.id-card .id-stats div:first-child { padding-left: 0; border-left: 0; }
+.id-card .id-stats b { font-size: 28px; }
+.id-card .id-stats small { margin-top: 4px; letter-spacing: .04em; }
+.ink-cal { margin-top: 16px; }
+.ink-cal-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.ink-cal-head .mono { font-size: 8px; letter-spacing: .12em; color: var(--ink-4); }
+.ink-cal-head b { color: var(--red-ink); font-size: 10px; }
+.ink-legend { display: inline-flex; align-items: center; gap: 3px; }
+.ink-legend i, .ink-cal-grid i { display: block; border-radius: 2px; background: rgba(54, 40, 18, .06); }
+.ink-legend i { width: 8px; height: 8px; }
+.ink-cal-grid {
+  display: grid; grid-template-rows: repeat(7, 8px); grid-auto-flow: column; grid-auto-columns: 1fr;
+  gap: 3px;
+}
+.ink-cal-grid i { transition: transform .2s var(--ease-out); }
+.ink-cal-grid i:hover { transform: scale(1.5); position: relative; z-index: 1; box-shadow: 0 2px 6px rgba(124, 36, 18, .3); }
+.ink-cal i[data-l="1"], .ink-legend i[data-l="1"] { background: rgba(222, 66, 31, .2); }
+.ink-cal i[data-l="2"], .ink-legend i[data-l="2"] { background: rgba(222, 66, 31, .42); }
+.ink-cal i[data-l="3"], .ink-legend i[data-l="3"] { background: rgba(199, 60, 29, .7); }
+.ink-cal i[data-l="4"], .ink-legend i[data-l="4"] { background: #a8311a; }
+.ink-cal-grid i.is-today { outline: 1.5px solid var(--ink); outline-offset: 1px; }
+.ink-cal-axis { display: flex; justify-content: space-between; margin-top: 6px; font-size: 7.5px; letter-spacing: .08em; color: var(--ink-4); }
+/* 继续上次 · 深色工作台 */
+.continue {
+  position: relative; display: flex; flex-direction: column; min-width: 0;
+  border-radius: 16px; overflow: hidden; color: rgba(245, 242, 232, .8);
+  background:
+    radial-gradient(120% 90% at 82% 0%, rgba(50, 70, 140, .32), transparent 58%),
+    linear-gradient(155deg, #1a1e1c, #101312 65%, #0b0d0c);
+  border: 1px solid rgba(255, 255, 255, .09);
+  box-shadow: var(--shadow-lg);
+}
+.continue::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .022) 0 1px, transparent 1px 3px);
+}
+.continue-head {
+  position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 18px 0; font-family: var(--mono); font-size: 8px; letter-spacing: .12em; color: rgba(245, 242, 232, .45);
+}
+.continue-head .pill { border-color: rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .06); color: rgba(245, 242, 232, .65); font-size: 8.5px; }
+.continue-head .pill b { color: #f3c86b; }
+.continue-art { position: relative; flex: 1; min-height: 168px; margin: 2px 6px 0; }
+.continue-art svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.continue-body { position: relative; z-index: 2; padding: 0 20px 18px; }
+.continue-body h2 { color: #f7f3e8; font-size: 24px; letter-spacing: -.01em; }
+.continue-body p { margin-top: 5px; font-size: 10.5px; color: rgba(245, 242, 232, .5); }
+.progress { height: 3px; margin: 12px 0 14px; border-radius: 2px; background: rgba(255, 255, 255, .13); overflow: hidden; }
+.progress i { display: block; height: 100%; background: linear-gradient(90deg, #f3c86b, var(--red)); border-radius: 2px; }
+.continue .actions .btn-primary { background: var(--paper-hi); border-color: var(--paper-hi); color: var(--ink); box-shadow: 0 6px 18px rgba(0, 0, 0, .22); }
+.continue .actions .btn-primary:hover { background: #fff; border-color: #fff; }
+.continue .actions .btn-ghost { background: transparent; border-color: rgba(255, 255, 255, .18); color: rgba(245, 242, 232, .8); }
+.continue .actions .btn-ghost:hover { border-color: rgba(255, 255, 255, .5); box-shadow: none; }
+.continue-foot { position: relative; z-index: 2; padding: 0 20px 15px; font-size: 8.5px; letter-spacing: .04em; color: rgba(245, 242, 232, .35); }
+.visitor-card {
+  display: none; flex-direction: column; justify-content: space-between; min-width: 0;
+  padding: 24px; border-radius: 16px;
+  border: 1px solid var(--line-strong); background: var(--paper-card);
+  box-shadow: var(--shadow-md);
+}
+.me-page.is-visitor .owner-only { display: none; }
+.me-page.is-visitor .visitor-card { display: flex; }
+.me-page.is-visitor .visitor-inline { display: inline-flex; }
+.visitor-inline { display: none; }
+.visitor-card .mono { font-size: 8px; letter-spacing: .12em; color: var(--ink-4); }
+.visitor-card h2 { margin-top: 8px; font-size: 24px; }
+.visitor-card p { margin-top: 8px; font-size: 12.5px; line-height: 1.75; color: var(--ink-3); }
+.visitor-card .actions { margin-top: 18px; }
+.visitor-shelf { margin-top: 18px; }
+.visitor-shelf .mono { display: block; font-size: 8px; letter-spacing: .1em; color: var(--ink-4); }
+.visitor-books { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
+.vbook {
+  min-width: 0; height: 58px; padding: 7px; border-radius: 3px;
+  display: flex; align-items: flex-end;
+  color: #f4efe3; font-family: var(--serif); font-size: 9.5px; line-height: 1.35;
+  box-shadow: 0 5px 12px rgba(28, 22, 10, .14);
+  border-left: 4px solid rgba(0, 0, 0, .28);
+}
+.vbook--ink { background: linear-gradient(155deg, #262c29, #101312); }
+.vbook--blue { background: linear-gradient(155deg, #3043df, #17247e); }
+.vbook--red { background: linear-gradient(155deg, #e0512d, #9a2c15); }
+.vbook--more {
+  align-items: center; justify-content: center; flex-direction: column; gap: 2px;
+  background: rgba(255, 253, 248, .6); border: 1px dashed var(--line-strong); border-left: 1px dashed var(--line-strong);
+  color: var(--ink-3); font-family: var(--mono); font-size: 8px; box-shadow: none;
+}
+.visitor-quote {
+  margin-top: 20px; padding: 12px 14px; border-left: 2px solid var(--gold);
+  background: var(--gold-soft); border-radius: 0 8px 8px 0;
+  font-family: var(--serif); font-size: 13px; color: var(--ink-2); line-height: 1.7;
+}
+.visitor-quote small { display: block; margin-top: 4px; font-family: var(--mono); font-size: 7.5px; color: var(--ink-4); letter-spacing: .06em; }
+
+/* ---------- 作品星图 ---------- */
+.map-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.map-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 318px; gap: 14px; }
+.map-panel {
+  position: relative; min-width: 0; height: 470px;
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  background:
+    radial-gradient(rgba(18, 21, 19, .11) .8px, transparent .8px) 0 0 / 20px 20px,
+    radial-gradient(80% 90% at 50% 45%, rgba(255, 253, 248, .9), rgba(242, 238, 228, .5) 75%);
+  box-shadow: inset 0 0 60px rgba(120, 100, 60, .05);
+}
+.map-panel::before {
+  content: "作品星图 / CONSTELLATION OF WORKS";
+  position: absolute; top: 14px; left: 16px; z-index: 2;
+  font-family: var(--mono); font-size: 8px; letter-spacing: .12em; color: var(--ink-4);
+}
+#mapSvg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.map-thread { fill: none; stroke: rgba(164, 122, 47, .4); stroke-width: 1; stroke-dasharray: 3 4; }
+.map-thread.is-hot { stroke: rgba(34, 52, 212, .55); }
+.map-core { fill: var(--paper-hi); stroke: var(--ink); stroke-width: 1; }
+.map-node { cursor: pointer; }
+.map-node .node-hit { fill: transparent; }
+.map-node .node-shape { transition: transform .25s var(--ease-out); transform-box: fill-box; transform-origin: center; }
+.map-node:hover .node-shape { transform: scale(1.22); }
+.map-node.is-sel .node-shape { transform: scale(1.3); }
+.map-node .node-ring { fill: none; stroke: rgba(34, 52, 212, .3); stroke-width: 1; opacity: 0; transition: opacity .2s; }
+.map-node.is-sel .node-ring { opacity: 1; }
+.map-label {
+  font-family: var(--sans); font-size: 10.5px; font-weight: 500; fill: var(--ink-2);
+  paint-order: stroke; stroke: var(--paper-hi); stroke-width: 3px; stroke-linejoin: round;
+}
+.map-kind { font-family: var(--mono); font-size: 6.5px; fill: var(--ink-4); letter-spacing: .08em; }
+.map-legend {
+  position: absolute; left: 15px; bottom: 13px; z-index: 2;
+  display: flex; gap: 14px; padding: 7px 11px; border: 1px solid var(--line);
+  border-radius: 8px; background: rgba(255, 253, 248, .84);
+  font-family: var(--mono); font-size: 7.5px; color: var(--ink-4);
+  backdrop-filter: blur(4px);
+}
+.map-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+.map-scroll-hint { display: none; }
+.map-detail {
+  display: flex; flex-direction: column; padding: 20px;
+  border: 1px solid var(--line); border-radius: 14px;
+  background: var(--paper-card); box-shadow: var(--shadow-sm);
+  transition: opacity .2s var(--ease);
+}
+.map-detail-art {
+  height: 128px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--line);
+  background: radial-gradient(rgba(18, 21, 19, .1) .7px, transparent .7px) 0 0 / 14px 14px, #f6f2e8;
+}
+.map-detail-art svg { width: 100%; height: 100%; }
+.map-detail .mono { margin-top: 14px; font-size: 8px; letter-spacing: .1em; color: var(--red); }
+.map-detail h3 { margin-top: 5px; font-size: 21px; line-height: 1.3; }
+.map-detail > p { margin-top: 7px; font-size: 12px; line-height: 1.7; color: var(--ink-3); }
+.map-detail dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 14px 0 0; }
+.map-detail dl div { padding-top: 8px; border-top: 1px solid var(--line); }
+.map-detail dt { font-size: 9px; color: var(--ink-4); }
+.map-detail dd { margin: 2px 0 0; font-family: var(--mono); font-size: 10.5px; color: var(--ink); }
+.map-detail .actions { margin-top: auto; padding-top: 16px; }
+.map-detail .actions .btn { flex: 1; }
+
+/* ---------- 书桌 · 裁纸垫上的三张便笺 ---------- */
+.desk-grid {
+  position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px;
+  padding: 36px 26px 28px; border-radius: 18px;
+  background:
+    linear-gradient(rgba(15, 118, 110, .07) 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(90deg, rgba(15, 118, 110, .07) 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(rgba(15, 118, 110, .12) 1px, transparent 1px) 0 0 / 100px 100px,
+    linear-gradient(90deg, rgba(15, 118, 110, .12) 1px, transparent 1px) 0 0 / 100px 100px,
+    linear-gradient(160deg, #dfe7df, #d3ddd4);
+  border: 1px solid rgba(15, 80, 70, .16);
+  box-shadow: inset 0 2px 10px rgba(10, 50, 44, .08), var(--shadow-sm);
+}
+.desk-grid::before {
+  content: "0 · · · · 10 · · · · 20 · · · · 30 · · · · 40 · · · · 50 · · · · 60 · · · · 70 · · · · 80 · · · · 90 cm";
+  position: absolute; top: 11px; left: 26px; right: 26px; overflow: hidden; white-space: nowrap;
+  font-family: var(--mono); font-size: 7px; letter-spacing: .32em; color: rgba(15, 80, 70, .4);
+}
+.desk-col {
+  position: relative; border: 1px solid rgba(54, 40, 18, .1); border-radius: 3px;
+  background: linear-gradient(180deg, #fffdf8, #faf6ec);
+  box-shadow: 0 1px 1px rgba(28, 22, 10, .06), 0 14px 26px -8px rgba(20, 40, 34, .22);
+  transform: rotate(-.6deg); transition: transform .4s var(--ease-out), box-shadow .4s var(--ease-out);
+}
+.desk-col:nth-child(2) { transform: rotate(.5deg) translateY(6px); }
+.desk-col:nth-child(3) { transform: rotate(-.25deg) translateY(-2px); }
+.desk-col:hover { transform: rotate(0) translateY(-4px); box-shadow: 0 1px 1px rgba(28, 22, 10, .06), 0 24px 40px -10px rgba(20, 40, 34, .28); }
+.desk-col::before {
+  content: ""; position: absolute; z-index: 2; top: -9px; left: 50%; width: 78px; height: 18px;
+  transform: translateX(-50%) rotate(-2deg);
+  background: rgba(243, 222, 170, .78); border-left: 1px dashed rgba(164, 122, 47, .3); border-right: 1px dashed rgba(164, 122, 47, .3);
+  box-shadow: 0 1px 2px rgba(28, 22, 10, .08);
+}
+.desk-col:nth-child(2)::before { background: rgba(240, 170, 150, .6); transform: translateX(-50%) rotate(3deg); }
+.desk-col:nth-child(3)::before { background: rgba(176, 186, 240, .6); transform: translateX(-50%) rotate(-1deg); }
+.desk-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 18px 16px 10px; border-bottom: 1px solid rgba(199, 60, 29, .3);
+  font-family: var(--mono); font-size: 8px; letter-spacing: .1em; color: var(--ink-4);
+}
+.desk-head b { font-family: var(--serif); font-size: 17px; color: var(--ink); letter-spacing: 0; }
+.desk-item {
+  display: flex; align-items: center; gap: 11px; min-height: 62px;
+  padding: 10px 16px; text-decoration: none;
+  border-bottom: 1px solid rgba(34, 52, 212, .1);
+  transition: background-color .18s var(--ease);
+}
+.desk-item:hover { background-color: rgba(243, 234, 216, .5); }
+.desk-item:hover .go { transform: translateX(3px); color: var(--ink); }
+.desk-glyph {
+  position: relative; flex: none; width: 32px; height: 36px; display: grid; place-items: center;
+  border-radius: 3px; border: 1px solid var(--line);
+  background: var(--paper-hi); font-family: var(--serif); font-size: 15px; font-weight: 700; color: var(--ink-2);
+  box-shadow: 2px 2px 0 rgba(54, 40, 18, .12);
+}
+.desk-glyph::after { content: ""; position: absolute; left: 4px; right: 4px; bottom: 3px; height: 2px; background: currentColor; opacity: .25; }
+.desk-glyph--blue { background: var(--blue-soft); color: var(--blue-deep); border-color: rgba(34, 52, 212, .2); }
+.desk-glyph--red { background: var(--red-soft); color: var(--red-ink); border-color: rgba(222, 66, 31, .2); }
+.desk-glyph--teal { background: var(--teal-soft); color: var(--teal); border-color: rgba(15, 118, 110, .2); }
+.desk-book {
+  position: relative; flex: none; width: 30px; height: 40px; display: flex; justify-content: center; padding-top: 5px;
+  border-radius: 1px 3px 3px 1px; color: rgba(255, 253, 248, .9);
+  box-shadow: inset 3px 0 0 rgba(0, 0, 0, .25), inset 4px 0 0 rgba(255, 255, 255, .12), 2px 3px 6px rgba(28, 22, 10, .2);
+}
+.desk-book em { font-style: normal; font-family: var(--serif); font-size: 8.5px; font-weight: 700; writing-mode: vertical-rl; letter-spacing: .12em; padding: 3px 1px; border: 1px solid rgba(255, 253, 248, .35); background: rgba(255, 253, 248, .1); }
+.desk-book--ink { background: linear-gradient(155deg, #2a302d, #111413); }
+.desk-book--blue { background: linear-gradient(155deg, #3245e0, #17247e); }
+.desk-book--teal { background: linear-gradient(155deg, #138a80, #08443e); }
+.desk-item div { min-width: 0; flex: 1; }
+.desk-item b { display: block; font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.desk-item small { display: block; margin-top: 2px; font-family: var(--mono); font-size: 7.5px; color: var(--ink-4); }
+.desk-item .go { margin-left: auto; font-size: 11px; color: var(--ink-4); transition: transform .2s var(--ease), color .2s; }
+.desk-bar { display: block; height: 3px; margin-top: 6px; border-radius: 2px; background: rgba(54, 40, 18, .08); overflow: hidden; }
+.desk-bar i { display: block; height: 100%; border-radius: 2px; background: linear-gradient(90deg, #f3c86b, var(--red)); }
+.desk-pct { flex: none; font-size: 10px; font-weight: 700; color: var(--ink-2); }
+.desk-uses { flex: none; display: grid; grid-template-columns: repeat(3, 6px); gap: 3px; }
+.desk-uses i { width: 6px; height: 6px; border-radius: 1px; background: var(--red); opacity: .7; transform: rotate(45deg) scale(.8); }
+.desk-new { flex: none; padding: 2px 5px; border-radius: 3px; background: var(--red); color: var(--paper-hi); font-size: 7.5px; letter-spacing: .1em; }
+.desk-more {
+  display: block; padding: 11px 16px 13px; text-align: center;
+  font-family: var(--mono); font-size: 8px; letter-spacing: .06em; color: var(--ink-4);
+  text-decoration: none;
+}
+.desk-more:hover { color: var(--blue); }
+
+/* ---------- 年轮 · 一截树干的横切面 ---------- */
+.rings {
+  display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: center;
+}
+.rings-art { position: relative; margin: 0; }
+#ringSvg { width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 18px 26px rgba(60, 40, 14, .16)); }
+.rings-art figcaption { margin-top: 6px; text-align: center; font-size: 8px; letter-spacing: .14em; color: var(--ink-4); }
+.rg-line { fill: none; stroke: rgba(92, 62, 28, .38); stroke-width: .8; transition: stroke .3s var(--ease), stroke-width .3s var(--ease); }
+.rg-line.is-on { stroke: var(--red); stroke-width: 2.2; }
+.rg-ray { stroke: rgba(92, 62, 28, .1); stroke-width: .7; }
+.rg-crack { fill: none; stroke: rgba(70, 46, 20, .32); stroke-width: .9; }
+.rg-rule { stroke: rgba(18, 21, 19, .55); stroke-width: .8; }
+.rg-rule-txt { font-family: var(--mono); font-size: 6.5px; letter-spacing: .04em; fill: rgba(18, 21, 19, .55); }
+.rg-mark { cursor: pointer; }
+.rg-mark circle { fill: var(--paper-hi); stroke: var(--ink); stroke-width: 1; transition: fill .25s; }
+.rg-mark text { font-family: var(--mono); font-size: 7.5px; font-weight: 700; fill: var(--ink); pointer-events: none; }
+.rg-mark.is-on circle { fill: var(--red); stroke: var(--red-ink); }
+.rg-mark.is-on text { fill: var(--paper-hi); }
+.rg-mark .rg-pulse { fill: none; stroke: var(--red); opacity: 0; transform-box: fill-box; transform-origin: center; }
+.rg-mark.is-on .rg-pulse { fill: none; animation: ringPulse 1.8s var(--ease-out) infinite; }
+@keyframes ringPulse { 0% { opacity: .7; transform: scale(1); } 100% { opacity: 0; transform: scale(2.4); } }
+.ring-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ring-item {
+  position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+  padding: 14px 18px 14px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: rgba(255, 253, 248, .55); cursor: pointer; outline: none;
+  transition: background .25s var(--ease), border-color .25s var(--ease), transform .3s var(--ease-out), box-shadow .3s var(--ease-out);
+}
+.ring-item:hover, .ring-item:focus-visible { background: var(--paper-card); border-color: var(--line-strong); }
+.ring-item.is-on { background: var(--paper-card); border-color: rgba(199, 60, 29, .35); box-shadow: var(--shadow-md); transform: translateX(-6px); }
+.ring-item.is-on::before { content: ""; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; background: var(--red); }
+.ring-no {
+  width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%;
+  border: 1px solid var(--ink-3); font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--ink);
+  transition: all .25s var(--ease);
+}
+.ring-item.is-on .ring-no { background: var(--red); border-color: var(--red); color: var(--paper-hi); }
+.ring-item time { display: block; font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; color: var(--ink-4); }
+.ring-item b { display: block; margin-top: 3px; font-family: var(--serif); font-size: 17px; color: var(--ink); }
+.ring-item p { margin-top: 3px; font-size: 11.5px; line-height: 1.65; color: var(--ink-3); }
+.ring-metric { padding: 4px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--paper-hi); font-size: 8.5px; color: var(--ink-2); white-space: nowrap; }
+.ring-item.is-on .ring-metric { border-color: rgba(199, 60, 29, .3); color: var(--red-ink); background: var(--red-soft); }
+/* ---------- 全局提示与页脚 ---------- */
+.toast {
+  position: fixed; left: 50%; bottom: 26px; z-index: 90;
+  transform: translate(-50%, 18px); opacity: 0; pointer-events: none;
+  max-width: min(90vw, 460px);
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px; border-radius: 9px;
+  background: var(--ink); color: var(--paper-hi);
+  font-size: 12px; box-shadow: 0 16px 40px rgba(18, 21, 19, .3);
+  transition: opacity .25s var(--ease), transform .3s var(--ease-out);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast::before { content: "◆"; color: #f3c86b; font-size: 9px; }
+.page-foot {
+  border-top: 1px solid var(--line); margin-top: clamp(52px, 6vw, 80px);
+  padding: 22px 0 48px;
+}
+.page-foot .container { display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.page-foot p { font-family: var(--mono); font-size: 8.5px; letter-spacing: .08em; color: var(--ink-4); }
+.page-foot .foot-links { display: flex; gap: 16px; font-size: 11px; color: var(--ink-3); }
+.page-foot a { text-decoration: none; }
+.page-foot a:hover { color: var(--ink); }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 960px) {
+  .mast-meta { display: none; }
+}
+@media (max-width: 1120px) {
+  .dx-hero { grid-template-columns: 1fr; gap: 30px; }
+  .dx-copy { max-width: 680px; }
+  .bench-body { height: 532px; }
+  .bricks { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .bin { grid-template-columns: 1fr; }
+  .bin-lead { border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 10px; }
+  .bin-lead p { max-width: 50ch; }
+  .spec-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .book { grid-template-columns: 1fr; }
+  .book::before { display: none; }
+  .page-l { border-right: 0; border-bottom: 1px solid var(--line); }
+  .tw-intro { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .tw-intro p { text-align: left; max-width: 60ch; }
+  .shelf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .me-hero { grid-template-columns: 1fr; }
+  .continue-art { min-height: 200px; }
+  .map-wrap { grid-template-columns: 1fr; }
+  .map-detail { flex-direction: row; gap: 18px; align-items: flex-start; }
+  .map-detail-art { flex: none; width: 190px; height: 150px; }
+  .map-detail .actions { margin-left: auto; padding-top: 0; }
+  .map-detail dl { display: none; }
+  .desk-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  .dx-title { font-size: clamp(38px, 9vw, 52px); }
+  .steps { grid-template-columns: 1fr; }
+  .steps::before { display: none; }
+  .bind-flow { grid-template-columns: 1fr; }
+  .bind-flow::before { display: none; }
+  .station + .station { border-left: 0; border-top: 1px solid var(--line); }
+  .station { min-height: 0; }
+  .rings { grid-template-columns: 1fr; }
+  .rings-art { max-width: 380px; width: 100%; margin: 0 auto; }
+  .ring-item.is-on { transform: none; }
+  .desk-grid { gap: 26px; padding: 32px 16px 18px; }
+  .desk-col, .desk-col:nth-child(2), .desk-col:nth-child(3) { transform: none; }  .name-seal { top: 16px; right: 16px; transform: scale(.82) rotate(-4deg); }
+  .map-detail { flex-direction: column; }
+  .map-detail-art { width: 100%; height: 140px; }
+  .map-detail .actions { margin-left: 0; padding-top: 14px; width: 100%; }
+}
+@media (max-width: 680px) {
+  .mast-inner { gap: 10px; }
+  .brand-en, .mast-meta { display: none; }
+  .brand-seal { width: 30px; height: 30px; font-size: 15px; }
+  .brand-name { font-size: 12.5px; letter-spacing: .05em; }
+  .tab { padding: 6px 11px; font-size: 12px; gap: 4px; }
+  .tab span { display: none; }
+  .tabs { padding: 3px; border-radius: 10px; }
+  .tab-ink { top: 3px; bottom: 3px; border-radius: 7px; }
+  .dx-hero { padding-top: 30px; }
+  .bench-bar { flex-wrap: wrap; gap: 8px; }
+  .bench-live { display: none; }
+  .seg { margin-left: 0; order: 3; width: 100%; }
+  .seg button { flex: 1; }
+  .bench-body { height: 390px; }
+  .inspector { display: none; }
+  .bench-stage { right: 0; }
+  .stage-hint { display: none; }
+  .bench-hud { gap: 9px; font-size: 8px; padding: 6px 7px 6px 10px; }
+  .bricks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .spec-grid { grid-template-columns: 1fr; }
+  .liveband { gap: 10px; }
+  .dx-facts { gap: 16px 22px; }
+  .sec-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .sec-note { text-align: left; max-width: none; }
+  .book { transform: none; }
+  .book-ribbon { right: 8%; }
+  .page-l .actions .btn { flex: 1; }
+  .book-meta { gap: 10px 18px; }
+  .sheet-foot span:first-child { display: none; }
+  .flip-corner { right: 12px; bottom: 12px; }
+  .shelf-grid { grid-template-columns: 1fr; }
+  .cover { aspect-ratio: 5 / 4; }
+  .read-strip { font-size: 10px; }
+  .id-top { flex-wrap: wrap; }
+  .name-seal { display: none; }
+  .id-card .id-stats div { padding-left: 10px; }
+  .id-card .id-stats b { font-size: 22px; }
+  .ring-item { grid-template-columns: 30px minmax(0, 1fr); }
+  .ring-metric { display: none; }
+  .ring-no { width: 28px; height: 28px; }
+  .id-avatar { width: 68px; height: 68px; font-size: 28px; }
+  .viewswitch { margin-left: 0; width: 100%; }
+  .viewswitch button { flex: 1; }
+  .map-panel { height: 390px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+  .map-panel::before { position: sticky; left: 16px; display: inline-block; }
+  #mapSvg { position: absolute; inset: auto; left: 0; top: 0; width: 660px; height: 388px; }
+  .map-scroll-hint {
+    display: block; position: sticky; left: calc(100% - 158px); top: 12px; z-index: 3;
+    width: max-content; padding: 4px 8px; border-radius: 5px;
+    border: 1px solid var(--line); background: rgba(255, 253, 248, .9);
+    font-size: 8px; letter-spacing: .04em; color: var(--ink-3);
+  }
+  .map-legend { position: static; display: flex; margin: 30px 0 0 14px; width: max-content; flex-wrap: wrap; gap: 8px 12px; }
+  .toast { bottom: 16px; font-size: 11px; }
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="mast-inner">
+    <a class="brand" href="#dx" aria-label="定象坊与通文册创意提案">
+      <span class="brand-seal" aria-hidden="true">象</span>
+      <span>
+        <span class="brand-name">定象坊 · 通文册</span>
+        <span class="brand-en">DINGXIANG ATELIER / TONGWEN ATLAS</span>
+      </span>
+    </a>
+    <nav class="tabs" aria-label="页面切换">
+      <span class="tab-ink" id="tabInk" aria-hidden="true"></span>
+      <a class="tab is-active" href="#dx" data-tab="dx">定象坊 <span>01</span></a>
+      <a class="tab" href="#tw" data-tab="tw">通文册 <span>02</span></a>
+      <a class="tab" href="#me" data-tab="me">个人主页 <span>03</span></a>
+    </nav>
+    <div class="mast-meta"><i aria-hidden="true"></i> 创意提案 · 未改业务代码</div>
+  </div>
+</header>
+
+<main class="stage">
+  <section class="view is-active" id="view-dx" aria-label="定象坊"><div class="container">
+  <div class="dx-hero">
+    <div class="dx-copy">
+      <span class="badge"><i aria-hidden="true"></i> DINGXIANG ATELIER · 以砖定象</span>
+      <h1 class="dx-title">搭一块砖，<br /><span class="hl">定一种象。</span></h1>
+      <p class="dx-lead">公式、算法与物理场，不再是课件里的截图。它们是可拆、可连、可运行的<strong>象砖</strong>——每一枚都是一块会算的活字。排起来，就是一件作品；印下去，就是一页通文册。</p>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" data-act="new-work">＋ 新建一张排字台 <span class="arr">↗</span></button>
+        <a class="btn btn-ghost" href="#dx-specimens" data-scroll>先逛逛标本柜</a>
+      </div>
+      <ul class="dx-facts">
+        <li><b>60<span>+</span></b><small>真内核象砖</small></li>
+        <li><b>5</b><small>学科领域</small></li>
+        <li><b>0</b><small>插件安装</small></li>
+        <li><b>∞</b><small>种搭法</small></li>
+      </ul>
+      <p class="dx-foot mono">01 / 03 · 从字架取一枚活字，排字台会接住它</p>
+    </div>
+
+    <div class="bench-wrap">
+      <div class="bench" id="bench">
+        <div class="bench-bar">
+          <div class="bench-title"><b>排字台</b><span class="mono">TYPE COMPOSER · 07</span></div>
+          <div class="seg" role="group" aria-label="排字台模式">
+            <button class="on" type="button" data-bench-mode="build">排字</button>
+            <button type="button" data-bench-mode="run">试印</button>
+            <button type="button" data-bench-mode="pack">付印</button>
+          </div>
+          <span class="bench-live"><i aria-hidden="true"></i> 实时内核</span>
+        </div>
+        <div class="bench-body">
+          <div class="bench-stage">
+            <div class="stage-head">
+              <span class="stage-kicker mono">HEAT ISLAND · TYPE CASE 07</span>
+              <span class="stage-hint mono">点字架 → 取一枚活字</span>
+            </div>
+            <svg id="isoScene" viewBox="0 0 500 500" role="img" aria-label="活字排版台：点击下方字架中的象砖，把它排入字盘">
+              <defs>
+                <radialGradient id="plateGlow" cx="50%" cy="44%" r="66%">
+                  <stop offset="0%" stop-color="#fffdf8" stop-opacity=".8" />
+                  <stop offset="100%" stop-color="#fffdf8" stop-opacity="0" />
+                </radialGradient>
+                <linearGradient id="woodGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#5d4930" />
+                  <stop offset=".55" stop-color="#443320" />
+                  <stop offset="1" stop-color="#2e2214" />
+                </linearGradient>
+                <linearGradient id="brassGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#e0bc7a" />
+                  <stop offset=".45" stop-color="#b58c4c" />
+                  <stop offset="1" stop-color="#89652f" />
+                </linearGradient>
+                <linearGradient id="paperGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#fbf5e9" />
+                  <stop offset="1" stop-color="#eee4d1" />
+                </linearGradient>
+                <linearGradient id="tileGrad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#fffdf8" />
+                  <stop offset=".62" stop-color="#fbf6ea" />
+                  <stop offset="1" stop-color="#efe7d5" />
+                </linearGradient>
+                <linearGradient id="inkFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#c73c1d" stop-opacity=".22" />
+                  <stop offset="1" stop-color="#c73c1d" stop-opacity="0" />
+                </linearGradient>
+                <linearGradient id="scanGrad" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stop-color="#c73c1d" stop-opacity="0" />
+                  <stop offset=".8" stop-color="#c73c1d" stop-opacity=".1" />
+                  <stop offset="1" stop-color="#c73c1d" stop-opacity=".28" />
+                </linearGradient>
+                <pattern id="paperFiber" width="6" height="6" patternUnits="userSpaceOnUse">
+                  <path d="M0 6L6 0" stroke="rgba(120,96,52,.12)" stroke-width=".4" />
+                </pattern>
+                <filter id="inkPress" x="-5%" y="-5%" width="110%" height="110%">
+                  <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7" result="n" />
+                  <feDisplacementMap in="SourceGraphic" in2="n" scale="1.3" />
+                </filter>
+                <filter id="softShadow" x="-30%" y="-30%" width="170%" height="170%">
+                  <feGaussianBlur stdDeviation="6" />
+                </filter>
+                <filter id="tileShadow" x="-40%" y="-30%" width="190%" height="180%">
+                  <feGaussianBlur stdDeviation="4" />
+                </filter>
+              </defs>
+              <ellipse cx="250" cy="230" rx="270" ry="220" fill="url(#plateGlow)" />
+              <g id="isoGrid"></g>
+              <g id="isoSlots"></g>
+              <g id="isoBlocks"></g>
+              <g id="isoAnnotations"></g>
+            </svg>
+            <div class="bench-hud">
+              <span>联结点 <b id="hudLinks">6</b></span>
+              <span>参数 <b id="hudParams">3</b></span>
+              <span>版本 <b id="hudVer">v0.7</b></span>
+              <button class="run-toggle" id="runToggle" type="button">▶ 试印</button>
+            </div>
+          </div>
+
+          <aside class="inspector" aria-label="实时检查器">
+            <div class="insp-head">
+              <span class="mono">PRESS CHECK</span>
+              <span class="insp-live"><i aria-hidden="true"></i>LIVE</span>
+            </div>
+            <div class="insp-project">
+              <strong>城市热岛</strong>
+              <span class="mono">TYPE COMPOSITION · 07</span>
+            </div>
+            <div class="insp-counts">
+              <span><b id="inspModules">03</b> SORTS</span>
+              <span><b id="inspLinks">06</b> LINKS</span>
+            </div>
+            <div class="insp-param">
+              <div class="insp-label"><label for="albedo">反照率</label><output id="albedoOut" for="albedo">0.32</output></div>
+              <input id="albedo" type="range" min="0.12" max="0.7" step="0.01" value="0.32" />
+            </div>
+            <div class="insp-param">
+              <div class="insp-label"><label for="green">绿化率</label><output id="greenOut" for="green">38%</output></div>
+              <input id="green" type="range" min="0" max="100" step="1" value="38" />
+            </div>
+            <div class="insp-readout">
+              <span><i>LOW</i><b id="lowOut">23.0°</b></span>
+              <span><i>PEAK</i><b id="peakStat">31.4°</b></span>
+              <span><i>ΔT</i><b id="deltaOut">8.4°</b></span>
+            </div>
+            <div class="insp-layers" id="inspLayers"></div>
+            <div class="insp-save mono" aria-hidden="true"><span>REAL KERNEL</span><span>INK READY</span></div>
+            <button class="insp-action" id="inspPack" type="button">付印并装订 <span aria-hidden="true">↗</span></button>
+          </aside>
+        </div>
+      </div>
+      <div class="bench-note mono">↳ 每一枚活字都带数据口，参数一动，整行印样都会变。</div>
+    </div>
+  </div>
+
+  <div class="bin" aria-label="字架">
+    <div class="bin-lead">
+      <span class="mono">TYPE CASE · 字架</span>
+      <strong>取一枚，排上去</strong>
+      <p>每一枚活字都自带参数、图形与计算内核。</p>
+    </div>
+    <div class="bricks" id="bricks">
+      <button class="brick" type="button" data-brick="func">
+        <span class="brick-glyph brick-glyph--blue" aria-hidden="true">ƒ</span>
+        <span class="brick-text"><b>函数砖</b><small>曲线 · 导数 · 极值</small></span>
+        <span class="brick-plus" aria-hidden="true">＋</span>
+      </button>
+      <button class="brick" type="button" data-brick="prob">
+        <span class="brick-glyph brick-glyph--red" aria-hidden="true">P</span>
+        <span class="brick-text"><b>概率砖</b><small>分布 · 抽样 · 置信</small></span>
+        <span class="brick-plus" aria-hidden="true">＋</span>
+      </button>
+      <button class="brick" type="button" data-brick="field">
+        <span class="brick-glyph brick-glyph--teal" aria-hidden="true">⇀</span>
+        <span class="brick-text"><b>场砖</b><small>向量 · 通量 · 旋度</small></span>
+        <span class="brick-plus" aria-hidden="true">＋</span>
+      </button>
+      <button class="brick" type="button" data-brick="data">
+        <span class="brick-glyph brick-glyph--gold" aria-hidden="true">▥</span>
+        <span class="brick-text"><b>数据砖</b><small>表格 · 周期 · 甘特</small></span>
+        <span class="brick-plus" aria-hidden="true">＋</span>
+      </button>
+      <button class="brick" type="button" data-brick="text">
+        <span class="brick-glyph brick-glyph--ink" aria-hidden="true">文</span>
+        <span class="brick-text"><b>文字砖</b><small>注释 · 公式 · 旁白</small></span>
+        <span class="brick-plus" aria-hidden="true">＋</span>
+      </button>
+    </div>
+  </div>
+
+  <section class="section maker" aria-labelledby="dx-maker-title">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow"><b>§ 02</b> HOW TO BUILD / 三步工法</p>
+        <h2 class="sec-title" id="dx-maker-title">从一块砖，到一件能跑的作品</h2>
+      </div>
+      <p class="sec-note">不写代码，也不做 PPT。你只需要决定：哪块砖放在哪，接给谁。</p>
+    </div>
+    <div class="steps">
+      <article class="step">
+        <span class="step-no"><b>01</b> PICK A BRICK</span>
+        <div class="step-ico" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="#34372f" stroke-width="1.2" stroke-linejoin="round">
+            <path d="M16 4l11 6.3v12.1L16 28.6 5 22.4V10.3L16 4z" fill="#eef1ff" />
+            <path d="M5 10.3l11 6.4 11-6.4M16 16.7v11.9" />
+            <path d="M10.5 7.3l11 6.3" stroke="#de421f" />
+          </svg>
+        </div>
+        <h3>取一块真内核象砖</h3>
+        <p>从 60 多块积木里挑一块：导数、双缝、Cache、注意力，全部自带可调参数和实时图形。</p>
+        <span class="mono-tag">60+ BRICKS · 5 SUBJECTS</span>
+      </article>
+      <article class="step">
+        <span class="step-no"><b>02</b> WIRE THEM UP</span>
+        <div class="step-ico" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="#34372f" stroke-width="1.2">
+            <circle cx="8" cy="23" r="3.4" fill="#fffdf8" />
+            <circle cx="24" cy="9" r="3.4" fill="#fffdf8" />
+            <path d="M11 21.5c4 0 4-9 9.5-10.5" stroke="#2234d4" stroke-dasharray="2 2.5" />
+            <path d="M17 8h8v8" stroke="#de421f" stroke-width="1" stroke-dasharray="2 2" />
+          </svg>
+        </div>
+        <h3>把数据口连起来</h3>
+        <p>拖一根线，让上游的参数流进下游。拖动一个滑块，整张作品一起响应——这是活的。</p>
+        <span class="mono-tag">LIVE PARAMS · NO CODE</span>
+      </article>
+      <article class="step">
+        <span class="step-no"><b>03</b> FIX THE FORM</span>
+        <div class="step-ico" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="none" stroke="#34372f" stroke-width="1.2">
+            <rect x="5" y="5" width="22" height="22" rx="2" fill="#fffdf8" />
+            <path d="M11 16.5l3.2 3.2 7-7.4" stroke="#0f766e" stroke-width="1.6" stroke-linecap="round" />
+            <circle cx="25.5" cy="6.5" r="2.4" fill="#de421f" stroke="none" />
+          </svg>
+        </div>
+        <h3>定象，然后装订成册</h3>
+        <p>保存为作品，或一键封装成册页，挂进通文册任意一页。别人打开，就能直接玩你的搭法。</p>
+        <span class="mono-tag">PUBLISH · BIND INTO ATLAS</span>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="dx-specimens" aria-labelledby="dx-spec-title">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow"><b>§ 03</b> SPECIMEN CABINET / 标本柜</p>
+        <h2 class="sec-title" id="dx-spec-title">先拆开一块，看看里面是什么</h2>
+      </div>
+      <p class="sec-note">每一张标本卡都是一块真的砖：打开就能调参，而不是看一张示意图。</p>
+    </div>
+    <div class="spec-tools" role="group" aria-label="按学科筛选标本">
+      <button class="fbtn on" type="button" data-filter="all">全部标本</button>
+      <button class="fbtn" type="button" data-filter="math">高等数学</button>
+      <button class="fbtn" type="button" data-filter="physics">大学物理</button>
+      <button class="fbtn" type="button" data-filter="cs">408 专题</button>
+      <button class="fbtn" type="button" data-filter="ai">深度学习</button>
+    </div>
+    <div class="spec-grid" id="specGrid">
+      <article class="spec" data-subject="math" data-act="specimen" data-name="把切线追到第三阶" role="button" tabindex="0">
+        <div class="spec-plot">
+          <span class="spec-tape" aria-hidden="true"></span>
+          <span class="spec-tag">MATH · 03</span>
+          <svg viewBox="0 0 240 142" aria-hidden="true">
+            <path d="M18 118h206M34 24v98" stroke="rgba(18,21,19,.2)" stroke-width="1" />
+            <path d="M34 24v-4M86 24v-4M138 24v-4M190 24v-4" stroke="rgba(18,21,19,.15)" />
+            <path d="M34 118c32-58 58-70 86-56s54 52 94-16" fill="none" stroke="#2234d4" stroke-width="2" />
+            <path d="M120 62l44 25" stroke="#de421f" stroke-width="1.2" stroke-dasharray="4 4" />
+            <circle class="p-dot" cx="120" cy="62" r="4.5" fill="#de421f" stroke="#fffdf8" stroke-width="2" />
+            <text x="28" y="16" font-family="Consolas,monospace" font-size="7" fill="#6b6e62">f′(x) = 0</text>
+          </svg>
+        </div>
+        <div class="spec-body">
+          <span class="spec-kicker">导数 · 曲率 · 泰勒聚光灯</span>
+          <h3>把切线追到第三阶</h3>
+          <p>单滑块驱动切线、曲率圆与泰勒逼近，误差热图实时重算。</p>
+          <div class="spec-foot"><span>6 块砖联动</span><b>打开标本 ↗</b></div>
+        </div>
+      </article>
+      <article class="spec" data-subject="physics" data-act="specimen" data-name="让光自己画出条纹" role="button" tabindex="0">
+        <div class="spec-plot">
+          <span class="spec-tape" aria-hidden="true"></span>
+          <span class="spec-tag">PHYS · 11</span>
+          <svg viewBox="0 0 240 142" aria-hidden="true">
+            <defs>
+              <linearGradient id="fringe" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#de421f" stop-opacity=".10" />
+                <stop offset=".5" stop-color="#de421f" stop-opacity=".34" />
+                <stop offset="1" stop-color="#de421f" stop-opacity=".10" />
+              </linearGradient>
+            </defs>
+            <rect x="82" y="12" width="3" height="118" fill="#34372f" opacity=".5" />
+            <rect x="90" y="12" width="3" height="118" fill="#34372f" opacity=".5" />
+            <rect x="112" y="14" width="16" height="114" fill="url(#fringe)" />
+            <rect x="148" y="14" width="16" height="114" fill="url(#fringe)" />
+            <rect x="184" y="14" width="16" height="114" fill="url(#fringe)" />
+            <rect x="214" y="14" width="8" height="114" fill="url(#fringe)" opacity=".6" />
+            <path d="M96 30c24 18 24 64 0 82" fill="none" stroke="#0f766e" stroke-width="1.2" stroke-dasharray="3 4" />
+            <path d="M96 44c30 10 30 44 0 54" fill="none" stroke="#0f766e" stroke-width="1" opacity=".5" stroke-dasharray="3 4" />
+            <text x="26" y="20" font-family="Consolas,monospace" font-size="7" fill="#6b6e62">λ = 632nm</text>
+          </svg>
+        </div>
+        <div class="spec-body">
+          <span class="spec-kicker">双缝 · 干涉 · 概率云</span>
+          <h3>让光自己画出条纹</h3>
+          <p>调波长、缝距与屏距，明暗条纹和单光子落点同步变化。</p>
+          <div class="spec-foot"><span>5 块砖联动</span><b>打开标本 ↗</b></div>
+        </div>
+      </article>
+      <article class="spec" data-subject="cs" data-act="specimen" data-name="把一次访存拆成账本" role="button" tabindex="0">
+        <div class="spec-plot">
+          <span class="spec-tape" aria-hidden="true"></span>
+          <span class="spec-tag">CS · 408 / 04</span>
+          <svg viewBox="0 0 240 142" aria-hidden="true">
+            <path d="M24 118h194" stroke="rgba(18,21,19,.22)" />
+            <g fill="#a47a2f">
+              <rect x="34" y="82" width="16" height="36" rx="1.5" />
+              <rect x="58" y="62" width="16" height="56" rx="1.5" />
+              <rect x="82" y="44" width="16" height="74" rx="1.5" />
+              <rect x="106" y="70" width="16" height="48" rx="1.5" opacity=".75" />
+              <rect x="130" y="34" width="16" height="84" rx="1.5" />
+              <rect x="154" y="56" width="16" height="62" rx="1.5" opacity=".8" />
+              <rect x="178" y="24" width="16" height="94" rx="1.5" fill="#de421f" opacity=".25" />
+              <rect x="178" y="74" width="16" height="44" rx="1.5" fill="#de421f" />
+            </g>
+            <path d="M24 96h194" stroke="#2234d4" stroke-width="1" stroke-dasharray="4 3" opacity=".65" />
+            <text x="26" y="20" font-family="Consolas,monospace" font-size="7" fill="#6b6e62">miss / 1000 ops</text>
+          </svg>
+        </div>
+        <div class="spec-body">
+          <span class="spec-kicker">Cache · 流水线 · 周期账本</span>
+          <h3>把一次访存拆成账本</h3>
+          <p>切换相联度与块大小，命中率、周期数和流水线气泡一起重排。</p>
+          <div class="spec-foot"><span>7 块砖联动</span><b>打开标本 ↗</b></div>
+        </div>
+      </article>
+      <article class="spec" data-subject="ai" data-act="specimen" data-name="看梯度怎么走下坡" role="button" tabindex="0">
+        <div class="spec-plot">
+          <span class="spec-tape" aria-hidden="true"></span>
+          <span class="spec-tag">AI · DL / 09</span>
+          <svg viewBox="0 0 240 142" aria-hidden="true">
+            <path d="M20 20v100h200" fill="none" stroke="rgba(18,21,19,.2)" />
+            <path d="M24 34c32 0 42 14 56 34s24 44 44 50 44 2 94-8" fill="none" stroke="#0f766e" stroke-width="2" />
+            <path d="M24 30c32 0 44 10 58 28s22 48 42 56 46 8 96 2" fill="none" stroke="#de421f" stroke-width="1.2" stroke-dasharray="4 5" opacity=".75" />
+            <circle cx="80" cy="68" r="3.5" fill="#0f766e" stroke="#fffdf8" stroke-width="1.5" />
+            <circle cx="124" cy="118" r="3.5" fill="#de421f" stroke="#fffdf8" stroke-width="1.5" />
+            <text x="150" y="34" font-family="Consolas,monospace" font-size="7" fill="#6b6e62">lr = 0.03</text>
+          </svg>
+        </div>
+        <div class="spec-body">
+          <span class="spec-kicker">反向传播 · 梯度 · 收敛地形</span>
+          <h3>看梯度怎么走下坡</h3>
+          <p>改学习率与动量，损失曲面、轨迹和激活分布现场重算。</p>
+          <div class="spec-foot"><span>6 块砖联动</span><b>打开标本 ↗</b></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <div class="liveband" aria-label="正在被搭建的作品">
+    <span class="liveband-label"><i aria-hidden="true"></i> LIVE / 正在被搭</span>
+    <div class="ticker-mask">
+      <div class="ticker">
+        <span><b>城市热岛 · 可调参数沙盘</b> <em>@林知远 · 7 块砖</em></span>
+        <span><b>双缝之外 · 单光子剧场</b> <em>@周见微 · 5 块砖</em></span>
+        <span><b>Cache 账本 · 四路组相联</b> <em>@Kai · 9 块砖</em></span>
+        <span><b>泰勒聚光灯 · 到第三阶</b> <em>@小满 · 6 块砖</em></span>
+        <span><b>城市热岛 · 可调参数沙盘</b> <em>@林知远 · 7 块砖</em></span>
+        <span><b>双缝之外 · 单光子剧场</b> <em>@周见微 · 5 块砖</em></span>
+        <span><b>Cache 账本 · 四路组相联</b> <em>@Kai · 9 块砖</em></span>
+        <span><b>泰勒聚光灯 · 到第三阶</b> <em>@小满 · 6 块砖</em></span>
+      </div>
+    </div>
+  </div>
+</div></section>
+  <section class="view" id="view-tw" aria-label="通文册"><div class="container">
+  <div class="tw-hero">
+    <div class="tw-intro">
+      <div>
+        <span class="badge"><i aria-hidden="true"></i> TONGWEN ATLAS · 通文成册</span>
+        <h1>不是课件，是<span class="hl">一本会呼吸的册。</span></h1>
+      </div>
+      <p>把定象坊里搭好的象砖，装进任何一页。读者翻开就能调、能玩、能带走。</p>
+    </div>
+
+    <div class="book-zone">
+      <div class="book">
+        <div class="page-l">
+          <span class="badge"><i aria-hidden="true"></i> VOL. 003 · 本周新装订</span>
+          <h2 class="tw-title">把死课件，<br />装订成<em style="font-style:normal;color:var(--red)">会动的册。</em></h2>
+          <p class="tw-lead">上传 PPTX、PDF 或图片，原稿排版一页不丢；再把<strong>定象坊</strong>的象砖嵌进任意一页。公式、滑块、曲线和参数，全部留在原位。</p>
+          <div class="actions">
+            <button class="btn btn-primary" type="button" data-act="read">翻开这一册 <span class="arr">↗</span></button>
+            <button class="btn btn-ghost" type="button" data-act="upload">上传 PPT 开始装订</button>
+          </div>
+          <div class="book-meta">
+            <span><b>128</b>册在架</span>
+            <span><b>137</b>人正在读</span>
+            <span><b>26</b>次本周装订</span>
+          </div>
+        </div>
+        <div class="page-r" id="rightPage" data-page="wave">
+          <div class="sheet" id="sheet">
+            <div class="sheet-top">
+              <span id="sheetTitle">第 07 页 · 傅里叶与信号</span>
+              <em>LIVE</em>
+            </div>
+            <div class="sheet-figure fig-wave">
+              <svg id="waveSvg" viewBox="0 0 460 240" aria-label="可调频率的傅里叶波形">
+                <g stroke="rgba(233,230,218,.08)" stroke-width="1">
+                  <line x1="20" y1="60" x2="440" y2="60" />
+                  <line x1="20" y1="120" x2="440" y2="120" />
+                  <line x1="20" y1="180" x2="440" y2="180" />
+                  <line x1="110" y1="24" x2="110" y2="216" />
+                  <line x1="230" y1="24" x2="230" y2="216" />
+                  <line x1="350" y1="24" x2="350" y2="216" />
+                </g>
+                <line x1="20" y1="120" x2="440" y2="120" stroke="rgba(233,230,218,.28)" stroke-width="1" />
+                <path id="wavePathGhost" d="" fill="none" stroke="rgba(243,200,107,.22)" stroke-width="1" stroke-dasharray="3 4" />
+                <path id="wavePathMain" d="" fill="none" stroke="#f3c86b" stroke-width="1.8" stroke-linecap="round" />
+                <circle id="waveDot" cx="0" cy="0" r="4" fill="#de421f" stroke="#fffdf8" stroke-width="1.4" />
+                <text x="24" y="18" font-family="Consolas,monospace" font-size="8" fill="rgba(233,230,218,.5)">y = sin(2πft · φ)</text>
+                <text id="waveReadout" x="436" y="224" text-anchor="end" font-family="Consolas,monospace" font-size="8" fill="rgba(233,230,218,.44)">f = 2.4 Hz</text>
+              </svg>
+              <span class="embed-chip">◈ 来自定象坊 · 函数砖</span>
+            </div>
+            <div class="sheet-figure fig-matrix">
+              <svg id="matrixSvg" viewBox="0 0 460 240" aria-label="矩阵变换示意图">
+                <defs>
+                  <marker id="arrowGold" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                    <path d="M0 0l6 3-6 3z" fill="#f3c86b" />
+                  </marker>
+                </defs>
+                <g fill="rgba(233,230,218,.28)">
+                  <circle cx="70" cy="60" r="1.4" /><circle cx="130" cy="60" r="1.4" /><circle cx="190" cy="60" r="1.4" /><circle cx="250" cy="60" r="1.4" /><circle cx="310" cy="60" r="1.4" /><circle cx="370" cy="60" r="1.4" />
+                  <circle cx="70" cy="120" r="1.4" /><circle cx="130" cy="120" r="1.4" /><circle cx="190" cy="120" r="1.4" /><circle cx="250" cy="120" r="1.4" /><circle cx="310" cy="120" r="1.4" /><circle cx="370" cy="120" r="1.4" />
+                  <circle cx="70" cy="180" r="1.4" /><circle cx="130" cy="180" r="1.4" /><circle cx="190" cy="180" r="1.4" /><circle cx="250" cy="180" r="1.4" /><circle cx="310" cy="180" r="1.4" /><circle cx="370" cy="180" r="1.4" />
+                </g>
+                <line x1="230" y1="30" x2="230" y2="210" stroke="rgba(233,230,218,.2)" />
+                <line x1="40" y1="120" x2="420" y2="120" stroke="rgba(233,230,218,.2)" />
+                <polygon points="160,74 282,58 328,152 192,176" fill="rgba(15,118,110,.16)" stroke="#4fc0b1" stroke-width="1.4" />
+                <polygon points="160,74 282,58 328,152 192,176" fill="none" stroke="#f3c86b" stroke-width="1" stroke-dasharray="4 4" transform="translate(10 -14)" opacity=".45" />
+                <circle cx="282" cy="58" r="4.5" fill="#de421f" stroke="#fffdf8" stroke-width="1.4" />
+                <path d="M60 206h64" stroke="#f3c86b" stroke-width="1.2" marker-end="url(#arrowGold)" />
+                <text x="64" y="198" font-family="Consolas,monospace" font-size="8" fill="rgba(243,200,107,.7)">x′=Ax</text>
+              </svg>
+              <span class="embed-chip">◈ 来自定象坊 · 矩阵砖</span>
+            </div>
+            <div class="sheet-control">
+              <label for="freq">频率</label>
+              <input id="freq" type="range" min="1" max="6" step="0.1" value="2.4" aria-label="调整波形频率" />
+              <output id="freqOut" for="freq">2.4 Hz</output>
+            </div>
+            <div class="sheet-foot">
+              <span id="sheetHint">拖动滑块 · 曲线实时重算</span>
+              <span class="mono" id="pageNo">PAGE 07 / 12</span>
+            </div>
+          </div>
+          <button class="flip-corner" id="flipCorner" type="button" aria-label="翻到下一页"><span>翻页 ↻</span></button>
+        </div>
+        <div class="book-ribbon" aria-hidden="true"></div>
+      </div>
+      <div class="book-caption mono">TONGWEN ATLAS · VOL.003 · 点右下角，试一次真翻页</div>
+    </div>
+
+    <div class="read-strip">
+      <div class="readers">
+        <div class="avatars" aria-hidden="true">
+          <span class="avatar">周</span><span class="avatar">K</span><span class="avatar">满</span><span class="avatar">+</span>
+        </div>
+        <span><b>137 人</b>正在读这一册</span>
+      </div>
+      <span class="mono">LAST BOUND 12 MIN AGO · BY @ZHOU</span>
+      <span>作者 <b>林知远</b> · 12 页 · 6 块象砖</span>
+    </div>
+  </div>
+
+  <section class="section" aria-labelledby="tw-bind-title">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow"><b>§ 02</b> BINDING LINE / 装订线</p>
+        <h2 class="sec-title" id="tw-bind-title">三次装订，把作品送上流通</h2>
+      </div>
+      <p class="sec-note">不用导出视频，不用录屏。册子本身就是演示现场。</p>
+    </div>
+    <div class="bind-flow">
+      <article class="station">
+        <span class="station-no">01</span>
+        <h3>导入原稿</h3>
+        <p>PPTX、PDF、图片直接拖进来，版式、字体和矢量元素原样保留。</p>
+        <span class="mono-tag">KEEP YOUR LAYOUT</span>
+        <svg class="station-art" width="54" height="54" viewBox="0 0 54 54" fill="none" aria-hidden="true">
+          <rect x="12" y="8" width="28" height="36" rx="2" stroke="rgba(18,21,19,.35)" />
+          <path d="M18 16h16M18 22h12M18 28h16" stroke="rgba(18,21,19,.2)" stroke-linecap="round" />
+          <path d="M30 34l8 8m0 0h-5m5 0v-5" stroke="#de421f" stroke-width="1.3" stroke-linecap="round" />
+        </svg>
+      </article>
+      <article class="station">
+        <span class="station-no">02</span>
+        <h3>嵌入象砖</h3>
+        <p>从定象坊把砖拖进任意一页，尺寸、层叠与数据口都跟着页面走。</p>
+        <span class="mono-tag">DROP A BRICK IN PLACE</span>
+        <svg class="station-art" width="62" height="54" viewBox="0 0 62 54" fill="none" aria-hidden="true">
+          <path d="M18 18l12-7 12 7v14l-12 7-12-7V18z" fill="#eef1ff" stroke="#2234d4" stroke-linejoin="round" />
+          <path d="M18 18l12 7 12-7M30 25v14" stroke="#2234d4" />
+          <path d="M46 38l8 8m0 0h-5m5 0v-5" stroke="#de421f" stroke-width="1.3" stroke-linecap="round" />
+        </svg>
+      </article>
+      <article class="station">
+        <span class="station-no">03</span>
+        <h3>发放流通</h3>
+        <p>一条链接、一个二维码，或单文件 HTML；断网教室里也能照常翻、照常算。</p>
+        <span class="mono-tag">LINK · QR · OFFLINE HTML</span>
+        <svg class="station-art" width="58" height="54" viewBox="0 0 58 54" fill="none" aria-hidden="true">
+          <circle cx="22" cy="27" r="13" stroke="rgba(18,21,19,.35)" />
+          <circle cx="36" cy="27" r="13" stroke="rgba(18,21,19,.22)" stroke-dasharray="3 3" />
+          <circle cx="29" cy="27" r="3" fill="#de421f" />
+          <path d="M47 18l4 4-4 4M51 22h-7" stroke="#0f766e" stroke-width="1.3" stroke-linecap="round" />
+        </svg>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="tw-shelf-title">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow"><b>§ 03</b> ON THE SHELF / 流通中的册</p>
+        <h2 class="sec-title" id="tw-shelf-title">别人正在翻阅的册</h2>
+      </div>
+      <p class="sec-note">公开的册可以被翻阅、被装订、被续写；你搭的砖，会出现在陌生人的页上。</p>
+    </div>
+    <div class="shelf-grid">
+      <article class="atlas-card">
+        <div class="cover cover--ink" data-act="open-atlas" data-name="波动、光与傅里叶" role="button" tabindex="0">
+          <span class="cover-spine">TONGWEN ATLAS · VOL.003</span>
+          <div class="cover-top"><span>林知远 编</span><span>2026 · 冬</span></div>
+          <div class="cover-art">
+            <svg viewBox="0 0 220 150" fill="none" aria-hidden="true">
+              <path d="M10 96c28-64 52-68 78-30s52 40 122-14" stroke="#f3c86b" stroke-width="1.4" opacity=".8" />
+              <path d="M10 112c28-64 52-68 78-30s52 40 122-14" stroke="#f3c86b" stroke-width="1" opacity=".4" stroke-dasharray="4 4" />
+              <path d="M10 80c28-64 52-68 78-30s52 40 122-14" stroke="#de421f" stroke-width="1" opacity=".55" />
+              <circle class="cover-dot" cx="96" cy="82" r="4.5" fill="#f3c86b" />
+              <circle cx="196" cy="52" r="2.5" fill="#de421f" />
+            </svg>
+          </div>
+          <div class="cover-type">
+            <small>交互讲义 / 12 页 / 6 块砖</small>
+            <h3>波动、光<br />与傅里叶</h3>
+            <span>ANGLE · FREQUENCY · PHASE</span>
+          </div>
+          <span class="cover-seal">通</span>
+          <div class="cover-open">翻开这本册 →</div>
+        </div>
+        <div class="atlas-foot"><span>2,341 次翻阅</span><b>本周 +128</b></div>
+      </article>
+
+      <article class="atlas-card">
+        <div class="cover cover--blue" data-act="open-atlas" data-name="矩阵之后" role="button" tabindex="0">
+          <span class="cover-spine">TONGWEN ATLAS · VOL.008</span>
+          <div class="cover-top"><span>周见微 编</span><span>2026 · 冬</span></div>
+          <div class="cover-art">
+            <svg viewBox="0 0 220 150" fill="none" aria-hidden="true">
+              <g stroke="rgba(255,255,255,.22)" stroke-width=".8">
+                <path d="M110 24l74 42-74 42-74-42 74-42z" />
+                <path d="M36 66l74 42v34l-74-42V66z" />
+                <path d="M184 66l-74 42v34l74-42V66z" />
+                <path d="M74 45l74 42M148 45L74 87" />
+              </g>
+              <path d="M110 46l40 23-40 23-40-23 40-23z" fill="rgba(243,200,107,.16)" stroke="#f3c86b" stroke-width="1.2" />
+              <circle cx="150" cy="69" r="3.5" fill="#de421f" />
+            </svg>
+          </div>
+          <div class="cover-type">
+            <small>线性代数 / 16 页 / 9 块砖</small>
+            <h3>矩阵之后，<br />空间才刚开始</h3>
+            <span>BASIS · SPAN · EIGEN</span>
+          </div>
+          <span class="cover-seal">文</span>
+          <div class="cover-open">翻开这本册 →</div>
+        </div>
+        <div class="atlas-foot"><span>1,860 次翻阅</span><b>本周 +94</b></div>
+      </article>
+
+      <article class="atlas-card">
+        <div class="cover cover--red" data-act="open-atlas" data-name="算法之眼" role="button" tabindex="0">
+          <span class="cover-spine">TONGWEN ATLAS · VOL.011</span>
+          <div class="cover-top"><span>Kai 编</span><span>2026 · 冬</span></div>
+          <div class="cover-art">
+            <svg viewBox="0 0 220 150" aria-hidden="true">
+              <g fill="rgba(255,253,248,.5)">
+                <circle cx="58" cy="50" r="1.6" /><circle cx="74" cy="50" r="1.6" /><circle cx="90" cy="50" r="1.6" /><circle cx="106" cy="50" r="1.6" /><circle cx="122" cy="50" r="1.6" /><circle cx="138" cy="50" r="1.6" />
+                <circle cx="50" cy="66" r="1.9" /><circle cx="66" cy="66" r="1.9" /><circle cx="82" cy="66" r="1.9" /><circle cx="98" cy="66" r="1.9" /><circle cx="114" cy="66" r="1.9" /><circle cx="130" cy="66" r="1.9" /><circle cx="146" cy="66" r="1.9" />
+                <circle cx="58" cy="82" r="2.3" /><circle cx="74" cy="82" r="2.3" /><circle cx="90" cy="82" r="2.3" /><circle cx="106" cy="82" r="2.3" /><circle cx="122" cy="82" r="2.3" /><circle cx="138" cy="82" r="2.3" />
+              </g>
+              <path d="M34 112h152" stroke="rgba(255,253,248,.4)" />
+              <path d="M48 112V92M72 112V74M96 112V84M120 112V60M144 112V80M168 112V52" stroke="#f7e9d8" stroke-width="1.5" />
+            </svg>
+          </div>
+          <div class="cover-type">
+            <small>计算机系统 / 20 页 / 14 块砖</small>
+            <h3>算法<br />之眼</h3>
+            <span>CACHE · PIPELINE · COST</span>
+          </div>
+          <span class="cover-seal">册</span>
+          <div class="cover-open">翻开这本册 →</div>
+        </div>
+        <div class="atlas-foot"><span>1,204 次翻阅</span><b>本周 +61</b></div>
+      </article>
+
+      <article class="atlas-card">
+        <div class="cover cover--make" role="button" tabindex="0" data-act="new-atlas">
+          <div class="cover-plus" aria-hidden="true">＋</div>
+          <strong>做一本自己的册</strong>
+          <p>从一份旧 PPT 开始，或直接从定象坊取砖。第一本册，今天就能发出去。</p>
+          <div class="actions" style="margin-top:16px">
+            <span class="btn btn-primary btn-sm">开始装订 <span class="arr">↗</span></span>
+          </div>
+        </div>
+        <div class="atlas-foot"><span>你的第 01 卷</span><b>等待开页</b></div>
+      </article>
+    </div>
+  </section>
+</div></section>
+  <section class="view" id="view-me" aria-label="个人主页"><div class="container me-page" id="mePage">
+  <div class="me-hero">
+    <section class="id-card" aria-label="创作者档案">
+      <div class="id-top">
+        <div class="id-avatar" aria-hidden="true">知</div>
+        <div class="id-meta">
+          <span class="mono">CREATOR FILE · 026</span>
+          <h1>林知远 <span>@linzhiyuan</span></h1>
+          <p>同济 · 数学可视化 / 交互设计</p>
+          <span class="id-now owner-only"><i aria-hidden="true"></i>正在搭 · 城市热岛 <b>89%</b></span>
+        </div>
+        <span class="name-seal" aria-hidden="true"><i>远</i><i>林</i><i>印</i><i>知</i></span>
+      </div>
+      <p class="id-bio">在定象坊搭关于波动、城市与概率的砖；把实验室里不敢讲的直觉，装订成可以传阅的册。相信公式应该能被摸到。</p>
+      <div class="id-tags">
+        <span># 波动与场</span><span># 数据叙事</span><span># 空间直觉</span>
+      </div>
+      <div class="id-stats">
+        <div><b>12</b><small>公开作品</small></div>
+        <div><b>4</b><small>已装订的册</small></div>
+        <div><b>86</b><small>被装订</small></div>
+        <div><b>219</b><small>同路人</small></div>
+      </div>
+      <div class="ink-cal">
+        <div class="ink-cal-head">
+          <span class="mono">INK LOG · 近 26 周落墨 <b id="inkTotal">0</b> 次</span>
+          <span class="ink-legend mono" aria-hidden="true">淡<i data-l="1"></i><i data-l="2"></i><i data-l="3"></i><i data-l="4"></i>浓</span>
+        </div>
+        <div class="ink-cal-grid" id="inkCal" role="img" aria-label="近 26 周的创作印痕"></div>
+        <div class="ink-cal-axis mono" aria-hidden="true"><span>6月</span><span>7月</span><span>8月</span><span>9月</span><span>10月</span><span>11月</span></div>
+      </div>
+      <div class="id-actions">
+        <button class="btn btn-primary owner-only" type="button" data-act="edit-profile">编辑主页 <span class="arr">↗</span></button>
+        <button class="btn btn-ghost owner-only" type="button" data-act="copy-link">复制主页链接</button>
+        <div class="viewswitch" role="group" aria-label="切换浏览视角">
+          <button class="on" type="button" data-view="owner">主人视角</button>
+          <button type="button" data-view="visitor">访客视角</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="continue owner-only" aria-label="继续上次">
+      <div class="continue-head">
+        <span>PICK UP / 继续上次</span>
+        <span class="pill"><b>草稿</b> 89%</span>
+      </div>
+      <div class="continue-art" aria-hidden="true">
+        <svg viewBox="0 0 420 210">
+          <g opacity=".22" stroke="rgba(255,255,255,.14)" stroke-width=".8">
+            <path d="M40 140l170-96 170 96-170 96-170-96z" fill="none" />
+            <path d="M40 140l170 96v22L40 162v-22M380 140l-170 96v22l170-96v-22" fill="none" />
+            <path d="M78 118l170-96M154 74L324 170M212 40v192M288 84L118 180" />
+          </g>
+          <g>
+            <polygon points="150,92 198,120 150,148 102,120" fill="#3b4cdd" />
+            <polygon points="102,120 150,148 150,182 102,154" fill="#2637b8" />
+            <polygon points="198,120 150,148 150,182 198,154" fill="#182580" />
+            <polygon points="150,62 182,80 150,98 118,80" fill="#6673e8" />
+            <polygon points="118,80 150,98 150,116 118,98" fill="#3948c9" />
+            <polygon points="182,80 150,98 150,116 182,98" fill="#2534a7" />
+            <polygon points="258,112 298,134 258,156 218,134" fill="#de421f" opacity=".92" />
+            <polygon points="218,134 258,156 258,182 218,160" fill="#b83217" />
+            <polygon points="298,134 258,156 258,182 298,160" fill="#8f2814" />
+          </g>
+          <path d="M96 68c34-22 62 22 92 6s44-30 82-12" fill="none" stroke="#f3c86b" stroke-width="1.4" stroke-dasharray="4 4" opacity=".75" />
+          <circle cx="270" cy="62" r="3.5" fill="#f3c86b" />
+          <text x="300" y="66" font-family="Consolas,monospace" font-size="8" fill="rgba(243,200,107,.65)">ΔT 4.8°C</text>
+          <text x="92" y="184" font-family="Consolas,monospace" font-size="8" fill="rgba(245,242,232,.32)">7 BRICKS · 12 PARAMS</text>
+        </svg>
+      </div>
+      <div class="continue-body">
+        <h2>城市热岛 · 可调参数沙盘</h2>
+        <p>7 块象砖 · 12 个参数 · 上次编辑 2 小时前</p>
+        <div class="progress" aria-hidden="true"><i style="width:89%"></i></div>
+        <div class="actions">
+          <button class="btn btn-primary" type="button" data-act="resume">继续搭建 <span class="arr">→</span></button>
+          <button class="btn btn-ghost btn-sm" type="button" data-act="versions">查看版本</button>
+        </div>
+      </div>
+      <div class="continue-foot">↳ 封成册后，会出现在通文册第 004 卷</div>
+    </section>
+
+    <section class="visitor-card" aria-label="访客视角提示">
+      <div>
+        <span class="mono">VISITOR VIEW · 你正在以访客身份浏览</span>
+        <h2>林知远公开了 8 件作品与 4 本册</h2>
+        <p>关注他，下一次装订与更新会出现在你的通文册书架上。</p>
+        <div class="visitor-shelf">
+          <span class="mono">PUBLIC ATLAS · 公开的册</span>
+          <div class="visitor-books">
+            <span class="vbook vbook--ink">波动、光<br />与傅里叶</span>
+            <span class="vbook vbook--blue">矩阵之后</span>
+            <span class="vbook vbook--red">算法之眼</span>
+            <span class="vbook vbook--more">＋ 1 本</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-red" type="button" data-act="follow">＋ 关注创作者</button>
+          <button class="btn btn-ghost" type="button" data-act="open-shelf">打开他的公开册</button>
+        </div>
+      </div>
+      <div class="visitor-quote">
+        “差的不是动画，是让学生亲手把一个参数推到极端，看见模型怎么崩溃。”
+        <small>来自《波动、光与傅里叶》· 第 09 页</small>
+      </div>
+    </section>
+  </div>
+
+  <section class="section" aria-labelledby="map-title">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow"><b>§ 01</b> CONSTELLATION / 作品星图</p>
+        <h2 class="sec-title" id="map-title">把散落的作品，连成一张图</h2>
+      </div>
+      <div class="map-tools" role="group" aria-label="筛选星图">
+        <button class="fbtn on" type="button" data-map-filter="all">全部</button>
+        <button class="fbtn" type="button" data-map-filter="work">作品</button>
+        <button class="fbtn" type="button" data-map-filter="atlas">册</button>
+        <button class="fbtn" type="button" data-map-filter="brick">砖</button>
+      </div>
+    </div>
+    <div class="map-wrap">
+      <div class="map-panel">
+        <svg id="mapSvg" viewBox="0 0 800 470" role="img" aria-label="作品关系星图，点击节点查看详情">
+          <g id="mapLayer"></g>
+        </svg>
+        <span class="map-scroll-hint mono">左右滑动查看完整星图 →</span>
+        <div class="map-legend" aria-hidden="true">
+          <span><i class="legend-dot" style="background:#2234d4"></i>作品</span>
+          <span><i class="legend-dot" style="background:#de421f"></i>册</span>
+          <span><i class="legend-dot" style="background:#0f766e"></i>象砖</span>
+          <span><i class="legend-dot" style="background:#a47a2f;border-radius:50%"></i>关系线</span>
+        </div>
+      </div>
+      <aside class="map-detail" id="mapDetail" aria-live="polite">
+        <div class="map-detail-art" id="mapDetailArt"></div>
+        <span class="mono" id="mapDetailKind">WORK · 交互作品</span>
+        <h3 id="mapDetailTitle">城市热岛 · 可调参数沙盘</h3>
+        <p id="mapDetailDesc">7 块象砖串成的地表能量模型，拖动反照率与绿化率，看见城市一整天的温度曲线。</p>
+        <dl>
+          <div><dt>象砖</dt><dd id="mapDetailBricks">7 块</dd></div>
+          <div><dt>被装订</dt><dd id="mapDetailBound">12 次</dd></div>
+          <div><dt>最近更新</dt><dd id="mapDetailTime">2 小时前</dd></div>
+          <div><dt>可见性</dt><dd id="mapDetailVisibility">公开</dd></div>
+        </dl>
+        <div class="actions">
+          <button class="btn btn-primary btn-sm" type="button" data-act="open-node">打开 <span class="arr">↗</span></button>
+          <button class="btn btn-ghost btn-sm" type="button" data-act="bind-node">装订进册</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="desk-title">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow"><b>§ 02</b> THE DESK / 我的书桌</p>
+        <h2 class="sec-title" id="desk-title">最近在桌面上的东西</h2>
+      </div>
+      <p class="sec-note">不必先整理好再开始。它们本来就是从一张乱桌子长出来的。</p>
+    </div>
+    <div class="desk-grid">
+      <div class="desk-col">
+        <div class="desk-head"><b>还在搭</b><span>DRAFTS · 03</span></div>
+        <a class="desk-item" href="#dx" data-goto="dx">
+          <span class="desk-glyph desk-glyph--blue" aria-hidden="true">热</span>
+          <div><b>城市热岛 · 参数沙盘</b><small>7 块砖 · 2 小时前</small><span class="desk-bar" aria-hidden="true"><i style="width:89%"></i></span></div>
+          <span class="desk-pct mono">89%</span>
+        </a>
+        <a class="desk-item" href="#dx" data-goto="dx">
+          <span class="desk-glyph desk-glyph--teal" aria-hidden="true">波</span>
+          <div><b>傅里叶讲义 · 第三版</b><small>11 块砖 · 昨天</small><span class="desk-bar" aria-hidden="true"><i style="width:42%"></i></span></div>
+          <span class="desk-pct mono">42%</span>
+        </a>
+        <a class="desk-item" href="#dx" data-goto="dx">
+          <span class="desk-glyph desk-glyph--red" aria-hidden="true">概</span>
+          <div><b>概率剧场 · 大数定律</b><small>6 块砖 · 3 天前</small><span class="desk-bar" aria-hidden="true"><i style="width:12%"></i></span></div>
+          <span class="desk-pct mono">12%</span>
+        </a>
+        <a class="desk-more" href="#dx" data-goto="dx">＋ 开一张新的建造台</a>
+      </div>
+      <div class="desk-col">
+        <div class="desk-head"><b>刚装订</b><span>ATLAS · 04</span></div>
+        <a class="desk-item" href="#tw" data-goto="tw">
+          <span class="desk-book desk-book--ink" aria-hidden="true"><em>波动</em></span>
+          <div><b>《波动、光与傅里叶》</b><small>12 页 · 137 人正在读</small></div>
+          <span class="go" aria-hidden="true">→</span>
+        </a>
+        <a class="desk-item" href="#tw" data-goto="tw">
+          <span class="desk-book desk-book--blue" aria-hidden="true"><em>矩阵</em></span>
+          <div><b>《矩阵之后》</b><small>16 页 · 被装订 24 次</small></div>
+          <span class="go" aria-hidden="true">→</span>
+        </a>
+        <a class="desk-item" href="#tw" data-goto="tw">
+          <span class="desk-book desk-book--teal" aria-hidden="true"><em>场论</em></span>
+          <div><b>《给高中生的场论》</b><small>9 页 · 草稿已封存</small></div>
+          <span class="go" aria-hidden="true">→</span>
+        </a>
+        <a class="desk-more" href="#tw" data-goto="tw">查看全部 4 本册</a>
+      </div>
+      <div class="desk-col">
+        <div class="desk-head"><b>正在被取用</b><span>REUSED · 07</span></div>
+        <a class="desk-item" href="#tw" data-goto="tw">
+          <span class="desk-glyph desk-glyph--blue" aria-hidden="true">ƒ</span>
+          <div><b>「泰勒聚光灯」砖</b><small>被 6 本册装订</small></div>
+          <span class="desk-uses" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        </a>
+        <a class="desk-item" href="#tw" data-goto="tw">
+          <span class="desk-glyph desk-glyph--teal" aria-hidden="true">⇀</span>
+          <div><b>「向量场采样」砖</b><small>被 4 本册装订</small></div>
+          <span class="desk-uses" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        </a>
+        <a class="desk-item" href="#tw" data-goto="tw">
+          <span class="desk-glyph desk-glyph--red" aria-hidden="true">P</span>
+          <div><b>「大数定律」砖</b><small>今天被 @周见微 取用</small></div>
+          <span class="desk-new mono">NEW</span>
+        </a>
+        <a class="desk-more" href="#tw" data-goto="tw">查看砖的流通记录</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="years-title">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow"><b>§ 03</b> RINGS / 创作年轮</p>
+        <h2 class="sec-title" id="years-title">一些被留下的刻度</h2>
+      </div>
+      <p class="sec-note">公开主页不是简历，是一棵树怎么长出来的证据。</p>
+    </div>
+    <div class="rings">
+      <figure class="rings-art">
+        <svg id="ringSvg" viewBox="0 0 400 420" role="img" aria-label="创作年轮：每一圈是一个季度，标号是被留下的刻度"></svg>
+        <figcaption class="mono">TRUNK SECTION · 2024 秋 — 2026 冬 · 9 圈</figcaption>
+      </figure>
+      <ol class="ring-list">
+        <li class="ring-item" data-ring="0" tabindex="0">
+          <span class="ring-no">01</span>
+          <div><time>2024 · 秋</time><b>第一张建造台</b><p>把高数笔记拆成 23 块积木，第一次发现公式可以拖。</p></div>
+          <span class="ring-metric mono">23 块砖</span>
+        </li>
+        <li class="ring-item" data-ring="1" tabindex="0">
+          <span class="ring-no">02</span>
+          <div><time>2025 · 春</time><b>第一本册被装订</b><p>《矩阵之后》被 3 位老师拿去上课，收到第一封长信。</p></div>
+          <span class="ring-metric mono">3 间教室</span>
+        </li>
+        <li class="ring-item" data-ring="2" tabindex="0">
+          <span class="ring-no">03</span>
+          <div><time>2025 · 冬</time><b>收录进公共标本柜</b><p>「双缝之外」成为通文册本周被翻阅最多的册。</p></div>
+          <span class="ring-metric mono">1.2k 次翻阅</span>
+        </li>
+        <li class="ring-item is-on" data-ring="3" tabindex="0">
+          <span class="ring-no">04</span>
+          <div><time>2026 · 冬</time><b>开始搭一座城市</b><p>把热岛、风廊与人群流线放进同一张建造台。</p></div>
+          <span class="ring-metric mono">正在长</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+</div></section>
+</main>
+
+<footer class="page-foot">
+  <div class="container">
+    <p>CREATIVE PROPOSAL · 定象坊 × 通文册 · 纸 / 墨 / 真计算</p>
+    <div class="foot-links">
+      <a href="#dx">定象坊</a>
+      <a href="#tw">通文册</a>
+      <a href="#me">个人主页</a>
+    </div>
+    <p>沿用现有按钮 / 纸面 / 朱砂与钴蓝语言 · 仅展示概念</p>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- 基础工具 ---------- */
+  const $ = (s, root) => (root || document).querySelector(s);
+  const $$ = (s, root) => Array.from((root || document).querySelectorAll(s));
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const toastEl = $('#toast');
+  let toastTimer = 0;
+  function toast(message) {
+    toastEl.textContent = message;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+  }
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand('copy'); } catch (err) { /* noop */ }
+    area.remove();
+    return Promise.resolve();
+  }
+
+  /* ---------- 视图切换 ---------- */
+  const viewNames = ['dx', 'tw', 'me'];
+  const tabs = $$('.tab');
+  const tabInk = $('#tabInk');
+  function positionTabInk() {
+    const active = $('.tab.is-active');
+    if (!active || !tabInk) return;
+    const parent = $('.tabs').getBoundingClientRect();
+    const rect = active.getBoundingClientRect();
+    tabInk.style.left = (rect.left - parent.left) + 'px';
+    tabInk.style.width = rect.width + 'px';
+  }
+  function setView(name, writeHash) {
+    if (!viewNames.includes(name)) name = 'dx';
+    $$('.view').forEach(view => view.classList.toggle('is-active', view.id === 'view-' + name));
+    tabs.forEach(tab => {
+      const on = tab.dataset.tab === name;
+      tab.classList.toggle('is-active', on);
+      if (on) tab.setAttribute('aria-current', 'page');
+      else tab.removeAttribute('aria-current');
+    });
+    if (writeHash !== false) history.replaceState(null, '', '#' + name);
+    requestAnimationFrame(positionTabInk);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+  tabs.forEach(tab => {
+    tab.addEventListener('click', event => {
+      event.preventDefault();
+      setView(tab.dataset.tab);
+    });
+  });
+  window.addEventListener('hashchange', () => {
+    setView((location.hash || '#dx').slice(1), false);
+  });
+  window.addEventListener('resize', positionTabInk);
+  window.addEventListener('load', positionTabInk);
+
+/* ---------- 活字排字台 ---------- */
+  const SLOT = { x: 47, y: 336, w: 64, h: 100, gap: 5, count: 6 };
+  const TYPE = { w: 56, h: 90 };
+  const SHEET = { x: 36, y: 56, w: 428, h: 232 };
+  const CHART = { x: 66, y: 152, w: 368, h: 88, lo: 12, hi: 38 };
+  const slotX = index => SLOT.x + index * (SLOT.w + SLOT.gap);
+  const slotCx = index => slotX(index) + SLOT.w / 2;
+  const BLOCK_STYLE = {
+    func: { color: '#2234d4', dark: '#101a63', name: '函数砖', sub: '曲线 / 导数', glyph: 'ƒ', code: 'FN' },
+    prob: { color: '#c73c1d', dark: '#7c2412', name: '概率砖', sub: '分布 / 抽样', glyph: 'P', code: 'PR' },
+    field: { color: '#0f766e', dark: '#08403b', name: '场砖', sub: '向量 / 通量', glyph: '⇀', code: 'FD' },
+    data: { color: '#a47a2f', dark: '#614312', name: '数据砖', sub: '表格 / 周期', glyph: '▥', code: 'DT' },
+    text: { color: '#2b2f29', dark: '#11140f', name: '文字砖', sub: '注释 / 旁白', glyph: '文', code: 'TX' },
+  };
+  const scene = $('#isoScene');
+  const gridLayer = $('#isoGrid');
+  const slotLayer = $('#isoSlots');
+  const blockLayer = $('#isoBlocks');
+  const annoLayer = $('#isoAnnotations');
+  const dropSlots = [3, 4, 5];
+  let blocks = [
+    { slot: 0, type: 'func' },
+    { slot: 1, type: 'prob' },
+    { slot: 2, type: 'field' },
+  ];
+  let added = 0;
+
+  function heatCurve(peak, swing, x0, y0, w, h) {
+    const min = peak - swing;
+    let d = '';
+    for (let i = 0; i <= 96; i++) {
+      const hour = i / 4;
+      const temp = min + swing * Math.pow((Math.cos((hour - 15) / 24 * Math.PI * 2) + 1) / 2, 1.7);
+      const px = x0 + (hour / 24) * w;
+      const py = y0 + h - ((temp - CHART.lo) / (CHART.hi - CHART.lo)) * h;
+      d += (i ? 'L' : 'M') + px.toFixed(1) + ' ' + py.toFixed(1);
+    }
+    return d;
+  }
+
+  /* 印样：排出来的一行活字，现场印成一张会动的图 */
+  function sheetMarkup() {
+    const { x, y, w, h } = SHEET;
+    const c = CHART;
+    const cx = x + w / 2, cy = y + h / 2;
+    let out = '<rect x="' + (x + 6) + '" y="' + (y + 14) + '" width="' + w + '" height="' + h + '" rx="3" fill="rgba(48,35,14,.2)" filter="url(#softShadow)"/>';
+    out += '<g class="pr-sheet" transform="rotate(-1.1 ' + cx + ' ' + cy + ')">';
+    out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="2" fill="url(#paperGrad)" stroke="rgba(54,40,18,.22)"/>';
+    out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="2" fill="url(#paperFiber)" opacity=".5"/>';
+    [[x + 10, y + 10, 1, 1], [x + w - 10, y + 10, -1, 1], [x + 10, y + h - 10, 1, -1], [x + w - 10, y + h - 10, -1, -1]].forEach(([mx, my, sx, sy]) => {
+      out += '<path d="M' + mx + ' ' + (my + sy * 9) + 'V' + my + 'H' + (mx + sx * 9) + '" fill="none" stroke="rgba(199,60,29,.5)" stroke-width=".8"/>';
+    });
+    out += '<g class="pr-ink" filter="url(#inkPress)">';
+    out += '<text class="pr-head" x="' + (x + 24) + '" y="' + (y + 28) + '">PROOF 03 · 城市热岛</text>';
+    out += '<text class="pr-meta" id="proofMeta" x="' + (x + w - 24) + '" y="' + (y + 28) + '" text-anchor="end">' + String(blocks.length).padStart(2, '0') + ' / 06 SORTS · No.07</text>';
+    out += '<line x1="' + (x + 24) + '" y1="' + (y + 36) + '" x2="' + (x + w - 24) + '" y2="' + (y + 36) + '" stroke="rgba(54,40,18,.32)"/>';
+    for (let i = 0; i < SLOT.count; i++) {
+      const block = blocks.find(b => b.slot === i);
+      const gx = slotCx(i);
+      if (block) {
+        const style = BLOCK_STYLE[block.type];
+        out += '<text class="pr-glyph" x="' + gx + '" y="' + (y + 68) + '" text-anchor="middle" fill="' + style.color + '">' + style.glyph + '</text>';
+        out += '<text class="pr-code" x="' + gx + '" y="' + (y + 82) + '" text-anchor="middle">' + (block.code || style.code) + '</text>';
+      } else {
+        out += '<rect x="' + (gx - 9) + '" y="' + (y + 50) + '" width="18" height="22" fill="none" stroke="rgba(54,40,18,.18)" stroke-dasharray="2 2"/>';
+      }
+    }
+    out += '<line x1="' + (x + 24) + '" y1="' + (y + 90) + '" x2="' + (x + w - 24) + '" y2="' + (y + 90) + '" stroke="rgba(54,40,18,.18)" stroke-dasharray="1 3"/>';
+    [18, 26, 34].forEach(t => {
+      const ty = c.y + c.h - ((t - c.lo) / (c.hi - c.lo)) * c.h;
+      out += '<line x1="' + c.x + '" y1="' + ty + '" x2="' + (c.x + c.w) + '" y2="' + ty + '" stroke="rgba(54,40,18,.09)"/>';
+      out += '<text class="pr-tick" x="' + (c.x - 6) + '" y="' + (ty + 2) + '" text-anchor="end">' + t + '°</text>';
+    });
+    ['00H', '06H', '12H', '18H', '24H'].forEach((label, i) => {
+      out += '<text class="pr-tick" x="' + (c.x + c.w * i / 4) + '" y="' + (c.y + c.h + 12) + '" text-anchor="middle">' + label + '</text>';
+    });
+    out += '<path class="pr-base" d="' + heatCurve(31.4, 8.4 + 0.62 * 3, c.x, c.y, c.w, c.h) + '"/>';
+    out += '<path id="proofArea" fill="url(#inkFill)" d=""/>';
+    out += '<path id="proofCurve" class="pr-curve" pathLength="1" d=""/>';
+    out += '<g id="proofPeak"><line class="pr-leader" x1="0" y1="0" x2="0" y2="-16"/><circle r="3" fill="#c73c1d" stroke="#fbf5e9" stroke-width="1.4"/>' +
+      '<text class="pr-peak" id="proofTemp" x="5" y="-19">31.4°C</text></g>';
+    out += '<text class="pr-foot" x="' + (x + 24) + '" y="' + (y + h - 16) + '">INK 03 · REAL KERNEL · 实时重印</text>';
+    out += '<text class="pr-foot" x="' + (x + w - 62) + '" y="' + (y + h - 16) + '" text-anchor="end">— 基准 · 实印</text>';
+    out += '</g>';
+    out += '<g transform="translate(' + (x + w - 52) + ' ' + (y + h - 44) + ') rotate(-7)">' +
+      '<rect width="30" height="30" rx="3" fill="rgba(199,60,29,.08)" stroke="rgba(199,60,29,.7)" stroke-width="1.2"/>' +
+      '<text x="15" y="21" text-anchor="middle" class="pr-seal">定</text></g>';
+    out += '<rect class="pr-scan" x="' + x + '" y="' + (y + 4) + '" width="18" height="' + (h - 8) + '" fill="url(#scanGrad)"/>';
+    out += '</g>';
+    [x + 96, x + w - 96].forEach(gx => {
+      out += '<rect x="' + (gx - 14) + '" y="' + (y - 7) + '" width="28" height="13" rx="2" fill="url(#brassGrad)" stroke="rgba(54,40,18,.45)" stroke-width=".7"/>' +
+        '<circle cx="' + gx + '" cy="' + (y - 1) + '" r="1.8" fill="#5b4220"/>';
+    });
+    return out;
+  }
+
+  /* 排字手托：黄铜托板 + 胡桃木槽 + 随行推进的铜挡块 */
+  function stickMarkup() {
+    const x = 24, y = 318, w = 452, h = 138;
+    const clampX = slotX(blocks.length) - 4;
+    let out = '<rect x="' + (x + 8) + '" y="' + (y + 18) + '" width="' + w + '" height="' + h + '" rx="10" fill="rgba(48,35,14,.3)" filter="url(#softShadow)"/>';
+    out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="8" fill="url(#woodGrad)" stroke="#23180d"/>';
+    out += '<path d="M' + (x + 14) + ' ' + (y + 60) + ' C' + (x + 140) + ' ' + (y + 52) + ' ' + (x + 300) + ' ' + (y + 72) + ' ' + (x + w - 14) + ' ' + (y + 58) + '" fill="none" stroke="rgba(255,238,200,.06)"/>';
+    out += '<path d="M' + (x + 14) + ' ' + (y + 104) + ' C' + (x + 160) + ' ' + (y + 96) + ' ' + (x + 320) + ' ' + (y + 116) + ' ' + (x + w - 14) + ' ' + (y + 102) + '" fill="none" stroke="rgba(255,238,200,.05)"/>';
+    out += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="14" rx="4" fill="url(#brassGrad)" stroke="rgba(54,40,18,.5)"/>';
+    for (let i = 0; i <= SLOT.count * 4; i++) {
+      const tx = SLOT.x + i * (SLOT.w + SLOT.gap) / 4 - 2.5;
+      out += '<line x1="' + tx + '" y1="' + (y + 2) + '" x2="' + tx + '" y2="' + (y + (i % 4 ? 5 : 9)) + '" stroke="rgba(54,40,18,.6)" stroke-width=".7"/>';
+    }
+    out += '<text class="co-rail-label" x="' + (x + 10) + '" y="' + (y + 11.5) + '">SET</text>';
+    out += '<text class="co-rail-label" x="' + (x + w - 10) + '" y="' + (y + 11.5) + '" text-anchor="end">6 EM</text>';
+    out += '<rect x="' + x + '" y="' + (y + h - 14) + '" width="' + w + '" height="14" rx="4" fill="url(#brassGrad)" stroke="rgba(54,40,18,.5)"/>';
+    out += '<text class="co-engrave-dark" x="' + (x + w / 2) + '" y="' + (y + h - 4.5) + '" text-anchor="middle">DINGXIANG COMPOSING STICK · No.07</text>';
+    out += '<g class="co-clamp">' +
+      '<rect x="' + clampX + '" y="' + (y + 12) + '" width="9" height="' + (h - 24) + '" rx="2" fill="url(#brassGrad)" stroke="rgba(54,40,18,.5)"/>' +
+      '<rect x="' + (clampX - 3) + '" y="' + (y + h - 20) + '" width="15" height="8" rx="2" fill="#8a6631"/>' +
+      '<circle cx="' + (clampX + 4.5) + '" cy="' + (y + 24) + '" r="2.1" fill="#5b4220"/>' +
+      '</g>';
+    return out;
+  }
+
+  function boardMarkup() {
+    return sheetMarkup() + stickMarkup();
+  }
+
+  function slotMarkup(index) {
+    const sx = slotX(index), sy = SLOT.y;
+    const filled = blocks.some(block => block.slot === index);
+    let out = '<rect x="' + (sx + 2) + '" y="' + (sy + 2) + '" width="' + (SLOT.w - 4) + '" height="' + (SLOT.h - 4) + '" rx="3" fill="rgba(0,0,0,.18)"/>';
+    if (filled) return out;
+    const next = index === blocks.length;
+    out += '<g class="co-slot' + (next ? ' is-next' : '') + '">';
+    out += '<rect x="' + (sx + 7) + '" y="' + (sy + 8) + '" width="' + (SLOT.w - 14) + '" height="' + (SLOT.h - 16) + '" rx="3" fill="' + (next ? 'rgba(255,236,200,.06)' : 'none') + '" stroke="' + (next ? 'rgba(243,200,107,.75)' : 'rgba(255,236,200,.22)') + '" stroke-dasharray="4 4"/>';
+    out += '<text class="co-slot-index" x="' + (sx + SLOT.w / 2) + '" y="' + (sy + 22) + '" text-anchor="middle">0' + (index + 1) + '</text>';
+    out += '<text class="co-slot-plus" x="' + (sx + SLOT.w / 2) + '" y="' + (sy + SLOT.h / 2 + 6) + '" text-anchor="middle">＋</text>';
+    out += '<text class="co-slot-label" x="' + (sx + SLOT.w / 2) + '" y="' + (sy + SLOT.h / 2 + 24) + '" text-anchor="middle">' + (next ? '下一位' : '空位') + '</text>';
+    out += '</g>';
+    return out;
+  }
+
+  function blockMarkup(block, index, code) {
+    const style = BLOCK_STYLE[block.type];
+    const x = slotX(block.slot) + 4;
+    const y = SLOT.y + 6;
+    const w = TYPE.w;
+    const h = TYPE.h;
+    const mx = x + w / 2;
+    return '<g class="co-type" data-index="' + index + '" tabindex="0" role="button" aria-label="' + style.name + ' ' + code + '">' +
+      '<title>' + style.name + ' · ' + style.sub + '</title>' +
+      '<rect class="co-cast" x="' + (x + 5) + '" y="' + (y + 8) + '" width="' + w + '" height="' + h + '" rx="3" fill="rgba(0,0,0,.42)" filter="url(#tileShadow)"/>' +
+      '<g class="co-lift">' +
+      '<path d="M' + (x + w) + ' ' + y + ' l5 -5 v' + h + ' l-5 5 Z" fill="' + style.dark + '"/>' +
+      '<path d="M' + x + ' ' + y + ' l5 -5 h' + w + ' l-5 5 Z" fill="' + style.color + '"/>' +
+      '<rect class="co-face" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="2" fill="url(#tileGrad)" stroke="rgba(54,40,18,.35)"/>' +
+      '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="4" fill="' + style.color + '"/>' +
+      '<text class="co-code" x="' + mx + '" y="' + (y + 16) + '" text-anchor="middle">' + code + '</text>' +
+      '<text class="co-glyph" x="' + mx + '" y="' + (y + 55) + '" text-anchor="middle" fill="' + style.color + '">' + style.glyph + '</text>' +
+      '<text class="co-name" x="' + mx + '" y="' + (y + 74) + '" text-anchor="middle">' + style.name + '</text>' +
+      '<path d="M' + (x + 1) + ' ' + (y + h - 8) + 'h' + (w - 2) + 'M' + (x + 1) + ' ' + (y + h - 5) + 'h' + (w - 2) + '" stroke="rgba(54,40,18,.16)" stroke-width=".8"/>' +
+      '<circle cx="' + (x + w - 7) + '" cy="' + (y + 9) + '" r="2" fill="' + style.color + '" opacity=".75"/>' +
+      '</g></g>';
+  }
+
+  function annotationMarkup() {
+    let out = '';
+    blocks.forEach(block => {
+      const style = BLOCK_STYLE[block.type];
+      const cx = slotCx(block.slot);
+      out += '<path class="co-thread" d="M' + cx + ' ' + (SLOT.y - 2) + 'V' + (SHEET.y + SHEET.h + 4) + '" stroke="' + style.color + '"/>';
+      out += '<circle class="co-thread-dot" cx="' + cx + '" cy="' + (SHEET.y + SHEET.h + 4) + '" r="2.2" stroke="' + style.color + '"/>';
+    });
+    return out;
+  }
+
+  function renderScene() {
+    if (!gridLayer) return;
+    gridLayer.innerHTML = boardMarkup();
+    slotLayer.innerHTML = Array.from({ length: SLOT.count }, (_, index) => slotMarkup(index)).join('');
+    const counters = {};
+    blocks.forEach(block => {
+      counters[block.type] = (counters[block.type] || 0) + 1;
+      block.code = BLOCK_STYLE[block.type].code + '-' + String(counters[block.type]).padStart(2, '0');
+    });
+    const sorted = blocks
+      .map((block, index) => ({ ...block, index: index }))
+      .sort((a, b) => a.slot - b.slot);
+    blockLayer.innerHTML = sorted.map(block => blockMarkup(block, block.index, block.code)).join('');
+    annoLayer.innerHTML = annotationMarkup();
+    renderChart();
+  }
+
+  function updateHud() {
+    const links = 6 + added * 2;
+    $('#hudLinks').textContent = links;
+    $('#hudParams').textContent = 3 + added;
+    $('#hudVer').textContent = 'v0.' + (7 + added);
+    const modulesOut = $('#inspModules');
+    if (modulesOut) modulesOut.textContent = String(blocks.length).padStart(2, '0');
+    const linksOut = $('#inspLinks');
+    if (linksOut) linksOut.textContent = String(links).padStart(2, '0');
+    renderInspectorLayers();
+  }
+
+  function addBrick(type) {
+    if (added >= dropSlots.length) {
+      toast('这一行已经排满 · 点「付印」把它印成册 →');
+      return;
+    }
+    const slot = dropSlots[added];
+    const newIndex = blocks.length;
+    blocks.push({ slot: slot, type: type });
+    added += 1;
+    renderScene();
+    updateHud();
+    const node = blockLayer.querySelector('[data-index="' + newIndex + '"]');
+    if (node) node.classList.add('pop');
+    if (added === dropSlots.length) {
+      toast('六个字位都排满了 · 点「付印」装订成通文册 →');
+    } else {
+      toast(BLOCK_STYLE[type].name + ' 已排入字盘 · 字位 +2');
+    }
+    const bench = $('#bench');
+    if (bench && bench.getBoundingClientRect().bottom < 80) {
+      bench.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  const albedo = $('#albedo');
+  const green = $('#green');
+
+  function heatPeak() {
+    const a = albedo ? parseFloat(albedo.value) : 0.32;
+    const g = green ? parseFloat(green.value) : 38;
+    return 36.4 - g * 0.055 - a * 9;
+  }
+
+  function renderInspectorLayers() {
+    const host = $('#inspLayers');
+    if (!host) return;
+    const counts = {};
+    blocks.forEach(block => { counts[block.type] = (counts[block.type] || 0) + 1; });
+    host.innerHTML = Object.entries(counts).map(([type, count]) => {
+      const style = BLOCK_STYLE[type];
+      return '<span class="insp-chip"><i style="color:' + style.color + ';border-left-color:' + style.color + '">' + style.glyph + '</i>' +
+        style.name.replace('砖', '') + ' ×' + count + '</span>';
+    }).join('');
+  }
+
+  function renderChart() {
+    const peak = heatPeak();
+    const greenValue = green ? parseFloat(green.value) : 38;
+    const swing = 8.4 + (1 - greenValue / 100) * 3;
+    const min = peak - swing;
+    const c = CHART;
+    const d = heatCurve(peak, swing, c.x, c.y, c.w, c.h);
+    const curve = $('#proofCurve');
+    if (curve) curve.setAttribute('d', d);
+    const area = $('#proofArea');
+    if (area) area.setAttribute('d', d + ' L' + (c.x + c.w) + ' ' + (c.y + c.h) + ' L' + c.x + ' ' + (c.y + c.h) + ' Z');
+    const peakMark = $('#proofPeak');
+    if (peakMark) {
+      const py = c.y + c.h - ((peak - c.lo) / (c.hi - c.lo)) * c.h;
+      peakMark.setAttribute('transform', 'translate(' + (c.x + c.w * 15 / 24).toFixed(1) + ' ' + py.toFixed(1) + ')');
+    }
+    const albedoOut = $('#albedoOut');
+    if (albedoOut && albedo) albedoOut.textContent = parseFloat(albedo.value).toFixed(2);
+    const greenOut = $('#greenOut');
+    if (greenOut && green) greenOut.textContent = Math.round(parseFloat(green.value)) + '%';
+    const lowOut = $('#lowOut');
+    if (lowOut) lowOut.textContent = min.toFixed(1) + '°';
+    const peakStat = $('#peakStat');
+    if (peakStat) peakStat.textContent = peak.toFixed(1) + '°';
+    const deltaOut = $('#deltaOut');
+    if (deltaOut) deltaOut.textContent = swing.toFixed(1) + '°';
+    const proofTemp = $('#proofTemp');
+    if (proofTemp) proofTemp.textContent = peak.toFixed(1) + '°C';
+  }
+
+  if (albedo) albedo.addEventListener('input', renderChart);
+  if (green) green.addEventListener('input', renderChart);
+
+  function packBench() {
+    toast('已付印为「城市热岛」册页 · 正在送往通文册 →');
+    setTimeout(() => setView('tw'), 650);
+  }
+  const inspPack = $('#inspPack');
+  if (inspPack) inspPack.addEventListener('click', packBench);
+
+  function setRunning(on) {
+    scene.classList.toggle('iso-run', on);
+    const button = $('#runToggle');
+    button.classList.toggle('on', on);
+    button.textContent = on ? '■ 停印' : '▶ 试印';
+    $$('.seg button').forEach(mode => mode.classList.toggle('on', mode.dataset.benchMode === (on ? 'run' : 'build')));
+  }
+
+  const runToggle = $('#runToggle');
+  if (runToggle) {
+    runToggle.addEventListener('click', () => {
+      const on = !scene.classList.contains('iso-run');
+      setRunning(on);
+      toast(on ? '开始试印 · 墨线亮了，参数会实时作用到整行字位' : '已停印 · 字盘保持当前排法');
+    });
+  }
+  $$('.seg button').forEach(mode => {
+    mode.addEventListener('click', () => {
+      const value = mode.dataset.benchMode;
+      if (value === 'pack') {
+        packBench();
+        return;
+      }
+      if (value === 'run') {
+        setRunning(true);
+        toast('试印模式 · 每一枚活字的数据口都已接通');
+        return;
+      }
+      setRunning(false);
+      toast('排字模式 · 从字架再取一枚活字');
+    });
+  });
+  $$('.brick').forEach(brick => {
+    brick.addEventListener('click', () => addBrick(brick.dataset.brick));
+  });
+  blockLayer.addEventListener('click', event => {
+    const node = event.target.closest('.co-type');
+    if (!node) return;
+    const block = blocks[Number(node.dataset.index)];
+    if (!block) return;
+    const style = BLOCK_STYLE[block.type];
+    toast(style.name + (block.code ? ' ' + block.code : '') + ' · ' + style.sub + ' · 字位已接通，参数一动整行重印');
+  });
+  blockLayer.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const node = event.target.closest('.co-type');
+    if (!node) return;
+    event.preventDefault();
+    node.click();
+  });
+  renderScene();
+  updateHud();
+  renderChart();
+
+  /* ---------- 标本筛选 ---------- */
+  $$('[data-filter]').forEach(button => {
+    button.addEventListener('click', () => {
+      const filter = button.dataset.filter;
+      $$('[data-filter]').forEach(other => other.classList.toggle('on', other === button));
+      $$('.spec').forEach(card => card.classList.toggle('is-dim', filter !== 'all' && card.dataset.subject !== filter));
+    });
+  });
+
+  /* ---------- 通文册 ---------- */
+  const wavePath = $('#wavePathMain');
+  const waveGhost = $('#wavePathGhost');
+  const waveDot = $('#waveDot');
+  const waveReadout = $('#waveReadout');
+  const freq = $('#freq');
+  const freqOut = $('#freqOut');
+  let waveFrequency = 2.4;
+
+  function renderWave() {
+    if (!wavePath) return;
+    const steps = 140;
+    let main = '';
+    let ghost = '';
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = 20 + 420 * t;
+      const y = 120 - 62 * Math.sin(2 * Math.PI * waveFrequency * t + 0.5);
+      const gy = 120 - 38 * Math.sin(2 * Math.PI * waveFrequency * t * 0.55 + 1.2);
+      main += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1);
+      ghost += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + gy.toFixed(1);
+    }
+    wavePath.setAttribute('d', main);
+    waveGhost.setAttribute('d', ghost);
+    const dotT = 0.76;
+    const dotX = 20 + 420 * dotT;
+    const dotY = 120 - 62 * Math.sin(2 * Math.PI * waveFrequency * dotT + 0.5);
+    if (waveDot) {
+      waveDot.setAttribute('cx', dotX.toFixed(1));
+      waveDot.setAttribute('cy', dotY.toFixed(1));
+    }
+    waveReadout.textContent = 'f = ' + waveFrequency.toFixed(1) + ' Hz';
+    if (freqOut) freqOut.textContent = waveFrequency.toFixed(1) + ' Hz';
+  }
+  if (freq) {
+    freq.addEventListener('input', () => {
+      waveFrequency = parseFloat(freq.value) || 2.4;
+      renderWave();
+    });
+  }
+  renderWave();
+
+  const rightPage = $('#rightPage');
+  let bookPage = 'wave';
+  const bookData = {
+    wave: { title: '第 07 页 · 傅里叶与信号', no: 'PAGE 07 / 12' },
+    matrix: { title: '第 08 页 · 矩阵与变换', no: 'PAGE 08 / 12' },
+  };
+  let flipping = false;
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  function commitPage(next) {
+    bookPage = next;
+    rightPage.dataset.page = next;
+    $('#sheetTitle').textContent = bookData[next].title;
+    $('#pageNo').textContent = bookData[next].no;
+    $('#sheetHint').textContent = next === 'matrix' ? '矩阵砖 · 图形演示已嵌入本页' : '拖动滑块 · 曲线实时重算';
+  }
+  function flipBook() {
+    if (!rightPage || flipping) return;
+    const next = bookPage === 'wave' ? 'matrix' : 'wave';
+    const bookEl = rightPage.closest('.book');
+    if (!bookEl || reducedMotion.matches) {
+      commitPage(next);
+      toast(next === 'matrix' ? '第 08 页 · 矩阵砖已就位，试着读一读这张变换图' : '第 07 页 · 拖动频率，曲线会现场重算');
+      return;
+    }
+    const stacked = window.matchMedia('(max-width: 1120px)').matches;
+    if (stacked) {
+      flipping = true;
+      const out = rightPage.animate(
+        [{ opacity: 1, transform: 'translateY(0)' }, { opacity: 0, transform: 'translateY(10px)' }],
+        { duration: 180, easing: 'ease-in', fill: 'both' }
+      );
+      out.finished.then(() => {
+        commitPage(next);
+        rightPage.animate(
+          [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }],
+          { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' }
+        );
+        toast(next === 'matrix' ? '翻到第 08 页 · 矩阵砖已就位' : '翻回第 07 页 · 拖动频率试试');
+        flipping = false;
+      });
+      return;
+    }
+    flipping = true;
+    bookEl.classList.add('is-flipping');
+
+    const layer = document.createElement('div');
+    layer.className = 'turn-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    const zone = bookEl.parentElement;
+    const top = bookEl.offsetTop + bookEl.clientTop;
+    const left = bookEl.offsetLeft + bookEl.clientLeft;
+    const width = bookEl.clientWidth;
+    const height = bookEl.clientHeight;
+    const pw = width / 2, N = 22, sw = pw / N;
+    layer.style.top = top + 'px';
+    layer.style.left = (left + pw) + 'px';
+    layer.style.width = pw + 'px';
+    layer.style.height = height + 'px';
+    const proto = rightPage.cloneNode(true);
+    proto.removeAttribute('id');
+    proto.removeAttribute('aria-label');
+    proto.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+    proto.querySelectorAll('button, input, a, [tabindex]').forEach(node => { node.tabIndex = -1; });
+    const versoHTML =
+      '<div class="turn-back-inner">' +
+      '<span class="mono">TONGWEN ATLAS · VOL. 003</span>' +
+      '<span class="turn-back-mark">册</span>' +
+      '<span class="turn-back-seal">通</span>' +
+      '<span class="turn-back-page mono">PAGE 072 · VERSO</span>' +
+      '</div>';
+    const strips = [];
+    let parent = layer;
+    for (let i = 0; i < N; i++) {
+      const strip = document.createElement('div');
+      strip.className = 'tp-strip';
+      strip.style.cssText = 'width:' + sw + 'px;height:' + height + 'px;left:' + (i ? sw : 0) + 'px';
+      const front = document.createElement('div');
+      front.className = 'tp-face tp-front';
+      front.style.width = (sw + 1) + 'px';
+      const c = proto.cloneNode(true);
+      c.style.cssText = 'position:absolute;top:0;margin:0;width:' + pw + 'px;height:' + height + 'px;left:' + (-i * sw) + 'px';
+      front.appendChild(c);
+      const fs = document.createElement('i');
+      fs.className = 'tp-shade';
+      front.appendChild(fs);
+      const back = document.createElement('div');
+      back.className = 'tp-face tp-back';
+      back.style.width = (sw + 1) + 'px';
+      const v = document.createElement('div');
+      v.className = 'tp-verso';
+      v.style.cssText = 'width:' + pw + 'px;height:' + height + 'px;left:' + (-(pw - (i + 1) * sw)) + 'px';
+      v.innerHTML = versoHTML;
+      back.appendChild(v);
+      const bs = document.createElement('i');
+      bs.className = 'tp-shade';
+      back.appendChild(bs);
+      strip.append(front, back);
+      parent.appendChild(strip);
+      strips.push({ strip, fs, bs });
+      parent = strip;
+    }
+
+    const sweep = document.createElement('div');
+    sweep.className = 'turn-sweep';
+    sweep.setAttribute('aria-hidden', 'true');
+    sweep.style.top = top + 'px';
+    sweep.style.left = left + 'px';
+    sweep.style.width = pw + 'px';
+    sweep.style.height = height + 'px';
+    zone.appendChild(sweep);
+    const under = document.createElement('div');
+    under.className = 'turn-under';
+    under.setAttribute('aria-hidden', 'true');
+    under.style.top = top + 'px';
+    under.style.left = (left + pw) + 'px';
+    under.style.width = pw + 'px';
+    under.style.height = height + 'px';
+    zone.appendChild(under);
+    zone.appendChild(layer);
+    commitPage(next);
+    void layer.offsetWidth;
+    const DUR = 1700, clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const easeIO = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+    const t0 = performance.now();
+    function frame(now) {
+      const t = clamp((now - t0) / DUR, 0, 1);
+      const lift = Math.sin(clamp(t / .14, 0, 1) * Math.PI / 2) * 5;
+      const main = easeIO(clamp((t - .06) / .88, 0, 1));
+      const settle = t > .94 ? Math.sin((t - .94) / .06 * Math.PI) * 1.6 : 0;
+      const ang = (lift * (1 - main) + main * 175 + (t >= 1 ? 5 : 5 * clamp((t - .94) / .06, 0, 1)) - settle);
+      const L = 52 * Math.sin(2 * Math.PI * main) * Math.min(1, main * 5, (1 - main) * 5 + .3);
+      let prev = 0;
+      strips.forEach((o, i) => {
+        const f = Math.pow(i / (N - 1), 1.4);
+        const a = clamp(ang - L * f, 0, 183);
+        const rel = a - prev;
+        prev = a;
+        o.strip.style.transform = 'rotateY(' + (-rel).toFixed(2) + 'deg)';
+        const sh = clamp(.26 * Math.pow(Math.sin(a * Math.PI / 180), 1.4) + Math.abs(rel) * .012, 0, .4).toFixed(3);
+        o.fs.style.opacity = sh;
+        o.bs.style.opacity = sh;
+      });
+      layer.style.transform = 'translateZ(' + (Math.sin(main * Math.PI) * 14).toFixed(1) + 'px)';
+      sweep.style.opacity = (clamp(Math.sin(clamp((main - .25) / .75, 0, 1) * Math.PI), 0, 1) * .85).toFixed(3);
+      sweep.style.transform = 'translateX(' + ((1 - main) * 18 - 8).toFixed(1) + '%)';
+      under.style.opacity = (Math.pow(1 - main, .8) * Math.min(1, t * 10)).toFixed(3);
+      if (t < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    const caption = $('.book-caption');
+    const captionText = 'TONGWEN ATLAS · VOL.003 · 点右下角，试一次真翻页';
+    if (caption) caption.textContent = 'TONGWEN ATLAS · 正在翻页 · ' + (next === 'matrix' ? '07 → 08' : '08 → 07');
+
+    setTimeout(() => {
+      layer.classList.add('is-done');
+      bookEl.classList.remove('is-flipping');
+      if (caption) caption.textContent = captionText;
+      toast(next === 'matrix' ? '翻到第 08 页 · 矩阵砖已就位，试着读一读这张变换图' : '翻回第 07 页 · 拖动频率，曲线会现场重算');
+    }, 1720);
+    setTimeout(() => {
+      layer.remove();
+      sweep.remove();
+      under.remove();
+      flipping = false;
+    }, 2040);
+  }
+  const flipCorner = $('#flipCorner');
+  if (flipCorner) flipCorner.addEventListener('click', flipBook);
+
+  /* ---------- 个人主页 · 印痕日历 ---------- */
+  const inkCal = $('#inkCal');
+  if (inkCal) {
+    let seed = 26;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    let total = 0;
+    const cells = [];
+    for (let w = 0; w < 26; w++) {
+      for (let d = 0; d < 7; d++) {
+        const future = w === 25 && d > 2;
+        const burst = Math.sin(w / 26 * Math.PI * 2.4 + 1) * .5 + .5;
+        const weekend = d >= 5 ? .55 : 1;
+        const v = rand() * (.45 + burst * .9 + w / 60) * weekend;
+        const level = v > 1.18 ? 4 : v > .9 ? 3 : v > .62 ? 2 : v > .36 ? 1 : 0;
+        const count = future ? 0 : [0, 1, 3, 5, 8][level];
+        total += count;
+        cells.push('<i' + (level && !future ? ' data-l="' + level + '"' : '') + (w === 25 && d === 2 ? ' class="is-today"' : '') +
+          (future ? ' style="visibility:hidden"' : ' title="' + (25 - w ? (25 - w) + ' 周前' : '本周') + ' · ' + count + ' 次落墨"') + '></i>');
+      }
+    }
+    inkCal.innerHTML = cells.join('');
+    $('#inkTotal').textContent = total;
+  }
+
+  /* ---------- 个人主页 · 年轮 ---------- */
+  const ringSvg = $('#ringSvg');
+  if (ringSvg) {
+    const C = { x: 196, y: 192 };
+    const widths = [16, 12, 15, 21, 17, 12, 19, 22, 25];
+    const seasons = ['24秋', '24冬', '25春', '25夏', '25秋', '25冬', '26春', '26夏', '26冬'];
+    const milestones = [{ ring: 0, ang: -2.2 }, { ring: 2, ang: .5 }, { ring: 5, ang: 2.35 }, { ring: 8, ang: -.95 }];
+    const shape = (a, r) => 1 + .03 * Math.sin(3 * a + .7) + .018 * Math.sin(5 * a + 2.1) + .01 * Math.sin(11 * a + r * .05);
+    const pt = (a, r) => {
+      const rr = r * shape(a, r);
+      return [C.x + Math.cos(a) * rr + r * .05, C.y + Math.sin(a) * rr * .96];
+    };
+    const f = n => n.toFixed(1);
+    const ringPath = r => {
+      let d = '';
+      for (let i = 0; i <= 120; i++) {
+        const [px, py] = pt(i / 120 * Math.PI * 2, r);
+        d += (i ? 'L' : 'M') + f(px) + ' ' + f(py);
+      }
+      return d + 'Z';
+    };
+    const radii = [];
+    widths.reduce((acc, w) => { radii.push(acc + w); return acc + w; }, 12);
+    const outer = radii[radii.length - 1];
+    let out = '<path d="' + ringPath(outer + 12) + '" fill="#6a5034" stroke="#3e2d1a" stroke-width="1.2"/>';
+    for (let i = 0; i < 48; i++) {
+      const a = i / 48 * Math.PI * 2;
+      const [x1, y1] = pt(a, outer + 3), [x2, y2] = pt(a + .03, outer + 11);
+      out += '<line x1="' + f(x1) + '" y1="' + f(y1) + '" x2="' + f(x2) + '" y2="' + f(y2) + '" stroke="rgba(30,20,8,.4)" stroke-width="1.2"/>';
+    }
+    out += '<path d="' + ringPath(outer + 2) + '" fill="#d9c49c"/>';
+    for (let i = radii.length - 1; i >= 0; i--) {
+      out += '<path d="' + ringPath(radii[i]) + '" fill="' + (i % 2 ? '#f1e4c6' : '#ead8b2') + '"/>';
+    }
+    out += '<path d="' + ringPath(12) + '" fill="#d7bd8c"/>';
+    for (let i = 0; i < 14; i++) {
+      const a = i / 14 * Math.PI * 2 + .2;
+      const [x1, y1] = pt(a, 14), [x2, y2] = pt(a, outer - 4);
+      out += '<line class="rg-ray" x1="' + f(x1) + '" y1="' + f(y1) + '" x2="' + f(x2) + '" y2="' + f(y2) + '"/>';
+    }
+    radii.forEach((r, i) => { out += '<path class="rg-line" d="' + ringPath(r) + '"/>'; });
+    const [k1x, k1y] = pt(2.9, outer + 2), [k2x, k2y] = pt(2.95, outer - 38), [k3x, k3y] = pt(3.0, outer - 62);
+    out += '<path class="rg-crack" d="M' + f(k1x) + ' ' + f(k1y) + 'L' + f(k2x) + ' ' + f(k2y) + 'L' + f(k3x) + ' ' + f(k3y) + '"/>';
+    out += '<circle cx="' + (C.x + .6) + '" cy="' + C.y + '" r="4.5" fill="#9b7442"/>';
+    const ruleY = C.y + outer + 34;
+    out += '<line class="rg-rule" x1="' + (C.x + .6) + '" y1="' + ruleY + '" x2="' + f(C.x + outer * 1.05 + 8) + '" y2="' + ruleY + '"/>';
+    out += '<line class="rg-rule" x1="' + (C.x + .6) + '" y1="' + (C.y + 6) + '" x2="' + (C.x + .6) + '" y2="' + (ruleY + 3) + '" stroke-dasharray="2 3" opacity=".45"/>';
+    out += '<text class="rg-rule-txt" x="' + (C.x - 4) + '" y="' + (ruleY + 3) + '" text-anchor="end">髓心</text>';
+    radii.forEach((r, i) => {
+      const tx = C.x + r * 1.05;
+      out += '<line class="rg-rule" x1="' + f(tx) + '" y1="' + (ruleY - 3) + '" x2="' + f(tx) + '" y2="' + (ruleY + (i % 2 ? 2 : 4)) + '"/>';
+      if (i % 2 === 0) out += '<text class="rg-rule-txt" x="' + f(tx) + '" y="' + (ruleY + 13) + '" text-anchor="middle">' + seasons[i] + '</text>';
+    });
+    milestones.forEach((m, i) => {
+      const [mx, my] = pt(m.ang, radii[m.ring] - widths[m.ring] / 2);
+      out += '<g class="rg-mark" data-mark="' + i + '" transform="translate(' + f(mx) + ' ' + f(my) + ')">' +
+        '<circle class="rg-pulse" r="9"/><circle r="9"/><text y="2.6" text-anchor="middle">0' + (i + 1) + '</text></g>';
+    });
+    ringSvg.innerHTML = out;
+
+    const items = $$('.ring-item');
+    const lines = $$('.rg-line', ringSvg);
+    const marks = $$('.rg-mark', ringSvg);
+    function setRing(i) {
+      items.forEach((item, j) => item.classList.toggle('is-on', j === i));
+      marks.forEach((mark, j) => mark.classList.toggle('is-on', j === i));
+      lines.forEach((line, j) => line.classList.toggle('is-on', j === milestones[i].ring));
+    }
+    items.forEach((item, i) => {
+      item.addEventListener('mouseenter', () => setRing(i));
+      item.addEventListener('focus', () => setRing(i));
+      item.addEventListener('click', () => setRing(i));
+    });
+    marks.forEach((mark, i) => mark.addEventListener('click', () => setRing(i)));
+    setRing(3);
+  }
+
+  /* ---------- 个人主页 · 星图 ---------- */
+  const MAP_NODES = [
+    { id: 'core', type: 'core', x: 400, y: 232, label: '林知远', dy: 38 },
+    { id: 'w1', type: 'work', x: 246, y: 142, label: '城市热岛', dy: 26, title: '城市热岛 · 可调参数沙盘', desc: '7 块象砖串成的地表能量模型，拖动反照率与绿化率，看见城市一整天的温度曲线。', bricks: '7 块', bound: '12 次', time: '2 小时前', visibility: '公开', art: 'heat' },
+    { id: 'w2', type: 'work', x: 566, y: 126, label: '双缝之外', dy: -18, title: '双缝之外 · 单光子剧场', desc: '调波长与缝距，让单光子一个接一个落下，自己打出干涉条纹。', bricks: '5 块', bound: '31 次', time: '3 天前', visibility: '公开', art: 'wave' },
+    { id: 'w3', type: 'work', x: 624, y: 330, label: 'Cache 账本', dy: 26, title: 'Cache 账本 · 四路组相联', desc: '把一次访存拆成可读的周期账本，命中、替换与流水线气泡同时显形。', bricks: '9 块', bound: '8 次', time: '1 周前', visibility: '公开', art: 'cache' },
+    { id: 'w4', type: 'work', x: 208, y: 346, label: '概率剧场', dy: 26, title: '概率剧场 · 大数定律', desc: '让一千次抛硬币在眼前收敛，理解「稳定」不是感觉，是样本量。', bricks: '6 块', bound: '0 次', time: '3 天前', visibility: '草稿', art: 'prob' },
+    { id: 'a1', type: 'atlas', x: 420, y: 74, label: '波动、光与傅里叶', dy: -18, title: '《波动、光与傅里叶》', desc: '12 页交互讲义，6 块象砖。把一学期的波动直觉压缩成可以亲手翻动的一本册。', bricks: '6 块象砖', bound: '137 人正在读', time: '本周更新', visibility: '公开', art: 'book' },
+    { id: 'a2', type: 'atlas', x: 468, y: 400, label: '矩阵之后', dy: 27, title: '《矩阵之后》', desc: '16 页线性代数讲义。从基、张成到特征分解，空间在纸面上旋转。', bricks: '9 块象砖', bound: '24 次', time: '2 周前', visibility: '公开', art: 'book' },
+    { id: 'b1', type: 'brick', x: 336, y: 300, label: '泰勒聚光灯', dy: 24, title: '「泰勒聚光灯」砖', desc: '把函数局部展开成可拖动的多项式，误差热图会告诉你「近似」的边界。', bricks: '1 块公共砖', bound: '被 6 本册装订', time: '1 个月前', visibility: '公共', art: 'curve' },
+    { id: 'b2', type: 'brick', x: 132, y: 234, label: '向量场采样', dy: 24, title: '「向量场采样」砖', desc: '在任何二维场里撒下粒子，观察流线、散度与旋度如何共享同一个源头。', bricks: '1 块公共砖', bound: '被 4 本册装订', time: '2 个月前', visibility: '公共', art: 'field' },
+    { id: 'b3', type: 'brick', x: 544, y: 232, label: '大数定律', dy: 24, title: '「大数定律」砖', desc: '拖动样本量，让随机与稳定在同一张图上握手。今天被 @周见微 取用。', bricks: '1 块公共砖', bound: '被 7 本册装订', time: '今天', visibility: '公共', art: 'prob' },
+  ];
+  const MAP_EDGES = [
+    ['core', 'w1'], ['core', 'w2'], ['core', 'w3'], ['core', 'w4'],
+    ['w1', 'b1'], ['w1', 'b2'], ['w2', 'a1'], ['w2', 'b3'],
+    ['w3', 'b3'], ['w3', 'a2'], ['w4', 'b2'], ['a1', 'b1'],
+  ];
+  const mapLayer = $('#mapLayer');
+  let selectedNodeId = 'w1';
+  let mapFilter = 'all';
+
+  const nodeById = id => MAP_NODES.find(node => node.id === id);
+
+  function mapCurve(a, b) {
+    const mx = (a.x + b.x) / 2 + (b.y - a.y) * .07;
+    const my = (a.y + b.y) / 2 - (b.x - a.x) * .03;
+    return 'M' + a.x + ' ' + a.y + ' Q' + mx.toFixed(1) + ' ' + my.toFixed(1) + ' ' + b.x + ' ' + b.y;
+  }
+
+  function nodeMarkup(node) {
+    const x = node.x;
+    const y = node.y;
+    let shape = '';
+    if (node.type === 'core') {
+      shape = '<circle class="map-core" cx="' + x + '" cy="' + y + '" r="24"/>' +
+        '<text x="' + x + '" y="' + (y + 5) + '" text-anchor="middle" font-family="Songti SC,serif" font-size="17" font-weight="700" fill="#121513">知</text>' +
+        '<text class="map-kind" x="' + x + '" y="' + (y - 32) + '" text-anchor="middle">CREATOR</text>';
+    } else if (node.type === 'work') {
+      shape = '<g transform="rotate(45 ' + x + ' ' + y + ')"><rect class="node-shape" x="' + (x - 9) + '" y="' + (y - 9) + '" width="18" height="18" rx="2.5" fill="#2234d4"/></g>';
+    } else if (node.type === 'atlas') {
+      shape = '<rect class="node-shape" x="' + (x - 9) + '" y="' + (y - 12) + '" width="18" height="24" rx="2.5" fill="#de421f"/>' +
+        '<path d="M' + (x - 4) + ' ' + (y - 8) + 'v16" stroke="rgba(255,253,248,.6)" stroke-width="1"/>';
+    } else {
+      shape = '<rect class="node-shape" x="' + (x - 8) + '" y="' + (y - 8) + '" width="16" height="16" rx="4" fill="#0f766e"/>' +
+        '<path d="M' + (x - 3) + ' ' + (y + 2) + 'l3-5 3 5" fill="none" stroke="rgba(255,253,248,.7)" stroke-width="1"/>';
+    }
+    const labelOffset = node.dy || 26;
+    return '<g class="map-node' + (node.id === selectedNodeId ? ' is-sel' : '') + '" data-id="' + node.id + '" tabindex="0" role="button" aria-label="' + (node.label || node.title) + '">' +
+      '<circle class="node-hit" cx="' + x + '" cy="' + y + '" r="24"/>' +
+      (node.type !== 'core' ? '<circle class="node-ring" cx="' + x + '" cy="' + y + '" r="21" stroke-dasharray="3 3"/>' : '') +
+      shape +
+      '<text class="map-label" x="' + x + '" y="' + (y + labelOffset) + '" text-anchor="middle">' + (node.label || '') + '</text>' +
+      '</g>';
+  }
+
+  function detailArt(node) {
+    const grid = '<g stroke="rgba(18,21,19,.09)">' +
+      '<line x1="0" y1="42" x2="320" y2="42"/><line x1="0" y1="84" x2="320" y2="84"/>' +
+      '<line x1="80" y1="0" x2="80" y2="128"/><line x1="160" y1="0" x2="160" y2="128"/><line x1="240" y1="0" x2="240" y2="128"/></g>';
+    let art = '';
+    if (node.type === 'atlas') {
+      art = '<rect x="112" y="18" width="96" height="92" rx="3" fill="#fffdf8" stroke="rgba(18,21,19,.2)"/>' +
+        '<path d="M136 38h48M136 50h34M136 62h44" stroke="rgba(18,21,19,.18)" stroke-linecap="round"/>' +
+        '<path d="M136 84c14-22 26-22 40 0" fill="none" stroke="#de421f" stroke-width="1.4"/>';
+    } else if (node.art === 'wave') {
+      art = '<g stroke="rgba(18,21,19,.25)"><line x1="34" y1="104" x2="286" y2="104"/><line x1="52" y1="14" x2="52" y2="104"/></g>' +
+        '<path d="M52 66c28-44 48-44 76 0s48 44 76 0 42-30 60-18" fill="none" stroke="#2234d4" stroke-width="1.8"/>' +
+        '<circle cx="196" cy="74" r="4" fill="#de421f"/>';
+    } else if (node.art === 'cache') {
+      art = '<g fill="#a47a2f">' +
+        [44, 62, 80, 98, 116, 134].map((x, i) => '<rect x="' + x + '" y="' + (72 - [18, 34, 46, 26, 40, 20][i]) + '" width="11" height="' + [40, 48, 54, 44, 50, 42][i] + '" rx="1"/>').join('') + '</g>' +
+        '<line x1="34" y1="112" x2="286" y2="112" stroke="rgba(18,21,19,.25)"/>' +
+        '<line x1="34" y1="82" x2="286" y2="82" stroke="#2234d4" stroke-dasharray="4 3" opacity=".6"/>';
+    } else if (node.art === 'prob') {
+      art = '<g fill="#0f766e" opacity=".7">' +
+        [[70, 52], [92, 44], [112, 62], [134, 38], [150, 70], [170, 55], [190, 46], [210, 66], [232, 50], [248, 60]]
+          .map(point => '<circle cx="' + point[0] + '" cy="' + point[1] + '" r="2.6"/>').join('') + '</g>' +
+        '<path d="M56 106c40-50 86-52 128-46s62 4 86-14" fill="none" stroke="#de421f" stroke-width="1.5"/>';
+    } else if (node.art === 'field') {
+      art = '<g stroke="#2234d4" opacity=".55" stroke-width="1.2">' +
+        [[60, 40, 74, 52], [110, 34, 126, 42], [158, 48, 172, 64], [206, 38, 214, 58], [246, 64, 252, 84], [78, 88, 96, 96]]
+          .map(arrow => '<path d="M' + arrow[0] + ' ' + arrow[1] + 'l' + (arrow[2] - arrow[0]) + ' ' + (arrow[3] - arrow[1]) + '"/>').join('') + '</g>' +
+        '<circle cx="160" cy="66" r="20" fill="none" stroke="rgba(222,66,31,.4)" stroke-dasharray="4 4"/>';
+    } else {
+      art = '<g stroke="rgba(18,21,19,.25)"><line x1="34" y1="104" x2="286" y2="104"/><line x1="52" y1="14" x2="52" y2="104"/></g>' +
+        '<path d="M52 92c34-54 56-62 86-42s52 50 96-8" fill="none" stroke="#2234d4" stroke-width="1.8"/>' +
+        '<path d="M160 48l46 26" stroke="#de421f" stroke-dasharray="4 4"/>' +
+        '<circle cx="160" cy="48" r="4" fill="#de421f"/>';
+    }
+    return '<svg viewBox="0 0 320 128">' + grid + art + '</svg>';
+  }
+
+  function selectNode(id, notify) {
+    const node = nodeById(id);
+    if (!node || node.type === 'core') return;
+    selectedNodeId = id;
+    $$('.map-node', mapLayer).forEach(element => element.classList.toggle('is-sel', element.dataset.id === id));
+    const kind = { work: 'WORK · 交互作品', atlas: 'ATLAS · 通文册', brick: 'BRICK · 公共象砖' }[node.type];
+    $('#mapDetailKind').textContent = kind;
+    $('#mapDetailTitle').textContent = node.title;
+    $('#mapDetailDesc').textContent = node.desc;
+    $('#mapDetailBricks').textContent = node.bricks;
+    $('#mapDetailBound').textContent = node.bound;
+    $('#mapDetailTime').textContent = node.time;
+    $('#mapDetailVisibility').textContent = node.visibility;
+    $('#mapDetailArt').innerHTML = detailArt(node);
+    const detail = $('#mapDetail');
+    if (detail && detail.animate) {
+      detail.animate([{ opacity: .35, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 260, easing: 'ease-out' });
+    }
+    if (notify) toast('已选中「' + node.title + '」 · 右侧可以直接打开或装订');
+  }
+
+  function renderMap() {
+    if (!mapLayer) return;
+    let lines = '<circle cx="400" cy="232" r="136" fill="none" stroke="rgba(18,21,19,.055)" stroke-dasharray="2 7"/>' +
+      '<circle cx="400" cy="232" r="224" fill="none" stroke="rgba(18,21,19,.045)" stroke-dasharray="2 9"/>' +
+      '<path d="M400 232m-11 0a11 11 0 1 0 22 0a11 11 0 1 0-22 0" fill="none" stroke="rgba(164,122,47,.25)" stroke-dasharray="2 4"/>';
+    MAP_EDGES.forEach(edge => {
+      const a = nodeById(edge[0]);
+      const b = nodeById(edge[1]);
+      if (mapFilter !== 'all' && a.type !== mapFilter && b.type !== mapFilter) return;
+      lines += '<path class="map-thread" d="' + mapCurve(a, b) + '"/>';
+    });
+    let nodes = '';
+    MAP_NODES.forEach(node => {
+      const dim = mapFilter !== 'all' && node.type !== 'core' && node.type !== mapFilter;
+      nodes += '<g style="opacity:' + (dim ? '.14' : '1') + ';pointer-events:' + (dim ? 'none' : 'auto') + '">' + nodeMarkup(node) + '</g>';
+    });
+    mapLayer.innerHTML = lines + nodes;
+  }
+
+  if (mapLayer) {
+    renderMap();
+    selectNode('w1', false);
+    mapLayer.addEventListener('click', event => {
+      const target = event.target.closest('.map-node');
+      if (target) selectNode(target.dataset.id, true);
+    });
+    mapLayer.addEventListener('keydown', event => {
+      const target = event.target.closest('.map-node');
+      if (target && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        selectNode(target.dataset.id, true);
+      }
+    });
+    $$('[data-map-filter]').forEach(button => {
+      button.addEventListener('click', () => {
+        mapFilter = button.dataset.mapFilter;
+        $$('[data-map-filter]').forEach(other => other.classList.toggle('on', other === button));
+        renderMap();
+      });
+    });
+  }
+
+  /* ---------- 视角切换 ---------- */
+  const mePage = $('#mePage');
+  $$('[data-view]').forEach(button => {
+    button.addEventListener('click', () => {
+      const visitor = button.dataset.view === 'visitor';
+      mePage.classList.toggle('is-visitor', visitor);
+      $$('[data-view]').forEach(other => other.classList.toggle('on', other === button));
+      toast(visitor ? '访客视角 · 隐藏草稿，只留下公开的象与册' : '主人视角 · 草稿与私密装订记录已恢复');
+    });
+  });
+
+  /* ---------- 通用动作 ---------- */
+  document.addEventListener('click', event => {
+    const target = event.target.closest('[data-act]');
+    if (!target) return;
+    const act = target.dataset.act;
+    if (act === 'new-work') {
+      if (!$('#view-dx').classList.contains('is-active')) setView('dx');
+      setTimeout(() => addBrick('func'), 120);
+    } else if (act === 'read') {
+      const book = $('.book-zone');
+      if (book) book.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(flipBook, 420);
+    } else if (act === 'upload') {
+      toast('把 PPTX / PDF 拖进来 · 原稿版式会一页不丢地保留');
+    } else if (act === 'new-atlas') {
+      toast('第一本册可以从定象坊取砖开始，也可以先导入一份旧 PPT');
+      setTimeout(() => setView('dx'), 700);
+    } else if (act === 'edit-profile') {
+      toast('个人资料沿用现有设置页 · 这个提案只重做展示层');
+    } else if (act === 'copy-link') {
+      copyText(location.href).then(() => toast('主页链接已复制 · 可以贴进群聊或通文册作者页'));
+    } else if (act === 'versions') {
+      toast('这座城市已有 6 个版本 · 最近一次保存于 2 小时前');
+    } else if (act === 'resume') {
+      setView('dx');
+      toast('已回到「城市热岛」建造台 · 拖动任意一块砖继续');
+    } else if (act === 'follow') {
+      target.textContent = '✓ 已关注';
+      target.disabled = true;
+      toast('已关注林知远 · 他的新册会展现在你的书架');
+    } else if (act === 'open-shelf') {
+      setView('tw');
+    } else if (act === 'open-node') {
+      const node = nodeById(selectedNodeId);
+      toast(node && node.type === 'atlas' ? '正在翻开《' + node.title.replace(/《|》/g, '') + '》…' : '已打开「' + (node ? node.title : '作品') + '」');
+      if (node && node.type === 'atlas') setTimeout(() => setView('tw'), 700);
+    } else if (act === 'bind-node') {
+      toast('已把「' + (nodeById(selectedNodeId) || {}).title + '」装订进通文册第 04 卷');
+      setTimeout(() => setView('tw'), 700);
+    } else if (act === 'specimen') {
+      toast('打开标本「' + target.dataset.name + '」 · 参数全部外露，可直接拖动');
+    } else if (act === 'open-atlas') {
+      toast('正在翻开《' + target.dataset.name + '》 · 第 07 页嵌着一块函数砖');
+    }
+  });
+
+  $$('.spec[data-act][tabindex="0"], .cover[data-act][tabindex="0"]').forEach(element => {
+    element.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      if (event.target !== element) return;
+      event.preventDefault();
+      element.click();
+    });
+  });
+
+  $$('[data-scroll]').forEach(link => {
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      const target = document.querySelector(link.getAttribute('href'));
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  /* 初始视图 */
+  const initial = (location.hash || '#dx').slice(1);
+  setView(viewNames.includes(initial) ? initial : 'dx', false);
+  requestAnimationFrame(positionTabInk);
+})();
+</script>
+</body>
+</html>

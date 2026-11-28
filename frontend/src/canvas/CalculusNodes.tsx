@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Formula } from '@/components/showcase/Formula';
 import type { NodeBodyProps, NodeDef } from './nodes.tsx';
 import type { NodeType, PortSpec } from './types.ts';
@@ -114,7 +114,6 @@ const PRESETS = [
 ] as const;
 
 const defaultExpression = 'a*x^2+b*x+c';
-const FormulaCardEditor = lazy(() => import('./FormulaCardEditor'));
 
 export function FunctionSourceBody({ node, self }: NodeBodyProps) {
   try {
@@ -128,26 +127,52 @@ export function FunctionSourceBody({ node, self }: NodeBodyProps) {
 export function FunctionSourceControls({ node, onParams, onText, exposedKeys = [] }: NodeBodyProps & {
   exposedKeys?: readonly string[];
 }) {
-  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [inputError, setInputError] = useState('');
   const expression = node.text ?? defaultExpression;
+  const hintId = useId();
   let latex = '';
   let error = '';
-  try { latex = functionExpressionLatex(expression); } catch (e) { error = errorText(e); }
+  try { latex = functionExpressionLatex(draft ?? expression); } catch (e) { error = errorText(e); }
+  const cancel = () => { setDraft(null); setInputError(''); };
+  const apply = () => {
+    const next = draft?.trim() ?? '';
+    if (!next || error) { setInputError(next ? error : '请先输入函数。'); return; }
+    if (next !== expression) onText?.(next);
+    cancel();
+  };
   return <div className={styles.body}>
-    {editing && onText ? <Suspense fallback={<Notice>正在打开函数编辑器…</Notice>}>
-      <FormulaCardEditor initialValue={latex} functionMode
-        onComplete={(next) => { if (next !== expression) onText(next); setEditing(false); }}
-        onCancel={() => setEditing(false)} />
-    </Suspense> : <>
+    {draft !== null && onText ? <>
+      <label className={styles.expression}>函数表达式
+        <input aria-describedby={hintId} aria-invalid={!!inputError} autoFocus
+          value={draft} maxLength={500} spellCheck={false} autoComplete="off" autoCapitalize="off"
+          onChange={event => { setDraft(event.target.value); setInputError(''); }}
+          onKeyDown={event => {
+            if (event.nativeEvent.isComposing) return;
+            if (event.key === 'Enter' || event.key === 'Escape') {
+              event.preventDefault();
+              event.stopPropagation();
+              if (event.key === 'Enter') apply(); else cancel();
+            }
+          }} />
+      </label>
+      <p id={hintId} className={styles.tip}>例如 a*sin(x) + b。按 Enter 应用，按 Esc 取消。</p>
+      {inputError && <Notice>{inputError}</Notice>}
+      {latex && <div className={styles.expression}><Formula tex={'f(x) = ' + latex} block /></div>}
+      <div className={styles.presets}>
+        <button type="button" className={styles.editExpression} onClick={apply}>应用函数</button>
+        <button type="button" onClick={cancel}>取消</button>
+      </div>
+    </> : <>
       {latex && <div className={styles.expression}><Formula tex={'f(x) = ' + latex} block /></div>}
       {onText && <div className={styles.presets}>
-        <button type="button" className={styles.editExpression} onClick={() => setEditing(true)}>编辑函数</button>
+        <button type="button" className={styles.editExpression} onClick={() => setDraft(expression)}>编辑函数</button>
         {PRESETS.map(([name, preset]) => <button type="button" key={name} onClick={() => onText(preset)}>{name}</button>)}
       </div>}
     </>}
     {onParams && <div className={styles.fields}>{(['a', 'b', 'c'] as const).filter((key) => !exposedKeys.includes(key))
       .map((key) => <Field key={key} label={`参数 ${key}`} value={node.params[key] ?? (key === 'a' ? 1 : 0)} onChange={(v) => onParams({ [key]: v })} />)}</div>}
-    {error && !editing && <Notice>{error}</Notice>}
+    {error && draft === null && <Notice>{error}</Notice>}
     {onText && <details className={styles.help}><summary>表达式与连线说明</summary>可用变量 x 和参数 a、b、c。三角函数按弧度计算。把卡片的 f(x) 输出端口连接到导数、积分或其他高数积木，修改后它们会一起更新。</details>}
   </div>;
 }

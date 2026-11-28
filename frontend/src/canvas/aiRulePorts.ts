@@ -2,7 +2,7 @@ import type { NodeBodyProps } from './nodes.tsx';
 import type { PipelineResult } from './lab408PipelineTypes.ts';
 import type { PortValue, ValueKind } from './types.ts';
 import { compileFunction, compileFunction2d, derivativeAt, gradient2d, type RealFunction } from './calculus.ts';
-import type { RuleSampleProfile } from './aiRuleBlock.ts';
+import type { AiRuleBlockPayload, AiRuleOutputPort, RuleSampleProfile } from './aiRuleBlock.ts';
 import { sampleCalculusLesson } from './calculusSandboxSamples.ts';
 import { sampleDiskDensity } from './calculusDisk.ts';
 import { sampleVectorField } from './calculusField.ts';
@@ -166,7 +166,34 @@ function finiteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-export function ruleAuxiliaryOutputs(result: PipelineResult, title: string): Record<string, PortValue> {
+function toSeriesPort(raw: unknown, fallbackTitle: string): Extract<PortValue, { kind: 'series' }> | null {
+  if (Array.isArray(raw)) {
+    const nums = raw.filter(finiteNumber).slice(0, 400);
+    if (!nums.length) return null;
+    return { kind: 'series', title: fallbackTitle, labels: nums.map((_, i) => String(i + 1)), values: nums };
+  }
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    const vals = Array.isArray(obj.values) ? obj.values.filter(finiteNumber).slice(0, 400) : [];
+    if (!vals.length) return null;
+    const title = typeof obj.title === 'string' && obj.title.trim()
+      ? obj.title.trim().slice(0, 80)
+      : typeof obj.label === 'string' && obj.label.trim() ? obj.label.trim().slice(0, 80) : fallbackTitle;
+    const labels = Array.isArray(obj.labels) && obj.labels.length === vals.length
+      ? obj.labels.map((item) => String(item).slice(0, 40))
+      : vals.map((_, i) => String(i + 1));
+    return { kind: 'series', title, labels, values: vals };
+  }
+  return null;
+}
+
+export function ruleAuxiliaryOutputs(
+  result: PipelineResult,
+  title: string,
+  declaredOutputs?: readonly AiRuleOutputPort[],
+  controls: AiRuleBlockPayload['controls'] = [],
+  elapsedMs?: number,
+): Record<string, PortValue> {
   const frame = result.frames.at(-1);
   const line = frame?.series?.[0];
   const value = [result.data.value, Object.values(result.data).find(finiteNumber), line?.values.at(-1),
@@ -176,6 +203,45 @@ export function ruleAuxiliaryOutputs(result: PipelineResult, title: string): Rec
   if (line?.values.length) outputs.series = {
     kind: 'series', title, labels: line.values.map((_, index) => String(index + 1)), values: line.values,
   };
+
+  // 解析沙箱返回的 data.outputs，支持自定义多输出端口分流消费
+  const rawOutputs = result.data.outputs && typeof result.data.outputs === 'object' && !Array.isArray(result.data.outputs)
+    ? result.data.outputs as Record<string, unknown>
+    : null;
+
+  if (declaredOutputs?.length) {
+    for (const port of declaredOutputs) {
+      if (port.id === 'out') continue;
+      const candidate = rawOutputs && Object.hasOwn(rawOutputs, port.id) ? rawOutputs[port.id] : result.data[port.id];
+      if (port.kind === 'scalar') {
+        if (finiteNumber(candidate)) {
+          outputs[port.id] = { kind: 'scalar', v: candidate };
+        } else if (candidate && typeof candidate === 'object' && finiteNumber((candidate as Record<string, unknown>).v)) {
+          outputs[port.id] = { kind: 'scalar', v: (candidate as Record<string, unknown>).v as number };
+        }
+      } else if (port.kind === 'series') {
+        const seriesVal = toSeriesPort(candidate, port.label || title)
+          ?? (() => {
+            const matchedLine = frame?.series?.find((s) => s.label === port.label || s.label === port.id);
+            return matchedLine?.values.length ? toSeriesPort(matchedLine.values, matchedLine.label || port.label) : null;
+          })();
+        if (seriesVal) outputs[port.id] = seriesVal;
+      } else if (port.kind === 'customFrames') {
+        outputs[port.id] = { kind: 'customFrames', title: port.label || title, controls, result, elapsedMs };
+      }
+    }
+  } else if (rawOutputs) {
+    for (const [portId, candidate] of Object.entries(rawOutputs)) {
+      if (portId === 'out' || Object.hasOwn(outputs, portId)) continue;
+      if (finiteNumber(candidate)) {
+        outputs[portId] = { kind: 'scalar', v: candidate };
+      } else {
+        const seriesVal = toSeriesPort(candidate, portId);
+        if (seriesVal) outputs[portId] = seriesVal;
+      }
+    }
+  }
+
   return outputs;
 }
 
@@ -188,4 +254,50 @@ export function ruleUpstream(values: NodeBodyProps['values'], profile?: RuleSamp
         ? sampledUpstream(source, profile, scalar) : serializeUpstreamValue(source);
   const auxiliary = serializeUpstreamValue(values.aux);
   return [input, auxiliary && { ...auxiliary, port: 'aux' }].filter((value) => value !== null);
+}
+
+/** 构造沙箱多路输入：兼容数组 upstream，同时提供按端口 id 索引的 inputs 对象 */
+export function ruleNamedInputs(
+  values: NodeBodyProps['values'],
+  payload?: Pick<AiRuleBlockPayload, 'inputs' | 'sampleProfile'>,
+): { upstream: Record<string, unknown>[]; inputs: Record<string, unknown> } {
+  const inputs: Record<string, unknown> = {};
+  const upstream: Record<string, unknown>[] = [];
+  const profile = payload?.sampleProfile;
+
+  if (payload?.inputs?.length) {
+    for (const port of payload.inputs) {
+      const serialized = serializeUpstreamValue(values[port.id]);
+      if (serialized) {
+        inputs[port.id] = serialized;
+        upstream.push({ ...serialized, port: port.id });
+      }
+    }
+    // 若同时存在其他未声明但已接线的端口，也补齐到 inputs
+    for (const [portId, value] of Object.entries(values)) {
+      if (Object.hasOwn(inputs, portId)) continue;
+      const serialized = serializeUpstreamValue(value);
+      if (serialized) {
+        inputs[portId] = serialized;
+        upstream.push({ ...serialized, port: portId });
+      }
+    }
+    return { upstream, inputs };
+  }
+
+  const legacyUpstream = ruleUpstream(values, profile);
+  const scalar = values.aux?.kind === 'scalar' && Number.isFinite(values.aux.v) ? values.aux.v : undefined;
+  for (const [portId, value] of Object.entries(values)) {
+    let serialized: Record<string, unknown> | null;
+    if (portId === 'in') {
+      serialized = value?.kind === 'vectorFunction2d' && scalar !== undefined ? { ...value, samples: sampleVectorField(value, scalar) }
+        : profile === 'diskDensity' && value?.kind === 'function2d' ? { ...value, samples: sampleDiskDensity(value) }
+          : profile && profile !== 'diskDensity' && value?.kind === 'function'
+            ? sampledUpstream(value, profile, scalar) : serializeUpstreamValue(value);
+    } else {
+      serialized = serializeUpstreamValue(value);
+    }
+    if (serialized) inputs[portId] = serialized;
+  }
+  return { upstream: legacyUpstream, inputs };
 }

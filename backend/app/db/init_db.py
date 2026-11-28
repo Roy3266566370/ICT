@@ -18,7 +18,7 @@ from . import models as _models  # noqa: F401  仅为注册存量表到 Base.met
 from . import ppt_ai_models as _ppt_ai_models  # noqa: F401  注册 PPT AI 七表
 from .account_models import ACCOUNT_TABLE_NAMES
 from .base import Base
-from .models import TABLE_NAMES
+from .models import PLAZA_TABLE_NAMES, TABLE_NAMES
 from .ppt_ai_models import PPT_AI_TABLE_NAMES
 from .session import get_engine
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 #: 建表完整性校验覆盖的表名：存量基线 + 账号三表 + PPT AI 七表。
 REQUIRED_TABLE_NAMES: tuple[str, ...] = (
-    tuple(TABLE_NAMES) + tuple(ACCOUNT_TABLE_NAMES) + tuple(PPT_AI_TABLE_NAMES)
+    tuple(TABLE_NAMES) + tuple(ACCOUNT_TABLE_NAMES) + PLAZA_TABLE_NAMES + tuple(PPT_AI_TABLE_NAMES)
 )
 
 #: ``create_all`` 只建缺失的表，**不会**给已有表补列；这里登记后续追加的列。

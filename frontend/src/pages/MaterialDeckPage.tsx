@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, errorMessage } from '@/api/client';
 import { fetchSession } from '@/api/hooks';
@@ -7,14 +7,13 @@ import { useScopedQueryKeys } from '@/api/queryKeys';
 import { readEmbeddedSpecs } from '@/components/reader/specData';
 import { DeckPlayer, DeckModeSwitch, type DeckMode } from '@/components/presentation/DeckPlayer';
 import { DeckTopBar } from '@/components/presentation/DeckTopBar';
-import { getPptAiActive } from '@/api/pptAI';
-import { fromActive } from '@/ppt-ai/runtime/snapshot';
-import { getDocument, patchDocument } from '@/api/documents';
+import { fromFrozen } from '@/ppt-ai/runtime/snapshot';
+import { getLearningHealth } from '@/api/pptAI';
+import { getDocument, patchDocument, renameMaterial } from '@/api/documents';
 import type { MaterialDetail } from '@/api/types';
 import { DocumentController } from '@/document/controller';
 import { createDraftSession } from '@/document/drafts';
 import { useAccountScope } from '@/state/accountSession';
-import type { PptAiRuntimeSnapshot } from '@/ppt-ai/runtime/snapshot';
 import type { SceneDocument } from '@/document/types';
 import styles from './MaterialDeckPage.module.css';
 
@@ -152,7 +151,9 @@ function PptxConvertLoader({
 
         {hasRenderedSlides && (
           <button type="button" className={styles.earlyBtn} onClick={onPreviewEarly}>
-            底图已就绪，先进入阅读（后台继续识别交互）
+            {totalCount > 0 && renderedCount < totalCount
+              ? `首批底图已就绪（${renderedCount}/${totalCount}），先进入阅读`
+              : '底图已就绪，先进入阅读（后台收尾中）'}
           </button>
         )}
       </section>
@@ -172,16 +173,15 @@ export default function MaterialDeckPage() {
   }, enabled: !!materialId, refetchOnMount: 'always', refetchInterval: state => {
     const detail = state.state.data;
     return detail && (detail.material.status === 'processing' ||
-      (detail.job && !['awaiting_confirmation', 'ready', 'failed'].includes(detail.job.stage))) ? 2000 : false;
+      (detail.job && !['awaiting_confirmation', 'ready', 'failed'].includes(detail.job.stage))) ? 1000 : false;
   }});
-  const aiQuery = useQuery({
-    queryKey: ['ppt-ai-active', materialId],
-    queryFn: () => getPptAiActive(materialId),
+  const learningQuery = useQuery({
+    queryKey: ['ppt-ai-learning-health', scope, materialId],
+    queryFn: () => getLearningHealth(materialId),
     enabled: !!materialId && api.mode === 'http' && query.isSuccess,
     retry: false,
     staleTime: 15000,
   });
-  const aiSnapshot = useMemo(() => aiQuery.data ? fromActive(aiQuery.data) : null, [aiQuery.data]);
   if (query.isPending) return <div className="page-container" role="status">正在打开演示文稿…</div>;
   if (query.isError) return <div className="page-container" role="alert"><h1>演示文稿暂时无法打开</h1>
     <p>{errorMessage(query.error)}</p><button onClick={() => void query.refetch()}>重新载入</button> <Link to="/">返回首页</Link></div>;
@@ -191,9 +191,16 @@ export default function MaterialDeckPage() {
   if (detail.material.status === 'processing' && !isInDeckEdit && !(previewEarly && hasRenderedSlides)) {
     const stage = detail.job?.stage ?? 'queued';
     const stageLabel = STAGE_TEXT[stage] ?? '正在转换演示文稿…';
-    const pct = detail.job?.progress_pct ?? (stage === 'extracting' ? 65 : stage === 'rendering' ? 35 : 15);
     const renderedCount = detail.slides.filter(s => s.image_url).length;
     const totalCount = detail.material.page_count || detail.slides.length;
+    const renderPct = totalCount > 0 && renderedCount > 0
+      ? Math.min(88, Math.round(20 + (renderedCount / totalCount) * 68))
+      : null;
+    const pct = stage === 'rendering'
+      ? (renderPct ?? 25)
+      : stage === 'extracting'
+        ? Math.max(detail.job?.progress_pct ?? 65, renderedCount > 0 && renderedCount >= totalCount ? 92 : 75)
+        : (detail.job?.progress_pct ?? 15);
     return (
       <PptxConvertLoader
         stage={stage}
@@ -211,16 +218,17 @@ export default function MaterialDeckPage() {
     <Link to="/living">返回上传</Link>
   </div>;
   return <MaterialWorkbench key={`${scope}:${materialId}`} materialId={materialId} detail={detail}
-    refresh={query.refetch} aiSnapshot={aiSnapshot}/>;
+    learningEnabled={learningQuery.data?.learning_enabled}/>;
 }
 
-function MaterialWorkbench({materialId, detail, refresh, aiSnapshot}: {
+function MaterialWorkbench({materialId, detail, learningEnabled}: {
   materialId: string;
   detail: MaterialDetail;
-  refresh: () => Promise<unknown>;
-  aiSnapshot: PptAiRuntimeSnapshot | null;
+  learningEnabled?: boolean;
 }) {
   const scope = useAccountScope();
+  const queryClient = useQueryClient();
+  const keys = useScopedQueryKeys();
   const [search, setSearch] = useSearchParams();
   const requestedMode = search.get('mode');
   const presenter = search.get('presenter');
@@ -306,8 +314,15 @@ function MaterialWorkbench({materialId, detail, refresh, aiSnapshot}: {
     else if (document.fullscreenElement === wrapper.current) void document.exitFullscreen().catch(() => {});
   };
   const modes = {mode, onChange: switchMode};
+  const frozenAi = detail.forked_ppt_ai && sceneDocument?.revision === 0 ? fromFrozen(detail.forked_ppt_ai) : null;
   return <div ref={wrapper} className={styles.workbench}>
     {!presenter && mode !== 'present' && <DeckTopBar title={detail.material.title}
+      onRename={api.mode==='http'?async title=>{
+        const saved=await renameMaterial(materialId,title);
+        queryClient.setQueryData<MaterialDetail>(keys.material(materialId),current=>current?{
+          ...current,material:{...current.material,title:saved.title},
+        }:current);
+      }:undefined}
       home={<Link to="/living" aria-label="返回通文册">← 通文册</Link>}
       status={snapshot?.error ? { text: '保存失败', tone: 'error' }
         : snapshot?.saving ? { text: '保存中…', tone: 'pending' }
@@ -329,11 +344,12 @@ function MaterialWorkbench({materialId, detail, refresh, aiSnapshot}: {
       <div className={styles.preview} hidden={mode === 'edit'}>
         <DeckPlayer title={detail.material.title} pages={pages} specs={specs}
           identity={`${materialId}.r${detail.edit_revision ?? 0}${presenter ? '.presenter.' + presenter : ''}`}
-          materialId={materialId} headerActionsHost={presenter ? undefined : headerActionsHost} onRefresh={refresh} sceneDocument={sceneDocument}
-          formulaReviews={detail.formula_reviews} aiSnapshot={aiSnapshot} workbench={modes}
+          materialId={materialId} headerActionsHost={presenter ? undefined : headerActionsHost} sceneDocument={sceneDocument}
+          formulaReviews={detail.formula_reviews} aiSnapshot={frozenAi} learningEnabled={frozenAi ? false : learningEnabled} workbench={modes}
           workbenchZoom={{value: zoom, set: setZoom}} inactive={mode === 'edit'} presenter={presenter}
           saveDocument={controller?.save} readDocumentRevision={controller ? () => controller.getSnapshot().document.revision : undefined}
-          documentPending={snapshot?.dirty || snapshot?.saving}/>
+          documentPending={snapshot?.dirty || snapshot?.saving}
+          onPlazaPublish={() => void queryClient.invalidateQueries({ queryKey: ['plaza'] })}/>
       </div>
     </div>
   </div>;

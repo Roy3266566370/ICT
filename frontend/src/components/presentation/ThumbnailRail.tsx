@@ -1,8 +1,10 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState, type ComponentProps } from 'react';
 import type { ScenePage } from '@/document/types';
 import { ScenePageView } from '@/components/editor/ScenePageView';
 import { pageThumbUrl } from './pageUrls';
 import styles from './DeckPlayer.module.css';
+
+type PageMaster = ComponentProps<typeof ScenePageView>['master'];
 
 export interface ThumbnailRailItem {
   pageNo: number;
@@ -12,25 +14,19 @@ export interface ThumbnailRailItem {
   aspectRatio: string;
   /** 仅在“自由编辑”已产出可读场景时提供；对象引用随 sceneDocument 稳定。 */
   scene: ScenePage | null;
-}
-
-export interface ThumbnailRailBadge {
-  label: string;
-  title: string;
+  master?: PageMaster;
 }
 
 interface RailProps {
   pages: ThumbnailRailItem[];
   currentPageNo: number;
-  affectedPages: ReadonlySet<number>;
-  badges: ReadonlyMap<number, ThumbnailRailBadge>;
   interactivePages: ReadonlySet<number>;
   collapsed: boolean;
   onCollapse: () => void;
   onSelect: (pageNo: number) => void;
 }
 
-export function SceneThumbnail({ page }: { page: ScenePage }) {
+export function SceneThumbnail({ page, master }: { page: ScenePage; master?: PageMaster }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(160);
   useEffect(() => {
@@ -42,7 +38,7 @@ export function SceneThumbnail({ page }: { page: ScenePage }) {
   }, []);
   return (
     <div ref={host} style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-      <ScenePageView page={page} scale={width / page.width} />
+      <ScenePageView page={page} scale={width / page.width} master={master} />
     </div>
   );
 }
@@ -87,24 +83,22 @@ interface ItemProps {
   bytes: number | null;
   aspectRatio: string;
   scene: ScenePage | null;
+  master?: PageMaster;
   isCurrent: boolean;
-  affected: boolean;
-  badgeLabel?: string;
-  badgeTitle?: string;
   interactive: boolean;
   onSelect: (pageNo: number) => void;
 }
 
 const ThumbnailItem = memo(function ThumbnailItem(props: ItemProps) {
-  const { pageNo, ordinal, label, imageUrl, bytes, aspectRatio, scene, isCurrent, affected,
-    badgeLabel, badgeTitle, interactive, onSelect } = props;
+  const { pageNo, ordinal, label, imageUrl, bytes, aspectRatio, scene, master, isCurrent,
+    interactive, onSelect } = props;
   return (
     <button type="button" onClick={() => onSelect(pageNo)} aria-current={isCurrent ? 'page' : undefined}
-      aria-label={`第 ${ordinal} 页：${label}`} className={styles.thumbnail} data-affected={affected}>
+      aria-label={`第 ${ordinal} 页：${label}`} className={styles.thumbnail}>
       <span className={styles.thumbPreview}>
       {scene ? (
         <span className={styles.thumbImage} style={{ aspectRatio }}>
-          <SceneThumbnail page={scene} />
+          <SceneThumbnail page={scene} master={master} />
         </span>
       ) : imageUrl ? (
         <LazyThumb src={pageThumbUrl(imageUrl, 320, bytes)} aspectRatio={aspectRatio} />
@@ -116,14 +110,13 @@ const ThumbnailItem = memo(function ThumbnailItem(props: ItemProps) {
       <span className={styles.thumbCaption}>
         <b>{ordinal}</b>
         <span>{label || `第 ${ordinal} 页`}</span>
-        {badgeLabel ? <em className={styles.impactBadge} title={badgeTitle}>{badgeLabel}</em> : null}
       </span>
     </button>
   );
 });
 
 export const ThumbnailRail = memo(function ThumbnailRail(props: RailProps) {
-  const { pages, currentPageNo, affectedPages, badges, interactivePages, collapsed, onCollapse, onSelect } = props;
+  const { pages, currentPageNo, interactivePages, collapsed, onCollapse, onSelect } = props;
   const [onlyInteractive, setOnlyInteractive] = useState(false);
   const activeFilter = onlyInteractive && interactivePages.size > 0;
   const selected = useRef<HTMLDivElement>(null);
@@ -142,7 +135,6 @@ export const ThumbnailRail = memo(function ThumbnailRail(props: RailProps) {
       <div ref={selected} className={styles.railList}>
       {pages.map((item, index) => {
         if (activeFilter && !interactivePages.has(item.pageNo)) return null;
-        const badge = badges.get(item.pageNo);
         return (
           <ThumbnailItem
             key={item.pageNo}
@@ -153,10 +145,8 @@ export const ThumbnailRail = memo(function ThumbnailRail(props: RailProps) {
             bytes={item.bytes}
             aspectRatio={item.aspectRatio}
             scene={item.scene}
+            master={item.master}
             isCurrent={item.pageNo === currentPageNo}
-            affected={affectedPages.has(item.pageNo)}
-            badgeLabel={badge?.label}
-            badgeTitle={badge?.title}
             interactive={interactivePages.has(item.pageNo)}
             onSelect={onSelect}
           />

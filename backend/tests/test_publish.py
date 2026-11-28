@@ -291,6 +291,8 @@ def test_public_page_endpoint_serves_only_snapshot_files(
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("image/png")
         assert response.content == _PNG_BYTES
+        (target_dir / "s01.png").write_bytes(b"replaced after publish")
+        assert guest.get(f"/api/v1/p/{share_id}/pages/1").content == _PNG_BYTES
 
         erased = guest.get(f"/api/v1/p/{share_id}/pages/1?variant=erased")
         assert erased.status_code == 200

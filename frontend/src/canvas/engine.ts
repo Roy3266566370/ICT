@@ -87,7 +87,7 @@ function evalInput(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | 
 }
 
 /** 复合节点的子求值上下文：外层输入经 boundary 注入，同一 ctx 周期内复用 */
-function subCtxOf(ctx: EvalCtx, node: CanvasNode): EvalCtx | null {
+export function getSubCtx(ctx: EvalCtx, node: CanvasNode): EvalCtx | null {
   const sub = node.sub;
   if (!sub) return null;
   const hit = ctx.subs.get(node.id);
@@ -109,6 +109,8 @@ function subCtxOf(ctx: EvalCtx, node: CanvasNode): EvalCtx | null {
   ctx.subs.set(node.id, c);
   return c;
 }
+
+const subCtxOf = getSubCtx;
 
 function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | null {
   if (isStudyStage(node.type)) {
@@ -326,6 +328,8 @@ function compute(ctx: EvalCtx, node: CanvasNode, portId: string): PortValue | nu
       return { kind: 'scalar', v: node.params.v ?? 0 };
     case 'ticker':
       return ctx.live.get(node.id) ?? { kind: 'scalar', v: 0 };
+    case 'delayRegister':
+      return ctx.live.get(node.id) ?? { kind: 'scalar', v: node.params.init ?? 0 };
     case 'portIn':
       return ctx.boundary.get(node.id) ?? null;
     case 'portOut':
@@ -394,4 +398,34 @@ export function* aiRuleInputs(ctx: EvalCtx): Generator<{ node: CanvasNode; value
     }
   }
   yield* visit(ctx.doc.nodes, []);
+}
+
+/** 原子收集全图（含复合积木内部）所有 delayRegister 的下一拍输入值，不立即修改 live */
+export function collectNextDelayStates(ctx: EvalCtx): Map<string, PortValue> {
+  const nextStates = new Map<string, PortValue>();
+  function visit(nodes: CanvasNode[], scope: EvalCtx): void {
+    for (const node of nodes) {
+      if (node.type === 'delayRegister') {
+        const incoming = evalInput(scope, node, 'next') ?? evalInput(scope, node, 'in');
+        if (incoming) {
+          nextStates.set(node.id, incoming);
+        }
+      } else if (node.type === 'composite' && node.sub) {
+        const childCtx = subCtxOf(scope, node);
+        if (childCtx) visit(node.sub.nodes, childCtx);
+      }
+    }
+  }
+  visit(ctx.doc.nodes, ctx);
+  return nextStates;
+}
+
+/** 收集全图（含复合积木内部）所有 delayRegister 节点 ID */
+export function listDelayRegisterIds(nodes: readonly CanvasNode[]): string[] {
+  const ids: string[] = [];
+  for (const node of nodes) {
+    if (node.type === 'delayRegister') ids.push(node.id);
+    if (node.sub) ids.push(...listDelayRegisterIds(node.sub.nodes));
+  }
+  return ids;
 }

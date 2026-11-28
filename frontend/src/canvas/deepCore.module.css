@@ -9,10 +9,12 @@
 .body small { line-height: 1.6; color: var(--text-secondary, #607780); }
 .body p { margin: 2px 0; line-height: 1.6; }
 .controls { display: flex; gap: 8px; }
-.plot { width: 100%; background: #f7fafb; border: 1px solid #dce5ea; border-radius: 7px; }
-.loss { width: 100%; background: #f7fafb; }
-.matrix { display: grid; gap: 2px; width: 100%; }
-.matrix button { padding: 0; aspect-ratio: 1; min-width: 0; border-radius: 2px; font-size: 10px; color: #12313e; }
+.plot { display: block; width: min(100%, 400px); max-height: 280px; height: auto; margin-inline: auto; background: #f7fafb; border: 1px solid #dce5ea; border-radius: 7px; }
+.loss { display: block; width: min(100%, 440px); max-height: 160px; height: auto; margin-inline: auto; background: #f7fafb; }
+.matrix { display: grid; gap: 4px; width: 100%; margin-inline: auto; }
+.matrix button { padding: 0; aspect-ratio: 1; min-width: 0; max-height: 64px; border-radius: 4px; font-size: 11.5px; font-weight: 600; color: #12313e; }
+.matrixMeta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding-top: 6px; border-top: 1px solid #e5ecef; font-size: 11.5px; color: var(--text-secondary, #526873); font-variant-numeric: tabular-nums; }
+.matrixMeta output { font-weight: 600; color: var(--text, #1d3642); }
 .pixels { display: grid; grid-template-columns: repeat(12, 1fr); gap: 1px; touch-action: none; }
 .pixels button { padding: 0; aspect-ratio: 1; border-radius: 1px; border-color: #bac8d0; }
 .kernel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
@@ -23,3 +25,20 @@
 .receptive { display: grid; grid-template-columns: repeat(12, 1fr); gap: 1px; width: 144px; }
 .receptive span { aspect-ratio: 1; }
 .body meter { width: 100px; }
+.cockpitBody, .boundaryStage { padding: 0; }
+.boundaryStage { flex: 1; justify-content: center; }
+.boundaryStage .plot { width: min(100%, 640px, 68vh); max-height: none; }
+.boundaryStage[data-stage-context='instrument'] .plot { width: min(100%, 440px, 54vh); }
+.epochProgress { display: block; width: 100%; height: 8px; margin-top: 5px; accent-color: #13766d; }
+.matrixShort { gap: 3px; }
+.matrixShort button { aspect-ratio: auto; min-height: 26px; font-size: clamp(9px, 1vw, 12px); overflow-wrap: anywhere; }
+.matrixShort button span { font-weight: 400; }
+.matrixMetaShort { padding-top: 4px; gap: 4px 10px; }
+.matrixDense { gap: 1px; }
+.matrixDense button { border: 0; border-radius: 1px; }
+.studyCurve { margin: 0; min-width: 0; font-size: 12px; }
+.studyCurve svg { display: block; cursor: crosshair; outline-offset: 2px; }
+.studyCurve svg text { fill: currentColor; font-size: 9px; }
+.studyCurve figcaption { display: flex; flex-wrap: wrap; gap: 4px 10px; font-variant-numeric: tabular-nums; }
+.tokenFlow { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; list-style: none; }
+.tokenFlow li { padding: 3px 9px; border-radius: 999px; color: #17665e; background: #e7f1ee; }

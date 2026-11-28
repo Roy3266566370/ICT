@@ -29,6 +29,48 @@ def _number(value,minimum,maximum):
     if type(value) not in (float,int) or not math.isfinite(value) or not minimum<=value<=maximum:
         raise ValueError('位置、大小和样式须为允许范围内的有限数值')
 
+
+def validate_raster_data(raw):
+    import base64,io
+    from PIL import Image
+    if not isinstance(raw,str) or len(raw)>6_000_000 or not re.match(r'^data:image/(png|jpeg|webp);base64,',raw):
+        raise ValueError('图片须为PNG、JPEG或WebP且小于4MB')
+    try:
+        blob=base64.b64decode(raw.split(',',1)[1],validate=True)
+        if len(blob)>4*1024*1024:raise ValueError('图片文件过大')
+        with Image.open(io.BytesIO(blob)) as image:
+            if image.width*image.height>30_000_000:raise ValueError('图片像素过大')
+            image.verify()
+    except (OSError,ValueError) as error:
+        raise ValueError('图片内容无法读取，请使用有效的PNG、JPEG或WebP图片') from error
+    return raw
+
+
+def validate_visual_effect(name,value):
+    color=lambda v:isinstance(v,str) and re.fullmatch(r'#[0-9A-Fa-f]{6}',v)
+    if name=='border_radius':
+        _number(value,0,500)
+    elif value is not None and name=='shadow':
+        if not isinstance(value,dict) or set(value)!={'x','y','blur','color','opacity'} or not color(value['color']):
+            raise ValueError('阴影格式不合法')
+        for key in ('x','y'):_number(value[key],-200,200)
+        _number(value['blur'],0,200)
+        _number(value['opacity'],0,1)
+    elif value is not None and name=='linear_gradient':
+        if not isinstance(value,dict) or set(value)!={'angle','stops'} or not isinstance(value['stops'],list) or not 2<=len(value['stops'])<=8:
+            raise ValueError('渐变格式不合法')
+        _number(value['angle'],0,360)
+        previous=-1
+        for stop in value['stops']:
+            if not isinstance(stop,dict) or set(stop)-{'position','color','opacity'} or not color(stop.get('color')):
+                raise ValueError('渐变色标不合法')
+            position=stop.get('position')
+            _number(position,0,1)
+            if position<previous:raise ValueError('渐变色标顺序不合法')
+            previous=position
+            _number(stop.get('opacity',1),0,1)
+    return deepcopy(value)
+
 SHAPES = frozenset('rect ellipse roundRect diamond parallelogram trapezoid triangle rtTriangle hexagon octagon pentagon star5 chevron rightArrow leftArrow upArrow downArrow leftRightArrow leftBrace rightBrace wedgeRectCallout plus cloud'.split())
 _RUN_STYLE = frozenset('font_size font_family color bold italic underline letter_spacing baseline highlight'.split())
 
@@ -37,7 +79,7 @@ def _validate_paragraphs(value):
     chars=0
     run_count=0
     for paragraph in value:
-        if not isinstance(paragraph,dict) or set(paragraph)-{'text','runs','align','line_height','line_spacing_pt','space_before','space_after','bullet'}:
+        if not isinstance(paragraph,dict) or set(paragraph)-{'text','runs','align','line_height','line_spacing_pt','space_before','space_after','bullet','list_type'}:
             raise ValueError('段落格式不合法')
         text=paragraph.get('text')
         runs=paragraph.get('runs')
@@ -47,6 +89,7 @@ def _validate_paragraphs(value):
         if chars>20000 or run_count>4000:raise ValueError('富文本过长')
         if 'align' in paragraph and paragraph['align'] not in ('left','center','right','justify'):raise ValueError('段落对齐方式不合法')
         if 'bullet' in paragraph and type(paragraph['bullet']) is not bool:raise ValueError('段落项目符号不合法')
+        if 'list_type' in paragraph and paragraph['list_type'] not in ('bullet','ordered'):raise ValueError('段落列表类型不合法')
         for key in ('line_spacing_pt','space_before','space_after'):
             if key in paragraph:_number(paragraph[key],0,2000)
         if 'line_height' in paragraph:_number(paragraph['line_height'],.1,20)
@@ -62,7 +105,7 @@ def validate_patch(patch:dict)->dict:
     numeric={'x':(-20000,20000),'y':(-20000,20000),'width':(.1,20000),'height':(.1,20000),
       'rotation':(-36000,36000),'z':(-10000,10000),'opacity':(0,1)}
     allowed=set(numeric)|{'locked','hidden','deleted','text','paragraphs','style','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','diagram','demo','workshop_plugin',
-        'cleaned_asset_id','figure_scene','figure_source_id','figure_object_id','figure_provenance'}
+        'cleaned_asset_id','figure_scene','figure_source_id','figure_object_id','figure_provenance','group_id','table_style','image_data'}
     if set(patch)-allowed:raise ValueError('修改包含不可编辑字段')
     for key,value in patch.items():
         if key in numeric:_number(value,*numeric[key])
@@ -81,9 +124,9 @@ def validate_patch(patch:dict)->dict:
             if value is not None:
                 from .figure_scene import FigureScene
                 normalized[key]=FigureScene.model_validate(value).model_dump(mode='json')
-        elif key in ('figure_source_id','figure_object_id'):
+        elif key in ('figure_source_id','figure_object_id','group_id'):
             if value is not None and (not isinstance(value,str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,96}',value)):
-                raise ValueError('图示来源标识不合法')
+                raise ValueError('对象关联标识不合法')
         elif key=='figure_provenance':
             if value not in (None,'pixel','vision','user_confirmed'):
                 raise ValueError('图示来源类型不可写入')
@@ -107,7 +150,8 @@ def validate_patch(patch:dict)->dict:
         elif key=='style':
             if not isinstance(value,dict):raise ValueError('样式类型不合法')
             for name,item in value.items():
-                if name=='font_size':_number(item,1,500)
+                if name in ('border_radius','shadow','linear_gradient'):validate_visual_effect(name,item)
+                elif name=='font_size':_number(item,1,500)
                 elif name=='line_height':_number(item,.5,5)
                 elif name=='letter_spacing':_number(item,-20,100)
                 elif name=='baseline':_number(item,-100,100)
@@ -123,6 +167,7 @@ def validate_patch(patch:dict)->dict:
                 elif name=='vertical_align':
                     if item not in ('top','middle','bottom'):raise ValueError('对齐方式不合法')
                 elif name=='stroke_width':_number(item,0,100)
+                elif name in ('fill_opacity','stroke_opacity'):_number(item,0,1)
                 elif name=='line_style':
                     if item not in ('solid','dashed','dotted'):raise ValueError('线型不合法')
                 elif name=='anim_step':
@@ -136,6 +181,15 @@ def validate_patch(patch:dict)->dict:
             if value['left']+value['right']>=.98 or value['top']+value['bottom']>=.98:raise ValueError('裁剪区域为空')
         elif key=='table':
             if not isinstance(value,list) or len(value)>100 or any(not isinstance(r,list) or len(r)>50 or any(not isinstance(c,str) or len(c)>2000 for c in r) for r in value):raise ValueError('表格数据不合法')
+        elif key=='image_data' and value is not None:
+            validate_raster_data(value)
+        elif key=='table_style' and value is not None:
+            flags={'header_row','banded_rows'}
+            colors={'header_fill','header_color','band_fill','border_color'}
+            if (not isinstance(value,dict) or set(value)-flags-colors
+                    or any(type(v) is not bool for k,v in value.items() if k in flags)
+                    or any(not isinstance(v,str) or not re.fullmatch(r'#[0-9A-Fa-f]{6}',v) for k,v in value.items() if k in colors)):
+                raise ValueError('表格样式不合法')
         elif key=='chart':
             from ..ispec.user_config import validate_interaction
             validate_interaction({'kind':'chart',**value})
@@ -172,7 +226,7 @@ def _create(page,identifier,data):
         update={k:v for k,v in data.items() if k!='duplicate_from'}
         update=validate_patch(update);node.update(update)
     else:
-        if set(data)-{'type','name','text','paragraphs','table','chart','x','y','width','height','rotation','z','style','image_data','shape','opacity','locked','hidden','deleted','crop','interaction','basis','flow','viewer_editable','viewer_parameters','diagram','demo','workshop_plugin','figure_provenance','figure_source_id','figure_object_id'}:raise ValueError('新增对象包含不可用字段')
+        if set(data)-{'type','name','text','paragraphs','table','table_style','chart','x','y','width','height','rotation','z','style','image_data','shape','opacity','locked','hidden','deleted','crop','interaction','basis','flow','viewer_editable','viewer_parameters','diagram','demo','workshop_plugin','figure_provenance','figure_source_id','figure_object_id','group_id'}:raise ValueError('新增对象包含不可用字段')
         kind=data.get('type','text')
         shape=data.get('shape','rect')
         if shape is not None and (not isinstance(shape,str) or shape not in SHAPES):raise ValueError('图形类型不合法')
@@ -201,18 +255,58 @@ def _create(page,identifier,data):
             from ..ispec.node_interaction import validate_node_interaction
             validate_node_interaction(update['interaction'])
         if kind=='image':
-            import base64,io
-            from PIL import Image
-            raw=data.get('image_data','')
-            if not isinstance(raw,str) or len(raw)>6_000_000 or not re.match(r'^data:image/(png|jpeg|webp);base64,',raw):raise ValueError('图片须为PNG、JPEG或WebP且小于4MB')
-            try:
-                blob=base64.b64decode(raw.split(',',1)[1],validate=True)
-                with Image.open(io.BytesIO(blob)) as image:
-                    if image.width*image.height>30_000_000:raise ValueError('图片像素过大')
-                    image.verify()
-            except (OSError,ValueError) as error:raise ValueError('图片内容无法读取，请使用有效的PNG、JPEG或WebP图片') from error
-            node['image_data']=raw
+            node['image_data']=validate_raster_data(data.get('image_data'))
     return node
+
+def validate_deck_theme(theme):
+    palette_keys={'background','surface','primary','secondary','accent','text','muted','border'}
+    if not isinstance(theme,dict) or set(theme)-{'id','name','aspect_ratio','palette','fonts','master'} or not {'id','name','aspect_ratio','palette','fonts'}<=set(theme):
+        raise ValueError('课件主题不合法')
+    palette,fonts=theme['palette'],theme['fonts']
+    if (not all(isinstance(theme[key],str) and 0<len(theme[key])<=100 for key in ('id','name'))
+            or theme['aspect_ratio'] not in ('16:9','4:3') or not isinstance(palette,dict)
+            or set(palette)!=palette_keys or not all(isinstance(value,str) and re.fullmatch(r'#[0-9A-Fa-f]{6}',value) for value in palette.values())
+            or not isinstance(fonts,dict) or set(fonts)!={'heading','body'}
+            or not all(isinstance(value,str) and 0<len(value)<=100 for value in fonts.values())):
+        raise ValueError('课件主题配色或字体不合法')
+    master=theme.get('master')
+    if master is not None:
+        if not isinstance(master,dict) or set(master)-{'show_page_number','header_text','footer_text','accent_bar'}:
+            raise ValueError('课件母版不合法')
+        if ('show_page_number' in master and type(master['show_page_number']) is not bool
+                or any(not isinstance(master.get(key,''),str) or len(master.get(key,''))>160 for key in ('header_text','footer_text'))
+                or master.get('accent_bar','none') not in ('none','top','left','bottom')):
+            raise ValueError('课件母版设置不合法')
+    return deepcopy(theme)
+
+
+def validate_page_transition(transition):
+    if transition is None:
+        return None
+    if (not isinstance(transition,dict) or set(transition)-{'kind','duration_ms'} or
+            transition.get('kind') not in ('none','fade','slide','push','zoom')):
+        raise ValueError('换页动画不合法')
+    if 'duration_ms' in transition:_number(transition['duration_ms'],100,2000)
+    return deepcopy(transition)
+
+
+def validate_page_background(background):
+    if background is None:return None
+    if not isinstance(background,dict):raise ValueError('页面背景不合法')
+    kind=background.get('kind')
+    color=lambda v:isinstance(v,str) and re.fullmatch(r'#[0-9A-Fa-f]{6}',v)
+    if kind=='solid' and set(background)=={'kind','color'} and color(background['color']):
+        return deepcopy(background)
+    if kind=='gradient' and set(background)=={'kind','gradient'} and background['gradient'] is not None:
+        validate_visual_effect('linear_gradient',background['gradient'])
+        return deepcopy(background)
+    if kind=='image' and set(background)<={'kind','image_data','image_opacity','overlay_color'}:
+        validate_raster_data(background.get('image_data'))
+        if 'image_opacity' in background:_number(background['image_opacity'],0,1)
+        if 'overlay_color' in background and not color(background['overlay_color']):raise ValueError('背景蒙层颜色不合法')
+        return deepcopy(background)
+    raise ValueError('页面背景不合法')
+
 
 def _apply_page_action(document,change):
     page_no=change.get('page_no')
@@ -221,6 +315,14 @@ def _apply_page_action(document,change):
         raise ValueError('页面操作格式不合法')
     kind=action.get('kind')
     pages=document['pages']
+    if kind=='document_theme':
+        theme=action.get('theme')
+        if page_no!=0 or set(action)!={'kind','theme'}:raise ValueError('课件主题格式不合法')
+        if theme is None:
+            document.pop('theme',None)
+            return
+        document['theme']=validate_deck_theme(theme)
+        return
     if kind=='reorder_pages':
         order=action.get('order')
         by_no={page['page_no']:page for page in pages}
@@ -234,7 +336,7 @@ def _apply_page_action(document,change):
     page=next((item for item in pages if item['page_no']==page_no),None)
     if kind=='page_metadata':
         patch=action.get('patch')
-        if page is None or not isinstance(patch,dict) or patch.keys()-{'notes','background_color','background_modified'}:
+        if page is None or not isinstance(patch,dict) or patch.keys()-{'notes','background_color','background_modified','background','transition','hide_master','layout_id'}:
             raise ValueError('页面设置不合法')
         if 'notes' in patch and (not isinstance(patch['notes'],str) or len(patch['notes'])>20000):raise ValueError('讲稿备注过长')
         color=patch.get('background_color')
@@ -242,6 +344,11 @@ def _apply_page_action(document,change):
             raise ValueError('背景颜色须为十六进制值')
         if 'background_modified' in patch and (type(patch['background_modified']) is not bool or 'background_color' not in patch):
             raise ValueError('背景设置不合法')
+        if 'transition' in patch:validate_page_transition(patch['transition'])
+        if 'background' in patch:validate_page_background(patch['background'])
+        if 'hide_master' in patch and type(patch['hide_master']) is not bool:raise ValueError('母版可见性设置不合法')
+        if 'layout_id' in patch and patch['layout_id'] not in (None,'blank','cover','section','agenda','lesson','two-column','text-image','text-plugin'):
+            raise ValueError('页面版式不合法')
         page.update(patch)
         if 'background_color' in patch:page['background_modified']=color is not None and patch.get('background_modified',True)
         page['modified']=True

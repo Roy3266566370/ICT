@@ -126,12 +126,17 @@ pagesEditor.movePage(copy,0);
 pagesEditor.patchPage(copy,{notes:'讲稿',background_color:'#EEEEFF'});
 const arranged=pagesEditor.getSnapshot().document;
 assert.deepEqual(Array.from(arranged.pages,p=>p.page_no),[copy,1,blank]);
-assert.deepEqual(Array.from(arranged.pages.find(p=>p.page_no===blank).nodes,n=>n.text),['课程标题','教学要点']);
+const lesson=arranged.pages.find(p=>p.page_no===blank);
+assert.equal(lesson.layout_id,'lesson');
+assert.deepEqual(Array.from(lesson.nodes,n=>({type:n.type,name:n.name,text:n.text})),[
+  {type:'text',name:'标题',text:'课程标题'},
+  {type:'text',name:'正文',text:'• 教学要点\n• 关键例题\n• 课堂练习'},
+]);
 assert.equal(arranged.pages[0].source_page_no,1);
 assert.equal(arranged.pages[0].notes,'讲稿');
 const changeKinds=diffDocuments(original,arranged).flatMap(change=>change.page_action?.kind??[]);
 assert.ok(changeKinds.includes('duplicate_page')&&changeKinds.includes('reorder_pages'));
-const remotePage={...arranged.pages.find(p=>p.page_no===blank),notes:'同一新页编号，来自另一个窗口'};
+const remotePage={...lesson,notes:'同一新页编号，来自另一个窗口'};
 const concurrent=rebaseDocument(original,arranged,{...original,pages:[original.pages[0],remotePage]});
 assert.ok(concurrent.conflicts.some(message=>message.includes('新增页面')));
 assert.equal(concurrent.document.pages.length,4,'Concurrent inserts retain both versions for conflict recovery');

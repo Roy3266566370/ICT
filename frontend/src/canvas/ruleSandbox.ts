@@ -20,7 +20,13 @@ export class RuleSandboxError extends Error {
 export interface RuleWorkerSource {
   type: 'run';
   code: string;
-  input: { text: string; params: Record<string, number>; upstream: Record<string, unknown>[] };
+  input: {
+    text: string;
+    params: Record<string, number>;
+    upstream: Record<string, unknown>[];
+    /** 按端口 id 索引的多路输入对象（如 inputs.supply、inputs.demand） */
+    inputs?: Record<string, unknown>;
+  };
   nonce: string;
 }
 
@@ -97,7 +103,7 @@ self.onmessage = function (event) {
       return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
     }
     var output = runner(
-      { ...data.input, rand: rand },
+      { ...data.input, inputs: data.input.inputs || {}, rand: rand },
       safeMath,
       deny('fetch'), deny('XMLHttpRequest'), deny('WebSocket'), deny('EventSource'),
       deny('importScripts'), denied, denied, denied, denied, denied, denied, denied, denied,
@@ -122,6 +128,11 @@ function finite(value: unknown, fallback = 0): number {
 
 function clipText(value: unknown, limit: number, fallback = ''): string {
   return typeof value === 'string' ? value.slice(0, limit) : fallback;
+}
+
+function graphText(value: unknown, limit: number, fallback = ''): string {
+  const text = typeof value === 'number' && Number.isFinite(value) ? String(value) : value;
+  return clipText(text, limit, fallback);
 }
 
 function sanitizeCell(value: unknown): string | number {
@@ -262,11 +273,11 @@ function sanitizeFrame(raw: unknown, index: number): PipelineFrame {
     nodes: Array.isArray(graphRaw.nodes) ? graphRaw.nodes.slice(0, MAX_RULE_GRAPH_NODES).flatMap((node) => {
       if (!node || typeof node !== 'object') return [];
       const item = node as Record<string, unknown>;
-      const id = clipText(item.id, 48);
+      const id = graphText(item.id, 48);
       if (!id) return [];
       return [{
         id,
-        label: clipText(item.label, 48, id),
+        label: graphText(item.label, 48, id),
         x: Math.max(-20, Math.min(120, finite(item.x))),
         y: Math.max(-20, Math.min(120, finite(item.y))),
         active: Boolean(item.active),
@@ -275,10 +286,10 @@ function sanitizeFrame(raw: unknown, index: number): PipelineFrame {
     edges: Array.isArray(graphRaw.edges) ? graphRaw.edges.slice(0, 300).flatMap((edge) => {
       if (!edge || typeof edge !== 'object') return [];
       const item = edge as Record<string, unknown>;
-      const from = clipText(item.from, 48);
-      const to = clipText(item.to, 48);
+      const from = graphText(item.from, 48);
+      const to = graphText(item.to, 48);
       if (!from || !to) return [];
-      return [{ from, to, active: Boolean(item.active), label: clipText(item.label, 40) }];
+      return [{ from, to, active: Boolean(item.active), label: graphText(item.label, 40) }];
     }) : [],
   } : undefined;
   const shapes = sanitizeShapes(frame.shapes);

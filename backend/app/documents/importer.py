@@ -6,6 +6,7 @@ from io import BytesIO
 import math
 from pathlib import Path
 import re
+import unicodedata
 
 import numpy as np
 from PIL import Image
@@ -13,11 +14,20 @@ from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.oxml import parse_xml
 from pptx.oxml.ns import qn
+from pptx.shapes.shapetree import SlideShapeFactory
 from pptx.text.text import Font
 from ..parsers.pptx_parser import _walk_shapes
 
 EMU_PER_POINT=12700
-NATIVE_IMPORT_VERSION = 2
+NATIVE_IMPORT_VERSION = 6
+_M_NS = '{http://schemas.openxmlformats.org/officeDocument/2006/math}'
+_A14_NS = '{http://schemas.microsoft.com/office/drawing/2010/main}'
+_MC_NS = '{http://schemas.openxmlformats.org/markup-compatibility/2006}'
+_OMML_OPS = {'∑': '\\sum', '∏': '\\prod', '∫': '\\int', '∬': '\\iint', '∭': '\\iiint', '∮': '\\oint'}
+_ALGN_MAP = {'l': 'left', 'ctr': 'center', 'r': 'right', 'just': 'justify', 'dist': 'justify'}
+_ANCHOR_MAP = {'t': 'top', 'ctr': 'middle', 'b': 'bottom'}
+_TITLE_PH_TYPES = {1, 3}  # TITLE, CENTER_TITLE
+_BODY_PH_TYPES = {2, 4, 7}  # BODY, SUBTITLE, OBJECT
 NATIVE_PRESETS = {
     'rect', 'ellipse', 'roundRect', 'diamond', 'parallelogram', 'trapezoid',
     'triangle', 'rtTriangle', 'hexagon', 'octagon', 'pentagon', 'star5', 'chevron',
@@ -70,11 +80,61 @@ def _color(font):
         pass
     return None
 
-def _font(font, resolve_color=None):
+def _theme_fonts(theme):
+    """解析主题中的主/副字体映射（+mj-lt / +mn-lt / +mj-ea / +mn-ea / +mj-cs / +mn-cs）。"""
+    fonts = {}
+    if theme is None:
+        return fonts
+    scheme = theme.find('.//' + qn('a:fontScheme'))
+    if scheme is None:
+        return fonts
+    for prefix, tag in (('+mj', 'a:majorFont'), ('+mn', 'a:minorFont')):
+        group = scheme.find(qn(tag))
+        if group is None:
+            continue
+        latin_el = group.find(qn('a:latin'))
+        latin = (latin_el.get('typeface') or '').strip() if latin_el is not None else ''
+        if latin:
+            fonts[f'{prefix}-lt'] = latin
+        for suffix, subtag in (('ea', 'a:ea'), ('cs', 'a:cs')):
+            sub_el = group.find(qn(subtag))
+            face = (sub_el.get('typeface') or '').strip() if sub_el is not None else ''
+            if face:
+                fonts[f'{prefix}-{suffix}'] = face
+            elif latin:
+                fonts[f'{prefix}-{suffix}'] = latin
+    return fonts
+
+
+def _resolve_font_family(name, theme_fonts=None):
+    if not name:
+        return None
+    if theme_fonts and name in theme_fonts:
+        return theme_fonts[name]
+    return name
+
+
+def _font(font, resolve_color=None, theme_fonts=None):
     result={}
     for name,attribute in [('font_family','name'),('bold','bold'),('italic','italic'),('underline','underline')]:
         value=getattr(font,attribute,None)
-        if value is not None: result[name]=bool(value) if attribute in ('bold','italic','underline') else value
+        if value is not None:
+            if attribute == 'name':
+                resolved = _resolve_font_family(value, theme_fonts)
+                if resolved:
+                    result[name] = resolved
+            else:
+                result[name]=bool(value)
+    if 'font_family' not in result:
+        rpr = getattr(font, '_rPr', None)
+        if rpr is not None:
+            for subtag in ('a:latin', 'a:ea', 'a:cs'):
+                el = rpr.find(qn(subtag))
+                face = (el.get('typeface') or '').strip() if el is not None else ''
+                resolved = _resolve_font_family(face, theme_fonts)
+                if resolved:
+                    result['font_family'] = resolved
+                    break
     if font.size is not None: result['font_size']=font.size.pt
     if resolve_color:
         fill = font._rPr.find(qn('a:solidFill'))
@@ -96,52 +156,327 @@ def _font(font, resolve_color=None):
     except (TypeError,ValueError,AttributeError):pass
     return result
 
-def _text_properties(frame, style, resolve_color=None):
+
+def _parse_ppr_layer(ppr, resolve_color=None, theme_fonts=None):
+    """提取单个 pPr/defPPr/lvlNpPr 节点的对齐、默认字体、行距、段距与项目符号。"""
+    if ppr is None:
+        return {}, None, None, {}
+    font_style = {}
+    default_font = ppr.find(qn('a:defRPr'))
+    if default_font is not None:
+        font_style = _font(Font(default_font), resolve_color, theme_fonts)
+    align = _ALGN_MAP.get(ppr.get('algn'))
+    bullet = None
+    if ppr.find(qn('a:buNone')) is not None:
+        bullet = False
+    elif any(ppr.find(qn('a:' + kind)) is not None for kind in ('buChar', 'buAutoNum')):
+        bullet = True
+    spacing = {}
+    ln_spc = ppr.find(qn('a:lnSpc'))
+    if ln_spc is not None:
+        spc_pct = ln_spc.find(qn('a:spcPct'))
+        spc_pts = ln_spc.find(qn('a:spcPts'))
+        try:
+            if spc_pct is not None and spc_pct.get('val'):
+                val = int(spc_pct.get('val')) / 100000
+                if val > 0:
+                    spacing['line_height'] = val
+            elif spc_pts is not None and spc_pts.get('val'):
+                val = int(spc_pts.get('val')) / 100
+                if val > 0:
+                    spacing['line_spacing_pt'] = val
+        except (TypeError, ValueError):
+            pass
+    for key, tag in (('space_before', 'a:spcBef'), ('space_after', 'a:spcAft')):
+        el = ppr.find(qn(tag))
+        pts = el.find(qn('a:spcPts')) if el is not None else None
+        if pts is not None and pts.get('val'):
+            try:
+                spacing[key] = int(pts.get('val')) / 100
+            except (TypeError, ValueError):
+                pass
+    return font_style, align, bullet, spacing
+
+
+def _apply_body_pr(tx_body, style):
+    """只覆盖 XML 中显式声明的 bodyPr 边距与垂直对齐属性，保留继承值。"""
+    if tx_body is None:
+        return
+    body_pr = tx_body.find(qn('a:bodyPr'))
+    if body_pr is None:
+        return
+    anchor = _ANCHOR_MAP.get(body_pr.get('anchor'))
+    if anchor:
+        style['vertical_align'] = anchor
+    for attr, xml_attr in (('left', 'lIns'), ('right', 'rIns'), ('top', 'tIns'), ('bottom', 'bIns')):
+        raw = body_pr.get(xml_attr)
+        if raw is not None:
+            try:
+                style['padding_' + attr] = int(raw) / EMU_PER_POINT
+            except (TypeError, ValueError):
+                pass
+
+
+def _matching_placeholder(owner, ph_idx, ph_type):
+    """在 SlideLayout 或 SlideMaster 中按 idx 优先、兼容 type 次之查找对应占位符。"""
+    if owner is None:
+        return None
+    by_type = None
+    compat_types = _TITLE_PH_TYPES if ph_type in _TITLE_PH_TYPES else (_BODY_PH_TYPES if ph_type in _BODY_PH_TYPES else {ph_type})
+    for candidate in owner.placeholders:
+        try:
+            pf = candidate.placeholder_format
+            if ph_idx is not None and pf.idx == ph_idx:
+                return candidate
+            if by_type is None and int(pf.type) in compat_types:
+                by_type = candidate
+        except (AttributeError, TypeError, ValueError):
+            continue
+    return by_type
+
+
+def _inheritance_sources(shape, slide, theme_fonts=None, resolve_color=None):
+    """收集文本框样式继承链：(style_containers, body_pr_txbodies, shape_font_ref_style)。"""
+    containers = []
+    bodies = []
+    font_ref_style = {}
+    if slide is None or shape is None:
+        return containers, bodies, font_ref_style
+    try:
+        layout = slide.slide_layout
+        master = layout.slide_master
+        presentation = slide.part.package.presentation_part.presentation
+    except (AttributeError, KeyError):
+        return containers, bodies, font_ref_style
+
+    # 1. Presentation defaultTextStyle
+    def_text_style = presentation._element.find(qn('p:defaultTextStyle'))
+    if def_text_style is not None:
+        containers.append(def_text_style)
+
+    # 2. Master txStyles（按占位符类型选择 titleStyle / bodyStyle / otherStyle）
+    is_ph = bool(getattr(shape, 'is_placeholder', False))
+    ph_idx = None
+    ph_type = None
+    if is_ph:
+        try:
+            pf = shape.placeholder_format
+            ph_idx = pf.idx
+            ph_type = int(pf.type)
+        except (AttributeError, TypeError, ValueError):
+            is_ph = False
+
+    tx_styles = master._element.find(qn('p:txStyles'))
+    if tx_styles is not None:
+        if is_ph and ph_type in _TITLE_PH_TYPES:
+            bucket = tx_styles.find(qn('p:titleStyle'))
+        elif is_ph and ph_type in _BODY_PH_TYPES:
+            bucket = tx_styles.find(qn('p:bodyStyle'))
+        else:
+            bucket = tx_styles.find(qn('p:otherStyle'))
+        if bucket is not None:
+            containers.append(bucket)
+
+    # 3. Master placeholder & 4. Layout placeholder
+    if is_ph:
+        for owner in (master, layout):
+            matched = _matching_placeholder(owner, ph_idx, ph_type)
+            if matched is None:
+                continue
+            tx_body = matched._element.find(qn('p:txBody'))
+            if tx_body is not None:
+                bodies.append(tx_body)
+                lst = tx_body.find(qn('a:lstStyle'))
+                if lst is not None:
+                    containers.append(lst)
+
+    # 5. Shape p:style/a:fontRef（非占位符图形常通过 fontRef 指定主题字体与颜色）
+    p_style = shape._element.find(qn('p:style'))
+    font_ref = p_style.find(qn('a:fontRef')) if p_style is not None else None
+    if font_ref is not None:
+        idx = font_ref.get('idx')
+        if idx == 'major' and theme_fonts and '+mj-lt' in theme_fonts:
+            font_ref_style['font_family'] = theme_fonts['+mj-lt']
+        elif idx == 'minor' and theme_fonts and '+mn-lt' in theme_fonts:
+            font_ref_style['font_family'] = theme_fonts['+mn-lt']
+        if resolve_color and len(font_ref):
+            color = resolve_color(font_ref)
+            if color:
+                font_ref_style['color'] = color
+
+    return containers, bodies, font_ref_style
+
+
+def _omml_to_latex(elem, *, in_delim=False):
+    """将 PowerPoint OMML 公式节点（m:oMath）转换为可编辑的 LaTeX 字符串。"""
+    if elem is None:
+        return ''
+    tag = getattr(elem, 'tag', '')
+    if not isinstance(tag, str) or not tag.startswith('{'):
+        return ''
+    if tag in (_M_NS + 'oMath', _M_NS + 'oMathPara', _M_NS + 'e', _M_NS + 'num', _M_NS + 'den', _M_NS + 'sub', _M_NS + 'sup', _M_NS + 'deg'):
+        return ''.join(_omml_to_latex(child, in_delim=in_delim) for child in elem)
+    if tag == _M_NS + 'r':
+        return ''.join(unicodedata.normalize('NFKC', t.text or '').replace('  ', r'\;')
+                       for t in elem.iter(_M_NS + 't'))
+    if tag == _M_NS + 't':
+        return unicodedata.normalize('NFKC', str(elem.text or ''))
+    if tag == _M_NS + 'f':
+        return '\\frac{%s}{%s}' % (_omml_to_latex(elem.find(_M_NS + 'num')), _omml_to_latex(elem.find(_M_NS + 'den')))
+    if tag == _M_NS + 'rad':
+        deg = _omml_to_latex(elem.find(_M_NS + 'deg')).strip() if elem.find(_M_NS + 'deg') is not None else ''
+        body = _omml_to_latex(elem.find(_M_NS + 'e'))
+        return '\\sqrt[%s]{%s}' % (deg, body) if deg else '\\sqrt{%s}' % body
+    if tag == _M_NS + 'sSup':
+        return '{%s}^{%s}' % (_omml_to_latex(elem.find(_M_NS + 'e')), _omml_to_latex(elem.find(_M_NS + 'sup')))
+    if tag == _M_NS + 'sSub':
+        return '{%s}_{%s}' % (_omml_to_latex(elem.find(_M_NS + 'e')), _omml_to_latex(elem.find(_M_NS + 'sub')))
+    if tag == _M_NS + 'sSubSup':
+        return '{%s}_{%s}^{%s}' % (
+            _omml_to_latex(elem.find(_M_NS + 'e')), _omml_to_latex(elem.find(_M_NS + 'sub')), _omml_to_latex(elem.find(_M_NS + 'sup')))
+    if tag == _M_NS + 'd':
+        props = elem.find(_M_NS + 'dPr')
+        beg = '('
+        end = ')'
+        if props is not None:
+            b_el = props.find(_M_NS + 'begChr')
+            e_el = props.find(_M_NS + 'endChr')
+            if b_el is not None:
+                beg = b_el.get(_M_NS + 'val') or ''
+            if e_el is not None:
+                end = e_el.get(_M_NS + 'val') or ''
+        inner = ', '.join(_omml_to_latex(e, in_delim=True) for e in elem.findall(_M_NS + 'e'))
+        left_tok = '\\{' if beg == '{' else (beg or '.')
+        right_tok = '\\}' if end == '}' else (end or '.')
+        return '\\left%s %s \\right%s' % (left_tok, inner, right_tok)
+    if tag == _M_NS + 'nary':
+        props = elem.find(_M_NS + 'naryPr')
+        op = '\\sum'
+        if props is not None:
+            chr_el = props.find(_M_NS + 'chr')
+            if chr_el is not None:
+                raw_op = chr_el.get(_M_NS + 'val') or ''
+                op = _OMML_OPS.get(raw_op, raw_op or op)
+        sub = _omml_to_latex(elem.find(_M_NS + 'sub'))
+        sup = _omml_to_latex(elem.find(_M_NS + 'sup'))
+        body = _omml_to_latex(elem.find(_M_NS + 'e'))
+        parts = [op]
+        if sub:
+            parts.append('_{%s}' % sub)
+        if sup:
+            parts.append('^{%s}' % sup)
+        return '%s %s' % (''.join(parts), body)
+    if tag == _M_NS + 'm':
+        rows = [' & '.join(_omml_to_latex(cell) for cell in row.findall(_M_NS + 'e')) for row in elem.findall(_M_NS + 'mr')]
+        env = 'matrix' if in_delim else 'pmatrix'
+        return '\\begin{%s} %s \\end{%s}' % (env, ' \\\\ '.join(rows), env)
+    if tag == _M_NS + 'eqArr':
+        rows = [_omml_to_latex(e).strip() for e in elem.findall(_M_NS + 'e')]
+        return r'\begin{gathered}' + r' \\ '.join(rows) + r'\end{gathered}'
+    if tag in (_M_NS + 'bar', _M_NS + 'groupChr', _M_NS + 'limLow', _M_NS + 'limUpp', _M_NS + 'box', _M_NS + 'acc'):
+        return _omml_to_latex(elem.find(_M_NS + 'e'), in_delim=in_delim)
+    return ''.join(_omml_to_latex(child, in_delim=in_delim) for child in elem)
+
+
+def _text_properties(frame, style, resolve_color=None, *, shape=None, slide=None, theme_fonts=None):
     for attr in ('left','right','top','bottom'):style['padding_'+attr]=getattr(frame,'margin_'+attr)/EMU_PER_POINT
     style['vertical_align']={1:'top',3:'middle',4:'bottom'}.get(int(frame.vertical_anchor or 1),'top')
+    containers, bodies, font_ref_style = _inheritance_sources(shape, slide, theme_fonts, resolve_color)
+    for inherited_body in bodies:
+        _apply_body_pr(inherited_body, style)
+    _apply_body_pr(frame._txBody, style)
+
     paragraphs=[]
     list_style=frame._txBody.find(qn('a:lstStyle'))
+    if list_style is not None:
+        containers.append(list_style)
     paragraph_fonts=[]
     for p in frame.paragraphs:
-        align={1:'left',2:'center',3:'right',4:'justify'}.get(int(p.alignment or 1),'left')
+        inherited_font=dict(font_ref_style)
+        inherited_align=None
+        inherited_bullet=None
+        inherited_spacing={}
+        lvl_tag = f'a:lvl{p.level+1}pPr'
+        for container in containers:
+            for tag in ('a:defPPr', lvl_tag):
+                props=container.find(qn(tag))
+                if props is None:
+                    continue
+                f_st, al, bu, sp = _parse_ppr_layer(props, resolve_color, theme_fonts)
+                inherited_font.update(f_st)
+                if al is not None:
+                    inherited_align = al
+                if bu is not None:
+                    inherited_bullet = bu
+                inherited_spacing.update(sp)
+
+        if p.alignment is not None:
+            align={1:'left',2:'center',3:'right',4:'justify'}.get(int(p.alignment),'left')
+        else:
+            align=inherited_align or 'left'
+
         runs=[]
-        inherited={}
-        if list_style is not None:
-            for tag in ('a:defPPr', f'a:lvl{p.level+1}pPr'):
-                props=list_style.find(qn(tag))
-                default_font=props.find(qn('a:defRPr')) if props is not None else None
-                if default_font is not None:
-                    inherited.update(_font(Font(default_font),resolve_color))
-        paragraph_font={**inherited,**_font(p.font,resolve_color)}
+        paragraph_font={**inherited_font,**_font(p.font,resolve_color,theme_fonts)}
         paragraph_fonts.append(paragraph_font)
         ordinary=iter(p.runs)
+        p_text_parts=[]
         for entry in p._p:
             if entry.tag==qn('a:r'):
                 r=next(ordinary)
-                runs.append({'text':r.text,'style':{**paragraph_font,**_font(r.font,resolve_color)}})
+                runs.append({'text':r.text,'style':{**paragraph_font,**_font(r.font,resolve_color,theme_fonts)}})
+                p_text_parts.append(r.text)
             elif entry.tag==qn('a:br'):
                 runs.append({'text':'\v','style':{}})
+                p_text_parts.append('\v')
             elif entry.tag==qn('a:fld'):
                 text=entry.find(qn('a:t'))
                 if text is not None:
-                    runs.append({'text':text.text or '','style':{}})
-        paragraph={'text':p.text,'align':align,'runs':runs}
+                    val=text.text or ''
+                    runs.append({'text':val,'style':dict(paragraph_font)})
+                    p_text_parts.append(val)
+            elif entry.tag in (_A14_NS + 'm', _M_NS + 'oMathPara', _M_NS + 'oMath'):
+                math_nodes = entry.findall('.//' + _M_NS + 'oMath') if entry.tag != _M_NS + 'oMath' else [entry]
+                latex_parts = [_omml_to_latex(m).strip() for m in math_nodes]
+                latex = ' '.join(part for part in latex_parts if part)
+                if latex:
+                    token = f'${latex}$'
+                    run_props = entry.find(f'.//{_M_NS}r/{qn("a:rPr")}')
+                    math_style = _font(Font(run_props), resolve_color, theme_fonts) if run_props is not None else {}
+                    runs.append({'text':token,'style':{**paragraph_font, **math_style}})
+                    p_text_parts.append(token)
+                    justification = entry.find(f'.//{_M_NS}oMathParaPr/{_M_NS}jc')
+                    if justification is not None and justification.get(_M_NS + 'val') in ('center', 'centerGroup'):
+                        align = 'center'
+        paragraph_text = ''.join(p_text_parts) if p_text_parts else p.text
+        paragraph={'text':paragraph_text,'align':align,'runs':runs}
         props=p._p.pPr
-        if props is not None and any(props.find(qn('a:'+kind)) is not None for kind in ('buChar','buAutoNum')):
+        if props is not None and props.find(qn('a:buNone')) is not None:
+            pass
+        elif props is not None and any(props.find(qn('a:'+kind)) is not None for kind in ('buChar','buAutoNum')):
             paragraph['bullet']=True
+        elif inherited_bullet is True and p.text.strip():
+            paragraph['bullet']=True
+
         if p.line_spacing is not None:
             if resolve_color and hasattr(p.line_spacing, 'pt'):paragraph['line_spacing_pt']=p.line_spacing.pt
             elif isinstance(p.line_spacing, (int, float)) and p.line_spacing>0:
                 paragraph['line_height']=float(p.line_spacing)
             elif hasattr(p.line_spacing, 'pt'):paragraph['line_spacing_pt']=p.line_spacing.pt
+        elif 'line_spacing_pt' in inherited_spacing:
+            paragraph['line_spacing_pt']=inherited_spacing['line_spacing_pt']
+        elif 'line_height' in inherited_spacing:
+            paragraph['line_height']=inherited_spacing['line_height']
+
         for name in ('space_before','space_after'):
             extent=getattr(p,name,None)
             if hasattr(extent, 'pt'):paragraph[name]=extent.pt
+            elif name in inherited_spacing:paragraph[name]=inherited_spacing[name]
         paragraphs.append(paragraph)
     if frame.paragraphs:
-        style.update(paragraph_fonts[0])
-        style['align']=paragraphs[0]['align']
-        if paragraphs[0]['runs']:style.update(paragraphs[0]['runs'][0]['style'])
+        first_non_empty = next((idx for idx, par in enumerate(paragraphs) if par['text'].strip() or par['runs']), 0)
+        style.update(paragraph_fonts[first_non_empty])
+        style['align']=paragraphs[first_non_empty]['align']
+        if paragraphs[first_non_empty]['runs']:style.update(paragraphs[first_non_empty]['runs'][0]['style'])
     return paragraphs
 
 
@@ -227,7 +562,7 @@ def _theme_color(fill, theme, mapping, placeholder=None, *, ignore_alpha=False):
 def _line_style(shape, theme, mapping):
     props = shape._element.spPr
     geometry = props.find(qn('a:prstGeom'))
-    if geometry is None or geometry.get('prst') != 'line':
+    if geometry is None or geometry.get('prst') not in ('line', 'straightConnector1'):
         raise ValueError('Only straight connectors can be edited')
     if any(child.tag not in (qn('a:xfrm'), qn('a:prstGeom'), qn('a:ln')) for child in props):
         raise ValueError('Unsupported connector appearance')
@@ -278,7 +613,110 @@ def _line_style(shape, theme, mapping):
             'arrow_start': arrow('headEnd'), 'arrow_end': arrow('tailEnd')}
 
 
-def native_group_nodes(shape, node: dict) -> list[dict] | None:
+def _group_members(group):
+    for element in group._element:
+        if element.tag in (qn('p:nvGrpSpPr'), qn('p:grpSpPr')):
+            continue
+        if element.tag == _MC_NS + 'AlternateContent':
+            choices = [choice for choice in element.findall(_MC_NS + 'Choice')
+                       if [choice.nsmap.get(prefix) for prefix in choice.get('Requires', '').split()]
+                       == [_A14_NS[1:-1]]]
+            if (len(choices) != 1 or len(choices[0]) != 1 or choices[0][0].tag != qn('p:sp')
+                    or choices[0][0].find('.//' + _M_NS + 'oMath') is None):
+                raise ValueError('Unsupported alternate group member')
+            element = choices[0][0]
+        if element.tag not in (qn('p:grpSp'), qn('p:sp'), qn('p:cxnSp'), qn('p:pic')):
+            raise ValueError('Unsupported group member')
+        yield SlideShapeFactory(element, group)
+
+
+def _group_frame(transform, width, height):
+    a, b, c, d = transform[:2, :2].flatten(order='F')
+    sx, sy = math.hypot(a, b), math.hypot(c, d)
+    if min(sx, sy, width, height) < 1e-6 or abs(a*c + b*d) > 1e-6 * sx * sy:
+        raise ValueError('Unsupported group shape transform')
+    cx, cy = (transform @ (width / 2, height / 2, 1))[:2]
+    w, h = width * sx, height * sy
+    return {'x': float(cx - w / 2), 'y': float(cy - h / 2), 'width': w, 'height': h,
+            'rotation': math.degrees(math.atan2(b, a))}
+
+
+def _circle_gradient(fill, theme, mapping):
+    path = fill.find(qn('a:path'))
+    stops = fill.find(qn('a:gsLst'))
+    rect = path.find(qn('a:fillToRect')) if path is not None else None
+    if (path is None or path.get('path') != 'circle' or rect is None or stops is None
+            or any(child.tag not in (qn('a:path'), qn('a:gsLst')) for child in fill)
+            or not 2 <= len(stops) <= 16):
+        raise ValueError('Unsupported shape gradient')
+    bounds = [int(rect.get(key, '0')) for key in ('l', 't', 'r', 'b')]
+    if any(abs(val) > 1_000_000 for val in bounds):
+        raise ValueError('Unsupported gradient extent')
+    entries = []
+    for stop in stops:
+        pos = int(stop.get('pos'))
+        if not 0 <= pos <= 100000:
+            raise ValueError('Invalid gradient stop')
+        color = _theme_color(stop, theme, mapping, ignore_alpha=True)
+        alpha = stop[0].find(qn('a:alpha'))
+        opacity = int(alpha.get('val')) if alpha is not None else 100000
+        entries.append({'position': pos, 'color': color, 'opacity': max(0, min(100000, opacity))})
+    return {'bounds': bounds, 'stops': sorted(entries, key=lambda stop: stop['position'])}
+
+
+def valid_fill_gradient(value):
+    if not isinstance(value, dict) or set(value) != {'bounds', 'stops'}:
+        return False
+    bounds, stops = value['bounds'], value['stops']
+    return (isinstance(bounds, list) and len(bounds) == 4
+            and all(type(edge) is int and abs(edge) <= 1_000_000 for edge in bounds)
+            and isinstance(stops, list) and 2 <= len(stops) <= 16
+            and all(isinstance(stop, dict) and set(stop) == {'position', 'color', 'opacity'}
+                    and isinstance(stop['color'], str) and re.fullmatch(r'#[0-9a-fA-F]{6}', stop['color'])
+                    and all(type(stop[key]) is int and 0 <= stop[key] <= 100000
+                            for key in ('position', 'opacity')) for stop in stops))
+
+
+def _group_preset(current, transform, width, height, theme, mapping):
+    props = current._element.spPr
+    preset = props.find(qn('a:prstGeom'))
+    kind = preset.get('prst') if preset is not None else None
+    allowed = {qn('a:' + tag) for tag in ('xfrm', 'prstGeom', 'solidFill', 'noFill', 'gradFill', 'ln')}
+    line = props.find(qn('a:ln'))
+    if (kind not in ('rect', 'ellipse', 'leftBracket')
+            or any(child.tag not in allowed for child in props)
+            or (line is not None and (set(line.attrib) - {'w'} or any(
+                child.tag not in (qn('a:solidFill'), qn('a:noFill'), qn('a:headEnd'), qn('a:tailEnd'))
+                for child in line)))):
+        raise ValueError('Unsupported group shape')
+    bracket = kind == 'leftBracket'
+    style = {}
+    gradient = props.find(qn('a:gradFill'))
+    _, complex_style, opacity = _shape_appearance(current, style, theme, mapping, None, False,
+                                                  separate_opacity=True, path_gradient=gradient is not None)
+    if bracket:
+        # The preset uses a stroked open path, with a rounded end at each corner.
+        if (any(len(child) for child in preset) or props.find(qn('a:noFill')) is None
+                or not style.get('stroke')):
+            raise ValueError('Unsupported bracket appearance')
+    elif complex_style:
+        raise ValueError('Unsupported group shape appearance')
+
+    result = {'type': 'shape', 'shape': kind, 'style': style, 'opacity': opacity,
+              **_group_frame(transform, width, height)}
+    if gradient is not None:
+        result['fill_gradient'] = _circle_gradient(gradient, theme, mapping)
+    if bracket:
+        pw, ph = round(width * EMU_PER_POINT), round(height * EMU_PER_POINT)
+        radius = round(min(pw, ph) / 12)
+        result.update(shape='rect', shape_paths=[{
+            'width': pw, 'height': ph, 'fill': False, 'stroke': True,
+            'path': f'M {pw} {ph} Q 0 {ph} 0 {ph-radius} L 0 {radius} Q 0 0 {pw} 0',
+        }])
+    return result
+
+
+def native_group_nodes(shape, node: dict, *, asset_root: Path | None = None) -> list[dict] | None:
     """Replace a group only when every visible object has an editable representation."""
     from .auto_vectors import _vector
 
@@ -302,12 +740,7 @@ def native_group_nodes(shape, node: dict) -> list[dict] | None:
                 if any(child.tag != qn('a:xfrm') for child in group_props):
                     raise ValueError('Unsupported group appearance')
                 transform = parent @ _transform(group_props.xfrm, group=True)
-                shapes = list(current.shapes)
-                member_count = sum(child.tag not in (qn('p:nvGrpSpPr'), qn('p:grpSpPr'))
-                                   for child in current._element)
-                if len(shapes) != member_count:
-                    raise ValueError('Unsupported group member')
-                for child in shapes:
+                for child in _group_members(current):
                     walk(child, transform)
                 return
 
@@ -324,12 +757,11 @@ def native_group_nodes(shape, node: dict) -> list[dict] | None:
                 result = _vector(base, point(transform, 0, 0), point(transform, width, height), appearance)
                 if result is None:
                     raise ValueError('Degenerate line')
-            elif current.shape_type == MSO_SHAPE_TYPE.TEXT_BOX and current.text.strip():
-                if (width < .1 or height < .1 or props.find(qn('a:noFill')) is None
-                        or any(child.tag not in {qn('a:' + tag) for tag in ('xfrm', 'prstGeom', 'noFill')}
-                               and not (child.tag == qn('a:ln') and child.find(qn('a:noFill')) is not None)
-                               for child in props)):
-                    raise ValueError('Unsupported text box appearance')
+            elif current.shape_type == MSO_SHAPE_TYPE.TEXT_BOX or (
+                    current.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE and current.text.strip()):
+                if width < .1 or height < .1:
+                    raise ValueError('Invalid native text dimensions')
+                preset = _group_preset(current, np.eye(3), width, height, theme, mapping)
                 for corner in ((0, 0), (0, height), (width, 0), (width, height)):
                     point(transform, *corner)
                 cx, cy = point(transform, width / 2, height / 2)
@@ -339,23 +771,42 @@ def native_group_nodes(shape, node: dict) -> list[dict] | None:
                 remainder = [float(math.hypot(a, b)), 0.0, float(cos * c + sin * d), float(-sin * c + cos * d)]
                 if abs(remainder[0] * remainder[3]) < 1e-9:
                     raise ValueError('Degenerate text box')
-                style = dict(node['style'])
+                style = {**node['style'], **preset['style']}
                 frame = current.text_frame
                 body = frame._txBody.bodyPr
                 if (body.get('vert', 'horz') != 'horz' or int(body.get('rot', '0'))
                         or int(body.get('numCol', '1')) != 1 or body.get('upright') in ('1', 'true')
                         or any(p.text != ''.join(run.text for run in p.runs) for p in frame.paragraphs)):
                     raise ValueError('Unsupported native text layout')
-                paragraphs = _text_properties(frame, style, lambda fill: _theme_color(fill, theme, mapping))
-                result = {**base, 'type': 'text', 'text': current.text, 'base_text': current.text,
+                paragraphs = _text_properties(frame, style, lambda fill: _resolved_color(fill, theme, mapping))
+                text = '\n'.join(paragraph['text'] for paragraph in paragraphs)
+                if not text.strip():
+                    raise ValueError('Empty group text box')
+                result = {**base, **preset, 'type': 'text', 'text': text, 'base_text': text,
                           'x': cx - width / 2, 'y': cy - height / 2, 'width': width, 'height': height,
                           'rotation': math.degrees(angle), 'text_transform': remainder,
-                          'style': style, 'paragraphs': paragraphs, 'word_wrap': frame.word_wrap,
+                          'style': style, 'paragraphs': paragraphs,
+                          'word_wrap': False if props.getparent().find('.//' + _M_NS + 'oMath') is not None else frame.word_wrap,
                           'auto_size': int(frame.auto_size or 0)}
+            elif current.shape_type == MSO_SHAPE_TYPE.AUTO_SHAPE:
+                for corner in ((0, 0), (0, height), (width, 0), (width, height)):
+                    point(transform, *corner)
+                result = {**base, **_group_preset(current, transform, width, height, theme, mapping)}
+            elif current.shape_type == MSO_SHAPE_TYPE.PICTURE and asset_root is not None:
+                if np.linalg.det(transform[:2, :2]) < 0:
+                    raise ValueError('Unsupported mirrored picture')
+                filename = f'n_{current.shape_id}.png'
+                if not _native_picture(current, asset_root / filename):
+                    raise ValueError('Unsupported group picture')
+                crop = {side: getattr(current, 'crop_' + side) for side in ('left', 'top', 'right', 'bottom')}
+                result = {**base, **_group_frame(transform, width, height), 'type': 'image',
+                          'native_file': filename, 'crop': crop, 'base_crop': dict(crop)}
             else:
                 raise ValueError('Unsupported group child')
-            result.update({f'base_{key}': result[key] for key in ('x', 'y', 'width', 'height', 'rotation')},
+            result.update({f'base_{key}': result[key] for key in ('x', 'y', 'width', 'height', 'rotation', 'opacity')},
                           base_style=dict(result['style']))
+            if result['type'] == 'text':
+                result['base_paragraphs'] = deepcopy(result['paragraphs'])
             children.append(result)
 
         walk(shape, np.eye(3))
@@ -439,7 +890,8 @@ def _format_style(theme, reference, list_name, offset=1):
     return styles[index] if styles is not None and 0 <= index < len(styles) else None
 
 
-def _shape_appearance(shape, style, theme, mapping, background, complex_background):
+def _shape_appearance(shape, style, theme, mapping, background, complex_background, *,
+                      separate_opacity=False, path_gradient=False):
     props = shape._element.spPr
     appearance = shape._element.find(qn('p:style'))
     preset = props.find(qn('a:prstGeom'))
@@ -455,6 +907,8 @@ def _shape_appearance(shape, style, theme, mapping, background, complex_backgrou
         if paint is None:
             paint = inherited
         if paint is None or paint.tag == qn('a:noFill'):
+            return None, False, 1
+        if path_gradient and paint.tag == qn('a:gradFill'):
             return None, False, 1
         placeholder = _resolved_color(reference, theme, mapping) if reference is not None else None
         value = _resolved_color(paint, theme, mapping, placeholder, ignore_alpha=True) if paint.tag == qn('a:solidFill') else None
@@ -479,6 +933,12 @@ def _shape_appearance(shape, style, theme, mapping, background, complex_backgrou
         style['stroke_width'] = next((int(candidate.get('w')) / EMU_PER_POINT for candidate in (line, inherited_line)
                                       if candidate is not None and candidate.get('w') is not None), 1)
     effect = any(len(child) for child in props if child.tag in {qn('a:'+tag) for tag in ('effectLst','effectDag','scene3d','sp3d')})
+    if separate_opacity:
+        if fill and fill_opacity != 1:
+            style['fill_opacity'] = fill_opacity
+        if stroke and stroke_opacity != 1:
+            style['stroke_opacity'] = stroke_opacity
+        return geometry if not complex_geometry else 'rect', bool(complex_geometry or complex_fill or complex_stroke or effect), 1
     complex_styles = bool(fill and stroke and fill_opacity!=stroke_opacity)
     opacity=fill_opacity if fill else stroke_opacity
     return geometry if not complex_geometry else 'rect', bool(complex_geometry or complex_fill or complex_stroke or effect or complex_styles), opacity
@@ -558,6 +1018,7 @@ def import_document(source:Path,title:str,*,asset_root:Path|None=None)->dict:
     for number,slide in enumerate(ppt.slides,1):
         nodes=[]
         theme, mapping = _theme(slide.part)
+        theme_fonts = _theme_fonts(theme)
         background, complex_background = _background(slide, theme, mapping)
         fallback = complex_background or any(not shape.is_placeholder for shape in slide.slide_layout.shapes)
         if slide._element.get('showMasterSp') not in ('0', 'false'):
@@ -577,7 +1038,19 @@ def import_document(source:Path,title:str,*,asset_root:Path|None=None)->dict:
                    'padding_left':0,'padding_right':0,'padding_top':0,'padding_bottom':0}
             paragraphs=[]
             if has_text:
-                paragraphs = _text_properties(shape.text_frame, style, lambda fill: _resolved_color(fill, theme, mapping))
+                paragraphs = _text_properties(
+                    shape.text_frame,
+                    style,
+                    lambda fill: _resolved_color(fill, theme, mapping),
+                    shape=shape,
+                    slide=slide,
+                    theme_fonts=theme_fonts,
+                )
+                rich_text = '\n'.join(par['text'] for par in paragraphs)
+                if rich_text.strip() and rich_text != text:
+                    text = rich_text
+                    if kind == 'shape':
+                        kind = 'text'
             node={'id':f'n_{shape.shape_id}','source_element_id':legacy,'source_shape_id':shape.shape_id,
               'name':shape.name or ('文字' if has_text else '对象'),'type':kind,
               'x':bbox['x']/EMU_PER_POINT,'y':bbox['y']/EMU_PER_POINT,
@@ -627,6 +1100,8 @@ def import_document(source:Path,title:str,*,asset_root:Path|None=None)->dict:
                     paths=_shape_paths(shape)
                     if paths:
                         node['shape_paths']=paths
+                    if shape._element.find('.//{http://schemas.openxmlformats.org/officeDocument/2006/math}oMath') is not None:
+                        complex_shape = True
                 except (AttributeError, TypeError, ValueError, OverflowError):
                     complex_shape = True
             elif kind not in ('table', 'chart'):

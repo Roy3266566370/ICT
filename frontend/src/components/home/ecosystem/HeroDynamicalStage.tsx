@@ -4,6 +4,7 @@
  * 左侧：「一式定象，万象皆通」建筑高对比 Slogan（统一品牌为定象坊 × 通文册）
  * 右侧：R1 3D 阻尼波动场 × R3 二阶系统相轨演化融合舞台，自动周期性平滑演化参数
  */
+import markUrl from '@/assets/brand/wanxiang-mark.png';
 import { useId, useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useReducedMotion } from '@/hooks/useMotionPreference';
@@ -366,7 +367,7 @@ export function HeroDynamicalStage(): JSX.Element {
 
         const sw = 204;
         const sh = 114;
-        drawGlassSlice(ctx, tx, ty, sw, sh, '通文册 · 活页同步', '#d64531', () => {
+        drawGlassSlice(ctx, tx, ty, sw, sh, '通文册 · 课件同步', '#d64531', () => {
           ctx.fillStyle = 'rgba(20, 24, 33, 0.14)';
           ctx.fillRect(tx + 14, ty + 30, 72, 4);
           ctx.fillStyle = 'rgba(20, 24, 33, 0.08)';
@@ -484,7 +485,7 @@ export function HeroDynamicalStage(): JSX.Element {
 
         <div className={styles.left}>
           <div className={styles.brandMark}>
-            <span className={styles.seal} aria-hidden="true">象</span>
+            <img className={styles.brandLogo} src={markUrl} width={30} height={30} alt="万象" />
             <span className={styles.brandNames}>
               <strong>定象坊</strong>
               <span className={styles.brandCross}>×</span>
@@ -540,8 +541,8 @@ export function HeroDynamicalStage(): JSX.Element {
           </div>
 
           <p className={styles.desc}>
-            <strong>定象坊</strong>将公式、算法与沙盘化作可调参的真实计算模型；
-            <strong>通文册</strong>让静态课件即刻通电演播——一次定象，随处贯通。
+            <strong className="keep-together">定象坊</strong>将公式和算法变成可调参的实验。
+            <strong className="keep-together">通文册</strong>让静态课件也能交互演示。
           </p>
 
           <div className={styles.actions}>

@@ -4,6 +4,8 @@ import { prefetchAllowed, type NetworkHint } from '@/components/presentation/pre
 export const routeLoaders = {
   home: () => import('@/pages/HomePage'),
   canvas: () => import('@/pages/CanvasPage'),
+  plaza: () => import('@/pages/PlazaPage'),
+  creator: () => import('@/pages/CreatorPage'),
   space: () => import('@/pages/SpacePage'),
   settings: () => import('@/pages/SettingsProfilePage'),
   workbench: () => import('@/pages/MaterialDeckPage'),
@@ -21,8 +23,9 @@ export function routeKeyForPath(path: string): RouteKey | null {
   const clean = (path.split(/[?#]/, 1)[0] ?? '').replace(/\/+$/, '') || '/';
   if (clean === '/') return 'home';
   if (clean === '/canvas') return 'canvas';
-  if (clean === '/space') return 'space';
-  if (clean === '/settings/profile') return 'settings';
+  if (clean === '/space' || clean === '/settings/profile') return 'space';
+  if (clean === '/plaza') return 'plaza';
+  if (clean.startsWith('/u/')) return 'creator';
   if (clean === '/living') return 'living';
   if (clean === '/workshop') return 'workshop';
   if (clean.startsWith('/work-shares/')) return 'workShare';
@@ -55,21 +58,21 @@ function networkHint(): NetworkHint | undefined {
   return (navigator as Navigator & { connection?: NetworkHint }).connection;
 }
 
-/** 首屏稳定后预取最常用的入口；省流量或 2G 时不做。 */
-export function prefetchCommonRoutes(): void {
+export function prefetchRouteWhenIdle(key: RouteKey): (() => void) | undefined {
   if (!prefetchAllowed(networkHint())) return;
-  const run = (): void => {
-    // 预取定象坊大厅，提升进入速度。
-    prefetchRoute('workshop');
-  };
-  const schedule = (): void => {
-    if (typeof window.requestIdleCallback === 'function') {
-      window.requestIdleCallback(run, { timeout: 3000 });
-      return;
-    }
-    window.setTimeout(run, 1200);
-  };
-  // 必须等 load 之后：过早执行路由 chunk 会让首屏布局测量晚于样式注入，造成 CLS。
+  const run = (): void => prefetchRoute(key);
+  if (typeof window.requestIdleCallback === 'function') {
+    const handle = window.requestIdleCallback(run, { timeout: 3000 });
+    return () => window.cancelIdleCallback(handle);
+  }
+  const handle = window.setTimeout(run, 1200);
+  return () => window.clearTimeout(handle);
+}
+
+/** 首屏稳定后预取最常用的入口。 */
+export function prefetchCommonRoutes(): void {
+  const schedule = (): void => { prefetchRouteWhenIdle('workshop'); };
+  // 过早加载路由样式会影响首屏布局测量。
   if (document.readyState === 'complete') schedule();
   else window.addEventListener('load', schedule, { once: true });
 }

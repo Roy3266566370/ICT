@@ -101,6 +101,7 @@
 .workspace:not([data-slide-instrument], [data-display-mode='compact'], [data-display-mode='stage_only']) .mainCard:has(> .chart[data-fallback-chart]) {
   aspect-ratio: auto;
   max-height: none;
+  min-height: 0;
 }
 .mainCard header {
   display: flex;
@@ -217,7 +218,7 @@
   container-name: fallback-chart;
 }
 .workspace:not([data-slide-instrument], [data-display-mode='compact'], [data-display-mode='stage_only']) .chart[data-fallback-chart] {
-  overflow: visible;
+  overflow: auto;
   padding: 14px 16px;
 }
 .workspace:not([data-slide-instrument], [data-display-mode='compact'], [data-display-mode='stage_only']) .chart[data-fallback-chart] > div {
@@ -335,7 +336,7 @@
   font-weight: 500;
 }
 .conclusion b { color: var(--live-ink); font-weight: 500; }
-.conclusion > span { min-width: 0; flex: 1 1 240px; }
+.conclusion > span { min-width: 0; flex: 1 1 240px; overflow-wrap: anywhere; }
 .metricChips {
   display: flex;
   flex-wrap: wrap;
@@ -367,11 +368,11 @@
 .miniCard h3 > span { color: var(--ink-400); font-size: 12px; font-weight: 400; }
 .workspace:not([data-slide-instrument], [data-display-mode='compact'], [data-display-mode='stage_only']) .miniCard {
   aspect-ratio: auto;
-  height: clamp(190px, 27vh, 260px);
+  height: clamp(168px, 24vh, 224px);
 }
 .workspace:not([data-slide-instrument], [data-display-mode='compact'], [data-display-mode='stage_only'])[data-has-minis] .mainCard {
-  aspect-ratio: 1.9;
-  max-height: clamp(380px, 58vh, 580px);
+  aspect-ratio: 2.05;
+  max-height: clamp(280px, 44vh, 430px);
 }
 .miniCard > div { flex: 1; min-height: 0; overflow: auto; color: var(--ink-500); font-size: 12px; }
 .miniCard > div > svg { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; }
@@ -673,4 +674,129 @@
   .workspace[data-display-mode='full'] :is(.minis, .gauges) { display: grid; }
   .workspace[data-display-mode='full'] .pod > [data-stage-secondary] { display: block; }
   .workspace[data-display-mode='full'] .mainCard { flex: none; aspect-ratio: 1.75; }
+}
+.viewLayout { display: contents; }
+.workspace[data-instrument-layout] .viewLayout > .mainCard[data-stage-card] {
+  flex: 0 0 auto;
+  aspect-ratio: auto;
+  width: auto;
+  min-height: clamp(290px, 44vh, 430px);
+  max-height: none;
+  padding: 12px;
+}
+.viewLayout .mainCard > .chart[data-fallback-chart] { padding: 9px 12px; }
+.viewLayout .mainCard > .chart > svg {
+  width: 100%;
+  height: auto;
+  max-height: min(340px, 42vh);
+}
+.minis[data-view-minis][data-cols='2'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.workspace .minis[data-view-minis] .miniCard {
+  --study-matrix-max: 190px;
+  --study-matrix-6-max: 180px;
+  --study-matrix-height-budget: 155px;
+  aspect-ratio: auto;
+  height: auto;
+  min-height: 172px;
+  max-height: 290px;
+  padding: 10px 12px;
+}
+.minis[data-view-minis] .miniCard > .miniHeader {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  overflow: visible;
+  margin-bottom: 8px;
+}
+.miniHeader h3 { margin: 0; color: var(--ink-900); }
+.minis[data-view-minis] .miniCard > div > svg { height: auto; max-height: 210px; }
+.workspace [data-study-matrix] button { padding: 0; }
+.workspace [data-dense-matrix] button { border: 0; border-radius: 1px; }
+.workspace .miniAction {
+  margin-inline-start: auto;
+  padding: 2px 7px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--ink-500);
+}
+.miniCard[data-view-node='studyTokenView'] ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.miniCard[data-view-node='studyTokenView'] li {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+}
+
+/* Reposition the existing cards so the training components keep their state. */
+.viewLayout[data-focused-view] {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: stretch;
+}
+.viewLayout[data-focused-view] > .mainCard { grid-area: 1 / 1 / 2 / span 3; }
+.viewLayout[data-focused-view] > .conclusion { grid-area: 2 / 1 / 3 / -1; }
+.viewLayout[data-focused-view] > .minis { display: contents; }
+.viewLayout[data-focused-view] .miniCard { grid-column: span 3; }
+.viewLayout[data-focused-view] .minis[data-cols='2'] .miniCard:not([data-focused-mini]) { grid-column: 1 / -1; }
+.workspace .viewLayout[data-focused-view] .miniCard[data-focused-mini] {
+  --study-matrix-max: 340px;
+  --study-matrix-6-max: 300px;
+  --study-matrix-height-budget: 340px;
+  grid-area: 1 / 4 / 2 / -1;
+  max-height: none;
+}
+.viewLayout[data-focused-view] .miniCard[data-focused-mini] > div > svg { max-height: 380px; }
+
+@media (max-width: 1080px) {
+  .viewLayout[data-focused-view] > .mainCard { grid-area: 1 / 1 / 2 / -1; }
+  .workspace .viewLayout[data-focused-view] .miniCard[data-focused-mini] { grid-area: 2 / 1 / 3 / -1; }
+  .viewLayout[data-focused-view] > .conclusion { grid-row: 3; }
+}
+@media (max-width: 860px) {
+  .viewLayout[data-focused-view],
+  .viewLayout:not([data-focused-view]) > :is(.mainCard, .conclusion, .minis) { margin: 8px 10px 0; }
+}
+@media (max-width: 640px) {
+  .viewLayout .minis[data-view-minis][data-cols] { grid-template-columns: minmax(0, 1fr); }
+  .viewLayout[data-focused-view] .miniCard:not([data-focused-mini]) { grid-column: 1 / -1; }
+}
+
+/* 深度学习全景沙盘：节点自身已经包含运输控制、参数舱、公式与 KPI，
+   仪器台只提供纸张边框，不再叠加通用标题栏、结论条与右侧复制控件。 */
+.workspace:has(.mainCard[data-deep-panorama]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.workspace:has(.mainCard[data-deep-panorama]) .pod,
+.workspace:has(.mainCard[data-deep-panorama]) .conclusion,
+.workspace:has(.mainCard[data-deep-panorama]) .mainCard > header,
+.workspace:has(.mainCard[data-deep-panorama]) .timeline {
+  display: none;
+}
+.workspace:not([data-slide-instrument]) .mainCard[data-deep-panorama] {
+  aspect-ratio: auto;
+  max-height: none;
+  min-height: clamp(620px, 78vh, 860px);
+  padding: 8px;
+}
+.mainCard[data-deep-panorama] .chart {
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.mainCard[data-deep-panorama] .chart::after { display: none; }
+.mainCard[data-deep-panorama] .chart > div {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
 }

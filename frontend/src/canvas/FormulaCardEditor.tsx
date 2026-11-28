@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import katex from 'katex';
 import { MathfieldElement } from 'mathlive';
 import 'mathlive/fonts.css';
-import { latexToPlain } from '../labs/mathLiveBridge.ts';
-import { functionValue } from './calculus.ts';
 import styles from './canvas.module.css';
 
 const symbols = [
@@ -26,22 +24,10 @@ const symbols = [
   ...Array.from('0123456789').map((digit) => ['数字 ' + digit, digit, digit]),
 ] as const;
 
-const formulaOnly = new Set(['下标', '积分', '求和', '无穷大', '等号', '字母 y', '字母 i']);
-const functionSymbols = [
-  ['正弦', 'sin', '\\sin\\left(#?\\right)'],
-  ['余弦', 'cos', '\\cos\\left(#?\\right)'],
-  ['正切', 'tan', '\\tan\\left(#?\\right)'],
-  ['指数', 'exp', '\\exp\\left(#?\\right)'],
-  ['对数', 'ln', '\\ln\\left(#?\\right)'],
-  ...['a', 'b', 'c'].map((letter) => ['字母 ' + letter, letter, letter]),
-  ...symbols.filter(([label]) => !formulaOnly.has(label)),
-] as const;
-
-export default function FormulaCardEditor({ initialValue, onComplete, onCancel, functionMode = false }: {
+export default function FormulaCardEditor({ initialValue, onComplete, onCancel }: {
   initialValue: string;
   onComplete: (tex: string) => void;
   onCancel: () => void;
-  functionMode?: boolean;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const field = useRef<MathfieldElement | null>(null);
@@ -80,15 +66,7 @@ export default function FormulaCardEditor({ initialValue, onComplete, onCancel, 
       setError('请补齐公式中的空位，或检查所用符号。');
       return;
     }
-    if (!functionMode) { onComplete(tex); return; }
-    try {
-      if (!tex) throw new Error('请先输入函数。');
-      const expression = latexToPlain(tex, true);
-      functionValue(expression, {});
-      onComplete(expression);
-    } catch (validationError) {
-      setError(validationError instanceof Error ? validationError.message : '请检查函数表达式。');
-    }
+    onComplete(tex);
   };
 
   return <div className={styles.formulaEditor} aria-label="公式编辑器"
@@ -97,7 +75,7 @@ export default function FormulaCardEditor({ initialValue, onComplete, onCancel, 
     }}>
     <div ref={host} className={styles.formulaField} />
     <div role="group" aria-label="公式符号" className={styles.formulaKeys}>
-      {(functionMode ? functionSymbols : symbols).map(([label, glyph, latex]) => <button type="button" key={label}
+      {symbols.map(([label, glyph, latex]) => <button type="button" key={label}
         aria-label={label} title={label} onMouseDown={(event) => event.preventDefault()}
         onClick={() => edit((input) => input.insert(latex, { format: 'latex', selectionMode: 'placeholder' }))}>{glyph}</button>)}
     </div>
@@ -113,7 +91,7 @@ export default function FormulaCardEditor({ initialValue, onComplete, onCancel, 
       <button type="button" onClick={() => edit((input) => { input.value = ''; })}>清空</button>
       <button type="button" onClick={() => edit(() => window.mathVirtualKeyboard?.show())}>更多符号</button>
       <button type="button" onClick={onCancel}>取消</button>
-      <button type="button" className={styles.finishFormula} onClick={complete}>{functionMode ? '应用函数' : '完成公式'}</button>
+      <button type="button" className={styles.finishFormula} onClick={complete}>完成公式</button>
     </div>
     {error && <p role="alert" className={styles.formulaError}>{error}</p>}
   </div>;

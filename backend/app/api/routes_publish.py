@@ -44,26 +44,35 @@ import re
 import time
 import secrets
 from collections.abc import Mapping
+from copy import deepcopy
+from types import SimpleNamespace
+from uuid import uuid4
+import shutil
+
+from ..plaza_seeds import official_deck
+from .routes_auth import require_auth_session
+from .routes_plaza import ListingOptions, list_share, lock_fork, unlist_shares
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
+from pydantic import BaseModel, ConfigDict
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..db.models import KnowledgeObjectRecord, MaterialRecord, ShareRecord
+from ..db.models import KnowledgeObjectRecord, MaterialRecord, PageRecord, ShareRecord
 from ..render import (
     PAGE_IMAGE_PATTERN,
     existing_page_images,
-    pages_dir,
+    pages_dir, render_dir,
     read_render_manifest,
 )
 from ..documents.store import read_document
 from ..ppt_ai.learning_types import LearningPublishSelection
-from ..schemas.common import is_expired, to_iso, utc_now
+from ..schemas.common import is_expired, iso_after, to_iso, utc_now
 from ..schemas.errors import resource_unavailable,missing_field
-from ..settings import FIXTURE_PAGES_DIR, UPLOAD_DIR
+from ..settings import FIXTURE_PAGES_DIR, UPLOAD_DIR, get_settings
 from . import API_PREFIX, DBDep, WriteDep, ok, owned_material
 from .routes_regions import COURSEWARE_MATERIAL_ID, material_regions_for_publish
 
@@ -569,7 +578,8 @@ def build_snapshot(
     from ..documents.presentation import apply_document_specs,freeze_document
     ispecs = apply_document_specs(material.id,_build_ispecs(db, material.id))
     from .routes_jobs import read_ispec_payload
-    layouts = (read_ispec_payload(material.id) or {}).get("page_layouts", [])
+    spec_payload = read_ispec_payload(material.id) or {}
+    layouts = spec_payload.get("page_layouts", [])
     by_no = {item.get("page_no"): item for item in layouts}
     existing = {page['page_no'] for page in pages}
     for page_no in by_no:
@@ -619,6 +629,8 @@ def build_snapshot(
             ppt_ai_snapshot = public_projection(frozen)
         except SnapshotConflict as error:
             raise missing_field(str(error)) from error
+    if selection is None and ppt_ai_snapshot is None and (read_document(material.id) or {}).get("revision") == 0:
+        ppt_ai_snapshot = spec_payload.get("forked_ppt_ai")
     try:scene_document=freeze_document(material.id)
     except (ValueError,OSError) as error:raise missing_field(str(error)) from error
     edited={p['page_no']:p for p in (scene_document or {}).get('pages',[])}
@@ -670,7 +682,7 @@ def _page_url(share_id: str, page_no: int, *, erased: bool = False) -> str:
     return f"{PUBLIC_API_PREFIX}/{share_id}/pages/{page_no}{suffix}"
 
 
-def public_payload(share: ShareRecord) -> dict[str, Any]:
+def public_payload(share: ShareRecord | SimpleNamespace) -> dict[str, Any]:
     """快照 + 公开页图 URL（学生端只读形状）。
 
     区域里的 ``assets`` 被替换为公开端点 URL，前端可以直接交给 ``PageCanvas``；
@@ -755,6 +767,119 @@ def load_shared(db: Session, share_id: str) -> tuple[ShareRecord, MaterialRecord
     return share, material
 
 
+class PlazaPublishBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    plaza: ListingOptions
+
+
+def deck_listing_cover(snapshot):
+    scene = snapshot.get("scene_document") or {}
+    theme = scene.get("theme") or {}
+    cover = {"page_count": snapshot["page_count"], "theme_id": theme.get("id")}
+    if snapshot.get("pages") and snapshot["pages"][0].get("image"):
+        cover["page_no"] = snapshot["pages"][0]["page_no"]
+    if snapshot.get("forked_from_share"):
+        cover["origin"] = snapshot["forked_from_share"]
+    return cover
+
+
+def _snapshot_page_file(share, material_id, filename):
+    if not share.snapshot_json.get("frozen_page_images"):
+        return _find_page_file(material_id, filename)
+    if not isinstance(filename, str) or not PAGE_IMAGE_PATTERN.fullmatch(filename):
+        return None
+    path = render_dir(material_id) / "shares" / share.share_id / filename
+    return path if path.is_file() else None
+
+
+@router.post(f"{PUBLIC_API_PREFIX}/{{share_id}}/fork", status_code=201)
+def fork_deck(share_id: str, request: Request, ctx: WriteDep, db: DBDep) -> JSONResponse:
+    from ..documents.layers import rendered_document, has_rendered_pages
+    from ..documents.native_deck import create_native_deck
+    from ..documents.presentation import public_document
+    from ..documents.store import document_root, write_document
+    from .routes_jobs import ispec_path, write_ispec_payload
+
+    seed = official_deck(share_id)
+    if seed:
+        share = material = None
+        snapshot = {"title": seed["title"], "scene_document": seed, "page_count": len(seed["pages"]),
+                    "pages": [{"page_no": page["page_no"]} for page in seed["pages"]]}
+    else:
+        share, material = load_shared(db, share_id)
+        snapshot = share.snapshot_json
+    lock_fork(db, share_id)
+    if share is not None:
+        db.refresh(share, with_for_update=True)
+        if share.revoked_at is not None:
+            raise resource_unavailable()
+    title = f"{snapshot['title']} · 改造"[:255]
+    material_id = f"mat_{uuid4().hex}"
+    now = utc_now()
+    try:
+        projected = {}
+        for page in snapshot.get("pages", []):
+            for key in ("image", "erased_image"):
+                if material and page.get(key):
+                    source = _snapshot_page_file(share, material.id, page[key])
+                    if source is None:
+                        raise resource_unavailable(reason="发布快照的页图已不可用")
+                    pages_dir(material_id).mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source, pages_dir(material_id) / source.name)
+            projected[page["page_no"]] = {key: value for key, value in page.items()
+                                          if key not in ("image", "erased_image")}
+        rendered = rendered_document(material_id, title) if has_rendered_pages(material_id) else None
+        scene = public_document(snapshot.get("scene_document"))
+        scene_pages = {page["page_no"]: page for page in (scene or {}).get("pages", [])}
+        rendered_pages = {page["page_no"]: page for page in (rendered or {}).get("pages", [])}
+        count = snapshot["page_count"]
+        order = (scene or {}).get("page_order")
+        if not order:
+            order = list(projected) if len(projected) == count else list(range(1, count + 1))
+        document = create_native_deck(title, "16:9", "blank", None)
+        if scene and scene.get("theme"):
+            document["theme"] = scene["theme"]
+        pages = []
+        for number in order:
+            if number in scene_pages:
+                page = deepcopy(scene_pages[number])
+                page.update(id=f"p_{number}", source_page_no=None, modified=True)
+                for node in page["nodes"]:
+                    node.setdefault("text", "")
+                    node.setdefault("paragraphs", [])
+                pages.append(page)
+            elif number in rendered_pages:
+                pages.append(rendered_pages[number])
+            else:
+                stub = deepcopy(document["pages"][0])
+                stub.update(page_no=number, id=f"p_{number}", modified=False)
+                pages.append(stub)
+        document.update(pages=pages, applied_operations=[])
+        db.add(MaterialRecord(id=material_id, session_id=ctx.session_id, title=title,
+                            status="ready", page_count=len(pages), created_at=to_iso(now),
+                            expires_at=iso_after(get_settings().material_retention_hours, base=now)))
+        db.flush()
+        for number in order:
+            db.add(PageRecord(id=f"pag_{uuid4().hex}", material_id=material_id, page_no=number,
+                              title=(projected.get(number, {}).get("title") or "")[:255]))
+        write_document(material_id, document)
+        write_ispec_payload(material_id, {"ispecs": snapshot.get("ispecs", []),
+                                          "page_layouts": list(projected.values()),
+                                          "forked_ppt_ai": snapshot.get("ppt_ai")})
+        folder = render_dir(material_id)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "regions.json").write_text(json.dumps(snapshot.get("regions", []), ensure_ascii=False), encoding="utf-8")
+        (folder / "plaza-origin.txt").write_text(share_id, encoding="utf-8")
+        db.commit()
+    except Exception:
+        db.rollback()
+        shutil.rmtree(document_root(material_id).parent, ignore_errors=True)
+        shutil.rmtree(render_dir(material_id), ignore_errors=True)
+        ispec_path(material_id).unlink(missing_ok=True)
+        raise
+    return ok(request, {"material_id": material_id, "forked_from_share": share_id}, 201)
+
+
 # ---------------------------------------------------------------------------
 # 发布端点
 # ---------------------------------------------------------------------------
@@ -770,7 +895,7 @@ def publish_material(
     request: Request,
     ctx: WriteDep,
     db: DBDep,
-    body: LearningPublishSelection | None = None,
+    body: LearningPublishSelection | PlazaPublishBody | None = None,
 ) -> JSONResponse:
     """冻结当前材料状态并返回 ``share_id`` / ``share_url``。
 
@@ -780,21 +905,34 @@ def publish_material(
     """
 
     material = owned_material(db, ctx, material_id)
+    plaza = body.plaza if isinstance(body, PlazaPublishBody) else None
+    auth = require_auth_session(request, db) if plaza else None
     started = time.monotonic()
-    snapshot = build_snapshot(db, material, body)
+    snapshot = build_snapshot(db, material, body if isinstance(body, LearningPublishSelection) else None)
+    origin = render_dir(material_id) / "plaza-origin.txt"
+    if origin.is_file():
+        snapshot["forked_from_share"] = origin.read_text(encoding="utf-8")
     elapsed = time.monotonic() - started
     share_id = new_share_id()
-    db.add(
-        ShareRecord(
-            share_id=share_id,
-            material_id=material.id,
-            session_id=ctx.session_id,
-            created_at=to_iso(utc_now()),
-            revoked_at=None,
-            snapshot_json=snapshot,
-        )
-    )
-    db.commit()
+    share = ShareRecord(share_id=share_id, material_id=material.id, session_id=ctx.session_id,
+                        created_at=to_iso(utc_now()), revoked_at=None, snapshot_json=snapshot)
+    db.add(share)
+    entry = list_share(db, "deck", share, auth.user_id, plaza, title=material.title,
+                       cover=deck_listing_cover(snapshot)) if auth else None
+    frozen = render_dir(material.id) / "shares" / share_id
+    try:
+        for page in snapshot["pages"]:
+            for key in ("image", "erased_image"):
+                source = _find_page_file(material.id, page[key]) if page.get(key) else None
+                if source:
+                    frozen.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source, frozen / source.name)
+        snapshot["frozen_page_images"] = True
+        db.commit()
+    except Exception:
+        db.rollback()
+        shutil.rmtree(frozen, ignore_errors=True)
+        raise
     logger.info(
         "会话 %s 发布材料 %s → share=%s（区域 %d，对象 %d，页图 %d，快照 %.2fs）",
         ctx.session_id,
@@ -807,7 +945,8 @@ def publish_material(
     )
     return ok(
         request,
-        {"share_id": share_id, "share_url": f"{PUBLIC_ALIAS_PREFIX}/{share_id}"},
+        {"share_id": share_id, "share_url": f"{PUBLIC_ALIAS_PREFIX}/{share_id}",
+         **({"plaza_item_id": entry.id} if entry else {})},
         status_code=201,
     )
 
@@ -829,6 +968,7 @@ def revoke_material_shares(
         )
     ).all()
     revoked_at = to_iso(utc_now())
+    unlist_shares(db, [row.share_id for row in rows])
     for row in rows:
         row.revoked_at = revoked_at
     db.commit()
@@ -844,6 +984,11 @@ def revoke_material_shares(
 def _shared_payload_response(
     request: Request, share_id: str, db: Session
 ) -> JSONResponse:
+    seed = official_deck(share_id)
+    if seed:
+        snapshot = {"title": seed["title"], "scene_document": seed, "page_count": len(seed["pages"]),
+                    "pages": [{"page_no": page["page_no"]} for page in seed["pages"]]}
+        return ok(request, public_payload(SimpleNamespace(share_id=share_id, snapshot_json=snapshot)))
     share, _material = load_shared(db, share_id)
     return ok(request, public_payload(share))
 
@@ -865,7 +1010,7 @@ def _shared_page_response(
     raw_name = target_item.get("erased_image") if want_erased else target_item.get("image")
     if not isinstance(raw_name, str) or not raw_name:
         raise resource_unavailable()
-    target = _find_page_file(material.id, raw_name)
+    target = _snapshot_page_file(share, material.id, raw_name)
     if target is None:
         raise resource_unavailable()
     return FileResponse(

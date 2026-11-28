@@ -436,6 +436,26 @@ class WorkshopShareRecord(Base):
     snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
+class WorkshopBlueprintRecord(Base):
+    """定象坊个人蓝图库：云端持久化自制复合积木与 AI 规则积木，解除 localStorage 24 个上限。"""
+
+    __tablename__ = "workshop_blueprints"
+    __table_args__ = (
+        Index("ix_workshop_blueprints_session_updated", "session_id", "updated_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(ID_LENGTH), primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        String(ID_LENGTH), ForeignKey("sessions.id"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(24), nullable=False, default="composite")
+    title: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    summary: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    blueprint_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[str] = mapped_column(String(TIMESTAMP_LENGTH), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(TIMESTAMP_LENGTH), nullable=False)
+
+
 #: 契约要求的 9 张表（T7 验收 1 的自检基线）。
 TABLE_NAMES: tuple[str, ...] = (
     "sessions",
@@ -466,6 +486,48 @@ __all__ = [
     "SessionRecord",
     "ShareRecord",
     "TABLE_NAMES",
+    "PLAZA_TABLE_NAMES",
+    "PlazaItemRecord",
+    "PlazaReactionRecord",
+    "WorkshopBlueprintRecord",
     "WorkshopShareRecord",
     "WorkshopWorkRecord",
 ]
+
+
+class PlazaItemRecord(Base):
+    __tablename__ = "plaza_items"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    share_id: Mapped[str] = mapped_column(String(64), unique=True)
+    author_user_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    author_session_id: Mapped[str] = mapped_column(String(64), default="")
+    title: Mapped[str] = mapped_column(String(120))
+    summary: Mapped[str] = mapped_column(String(240), default="")
+    subject: Mapped[str] = mapped_column(String(32), index=True)
+    tags_json: Mapped[list[str]] = mapped_column(JSON, default=list)
+    cover_meta_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    allow_fork: Mapped[bool] = mapped_column(default=True)
+    is_featured: Mapped[bool] = mapped_column(default=False)
+    views: Mapped[int] = mapped_column(default=0)
+    likes: Mapped[int] = mapped_column(default=0)
+    bookmarks: Mapped[int] = mapped_column(default=0)
+    forks: Mapped[int] = mapped_column(default=0)
+    status: Mapped[str] = mapped_column(String(16), default="published", index=True)
+    created_at: Mapped[str] = mapped_column(String(32))
+    updated_at: Mapped[str] = mapped_column(String(32))
+
+
+class PlazaReactionRecord(Base):
+    __tablename__ = "plaza_reactions"
+    __table_args__ = (Index("uq_plaza_reaction", "plaza_item_id", "user_id", "kind", unique=True),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    plaza_item_id: Mapped[str] = mapped_column(ForeignKey("plaza_items.id"))
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[str] = mapped_column(String(32))
+
+
+PLAZA_TABLE_NAMES = (PlazaItemRecord.__tablename__, PlazaReactionRecord.__tablename__)

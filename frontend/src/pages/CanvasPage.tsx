@@ -6,24 +6,43 @@
  * 撤销/重做按编辑突发合并（400ms 内连续改动算一步）；发布后走 work-shares 快照。
  * 对象端口协议、多级求值（engine）、命名端口连线、动画源见 `canvas/` 目录。
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
-import { CanvasBoard, type RuleWireRequest } from '@/canvas/CanvasBoard.tsx';
+import { CanvasBoard, type RuleFuseRequest, type RuleWireRequest } from '@/canvas/CanvasBoard.tsx';
 import { PALETTE_GROUPS, NODE_DEFS } from '@/canvas/nodes.tsx';
 import { buildTemplateDoc } from '@/canvas/templateCatalog.ts';
 import { isCalculusSandboxKind } from '@/canvas/calculusSandboxes.ts';
 import { defaultAiRuleParams, serializeAiRulePayload, type AiRuleBlockPayload } from '@/canvas/aiRuleBlock.ts';
-import { customBlockBadge, instantiateCustomBlock, listCustomBlocks, removeCustomBlock, saveCustomAiRuleBlock, type CustomBlockRecord } from '@/canvas/customBlocks.ts';
+import {
+  cloudBlueprintToRecord,
+  customBlockBadge,
+  exportBlueprintPackage,
+  importCustomBlocksLocal,
+  instantiateCustomBlock,
+  listCustomBlocks,
+  mergeBlueprintLibraries,
+  parseBlueprintPackage,
+  recordToCloudBlueprintInput,
+  removeCustomBlock,
+  saveCustomAiRuleBlock,
+  type CustomBlockRecord,
+} from '@/canvas/customBlocks.ts';
+const MathLiveFloatingKeypad = lazy(() => import('@/canvas/MathLiveFloatingKeypad'));
 import { BlockCreatorModal } from '@/canvas/BlockCreatorModal.tsx';
+import { AiComposeModal } from '@/canvas/AiComposeModal.tsx';
 import { nextId, clamp } from '@/canvas/math.ts';
 import type { CanvasDoc, CanvasTool, InkStroke, NodeType } from '@/canvas/types.ts';
-import { worksApi } from '@/api/works';
+import { blueprintsApi, worksApi } from '@/api/works';
 import { extractInkFormula, type InkNodeType } from '@/api/labs';
+import { useQueryClient } from '@tanstack/react-query';
+import { PublishDialog } from '@/components/plaza/PublishDialog';
+import type { ListingOptions } from '@/api/plazaTypes';
 import { errorMessage } from '@/api/client';
 import { createCanvasNode } from '@/canvas/createCanvasNode.ts';
 import { compileExpression } from '@/labs/expr';
 import { fitFreehandCurve, curveFamilyLabel, type CurveFitResult } from '@/labs/curveFit';
+import { resolveCanvasReturnOrigin } from '@/utils/returnOrigin';
 import styles from './CanvasPage.module.css';
 
 interface InkReviewState {
@@ -133,18 +152,23 @@ function seedDoc(): CanvasDoc {
   };
 }
 
-/** 递归过滤未知节点类型 + 悬空线（含 composite 子图内部） */
+/** 递归过滤未知节点类型 + 悬空线（含 composite 子图内部，保留 Composite 2.0 扩展字段） */
 function sanitizeNodes(nodes: CanvasDoc['nodes'], wires: CanvasDoc['wires']): CanvasDoc['nodes'] {
   return nodes.filter((n) => NODE_DEFS[n.type] !== undefined).map((n) => {
     if (!n.sub) return n;
     const inner = sanitizeNodes(n.sub.nodes, n.sub.wires);
     const innerIds = new Set(inner.map((x) => x.id));
+    const exposedParams = n.sub.exposedParams?.filter((ep) => innerIds.has(ep.nodeId));
+    const previewNodeId = n.sub.previewNodeId && innerIds.has(n.sub.previewNodeId) ? n.sub.previewNodeId : undefined;
     return {
       ...n,
       sub: {
         nodes: inner,
         wires: n.sub.wires.filter((w) => innerIds.has(w.from) && innerIds.has(w.to)),
         ports: n.sub.ports.filter((p) => innerIds.has(p.id)),
+        ...(exposedParams?.length ? { exposedParams } : {}),
+        ...(previewNodeId ? { previewNodeId } : {}),
+        ...(n.sub.summary ? { summary: n.sub.summary } : {}),
       },
     };
   });
@@ -170,17 +194,10 @@ export function CanvasPage(): JSX.Element {
   const [params, setParams] = useSearchParams();
   const { state: navigationState } = useLocation();
   const navigate = useNavigate();
-  const returnOriginRef = useRef<{ from: string; fromLabel: string; restoreScroll?: boolean }>({
-    from: '/workshop',
-    fromLabel: '← 定象坊目录',
-  });
-  const navOrigin = navigationState as { from?: string; fromLabel?: string; restoreScroll?: boolean } | null;
-  if (typeof navOrigin?.from === 'string' && navOrigin.from.startsWith('/')) {
-    returnOriginRef.current = {
-      from: navOrigin.from,
-      fromLabel: typeof navOrigin.fromLabel === 'string' && navOrigin.fromLabel ? navOrigin.fromLabel : '← 定象坊目录',
-      restoreScroll: navOrigin.restoreScroll,
-    };
+  const returnOriginRef = useRef(resolveCanvasReturnOrigin(navigationState));
+  const resolvedOrigin = resolveCanvasReturnOrigin(navigationState);
+  if (resolvedOrigin.from !== returnOriginRef.current.from || resolvedOrigin.fromLabel !== returnOriginRef.current.fromLabel) {
+    returnOriginRef.current = resolvedOrigin;
   }
   const backOrigin = returnOriginRef.current;
   const workIdParam = params.get('work');
@@ -204,8 +221,31 @@ export function CanvasPage(): JSX.Element {
   const deepPaletteGroups = ['输入', '算子', '训练与更新', '观察'];
   const [lastPaletteItem, setLastPaletteItem] = useState('');
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [customBlocks, setCustomBlocks] = useState<CustomBlockRecord[]>([]);
-  useEffect(() => { if (paletteOpen) setCustomBlocks(listCustomBlocks()); }, [paletteOpen]);
+  const [keypadOpen, setKeypadOpen] = useState(false);
+  const [customBlocks, setCustomBlocks] = useState<CustomBlockRecord[]>(() => listCustomBlocks());
+  const refreshCustomBlocks = useCallback(async () => {
+    const local = listCustomBlocks();
+    setCustomBlocks(local);
+    try {
+      const res = await blueprintsApi.list(200);
+      const cloud = res.items
+        .map(cloudBlueprintToRecord)
+        .filter((item): item is CustomBlockRecord => item !== null);
+      setCustomBlocks(mergeBlueprintLibraries(cloud, local));
+    } catch {
+      /* 后端不可用或未建立会话时保留本地积木库 */
+    }
+  }, []);
+  const syncBlockToCloud = useCallback((record: CustomBlockRecord) => {
+    void blueprintsApi.save(recordToCloudBlueprintInput(record))
+      .then(() => {
+        // 云端保存成功后移除临时本地副本，避免列表同时出现本地与云端两条重复记录
+        removeCustomBlock(record.id);
+        return refreshCustomBlocks();
+      })
+      .catch(() => { /* 本地已保存，云端失败静默兜底 */ });
+  }, [refreshCustomBlocks]);
+  useEffect(() => { if (paletteOpen) void refreshCustomBlocks(); }, [paletteOpen, refreshCustomBlocks]);
   const [dockHidden, setDockHidden] = useState(() => {
     try { return localStorage.getItem(DOCK_KEY) === '1'; } catch { return false; }
   });
@@ -215,7 +255,7 @@ export function CanvasPage(): JSX.Element {
     try { localStorage.setItem(DOCK_KEY, hidden ? '1' : '0'); } catch { /* 隐私模式静默失败 */ }
   };
   const paletteButton = useRef<HTMLButtonElement>(null);
-  const [activeMode, setMode] = useState<'instrument' | 'compose'>(() =>
+  const [activeMode, setMode] = useState<'instrument' | 'compose' | 'cockpit'>(() =>
     doc.panel && !isCalculusSandboxKind(templateParam) ? 'instrument' : 'compose');
   useEffect(() => { if (paletteOpen) paletteSearch.current?.focus(); }, [paletteOpen]);
   const closePalette = () => {
@@ -224,7 +264,7 @@ export function CanvasPage(): JSX.Element {
   };
   const paletteSearch = useRef<HTMLInputElement>(null);
   const paletteCategories = ['常用', 'AI', '我的积木', '深度学习', '高数', '408', '办公', '基础积木', '物理', '文字'];
-  const commonTypes: readonly NodeType[] = ['slider', 'matrixSource', 'functionSource', 'textNote',
+  const commonTypes: readonly NodeType[] = ['slider', 'delayRegister', 'aiRuleBlock', 'matrixSource', 'functionSource', 'textNote',
     'dataset2dSource', 'linearOp', 'activationOp', 'matrixHeatmapView'];
   const query = paletteQuery.trim().toLowerCase();
   const visiblePaletteGroups = !query && paletteCategory === '常用' ? [{ label: '常用积木', types: commonTypes }]
@@ -245,17 +285,22 @@ export function CanvasPage(): JSX.Element {
   /* 工作台判定只看面板本身：任何学科只要预置了有效 panel（视图或外露参数），
      打开即进入左右停靠的仪器工作台；取消勾选「设为仪器面板」立即回到自由画布。 */
   const [tool, setTool] = useState<CanvasTool>('select');
+  const [encapsulating, setEncapsulating] = useState(false);
   const [inkColor, setInkColor] = useState('#2F3A49');
   const [savedFlash, setSavedFlash] = useState(false);
   const [workId, setWorkId] = useState<string | null>(null);
   const [cloudState, setCloudState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const queryClient = useQueryClient();
+  const [publishOpen, setPublishOpen] = useState(false);
   const [share, setShare] = useState<{ url: string; embedUrl?: string } | null>(null);
   const [embedCopied, setEmbedCopied] = useState(false);
   const [inkReview, setInkReview] = useState<InkReviewState | null>(null);
   const [inkExpression, setInkExpression] = useState('');
   const [inkError, setInkError] = useState<string | null>(null);
   const [blockCreatorOpen, setBlockCreatorOpen] = useState(false);
+  const [aiComposeOpen, setAiComposeOpen] = useState(false);
   const [pendingAiWire, setPendingAiWire] = useState<RuleWireRequest | null>(null);
+  const [pendingAiFuse, setPendingAiFuse] = useState<RuleFuseRequest | null>(null);
   const inkResolve = useRef<((ok: boolean) => void) | null>(null);
   const [fitReview, setFitReview] = useState<FitReviewState | null>(null);
   const [fitExpressions, setFitExpressions] = useState<string[]>([]);
@@ -482,11 +527,13 @@ export function CanvasPage(): JSX.Element {
     text: string,
     saveToLibrary: boolean,
     wire?: RuleWireRequest,
+    fuse?: { request: RuleFuseRequest; keepOriginals: boolean },
   ) => {
     if (saveToLibrary) {
       try {
-        saveCustomAiRuleBlock(payload.title, payload, params, text);
-        setCustomBlocks(listCustomBlocks());
+        const saved = saveCustomAiRuleBlock(payload.title, payload, params, text);
+        setCustomBlocks((prev) => mergeBlueprintLibraries(prev.filter((b) => b.source === 'cloud'), listCustomBlocks()));
+        syncBlockToCloud(saved);
       } catch {
         /* 存储失败不阻断放入画布 */
       }
@@ -503,11 +550,60 @@ export function CanvasPage(): JSX.Element {
       text,
     };
     setMode('compose');
-    if (wire) wire.insert(node);
+    if (fuse) fuse.request.apply(node, fuse.keepOriginals);
+    else if (wire) wire.insert(node);
     else setDoc((current) => ({ ...current, nodes: [...current.nodes, node] }));
     setBlockCreatorOpen(false);
     setPendingAiWire(null);
-  }, [setDoc]);
+    setPendingAiFuse(null);
+  }, [setDoc, syncBlockToCloud]);
+
+  const exportBlueprintsJson = useCallback((blocks: readonly CustomBlockRecord[], filename?: string) => {
+    if (!blocks.length) {
+      window.alert('当前没有可导出的蓝图积木。');
+      return;
+    }
+    const pkg = exportBlueprintPackage(blocks);
+    const blob = new Blob([JSON.stringify(pkg, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename || 'wanxiang-blueprints'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const importBlueprintsFromFile = useCallback(async (file: File) => {
+    try {
+      const text = await file.text();
+      const imported = parseBlueprintPackage(text);
+      importCustomBlocksLocal(imported);
+      for (const item of imported) {
+        try {
+          await blueprintsApi.save(recordToCloudBlueprintInput(item));
+        } catch {
+          /* 云端离线时本地导入已成功 */
+        }
+      }
+      await refreshCustomBlocks();
+      setCustomBlockNotice(`已导入 ${imported.length} 个蓝图积木到「我的积木库」。`);
+      window.setTimeout(() => setCustomBlockNotice(''), 3200);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '导入蓝图失败');
+    }
+  }, [refreshCustomBlocks]);
+
+  const deleteCustomBlock = useCallback(async (block: CustomBlockRecord) => {
+    removeCustomBlock(block.id);
+    if (block.source === 'cloud') {
+      try {
+        await blueprintsApi.remove(block.id);
+      } catch {
+        /* 忽略云端删除异常 */
+      }
+    }
+    await refreshCustomBlocks();
+  }, [refreshCustomBlocks]);
 
   const newCanvas = useCallback(() => {
     if (!window.confirm('新建空白画布？这会替换当前本地草稿。')) return;
@@ -521,7 +617,7 @@ export function CanvasPage(): JSX.Element {
     setCloudState('idle');
     setPaletteOpen(false);
     writeDoc({ version: 1, title: '空白画布', nodes: [], wires: [], strokes: [], zoom: 1 });
-    navigate('/canvas', { replace: true });
+    navigate('/canvas', { replace: true, state: returnOriginRef.current });
   }, [navigate, writeDoc]);
 
   const exportJson = useCallback(() => {
@@ -556,33 +652,30 @@ export function CanvasPage(): JSX.Element {
   }, [doc, saveExisting, workId]);
 
   /* 发布：先确保已建档，再生成快照分享链接 */
-  const publish = useCallback(async () => {
+  const publish = useCallback(async (options?: ListingOptions) => {
     if (doc.nodes.length === 0 && doc.strokes.length === 0) {
       if (!window.confirm('当前画布还没有任何积木或笔迹，确定要发布空白作品吗？')) return;
     }
-    try {
-      let wid = workId;
-      if (!wid) {
-        const res = await worksApi.create(doc);
-        wid = res.work_id;
-        remote.current = { id: wid, revision: res.revision, doc, pending: Promise.resolve() };
-        setWorkId(wid);
-      } else {
-        if (cloudTimer.current !== null) window.clearTimeout(cloudTimer.current);
-        await saveExisting(wid, doc);
-        setCloudState('saved');
-      }
-      const pub = await worksApi.publish(wid);
-      const url = `${window.location.origin}${pub.share_url}`;
-      const embedUrl = doc.panel ? new URL(url) : undefined;
-      embedUrl?.searchParams.set('embed', '1');
-      setShare({ url, embedUrl: embedUrl?.href });
-      setEmbedCopied(false);
-      try { await navigator.clipboard.writeText(url); } catch { /* 剪贴板不可用时展示链接即可 */ }
-    } catch {
-      window.alert('发布失败：请确认后端已启动。');
+    let wid = workId;
+    if (!wid) {
+      const res = await worksApi.create(doc);
+      wid = res.work_id;
+      remote.current = { id: wid, revision: res.revision, doc, pending: Promise.resolve() };
+      setWorkId(wid);
+    } else {
+      if (cloudTimer.current !== null) window.clearTimeout(cloudTimer.current);
+      await saveExisting(wid, doc);
+      setCloudState('saved');
     }
-  }, [doc, saveExisting, workId]);
+    const pub = await worksApi.publish(wid, options);
+    if (options) void queryClient.invalidateQueries({ queryKey: ['plaza'] });
+    const url = `${window.location.origin}${pub.share_url}`;
+    const embedUrl = doc.panel ? new URL(url) : undefined;
+    embedUrl?.searchParams.set('embed', '1');
+    setShare({ url, embedUrl: embedUrl?.href });
+    setEmbedCopied(false);
+    try { await navigator.clipboard.writeText(url); } catch { /* 剪贴板不可用时展示链接即可 */ }
+  }, [doc, saveExisting, workId, queryClient]);
 
   const recognizeInk = useCallback(async (strokes: InkStroke[]): Promise<boolean> => {
     try {
@@ -748,25 +841,39 @@ export function CanvasPage(): JSX.Element {
             className={styles.backLink}
             to={backOrigin.from}
             state={backOrigin.restoreScroll ? { restoreScroll: true } : undefined}
+            title={`${backOrigin.fromLabel.replace(/^←\s*/, '')}（${backOrigin.from}）`}
           >
             {backOrigin.fromLabel}
           </Link>
-          <input className={styles.title} value={doc.title} spellCheck={false} aria-label="画布标题"
+          <input className={styles.title} value={doc.title} title={doc.title} spellCheck={false} aria-label="画布标题"
             onChange={(e) => setDoc((d) => ({ ...d, title: e.target.value }))} />
           <span role="status" className={styles.savepill} data-state={cloudState === 'error' ? 'error' : savedFlash && cloudState !== 'saving' ? 'saved' : 'busy'}>
             {cloudState === 'error' ? '同步失败' : !savedFlash || cloudState === 'saving' ? '同步中' : '已保存'}
           </span>
         </div>
         <div className={styles.modes} role="group" aria-label="画布模式">
-          <button type="button" aria-pressed={activeMode === 'instrument'} onClick={() => { setMode('instrument'); setPaletteOpen(false); }}><span aria-hidden="true">◉ </span>交互仪器态</button>
-          <button type="button" aria-pressed={activeMode === 'compose'} onClick={() => setMode('compose')}><span aria-hidden="true">▦ </span>积木编排态</button>
+          <button type="button" aria-pressed={activeMode === 'compose'} onClick={() => setMode('compose')}><span aria-hidden="true">▦ </span>编辑态</button>
+          <button type="button" aria-pressed={activeMode === 'cockpit'} onClick={() => { setMode('cockpit'); setPaletteOpen(false); setEncapsulating(false); }}><span aria-hidden="true">🎛 </span>驾驶舱态</button>
+          <button type="button" aria-pressed={activeMode === 'instrument'} onClick={() => { setMode('instrument'); setPaletteOpen(false); setEncapsulating(false); }}><span aria-hidden="true">◉ </span>交互仪器态</button>
         </div>
         <div className={styles.actions}>
           <button type="button" className={styles.tbtn} disabled={!histInfo.undo} aria-label="撤销" title="撤销 (Ctrl+Z)" onClick={undo}>↶</button>
           <button type="button" className={styles.tbtn} disabled={!histInfo.redo} aria-label="重做" title="重做 (Ctrl+Shift+Z)" onClick={redo}>↷</button>
           <button type="button" className={styles.tbtn} onClick={() => setBlockCreatorOpen(true)}>＋ 创建积木</button>
+          <button
+            type="button"
+            className={styles.tbtn}
+            aria-haspopup="dialog"
+            onClick={() => { setPaletteOpen(false); setAiComposeOpen(true); }}
+            title="让 AI 一句话自动挑选内置积木搭整套实验，或帮当前画布散落的积木自动连线"
+          >
+            ✨ AI 搭实验
+          </button>
+          <button type="button" className={styles.tbtn} aria-pressed={encapsulating}
+            title="点选或框选至少两块积木。默认编辑时也可按住 Shift 多选。"
+            onClick={() => { setMode('compose'); setTool('select'); setEncapsulating(!encapsulating); }}>封装</button>
           <button type="button" className={styles.tbtn} disabled={cloudState === 'saving'} onClick={() => void saveToWorkshop()}>保存到定象坊</button>
-          <button type="button" className={styles.tbtn + ' ' + styles.primary} onClick={() => void publish()}>发布 / 嵌入通文册</button>
+          <button type="button" className={styles.tbtn + ' ' + styles.primary} onClick={() => setPublishOpen(true)}>发布 / 嵌入通文册</button>
           <details className={styles.menu}>
             <summary className={styles.tbtn} aria-label="更多操作">···</summary>
             <div className={styles.menuItems} onClick={(e) => { if ((e.target as HTMLElement).closest('button')) e.currentTarget.closest('details')?.removeAttribute('open'); }}>
@@ -781,6 +888,7 @@ export function CanvasPage(): JSX.Element {
         </div>
       </header>
 
+      {publishOpen && <PublishDialog onClose={() => setPublishOpen(false)} onPublish={publish} />}
       {share && (
         <div className={styles.sharebar} role="status">
           画布已发布
@@ -805,13 +913,23 @@ export function CanvasPage(): JSX.Element {
       <BlockCreatorModal
         open={blockCreatorOpen}
         onClose={() => setBlockCreatorOpen(false)}
-        onInsert={insertCreatedBlock}
+        onInsert={(payload, draftParams, text, saveToLibrary) =>
+          insertCreatedBlock(payload, draftParams, text, saveToLibrary)}
       />
       {pendingAiWire && <BlockCreatorModal
         open upstreamContext={pendingAiWire.context}
         onClose={() => setPendingAiWire(null)}
         onInsert={(payload, draftParams, text, saveToLibrary) =>
           insertCreatedBlock(payload, draftParams, text, saveToLibrary, pendingAiWire)}
+      />}
+      {pendingAiFuse && <BlockCreatorModal
+        open fuseContext={pendingAiFuse.context}
+        onClose={() => setPendingAiFuse(null)}
+        onInsert={(payload, draftParams, text, saveToLibrary, options) =>
+          insertCreatedBlock(payload, draftParams, text, saveToLibrary, undefined, {
+            request: pendingAiFuse,
+            keepOriginals: Boolean(options?.keepOriginals),
+          })}
       />}
 
       {inkReview ? (
@@ -889,8 +1007,28 @@ export function CanvasPage(): JSX.Element {
         </div>
       ) : null}
 
+      <AiComposeModal
+        open={aiComposeOpen}
+        doc={doc}
+        onClose={() => setAiComposeOpen(false)}
+        onApply={(nextDoc) => {
+          setDoc(nextDoc);
+          setMode('compose');
+        }}
+      />
+      {keypadOpen ? (
+        <Suspense fallback={null}>
+          <MathLiveFloatingKeypad open={keypadOpen} onClose={() => setKeypadOpen(false)} />
+        </Suspense>
+      ) : null}
       <CanvasBoard workId={workId} doc={doc} setDoc={setDoc} tool={tool} inkColor={inkColor}
-        onAddNode={addNode} onOpenRuleCreator={setPendingAiWire} onInkExtract={recognizeInk} onInkFit={recognizeCurves}
+        encapsulating={encapsulating} onEndEncapsulate={() => setEncapsulating(false)}
+        onAddNode={addNode} onOpenRuleCreator={setPendingAiWire} onOpenFuseCreator={setPendingAiFuse}
+        onSaveCustomBlock={(record) => {
+          setCustomBlocks((prev) => mergeBlueprintLibraries(prev.filter((b) => b.source === 'cloud'), listCustomBlocks()));
+          syncBlockToCloud(record);
+        }}
+        onInkExtract={recognizeInk} onInkFit={recognizeCurves}
         onAddCustomBlock={(blockId, x, y) => {
           const block = customBlocks.find((item) => item.id === blockId);
           if (!block) return;
@@ -905,10 +1043,19 @@ export function CanvasPage(): JSX.Element {
           ) : (
           <div className={styles.dock} role="toolbar" aria-label="画布工具坞">
             <button ref={paletteButton} type="button" aria-expanded={paletteOpen} onClick={() => setPaletteOpen((open) => !open)}>＋ 积木库</button>
-            <button type="button" aria-pressed={tool === 'select'} onClick={() => setTool('select')} title="拖空白平移，Shift 拖动框选">平移 / 选择</button>
-            <button type="button" aria-pressed={tool === 'pen'} onClick={() => setTool(tool === 'pen' ? 'select' : 'pen')} title="手写后按 Shift 框选，可识别公式或拟合曲线">手写</button>
+            <button
+              type="button"
+              aria-pressed={keypadOpen}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { setPaletteOpen(false); setKeypadOpen((open) => !open); }}
+              title="打开悬浮数学公式软键盘，可向任意输入框直接输入公式与符号"
+            >
+              {keypadOpen ? '⌨ 收起键盘' : '⌨ 打开键盘'}
+            </button>
+            <button type="button" aria-pressed={tool === 'select' && !encapsulating} onClick={() => { setTool('select'); setEncapsulating(false); }} title="拖空白平移，Shift 拖动框选">平移 / 选择</button>
+            <button type="button" aria-pressed={tool === 'pen'} onClick={() => { setTool(tool === 'pen' ? 'select' : 'pen'); setEncapsulating(false); }} title="手写后按 Shift 框选，可识别公式或拟合曲线">手写</button>
             {tool === 'pen' && ['#2F3A49', '#B8431F'].map((color) => <button key={color} type="button" className={styles.inkColor} style={{ background: color }} aria-label={'墨迹颜色 ' + color} aria-pressed={inkColor === color} onClick={() => setInkColor(color)} />)}
-            <button type="button" aria-pressed={tool === 'erase'} onClick={() => setTool(tool === 'erase' ? 'select' : 'erase')}>橡皮</button>
+            <button type="button" aria-pressed={tool === 'erase'} onClick={() => { setTool(tool === 'erase' ? 'select' : 'erase'); setEncapsulating(false); }}>橡皮</button>
             <button type="button" disabled={!doc.strokes.length} onClick={clearInk}>清屏</button>
             <div className={styles.zoom}>
               <button type="button" aria-label="缩小" onClick={() => zoomBy(-0.15)}>−</button>
@@ -962,10 +1109,37 @@ export function CanvasPage(): JSX.Element {
                 </section>)}
                 {(!query && paletteCategory === '我的积木') || matchingCustomBlocks.length > 0 ? (
                   <section>
-                    <h3>{query ? '我的积木' : '我的积木库'}</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                      <h3 style={{ margin: 0 }}>{query ? '我的积木' : `我的积木库（${customBlocks.length}）`}</h3>
+                      {!query ? (
+                        <div style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                          <label className={styles.tbtn} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                            ⬆ 导入蓝图包
+                            <input
+                              type="file"
+                              accept=".json,application/json"
+                              style={{ display: 'none' }}
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                if (file) void importBlueprintsFromFile(file);
+                                event.target.value = '';
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className={styles.tbtn}
+                            disabled={customBlocks.length === 0}
+                            onClick={() => exportBlueprintsJson(customBlocks, 'wanxiang-blueprints')}
+                          >
+                            ⬇ 导出全部
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                     {matchingCustomBlocks.length === 0 ? (
                       <p role="status" className={styles.paletteEmpty}>
-                        还没有保存过积木。点顶栏「＋ 创建积木」即可保存自建积木，或在画布中框选封装后存入。
+                        还没有保存过积木。按住 Shift 拖动框选 ≥2 块积木可「📦 封装成积木」或「✨ AI 融合」（封装后双击可钻入、点「↩ 解封」还原），也可点顶栏「＋ 创建积木」自建或导入 .json 蓝图包。
                       </p>
                     ) : (
                       <div className={styles.objectGrid}>
@@ -986,8 +1160,11 @@ export function CanvasPage(): JSX.Element {
                               <small>{customBlockBadge(block)}</small>
                             </button>
                             <button type="button" className={styles.customBlockRemove}
+                              aria-label={`导出 ${block.title}`} title="导出为 .json 蓝图分享"
+                              onClick={() => exportBlueprintsJson([block], block.title)}>⬇</button>
+                            <button type="button" className={styles.customBlockRemove}
                               aria-label={`删除 ${block.title}`}
-                              onClick={() => { removeCustomBlock(block.id); setCustomBlocks(listCustomBlocks()); }}>×</button>
+                              onClick={() => void deleteCustomBlock(block)}>×</button>
                           </div>
                         ))}
                       </div>

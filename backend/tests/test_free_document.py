@@ -89,10 +89,66 @@ def test_preview_upgrades_stored_native_styles_without_overwriting_edits(source_
 
     result=presentation.current_document('material')
     node=result['pages'][0]['nodes'][0]
-    assert result['native_import_version']==2
+    from app.documents.importer import NATIVE_IMPORT_VERSION
+    assert result['native_import_version']==NATIVE_IMPORT_VERSION
     assert node['style']['font_size']==28
     assert node['style']['color']=='#ff0000'
     assert node['x']==150
+
+
+def test_placeholder_inherits_layout_master_and_theme_styles(tmp_path):
+    """占位符未显式写对齐/字号/字体时，应完整继承版式、母版与主题字体样式。"""
+    from pptx import Presentation
+    from app.documents.importer import import_document
+
+    deck = Presentation()
+    slide = deck.slides.add_slide(deck.slide_layouts[0])  # Title Slide (CENTER_TITLE + SUBTITLE)
+    slide.shapes.title.text = 'Inherited Title'
+    slide.placeholders[1].text = 'Inherited Subtitle'
+    path = tmp_path / 'title_slide.pptx'
+    deck.save(path)
+
+    doc = import_document(path, 'Inherited')
+    nodes = {n['text']: n for n in doc['pages'][0]['nodes']}
+    title_node = nodes['Inherited Title']
+    subtitle_node = nodes['Inherited Subtitle']
+
+    assert title_node['style']['align'] == 'center'
+    assert title_node['style']['font_size'] >= 40
+    assert title_node['style']['font_family'] not in ('+mj-lt', '+mn-lt', '')
+    assert tuple(title_node[key] for key in ('x', 'y', 'width', 'height')) == pytest.approx(
+        tuple(getattr(slide.shapes.title, key).pt for key in ('left', 'top', 'width', 'height'))
+    )
+    assert subtitle_node['style']['align'] == 'center'
+    assert subtitle_node['style']['font_size'] < title_node['style']['font_size']
+
+
+def test_linear_algebra_cover_restores_inherited_geometry_in_existing_document(tmp_path, monkeypatch):
+    from app.documents import layers, presentation, store
+    from app.documents.importer import import_document
+
+    source = Path(__file__).resolve().parents[2] / 'the_art_of_linear_algebra.pptx'
+    imported = import_document(source, 'Linear Algebra')
+    imported['pages'] = imported['pages'][:1]
+    page = imported['pages'][0]
+    title, notes = page['nodes']
+    assert title['width'] == 720 and title['height'] == 188
+
+    imported['native_import_version'] = 5
+    page['modified'] = True
+    title['text'] = 'Updated title'
+    title.update(x=0, y=0, width=.1, height=.1, base_x=0, base_y=0, base_width=.1, base_height=.1)
+    notes['height'] = 324
+    for module in (layers, presentation, store):
+        monkeypatch.setattr(module, 'document_root', lambda _: tmp_path)
+    monkeypatch.setattr(layers, 'working_path', lambda _: source)
+    (tmp_path / 'source.pptx').write_bytes(source.read_bytes())
+    store.write_document('linear-algebra', imported)
+
+    title, notes = presentation.current_document('linear-algebra')['pages'][0]['nodes']
+    assert (title['x'], title['y'], title['width'], title['height']) == pytest.approx((120, 88.375, 720, 188))
+    assert title['text'] == 'Updated title'
+    assert notes['height'] == 324
 
 
 def test_patch_is_fast_atomic_and_does_not_modify_ppt(source_deck,tmp_path,monkeypatch):

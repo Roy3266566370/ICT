@@ -248,7 +248,7 @@
   }
 
   /* =========================================================
-     模块 1：万象工坊 · 迷你活体电路带
+     模块 1：定象坊 · 迷你活体电路带
      ========================================================= */
   .circuit-grid {
     display: grid;
@@ -481,7 +481,7 @@
   .mini-action:hover { background: var(--cobalt); transform: translateY(-1px); }
 
   /* =========================================================
-     模块 2：万象活页 · 死 PPT 瞬间通电透视窗
+     模块 2：通文册 · 死 PPT 瞬间通电透视窗
      ========================================================= */
   .living-layout {
     display: grid;
@@ -997,8 +997,8 @@
       <span>仅独立原型，未改动项目代码 · 全部支持真实交互</span>
     </div>
     <nav class="preview-nav">
-      <a href="#intro-workshop">01 万象工坊</a>
-      <a href="#intro-living">02 万象活页</a>
+      <a href="#intro-workshop">01 定象坊</a>
+      <a href="#intro-living">02 通文册</a>
       <a href="#intro-space">03 个人主页</a>
     </nav>
   </div>
@@ -1006,10 +1006,10 @@
 
 <main class="wrap">
 
-  <!-- ==================== 01 万象工坊 ==================== -->
+  <!-- ==================== 01 定象坊 ==================== -->
   <section id="intro-workshop">
     <div class="section-meta">
-      <span class="section-tag"><i></i> 01 · 万象工坊顶部引入区（放置于「万象工坊」标题上方）</span>
+      <span class="section-tag"><i></i> 01 · 定象坊顶部引入区（放置于「定象坊」标题上方）</span>
       <span class="section-hint">试着切换预设、拖动中间滑杆，看右侧舞台实时变化</span>
     </div>
 
@@ -1104,10 +1104,10 @@
     </div>
   </section>
 
-  <!-- ==================== 02 万象活页 ==================== -->
+  <!-- ==================== 02 通文册 ==================== -->
   <section id="intro-living">
     <div class="section-meta">
-      <span class="section-tag"><i></i> 02 · 万象活页顶部引入区（放置于「万象活页」标题上方）</span>
+      <span class="section-tag"><i></i> 02 · 通文册顶部引入区（放置于「通文册」标题上方）</span>
       <span class="section-hint">点击左侧步骤或「通电演示」，体验“死 PPT 瞬间变活”</span>
     </div>
 
@@ -1285,7 +1285,7 @@
     });
   });
 
-  /* ================= 01 万象工坊：真实计算驱动的迷你电路 ================= */
+  /* ================= 01 定象坊：真实计算驱动的迷你电路 ================= */
   const wsPresets = {
     scan: {
       prompt: '“演示电梯磁盘调度 SCAN 的磁头轨迹，并对比 FCFS 总寻道长度”',
@@ -1472,7 +1472,7 @@
   document.getElementById('ws-replay').addEventListener('click', animateWorkshop);
   loadPreset('scan');
 
-  /* ================= 02 万象活页：死 PPT 瞬间通电 ================= */
+  /* ================= 02 通文册：死 PPT 瞬间通电 ================= */
   const livingSlide = document.getElementById('living-slide');
   const livingPowerBtn = document.getElementById('living-power-btn');
   const livingPowerHint = document.getElementById('living-power-hint');
@@ -1530,7 +1530,7 @@
       ? (livingStep === 3 ? '已打包离线 HTML，断网照常拖动下方滑杆' : '试着拖动幻灯片里的「谐波阶数」滑杆')
       : '当前：静态原稿态';
     livingSlideMode.textContent = livingLive ? 'LIVE PLUGIN' : 'STATIC';
-    livingSlotTitle.textContent = livingLive ? '万象工坊 · 傅里叶活仪器' : '静态插图占位';
+    livingSlotTitle.textContent = livingLive ? '定象坊 · 傅里叶活仪器' : '静态插图占位';
     livingSlotPill.textContent = livingLive ? '实时演化中' : '未通电';
     livingFormula.textContent = livingLive
       ? `N = ${livingNSlider.value} 阶谐波 · 与右图实时联动`
@@ -1562,12 +1562,12 @@
     0: {
       doneCount: 0,
       advice: '<strong>刚来到万象？</strong> 先去工坊挑一个现成实验，或用一句话让 AI 帮你生成第一台活仪器。',
-      cta: '去万象工坊造第 1 台仪器 →'
+      cta: '去定象坊造第 1 台仪器 →'
     },
     1: {
       doneCount: 1,
       advice: '<strong>你已有 1 件工坊作品！</strong> 下一步可以把常用模块存进「我的积木库」，或者直接上传一份 PPT 把它嵌进去。',
-      cta: '去万象活页导入 PPT →'
+      cta: '去通文册导入 PPT →'
     },
     4: {
       doneCount: 4,
@@ -1577,9 +1577,9 @@
   };
 
   const stationHints = [
-    { advice: '<strong>01 在工坊造仪器：</strong>65+ 真内核模板 + AI 智能计算方块，一句话就能生成可调参实验。', cta: '打开万象工坊 →' },
+    { advice: '<strong>01 在工坊造仪器：</strong>65+ 真内核模板 + AI 智能计算方块，一句话就能生成可调参实验。', cta: '打开定象坊 →' },
     { advice: '<strong>02 存入个人积木库：</strong>框选多个积木一键封装并持久化，以后在任何画布都能拖出来用。', cta: '新建画布试试封装 →' },
-    { advice: '<strong>03 嵌进活页 PPT：</strong>上传原稿 PPTX / PDF，在最难讲的那几页直接贴上活仪器。', cta: '打开万象活页 →' },
+    { advice: '<strong>03 嵌进活页 PPT：</strong>上传原稿 PPTX / PDF，在最难讲的那几页直接贴上活仪器。', cta: '打开通文册 →' },
     { advice: '<strong>04 导出离线课件：</strong>打包成单个 HTML 文件拷进 U 盘，教室断网也能流畅演播。', cta: '查看我的活页课件 →' }
   ];
 

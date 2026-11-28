@@ -9,14 +9,14 @@ export type BlockSpaceItem = Asset<'block', CustomBlockRecord>;
 export type SpaceItem = MaterialSpaceItem | WorkSpaceItem | BlockSpaceItem;
 export type SpaceFilter = 'all' | SpaceItem['kind'];
 
-export const SPACE_KIND_LABEL = { material: '活页', work: '作品', block: '积木' } as const;
+export const SPACE_KIND_LABEL = { material: '课件', work: '作品', block: '积木' } as const;
 
 function dateOrder(a: SpaceItem, b: SpaceItem): number {
   return (Number.isFinite(b.time) ? b.time : -Infinity) - (Number.isFinite(a.time) ? a.time : -Infinity) || 0;
 }
 
-function materialItem(record: MaterialSummary): MaterialSpaceItem {
-  return { kind: 'material', id: record.material_id, title: record.title.trim() || '未命名活页',
+export function materialItem(record: MaterialSummary): MaterialSpaceItem {
+  return { kind: 'material', id: record.material_id, title: record.title.trim() || '未命名课件',
     time: Date.parse(record.created_at), record };
 }
 

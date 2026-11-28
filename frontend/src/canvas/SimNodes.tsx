@@ -9,7 +9,7 @@
  */
 import { useMemo } from 'react';
 import { Formula } from '@/components/showcase/Formula';
-import { LabCanvas } from '@/components/ppt-ai/PageLabPanel';
+import { LabCanvas } from '@/components/ppt-ai/LabCanvas';
 import type { PageLab } from '@/api/pptAI';
 import { attention } from '@/living/attention';
 import { parsePageLabSim } from '@/living/sim';

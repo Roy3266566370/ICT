@@ -304,6 +304,7 @@ export interface JobStatus {
 }
 
 export interface MaterialDetail {
+  forked_ppt_ai?: unknown;
   formula_reviews?: Record<string, {page_no: number; math_text: string; reason: string}>;
   scene_document?: import('../document/types').SceneDocument|null;
   edit_revision?: number;

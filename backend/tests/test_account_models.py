@@ -29,7 +29,7 @@ os.environ["DATABASE_URL"] = "sqlite:///" + (_TMP_DIR / "accounts.db").as_posix(
 from app.db import account_models as am  # noqa: E402
 from app.db.base import Base  # noqa: E402
 from app.db.init_db import REQUIRED_TABLE_NAMES, init_db  # noqa: E402
-from app.db.models import TABLE_NAMES  # noqa: E402
+from app.db.models import PLAZA_TABLE_NAMES, TABLE_NAMES  # noqa: E402
 from app.db.session import get_engine, reset_engine_cache  # noqa: E402
 from app.schemas.common import parse_iso  # noqa: E402
 from app.settings import Settings, get_settings  # noqa: E402
@@ -446,7 +446,8 @@ def test_init_db_is_idempotent_and_returns_all_tables(account_engine: Engine) ->
     assert set(TABLE_NAMES).issubset(first)
     assert set(am.ACCOUNT_TABLE_NAMES).issubset(first)
     # 返回值是 metadata 中全部表（存量/扩展 12 表 + 账号 5 表 + PPT AI 7 表 + 活页 3 表），不多不少。
-    assert len(first) == len(Base.metadata.tables) == 29
+    assert set(first) == set(Base.metadata.tables)
+    assert set(PLAZA_TABLE_NAMES).issubset(first)
 
 
 def test_sqlite_has_account_tables_after_init(account_engine: Engine) -> None:

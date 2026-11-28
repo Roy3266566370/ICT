@@ -5,11 +5,13 @@ import { resizeVector, vectorEndpoints, vectorGeometry } from '@/document/vector
 import {DynamicStyleControls} from './DynamicStyleControls';
 import './dynamicNodes.css';
 
-export function VectorLine({ node, onCommit, onSelect, onPreview, endOnly, canDragStart, canDragEnd, progress = 1 }: {
+export function VectorLine({ node, onCommit, onSelect, onPreview, snapEndpoint, build, endOnly, canDragStart, canDragEnd, progress = 1 }: {
   node: SceneNode;
   onCommit?: (patch: NodePatch) => void;
   onSelect?: () => void;
   onPreview?: (patch: ReturnType<typeof vectorGeometry>) => void;
+  snapEndpoint?: (point:[number,number])=>[number,number];
+  build?:boolean;
   endOnly?: boolean;
   canDragStart?: boolean;
   canDragEnd?: boolean;
@@ -28,6 +30,7 @@ export function VectorLine({ node, onCommit, onSelect, onPreview, endOnly, canDr
       clamp(event.clientX - drag.bounds.left, drag.bounds.width) / drag.sx,
       clamp(event.clientY - drag.bounds.top, drag.bounds.height) / drag.sy,
     ];
+    if(snapEndpoint&&!event.altKey)points[drag.endpoint]=snapEndpoint(points[drag.endpoint]);
     return vectorGeometry(points[0], points[1], node.height);
   };
   const shown = draft ? { ...node, ...draft } : node;
@@ -38,7 +41,7 @@ export function VectorLine({ node, onCommit, onSelect, onPreview, endOnly, canDr
   const color = node.style.stroke ?? '#167abc';
   const lineWidth = node.style.stroke_width ?? 3;
   const dash = node.style.line_style === 'dashed' ? '9 6' : node.style.line_style === 'dotted' ? '1 5' : undefined;
-  return <svg aria-label={node.name} data-vector-node={node.id} data-no-pan
+  return <svg aria-label={node.name} data-vector-node={node.id} data-no-pan data-build-entry={build||undefined}
     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', overflow: 'visible',
       pointerEvents: 'none', zIndex: Math.floor(node.z) + 10001, opacity: node.opacity }}
     onPointerMove={event => {

@@ -8,6 +8,7 @@ import type { CanvasDoc } from './types.ts';
 import type { WorkshopPluginConfig } from '../document/types.ts';
 import { deepWorkshopDoc } from './deepWorkshop.ts';
 import { DEEP_TEMPLATES, isDeepTemplateKind } from './deepTemplates.ts';
+import { DEEP_PANORAMA_TEMPLATES, VISIBLE_DEEP_TEMPLATES, isDeepPanoramaTemplateKind } from './deepPanoramaTemplates.ts';
 import { LAB408_TEMPLATES, VISIBLE_LAB408_TEMPLATES, isLab408Kind, lab408TemplateDoc } from './lab408Templates.ts';
 import { PHYSICS_TEMPLATES, VISIBLE_PHYSICS_TEMPLATES, physicsTemplateDoc, type PhysicsTemplateKind } from './physicsTemplates.ts';
 import { CALCULUS_TEMPLATES, VISIBLE_CALCULUS_TEMPLATES, calculusTemplateDoc } from './calculusTemplates.ts';
@@ -21,7 +22,7 @@ export function isPhysicsTemplateKind(kind: string): kind is PhysicsTemplateKind
 }
 
 export function buildTemplateDoc(kind: string): CanvasDoc {
-  if (isDeepTemplateKind(kind)) return deepWorkshopDoc(kind);
+  if (isDeepTemplateKind(kind) || isDeepPanoramaTemplateKind(kind)) return deepWorkshopDoc(kind);
   if (isLab408Kind(kind)) return lab408TemplateDoc(kind);
   if (isPhysicsTemplateKind(kind)) return physicsTemplateDoc(kind);
   if (isBusinessTemplateKind(kind)) return businessTemplateDoc(kind);
@@ -29,7 +30,7 @@ export function buildTemplateDoc(kind: string): CanvasDoc {
   return calculusTemplateDoc(kind);
 }
 
-const workshopTemplates = [...CALCULUS_TEMPLATES, ...LINALG_TEMPLATES, ...PHYSICS_TEMPLATES, ...LAB408_TEMPLATES, ...DEEP_TEMPLATES, ...BUSINESS_TEMPLATES];
+const workshopTemplates = [...CALCULUS_TEMPLATES, ...LINALG_TEMPLATES, ...PHYSICS_TEMPLATES, ...LAB408_TEMPLATES, ...DEEP_TEMPLATES, ...DEEP_PANORAMA_TEMPLATES, ...BUSINESS_TEMPLATES];
 
 export function findWorkshopTemplate(kind: string | undefined, title: string) {
   return workshopTemplates.find((template) => template.kind === kind)
@@ -72,6 +73,12 @@ const workshopFormulas: Record<string, string> = {
   pvSyncLab: 'P(S): S←S−1 · V(S): S←S+1',
   csmaCdLab: 'L_min = 2τ · R',
   routingLab: 'Dₓ(y) = minᵥ { c(x,v) + Dᵥ(y) }',
+  'dl-mlp-backprop': 'h=σ(Wx+b) · δ⁽ˡ⁾=(W⁽ˡ⁺¹⁾)ᵀδ⁽ˡ⁺¹⁾⊙σ′',
+  'dl-cnn-resnet': 'yᵢⱼ=Σxᵢ₊ᵤ,ⱼ₊ᵥKᵤᵥ · y=x+F(x)',
+  'dl-transformer-attention': 'Attention=softmax(QKᵀ/√dₖ)V',
+  'dl-llm-inference-lora': 'p=softmax(z/T) · W′=W+BA',
+  'dl-diffusion-latent': 'xₜ=√ᾱx₀+√(1−ᾱ)ε',
+  'dl-rl-agent': 'Q←Q+α[r+γmaxQ(s′)−Q]',
   dlSvm: '间隔宽度 = 2/‖w‖',
   dlActivation: '∂hₗ/∂h₀ = ∏ f′(zᵢ)',
   dlOptimizer: 'θₜ₊₁ = θₜ − η · update(∇L)',
@@ -102,7 +109,9 @@ export function workshopPluginConfigForTemplate(
 ): WorkshopPluginConfig {
   const config = { template_kind: kind, title: name, category };
   // Older offline runtimes can run the shipped rule nodes without a new catalog entry.
-  return isLinalgTemplateKind(kind) ? { ...config, display_mode: 'full', doc: linalgTemplateDoc(kind) } : config;
+  if (isLinalgTemplateKind(kind)) return { ...config, display_mode: 'full', doc: linalgTemplateDoc(kind) };
+  if (isDeepPanoramaTemplateKind(kind)) return { ...config, display_mode: 'full', doc: deepWorkshopDoc(kind) };
+  return config;
 }
 
 export const WORKSHOP_PLUGIN_CATALOG: readonly WorkshopPluginEntry[] = [
@@ -112,14 +121,14 @@ export const WORKSHOP_PLUGIN_CATALOG: readonly WorkshopPluginEntry[] = [
     ({ kind, name, desc, category: '线性代数' as const, formula, keywords })),
   ...VISIBLE_PHYSICS_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '大学物理' as const, formula: t.formula ?? workshopFormulas[t.kind], keywords: t.keywords })),
   ...VISIBLE_LAB408_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '408 专题' as const, formula: t.formula ?? workshopFormulas[t.kind], keywords: t.keywords })),
-  ...DEEP_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '深度学习' as const, formula: workshopFormulas[t.kind] })),
+  ...VISIBLE_DEEP_TEMPLATES.map((t) => ({ kind: t.kind, name: t.name, desc: t.desc, category: '深度学习' as const, formula: t.formula, keywords: t.keywords })),
   ...VISIBLE_BUSINESS_TEMPLATES.map(({ kind, name, desc, formula, keywords }) =>
     ({ kind, name, desc, category: '办公决策' as const, formula, keywords })),
 ];
 
 const categoryGroups: ReadonlyArray<readonly [WorkshopPluginEntry['category'], readonly { kind: string }[]]> = [
   ['高等数学', CALCULUS_TEMPLATES], ['线性代数', LINALG_TEMPLATES], ['大学物理', PHYSICS_TEMPLATES],
-  ['408 专题', LAB408_TEMPLATES], ['深度学习', DEEP_TEMPLATES], ['办公决策', BUSINESS_TEMPLATES],
+  ['408 专题', LAB408_TEMPLATES], ['深度学习', DEEP_PANORAMA_TEMPLATES], ['办公决策', BUSINESS_TEMPLATES],
 ];
 
 export function workshopCategory(...kinds: (string | undefined)[]): WorkshopPluginEntry['category'] | undefined {

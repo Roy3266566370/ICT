@@ -1,4 +1,4 @@
-import { useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { PresentationSyncContext } from '@/components/presentation/usePresentationSync';
 import { panelParamRange } from '@/living/sim';
 import { dfOptimRun, dfTerrain, DF_ACTIVATIONS } from './deepFirst.ts';
@@ -15,6 +15,7 @@ import { SciencePipelineScene } from './SciencePipelineScene.tsx';
 import { FunctionSourceControls } from './CalculusNodes.tsx';
 import { MatrixSvg, RealImagePanel, CsvDatasetPanel } from './NodeInspector.tsx';
 import { NODE_DEFS, type NodeBodyProps } from './nodes.tsx';
+import { instrumentViewItem, isInstrumentObserver, planInstrumentStage, visibleInstrumentOutputs } from './instrumentLayout.ts';
 import { parseAiRulePayload } from './aiRuleBlock.ts';
 import { findWorkshopTemplate, workshopCategory, workshopFormula } from './templateCatalog.ts';
 import type { WorkshopPluginPreset } from '../document/types.ts';
@@ -71,9 +72,27 @@ const pipeline = (value: PortValue | null | undefined) =>
 const science = (value: PortValue | null | undefined) =>
   value?.kind === 'calculusData' || value?.kind === 'physicsData' ? value : undefined;
 
-function Body({ props }: { props: NodeBodyProps }) {
+const noObservers = new Set<string>();
+
+function Body({ props, inCard = false, wiredOutputs = noObservers }: {
+  props: NodeBodyProps;
+  inCard?: boolean;
+  wiredOutputs?: ReadonlySet<string>;
+}) {
   const View = NODE_DEFS[props.node.type].Body;
-  return <View {...props} />;
+  return <View {...props} inCard={inCard} displayContext="instrument" wiredOutputs={wiredOutputs} />;
+}
+
+function upstreamNodes(doc: CanvasDoc, view: CanvasNode | undefined) {
+  const visited = new Set<string>();
+  const queue = view ? [view.id] : [];
+  while (queue.length) {
+    const id = queue.pop()!;
+    if (visited.has(id)) continue;
+    visited.add(id);
+    for (const wire of doc.wires) if (wire.to === id) queue.push(wire.from);
+  }
+  return doc.nodes.filter(({ id }) => visited.has(id));
 }
 
 function SeriesChart({ series, position }: {
@@ -307,7 +326,9 @@ function optimizerProcess({ props, position, setStart }: {
     const color = processColors[index];
     scene.paths!.push({ points: [...path.map(({ x, y }) => project(x, y)), [px, py]], stroke: color });
     scene.points!.push({ x: px, y: py, color });
-    scene.labels!.push({ x: 39 + index * 87, y: 18, text: run.kind, color });
+    // 图例左右分列（左侧 36/108，右侧 256/336），彻底避开中央 x=200 的 y 轴箭头与标签
+    const legendX = [36, 108, 256, 336][index] ?? (36 + index * 80);
+    scene.labels!.push({ x: legendX, y: 18, text: run.kind, color });
     const { loss, grad } = dfTerrain(terrain!, point.x, point.y);
     const previous = path.at(-2) ?? point;
     updates.push({ kind: run.kind, color, gradient: Math.hypot(...grad), distance: Math.hypot(point.x - previous.x, point.y - previous.y) });
@@ -642,6 +663,7 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
   const [activeId, setActiveId] = useState<string>();
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareId, setCompareId] = useState<string>();
+  const [focusedMiniId, setFocusedMiniId] = useState<string>();
   const [showPin, setShowPin] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activePreset, setActivePreset] = useState<string>();
@@ -654,29 +676,29 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
   const pinned = doc.panel?.view_node_ids ?? [];
   const views = pinned.length > 0 ? pinned.flatMap((id) => nodes.get(id) ?? [])
     : doc.nodes.filter((node) => node.type !== 'textNote' && node.type !== 'latexNote');
-  const view = views.find(({ id }) => id === activeId) ?? views[0];
-  const props = view && getBodyProps(view);
-  const customValue = view?.type === 'aiRuleBlock' ? props?.self
-    : view?.type === 'universalStageView' ? props?.values.in : undefined;
+  const viewKey = JSON.stringify(views.map(({ id }) => id));
+  useEffect(() => {
+    setActiveId(undefined);
+    setFocusedMiniId(undefined);
+    setCompareId(undefined);
+    setCompareOpen(false);
+    setShowPin(false);
+  }, [doc.title, templateKind, viewKey]);
+  const selectedView = views.find(({ id }) => id === activeId) ?? views[0];
+  const selectedProps = selectedView && getBodyProps(selectedView);
+  const customValue = selectedView?.type === 'aiRuleBlock' ? selectedProps?.self
+    : selectedView?.type === 'universalStageView' ? selectedProps?.values.in : undefined;
   const customInput = customValue?.kind === 'customFrames' ? customValue : undefined;
-  const target = pipeline(props?.self);
-  const branch = new Set<string>();
-  const queue = view ? [view.id] : [];
-  while (queue.length) {
-    const id = queue.pop()!;
-    if (branch.has(id)) continue;
-    branch.add(id);
-    for (const wire of doc.wires) if (wire.to === id) queue.push(wire.from);
-  }
-  const ancestors = doc.nodes.filter(({ id }) => branch.has(id));
-  const stageInput = view?.type === 'universalStageView' ? doc.wires.find((wire) => wire.to === view.id && (wire.toPort ?? 'in') === 'in') : undefined;
+  const target = pipeline(selectedProps?.self);
+  const ancestors = upstreamNodes(doc, selectedView);
+  const stageInput = selectedView?.type === 'universalStageView' ? doc.wires.find((wire) => wire.to === selectedView.id && (wire.toPort ?? 'in') === 'in') : undefined;
   const directSource = stageInput ? nodes.get(stageInput.from) : undefined;
-  const customBlock = view?.type === 'aiRuleBlock' ? view
+  const customBlock = selectedView?.type === 'aiRuleBlock' ? selectedView
     : directSource?.type === 'aiRuleBlock' ? directSource : ancestors.find((node) => node.type === 'aiRuleBlock');
   const customBlockProps = customBlock ? getBodyProps(customBlock) : undefined;
   const customPayload = customBlock ? parseAiRulePayload(customBlock.payload) : null;
   const customFrames = customInput?.result.frames ?? [];
-  const customKey = 'custom:' + (view?.id ?? doc.title);
+  const customKey = 'custom:' + (selectedView?.id ?? doc.title);
   const customLast = Math.max(0, customFrames.length - 1);
   const customPosition = Math.floor(Math.max(0, Math.min(customLast, cursors[customKey] ?? 0)));
   const customProcess = customInput ? {
@@ -712,22 +734,49 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
   const [first, second] = processStages[kind ?? ''] ?? [];
   const stageNode = (id: string | undefined) => id ? ancestors.find((node) =>
     definition(node)?.stage.id === id && definition(node)?.pipeline === target?.pipeline) : undefined;
-  const primary = (!showPin && stageNode(first)) || view;
-  const primaryProps = primary && (primary === view ? props : getBodyProps(primary));
+  const processPrimary = (!showPin && stageNode(first)) || selectedView;
+  const primaryProps = processPrimary && (processPrimary === selectedView ? selectedProps : getBodyProps(processPrimary));
   const traversal = target?.stage === 'traversalTree' ? stageNode('traversal') : undefined;
   const other = traversal ? doc.nodes.find((node) =>
     find408Stage(node)?.stage.id === 'traversalWork'
     && doc.wires.some((wire) => wire.from === traversal.id && wire.to === node.id)) : stageNode(second);
-  const timelineKey = pipelineScope + ':' + (target?.pipeline ?? view?.id);
+  const timelineKey = pipelineScope + ':' + (target?.pipeline ?? selectedView?.id);
   const rawLast = Math.max(0, (primaryProps?.timeline?.last ?? 0));
   const primaryOutput = pipeline(primaryProps?.self);
   const position = Math.max(0, Math.min(rawLast, cursors[timelineKey] ?? 0));
   const stageOutput = primaryProps && primaryOutput && stageProcess({
-    props: primaryProps, detailProps: other && getBodyProps(other), pinnedProps: props, source: sourceProps, position,
+    props: primaryProps, detailProps: other && getBodyProps(other), pinnedProps: selectedProps, source: sourceProps, position,
     seek: (value) => setCursor(timelineKey, value),
   });
-  const deep = !showPin && view && view.type !== 'aiRuleBlock' && !target && !customInput && deepProcess({ ancestors, getBodyProps, cursors, setCursor, scope: pipelineScope });
+  const deep = !showPin && selectedView && selectedView.type !== 'aiRuleBlock' && !target && !customInput
+    && deepProcess({ ancestors, getBodyProps, cursors, setCursor, scope: pipelineScope });
   const process = deep || (stageOutput && { ...stageOutput, key: timelineKey, last: rawLast, label: '帧' }) || customProcess;
+  const displayMode = workshopEmbed?.display_mode;
+  const embeddedCompact = slideInstrument || displayMode === 'compact' || displayMode === 'stage_only';
+  const viewProps = new Map<string, NodeBodyProps>();
+  if (selectedView && selectedProps) viewProps.set(selectedView.id, selectedProps);
+  const bodyFor = (node: CanvasNode) => {
+    const props = viewProps.get(node.id) ?? getBodyProps(node);
+    viewProps.set(node.id, props);
+    return props;
+  };
+  const observers = (items: readonly CanvasNode[]) => items
+    .filter(({ type }) => isInstrumentObserver({ type, badge: NODE_DEFS[type].badge }))
+    .map(({ id }) => id);
+  const candidateObservers = observers(views);
+  const plan = planInstrumentStage(views.map(node => instrumentViewItem(node, {
+    values: !process && !embeddedCompact && views.length <= 4 ? bodyFor(node).values : undefined,
+    wiredOutputs: visibleInstrumentOutputs(node.id, doc.wires, candidateObservers),
+  }, NODE_DEFS[node.type])), { activeId, hasProcess: Boolean(process || showPin), slideInstrument, displayMode });
+  const view = nodes.get(plan.primaryId);
+  const props = view && bodyFor(view);
+  const inputAncestors = view === selectedView ? ancestors : upstreamNodes(doc, view);
+  const viewLayout = plan.mode !== 'tabs-only';
+  const heroLayout = plan.mode === 'hero-with-minis';
+  const focusedMini = heroLayout && focusedMiniId && plan.miniIds.includes(focusedMiniId) ? focusedMiniId : undefined;
+  useEffect(() => {
+    if (focusedMiniId && !focusedMini) setFocusedMiniId(undefined);
+  }, [focusedMiniId, focusedMini]);
   const current = process ? Math.max(0, Math.min(process.last, cursors[process.key] ?? 0)) : 0;
   const choosePreset = (preset: WorkshopPluginPreset) => {
     if (!onPreset) return;
@@ -753,33 +802,38 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
     setCursor(cursorTarget, presetCursor.fraction * cursorLast);
   }, [cursorTarget, cursorLast, presetCursor, setCursor]);
 
-  const exposed = audienceParams ?? doc.panel?.exposed_params.filter((param) => nodes.has(param.node_id)) ?? [];
+  const exposedAll = audienceParams ?? doc.panel?.exposed_params.filter((param) => nodes.has(param.node_id)) ?? [];
+  const exposed = exposedAll.filter((param) => nodes.get(param.node_id)?.type !== 'deepPanoramaStage');
   const businessKind = kind && isBusinessPipelineKind(kind) ? kind : undefined;
   const units = businessKind ? readBusinessUnits(businessKind, source?.text) : {};
   const textSource = customPayload ? undefined : sources.find((node) => node.type !== 'businessStage' && node.text !== undefined);
   const formula = customPayload ? undefined : ((metadata && 'formula' in metadata ? metadata.formula : undefined) ?? workshopFormula(metadata?.kind ?? kind));
   const notes = doc.nodes.filter((node) => node.type === 'textNote' && node.text?.trim());
-  const canShowPin = Boolean(view && (stageNode(first) && stageNode(first) !== view || deep));
+  const canShowPin = Boolean(selectedView && (stageNode(first) && stageNode(first) !== selectedView || deep));
   const controls = !audienceParams && sourceDef && 'presets' in sourceDef ? sourceDef.presets : undefined;
   const deepPresets = kind === 'dlActivation' ? DF_ACTIVATIONS.map((label, value) => ({ label, field: '激活函数', value }))
     : kind === 'dlOptimizer' ? terrainLabels.map((label, value) => ({ label, field: '地形', value })) : [];
   const storageKey = 'xiangsheng.workshop.observation.' + (templateKind ?? (pipelineScope || doc.nodes[0]?.id || 'blank'));
   const canEditParameters = !readOnly || interactivePanel;
-  const functionSource = !audienceParams && ancestors.find((node) => node.type === 'functionSource');
+  const functionSource = !audienceParams && inputAncestors.find((node) => node.type === 'functionSource');
   const functionProps = functionSource ? getBodyProps(functionSource) : undefined;
   const hasFunctionControls = Boolean(functionProps?.onText || functionProps?.onParams);
   const canAuthor = !readOnly && (!workshopEmbed || workshopEmbed.authoring);
-  const displayMode = workshopEmbed?.display_mode;
   const namedPresets = workshopEmbed?.presets ?? [];
-  const main = process ? process.main : props ? <Body key={props.node.id} props={props} /> : null;
-  const slideProcess = slideInstrument && target?.kind === 'businessData' && process?.detail && process.history ? process : undefined;
-  const selectedChart = displayMode !== 'stage_only' && slideProcess && slideChart !== 'main' ? slideProcess[slideChart] : main;
   const otherViews = views.filter((item) => item.id !== view?.id);
-  const canCompare = !slideInstrument && displayMode !== 'compact' && displayMode !== 'stage_only' && otherViews.length > 0;
+  const canCompare = plan.allowCompare;
   const compareView = canCompare && compareOpen
     ? (otherViews.find((item) => item.id === compareId) ?? otherViews[0])
     : undefined;
-  const compareProps = compareView ? getBodyProps(compareView) : undefined;
+  const compareProps = compareView ? bodyFor(compareView) : undefined;
+  const miniNodes = plan.miniIds.filter(id => id !== compareView?.id).map(id => nodes.get(id)!);
+  const visibleObserverIds = !process && !embeddedCompact
+    ? observers([...miniNodes, ...(view ? [view] : []), ...(compareView ? [compareView] : [])]) : [];
+  const renderCardBody = (cardProps: NodeBodyProps) => <Body key={cardProps.node.id} props={cardProps} inCard
+    wiredOutputs={visibleInstrumentOutputs(cardProps.node.id, doc.wires, visibleObserverIds)} />;
+  const main = process ? process.main : props ? renderCardBody(props) : null;
+  const slideProcess = slideInstrument && target?.kind === 'businessData' && process?.detail && process.history ? process : undefined;
+  const selectedChart = displayMode !== 'stage_only' && slideProcess && slideChart !== 'main' ? slideProcess[slideChart] : main;
   const compareCustomValue = compareView?.type === 'aiRuleBlock' ? compareProps?.self
     : compareView?.type === 'universalStageView' ? compareProps?.values.in : undefined;
   const compareCustom = compareCustomValue?.kind === 'customFrames' ? compareCustomValue : undefined;
@@ -791,28 +845,39 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
         : compareFrame
           ? <PipelineFrameDetails frame={compareFrame} showTitle={false} showSummary={false} />
           : <p role="status">暂无可展示帧。</p>)
-      : <Body key={compareProps.node.id} props={compareProps} />)
+      : renderCardBody(compareProps))
     : null;
-  const miniCards: Array<{ key: string; kicker: string; title: string; body: ReactNode }> = [];
+  const miniCards: Array<{ key: string; kicker?: string; title: string; body: ReactNode; action?: () => void; type?: CanvasNode['type'] }> = [];
   if (process?.detail) miniCards.push({ key: 'detail', kicker: '局部', title: process.detailTitle, body: process.detail });
   if (process?.history) miniCards.push({ key: 'history', kicker: '历程', title: process.historyTitle, body: process.history });
+  for (const node of miniNodes) {
+    miniCards.push({ key: node.id, title: nodeTitle(node), body: renderCardBody(bodyFor(node)), type: node.type,
+      action: heroLayout ? () => setFocusedMiniId(focusedMini === node.id ? undefined : node.id)
+        : () => { setActiveId(node.id); setShowPin(false); } });
+  }
   const category = workshopCategory(templateKind, metadata?.kind, kind);
   const plateMeta = [category ?? (customPayload ? 'AI 规则仪器' : '交互仪器'),
     process && process.last > 0 ? (process.last + 1) + ' ' + process.label + '连续过程' : '参数联动'].join(' · ');
+  const primary = process ? processPrimary : view;
   const stageTitle = customInput?.title || (primary ? nodeTitle(primary) : '主观察舞台');
+  const stageError = (process ? primaryOutput : pipeline(props?.self))?.error;
   const hasMinis = miniCards.length > 0;
   const StageEl = slideInstrument ? 'div' : 'main';
+  const ViewLayout = viewLayout ? 'div' : Fragment;
   return <div className={styles.workspace} data-instrument-stage data-slide-instrument={slideInstrument || undefined}
     data-display-mode={displayMode} data-transparent-bg={workshopEmbed?.transparent_bg || undefined}
     data-hide-border={workshopEmbed?.hide_border || undefined} data-instrument-theme={workshopEmbed?.theme ?? 'auto'}
     data-restricted-parameters={audienceParams !== undefined || undefined}
     data-no-public-parameters={audienceParams?.length === 0 || undefined}
     data-business-instrument={target?.kind === 'businessData' || undefined}
-    data-has-minis={hasMinis || undefined}>
+    data-has-minis={hasMinis || undefined} data-instrument-layout={plan.mode}>
     <StageEl className={styles.stage}>
       <div className={styles.scroll}>
-        {main ? <>
-          <section className={styles.mainCard} data-stage-card data-compare={Boolean(compareView) || undefined}>
+        {main ? <ViewLayout {...(viewLayout ? {
+          className: focusedMini ? `${styles.viewLayout} ${styles.splitStage}` : styles.viewLayout,
+          'data-focused-view': focusedMini || undefined,
+        } : {})}>
+          <section className={styles.mainCard} data-stage-card data-deep-panorama={primary?.type === 'deepPanoramaStage' || undefined} data-compare={Boolean(compareView) || undefined}>
             {namedPresets.length > 0 && <div className={styles.workshopPresets} role="group" aria-label="情景预设">
               {namedPresets.map(preset => <button key={preset.id} type="button" disabled={!onPreset}
                 aria-pressed={activePreset === preset.id} onClick={() => choosePreset(preset)}>{preset.label}</button>)}
@@ -834,8 +899,11 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
                   onClick={() => setCompareOpen((open) => !open)}>
                   {compareOpen ? '单图聚焦' : '双图对照'}
                 </button>}
+                {focusedMini && <button type="button" className={styles.compareBtn} onClick={() => setFocusedMiniId(undefined)}>
+                  ← 返回主舞台
+                </button>}
               </div>
-              {views.length > 1 && <div className={styles.viewTabs} role="tablist" aria-label="观察视角">
+              {plan.showTabs && <div className={styles.viewTabs} role="tablist" aria-label="观察视角">
                 {views.map((item) => {
                   const selected = item.id === view?.id;
                   return <button key={item.id} type="button" role="tab" aria-selected={selected}
@@ -853,7 +921,7 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
                   <strong>{stageTitle}</strong>
                 </div>
                 <div className={styles.chart} data-stage-chart data-fallback-chart={!process || undefined}>
-                  {primaryOutput?.error ? <p role="status">{primaryOutput.error}</p> : selectedChart}
+                  {stageError ? <p role="status">{stageError}</p> : selectedChart}
                 </div>
               </div>
               <div className={styles.comparePane}>
@@ -868,25 +936,34 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
                 </div>
               </div>
             </div> : <div className={styles.chart} data-stage-chart data-fallback-chart={!process || undefined}>
-              {primaryOutput?.error ? <p role="status">{primaryOutput.error}</p> : selectedChart}
+              {stageError ? <p role="status">{stageError}</p> : selectedChart}
             </div>}
             {!!process?.rows.length && <Gauges rows={process.rows} />}
           </section>
           <div className={styles.conclusion}>
             <strong>当前结论</strong>
-            <ConclusionContent content={primaryOutput?.error ? '请检查输入和数据流。'
+            <ConclusionContent content={stageError ? '请检查输入和数据流。'
               : process ? process.conclusion
+                : heroLayout ? '调整右侧参数或运行实验，观察诊断读数的变化。'
                 : <>正在观察 <b>{view ? nodeTitle(view) : doc.title}</b>。{metadata?.observation}</>} />
           </div>
-          {hasMinis && <div className={styles.minis} data-process-minis data-cols={miniCards.length}>
+          {hasMinis && <div className={styles.minis} data-process-minis={process ? true : undefined}
+            data-view-minis={viewLayout || undefined} data-cols={miniCards.length}>
             {miniCards.map((card) => (
-              <section key={card.key} className={styles.miniCard}>
-                <h3><span>{card.kicker}</span>{card.title}</h3>
+              <section key={card.key} className={styles.miniCard} data-view-node={card.type}
+                data-focused-mini={focusedMini === card.key || undefined}>
+                {card.action ? <div className={styles.miniHeader}>
+                  <h3>{card.title}</h3>
+                  <button type="button" className={styles.miniAction} onClick={card.action}
+                    aria-label={`${heroLayout ? focusedMini === card.key ? '收起' : '放大' : '切为主视'} ${card.title}`}>
+                    {heroLayout ? focusedMini === card.key ? '收起' : '放大' : '切为主视'}
+                  </button>
+                </div> : <h3><span>{card.kicker}</span>{card.title}</h3>}
                 <div>{card.body}</div>
               </section>
             ))}
           </div>}
-        </> : <section className={styles.empty}>
+        </ViewLayout> : <section className={styles.empty}>
           <h2>添加主舞台视图</h2>
           {onCompose && <button type="button" onClick={onCompose}>打开积木编排态</button>}
         </section>}
@@ -999,12 +1076,12 @@ export function InstrumentStage({ doc, templateKind, readOnly, interactivePanel,
           kind={businessKind} units={units} onChange={sourceProps?.onText} sourceText={source.text}
           onParams={sourceProps?.onParams} authoring={canAuthor} />}
       </section>}
-      {!readOnly && !audienceParams && ancestors.some((node) => node.type === 'pixelGridSource' || node.type === 'dataset2dSource') && <details className={styles.inputDetails} data-stage-enrichment>
+      {!readOnly && !audienceParams && inputAncestors.some((node) => node.type === 'pixelGridSource' || node.type === 'dataset2dSource') && <details className={styles.inputDetails} data-stage-enrichment>
         <summary>编辑实验输入</summary>
-        {ancestors.flatMap((node) => {
+        {inputAncestors.flatMap((node) => {
           const properties = getBodyProps(node);
-          if (node.type === 'pixelGridSource') return [<div key={node.id}><RealImagePanel node={node} onPayload={properties.onPayload} /><Body props={properties} /></div>];
-          if (node.type === 'dataset2dSource') return [<div key={node.id}><CsvDatasetPanel node={node} onPayload={properties.onPayload} /><Body props={properties} /></div>];
+          if (node.type === 'pixelGridSource') return [<div key={node.id}><RealImagePanel node={node} onPayload={properties.onPayload} /><Body props={properties} inCard={false} /></div>];
+          if (node.type === 'dataset2dSource') return [<div key={node.id}><CsvDatasetPanel node={node} onPayload={properties.onPayload} /><Body props={properties} inCard={false} /></div>];
           return [];
         })}
       </details>}

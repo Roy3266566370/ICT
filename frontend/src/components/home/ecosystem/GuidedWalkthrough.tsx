@@ -13,7 +13,7 @@ const TOUR_STEPS = [
     nextLabel: '下一步：用定象坊让它活起来 →',
   },
   {
-    title: '用定象坊，把公式连成“活仪器”',
+    title: '用定象坊把公式连成实验',
     desc: '拖两块积木接上线，数学公式立刻变成可调参、真内核实时重算的交互波形——你现在就能拖右边的滑杆试试。',
     winTitle: '02 · 定象坊：积木连线与实时重算',
     winTag: 'WORKSHOP',
@@ -21,7 +21,7 @@ const TOUR_STEPS = [
   },
   {
     title: '装进通文册，原地升级你的 PPT',
-    desc: '不用推翻原稿。把造好的活仪器直接嵌进刚才那页幻灯片，讲台一键切情景预设，不用切出 PPT 找别的软件。',
+    desc: '不用推翻原稿。把定象坊插件嵌进刚才那页课件，讲台一键切情景预设，不用切出 PPT 找别的软件。',
     winTitle: '03 · 通文册：原稿原地升级为动态课件',
     winTag: 'LIVING PAGES',
     nextLabel: '下一步：看课后如何分享与沉淀 →',
@@ -211,7 +211,7 @@ export function GuidedWalkthrough(): JSX.Element {
                     <div>
                       <span className="mono mock-living-slide__tag">通文册 · SLIDE 03（已激活）</span>
                       <h4 className="mock-living-slide__title">简谐波与角频率 ω</h4>
-                      <p className="mock-living-slide__desc">原有版式一字未动，右侧死截图已替换为定象坊活仪器。讲台上点一下预设即可对比：</p>
+                      <p className="mock-living-slide__desc">原有版式一字未动，右侧死截图已替换为定象坊积木。讲台上点一下预设即可对比：</p>
                       <div className="preset-row spotlight-box mock-living-slide__presets">
                         {WAVE_PRESETS.map((preset) => (
                           <button

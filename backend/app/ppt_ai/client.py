@@ -20,7 +20,7 @@ import struct
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Callable, Literal, Mapping, Protocol
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -312,6 +312,7 @@ class PPTAIResponse:
     prompt_tokens: int
     completion_tokens: int
     finish_reason: str
+    model: str = ""
 
 
 def _endpoint(base_url: str) -> str:
@@ -329,16 +330,13 @@ class PPTAIClient:
         settings: Settings | None = None,
         *,
         transport: Transport | None = None,
+        vision_only: bool = False,
     ) -> None:
         self.settings = settings or get_settings()
         self.transport = transport or HttpxTransport()
+        self.vision_only = vision_only
 
-    def _active_target(self) -> tuple[str, str, str, str, int] | None:
-        """返回当前生效的 ``(provider, model, base_url, api_key, timeout_s)``。
-
-        优先使用已配置的视觉模型（``LIVING_FIGURE_VISION_*``，如 Qwen3-VL-32B），
-        让 AI 设计交互同时具备识图与强结构化推理能力；未配置时回落 ``LLM_*``。
-        """
+    def _vision_target(self) -> tuple[str, str, str, str, int] | None:
         try:
             from ..model_profiles import vision_profile
 
@@ -347,9 +345,15 @@ class PPTAIClient:
                 return (vp.provider, vp.model, vp.base_url, vp.api_key, vp.timeout_s)
         except Exception:  # noqa: BLE001
             pass
+        return None
 
+    def _text_target(self) -> tuple[str, str, str, str, int] | None:
+        if self.vision_only:
+            return None
+        provider = str(self.settings.llm_provider or "").strip().lower()
         if (
-            str(self.settings.llm_provider or "").strip().lower() == "maas"
+            provider
+            and provider != "none"
             and self.settings.llm_api_key
             and self.settings.llm_model
             and _endpoint(self.settings.llm_base_url)
@@ -362,6 +366,24 @@ class PPTAIClient:
                 int(self.settings.llm_timeout_s),
             )
         return None
+
+    def has_vision_target(self) -> bool:
+        return self._vision_target() is not None
+
+    def _active_target(
+        self, role: Literal["auto", "text", "vision"] = "auto"
+    ) -> tuple[str, str, str, str, int] | None:
+        """返回当前生效的 ``(provider, model, base_url, api_key, timeout_s)``。
+
+        - ``role="vision"``：严格选择视觉模型（``LIVING_FIGURE_VISION_*``），绝不误把图片发给纯文本模型；
+        - ``role="text"``：优先选择主力强代码文本模型（``LLM_*``），未配置时回落视觉模型；
+        - ``role="auto"``（默认）：保持原有行为，优先视觉模型，未配置时回落主力文本模型。
+        """
+        if role == "vision":
+            return self._vision_target()
+        if role == "text":
+            return self._text_target() or self._vision_target()
+        return self._vision_target() or self._text_target()
 
     def available(self) -> bool:
         return self._active_target() is not None
@@ -396,13 +418,15 @@ class PPTAIClient:
         *,
         validator: Callable[[dict[str, Any]], None] | None = None,
         instructions: str = "",
+        system_prompt: str = SYSTEM_PROMPT,
         on_attempt: Callable[[int], None] | None = None,
         max_output_tokens: int | None = None,
         timeout_s: float | None = None,
         image_urls: list[str] | None = None,
         thinking: bool | None = None,
+        target_role: Literal["auto", "text", "vision"] = "auto",
     ) -> PPTAIResponse:
-        target = self._active_target()
+        target = self._active_target(role=target_role)
         if target is None:
             raise PPTAIError("disabled", "未配置模型服务；已保留本地确定性结果")
         _, active_model, active_base_url, active_api_key, active_timeout_s = target
@@ -503,7 +527,7 @@ class PPTAIClient:
                 response_model=RESPONSE_MODELS.get(task_type, JsonObject), validator=validate,
                 max_retries=attempts-1,
                 retry_error=lambda error: use_schema and budget.used_calls == first_call+1 and isinstance(error, BadRequestError),
-                model=active_model, messages=[{'role': 'system', 'content': SYSTEM_PROMPT},
+                model=active_model, messages=[{'role': 'system', 'content': system_prompt},
                                                {'role': 'user', 'content': content}],
                 temperature=0.1, max_tokens=int(max_output_tokens or min(
                     self.settings.ppt_ai_max_llm_tokens, budget.output_tokens_limit)),
@@ -529,7 +553,7 @@ class PPTAIClient:
         if recovery is not None:
             data['_format_recovery'] = recovery
         return PPTAIResponse(data, last_content, budget.used_calls, usage.prompt_tokens,
-                             usage.completion_tokens, last_reason)
+                             usage.completion_tokens, last_reason, model=active_model)
 
 
 __all__ = [

@@ -319,33 +319,6 @@
   border-radius: 50%;
 }
 
-/* 全表联动：受影响页闪烁，结论变化加“3 → 5”角标 */
-.thumbnail[data-affected='true'] .thumbImage {
-  border-color: #f59e0b;
-  animation: linkagePulse 900ms ease-in-out 3;
-}
-
-.impactBadge {
-  flex: 0 0 auto;
-  max-width: 112px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 1px 6px;
-  border-radius: 999px;
-  border: 1px solid #fcd34d;
-  background: #fffbeb;
-  color: #92400e;
-  font-style: normal;
-  font-size: 9px;
-  font-family: var(--font-family-mono, monospace);
-}
-
-@keyframes linkagePulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-  50% { box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.34); background: #fffbeb; }
-}
-
 /* ---------------- 中央页面 ---------------- */
 
 .main {
@@ -366,34 +339,6 @@
   background: var(--paper-0, #fff);
   display: flex;
   flex-direction: column;
-}
-
-.linkAside {
-  flex: none;
-  min-height: 0;
-  padding: 12px;
-  border-left: 1px solid var(--hairline, #e7e0d3);
-  background: var(--paper-0, #fff);
-  overflow: auto;
-}
-
-.learningPlaceholder {
-  margin: auto;
-  padding: 22px;
-  text-align: center;
-  color: var(--ink-500, #58636f);
-  font-size: 12.5px;
-  line-height: 1.7;
-}
-
-.learningPlaceholder b { color: var(--ink-900, #121b27); }
-.learningPlaceholder button {
-  margin-top: 8px;
-  padding: 6px 12px;
-  border: 1px solid var(--hairline, #e7e0d3);
-  border-radius: 7px;
-  background: #fff;
-  cursor: pointer;
 }
 
 .learningHighlight {
@@ -656,68 +601,6 @@
   vertical-align: middle;
 }
 
-/* ---------------- 右侧参数栏 ---------------- */
-
-.inspector {
-  width: 340px;
-  flex: none;
-  border-left: 1px solid var(--hairline, #e7e0d3);
-  background: var(--paper-0, #fff);
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.inspectorHead {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--hairline, #e7e0d3);
-  font-weight: var(--font-weight-semibold, 600);
-  font-size: 12.5px;
-  color: var(--ink-900, #121b27);
-  flex: none;
-}
-
-.inspectorHead button {
-  border: 0;
-  background: var(--paper-3, #f1ece2);
-  border-radius: var(--radius-sm, 6px);
-  width: 26px;
-  height: 26px;
-  color: var(--ink-500, #58636f);
-  line-height: 1;
-}
-
-.inspectorHead button:hover {
-  background: var(--paper-4, #e9e3d5);
-  color: var(--ink-900, #121b27);
-}
-
-.inspectorBody {
-  padding: 14px 16px 20px;
-  overflow-y: auto;
-  flex: 1;
-  scrollbar-width: thin;
-  margin: 0;
-  border: 0;
-  min-width: 0;
-}
-
-.inspectorFields {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-
-.inspectorFields > section {
-  background: transparent;
-  padding: 0;
-  border: 0;
-}
-
 .reviewBox {
   padding: 14px;
   border: 1px solid #ecd8b4;
@@ -748,14 +631,6 @@
   font-size: 11px;
   text-decoration: none;
   cursor: pointer;
-}
-
-.inspectorBody h3 {
-  font-size: 13.5px;
-}
-
-.inspectorBody h4 {
-  font-size: 12px;
 }
 
 .inferred {
@@ -981,10 +856,6 @@
     padding-inline: 10px;
   }
 
-  .inspector {
-    width: 306px;
-  }
-
 }
 
 @media (max-width: 760px) {
@@ -1001,16 +872,6 @@
     width: 100vw;
     height: var(--workbench-surface-height, 100vh);
     border-radius: 0;
-  }
-
-  .inspector {
-    position: absolute;
-    right: 0;
-    top: 106px;
-    bottom: 50px;
-    z-index: 8;
-    box-shadow: -12px 0 35px rgba(18, 27, 39, 0.18);
-    width: min(360px, 88vw);
   }
 
   .shareNotice {
@@ -1062,43 +923,6 @@
   display: none;
 }
 
-/* PPT AI 原位热区：与普通 iSpec 热区区分，默认只显示细边与角标 */
-.aiHotspot {
-  position: absolute;
-  z-index: 3;
-  min-width: 22px;
-  min-height: 16px;
-  border: 1px dashed rgba(14, 165, 233, 0.7);
-  border-radius: 4px;
-  background: rgba(14, 165, 233, 0.05);
-  padding: 0;
-  transition: background 120ms ease;
-}
-
-.aiHotspot:hover,
-.aiHotspot:focus-visible {
-  border: 1.5px solid #0284c7;
-  background: rgba(14, 165, 233, 0.18);
-}
-
-.aiHotspot > span {
-  opacity: 0;
-  position: absolute;
-  right: 0;
-  bottom: 100%;
-  white-space: nowrap;
-  background: #0c4a6e;
-  color: #e0f2fe;
-  font-size: 10px;
-  border-radius: 4px;
-  padding: 4px 7px;
-  pointer-events: none;
-}
-
-.aiHotspot:hover > span,
-.aiHotspot:focus-visible > span {
-  opacity: 1;
-}
 .formulaReviewHotspot {
   position: absolute;
   z-index: 15;
@@ -1166,6 +990,26 @@
 }
 .stageIdentity { min-width: 0; display: flex; align-items: center; gap: 10px; }
 .stageIdentity h1 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 620; }
+.slide[data-transition] { animation-timing-function: ease-out; }
+.slide[data-transition='fade'] { animation-name: slideFade; }
+.slide[data-transition='slide'] { animation-name: slideDrift; }
+.slide[data-transition='push'] { animation-name: slidePush; }
+.slide[data-transition='zoom'] { animation-name: slideZoom; }
+@keyframes slideFade { from { opacity:0; } }
+@keyframes slideDrift { from { opacity:.25; transform:translateX(12%); } }
+@keyframes slidePush { from { transform:translateX(100%); } }
+@keyframes slideZoom { from { opacity:.25; transform:scale(.92); } }
+.deckTitleButton {
+  max-width: 100%; padding: 3px 5px; border: 0; border-radius: 4px; background: transparent;
+  color: inherit; font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text;
+}
+.deckTitleButton:hover { background: #efebe2; }
+.deckTitleForm { display: flex; align-items: center; gap: 4px; min-width: 0; position: relative; }
+.deckTitleForm input { width: min(190px, 25vw); min-width: 0; }
+.deckTitleForm [role='alert'] {
+  position: absolute; top: calc(100% + 5px); left: 0; z-index: 50;
+  padding: 5px 8px; background: #fff4ef; color: #9a372b; white-space: nowrap;
+}
 .stageBrand { flex: none; color: #323a49; font-size: 13px; font-weight: 750; white-space: nowrap; }
 .stageBrand a { color: inherit; text-decoration: none; }
 .stageActions { grid-column: -2 / -1; justify-self: end; min-width: 0; }

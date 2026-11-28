@@ -2,8 +2,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { svmObjective, trainSVM, toyPoints, normalize, residualNetwork, sequenceModel, rope, multihead, linearAutoencoder, infoNCE, mixtureScore, diffusionMixture, diffusionForward, reverseDiffusionStep, qUpdate, cliffTransition, trainCliff, reinforceGradient, softmax, advancedSnapshot, deepAdvancedOutput, safeTensor } from './deepAdvanced.ts';
 import type { CanvasNode, NodeType, PortValue } from './types.ts';
+import { validDeepValue } from './deepPorts.ts';
 const near = (a: number, b: number, tol = 1e-5) => assert.ok(Math.abs(a - b) < tol, `${a} != ${b}`);
 const derivative = (f: (x: number) => number, x: number) => (f(x + 1e-5) - f(x - 1e-5)) / 2e-5;
+
+test('Detached experiment outputs preserve finite histories and the full decision field', () => {
+  const node: CanvasNode = { id: 'lab', type: 'svmLab', x: 0, y: 0, params: { steps: 800 } };
+  const svm = advancedSnapshot(node, () => null)!;
+  const { field, history } = svm.outputs;
+  assert.ok(field?.kind === 'tensor2d' && field.data.length === 16 && field.data.every(row => row.length === 16));
+  assert.ok(history?.kind === 'series' && history.values.length >= 80);
+  assert.deepEqual(history.values, svm.curves[0]?.data);
+  assert.ok(validDeepValue(field) && validDeepValue(history));
+  const cliff = advancedSnapshot({ ...node, type: 'qLearningLab', params: { episodes: 200 } }, () => null)!;
+  for (const [index, id] of ['returns', 'steps'].entries()) {
+    const output = cliff.outputs[id];
+    assert.ok(output?.kind === 'series' && output.values.length === 200 && validDeepValue(output));
+    assert.deepEqual(output.values, cliff.curves[index]?.data);
+    assert.ok(!validDeepValue({ ...output, values: [] }));
+    assert.ok(!validDeepValue({ ...output, secondary: [{ name: 'invalid', values: [Infinity] }] }));
+  }
+});
 
 test('SVM primal gradients match finite differences away from hinge kink, C and quadratic features matter', () => {
   const pts = toyPoints(), w = [0.12, -0.17], b = 0.23, C = 2; const g = svmObjective(pts, w, b, C);

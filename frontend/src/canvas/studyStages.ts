@@ -4,6 +4,7 @@ import { normalize as normalization, rope, sequenceModel, linearAutoencoder, inf
 import type { CanvasNode, PortSpec, PortValue } from './types.ts';
 
 const t = (id: string): PortSpec => ({ id, label: id, kind: 'tensor2d' });
+const curveInput: PortSpec = { id: 'in', label: '曲线数据', accepts: ['series', 'tensor2d'] };
 const scalar = (id: string): PortSpec => ({ id, label: id, kind: 'scalar' });
 const cloud = (id: string): PortSpec => ({ id, label: id, kind: 'dataset2d' });
 export const studyStages = {
@@ -16,6 +17,7 @@ export const studyStages = {
   studyCloudPlot: { title: '二维点云观察', inputs: [t('in')], outputs: [] },
   studyVectorPlot: { title: '二维向量场观察', inputs: [t('in'), t('vectors')], outputs: [] },
   studyBars: { title: '数值柱状图', inputs: [t('in')], outputs: [] },
+  studyCurveView: { title: '收敛与演化曲线', inputs: [curveInput], outputs: [] },
   studyTrajectory: { title: '四种优化器轨迹', inputs: [t('SGD'), t('Momentum'), t('RMSProp'), t('Adam')], outputs: [] },
   studyOptim: { title: '优化器更新轨迹', inputs: [scalar('地形'), scalar('起点 x'), scalar('起点 y'), scalar('学习率'), scalar('步数')],
     outputs: [t('SGD'), t('Momentum'), t('RMSProp'), t('Adam')] },
@@ -120,7 +122,7 @@ export function studyOutput(node: CanvasNode, input: (port: string) => PortValue
       const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
       return tensor([[variance, Math.hypot(...grad.flat())]]);
     }
-    case 'studyStatsView': case 'studyTokenView': return null;
+    case 'studyStatsView': case 'studyTokenView': case 'studyCurveView': return null;
     case 'studyOptim': {
       const config = studyStages.studyOptim.inputs.map(({ id }) => number(id));
       if (config.some((v) => v === null)) return null;

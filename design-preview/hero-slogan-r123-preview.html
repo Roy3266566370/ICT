@@ -1,0 +1,1587 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万象 WANXIANG · 首屏 Slogan 字体设计与 R1 / R2 / R3 主视觉方案对比</title>
+  <style>
+    :root {
+      --paper: #f5f2eb;
+      --paper-2: #ede8dc;
+      --ink: #141821;
+      --ink-soft: #4e5666;
+      --ink-mute: #8890a0;
+      --indigo: #1b2a6b;
+      --indigo-bright: #344ec4;
+      --teal: #0f8b8d;
+      --vermilion: #d64531;
+      --line: rgba(20, 24, 33, 0.1);
+      --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", Georgia, serif;
+      --sans: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+      --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* 顶部方案切换控制器（仅用于本次对比预览） */
+    .preview-bar {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.86);
+      border: 1px solid rgba(20, 24, 33, 0.11);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 10px 30px rgba(20, 24, 33, 0.08);
+      max-width: calc(100vw - 24px);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .bar-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .bar-label {
+      font-size: 11px;
+      color: var(--ink-mute);
+      letter-spacing: 0.06em;
+      padding: 0 6px;
+      white-space: nowrap;
+    }
+
+    .bar-sep {
+      width: 1px;
+      height: 18px;
+      background: var(--line);
+    }
+
+    .bar-btn {
+      border: 0;
+      background: transparent;
+      color: var(--ink-soft);
+      font: 500 12px/1 var(--sans);
+      padding: 7px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .bar-btn:hover { color: var(--ink); background: rgba(20, 24, 33, 0.05); }
+    .bar-btn.active {
+      background: var(--ink);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(20, 24, 33, 0.18);
+    }
+
+    /* 整屏 Hero 舞台：左右贯通、无切割感 */
+    .hero-stage {
+      position: relative;
+      min-height: 100vh;
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(420px, 46%) minmax(0, 54%);
+      align-items: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 76% 48%, rgba(27, 42, 107, 0.055), transparent 52%),
+        radial-gradient(circle at 18% 22%, rgba(214, 69, 49, 0.035), transparent 40%),
+        var(--paper);
+    }
+
+    /* 背景微弱贯穿坐标网（让左右融为一体） */
+    .ambient-grid {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(to right, rgba(20, 24, 33, 0.032) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(20, 24, 33, 0.032) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 78% 72% at 64% 50%, #000 32%, transparent 88%);
+      -webkit-mask-image: radial-gradient(ellipse 78% 72% at 64% 50%, #000 32%, transparent 88%);
+    }
+
+    /* ==================== 左侧：Slogan 与有意义的字体设计 ==================== */
+    .hero-left {
+      position: relative;
+      z-index: 10;
+      padding: 108px 36px 72px clamp(36px, 6.5vw, 104px);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    /* 品牌眉标：朱砂方印 + 统一命名「定象坊 × 通文册」 */
+    .brand-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 34px;
+    }
+
+    .seal {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      background: var(--vermilion);
+      color: #fffaf5;
+      font-family: var(--serif);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0;
+      line-height: 1;
+      box-shadow: 0 3px 10px rgba(214, 69, 49, 0.28);
+      position: relative;
+    }
+
+    .seal::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      border: 1px solid rgba(255, 250, 245, 0.45);
+      border-radius: 2px;
+    }
+
+    .eyebrow-text {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--ink-soft);
+      letter-spacing: 0.14em;
+    }
+
+    .eyebrow-text strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .eyebrow-cross {
+      color: var(--vermilion);
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+
+    /* 核心 Slogan 容器 */
+    .slogan-wrap {
+      position: relative;
+      margin-bottom: 30px;
+    }
+
+    .slogan {
+      font-family: var(--serif);
+      color: var(--ink);
+      margin: 0;
+      user-select: none;
+    }
+
+    .slogan-line {
+      display: flex;
+      align-items: baseline;
+      flex-wrap: nowrap;
+      white-space: nowrap;
+    }
+
+    /* ---- 字体风格 A：静动反差 · 书院科学（默认推荐） ---- */
+    .slogan[data-typo="contrast"] .line-1 {
+      font-size: clamp(40px, 4.3vw, 62px);
+      font-weight: 400;
+      letter-spacing: 0.1em;
+      color: #2f3645;
+      line-height: 1.24;
+      margin-bottom: 6px;
+    }
+
+    .slogan[data-typo="contrast"] .line-2 {
+      font-size: clamp(50px, 5.5vw, 78px);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: var(--ink);
+      line-height: 1.14;
+    }
+
+    /* 「一式」数学定式角标 + 十字准星 */
+    .glyph-formula {
+      position: relative;
+      display: inline-block;
+    }
+
+    .glyph-formula::before {
+      content: "f(x) =";
+      position: absolute;
+      top: -15px;
+      left: 2px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      color: var(--indigo-bright);
+      opacity: 0.72;
+    }
+
+    /* 「定象」几何锚框意象（四极微角标，象征以数理定其形） */
+    .glyph-dingxiang {
+      position: relative;
+      display: inline-block;
+      color: var(--indigo);
+      font-weight: 700;
+      padding: 0 4px;
+    }
+
+    .glyph-dingxiang .corner {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-color: rgba(27, 42, 107, 0.42);
+      border-style: solid;
+      pointer-events: none;
+    }
+    .glyph-dingxiang .c-tl { top: 4px; left: -2px; border-width: 1.5px 0 0 1.5px; }
+    .glyph-dingxiang .c-br { bottom: 6px; right: -1px; border-width: 0 1.5px 1.5px 0; }
+
+    /* 「皆通」下方实时呼吸波动线（由右侧引擎同步驱动） */
+    .glyph-jietong {
+      position: relative;
+      display: inline-block;
+      background: linear-gradient(115deg, var(--indigo) 10%, var(--teal) 92%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .wave-underline {
+      position: absolute;
+      left: 0;
+      right: 4px;
+      bottom: -8px;
+      height: 12px;
+      width: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .punct {
+      color: var(--vermilion);
+      font-weight: 400;
+      opacity: 0.85;
+      margin-left: 2px;
+    }
+
+    /* ---- 字体风格 B：竖向双栏 · 东方典籍金石感 ---- */
+    .slogan[data-typo="editorial"] {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .slogan[data-typo="editorial"] .line-1 {
+      font-size: clamp(46px, 5vw, 72px);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1.15;
+    }
+    .slogan[data-typo="editorial"] .line-2 {
+      font-size: clamp(46px, 5vw, 72px);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      line-height: 1.15;
+      padding-left: 0.85em;
+    }
+    .slogan[data-typo="editorial"] .line-2::before {
+      content: "—";
+      color: var(--vermilion);
+      font-weight: 300;
+      margin-right: 0.25em;
+      margin-left: -0.85em;
+      opacity: 0.8;
+    }
+    .slogan[data-typo="editorial"] .glyph-formula::before { top: -12px; }
+
+    /* ---- 字体风格 C：现代建筑 · 极简高对比 ---- */
+    .slogan[data-typo="architect"] .line-1 {
+      font-family: var(--sans);
+      font-size: clamp(42px, 4.6vw, 66px);
+      font-weight: 300;
+      letter-spacing: 0.14em;
+      color: var(--ink-soft);
+      line-height: 1.22;
+      margin-bottom: 4px;
+    }
+    .slogan[data-typo="architect"] .line-2 {
+      font-family: var(--serif);
+      font-size: clamp(54px, 5.9vw, 84px);
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      line-height: 1.1;
+    }
+    .slogan[data-typo="architect"] .glyph-dingxiang {
+      font-family: var(--serif);
+      font-weight: 700;
+    }
+
+    /* 英文极细坐标副标（增强国际旗舰质感） */
+    .slogan-subcode {
+      margin-top: 16px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-mute);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slogan-subcode i {
+      display: inline-block;
+      width: 28px;
+      height: 1px;
+      background: rgba(20, 24, 33, 0.25);
+    }
+
+    /* 极简两行定位说明（克制，不写说明书） */
+    .hero-desc {
+      max-width: 440px;
+      font-size: 15.5px;
+      line-height: 1.8;
+      color: var(--ink-soft);
+      margin-bottom: 34px;
+    }
+
+    .hero-desc strong {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    /* 双引擎主按钮 */
+    .hero-cta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 44px;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 46px;
+      padding: 0 24px;
+      border-radius: 10px;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: #fff;
+      font: 500 14px/1 var(--sans);
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      background: var(--indigo);
+      border-color: var(--indigo);
+      box-shadow: 0 10px 24px rgba(27, 42, 107, 0.22);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 46px;
+      padding: 0 22px;
+      border-radius: 10px;
+      border: 1px solid rgba(20, 24, 33, 0.16);
+      background: rgba(255, 255, 255, 0.68);
+      color: var(--ink);
+      font: 500 14px/1 var(--sans);
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      transition: all 0.18s ease;
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--ink);
+      background: #fff;
+      transform: translateY(-1px);
+    }
+
+    /* 底部极简刻度注脚 */
+    .hero-pillars {
+      display: flex;
+      gap: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+    }
+
+    .pillar {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .pillar-idx {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--ink-mute);
+      letter-spacing: 0.1em;
+    }
+
+    .pillar strong {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    /* ==================== 右侧：无边界宏观主视觉舞台 ==================== */
+    .hero-right {
+      position: relative;
+      height: 100vh;
+      min-height: 640px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .visual-panel {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .visual-panel.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* 右下角克制的交互微控条 */
+    .stage-dock {
+      position: absolute;
+      right: clamp(24px, 3.6vw, 52px);
+      bottom: 30px;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.78);
+      border: 1px solid rgba(20, 24, 33, 0.1);
+      backdrop-filter: blur(12px);
+      font-size: 12px;
+      color: var(--ink-soft);
+    }
+
+    .stage-dock label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .stage-dock input[type="range"] {
+      width: 96px;
+      accent-color: var(--indigo);
+      cursor: pointer;
+    }
+
+    .dock-pill {
+      border: 0;
+      background: transparent;
+      color: var(--ink-soft);
+      font: 500 11.5px/1 var(--sans);
+      padding: 5px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .dock-pill:hover { color: var(--ink); background: rgba(20, 24, 33, 0.05); }
+    .dock-pill.active { background: var(--indigo); color: #fff; }
+
+    /* ---- 方案 R1：无边界悬浮推演视界 ---- */
+    .r1-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .r1-hud-readout {
+      position: absolute;
+      top: 92px;
+      right: clamp(24px, 3.6vw, 52px);
+      text-align: right;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.7;
+      color: var(--ink-mute);
+      pointer-events: none;
+    }
+    .r1-hud-readout b { color: var(--indigo); font-weight: 600; }
+
+    /* ---- 方案 R2：开放式巨幅等距三层架构（去框、放大、通透） ---- */
+    .r2-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      perspective: 1400px;
+    }
+
+    .r2-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .r2-caption {
+      position: absolute;
+      left: 50%;
+      bottom: 84px;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 18px;
+      border-radius: 999px;
+      background: rgba(255, 253, 248, 0.86);
+      border: 1px solid rgba(20, 24, 33, 0.09);
+      backdrop-filter: blur(10px);
+      font-size: 12.5px;
+      color: var(--ink-soft);
+      white-space: nowrap;
+      transition: all 0.25s ease;
+      pointer-events: none;
+    }
+    .r2-caption strong { color: var(--ink); font-weight: 600; }
+    .r2-caption span.dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--indigo);
+    }
+
+    /* ---- 方案 R3：实时数理艺术画卷（极简宏观大片） ---- */
+    .r3-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .r3-telemetry {
+      position: absolute;
+      top: 92px;
+      right: clamp(24px, 3.6vw, 52px);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-mute);
+      pointer-events: none;
+    }
+    .r3-telemetry .live-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--teal);
+      font-weight: 600;
+      letter-spacing: 0.12em;
+    }
+    .r3-telemetry .live-tag::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--teal);
+      box-shadow: 0 0 0 4px rgba(15, 139, 141, 0.16);
+    }
+    .r3-telemetry .eq {
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    @media (max-width: 1080px) {
+      .hero-stage {
+        grid-template-columns: 1fr;
+        min-height: auto;
+      }
+      .hero-left {
+        padding: 96px 28px 36px;
+      }
+      .hero-right {
+        height: 540px;
+        min-height: 460px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 仅用于对比预览的悬浮切换器 -->
+  <nav class="preview-bar" aria-label="方案对比切换">
+    <div class="bar-group">
+      <span class="bar-label">右侧宏观方案</span>
+      <button class="bar-btn active" data-plan="r1">R1 · 悬浮推演视界</button>
+      <button class="bar-btn" data-plan="r2">R2 · 无框巨幅三层栈</button>
+      <button class="bar-btn" data-plan="r3">R3 · 实时数理画卷</button>
+    </div>
+    <span class="bar-sep"></span>
+    <div class="bar-group">
+      <span class="bar-label">Slogan 字体设计</span>
+      <button class="bar-btn active" data-typo-btn="contrast">静动衬线</button>
+      <button class="bar-btn" data-typo-btn="editorial">典籍错落</button>
+      <button class="bar-btn" data-typo-btn="architect">建筑高对比</button>
+    </div>
+  </nav>
+
+  <main class="hero-stage">
+    <div class="ambient-grid" aria-hidden="true"></div>
+
+    <!-- ==================== 左侧：Slogan 与字体设计 ==================== -->
+    <section class="hero-left">
+      <div class="brand-eyebrow">
+        <span class="seal" aria-hidden="true">象</span>
+        <span class="eyebrow-text">
+          <strong>定象坊</strong>
+          <span class="eyebrow-cross">×</span>
+          <strong>通文册</strong>
+        </span>
+      </div>
+
+      <div class="slogan-wrap">
+        <h1 class="slogan" id="sloganTitle" data-typo="contrast">
+          <span class="slogan-line line-1">
+            <span class="glyph-formula">一式</span><span class="glyph-dingxiang">定象<i class="corner c-tl"></i><i class="corner c-br"></i></span><span class="punct">，</span>
+          </span>
+          <span class="slogan-line line-2">
+            万象<span class="glyph-jietong">皆通<svg class="wave-underline" viewBox="0 0 180 14" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1b2a6b"/><stop offset="65%" stop-color="#0f8b8d"/><stop offset="100%" stop-color="#d64531" stop-opacity="0.85"/></linearGradient></defs><path id="sloganWavePath" d="" fill="none" stroke="url(#waveGrad)" stroke-width="2.4" stroke-linecap="round"/></svg></span><span class="punct">。</span>
+          </span>
+        </h1>
+        <div class="slogan-subcode">
+          <i></i>
+          <span>ONE FORMULA, EVERY PHENOMENON</span>
+        </div>
+      </div>
+
+      <p class="hero-desc">
+        <strong>定象坊</strong>将公式、算法与沙盘化作可调参的真实计算模型；<strong>通文册</strong>让静态课件即刻通电演播——一次定象，随处贯通。
+      </p>
+
+      <div class="hero-cta">
+        <button class="btn-primary" type="button">进入定象坊 ↗</button>
+        <button class="btn-secondary" type="button">打开通文册 ↗</button>
+      </div>
+
+      <div class="hero-pillars">
+        <div class="pillar">
+          <span class="pillar-idx">01 / KERNEL</span>
+          <strong>真计算内核</strong>
+        </div>
+        <div class="pillar">
+          <span class="pillar-idx">02 / BRIDGE</span>
+          <strong>坊册实时贯通</strong>
+        </div>
+        <div class="pillar">
+          <span class="pillar-idx">03 / OFFLINE</span>
+          <strong>单文件离线可演</strong>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 右侧：R1 / R2 / R3 主视觉舞台 ==================== -->
+    <section class="hero-right" id="heroRight">
+
+      <!-- 方案 R1：无边界·悬浮推演视界 -->
+      <div class="visual-panel active" id="panel-r1">
+        <canvas class="r1-canvas" id="canvasR1"></canvas>
+        <div class="r1-hud-readout" id="r1Hud">
+          <div>FIELD · <b>z = sin(ωr) · e<sup>−0.28r</sup></b></div>
+          <div>COUPLED · <b id="r1Metric">ω = 2.40 · E = 94.2%</b></div>
+        </div>
+        <div class="stage-dock">
+          <label>
+            参数 ω
+            <input type="range" id="r1Omega" min="1.0" max="4.5" step="0.05" value="2.4" />
+          </label>
+          <button class="dock-pill active" data-r1-mode="wave">波动场</button>
+          <button class="dock-pill" data-r1-mode="matrix">特征空间</button>
+          <button class="dock-pill" data-r1-mode="saddle">鞍面极值</button>
+        </div>
+      </div>
+
+      <!-- 方案 R2：开放式·巨幅等距三层架构（彻底去框放大） -->
+      <div class="visual-panel" id="panel-r2">
+        <div class="r2-stage">
+          <canvas class="r2-canvas" id="canvasR2"></canvas>
+          <div class="r2-caption" id="r2Caption">
+            <span class="dot" id="r2Dot"></span>
+            <strong id="r2LayerTitle">三层贯通架构</strong>
+            <span id="r2LayerDesc">悬停任意空间平面，透视「计算内核 → 定象坊 → 通文册」的实时信号流</span>
+          </div>
+        </div>
+        <div class="stage-dock">
+          <button class="dock-pill active" data-r2-focus="-1">全景</button>
+          <button class="dock-pill" data-r2-focus="2">03 通文册</button>
+          <button class="dock-pill" data-r2-focus="1">02 定象坊</button>
+          <button class="dock-pill" data-r2-focus="0">01 计算内核</button>
+        </div>
+      </div>
+
+      <!-- 方案 R3：实时数理艺术画卷（极致大气极简） -->
+      <div class="visual-panel" id="panel-r3">
+        <canvas class="r3-canvas" id="canvasR3"></canvas>
+        <div class="r3-telemetry">
+          <span class="live-tag">LIVE NUMERICAL ENGINE</span>
+          <span class="eq" id="r3Eq">det(A) = 1.48 · λ₁ = 1.82 · λ₂ = 0.81</span>
+          <span id="r3Sub">移动鼠标实时扰动参数空间</span>
+        </div>
+        <div class="stage-dock">
+          <button class="dock-pill active" data-r3-scene="eigen">空间变换</button>
+          <button class="dock-pill" data-r3-scene="fourier">谐波干涉</button>
+          <button class="dock-pill" data-r3-scene="contour">曲面流场</button>
+          <button class="dock-pill" data-r3-scene="phase">相轨演化</button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+    /* ================= 全局切换状态 ================= */
+    let activePlan = 'r1';
+    let r1Mode = 'wave';
+    let r1Omega = 2.4;
+    let r2Focus = -1; // -1 全景, 0 内核, 1 定象坊, 2 通文册
+    let r2Hover = -1;
+    let r3Scene = 'eigen';
+
+    const mouse = { x: 0.5, y: 0.5, tx: 0.5, ty: 0.5 };
+    const rightEl = document.getElementById('heroRight');
+    window.addEventListener('pointermove', (e) => {
+      const rect = rightEl.getBoundingClientRect();
+      mouse.tx = Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(1, rect.width)));
+      mouse.ty = Math.max(0, Math.min(1, (e.clientY - rect.top) / Math.max(1, rect.height)));
+    });
+
+    // 方案切换
+    document.querySelectorAll('[data-plan]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        activePlan = btn.dataset.plan;
+        document.querySelectorAll('[data-plan]').forEach((b) => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.visual-panel').forEach((p) => p.classList.toggle('active', p.id === `panel-${activePlan}`));
+        resizeAll();
+      });
+    });
+
+    // 字体方案切换
+    const sloganEl = document.getElementById('sloganTitle');
+    document.querySelectorAll('[data-typo-btn]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        sloganEl.dataset.typo = btn.dataset.typoBtn;
+        document.querySelectorAll('[data-typo-btn]').forEach((b) => b.classList.toggle('active', b === btn));
+      });
+    });
+
+    // R1 控件
+    document.getElementById('r1Omega').addEventListener('input', (e) => {
+      r1Omega = parseFloat(e.target.value);
+    });
+    document.querySelectorAll('[data-r1-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        r1Mode = btn.dataset.r1Mode;
+        document.querySelectorAll('[data-r1-mode]').forEach((b) => b.classList.toggle('active', b === btn));
+      });
+    });
+
+    // R2 控件
+    const r2LayersMeta = [
+      { title: '01 · 实时计算内核', desc: '确定性数值与符号求解引擎，毫秒级重算矩阵、微积分与物理场', color: '#1b2a6b' },
+      { title: '02 · 定象坊（建构层）', desc: '积木连线、参数封装与情景预设，把抽象公式定格为可操控仪器', color: '#0f8b8d' },
+      { title: '03 · 通文册（演播层）', desc: '原位嵌入 PPT / PDF 动态活页，支持讲台推演与单文件离线播放', color: '#d64531' },
+    ];
+    function updateR2Caption(idx) {
+      const titleEl = document.getElementById('r2LayerTitle');
+      const descEl = document.getElementById('r2LayerDesc');
+      const dotEl = document.getElementById('r2Dot');
+      if (idx < 0) {
+        titleEl.textContent = '三层贯通架构';
+        descEl.textContent = '悬停或点选任意空间平面，透视「计算内核 → 定象坊 → 通文册」的实时信号流';
+        dotEl.style.background = '#141821';
+      } else {
+        const m = r2LayersMeta[idx];
+        titleEl.textContent = m.title;
+        descEl.textContent = m.desc;
+        dotEl.style.background = m.color;
+      }
+    }
+    document.querySelectorAll('[data-r2-focus]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        r2Focus = parseInt(btn.dataset.r2Focus, 10);
+        document.querySelectorAll('[data-r2-focus]').forEach((b) => b.classList.toggle('active', b === btn));
+        updateR2Caption(r2Focus);
+      });
+    });
+
+    // R3 控件
+    document.querySelectorAll('[data-r3-scene]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        r3Scene = btn.dataset.r3Scene;
+        document.querySelectorAll('[data-r3-scene]').forEach((b) => b.classList.toggle('active', b === btn));
+      });
+    });
+
+    /* ================= 画布自适应高清尺寸 ================= */
+    const cR1 = document.getElementById('canvasR1');
+    const cR2 = document.getElementById('canvasR2');
+    const cR3 = document.getElementById('canvasR3');
+    const ctx1 = cR1.getContext('2d');
+    const ctx2 = cR2.getContext('2d');
+    const ctx3 = cR3.getContext('2d');
+
+    function fitCanvas(canvas) {
+      const rect = rightEl.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = Math.max(320, Math.floor(rect.width));
+      const h = Math.max(420, Math.floor(rect.height));
+      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+      }
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { w, h };
+    }
+
+    let size = { w: 720, h: 720 };
+    function resizeAll() {
+      size = fitCanvas(cR1);
+      fitCanvas(cR2);
+      fitCanvas(cR3);
+    }
+    window.addEventListener('resize', resizeAll);
+    resizeAll();
+
+    /* ================= 左侧「皆通」呼吸波纹下划线 ================= */
+    const wavePathEl = document.getElementById('sloganWavePath');
+    function updateSloganWave(t) {
+      const freq = activePlan === 'r1' ? r1Omega * 0.9 : 2.1;
+      const amp = 3.2;
+      let d = '';
+      for (let i = 0; i <= 36; i++) {
+        const u = i / 36;
+        const x = u * 180;
+        const env = Math.sin(u * Math.PI);
+        const y = 7 + Math.sin(u * Math.PI * 2 * freq - t * 2.2) * amp * env;
+        d += (i === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(2) + ' ';
+      }
+      wavePathEl.setAttribute('d', d);
+    }
+
+    /* ================= 方案 R1：无边界悬浮推演视界 ================= */
+    function drawR1(t) {
+      const { w, h } = size;
+      const ctx = ctx1;
+      ctx.clearRect(0, 0, w, h);
+
+      const px = (mouse.x - 0.5) * 26;
+      const py = (mouse.y - 0.5) * 18;
+      const cx = w * 0.52 + px * 0.2;
+      const cy = h * 0.52 + py * 0.2;
+
+      // 1. 远景：无边界透视坐标地平线网格海（自然羽化淡出）
+      ctx.save();
+      const horizonY = cy + h * 0.23;
+      const gridCols = 16;
+      const gridRows = 9;
+      for (let i = -gridCols; i <= gridCols; i++) {
+        const spread = i / gridCols;
+        const x0 = cx + spread * w * 0.92;
+        const x1 = cx + spread * w * 0.26;
+        const alpha = Math.max(0, 0.14 - Math.abs(spread) * 0.13);
+        ctx.strokeStyle = `rgba(27, 42, 107, ${alpha.toFixed(3)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x0, h + 10);
+        ctx.lineTo(x1, horizonY - 40);
+        ctx.stroke();
+      }
+      for (let j = 0; j < gridRows; j++) {
+        const u = j / (gridRows - 1);
+        const y = horizonY - 35 + Math.pow(u, 1.75) * (h - horizonY + 55);
+        ctx.strokeStyle = `rgba(27, 42, 107, ${(0.03 + u * 0.08).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.moveTo(20, y);
+        ctx.lineTo(w - 10, y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 2. 宏观主视界：3D 实时数学曲面场（直接浮在纸面上，无边框）
+      ctx.save();
+      const fieldCx = cx - w * 0.02 + px * 0.45;
+      const fieldCy = cy - h * 0.03 + py * 0.35;
+      const N = 22;
+      const span = Math.min(w, h) * 0.34;
+      const isoX = (u, v, z) => fieldCx + (u - v) * span * 0.88;
+      const isoY = (u, v, z) => fieldCy + (u + v) * span * 0.41 - z * span * 0.42;
+
+      const evalZ = (u, v) => {
+        const r = Math.hypot(u, v);
+        if (r1Mode === 'wave') {
+          return Math.sin(r * r1Omega * 3.2 - t * 2.0) * Math.exp(-r * 1.15) * 0.95;
+        }
+        if (r1Mode === 'saddle') {
+          return ((u * u - v * v) * 0.65 + Math.sin(t * 1.4) * 0.22 * u * v) * (0.65 + r1Omega * 0.16);
+        }
+        // matrix: 线性特征场变形波纹
+        const shear = Math.sin(t * 0.9) * 0.35 * (r1Omega / 2.4);
+        const ux = u + shear * v;
+        const vy = v * (0.8 + 0.12 * r1Omega);
+        return Math.cos(ux * 2.8) * Math.cos(vy * 2.8) * 0.45;
+      };
+
+      // 绘制经纬曲面线（带高度着色：深靛 → 青碧 → 朱砂峰点）
+      for (let i = 0; i <= N; i++) {
+        const u = (i / N) * 2 - 1;
+        ctx.beginPath();
+        let peak = -9;
+        for (let j = 0; j <= N; j++) {
+          const v = (j / N) * 2 - 1;
+          const z = evalZ(u, v);
+          if (z > peak) peak = z;
+          const sx = isoX(u, v, z);
+          const sy = isoY(u, v, z);
+          if (j === 0) ctx.moveTo(sx, sy);
+          else ctx.lineTo(sx, sy);
+        }
+        const mix = Math.max(0, Math.min(1, (peak + 0.4) / 1.1));
+        ctx.strokeStyle = mix > 0.72
+          ? `rgba(214, 69, 49, ${(0.24 + mix * 0.35).toFixed(2)})`
+          : `rgba(27, 42, 107, ${(0.14 + mix * 0.32).toFixed(2)})`;
+        ctx.lineWidth = i % 4 === 0 ? 1.5 : 0.85;
+        ctx.stroke();
+      }
+      for (let j = 0; j <= N; j += 2) {
+        const v = (j / N) * 2 - 1;
+        ctx.beginPath();
+        for (let i = 0; i <= N; i++) {
+          const u = (i / N) * 2 - 1;
+          const z = evalZ(u, v);
+          const sx = isoX(u, v, z);
+          const sy = isoY(u, v, z);
+          if (i === 0) ctx.moveTo(sx, sy);
+          else ctx.lineTo(sx, sy);
+        }
+        ctx.strokeStyle = 'rgba(15, 139, 141, 0.22)';
+        ctx.lineWidth = 0.85;
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 3. 中景悬浮：定象坊极简算子链（透明玻璃切片，无厚框）
+      const nodeX = cx - w * 0.25 + px * 0.9;
+      const nodeY = cy - h * 0.24 + py * 0.8;
+      const slideX = cx + w * 0.11 + px * 1.15;
+      const slideY = cy + h * 0.15 + py * 1.05;
+
+      // 光学信号连线（定象坊 → 曲面场 → 通文册活页）
+      ctx.save();
+      ctx.setLineDash([4, 5]);
+      ctx.lineDashOffset = -t * 28;
+      ctx.strokeStyle = 'rgba(15, 139, 141, 0.55)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(nodeX + 150, nodeY + 34);
+      ctx.bezierCurveTo(nodeX + 220, nodeY + 34, fieldCx - 40, fieldCy - 80, fieldCx, fieldCy - 20);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(214, 69, 49, 0.55)';
+      ctx.beginPath();
+      ctx.moveTo(fieldCx + 60, fieldCy + 20);
+      ctx.bezierCurveTo(fieldCx + 150, fieldCy + 40, slideX - 30, slideY + 10, slideX, slideY + 38);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 流动脉冲粒子
+      const p1 = (t * 0.45) % 1;
+      const pulseX = nodeX + 150 + (fieldCx - (nodeX + 150)) * p1;
+      const pulseY = nodeY + 34 + (fieldCy - 20 - (nodeY + 34)) * p1;
+      ctx.fillStyle = '#0f8b8d';
+      ctx.beginPath();
+      ctx.arc(pulseX, pulseY, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 绘制中景：定象坊轻量浮片
+      drawGlassCard(ctx, nodeX, nodeY, 174, 72, '定象坊 · 实时算子', () => {
+        ctx.fillStyle = '#1b2a6b';
+        ctx.font = '600 12px Consolas, monospace';
+        ctx.fillText(`ω = ${r1Omega.toFixed(2)}  rad/s`, nodeX + 14, nodeY + 46);
+        // 微型进度条
+        ctx.fillStyle = 'rgba(27,42,107,0.12)';
+        ctx.fillRect(nodeX + 14, nodeY + 54, 144, 4);
+        ctx.fillStyle = '#0f8b8d';
+        ctx.fillRect(nodeX + 14, nodeY + 54, 144 * ((r1Omega - 1) / 3.5), 4);
+      });
+
+      // 绘制近景：通文册动态活页浮片（斜角呼吸曲线）
+      const sw = 216, sh = 130;
+      drawGlassCard(ctx, slideX, slideY, sw, sh, '通文册 · 动态活页', () => {
+        // 活页标题线
+        ctx.fillStyle = 'rgba(20,24,33,0.14)';
+        ctx.fillRect(slideX + 14, slideY + 34, 76, 5);
+        ctx.fillStyle = 'rgba(20,24,33,0.08)';
+        ctx.fillRect(slideX + 14, slideY + 44, 52, 4);
+
+        // 嵌入的实时曲线框
+        const bx = slideX + 14, by = slideY + 56, bw = sw - 28, bh = 58;
+        ctx.fillStyle = 'rgba(27,42,107,0.035)';
+        ctx.strokeStyle = 'rgba(27,42,107,0.16)';
+        ctx.lineWidth = 1;
+        roundRect(ctx, bx, by, bw, bh, 6);
+        ctx.fill(); ctx.stroke();
+
+        ctx.beginPath();
+        for (let i = 0; i <= 48; i++) {
+          const u = i / 48;
+          const x = bx + 6 + u * (bw - 12);
+          const val = r1Mode === 'saddle'
+            ? Math.sin(u * Math.PI * 2 + t * 1.6) * (0.4 + 0.35 * Math.cos(u * r1Omega * 2))
+            : Math.sin(u * Math.PI * 2 * r1Omega * 0.7 - t * 2.2) * Math.exp(-Math.abs(u - 0.5) * 1.4);
+          const y = by + bh * 0.5 - val * (bh * 0.36);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = '#d64531';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // 动点标记
+        const dotU = 0.5 + 0.32 * Math.sin(t * 1.1);
+        const dotVal = r1Mode === 'saddle'
+          ? Math.sin(dotU * Math.PI * 2 + t * 1.6) * (0.4 + 0.35 * Math.cos(dotU * r1Omega * 2))
+          : Math.sin(dotU * Math.PI * 2 * r1Omega * 0.7 - t * 2.2) * Math.exp(-Math.abs(dotU - 0.5) * 1.4);
+        ctx.fillStyle = '#0f8b8d';
+        ctx.beginPath();
+        ctx.arc(bx + 6 + dotU * (bw - 12), by + bh * 0.5 - dotVal * (bh * 0.36), 4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      const hudMetric = document.getElementById('r1Metric');
+      if (hudMetric) {
+        const energy = (82 + Math.sin(t * 0.7 + r1Omega) * 8 + r1Omega * 2.5).toFixed(1);
+        hudMetric.textContent = `ω = ${r1Omega.toFixed(2)} · 耦合保真 ${Math.min(99.8, energy)}%`;
+      }
+    }
+
+    function drawGlassCard(ctx, x, y, w, h, title, drawBody) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(20, 24, 33, 0.11)';
+      ctx.shadowBlur = 28;
+      ctx.shadowOffsetY = 14;
+      ctx.fillStyle = 'rgba(255, 253, 248, 0.84)';
+      ctx.strokeStyle = 'rgba(20, 24, 33, 0.11)';
+      ctx.lineWidth = 1;
+      roundRect(ctx, x, y, w, h, 12);
+      ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.stroke();
+
+      ctx.fillStyle = '#8890a0';
+      ctx.font = '600 10.5px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText(title, x + 14, y + 21);
+
+      drawBody();
+      ctx.restore();
+    }
+
+    /* ================= 方案 R2：无框巨幅等距三层架构 ================= */
+    let r2HitZones = [];
+    cR2.addEventListener('pointermove', (e) => {
+      if (activePlan !== 'r2') return;
+      const rect = cR2.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      let found = -1;
+      for (let i = r2HitZones.length - 1; i >= 0; i--) {
+        const z = r2HitZones[i];
+        // 菱形命中判定
+        const dx = Math.abs(mx - z.cx) / z.rx;
+        const dy = Math.abs(my - z.cy) / z.ry;
+        if (dx + dy <= 1.02) { found = z.idx; break; }
+      }
+      if (found !== r2Hover) {
+        r2Hover = found;
+        cR2.style.cursor = found >= 0 ? 'pointer' : 'default';
+        updateR2Caption(r2Focus >= 0 ? r2Focus : r2Hover);
+      }
+    });
+    cR2.addEventListener('pointerleave', () => {
+      r2Hover = -1;
+      if (r2Focus < 0) updateR2Caption(-1);
+    });
+
+    const r2Lift = [0, 0, 0];
+    function drawR2(t) {
+      const { w, h } = size;
+      const ctx = ctx2;
+      ctx.clearRect(0, 0, w, h);
+
+      const cx = w * 0.5 + (mouse.x - 0.5) * 20;
+      const baseCy = h * 0.55 + (mouse.y - 0.5) * 14;
+      const rx = Math.min(w * 0.37, 260);
+      const ry = rx * 0.44;
+      const gap = Math.min(h * 0.165, 118);
+
+      const activeIdx = r2Focus >= 0 ? r2Focus : r2Hover;
+      r2HitZones = [];
+
+      // 底层背景：向四周淡出的超大等距坐标海（去掉白卡片后瞬间宏大）
+      ctx.save();
+      const seaCy = baseCy + gap * 0.95;
+      for (let k = -8; k <= 8; k++) {
+        const alpha = Math.max(0, 0.1 - Math.abs(k) * 0.011);
+        ctx.strokeStyle = `rgba(27, 42, 107, ${alpha.toFixed(3)})`;
+        ctx.lineWidth = 1;
+        const ox = k * 34;
+        const oy = k * 15;
+        ctx.beginPath();
+        ctx.moveTo(cx + ox - 360, seaCy + oy - 158);
+        ctx.lineTo(cx + ox + 360, seaCy + oy + 158);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(cx + ox - 360, seaCy - oy + 158);
+        ctx.lineTo(cx + ox + 360, seaCy - oy - 158);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 逐层绘制：0 = 计算内核，1 = 定象坊，2 = 通文册
+      for (let idx = 0; idx < 3; idx++) {
+        const targetLift = activeIdx === idx ? 18 : activeIdx >= 0 ? -4 : Math.sin(t * 1.4 + idx * 1.3) * 3;
+        r2Lift[idx] += (targetLift - r2Lift[idx]) * 0.12;
+        const ly = baseCy + (1 - idx) * gap - r2Lift[idx];
+        const dim = activeIdx >= 0 && activeIdx !== idx ? 0.45 : 1;
+
+        r2HitZones.push({ idx, cx, cy: ly, rx, ry });
+
+        ctx.save();
+        ctx.globalAlpha = dim;
+
+        // 柔和空间投影
+        ctx.fillStyle = 'rgba(20, 24, 33, 0.065)';
+        drawDiamond(ctx, cx, ly + 22, rx * 0.96, ry * 0.96);
+        ctx.fill();
+
+        if (idx === 0) {
+          // 01 计算内核：深墨蓝磨砂晶体板 + 发光算力矩阵
+          drawSlab(ctx, cx, ly, rx, ry, 14, '#141d42', '#0d1430', '#1d2b60', 'rgba(120,160,255,0.28)');
+          // 内部经纬点阵
+          for (let gx = -2; gx <= 2; gx++) {
+            for (let gy = -2; gy <= 2; gy++) {
+              const px = cx + (gx - gy) * (rx * 0.17);
+              const py = ly + (gx + gy) * (ry * 0.17);
+              const glow = 0.4 + 0.6 * Math.sin(t * 2.5 + gx + gy * 1.4);
+              ctx.fillStyle = `rgba(116, 224, 224, ${(0.25 + glow * 0.6).toFixed(2)})`;
+              ctx.beginPath();
+              ctx.arc(px, py, 2.2 + glow * 1.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+          drawLayerTag(ctx, cx - rx - 14, ly, '01', '计算内核', '#1b2a6b');
+        } else if (idx === 1) {
+          // 02 定象坊：通透冰蓝玻璃层 + 3 个呼吸立体算子棱柱
+          drawSlab(ctx, cx, ly, rx, ry, 9, 'rgba(241, 246, 255, 0.84)', 'rgba(182, 200, 236, 0.65)', 'rgba(210, 223, 248, 0.72)', 'rgba(27, 42, 107, 0.28)');
+          const blocks = [
+            { u: -0.36, v: 0.08, cTop: '#3655d8', cL: '#233ba8', cR: '#4b6cf0', h: 16 + Math.sin(t * 2) * 5 },
+            { u: 0.02, v: -0.18, cTop: '#129b9d', cL: '#0b7173', cR: '#23b9bc', h: 20 + Math.cos(t * 2.2) * 5 },
+            { u: 0.34, v: 0.12, cTop: '#e0533c', cL: '#b33824', cR: '#f06b54', h: 15 + Math.sin(t * 1.8 + 1.4) * 5 },
+          ];
+          // 算子间连线
+          ctx.strokeStyle = 'rgba(20, 24, 33, 0.25)';
+          ctx.lineWidth = 1.4;
+          ctx.beginPath();
+          blocks.forEach((b, bi) => {
+            const bx = cx + (b.u - b.v) * rx * 0.65;
+            const by = ly + (b.u + b.v) * ry * 0.65;
+            if (bi === 0) ctx.moveTo(bx, by);
+            else ctx.lineTo(bx, by);
+          });
+          ctx.stroke();
+
+          blocks.forEach((b) => {
+            const bx = cx + (b.u - b.v) * rx * 0.65;
+            const by = ly + (b.u + b.v) * ry * 0.65;
+            drawSlab(ctx, bx, by - b.h, rx * 0.17, ry * 0.17, b.h, b.cTop, b.cL, b.cR, 'rgba(255,255,255,0.45)');
+          });
+          drawLayerTag(ctx, cx - rx - 14, ly, '02', '定象坊', '#0f8b8d');
+        } else {
+          // 03 通文册：暖白精装纸面活页 + 实时投影波形
+          drawSlab(ctx, cx, ly, rx, ry, 7, 'rgba(255, 253, 248, 0.94)', '#dcd5c6', '#eae4d7', 'rgba(20, 24, 33, 0.28)');
+          // 等距坐标系内的实时曲线与排版线条
+          const iso = (u, v) => [cx + (u - v) * rx * 0.5, ly + (u + v) * ry * 0.5];
+          // 左侧模拟课件正文行
+          ctx.strokeStyle = 'rgba(20,24,33,0.28)';
+          ctx.lineWidth = 2.6;
+          for (let r = 0; r < 3; r++) {
+            const [x1, y1] = iso(-0.68, -0.35 + r * 0.24);
+            const [x2, y2] = iso(-0.15 - r * 0.1, -0.35 + r * 0.24);
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+          }
+          // 右侧嵌入的活仪器实时曲线
+          ctx.strokeStyle = 'rgba(27,42,107,0.32)';
+          ctx.lineWidth = 1.2;
+          const [c1x, c1y] = iso(-0.02, -0.52);
+          const [c2x, c2y] = iso(0.72, -0.52);
+          const [c3x, c3y] = iso(0.72, 0.45);
+          const [c4x, c4y] = iso(-0.02, 0.45);
+          ctx.beginPath();
+          ctx.moveTo(c1x, c1y); ctx.lineTo(c2x, c2y); ctx.lineTo(c3x, c3y); ctx.lineTo(c4x, c4y); ctx.closePath();
+          ctx.fillStyle = 'rgba(27,42,107,0.04)';
+          ctx.fill(); ctx.stroke();
+
+          ctx.beginPath();
+          for (let s = 0; s <= 32; s++) {
+            const p = s / 32;
+            const u = 0.04 + p * 0.62;
+            const v = Math.sin(p * Math.PI * 2.2 - t * 2.2) * 0.3;
+            const [sx, sy] = iso(u, v);
+            if (s === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+          }
+          ctx.strokeStyle = '#d64531';
+          ctx.lineWidth = 2.2;
+          ctx.stroke();
+
+          const dotP = 0.5 + 0.3 * Math.sin(t * 1.4);
+          const [dx, dy] = iso(0.04 + dotP * 0.62, Math.sin(dotP * Math.PI * 2.2 - t * 2.2) * 0.3);
+          ctx.fillStyle = '#0f8b8d';
+          ctx.beginPath(); ctx.arc(dx, dy, 4.5, 0, Math.PI * 2); ctx.fill();
+
+          drawLayerTag(ctx, cx - rx - 14, ly, '03', '通文册', '#d64531');
+        }
+
+        // 层间上升光柱信号流（0→1, 1→2）
+        if (idx < 2) {
+          const nextLy = baseCy + (1 - (idx + 1)) * gap - r2Lift[idx + 1];
+          const cols = [-0.28, 0, 0.28];
+          cols.forEach((off, ci) => {
+            const bx = cx + off * rx * 0.7;
+            ctx.strokeStyle = ci === 1 ? 'rgba(15, 139, 141, 0.32)' : 'rgba(27, 42, 107, 0.22)';
+            ctx.setLineDash([3, 5]);
+            ctx.lineDashOffset = t * 24;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(bx, ly - 4);
+            ctx.lineTo(bx, nextLy + 14);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            const flow = (t * 0.55 + ci * 0.33 + idx * 0.2) % 1;
+            const py = ly - 4 + (nextLy + 14 - (ly - 4)) * flow;
+            ctx.fillStyle = ci === 2 ? '#d64531' : ci === 1 ? '#0f8b8d' : '#344ec4';
+            ctx.beginPath();
+            ctx.arc(bx, py, 3, 0, Math.PI * 2);
+            ctx.fill();
+          });
+        }
+
+        ctx.restore();
+      }
+    }
+
+    function drawDiamond(ctx, cx, cy, rx, ry) {
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - ry);
+      ctx.lineTo(cx + rx, cy);
+      ctx.lineTo(cx, cy + ry);
+      ctx.lineTo(cx - rx, cy);
+      ctx.closePath();
+    }
+
+    function drawSlab(ctx, cx, cy, rx, ry, depth, topColor, leftColor, rightColor, strokeColor) {
+      // 左侧立面
+      ctx.fillStyle = leftColor;
+      ctx.beginPath();
+      ctx.moveTo(cx - rx, cy);
+      ctx.lineTo(cx, cy + ry);
+      ctx.lineTo(cx, cy + ry + depth);
+      ctx.lineTo(cx - rx, cy + depth);
+      ctx.closePath();
+      ctx.fill();
+      // 右侧立面
+      ctx.fillStyle = rightColor;
+      ctx.beginPath();
+      ctx.moveTo(cx + rx, cy);
+      ctx.lineTo(cx, cy + ry);
+      ctx.lineTo(cx, cy + ry + depth);
+      ctx.lineTo(cx + rx, cy + depth);
+      ctx.closePath();
+      ctx.fill();
+      // 顶面
+      ctx.fillStyle = topColor;
+      drawDiamond(ctx, cx, cy, rx, ry);
+      ctx.fill();
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    function drawLayerTag(ctx, x, y, num, name, color) {
+      if (x < 68) return;
+      ctx.save();
+      ctx.textAlign = 'right';
+      ctx.fillStyle = color;
+      ctx.font = '700 10px Consolas, monospace';
+      ctx.fillText(num, x, y - 4);
+      ctx.fillStyle = '#141821';
+      ctx.font = '600 13px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText(name, x, y + 12);
+      ctx.restore();
+    }
+
+    /* ================= 方案 R3：实时数理艺术画卷（极简大片） ================= */
+    function drawR3(t) {
+      const { w, h } = size;
+      const ctx = ctx3;
+      ctx.clearRect(0, 0, w, h);
+
+      const cx = w * 0.52;
+      const cy = h * 0.5;
+      const mx = (mouse.x - 0.5) * 2;
+      const my = (mouse.y - 0.5) * 2;
+      const eqEl = document.getElementById('r3Eq');
+
+      if (r3Scene === 'eigen') {
+        // 真实 2x2 线性空间变换 + 单位圆变奇异椭圆 + 实特征方向射线
+        const a11 = 1.25 + 0.25 * Math.cos(t * 0.6) + mx * 0.25;
+        const a12 = 0.45 + 0.2 * Math.sin(t * 0.5) + my * 0.25;
+        const a21 = 0.22 + 0.15 * Math.sin(t * 0.7);
+        const a22 = 1.05 + 0.22 * Math.sin(t * 0.45) - mx * 0.15;
+        const det = a11 * a22 - a12 * a21;
+        const tr = a11 + a22;
+        const disc = tr * tr - 4 * det;
+        const unit = Math.min(w, h) * 0.088;
+
+        const map = (x, y) => [cx + (a11 * x + a12 * y) * unit, cy - (a21 * x + a22 * y) * unit];
+
+        // 柔和径向遮罩背景光
+        const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.min(w, h) * 0.48);
+        grad.addColorStop(0, 'rgba(27, 42, 107, 0.06)');
+        grad.addColorStop(1, 'rgba(27, 42, 107, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+
+        // 变换后的无限空间网格
+        const R = 5;
+        for (let k = -R; k <= R; k++) {
+          const isAxis = k === 0;
+          const alpha = isAxis ? 0.38 : Math.max(0.05, 0.18 - Math.abs(k) * 0.025);
+          ctx.strokeStyle = isAxis ? `rgba(27, 42, 107, ${alpha})` : `rgba(27, 42, 107, ${alpha})`;
+          ctx.lineWidth = isAxis ? 1.5 : 1;
+          const [x1, y1] = map(k, -R);
+          const [x2, y2] = map(k, R);
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+
+          ctx.strokeStyle = isAxis ? `rgba(15, 139, 141, ${alpha})` : `rgba(15, 139, 141, ${alpha})`;
+          const [x3, y3] = map(-R, k);
+          const [x4, y4] = map(R, k);
+          ctx.beginPath(); ctx.moveTo(x3, y3); ctx.lineTo(x4, y4); ctx.stroke();
+        }
+
+        // 原始单位圆（极淡虚线）
+        ctx.save();
+        ctx.setLineDash([4, 5]);
+        ctx.strokeStyle = 'rgba(20, 24, 33, 0.22)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, unit * 1.8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // 变换后的奇异椭圆（填充 + 流畅描边）
+        ctx.beginPath();
+        for (let i = 0; i <= 90; i++) {
+          const ang = (i / 90) * Math.PI * 2;
+          const [px, py] = map(Math.cos(ang) * 1.8, Math.sin(ang) * 1.8);
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(15, 139, 141, 0.09)';
+        ctx.fill();
+        ctx.strokeStyle = '#1b2a6b';
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+
+        // 实特征方向射线与基向量
+        if (disc >= 0) {
+          const s = Math.sqrt(disc);
+          const l1 = (tr + s) / 2;
+          const l2 = (tr - s) / 2;
+          [l1, l2].forEach((lam, idx) => {
+            const vx = Math.abs(a12) > 1e-4 ? a12 : lam - a22;
+            const vy = Math.abs(a12) > 1e-4 ? lam - a11 : a21;
+            const len = Math.hypot(vx, vy) || 1;
+            const ux = (vx / len) * 3.6;
+            const uy = (vy / len) * 3.6;
+            ctx.strokeStyle = idx === 0 ? 'rgba(214, 69, 49, 0.72)' : 'rgba(15, 139, 141, 0.72)';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.moveTo(cx - ux * unit, cy + uy * unit);
+            ctx.lineTo(cx + ux * unit, cy - uy * unit);
+            ctx.stroke();
+
+            const [tx, ty] = map((vx / len) * 1.8, (vy / len) * 1.8);
+            ctx.fillStyle = idx === 0 ? '#d64531' : '#0f8b8d';
+            ctx.beginPath(); ctx.arc(tx, ty, 5, 0, Math.PI * 2); ctx.fill();
+          });
+          eqEl.textContent = `det(A) = ${det.toFixed(2)} · λ₁ = ${l1.toFixed(2)} · λ₂ = ${l2.toFixed(2)}`;
+        } else {
+          eqEl.textContent = `det(A) = ${det.toFixed(2)} · 复特征值 λ = ${(tr / 2).toFixed(2)} ± ${(Math.sqrt(-disc) / 2).toFixed(2)}i`;
+        }
+      } else if (r3Scene === 'fourier') {
+        // 多阶谐波干涉画卷
+        const layers = 11;
+        const ampBase = Math.min(h * 0.16, 115);
+        for (let k = 0; k < layers; k++) {
+          const ratio = k / (layers - 1);
+          ctx.beginPath();
+          for (let i = 0; i <= 140; i++) {
+            const u = i / 140;
+            const x = 36 + u * (w - 64);
+            const env = Math.sin(u * Math.PI);
+            const y = cy
+              + (ratio - 0.5) * h * 0.42
+              + Math.sin(u * Math.PI * (3 + k * 0.45) - t * (1.4 + ratio * 0.9) + mx * 2) * ampBase * 0.55 * env
+              + Math.cos(u * Math.PI * 7 + t * 1.1) * (14 + my * 12) * env;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.strokeStyle = k === 5
+            ? '#d64531'
+            : k % 2 === 0
+              ? `rgba(27, 42, 107, ${(0.12 + (1 - Math.abs(ratio - 0.5) * 1.6) * 0.42).toFixed(2)})`
+              : `rgba(15, 139, 141, ${(0.14 + (1 - Math.abs(ratio - 0.5) * 1.6) * 0.36).toFixed(2)})`;
+          ctx.lineWidth = k === 5 ? 2.4 : 1.25;
+          ctx.stroke();
+        }
+        eqEl.textContent = `Σ aₙ sin(nωx + φ) · N = 11 · Δφ = ${(mx * 3.14).toFixed(2)} rad`;
+      } else if (r3Scene === 'contour') {
+        // 曲面等高线 + 流动梯度场粒子
+        const rings = 14;
+        const maxR = Math.min(w, h) * 0.41;
+        for (let r = 1; r <= rings; r++) {
+          const rad = (r / rings) * maxR;
+          ctx.beginPath();
+          for (let i = 0; i <= 96; i++) {
+            const a = (i / 96) * Math.PI * 2;
+            const distort = 1
+              + 0.14 * Math.sin(a * 3 + t * 0.7 + r * 0.25)
+              + 0.08 * Math.cos(a * 2 - t * 0.5 + mx * 1.5);
+            const px = cx + Math.cos(a) * rad * distort * 1.14 + mx * (rings - r) * 1.8;
+            const py = cy + Math.sin(a) * rad * distort * 0.86 + my * (rings - r) * 1.5;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.strokeStyle = r <= 3
+            ? `rgba(214, 69, 49, ${(0.7 - r * 0.14).toFixed(2)})`
+            : `rgba(27, 42, 107, ${(0.08 + (1 - r / rings) * 0.32).toFixed(2)})`;
+          ctx.lineWidth = r % 3 === 0 ? 1.6 : 1;
+          ctx.stroke();
+        }
+        // 驻点与梯度箭标
+        ctx.fillStyle = '#d64531';
+        ctx.beginPath();
+        ctx.arc(cx + mx * 22, cy + my * 18, 5, 0, Math.PI * 2);
+        ctx.fill();
+        eqEl.textContent = `∇f(x, y) = 0 · 极值等高线族 · κ = ${(1.32 + mx * 0.4).toFixed(2)}`;
+      } else {
+        // 二阶阻尼系统相空间轨线族
+        const zeta = 0.22 + (mouse.x) * 0.45;
+        const starts = 16;
+        const scale = Math.min(w, h) * 0.36;
+        for (let s = 0; s < starts; s++) {
+          const ang = (s / starts) * Math.PI * 2 + t * 0.15;
+          let x = Math.cos(ang);
+          let v = Math.sin(ang);
+          ctx.beginPath();
+          const dt = 0.06;
+          for (let step = 0; step < 95; step++) {
+            const px = cx + x * scale;
+            const py = cy - v * scale * 0.85;
+            if (step === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            const acc = -2 * zeta * v - x;
+            v += acc * dt;
+            x += v * dt;
+          }
+          ctx.strokeStyle = s % 4 === 0 ? 'rgba(214, 69, 49, 0.55)' : s % 2 === 0 ? 'rgba(27, 42, 107, 0.34)' : 'rgba(15, 139, 141, 0.36)';
+          ctx.lineWidth = s % 4 === 0 ? 1.8 : 1.1;
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#1b2a6b';
+        ctx.beginPath(); ctx.arc(cx, cy, 4.5, 0, Math.PI * 2); ctx.fill();
+        eqEl.textContent = `y″ + ${(2 * zeta).toFixed(2)}y′ + y = 0 · ζ = ${zeta.toFixed(2)} (欠阻尼吸引子)`;
+      }
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    /* ================= 主动画循环 ================= */
+    const start = performance.now();
+    function loop(now) {
+      const t = (now - start) / 1000;
+      mouse.x += (mouse.tx - mouse.x) * 0.07;
+      mouse.y += (mouse.ty - mouse.y) * 0.07;
+
+      updateSloganWave(t);
+      if (activePlan === 'r1') drawR1(t);
+      else if (activePlan === 'r2') drawR2(t);
+      else drawR3(t);
+
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

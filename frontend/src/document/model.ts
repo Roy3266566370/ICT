@@ -3,7 +3,7 @@ import {defaultDiagram} from './inlineSystems.ts';
 import {currentParagraphs,inheritRunStyle,preserveTextRuns} from './richText.ts';
 export const same=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
 const figureKeys=['cleaned_asset_id','figure_scene'] as const;
-export const mutableKeys=['x','y','width','height','rotation','z','opacity','locked','hidden','deleted','text','paragraphs','table','chart','crop','interaction','basis','flow','viewer_editable','viewer_parameters','diagram','demo','workshop_plugin',...figureKeys] as const;
+export const mutableKeys=['x','y','width','height','rotation','z','opacity','locked','hidden','deleted','group_id','text','paragraphs','table','table_style','chart','crop','image_data','interaction','basis','flow','viewer_editable','viewer_parameters','diagram','demo','workshop_plugin',...figureKeys] as const;
 export function patchNodes(document:SceneDocument,pageNo:number,ids:string[],patch:NodePatch):SceneDocument {
   return {...document,pages:document.pages.map(page=>page.page_no!==pageNo?page:{...page,modified:true,nodes:page.nodes.map(node=>{
     if(!ids.includes(node.id))return node;
@@ -44,7 +44,8 @@ export function copyPage(page:ScenePage,pageNo:number):ScenePage {
     copy_from_page_no:page.page_no,modified:true};
 }
 function pageMetadata(page:ScenePage|undefined){
-  return {notes:page?.notes??'',background_color:page?.background_color??null,background_modified:!!page?.background_modified};
+  return {notes:page?.notes??'',background_color:page?.background_color??null,background_modified:!!page?.background_modified,
+    background:page?.background??null,transition:page?.transition??null,hide_master:!!page?.hide_master,layout_id:page?.layout_id??null};
 }
 /** 等距分布：保持首尾对象不动，把剩余空隙平均分给相邻对象。 */
 export function distributeNodes(document:SceneDocument,pageNo:number,ids:string[],axis:'h'|'v'):SceneDocument {
@@ -62,11 +63,11 @@ export function distributeNodes(document:SceneDocument,pageNo:number,ids:string[
 export function createPayload(node:SceneNode):Record<string,unknown> {
   if(node.duplicate_from) {
     const payload:Record<string,unknown>={duplicate_from:node.duplicate_from,style:node.style};
-    for(const key of mutableKeys)if(node[key]!==undefined)payload[key]=node[key];
+    for(const key of mutableKeys)if(key!=='image_data'&&node[key]!==undefined)payload[key]=node[key];
     return payload;
   }
   const payload:Record<string,unknown>={type:node.type,name:node.name,style:node.style,shape:node.shape};
-  for(const key of [...mutableKeys,'image_data'] as const)if(node[key]!==undefined)payload[key]=node[key];
+  for(const key of mutableKeys)if(node[key]!==undefined)payload[key]=node[key];
   if(node.figure_source_id){
     payload.figure_source_id=node.figure_source_id;
     payload.figure_object_id=node.figure_object_id;
@@ -77,6 +78,7 @@ export function createPayload(node:SceneNode):Record<string,unknown> {
 export function diffDocuments(base:SceneDocument,current:SceneDocument):NodeChange[] {
   const changes:NodeChange[]=[];
   const structural:NodeChange[]=[];
+  if(!same(base.theme,current.theme))structural.push(pageChange(0,{kind:'document_theme',theme:current.theme??null}));
   const previousPages=new Map(base.pages.map(page=>[page.page_no,page]));
   const currentPages=new Set(pageOrder(current));
   const removed=base.pages.filter(page=>!currentPages.has(page.page_no));
@@ -100,24 +102,49 @@ export function diffDocuments(base:SceneDocument,current:SceneDocument):NodeChan
     const metadata=pageMetadata(page),oldMetadata=pageMetadata(before);
     const patch:ReturnType<typeof pageMetadata>|Partial<ReturnType<typeof pageMetadata>>={};
     if(metadata.notes!==oldMetadata.notes)patch.notes=metadata.notes;
+    if(!same(metadata.background,oldMetadata.background))patch.background=metadata.background;
+    if(!same(metadata.transition,oldMetadata.transition))patch.transition=metadata.transition;
+    if(metadata.hide_master!==oldMetadata.hide_master)patch.hide_master=metadata.hide_master;
+    if(metadata.layout_id!==oldMetadata.layout_id)patch.layout_id=metadata.layout_id;
     if(metadata.background_color!==oldMetadata.background_color||metadata.background_modified!==oldMetadata.background_modified){
       patch.background_color=metadata.background_color;patch.background_modified=metadata.background_modified;
     }
     if(Object.keys(patch).length)changes.push(pageChange(page.page_no,{kind:'page_metadata',patch}));
     const original=new Map(before?.nodes.map(n=>[n.id,n]));
     const currentIds=new Set(page.nodes.map(node=>node.id));
+    const imageById=new Map(before?.nodes.map(node=>[node.id,node.image_data]));
     for(const node of page.nodes) {
       const old=original.get(node.id);
-      if(!old) {if(!node.deleted)changes.push({page_no:page.page_no,id:node.id,create:createPayload(node)});continue;}
+      if(!old) {
+        if(node.deleted)continue;
+        const source=node.duplicate_from;
+        const canReuse=source!==undefined&&imageById.has(source);
+        const create=createPayload(source&&node.type==='image'&&!canReuse?{...node,duplicate_from:undefined}:node);
+        changes.push({page_no:page.page_no,id:node.id,create});
+        if(node.type==='image'&&source&&canReuse&&node.image_data!==imageById.get(source)){
+          changes.push({page_no:page.page_no,id:node.id,patch:{image_data:node.image_data??null}});
+        }
+        imageById.set(node.id,node.image_data);
+        continue;
+      }
+      imageById.set(node.id,node.image_data);
       const patch:NodePatch={};
       for(const key of mutableKeys)if(key!=='paragraphs'&&node[key]!==undefined&&!same(node[key],old[key])) Object.assign(patch,{[key]:node[key]});
       if(!same(node.paragraphs??[],old.paragraphs??[]))patch.paragraphs=node.paragraphs??[];
+      if(old.image_data&&node.image_data===undefined)patch.image_data=null;
+      if(old.group_id&&node.group_id===undefined)patch.group_id=null;
+      if(old.table_style&&node.table_style===undefined)patch.table_style=null;
+      if(old.crop&&node.crop===undefined)patch.crop={left:0,right:0,top:0,bottom:0};
       for(const key of figureKeys){
         if(node[key]==null&&old[key]==null)delete patch[key];
         else if(node[key]===undefined&&old[key]!=null)Object.assign(patch,{[key]:null});
       }
       const style:Record<string,unknown>={};
       for(const key of Object.keys(node.style) as Array<keyof SceneNode['style']>)if(!same(node.style[key],old.style[key]))style[key]=node.style[key];
+      if(old.style.shadow&&node.style.shadow===undefined)style.shadow=null;
+      if(old.style.linear_gradient&&node.style.linear_gradient===undefined)style.linear_gradient=null;
+      if(old.style.border_radius&&node.style.border_radius===undefined)style.border_radius=0;
+      if(old.style.anim_step&&node.style.anim_step===undefined)style.anim_step=0;
       if(Object.keys(style).length)patch.style=style;
       if(Object.keys(patch).length)changes.push({page_no:page.page_no,id:node.id,patch});
     }
@@ -139,7 +166,8 @@ export function applyChanges(document:SceneDocument,changes:NodeChange[],source?
   for(const change of changes) {
     const action=change.page_action;
     if(action){
-      if(action.kind==='delete_page')next=removePage(next,change.page_no);
+      if(action.kind==='document_theme')next={...next,theme:action.theme??undefined};
+      else if(action.kind==='delete_page')next=removePage(next,change.page_no);
       else if(action.kind==='reorder_pages')next=arrangePages(next,action.order);
       else if(action.kind==='page_metadata')next=patchPageMetadata(next,change.page_no,action.patch);
       else {
@@ -186,10 +214,13 @@ export function rebaseDocument(base:SceneDocument,draft:SceneDocument,server:Sce
   })};
   const changes=diffDocuments(base,draft);
   const restoring=new Set(changes.filter(change=>change.page_action?.kind==='restore_page').map(change=>change.page_no));
+  const creatingNodes=new Set(changes.filter(change=>change.create).map(change=>`${change.page_no}/${change.id}`));
   for(const change of changes) {
     if(change.page_action){
       const action=change.page_action;
-      if(action.kind==='reorder_pages'){
+      if(action.kind==='document_theme'){
+        if(!same(base.theme,server.theme)&&!same(action.theme??undefined,server.theme))conflicts.push('课件主题');
+      }else if(action.kind==='reorder_pages'){
         if(!same(pageOrder(base),pageOrder(server))&&!same(action.order,pageOrder(server)))conflicts.push('页面顺序');
       }else if(action.kind==='page_metadata'){
         const old=pageMetadata(findPage(base,change.page_no)),remote=pageMetadata(findPage(server,change.page_no));
@@ -219,6 +250,7 @@ export function rebaseDocument(base:SceneDocument,draft:SceneDocument,server:Sce
       if(remote&&local&&(mutableKeys.some(k=>!same(local[k],remote[k]))||!same(local.style,remote.style)))conflicts.push(`${change.page_no}/${change.id}/新增`);
       continue;
     }
+    if(creatingNodes.has(`${change.page_no}/${change.id}`))continue;
     if(!before||!remote){conflicts.push(`${change.page_no}/${change.id}/对象`);continue;}
     for(const key of Object.keys(change.patch??{}) as Array<keyof NodePatch>) {
       if(key==='style') {
@@ -248,5 +280,6 @@ export function newNode(page:ScenePage,id:string,type:SceneNode['type']='text'):
     rotation:0,z:Math.max(0,...page.nodes.map(n=>n.z))+1,opacity:1,locked:false,hidden:false,deleted:false,
     text:type==='text'?'新文字':'',base_text:null,style:{font_size:28,font_family:reference?.style.font_family??'Arial',color:reference?.style.color??'#18233D',line_height:1.15,align:'left',vertical_align:'top',
       ...(type==='vector'?{stroke:'#167abc',stroke_width:3}:{}),
-      ...(type==='shape'?{fill:'#E9E4FF',stroke:'#7966CE',stroke_width:1}: {})},base_style:{} as SceneNode['style'],shape:'rect',source_element_id:null};
+      ...(type==='shape'?{fill:'#E9E4FF',stroke:'#7966CE',stroke_width:1,align:'center',vertical_align:'middle',
+        padding_left:10,padding_right:10,padding_top:10,padding_bottom:10}: {})},base_style:{} as SceneNode['style'],shape:'rect',source_element_id:null};
 }

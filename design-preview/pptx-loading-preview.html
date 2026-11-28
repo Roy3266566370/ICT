@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万象活页 · PPTX 转换加载动画方案预览</title>
+  <style>
+    :root {
+      --paper-bg: #f6f4ee;
+      --paper-card: #ffffff;
+      --paper-subtle: #faf8f4;
+      --ink-900: #181d24;
+      --ink-600: #4b5563;
+      --ink-400: #8791a0;
+      --hairline: rgba(24, 29, 36, 0.09);
+      --hairline-strong: rgba(24, 29, 36, 0.16);
+      --orange: #c25928;
+      --orange-soft: #fff1e8;
+      --indigo: #4f46e5;
+      --indigo-soft: #eef2ff;
+      --teal: #0d9488;
+      --teal-soft: #f0fdfa;
+      --font-serif: "Songti SC", "STSong", "Noto Serif SC", Georgia, serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink-900);
+      background:
+        radial-gradient(circle at 12% 10%, rgba(194, 89, 40, 0.05), transparent 36%),
+        radial-gradient(circle at 88% 85%, rgba(79, 70, 229, 0.05), transparent 40%),
+        var(--paper-bg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部预览控制台 */
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px 18px;
+      padding: 12px clamp(16px, 3vw, 32px);
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .brand h1 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-size: 18px;
+      letter-spacing: 0.02em;
+    }
+    .brand span {
+      font-size: 12px;
+      color: var(--ink-400);
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tab {
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-card);
+      color: var(--ink-600);
+      padding: 6px 13px;
+      border-radius: 999px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .tab:hover { border-color: var(--indigo); color: var(--indigo); }
+    .tab.active {
+      background: var(--indigo);
+      border-color: var(--indigo);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 3px 10px rgba(79, 70, 229, 0.22);
+    }
+    .tab .badge {
+      display: inline-block;
+      margin-left: 5px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      background: rgba(255, 255, 255, 0.22);
+      color: inherit;
+    }
+    .tab:not(.active) .badge {
+      background: var(--orange-soft);
+      color: var(--orange);
+    }
+
+    .sim-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--ink-600);
+    }
+    .sim-btn {
+      border: 1px solid var(--hairline-strong);
+      background: var(--paper-subtle);
+      color: var(--ink-900);
+      padding: 5px 11px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .sim-btn:hover { background: var(--indigo-soft); border-color: var(--indigo); color: var(--indigo); }
+    .sim-range {
+      width: 120px;
+      accent-color: var(--orange);
+      cursor: pointer;
+    }
+    .sim-val {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      min-width: 38px;
+      color: var(--orange);
+    }
+
+    /* 舞台容器 */
+    .stage-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 28px clamp(16px, 3vw, 36px) 44px;
+    }
+    .stage-wrap.grid-mode {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+      align-items: stretch;
+      max-width: 1320px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    @media (max-width: 960px) {
+      .stage-wrap.grid-mode { grid-template-columns: 1fr; }
+    }
+
+    /* 通用加载卡片 */
+    .loader-card {
+      position: relative;
+      width: min(100%, 580px);
+      background: var(--paper-card);
+      border: 1px solid var(--hairline);
+      border-radius: 20px;
+      padding: 34px 36px 30px;
+      box-shadow: 0 2px 6px rgba(24, 29, 36, 0.04), 0 18px 42px rgba(24, 29, 36, 0.06);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      overflow: hidden;
+    }
+    .stage-wrap.grid-mode .loader-card {
+      width: 100%;
+      padding: 26px 24px 22px;
+      justify-content: space-between;
+    }
+    .plan-tag {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--paper-subtle);
+      color: var(--ink-600);
+      border: 1px solid var(--hairline);
+    }
+    .plan-tag.recommend {
+      background: var(--orange-soft);
+      color: var(--orange);
+      border-color: rgba(194, 89, 40, 0.25);
+    }
+
+    .loader-title {
+      margin: 6px 0 6px;
+      font-family: var(--font-serif);
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+    .loader-subtitle {
+      margin: 0 0 20px;
+      font-size: 14px;
+      color: var(--ink-600);
+      min-height: 20px;
+    }
+
+    /* 流光进度条 */
+    .progress-box {
+      width: 100%;
+      margin: 4px 0 12px;
+    }
+    .progress-track {
+      position: relative;
+      height: 8px;
+      width: 100%;
+      border-radius: 999px;
+      background: #eceae4;
+      overflow: hidden;
+    }
+    .progress-fill {
+      position: relative;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--orange) 0%, #dc6f39 60%, var(--indigo) 100%);
+      transition: width 0.25s ease;
+      overflow: hidden;
+    }
+    .progress-fill::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+      transform: translateX(-100%);
+      animation: shimmer 1.8s infinite ease-in-out;
+    }
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(180%); }
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--ink-400);
+      font-family: var(--font-mono);
+    }
+    .progress-meta strong {
+      color: var(--ink-900);
+      font-weight: 600;
+    }
+
+    .loader-tip {
+      margin: 14px 0 0;
+      padding: 8px 14px;
+      border-radius: 10px;
+      background: var(--paper-subtle);
+      color: var(--ink-600);
+      font-size: 12px;
+      line-height: 1.5;
+      width: 100%;
+    }
+
+    /* ================= 方案 A：幻灯片觉醒 SVG 动画 ================= */
+    .awake-stage {
+      width: 240px;
+      height: 150px;
+      margin: 10px 0 10px;
+    }
+    .scan-beam {
+      animation: scanMove 2.8s ease-in-out infinite;
+    }
+    @keyframes scanMove {
+      0% { transform: translateX(-12px); opacity: 0; }
+      12% { opacity: 1; }
+      75% { transform: translateX(162px); opacity: 1; }
+      90% { transform: translateX(176px); opacity: 0; }
+      100% { transform: translateX(-12px); opacity: 0; }
+    }
+    .wave-alive {
+      stroke-dasharray: 180;
+      stroke-dashoffset: 180;
+      animation: drawWave 2.8s ease-in-out infinite;
+    }
+    @keyframes drawWave {
+      0%, 10% { stroke-dashoffset: 180; opacity: 0.2; }
+      55%, 88% { stroke-dashoffset: 0; opacity: 1; }
+      100% { stroke-dashoffset: 0; opacity: 0.2; }
+    }
+    .knob-slide {
+      animation: knobMove 2.8s ease-in-out infinite;
+    }
+    @keyframes knobMove {
+      0%, 20% { transform: translateX(0); }
+      55% { transform: translateX(34px); }
+      82% { transform: translateX(14px); }
+      100% { transform: translateX(0); }
+    }
+    .dot-pulse {
+      transform-origin: center;
+      transform-box: fill-box;
+      animation: dotPop 2.8s ease-in-out infinite;
+    }
+    @keyframes dotPop {
+      0%, 25% { transform: scale(0.5); opacity: 0.2; }
+      55% { transform: scale(1.25); opacity: 1; }
+      80% { transform: scale(1); opacity: 0.9; }
+      100% { transform: scale(0.5); opacity: 0.2; }
+    }
+    .card-float {
+      animation: cardFloat 3.6s ease-in-out infinite;
+    }
+    @keyframes cardFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+
+    /* ================= 方案 B：四步阶段轨道 + 24 页点亮方阵 ================= */
+    .steps-rail {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      width: 100%;
+      margin: 10px 0 18px;
+      position: relative;
+    }
+    .step-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      position: relative;
+      z-index: 1;
+    }
+    .step-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      background: #efede7;
+      color: var(--ink-400);
+      border: 2px solid transparent;
+      transition: all 0.25s ease;
+    }
+    .step-item.done .step-dot {
+      background: var(--teal-soft);
+      color: var(--teal);
+      border-color: var(--teal);
+    }
+    .step-item.active .step-dot {
+      background: var(--indigo);
+      color: #fff;
+      box-shadow: 0 0 0 5px rgba(79, 70, 229, 0.16);
+      animation: stepPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes stepPulse {
+      0%, 100% { box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.14); }
+      50% { box-shadow: 0 0 0 8px rgba(79, 70, 229, 0.24); }
+    }
+    .step-label {
+      font-size: 12px;
+      color: var(--ink-400);
+      white-space: nowrap;
+    }
+    .step-item.done .step-label { color: var(--teal); font-weight: 500; }
+    .step-item.active .step-label { color: var(--indigo); font-weight: 600; }
+
+    .page-matrix-wrap {
+      width: 100%;
+      margin-top: 12px;
+      text-align: left;
+    }
+    .page-matrix-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--ink-400);
+      margin-bottom: 6px;
+    }
+    .page-matrix {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 5px;
+    }
+    .page-cell {
+      height: 16px;
+      border-radius: 4px;
+      background: #efede7;
+      transition: all 0.22s ease;
+      position: relative;
+    }
+    .page-cell.done {
+      background: linear-gradient(135deg, #d97742, var(--orange));
+      box-shadow: 0 1px 3px rgba(194, 89, 40, 0.22);
+    }
+    .page-cell.current {
+      background: var(--indigo-soft);
+      border: 1.5px solid var(--indigo);
+      animation: cellBlink 1s ease-in-out infinite;
+    }
+    @keyframes cellBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+
+    /* ================= 方案 C：万象几何轨道 ================= */
+    .orbit-stage {
+      width: 160px;
+      height: 160px;
+      margin: 12px 0 8px;
+      position: relative;
+      display: grid;
+      place-items: center;
+    }
+    .orbit-svg {
+      width: 100%;
+      height: 100%;
+    }
+    .orbit-ring-1 {
+      transform-origin: 80px 80px;
+      animation: spinCw 6.5s linear infinite;
+    }
+    .orbit-ring-2 {
+      transform-origin: 80px 80px;
+      animation: spinCcw 4.8s linear infinite;
+    }
+    .orbit-core {
+      transform-origin: 80px 80px;
+      animation: breathe 2.4s ease-in-out infinite;
+    }
+    @keyframes spinCw { to { transform: rotate(360deg); } }
+    @keyframes spinCcw { to { transform: rotate(-360deg); } }
+    @keyframes breathe {
+      0%, 100% { transform: scale(0.95); opacity: 0.88; }
+      50% { transform: scale(1.06); opacity: 1; }
+    }
+    .orbit-pct {
+      position: absolute;
+      font-family: var(--font-mono);
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink-900);
+    }
+    .orbit-pct small {
+      font-size: 12px;
+      color: var(--ink-400);
+    }
+
+    /* 组合态微调 */
+    .combo-card .awake-stage {
+      width: 210px;
+      height: 126px;
+      margin: 6px 0 4px;
+    }
+    .combo-card .loader-title {
+      font-size: 23px;
+    }
+  </style>
+</head>
+<body>
+  <header class="toolbar">
+    <div class="brand">
+      <h1>PPTX 加载动画对比预览</h1>
+      <span>独立静态页 · 未修改任何项目代码</span>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-mode="ab">A + B 组合<span class="badge">推荐</span></button>
+      <button class="tab" data-mode="a">方案 A · 幻灯片觉醒</button>
+      <button class="tab" data-mode="b">方案 B · 步骤 + 页阵</button>
+      <button class="tab" data-mode="c">方案 C · 几何轨道</button>
+      <button class="tab" data-mode="all">四方案同屏对比</button>
+    </div>
+
+    <div class="sim-controls">
+      <button class="sim-btn" id="togglePlay">⏸ 暂停模拟</button>
+      <button class="sim-btn" id="replayBtn">↺ 重播</button>
+      <input class="sim-range" id="progressSlider" type="range" min="0" max="100" value="35" />
+      <span class="sim-val" id="progressText">35%</span>
+    </div>
+  </header>
+
+  <main class="stage-wrap" id="stageWrap"></main>
+
+  <script>
+    const TOTAL_PAGES = 24;
+    const STAGES = [
+      { key: 'parsing', label: '解析结构', desc: '正在读取 PPTX 版式与文字层级…', min: 0, max: 20 },
+      { key: 'rendering', label: '高清渲染', desc: '正在高清渲染幻灯片底图…', min: 20, max: 65 },
+      { key: 'recognizing', label: '识别图表公式', desc: '正在识别公式、表格与可交互对象…', min: 65, max: 88 },
+      { key: 'assembling', label: '组装活页', desc: '正在注入交互参数并装配活页…', min: 88, max: 100 },
+    ];
+    const TIPS = [
+      '小贴士：转换完成后，点击页面中的公式或图表即可直接调参演练。',
+      '小贴士：支持在任意一页插入万象工坊全景沙盘，现场联动推演。',
+      '小贴士：转换后的活页支持离线单文件导出，断网教室也能流畅播放。',
+    ];
+
+    let mode = 'ab';
+    let progress = 35;
+    let playing = true;
+    let tipIndex = 0;
+
+    function currentStageInfo(pct) {
+      let stageIdx = 0;
+      for (let i = 0; i < STAGES.length; i++) {
+        if (pct >= STAGES[i].min) stageIdx = i;
+      }
+      const pagesReady = pct < 18 ? 0 : Math.min(TOTAL_PAGES, Math.round(((pct - 18) / 76) * TOTAL_PAGES));
+      return { stageIdx, stage: STAGES[stageIdx], pagesReady };
+    }
+
+    function awakeSvg() {
+      return `
+        <svg class="awake-stage" viewBox="0 0 240 150" fill="none" aria-hidden="true">
+          <!-- 背景堆叠纸页 -->
+          <rect x="44" y="18" width="152" height="104" rx="12" fill="#f0ece3" stroke="#e2dcd0" />
+          <rect x="36" y="25" width="152" height="104" rx="12" fill="#f7f4ed" stroke="#e5dfd3" />
+          <!-- 主幻灯片卡片 -->
+          <g class="card-float">
+            <rect x="28" y="32" width="152" height="104" rx="12" fill="#ffffff" stroke="#dcd6c8" stroke-width="1.4" />
+            <!-- 标题骨架 -->
+            <rect x="42" y="46" width="54" height="6" rx="3" fill="#d9d4c7" />
+            <rect x="42" y="57" width="34" height="4" rx="2" fill="#e9e5dc" />
+            <!-- 坐标轴 -->
+            <path d="M44 106 H164 M44 72 V106" stroke="#e4e0d6" stroke-width="1.2" stroke-linecap="round" />
+            <!-- 静态灰线底稿 -->
+            <path d="M48 100 Q76 74 104 90 T160 76" stroke="#e5e1d8" stroke-width="2" fill="none" />
+            <!-- 觉醒后的活曲线 -->
+            <path class="wave-alive" d="M48 100 Q76 74 104 90 T160 76" stroke="#4f46e5" stroke-width="2.5" stroke-linecap="round" fill="none" />
+            <!-- 关键亮点 -->
+            <circle class="dot-pulse" cx="104" cy="90" r="4" fill="#c25928" />
+            <circle class="dot-pulse" cx="160" cy="76" r="3.5" fill="#0d9488" />
+            <!-- 底部迷你滑块（象征可交互） -->
+            <rect x="44" y="118" width="78" height="4" rx="2" fill="#eceae4" />
+            <rect x="44" y="118" width="40" height="4" rx="2" fill="#c25928" opacity="0.7" />
+            <circle class="knob-slide" cx="62" cy="120" r="5" fill="#ffffff" stroke="#c25928" stroke-width="2" />
+            <!-- 扫描光带 -->
+            <g class="scan-beam">
+              <rect x="26" y="34" width="22" height="100" fill="url(#scanGrad)" />
+              <line x1="48" y1="34" x2="48" y2="134" stroke="#4f46e5" stroke-width="1.5" opacity="0.7" />
+            </g>
+          </g>
+          <defs>
+            <linearGradient id="scanGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#4f46e5" stop-opacity="0" />
+              <stop offset="100%" stop-color="#4f46e5" stop-opacity="0.18" />
+            </linearGradient>
+          </defs>
+        </svg>
+      `;
+    }
+
+    function stepsHtml(stageIdx) {
+      return `
+        <div class="steps-rail">
+          ${STAGES.map((s, i) => {
+            const cls = i < stageIdx ? 'done' : i === stageIdx ? 'active' : '';
+            const mark = i < stageIdx ? '✓' : i + 1;
+            return `<div class="step-item ${cls}"><div class="step-dot">${mark}</div><div class="step-label">${s.label}</div></div>`;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function matrixHtml(pagesReady) {
+      const cells = Array.from({ length: TOTAL_PAGES }, (_, i) => {
+        const cls = i < pagesReady ? 'done' : i === pagesReady && pagesReady < TOTAL_PAGES ? 'current' : '';
+        return `<div class="page-cell ${cls}" title="第 ${i + 1} 页"></div>`;
+      }).join('');
+      return `
+        <div class="page-matrix-wrap">
+          <div class="page-matrix-head">
+            <span>逐页渲染进度</span>
+            <span>${pagesReady} / ${TOTAL_PAGES} 页</span>
+          </div>
+          <div class="page-matrix">${cells}</div>
+        </div>
+      `;
+    }
+
+    function progressHtml(pct, stage, pagesReady) {
+      return `
+        <div class="progress-box">
+          <div class="progress-track">
+            <div class="progress-fill" style="width:${pct}%"></div>
+          </div>
+          <div class="progress-meta">
+            <span>当前阶段：<strong>${stage.label}</strong></span>
+            <span>约 ${Math.round(pct)}% · 已准备 ${pagesReady} / ${TOTAL_PAGES} 页</span>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderPlanA(pct, info) {
+      return `
+        <section class="loader-card">
+          <span class="plan-tag">方案 A · 幻灯片觉醒</span>
+          ${awakeSvg()}
+          <h2 class="loader-title">正在唤醒 PPTX 为活页</h2>
+          <p class="loader-subtitle">${info.stage.desc}</p>
+          ${progressHtml(pct, info.stage, info.pagesReady)}
+          <p class="loader-tip">${TIPS[tipIndex]}</p>
+        </section>
+      `;
+    }
+
+    function renderPlanB(pct, info) {
+      return `
+        <section class="loader-card">
+          <span class="plan-tag">方案 B · 四步轨道 + 逐页点亮</span>
+          <h2 class="loader-title" style="margin-top:20px;">正在转换 PPTX</h2>
+          <p class="loader-subtitle">${info.stage.desc}</p>
+          ${stepsHtml(info.stageIdx)}
+          ${progressHtml(pct, info.stage, info.pagesReady)}
+          ${matrixHtml(info.pagesReady)}
+          <p class="loader-tip">原页与可交互对象准备就绪后将自动打开演示文稿。</p>
+        </section>
+      `;
+    }
+
+    function renderPlanC(pct, info) {
+      return `
+        <section class="loader-card">
+          <span class="plan-tag">方案 C · 万象几何轨道</span>
+          <div class="orbit-stage">
+            <svg class="orbit-svg" viewBox="0 0 160 160" fill="none" aria-hidden="true">
+              <circle cx="80" cy="80" r="64" stroke="#ebe7de" stroke-width="1.5" />
+              <g class="orbit-ring-1">
+                <ellipse cx="80" cy="80" rx="64" ry="34" stroke="#4f46e5" stroke-width="2" stroke-dasharray="140 60" opacity="0.85" />
+                <circle cx="144" cy="80" r="4.5" fill="#4f46e5" />
+              </g>
+              <g class="orbit-ring-2">
+                <ellipse cx="80" cy="80" rx="36" ry="62" stroke="#c25928" stroke-width="2" stroke-dasharray="110 70" opacity="0.85" />
+                <circle cx="80" cy="18" r="4.5" fill="#c25928" />
+              </g>
+              <circle class="orbit-core" cx="80" cy="80" r="30" fill="#faf8f4" stroke="#e4dfd4" stroke-width="1.5" />
+            </svg>
+            <div class="orbit-pct">${Math.round(pct)}<small>%</small></div>
+          </div>
+          <h2 class="loader-title">正在转换 PPTX</h2>
+          <p class="loader-subtitle">${info.stage.desc}</p>
+          <div class="progress-meta" style="width:100%; justify-content:center; gap:14px;">
+            <span>阶段：<strong>${info.stage.label}</strong></span>
+            <span>·</span>
+            <span>已准备 <strong>${info.pagesReady} / ${TOTAL_PAGES}</strong> 页</span>
+          </div>
+          <p class="loader-tip">${TIPS[tipIndex]}</p>
+        </section>
+      `;
+    }
+
+    function renderPlanAB(pct, info) {
+      return `
+        <section class="loader-card combo-card">
+          <span class="plan-tag recommend">推荐 · A + B 组合</span>
+          ${awakeSvg()}
+          <h2 class="loader-title">正在将 PPTX 转为万象活页</h2>
+          <p class="loader-subtitle">${info.stage.desc}</p>
+          ${stepsHtml(info.stageIdx)}
+          ${progressHtml(pct, info.stage, info.pagesReady)}
+          ${matrixHtml(info.pagesReady)}
+          <p class="loader-tip">${TIPS[tipIndex]}</p>
+        </section>
+      `;
+    }
+
+    const wrap = document.getElementById('stageWrap');
+    const slider = document.getElementById('progressSlider');
+    const text = document.getElementById('progressText');
+    const toggleBtn = document.getElementById('togglePlay');
+
+    function render() {
+      const info = currentStageInfo(progress);
+      slider.value = Math.round(progress);
+      text.textContent = Math.round(progress) + '%';
+      wrap.className = mode === 'all' ? 'stage-wrap grid-mode' : 'stage-wrap';
+      if (mode === 'a') wrap.innerHTML = renderPlanA(progress, info);
+      else if (mode === 'b') wrap.innerHTML = renderPlanB(progress, info);
+      else if (mode === 'c') wrap.innerHTML = renderPlanC(progress, info);
+      else if (mode === 'ab') wrap.innerHTML = renderPlanAB(progress, info);
+      else wrap.innerHTML = renderPlanAB(progress, info) + renderPlanA(progress, info) + renderPlanB(progress, info) + renderPlanC(progress, info);
+    }
+
+    document.querySelectorAll('.tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        mode = btn.dataset.mode;
+        render();
+      });
+    });
+
+    slider.addEventListener('input', () => {
+      playing = false;
+      toggleBtn.textContent = '▶ 继续模拟';
+      progress = Number(slider.value);
+      render();
+    });
+
+    toggleBtn.addEventListener('click', () => {
+      playing = !playing;
+      toggleBtn.textContent = playing ? '⏸ 暂停模拟' : '▶ 继续模拟';
+    });
+
+    document.getElementById('replayBtn').addEventListener('click', () => {
+      progress = 0;
+      playing = true;
+      toggleBtn.textContent = '⏸ 暂停模拟';
+      render();
+    });
+
+    setInterval(() => {
+      if (!playing) return;
+      progress = progress >= 100 ? 0 : progress + 1.2;
+      render();
+    }, 180);
+
+    setInterval(() => {
+      tipIndex = (tipIndex + 1) % TIPS.length;
+    }, 4500);
+
+    render();
+  </script>
+</body>
+</html>

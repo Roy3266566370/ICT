@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { ScenePage } from '@/document/types';
+import type { ThumbnailRailItem } from './ThumbnailRail';
 import type { DeckPage } from './DeckPlayer';
 import { pageDisplayUrl } from './pageUrls';
 import { SceneThumbnail } from './ThumbnailRail';
 import styles from './DeckPlayer.module.css';
 
-export function PresenterDock({notes, next, scene}: {notes?: string; next?: DeckPage; scene?: ScenePage}) {
+export function PresenterDock({notes, next, preview}: {notes?: string; next?: DeckPage; preview?: ThumbnailRailItem}) {
+  const scene=preview?.scene;
   const [started, setStarted] = useState(() => Date.now());
   const [now, setNow] = useState(started);
   useEffect(() => {
@@ -22,7 +23,7 @@ export function PresenterDock({notes, next, scene}: {notes?: string; next?: Deck
     <section>
       <h2>下一页</h2>
       {scene?.preparation?.status === 'ready' && (scene.modified || !next?.image_url)
-        ? <div className={styles.presenterPreview} style={{aspectRatio: scene.width / scene.height}}><SceneThumbnail page={scene}/></div>
+        ? <div className={styles.presenterPreview} style={{aspectRatio: scene.width / scene.height}}><SceneThumbnail page={scene} master={preview?.master}/></div>
         : next?.image_url ? <img src={pageDisplayUrl(next.image_url, next.render_bytes)} alt={next.title ?? '下一页预览'}/>
         : <p>{next ? next.title ?? '下一页画面尚未就绪' : '已到最后一页'}</p>}
     </section>

@@ -17,8 +17,8 @@ const WORKSHOP_TEMPLATES = [
   { label: '斜率场与 RK4', to: '/canvas?template=ch07-ode-dynamics' },
   { label: '积分与 FTC', to: '/canvas?template=ch04-integrals' },
   { label: 'CPU 调度', to: '/canvas?template=os01-process-sched' },
-  { label: '梯度下降', to: '/canvas?template=dlOptimizer' },
-  { label: '树·哈夫曼·AVL', to: '/canvas?template=ds02-trees' },
+  { label: '梯度下降', to: '/canvas?template=dl-mlp-backprop' },
+  { label: '树 · 哈夫曼 · AVL', to: '/canvas?template=ds02-trees' },
 ] as const;
 
 const HOME_SCROLL_KEY = 'xiangsheng.home.scrollY';
@@ -99,8 +99,8 @@ export function HomePage(): JSX.Element {
                     <p className="eyebrow cta-eyebrow--dark">
                       <span className="sec-no cta-secno--teal">TRACK A</span> 从定象坊出发
                     </p>
-                    <h3>搭一个能亲手推演的活仪器</h3>
-                    <p>挑选学科模板或空白画布，连线、调参、封装成你的第一块可复用积木与活页插件。</p>
+                    <h3>搭一个可交互的实验</h3>
+                    <p>从模板或空白画布开始，连线、调参，把实验封装成可复用的积木。</p>
                   </div>
                   <div className="cta-chips">
                     {WORKSHOP_TEMPLATES.map((tpl) => (
@@ -125,8 +125,8 @@ export function HomePage(): JSX.Element {
                     <p className="eyebrow">
                       <span className="sec-no">TRACK B</span> 从通文册出发
                     </p>
-                    <h3>把手头现成的课件变成活页</h3>
-                    <p>拖入你已有的 PPTX、PDF 或讲义图片，保留原有版式，几分钟内挂载定象坊交互仪器。</p>
+                    <h3>让现有课件可以交互</h3>
+                    <p>拖入你已有的 PPTX、PDF 或讲义图片，保留原有版式，几分钟内挂载<span className="keep-together">定象坊插件</span>。</p>
                   </div>
                   <button type="button" className="drop-zone" onClick={openUpload}>
                     <span className="file-badges">

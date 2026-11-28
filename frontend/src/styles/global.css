@@ -160,7 +160,7 @@ samp {
   --ink-900: #101211;
   --ink-700: #34372f;
   --ink-500: #5f6257;
-  --ink-400: #7f8175;
+  --ink-400: #656a5e;
   --ink-300: #9a9b8f;
 
   --hairline: #d8d3c4;
@@ -303,3 +303,5 @@ samp {
   color: var(--color-warn);
   line-height: 1.2;
 }
+
+.keep-together { white-space: nowrap; }

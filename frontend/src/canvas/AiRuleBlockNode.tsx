@@ -9,7 +9,7 @@ import {
   serializeAiRulePayload,
   type AiRuleBlockPayload,
 } from './aiRuleBlock.ts';
-import { ruleAuxiliaryOutputs, ruleUpstream, upstreamHint } from './aiRulePorts.ts';
+import { ruleAuxiliaryOutputs, ruleNamedInputs, upstreamHint } from './aiRulePorts.ts';
 import { runRuleInSandbox } from './ruleSandbox.ts';
 import { saveCustomAiRuleBlock } from './customBlocks.ts';
 import { PipelineFrameDetails } from './Lab408PipelineNode.tsx';
@@ -37,17 +37,19 @@ export async function verifyAiRulePayload(
   params?: Record<string, number>,
   text?: string,
   upstream: Record<string, unknown>[] = [],
+  inputs: Record<string, unknown> = {},
 ): Promise<string> {
   const effectiveText = text ?? payload.defaultText ?? '';
   const base = { ...defaultAiRuleParams(payload), ...(params ?? {}) };
   try {
-    const run = await runRuleInSandbox(payload.code, { text: effectiveText, params: base, upstream });
+    const run = await runRuleInSandbox(payload.code, { text: effectiveText, params: base, upstream, inputs });
     if (run.result.frames.length < 1) return '规则至少需要返回 1 帧数据';
     for (const preset of payload.presets ?? []) {
       await runRuleInSandbox(payload.code, {
         text: preset.text ?? effectiveText,
         params: { ...base, ...preset.params },
         upstream,
+        inputs,
       });
     }
     return '';
@@ -60,10 +62,12 @@ export function AiRuleLive({ node, values, onLive }: Pick<NodeBodyProps, 'node' 
   const payload = useMemo(() => parseAiRulePayload(node.payload) ?? defaultAiRulePayload(), [node.payload]);
   const liveRef = useRef(onLive);
   liveRef.current = onLive;
+  const named = ruleNamedInputs(values, payload);
   const signature = JSON.stringify({
     text: node.text ?? payload.defaultText ?? '',
     params: payloadParams(node, payload),
-    upstream: ruleUpstream(values, payload.sampleProfile),
+    upstream: named.upstream,
+    inputs: named.inputs,
   });
   const pending = useRef<{ signature: string; payload: AiRuleBlockPayload } | null>(null);
   const currentPayload = useRef(payload);
@@ -88,13 +92,13 @@ export function AiRuleLive({ node, values, onLive }: Pick<NodeBodyProps, 'node' 
         while (mounted.current && pending.current) {
           const request = pending.current;
           pending.current = null;
-          const { code, title, controls } = request.payload;
+          const { code, title, controls, outputs: declaredOutputs } = request.payload;
           let outputs: Record<string, PortValue>;
           try {
             const next = await runRuleInSandbox(code, JSON.parse(request.signature) as Parameters<typeof runRuleInSandbox>[1]);
             outputs = {
               out: { kind: 'customFrames', title, controls, result: next.result, elapsedMs: next.elapsedMs },
-              ...ruleAuxiliaryOutputs(next.result, title),
+              ...ruleAuxiliaryOutputs(next.result, title, declaredOutputs, controls, next.elapsedMs),
             };
           } catch (cause) {
             const error = cause instanceof Error ? cause.message : '规则执行失败';
@@ -123,7 +127,8 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
   const result = props.self?.kind === 'customFrames' ? props.self : null;
   const error = result?.error;
   const busy = result === null;
-  const upstream = () => ruleUpstream(props.values, payload.sampleProfile);
+  const namedInputs = () => ruleNamedInputs(props.values, payload);
+  const upstream = () => namedInputs().upstream;
 
   // 画布卡片极简播放进度条状态
   const frames = result?.result.frames ?? [];
@@ -179,7 +184,7 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
         setGenerating(false);
         return;
       }
-      const failure = await verifyAiRulePayload(next, payloadParams(node, next), node.text ?? next.defaultText, upstream());
+      const failure = await verifyAiRulePayload(next, payloadParams(node, next), node.text ?? next.defaultText, namedInputs().upstream, namedInputs().inputs);
       if (!failure) {
         savePayload(next);
         onParams?.(defaultAiRuleParams(next));
@@ -199,7 +204,7 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
     if (!onPayload) return;
     try {
       const next = normalizeAiRulePayload({ ...payload, code: codeDraft });
-      const failure = await verifyAiRulePayload(next, payloadParams(node, next), node.text ?? next.defaultText, upstream());
+      const failure = await verifyAiRulePayload(next, payloadParams(node, next), node.text ?? next.defaultText, namedInputs().upstream, namedInputs().inputs);
       if (failure) {
         setApplyError(failure);
         return;
@@ -224,6 +229,10 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
   };
 
   const activeFrame = frames[Math.min(frameIndex, lastFrame)];
+  const frameSummary = activeFrame?.summary?.replace(
+    /y′=−3y · h=([\d.]+) · t=4 绝对误差 Euler \/ 中点 \/ RK4：([\w.+-]+) \/ ([\w.+-]+) \/ ([\w.+-]+)/,
+    'y′ = −3y · h = $1 · t = 4 时的绝对误差：Euler\u00a0$2，中点\u00a0$3，RK4\u00a0$4',
+  );
   const selectPreset = (preset: NonNullable<AiRuleBlockPayload['presets']>[number]) => {
     if (props.onRulePreset) props.onRulePreset(preset);
     else {
@@ -237,12 +246,11 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
     return (
       <div className={styles.aiCardShell}>
         <div className={styles.aiCardHeader}>
-          <span className={styles.aiCardTitle}>{payload.title || '自建智能积木'}</span>
           <div className={styles.tagRow}>
             <span className={styles.tag}>{VIEW_LABELS[payload.preferredView]}</span>
             {props.upstreamLabel && <span className={styles.tag} title={props.upstreamLabel}>已接入上游数据</span>}
             <span className={styles.tag}>
-              {busy ? '计算中…' : error ? '试跑失败' : result ? `✓ ${frames.length}帧` : '就绪'}
+              {busy ? '计算中…' : error ? '试跑失败' : result ? `✓ ${frames.length} 帧` : '就绪'}
             </span>
           </div>
         </div>
@@ -251,7 +259,7 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
           {error ? (
             <Notice>{error}</Notice>
           ) : activeFrame ? (
-            <PipelineFrameDetails frame={activeFrame} compact showSummary={false} />
+            <PipelineFrameDetails frame={activeFrame} compact showTitle={activeFrame.title !== payload.title} showSummary={false} />
           ) : (
             <Notice>{busy ? '正在沙箱中计算画面…' : '暂无可展示帧'}</Notice>
           )}
@@ -303,8 +311,8 @@ export function AiRuleBlockBody(props: NodeBodyProps): JSX.Element {
           </select>
         )}
 
-        {activeFrame?.summary ? (
-          <p className={styles.aiCardSummary}>{activeFrame.summary}</p>
+        {frameSummary ? (
+          <p className={styles.aiCardSummary} data-error-summary={frameSummary.includes('t = 4 时的绝对误差') || undefined}>{frameSummary}</p>
         ) : payload.summary ? (
           <p className={styles.aiCardSummary}>{payload.summary}</p>
         ) : null}

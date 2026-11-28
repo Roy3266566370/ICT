@@ -80,7 +80,7 @@ test('办公决策全景插件可在真实课件中保存、放映、断网播�
   await page.locator('summary[aria-label="导出与分享"]').click();
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: '下载离线交互网页' }).click(),
+    page.getByRole('button', { name: '下载离线交互课件（.html，可播可导回）' }).click(),
   ]);
   const htmlPath = testInfo.outputPath('business-panorama-deck.html');
   await download.saveAs(htmlPath);

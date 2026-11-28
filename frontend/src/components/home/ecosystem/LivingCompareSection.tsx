@@ -94,7 +94,7 @@ export function LivingCompareSection(): JSX.Element {
             <h2>拉动中间手柄，<br />看静态 PPT 如何当场“复活”。</h2>
           </div>
           <p>
-            不用重做整套课件。保留你原本的页面结构，把写死的截图原地替换成定象坊活仪器——课堂上不用切软件，拖动滑杆就能现场回应追问。
+            不用重做整套课件。保留你原本的页面结构，把静态截图换成<span className="keep-together">定象坊插件</span>。课堂上拖动滑杆，就能现场回应追问。
           </p>
         </header>
 
@@ -187,7 +187,7 @@ export function LivingCompareSection(): JSX.Element {
 
           <div className="compare-hint">
             <span><strong>原稿保真</strong>：不破坏原有 PPTX / PDF 排版</span>
-            <span><strong>三种形态</strong>：完整仪表台 / 精简调参 / 纯舞台浮层</span>
+            <span><strong>三种形态</strong>：完整驾驶舱 / 精简调参 / 纯舞台浮层</span>
             <span><strong>离线演播</strong>：导出单文件 HTML，教室断网照常推演</span>
           </div>
         </div>

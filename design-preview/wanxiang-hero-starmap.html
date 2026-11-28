@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>万象 · 首屏星图预览</title>
+<style>
+  :root {
+    --paper: #f2f0e8;
+    --paper-0: #fbf9f2;
+    --paper-1: #f6f3ea;
+    --ink-900: #101211;
+    --ink-700: #34372f;
+    --ink-500: #5f6257;
+    --ink-400: #7f8175;
+    --hairline: #d8d3c4;
+    --hairline-soft: rgb(16 18 17 / 10%);
+    --cobalt: #1c2ecb;
+    --cinnabar: #de421f;
+    --cinnabar-ink: #ac2c10;
+    --serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif;
+    --sans: 'Inter', 'HarmonyOS Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+    --ease: cubic-bezier(.2, .7, .2, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink-900); font-family: var(--sans); }
+
+  .hero {
+    position: relative;
+    min-height: max(100vh, 720px);
+    overflow: hidden;
+    isolation: isolate;
+  }
+  #map {
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 38%;
+    width: calc(62% + 8vw);
+    height: 100%;
+    z-index: 0;
+    display: block;
+  }
+  #flow { position: absolute; inset: 0; z-index: 1; pointer-events: none; overflow: visible; }
+
+  .copy {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: min(46%, 640px);
+    min-height: max(100vh, 720px);
+    padding: 88px 0 72px clamp(24px, 6vw, 112px);
+  }
+  .source {
+    margin: 0 0 28px;
+    color: var(--ink-500);
+    font: 400 14px/1.4 var(--serif);
+  }
+  .source span { color: var(--ink-400); font-family: var(--sans); font-size: 12px; margin-left: 8px; }
+
+  h1 {
+    margin: 0;
+    font: 600 clamp(56px, 6.3vw, 108px)/1.18 var(--serif);
+    letter-spacing: .02em;
+  }
+  h1 .line { display: block; white-space: nowrap; }
+  /* 「定象」落在田字格里：被量过、定下来的形 */
+  .grid {
+    position: relative;
+    display: inline-block;
+  }
+  .grid::before {
+    content: '';
+    position: absolute;
+    inset: .1em -.01em .02em;
+    z-index: -1;
+    border: 1px solid rgb(16 18 17 / 20%);
+    background:
+      repeating-linear-gradient(to right, rgb(16 18 17 / 22%) 0 4px, transparent 4px 8px) center / 100% 1px no-repeat,
+      repeating-linear-gradient(to bottom, rgb(16 18 17 / 22%) 0 4px, transparent 4px 8px) center / 1px 100% no-repeat;
+  }
+  .grid + .grid::before { border-left: 0; }
+  .dim {
+    position: absolute;
+    left: 0; right: 0; top: -.04em;
+    height: 9px;
+    border-left: 1px solid var(--ink-400);
+    border-right: 1px solid var(--ink-400);
+    pointer-events: none;
+  }
+  .dim::before { content: ''; position: absolute; left: 0; right: 0; top: 4px; border-top: 1px solid var(--ink-400); }
+  .dim span {
+    position: absolute; left: 50%; top: -9px; transform: translateX(-50%);
+    padding: 0 6px; background: var(--paper);
+    color: var(--ink-400); font: 400 11px/1 var(--mono); letter-spacing: 0; white-space: nowrap;
+  }
+  .fixed { position: relative; display: inline-block; }
+  .huo { color: var(--cinnabar); }
+
+  .formula {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 26px 0 0;
+    color: var(--ink-500);
+    font: 400 13px/1 var(--mono);
+  }
+  .formula output { min-width: 3.5ch; color: var(--cinnabar-ink); font-variant-numeric: tabular-nums; }
+  .formula label { display: flex; align-items: center; gap: 10px; }
+  input[type='range'] {
+    appearance: none;
+    width: 140px; height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(to right, var(--cinnabar) var(--fill, 40%), var(--hairline) var(--fill, 40%));
+    cursor: pointer;
+  }
+  input[type='range']::-webkit-slider-thumb {
+    appearance: none; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--cinnabar); border: 2px solid var(--paper); box-shadow: 0 0 0 1px var(--cinnabar);
+  }
+  input[type='range']::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: var(--cinnabar); border: 2px solid var(--paper); }
+  input[type='range']:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 6px; }
+  .formula small { color: var(--ink-400); font-family: var(--sans); font-size: 12px; }
+
+  .sub {
+    margin: 40px 0 0;
+    font: 500 22px/1.5 var(--serif);
+    color: var(--ink-900);
+  }
+  .lede {
+    max-width: 30em;
+    margin: 12px 0 0;
+    color: var(--ink-700);
+    font-size: 15px;
+    line-height: 1.8;
+  }
+  .lede b { font-weight: 600; color: var(--ink-900); }
+
+  .actions { display: flex; gap: 12px; margin-top: 32px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 44px; padding: 0 20px;
+    border: 1px solid var(--ink-900); border-radius: 10px;
+    font: 500 15px var(--sans); text-decoration: none;
+    transition: background-color .15s var(--ease), color .15s var(--ease), transform .1s var(--ease);
+  }
+  .btn:active { transform: scale(.98); }
+  .btn--dark { background: var(--ink-900); color: var(--paper-0); }
+  .btn--dark:hover { background: #2a2d27; }
+  .btn--quiet { background: transparent; color: var(--ink-900); border-color: var(--hairline); }
+  .btn--quiet:hover { background: var(--paper-1); border-color: var(--ink-400); }
+  .btn:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 3px; }
+
+  .facts {
+    display: grid; grid-template-columns: repeat(3, auto); justify-content: start; gap: 0 48px;
+    margin: 44px 0 0; padding-top: 22px; border-top: 1px solid var(--hairline);
+  }
+  .facts dt { font: 600 17px var(--serif); }
+  .facts dd { margin: 6px 0 0; color: var(--ink-500); font-size: 13px; }
+
+  /* 星图读数 */
+  .readout {
+    position: absolute; z-index: 2;
+    right: clamp(20px, 3vw, 48px); bottom: 28px;
+    display: flex; align-items: center; gap: 18px;
+    color: var(--ink-500); font: 400 12px/1.4 var(--mono);
+  }
+  .readout strong { color: var(--ink-900); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .readout .note { color: var(--ink-400); font-family: var(--sans); }
+  .readout button {
+    height: 30px; padding: 0 12px;
+    border: 1px solid var(--hairline); border-radius: 8px;
+    background: var(--paper-0); color: var(--ink-700);
+    font: 400 12px var(--sans); cursor: pointer;
+    transition: border-color .15s var(--ease), color .15s var(--ease);
+  }
+  .readout button:hover:not(:disabled) { border-color: var(--ink-400); color: var(--ink-900); }
+  .readout button:disabled { opacity: .45; cursor: default; }
+
+  /* 学科卡：悬停或轮播时出现 */
+  .card {
+    position: absolute; z-index: 3;
+    width: 236px;
+    padding: 14px 14px 12px;
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--paper-0) 94%, transparent);
+    box-shadow: 0 1px 2px rgb(16 18 17 / 5%), 0 12px 28px rgb(16 18 17 / 7%);
+    opacity: 0;
+    transform: translateY(4px);
+    pointer-events: none;
+    transition: opacity .22s var(--ease), transform .22s var(--ease);
+  }
+  .card[data-open] { opacity: 1; transform: none; pointer-events: auto; }
+  .card header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .card h3 { margin: 0; font: 600 16px var(--serif); }
+  .card header span { color: var(--ink-400); font: 400 12px var(--mono); }
+  .card p { margin: 6px 0 0; color: var(--ink-500); font-size: 12px; }
+  .card code { display: block; margin-top: 8px; color: var(--ink-900); font: 400 13px var(--mono); }
+  .card svg { display: block; width: 100%; height: auto; margin-top: 10px; border-top: 1px solid var(--hairline-soft); padding-top: 8px; }
+  .card a { display: inline-block; margin-top: 8px; color: var(--cobalt); font-size: 12px; text-decoration: none; }
+  .card a:hover { text-decoration: underline; }
+  .card path.draw { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); animation: draw .7s var(--ease) forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  .enter { animation: rise .7s var(--ease) both; }
+  .enter:nth-child(2) { animation-delay: .06s; }
+  .enter:nth-child(3) { animation-delay: .12s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+
+  @media (max-width: 960px) {
+    .hero { min-height: auto; display: flex; flex-direction: column; }
+    .copy { order: 1; }
+    #map { order: 2; }
+    .readout { order: 3; }
+    .formula { flex-wrap: wrap; gap: 10px 14px; }
+    .copy { width: auto; min-height: auto; padding: 64px 24px 24px; }
+    h1 { font-size: clamp(44px, 12vw, 72px); }
+    #map { position: relative; left: 0; width: 100%; height: 520px; }
+    #flow { display: none; }
+    .readout { position: relative; right: auto; bottom: auto; padding: 0 24px 32px; flex-wrap: wrap; }
+    .facts { grid-template-columns: 1fr; gap: 16px; }
+    .card { width: 210px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .enter, .card path.draw { animation: none; stroke-dashoffset: 0; }
+    .card { transition: none; }
+  }
+</style>
+</head>
+<body>
+<section class="hero" id="hero">
+  <canvas id="map" aria-label="万象星图：中心是计算内核，每个星团是一个学科，每个点代表约四块积木" role="img"></canvas>
+  <svg id="flow" aria-hidden="true"><path id="flowPath" fill="none" stroke="#de421f" stroke-width="1.6" stroke-linecap="round" /></svg>
+
+  <div class="copy">
+    <p class="source enter">立象以尽意<span>《周易 · 系辞上》</span></p>
+    <h1 class="enter">
+      <span class="line">一式<span class="fixed"><span class="grid">定</span><span class="grid">象</span><span class="dim"><span>定形</span></span></span>，</span>
+      <span class="line">万象皆<span class="huo" id="huo">活</span></span>
+    </h1>
+    <div class="formula enter">
+      <span>f(t) = e<sup>−3t</sup> · sin(ωt)</span>
+      <label>ω <input id="omega" type="range" min="2" max="14" step="0.1" value="6" aria-label="角频率 ω" /></label>
+      <output id="omegaOut">6.0</output>
+      <small>拖动 ω 重算</small>
+    </div>
+
+    <p class="sub">在工坊造活仪器，在活页把课讲活。</p>
+    <p class="lede"><b>定象坊</b>把公式、算法与沙盘连成可调参的真实计算模型；<b>通文册</b>把静态 PPT 与 PDF 变成能现场推演的动态课件。一次建模，随处嵌入。</p>
+    <div class="actions">
+      <a class="btn btn--dark" href="#">进入定象坊 <span aria-hidden="true">↗</span></a>
+      <a class="btn btn--quiet" href="#">把课件做成活页 <span aria-hidden="true">↗</span></a>
+    </div>
+    <dl class="facts">
+      <div><dt>真内核</dt><dd>实时数值与符号计算</dd></div>
+      <div><dt>双向贯通</dt><dd>工坊与活页一键互转</dd></div>
+      <div><dt>离线可演</dt><dd>单文件断网照常推演</dd></div>
+    </dl>
+  </div>
+
+  <aside class="card" id="card" aria-live="polite">
+    <header><h3 id="cardTitle"></h3><span id="cardCount"></span></header>
+    <p id="cardTpl"></p>
+    <code id="cardFormula"></code>
+    <svg id="cardCurve" viewBox="0 0 200 84" role="img"></svg>
+    <a href="#" id="cardLink">打开代表模板 →</a>
+  </aside>
+
+  <div class="readout" aria-live="polite">
+    <span><strong id="blocks">0</strong> 块积木 · <strong id="subjects">0</strong> 个学科 · 持续生长</span>
+    <span class="note">每点 ≈ 4 块积木</span>
+    <button type="button" id="addSubject">＋ 新增一个学科（演示）</button>
+  </div>
+</section>
+
+<script>
+(() => {
+  const css = getComputedStyle(document.documentElement);
+  const C = {
+    ink: css.getPropertyValue('--ink-900').trim(),
+    ink500: css.getPropertyValue('--ink-500').trim(),
+    ink400: css.getPropertyValue('--ink-400').trim(),
+    cobalt: css.getPropertyValue('--cobalt').trim(),
+    cinnabar: css.getPropertyValue('--cinnabar').trim(),
+    paper: css.getPropertyValue('--paper').trim(),
+  };
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+  const PER_POINT = 4;
+
+  /* ---------- 代表曲线：全部是现场计算的真实函数 ---------- */
+  const X0 = 10, X1 = 190, Y0 = 8, Y1 = 76;
+  const sx = (v, a, b) => X0 + (v - a) / (b - a) * (X1 - X0);
+  const sy = (v, a, b) => Y1 - (v - a) / (b - a) * (Y1 - Y0);
+  const clampY = (y) => Math.max(Y0 - 4, Math.min(Y1 + 4, y));
+  const fnPath = (f, a, b, lo, hi, n = 90) => Array.from({ length: n + 1 }, (_, i) => {
+    const x = a + (b - a) * i / n;
+    return (i ? 'L' : 'M') + sx(x, a, b).toFixed(1) + ' ' + clampY(sy(f(x), lo, hi)).toFixed(1);
+  }).join('');
+  const ptsPath = (pts) => pts.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1)).join('');
+  const axis = (y = (Y0 + Y1) / 2) => `<path d="M${X0} ${y}H${X1}" stroke="#d8d3c4" />`;
+  const ref = (d, dashed = true) => `<path d="${d}" fill="none" stroke="${C.ink400}" stroke-width="1.2" ${dashed ? 'stroke-dasharray="3 3"' : ''} />`;
+  const live = (d) => `<path class="draw" d="${d}" fill="none" stroke="${C.cinnabar}" stroke-width="1.8" stroke-linecap="round" />`;
+  const dot = (x, y, color = C.cinnabar) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="${color}" />`;
+
+  const curves = {
+    taylor() {
+      const p5 = (x) => x - x ** 3 / 6 + x ** 5 / 120;
+      return axis() + ref(fnPath(Math.sin, -Math.PI * 1.25, Math.PI * 1.25, -1.6, 1.6), false)
+        + live(fnPath(p5, -Math.PI * 1.25, Math.PI * 1.25, -1.6, 1.6));
+    },
+    linalg() {
+      const A = [[1.45, .55], [.25, .7]];
+      const ring = (m) => Array.from({ length: 73 }, (_, i) => {
+        const t = i / 72 * Math.PI * 2, x = Math.cos(t), y = Math.sin(t);
+        const [u, v] = m ? [A[0][0] * x + A[0][1] * y, A[1][0] * x + A[1][1] * y] : [x, y];
+        return [100 + u * 34, 42 - v * 26];
+      });
+      return axis() + `<path d="M100 8V76" stroke="#d8d3c4" />` + ref(ptsPath(ring(false))) + live(ptsPath(ring(true)))
+        + `<path d="M100 42L${100 + A[0][0] * 34} ${42 - A[1][0] * 26}" stroke="${C.ink}" stroke-width="1.4" />`
+        + `<path d="M100 42L${100 + A[0][1] * 34} ${42 - A[1][1] * 26}" stroke="${C.ink}" stroke-width="1.4" />`;
+    },
+    projectile() {
+      const fly = (k) => {
+        let x = 0, y = 0, vx = 18 * Math.cos(.96), vy = 18 * Math.sin(.96); const out = [];
+        for (let i = 0; i < 400 && y >= 0; i++) { out.push([x, y]); const dt = .02; vx -= k * vx * dt; vy -= (9.8 + k * vy) * dt; x += vx * dt; y += vy * dt; }
+        return out;
+      };
+      const map = (pts) => pts.map(([x, y]) => [sx(x, 0, 33), sy(y, 0, 11.5)]);
+      return `<path d="M${X0} ${Y1}H${X1}" stroke="#d8d3c4" />` + ref(ptsPath(map(fly(0)))) + live(ptsPath(map(fly(.28))));
+    },
+    tree() {
+      const nodes = [[100, 12], [56, 36], [144, 36], [32, 62], [80, 62], [120, 62], [168, 62]];
+      const edges = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]];
+      const order = [0, 1, 3, 4, 2, 5, 6];
+      const visit = ptsPath(order.slice(0, 4).map((i) => nodes[i]));
+      return edges.map(([a, b]) => `<path d="M${nodes[a][0]} ${nodes[a][1]}L${nodes[b][0]} ${nodes[b][1]}" stroke="${C.ink400}" />`).join('')
+        + live(visit)
+        + nodes.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="6" fill="${order.indexOf(i) < 4 ? C.cinnabar : '#fbf9f2'}" stroke="${order.indexOf(i) < 4 ? C.cinnabar : C.ink400}" />`).join('');
+    },
+    optimizer() {
+      let x = -2.3, y = .72; const path = [];
+      for (let i = 0; i < 18; i++) { path.push([sx(x, -2.6, 2.6), sy(y, -1.15, 1.15)]); x -= .2 * x; y -= .2 * 8 * y; }
+      const rings = [.6, 1.2, 1.8, 2.4, 3, 3.6].map((r) => `<ellipse cx="100" cy="42" rx="${r / 2.6 * 90}" ry="${r / Math.sqrt(8) / 1.15 * 34}" fill="none" stroke="#d8d3c4" />`).join('');
+      return rings + live(ptsPath(path)) + dot(100, 42, C.ink);
+    },
+    breakeven() {
+      const rev = (q) => q, cost = (q) => .32 + .42 * q, q0 = .32 / .58;
+      return `<path d="M${X0} ${Y1}H${X1}" stroke="#d8d3c4" />` + ref(fnPath(cost, 0, 1, 0, 1), false) + live(fnPath(rev, 0, 1, 0, 1))
+        + `<path d="M${sx(q0, 0, 1)} ${Y1}V${sy(rev(q0), 0, 1)}" stroke="${C.ink400}" stroke-dasharray="2 3" />` + dot(sx(q0, 0, 1), sy(rev(q0), 0, 1));
+    },
+    normal() {
+      const pdf = (x) => Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI);
+      const n = 12; let bars = '';
+      for (let k = 0; k <= n; k++) {
+        const c = [1, 12, 66, 220, 495, 792, 924, 792, 495, 220, 66, 12, 1][k] / 4096;
+        const z = (k - 6) / Math.sqrt(3), w = (X1 - X0) / 14;
+        const h = c * Math.sqrt(3) / .45 * (Y1 - Y0);
+        bars += `<rect x="${(sx(z, -3.6, 3.6) - w / 2).toFixed(1)}" y="${(Y1 - h).toFixed(1)}" width="${(w - 2).toFixed(1)}" height="${h.toFixed(1)}" fill="${C.ink}" opacity=".1" />`;
+      }
+      return `<path d="M${X0} ${Y1}H${X1}" stroke="#d8d3c4" />` + bars + live(fnPath(pdf, -3.6, 3.6, 0, .45));
+    },
+    titration() {
+      const ph = (v) => 7 + 5.2 * Math.tanh((v - 25) / 1.8) + .06 * (v - 25);
+      return axis(sy(7, 0, 14)) + live(fnPath(ph, 0, 50, 0, 14, 160)) + dot(sx(25, 0, 50), sy(7, 0, 14));
+    },
+    logistic() {
+      const K = 100, r = .55, n0 = 4;
+      return `<path d="M${X0} ${sy(K, 0, 120)}H${X1}" stroke="#d8d3c4" stroke-dasharray="2 3" />`
+        + ref(fnPath((t) => n0 * Math.exp(r * t), 0, 16, 0, 120)) + live(fnPath((t) => K / (1 + (K / n0 - 1) * Math.exp(-r * t)), 0, 16, 0, 120));
+    },
+    fourier() {
+      const sq = (t) => Math.sign(Math.sin(t)) || 1;
+      const sum = (t) => 4 / Math.PI * [1, 3, 5, 7].reduce((s, k) => s + Math.sin(k * t) / k, 0);
+      return axis() + ref(fnPath(sq, 0, 4 * Math.PI, -1.5, 1.5, 240)) + live(fnPath(sum, 0, 4 * Math.PI, -1.5, 1.5, 240));
+    },
+    regression() {
+      let s = 7; const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+      const pts = Array.from({ length: 22 }, (_, i) => { const x = i / 21; return [x, .15 + .65 * x + (rnd() - .5) * .28]; });
+      const mx = pts.reduce((a, p) => a + p[0], 0) / pts.length, my = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+      const b = pts.reduce((a, [x, y]) => a + (x - mx) * (y - my), 0) / pts.reduce((a, [x]) => a + (x - mx) ** 2, 0);
+      return `<path d="M${X0} ${Y1}H${X1}" stroke="#d8d3c4" />`
+        + pts.map(([x, y]) => `<circle cx="${sx(x, 0, 1).toFixed(1)}" cy="${sy(y, 0, 1).toFixed(1)}" r="2" fill="${C.ink}" opacity=".45" />`).join('')
+        + live(fnPath((x) => my + b * (x - mx), 0, 1, 0, 1, 2));
+    },
+  };
+
+  /* ---------- 学科数据（示例数量）与可继续生长的候选学科 ---------- */
+  const subjects = [
+    { name: '高等数学', count: 38, tpl: 'Taylor 展开与余项', formula: 'f(x) = Pₙ(x) + Rₙ(x)', curve: 'taylor' },
+    { name: '线性代数', count: 22, tpl: '用空间视角理解矩阵运算', formula: 'y = Ax', curve: 'linalg' },
+    { name: '大学物理', count: 41, tpl: '理想与阻力抛体', formula: 'm·dv/dt = mg − kv', curve: 'projectile' },
+    { name: '408 专题', count: 56, tpl: '二叉树遍历', formula: '前序 · 中序 · 后序 · 层序', curve: 'tree' },
+    { name: '深度学习', count: 47, tpl: '优化器 · 四种地形赛跑', formula: 'θₜ₊₁ = θₜ − η · ∇L', curve: 'optimizer' },
+    { name: '办公决策', count: 24, tpl: '经营盈亏平衡与定价沙盘', formula: 'Q* = 固定成本 ÷ 单位毛利', curve: 'breakeven' },
+  ];
+  const candidates = [
+    { name: '概率统计', count: 19, tpl: '中心极限定理沙盘', formula: 'X̄ ~ N(μ, σ²/n)', curve: 'normal' },
+    { name: '分析化学', count: 12, tpl: '酸碱滴定曲线', formula: 'pH = pKₐ + lg([A⁻]/[HA])', curve: 'titration' },
+    { name: '生物数学', count: 9, tpl: '种群 Logistic 增长', formula: 'dN/dt = rN(1 − N/K)', curve: 'logistic' },
+    { name: '信号处理', count: 16, tpl: '方波的傅里叶逼近', formula: 'f(t) = Σ sin((2k−1)t)/(2k−1)', curve: 'fourier' },
+    { name: '计量经济', count: 11, tpl: '最小二乘回归', formula: 'β̂ = (XᵀX)⁻¹Xᵀy', curve: 'regression' },
+  ];
+
+  /* ---------- 画布与布局 ---------- */
+  const hero = document.getElementById('hero');
+  const canvas = document.getElementById('map');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, cx = 0, cy = 0, scale = 1, dpr = 1;
+  let seed = 11;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+  const born = performance.now();
+  subjects.forEach((s, i) => { s.bornAt = born + 200 + i * 140; });
+
+  function buildPoints(s, index) {
+    const n = Math.max(3, Math.ceil(s.count / PER_POINT));
+    const spin = rand() * Math.PI * 2;
+    s.points = Array.from({ length: n }, (_, j) => {
+      const r = Math.sqrt((j + .5) / n) * (.86 + rand() * .28);
+      const a = j * GOLDEN + spin;
+      return { u: Math.cos(a) * r, v: Math.sin(a) * r, size: 1.7 + rand() * 1.9 };
+    });
+    s.index = index;
+  }
+  subjects.forEach(buildPoints);
+
+  let field = [];
+  function layout() {
+    const rect = canvas.getBoundingClientRect();
+    W = rect.width; H = rect.height; dpr = Math.min(2, devicePixelRatio || 1);
+    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const narrow = innerWidth <= 960;
+    cx = narrow ? W / 2 : W * .5; cy = H * (narrow ? .5 : .5);
+    scale = Math.min(W, H) / (narrow ? 640 : 820);
+    subjects.forEach(place);
+    buildField();
+    drawFlow();
+  }
+  function place(s, i) {
+    const angle = -2.2 + i * GOLDEN;
+    const R = scale * (118 + 72 * Math.sqrt(i + 1));
+    s.x = cx + Math.cos(angle) * R;
+    s.y = cy + Math.sin(angle) * R * .86;
+    s.rc = scale * (12 + Math.sqrt(s.count) * 4.4);
+    s.dir = [Math.cos(angle), Math.sin(angle)];
+  }
+  function buildField() {
+    const reach = Math.max(...subjects.map((s) => Math.hypot(s.x - cx, (s.y - cy) / .86) + s.rc));
+    const inner = reach + 34 * scale, outer = reach + 190 * scale;
+    const keep = field.filter((d) => d.lit);
+    seed = 97;
+    field = Array.from({ length: 190 }, () => {
+      const a = rand() * Math.PI * 2, r = Math.sqrt(inner * inner + rand() * (outer * outer - inner * inner));
+      return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r * .86, size: .7 + rand() * 1.1, lit: 0 };
+    }).filter((d) => d.x > -10 && d.x < W + 10 && d.y > -10 && d.y < H + 10)
+      .filter((d) => !subjects.some((s) => Math.hypot(d.x - s.x, d.y - s.y) < s.rc + 20 * scale));
+    keep.slice(-12).forEach((d, i) => { if (field[i]) field[i].lit = d.lit; });
+  }
+
+  /* ---------- 状态 ---------- */
+  let active = 0, hover = null, holdCard = false, cardFor = -1, touched = 0;
+  let blocks = subjects.reduce((a, s) => a + s.count, 0);
+  const blocksEl = document.getElementById('blocks');
+  const subjectsEl = document.getElementById('subjects');
+  function updateReadout() { blocksEl.textContent = blocks; subjectsEl.textContent = subjects.length; }
+  updateReadout();
+
+  const ease = (t) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
+
+  /* ---------- 绘制 ---------- */
+  function frame(now) {
+    ctx.clearRect(0, 0, W, H);
+    const focus = hover ?? active;
+
+    // 未命名星野：还没被创造出来的积木
+    for (const d of field) {
+      const age = d.lit ? (now - d.lit) / 900 : -1;
+      ctx.globalAlpha = d.lit ? .9 : .2;
+      ctx.fillStyle = d.lit ? C.cobalt : C.ink400;
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.lit ? d.size + .6 : d.size, 0, Math.PI * 2); ctx.fill();
+      if (age >= 0 && age < 1) {
+        ctx.globalAlpha = .5 * (1 - age);
+        ctx.strokeStyle = C.cobalt; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(d.x, d.y, 3 + age * 14, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    // 轨道：每一圈都还能继续长出新学科
+    ctx.strokeStyle = C.ink400; ctx.lineWidth = 1; ctx.setLineDash([2, 5]);
+    const rings = Math.ceil(Math.sqrt(subjects.length + 1)) + 1;
+    for (let k = 1; k <= rings; k++) {
+      const R = scale * (118 + 72 * Math.sqrt(k * k));
+      ctx.globalAlpha = .16;
+      ctx.beginPath(); ctx.ellipse(cx, cy, R, R * .86, 0, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // 内核到星团的发丝线
+    for (const s of subjects) {
+      const t = ease((now - s.bornAt) / 900);
+      if (t <= 0) continue;
+      ctx.globalAlpha = (s.index === focus ? .55 : .13) * t;
+      ctx.strokeStyle = s.index === focus ? C.ink : C.ink400;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + (s.x - cx) * t, cy + (s.y - cy) * t); ctx.stroke();
+    }
+
+    // 星团
+    for (const s of subjects) {
+      const t = ease((now - s.bornAt) / 900);
+      if (t <= 0) continue;
+      const on = s.index === focus;
+      const ox = cx + (s.x - cx) * t, oy = cy + (s.y - cy) * t;
+      ctx.fillStyle = C.ink;
+      for (const p of s.points) {
+        ctx.globalAlpha = (on ? .95 : .55) * t;
+        ctx.beginPath(); ctx.arc(ox + p.u * s.rc * t, oy + p.v * s.rc * t, p.size * (on ? 1.15 : 1), 0, Math.PI * 2); ctx.fill();
+      }
+      // 学科名与数量
+      ctx.globalAlpha = (on ? 1 : .7) * t;
+      const lx = ox + s.dir[0] * (s.rc + 14 * scale), ly = oy + s.dir[1] * (s.rc + 14 * scale);
+      ctx.textAlign = s.dir[0] > .25 ? 'left' : s.dir[0] < -.25 ? 'right' : 'center';
+      ctx.textBaseline = s.dir[1] > .3 ? 'top' : s.dir[1] < -.3 ? 'bottom' : 'middle';
+      ctx.fillStyle = on ? C.ink : C.ink500;
+      ctx.font = `${on ? 600 : 500} 14px ${css.getPropertyValue('--serif')}`;
+      ctx.fillText(s.name, lx, ly);
+      const w = ctx.measureText(s.name).width;
+      ctx.font = `400 11px ${css.getPropertyValue('--mono')}`;
+      ctx.fillStyle = C.ink400;
+      const off = ctx.textAlign === 'left' ? w + 6 : ctx.textAlign === 'right' ? -(w + 6) : w / 2 + 6;
+      ctx.textAlign = ctx.textAlign === 'right' ? 'right' : 'left';
+      ctx.fillText(String(s.count), lx + off, ly);
+    }
+
+    // 计算内核
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1;
+    for (const [r, a] of [[16, .5], [28, .22], [42, .1]]) {
+      ctx.globalAlpha = a; ctx.beginPath(); ctx.arc(cx, cy, r * scale, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1; ctx.fillStyle = C.ink;
+    ctx.beginPath(); ctx.arc(cx, cy, 6 * scale + 1, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.cinnabar;
+    ctx.beginPath(); ctx.arc(cx, cy, 2.2 * scale + .6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.ink500; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.font = `500 13px ${css.getPropertyValue('--serif')}`;
+    ctx.fillText('计算内核', cx, cy + 48 * scale);
+
+    // 卡片引线
+    const s = subjects[focus];
+    if (s && cardFor === focus && card.dataset.open !== undefined) {
+      const c = card.getBoundingClientRect(), m = canvas.getBoundingClientRect();
+      const ax = Math.max(c.left, Math.min(c.right, s.x + m.left)) - m.left, ay = Math.max(c.top, Math.min(c.bottom, s.y + m.top)) - m.top;
+      const len = Math.hypot(ax - s.x, ay - s.y) || 1;
+      ctx.globalAlpha = .5; ctx.strokeStyle = C.ink400; ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(s.x + (ax - s.x) / len * (s.rc + 6), s.y + (ay - s.y) / len * (s.rc + 6)); ctx.lineTo(ax, ay); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.globalAlpha = 1;
+    if (focus !== cardFor && subjects[focus] && now > subjects[focus].bornAt + 700) showCard(focus);
+    requestAnimationFrame(frame);
+  }
+
+  /* ---------- 学科卡 ---------- */
+  const card = document.getElementById('card');
+  function showCard(i) {
+    const s = subjects[i];
+    cardFor = i;
+    document.getElementById('cardTitle').textContent = s.name;
+    document.getElementById('cardCount').textContent = s.count + ' 块积木';
+    document.getElementById('cardTpl').textContent = '代表模板 · ' + s.tpl;
+    document.getElementById('cardFormula').textContent = s.formula;
+    const svg = document.getElementById('cardCurve');
+    svg.setAttribute('aria-label', s.tpl + ' 的代表曲线');
+    svg.innerHTML = curves[s.curve]();
+    svg.querySelectorAll('path.draw').forEach((p) => p.style.setProperty('--len', Math.ceil(p.getTotalLength() + 2)));
+    const h = hero.getBoundingClientRect(), m = canvas.getBoundingClientRect();
+    const px = m.left - h.left + s.x, py = m.top - h.top + s.y;
+    const wCard = card.offsetWidth, hCard = card.offsetHeight, ox = m.left - h.left, oy = m.top - h.top;
+    const minX = innerWidth > 960 ? h.width * .42 : 12, maxX = h.width - wCard - 16;
+    const minY = innerWidth > 960 ? 16 : oy + 8, maxY = (innerWidth > 960 ? h.height - 80 : m.bottom - h.top - 8) - hCard;
+    // 避开所有星团（含标签）与内核，挑重叠最少、离本星团最近的位置
+    const boxes = subjects.map((o) => ({ x: ox + o.x - o.rc - 90, y: oy + o.y - o.rc - 40, w: 2 * o.rc + 180, h: 2 * o.rc + 80 }))
+      .concat([{ x: ox + cx - 70, y: oy + cy - 60, w: 140, h: 150 }]);
+    const overlap = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    let best = null;
+    for (let k = 0; k < 16; k++) {
+      const a = k / 16 * Math.PI * 2, d = s.rc + 150 * scale;
+      const left = Math.max(minX, Math.min(maxX, px + Math.cos(a) * d - wCard / 2));
+      const top = Math.max(minY, Math.min(maxY, py + Math.sin(a) * d - hCard / 2));
+      const r = { x: left, y: top, w: wCard, h: hCard };
+      const score = boxes.reduce((t, b, j) => t + overlap(r, b) * (j === i ? 5 : j === subjects.length ? 10 : 1), 0) + Math.hypot(left + wCard / 2 - px, top + hCard / 2 - py) * .6;
+      if (!best || score < best.score) best = { left, top, score };
+    }
+    card.style.left = best.left + 'px'; card.style.top = best.top + 'px';
+    card.removeAttribute('data-open'); void card.offsetWidth; card.setAttribute('data-open', '');
+  }
+
+  canvas.addEventListener('pointermove', (e) => {
+    const r = canvas.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    const hit = subjects.find((s) => Math.hypot(x - s.x, y - s.y) < s.rc + 22 * scale);
+    hover = hit ? hit.index : (holdCard ? hover : null);
+    if (hit) { active = hit.index; touched = performance.now(); }
+    canvas.style.cursor = hit ? 'pointer' : 'default';
+  });
+  canvas.addEventListener('pointerleave', () => { if (!holdCard) hover = null; });
+  card.addEventListener('pointerenter', () => { holdCard = true; hover = cardFor; });
+  card.addEventListener('pointerleave', () => { holdCard = false; hover = null; });
+
+  // 无人操作时缓慢轮播学科，让每个星座都有机会被看见
+  if (!reduced) setInterval(() => {
+    if (hover === null && performance.now() - touched > 4500) { active = (active + 1) % subjects.length; touched = performance.now(); }
+  }, 500);
+
+  // 星野里偶尔点亮一颗：一块新积木被创造
+  if (!reduced) setInterval(() => {
+    const dark = field.filter((d) => !d.lit);
+    if (!dark.length) return;
+    dark[Math.floor(Math.random() * dark.length)].lit = performance.now();
+    blocks += 1; updateReadout();
+  }, 3200);
+
+  /* ---------- 演示：新增一个学科 ---------- */
+  const addBtn = document.getElementById('addSubject');
+  addBtn.addEventListener('click', () => {
+    const next = candidates.shift();
+    if (!next) return;
+    next.bornAt = performance.now();
+    buildPoints(next, subjects.length);
+    subjects.push(next);
+    place(next, next.index);
+    buildField();
+    blocks += next.count; updateReadout();
+    active = next.index; hover = null; touched = performance.now();
+    if (!candidates.length) { addBtn.disabled = true; addBtn.textContent = '候选学科已用完'; }
+  });
+
+  /* ---------- 「活」字延伸出的曲线：一式进入内核 ---------- */
+  const huo = document.getElementById('huo');
+  const flowPath = document.getElementById('flowPath');
+  const omega = document.getElementById('omega');
+  const omegaOut = document.getElementById('omegaOut');
+  let drawnOnce = false;
+  function drawFlow() {
+    if (innerWidth <= 960) return;
+    const h = hero.getBoundingClientRect(), r = huo.getBoundingClientRect(), m = canvas.getBoundingClientRect();
+    const x0 = r.right - h.left - r.width * .06, y0 = r.top - h.top + r.height * .72;
+    const x1 = m.left - h.left + cx - 18 * scale, y1 = m.top - h.top + cy;
+    const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len;
+    const w = Number(omega.value), A = Math.min(56, r.height * .5);
+    const d = Array.from({ length: 241 }, (_, i) => {
+      const t = i / 240;
+      const off = -A * Math.exp(-3 * t) * Math.sin(w * t * Math.PI);
+      return (i ? 'L' : 'M') + (x0 + dx * t + nx * off).toFixed(1) + ' ' + (y0 + dy * t + ny * off).toFixed(1);
+    }).join('');
+    flowPath.setAttribute('d', d);
+    if (!drawnOnce && !reduced) {
+      drawnOnce = true;
+      const L = Math.ceil(flowPath.getTotalLength());
+      flowPath.style.strokeDasharray = L; flowPath.style.strokeDashoffset = L;
+      flowPath.getBoundingClientRect();
+      flowPath.style.transition = 'stroke-dashoffset 1.4s cubic-bezier(.2,.7,.2,1) .35s';
+      flowPath.style.strokeDashoffset = 0;
+      flowPath.addEventListener('transitionend', () => { flowPath.style.strokeDasharray = 'none'; flowPath.style.transition = ''; }, { once: true });
+    }
+  }
+  omega.addEventListener('input', () => {
+    omegaOut.textContent = Number(omega.value).toFixed(1);
+    omega.style.setProperty('--fill', ((omega.value - omega.min) / (omega.max - omega.min) * 100) + '%');
+    flowPath.style.strokeDasharray = 'none';
+    drawFlow();
+  });
+  omega.style.setProperty('--fill', ((omega.value - omega.min) / (omega.max - omega.min) * 100) + '%');
+
+  addEventListener('resize', layout);
+  (document.fonts?.ready ?? Promise.resolve()).then(() => { layout(); requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>

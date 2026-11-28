@@ -1,9 +1,21 @@
 /** AI 智能计算方块的载荷契约：解析、清洗与默认示例。 */
 
-import type { CanvasDoc, RuleControlSpec, RulePreset } from './types.ts';
+import type { CanvasDoc, RuleControlSpec, RulePreset, ValueKind } from './types.ts';
 
 export type AiRulePreferredView = 'auto' | 'shapes' | 'grid' | 'chart' | 'graph' | 'timeline' | 'table';
 export type RuleSampleProfile = 'limit' | 'differential' | 'quadrature' | 'integralApplications' | 'diskDensity';
+
+export interface AiRuleInputPort {
+  id: string;
+  label: string;
+  kind?: ValueKind;
+}
+
+export interface AiRuleOutputPort {
+  id: string;
+  label: string;
+  kind: 'scalar' | 'series' | 'customFrames';
+}
 
 export interface AiRuleBlockPayload {
   version: 1;
@@ -14,6 +26,10 @@ export interface AiRuleBlockPayload {
   defaultText?: string;
   controls: RuleControlSpec[];
   presets?: RulePreset[];
+  /** 可选自定义多输入端口（支持 2~6 路网状汇聚） */
+  inputs?: AiRuleInputPort[];
+  /** 可选自定义多输出端口（通过 data.outputs[id] 分流输出） */
+  outputs?: AiRuleOutputPort[];
   auxiliaryKind?: 'scalar' | 'function2d';
   sampleProfile?: RuleSampleProfile;
   presetSource?: 'text' | { param: string; auxiliaryParam?: string };
@@ -23,6 +39,13 @@ export interface AiRuleBlockPayload {
 }
 
 const VIEWS: readonly AiRulePreferredView[] = ['auto', 'shapes', 'grid', 'chart', 'graph', 'timeline', 'table'];
+const ALLOWED_INPUT_KINDS = new Set<ValueKind>([
+  'scalar', 'series', 'matrix2', 'body', 'function', 'function2d', 'vectorFunction2d',
+  'tensor2d', 'dataset2d', 'field2d', 'algoData', 'customFrames',
+  'lab408Data', 'physicsData', 'calculusData', 'businessData',
+]);
+const ALLOWED_OUTPUT_KINDS = new Set<AiRuleOutputPort['kind']>(['scalar', 'series', 'customFrames']);
+const MAX_CUSTOM_PORTS = 6;
 const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]{0,39}$/;
 
 function text(value: unknown, limit: number): string {
@@ -121,6 +144,38 @@ export function normalizeAiRulePayload(value: unknown): AiRuleBlockPayload {
   const preferredView = VIEWS.includes(raw.preferredView as AiRulePreferredView)
     ? raw.preferredView as AiRulePreferredView
     : 'auto';
+  const inputs: AiRuleInputPort[] = [];
+  if (Array.isArray(raw.inputs)) {
+    const seen = new Set<string>();
+    for (const item of raw.inputs) {
+      if (!item || typeof item !== 'object') continue;
+      const obj = item as Record<string, unknown>;
+      const id = text(obj.id, 40);
+      const label = text(obj.label, 32);
+      if (!KEY_RE.test(id) || !label || seen.has(id)) continue;
+      seen.add(id);
+      const kind = typeof obj.kind === 'string' && ALLOWED_INPUT_KINDS.has(obj.kind as ValueKind)
+        ? obj.kind as ValueKind : undefined;
+      inputs.push({ id, label, ...(kind ? { kind } : {}) });
+      if (inputs.length >= MAX_CUSTOM_PORTS) break;
+    }
+  }
+  const outputs: AiRuleOutputPort[] = [];
+  if (Array.isArray(raw.outputs)) {
+    const seen = new Set<string>();
+    for (const item of raw.outputs) {
+      if (!item || typeof item !== 'object') continue;
+      const obj = item as Record<string, unknown>;
+      const id = text(obj.id, 40);
+      const label = text(obj.label, 32);
+      const kind = typeof obj.kind === 'string' && ALLOWED_OUTPUT_KINDS.has(obj.kind as AiRuleOutputPort['kind'])
+        ? obj.kind as AiRuleOutputPort['kind'] : undefined;
+      if (!KEY_RE.test(id) || !label || !kind || seen.has(id)) continue;
+      seen.add(id);
+      outputs.push({ id, label, kind });
+      if (outputs.length >= MAX_CUSTOM_PORTS) break;
+    }
+  }
   return {
     version: 1,
     prompt,
@@ -130,6 +185,8 @@ export function normalizeAiRulePayload(value: unknown): AiRuleBlockPayload {
     ...(text(raw.defaultText, 4000) ? { defaultText: text(raw.defaultText, 4000) } : {}),
     controls,
     ...(presets.length ? { presets } : {}),
+    ...(inputs.length ? { inputs } : {}),
+    ...(outputs.length ? { outputs } : {}),
     ...(raw.auxiliaryKind === 'scalar' || raw.auxiliaryKind === 'function2d' ? { auxiliaryKind: raw.auxiliaryKind } : {}),
     ...(raw.sampleProfile === 'limit' || raw.sampleProfile === 'differential'
       || raw.sampleProfile === 'quadrature' || raw.sampleProfile === 'integralApplications' || raw.sampleProfile === 'diskDensity'

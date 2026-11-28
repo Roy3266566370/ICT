@@ -14,7 +14,7 @@ test('从积木库连续添加积木会留出前一张卡片的标题', async ({
   }
 });
 
-test('函数源左侧显示图像，右侧修改参数并用按钮编写函数', async ({ page }) => {
+test('函数源左侧显示图像，右侧修改参数并用键盘输入函数', async ({ page }) => {
   await page.goto('/workshop');
   await page.getByRole('button', { name: /新建空白画布/ }).click();
   await page.getByRole('button', { name: /积木库/ }).click();
@@ -37,11 +37,13 @@ test('函数源左侧显示图像，右侧修改参数并用按钮编写函数',
   const absolutePath = await graph.locator('path').getAttribute('d');
 
   await inspector.getByRole('button', { name: '编辑函数' }).click();
-  await inspector.getByRole('button', { name: '清空', exact: true }).click();
-  await inspector.getByRole('button', { name: '字母 a', exact: true }).click();
-  await inspector.getByRole('button', { name: '正弦', exact: true }).last().click();
-  await inspector.getByRole('button', { name: '字母 x', exact: true }).click();
-  await inspector.getByRole('button', { name: '应用函数', exact: true }).click();
+  const input = inspector.getByRole('textbox', { name: '函数表达式', exact: true });
+  await expect(input).toBeFocused();
+  await input.fill('sin(');
+  await input.press('Enter');
+  await expect(input).toHaveAttribute('aria-invalid', 'true');
+  await input.fill('a*sin(x)');
+  await input.press('Enter');
   await expect(inspector.locator('annotation')).toContainText('\\sin');
   await expect(graph.locator('path')).not.toHaveAttribute('d', absolutePath!);
   await expect(inspector.getByRole('textbox', { name: '函数表达式', exact: true })).toHaveCount(0);

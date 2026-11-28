@@ -1,14 +1,37 @@
-import { useEffect, useRef, type ReactNode, type Ref } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
+import { errorMessage } from '@/api/client';
 import styles from './DeckPlayer.module.css';
 
-export function DeckTopBar({ title, home, status, modes, children }: {
+export function DeckTopBar({ title, onRename, home, status, modes, children }: {
   title: string; home?: ReactNode; status?: { text: string; tone: 'saved' | 'pending' | 'error' };
+  onRename?: (title: string) => Promise<void>;
   modes?: ReactNode; children?: ReactNode;
 }) {
+  const [draft,setDraft]=useState<string|null>(null);
+  const [renaming,setRenaming]=useState(false);
+  const [error,setError]=useState('');
+  const rename=async()=>{
+    if(draft===null||renaming||!onRename)return;
+    const name=draft.trim();
+    if(!name){setError('请输入课件标题');return;}
+    if(name===title){setDraft(null);return;}
+    setRenaming(true);setError('');
+    try{await onRename(name);setDraft(null);}
+    catch(error){setError(errorMessage(error));}
+    finally{setRenaming(false);}
+  };
   return <header className={styles.stageTopbar} data-deck-topbar>
     <div className={styles.stageIdentity}>
       <span className={styles.stageBrand}>{home ?? '万象'}</span>
-      <h1 title={title}>{title}</h1>
+      {draft===null?<h1 title={title}>{onRename?<button className={styles.deckTitleButton} type="button"
+        aria-label={`重命名课件：${title}`} onClick={()=>{setDraft(title);setError('');}}>{title}</button>:title}</h1>:
+        <form className={styles.deckTitleForm} onSubmit={event=>{event.preventDefault();void rename();}}>
+          <input aria-label="课件标题" autoFocus onFocus={event=>event.currentTarget.select()} value={draft}
+            disabled={renaming} maxLength={255} onChange={event=>{setDraft(event.target.value);setError('');}}
+            onKeyDown={event=>{if(event.key==='Escape'&&!renaming){event.stopPropagation();setDraft(null);setError('');}}}/>
+          <button type="submit" disabled={renaming} aria-label="保存课件标题">✓</button>
+          {error&&<span role="alert">{error}</span>}
+        </form>}
       {status && <span className={styles.saveDot} data-tone={status.tone} title={status.text}
         role="status" aria-label={status.text} />}
     </div>

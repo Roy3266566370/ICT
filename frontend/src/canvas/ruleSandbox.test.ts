@@ -38,6 +38,23 @@ test('规则输出会截断超大帧、行与节点，并清洗非有限数值',
   assert.equal(capped.frames[0]!.graph?.nodes.length, 120);
 });
 
+test('拓扑图保留数字节点编号、边端点和权重', () => {
+  const { frames: [frame] } = sanitizePipelineResult({ frames: [{
+    title: '跳过边 0-1',
+    graph: {
+      nodes: [{ id: 0, label: 0, x: 20, y: 50 }, { id: '1', x: 80, y: 50 }, { id: Infinity }],
+      edges: [{ from: 0, to: 1, label: 4, active: true }],
+    },
+  }] });
+  assert.deepEqual(frame!.graph, {
+    nodes: [
+      { id: '0', label: '0', x: 20, y: 50, active: false },
+      { id: '1', label: '1', x: 80, y: 50, active: false },
+    ],
+    edges: [{ from: '0', to: '1', label: '4', active: true }],
+  });
+});
+
 test('沙箱拒绝浏览器、网络与异步能力，并给出明确错误', async () => {
   await assert.rejects(runRuleInSandbox('function run(){ return fetch("/") }', { text: '', params: {}, upstream: [] }), (error) => {
     return error instanceof RuleSandboxError && error.code === 'runtime' && /禁用/.test(error.message);

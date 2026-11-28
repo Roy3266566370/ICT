@@ -115,6 +115,8 @@ def create_app(*, strict_routes: bool | None = None) -> FastAPI:
     async def lifespan(app_instance: FastAPI) -> AsyncIterator[None]:
         # 幂等建表：可重复启动、不丢数据（T7 验收 1）。
         tables = init_db()
+        from .plaza_seeds import seed_plaza
+        seed_plaza()
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         logger.info("后端目录：%s", BACKEND_DIR)
         logger.info("已注册端点：%d", len(collect_endpoints(app_instance)))

@@ -2,9 +2,10 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { errorMessage } from '@/api/client';
 import styles from './DeleteContentDialog.module.css';
 
-export function DeleteContentDialog({ label, title, onDismiss, onDelete }: {
+export function DeleteContentDialog({ label, title, description, onDismiss, onDelete }: {
   label: string;
   title: string;
+  description?: string;
   onDismiss: (deleted: boolean) => void;
   onDelete: () => Promise<void>;
 }): JSX.Element {
@@ -38,7 +39,7 @@ export function DeleteContentDialog({ label, title, onDismiss, onDelete }: {
   return <dialog className={styles.dialog} ref={dialog} aria-labelledby={headingId}
     onCancel={event => { event.preventDefault(); if (!inFlight.current) dismiss(false); }}>
     <h2 id={headingId}>删除{label}？</h2>
-    <p>将删除「{title}」。删除后无法恢复。</p>
+    <p>{description ?? `将删除「${title}」。删除后无法恢复。`}</p>
     {error && <p role="alert" className={styles.error}>{error}</p>}
     <div>
       <button autoFocus type="button" disabled={busy} onClick={() => { if (!inFlight.current) dismiss(false); }}>取消</button>

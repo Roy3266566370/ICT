@@ -8,8 +8,11 @@ import { importProjectPackage } from '@/api/projectPackage';
 import { uploadTeachingMaterial, WORKBENCH_UPLOAD_ACCEPT } from '@/api/teachingUpload';
 import type { MaterialSummary } from '@/api/types';
 import { MainSiteNav } from '@/components/home/MainSiteNav';
-import { LivingIntroBanner } from '@/components/intros/LivingIntroBanner';
+import { LivingIntroBanner, type TurnDirection } from '@/components/intros/LivingIntroBanner';
 import { DeleteContentDialog } from '@/components/ui/DeleteContentDialog';
+import { NewDeckModal } from '@/components/editor/NewDeckModal';
+import { SpaceCover } from './space/SpaceCard';
+import { materialItem, relativeAssetTime } from './space/spaceItems';
 import styles from './LivingPage.module.css';
 
 function UploadGlyph(): JSX.Element {
@@ -41,25 +44,9 @@ function SkeletonList(): JSX.Element {
   );
 }
 
-function statusLabel(status: MaterialSummary['status'] | 'readable'): string {
-  switch (status) {
-    case 'ready':
-      return '已就绪';
-    case 'awaiting_confirmation':
-      return '可交互';
-    case 'readable':
-      return '底图已就绪';
-    case 'processing':
-      return '转换中';
-    case 'failed':
-      return '转换失败';
-    default:
-      return status;
-  }
-}
-
 export default function LivingPagesPage(): ReactNode {
   const navigate = useNavigate();
+  const now = Date.now();
   const materialsQuery = useMaterials(50);
   const materials = materialsQuery.data?.items ?? null;
   const deleteMaterial = useDeleteMaterial();
@@ -70,6 +57,8 @@ export default function LivingPagesPage(): ReactNode {
   const fileRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const listTitle = useRef<HTMLHeadingElement>(null);
+  const [turnDir, setTurnDir] = useState<TurnDirection | null>(null);
+  const [newDeckOpen, setNewDeckOpen] = useState(false);
 
   const totalSlides = materials === null ? null : materials.reduce((sum, item) => sum + item.page_count, 0);
   const totalObjects = materials === null ? null : materials.reduce((sum, item) => sum + item.object_count, 0);
@@ -113,16 +102,19 @@ export default function LivingPagesPage(): ReactNode {
             <div className={styles.eyebrow}><i aria-hidden="true" /> TONGWEN ATLAS · 通文册</div>
             <h1 className={styles.pageTitle}>一本<span className={styles.titleHighlight}>会呼吸的册。</span></h1>
           </div>
-          <p>把定象坊里搭好的象砖装进任意一页。读者打开就能调参，也能把交互课件带走。</p>
+          <p>用<span className="keep-together">定象坊插件</span>把积木嵌进课件任意一页。读者打开就能调参，也能把交互课件带走。</p>
         </header>
 
-        <div className={styles.book}>
+        <div className={styles.book} data-turning={turnDir ?? undefined}>
           <section className={styles.bookCopy} aria-label="制作通文册">
             <h2>把静态课件，<br />装订成<em>会动的册。</em></h2>
             <p>上传 PPTX、PDF 或图片，保留原稿排版，再把定象坊的公式、曲线和参数滑块嵌进任意一页。</p>
             <div className={styles.bookActions}>
+              <button type="button" className={styles.generateBtn} onClick={()=>setNewDeckOpen(true)}>＋ 新建课件</button>
               <button type="button" className={styles.generateBtn} disabled={busy === 'upload'}
-                onClick={() => fileRef.current?.click()}>上传 PPT 开始装订 ↗</button>
+                onClick={() => fileRef.current?.click()}>上传原稿 ↗</button>
+              <button type="button" className={styles.bookLink} disabled={busy==='import'}
+                onClick={()=>importRef.current?.click()}>导入离线课件</button>
               <a className={styles.bookLink} href="#living-mine-title">查看我的册</a>
             </div>
             <div className={styles.headMeta}>
@@ -131,7 +123,7 @@ export default function LivingPagesPage(): ReactNode {
               <div className={styles.headMetric}><b>{totalObjects ?? '—'}</b><span>个交互对象</span></div>
             </div>
           </section>
-          <div className={styles.bookPage}><LivingIntroBanner /></div>
+          <div className={styles.bookPage}><LivingIntroBanner onTurnChange={setTurnDir} /></div>
         </div>
 
         <section className={styles.createSection} aria-labelledby="living-create-title">
@@ -169,7 +161,7 @@ export default function LivingPagesPage(): ReactNode {
             >
               <span className={styles.dropIcon} aria-hidden="true"><UploadGlyph /></span>
               <strong>{busy === 'upload' ? '正在解析并打开幻灯片工作台，请稍候…' : '上传 PPTX / PDF / 图片'}</strong>
-              <span className={styles.dropHint}>拖入或点击选择 1 份文件，直接生成横向动态 PPT</span>
+              <span className={styles.dropHint}>拖入或点击选择 1 份文件，导入为通文册课件</span>
               <span className={styles.dropFormats} aria-hidden="true">
                 <i>PPTX</i><i>PDF</i><i>PNG</i><i>JPG</i>
               </span>
@@ -189,7 +181,7 @@ export default function LivingPagesPage(): ReactNode {
               </div>
               <h3 className={styles.pasteTitle}>导入已有工程包或离线网页</h3>
               <p className={styles.pasteLead}>
-                从本地恢复之前导出的工程包或单文件交互 HTML，完整保留所有原位矢量图形、定象坊插件、数学画布与流程图，导入后立即回到工作台继续编辑。
+                从本地恢复之前导出的工程包或单文件交互 HTML，完整保留所有原位矢量图形、<span className="keep-together">定象坊插件</span>、数学画布与流程图，导入后立即回到工作台继续编辑。
               </p>
               <div className={styles.pasteFoot}>
                 <span className={styles.pasteHint}>支持 .xsproj 工程存档与万象单文件 .html 直接导回</span>
@@ -229,7 +221,7 @@ export default function LivingPagesPage(): ReactNode {
           ) : materials.length === 0 ? (
             <div className={styles.empty}>
               <span className={styles.emptyIcon} aria-hidden="true"><PagesGlyph /></span>
-              <p className={styles.emptyTitle}>还没有动态 PPT</p>
+              <p className={styles.emptyTitle}>还没有课件</p>
               <p className={styles.emptyLead}>上传一份 PPTX、PDF 或图片，会直接在这里打开横向幻灯片工作台。</p>
               <button type="button" className={styles.emptyAction} onClick={() => fileRef.current?.click()}>
                 上传文件
@@ -237,26 +229,22 @@ export default function LivingPagesPage(): ReactNode {
             </div>
           ) : (
             <ul className={styles.pageList}>
-              {materials.map((item, index) => (
-                <li key={item.material_id} className={styles.pageRow}>
-                  <Link to={`/materials/${item.material_id}/work?page=1`} className={styles.pageItem}>
-                    <span className={styles.pageIndex}>{String(index + 1).padStart(2, '0')}</span>
-                    <span className={styles.pageMain}>
-                      <span className={styles.pageItemTitle}>{item.title}</span>
-                      <span className={styles.pageItemMeta}>
-                        <span>{item.page_count} 页 · {statusLabel(item.status)}</span>
-                        {item.object_count > 0 ? (
-                          <em className={styles.pendingBadge}>{item.object_count} 个交互对象</em>
-                        ) : null}
-                      </span>
-                    </span>
-                    <span className={styles.pageItemTime}>{formatTime(item.created_at)}</span>
-                    <span className={styles.pageArrow} aria-hidden="true">→</span>
+              {materials.map(record => {
+                const item = materialItem(record);
+                const time = relativeAssetTime(item.time, now);
+                return <li key={item.id} className={styles.libraryCard}>
+                  <Link to={`/materials/${encodeURIComponent(item.id)}/work?page=1`} className={styles.libraryLink}>
+                    <SpaceCover item={item}/>
+                    <div className={styles.libraryCopy}>
+                      <h3>{item.title}</h3>
+                      <p>{time}</p>
+                      <p>{record.page_count} 页{record.object_count > 0 ? ` · ${record.object_count} 个交互对象` : ''}</p>
+                    </div>
                   </Link>
                   <button type="button" className={styles.pageDelete} aria-label={`删除「${item.title}」`}
-                    onClick={() => setPendingDelete(item)}>删除</button>
-                </li>
-              ))}
+                    onClick={() => setPendingDelete(record)}>删除</button>
+                </li>;
+              })}
             </ul>
           )}
           {pendingDelete && <DeleteContentDialog label="课件" title={pendingDelete.title}
@@ -267,32 +255,11 @@ export default function LivingPagesPage(): ReactNode {
             }}/>}
         </section>
 
-        <section className={styles.tips} aria-label="三次装订，把作品送上流通">
-          <div>
-            <strong>01 · IMPORT</strong>
-            <h3>原稿保真导入</h3>
-            <p>上传静态 PPTX、PDF 或图片直接进入横向工作台，保留原有排版结构，无需重做整套课件。</p>
-          </div>
-          <div>
-            <strong>02 · LIVE STAGE</strong>
-            <h3>嵌入象砖</h3>
-            <p>在幻灯片原位插入定象坊交互仪器，现场调参、切换情景预设，告别讲课来回切软件。</p>
-          </div>
-          <div>
-            <strong>03 · OFFLINE</strong>
-            <h3>发放与离线演播</h3>
-            <p>导出独立单文件 HTML，教室断网照常跑真实计算；也可打包工程随时导回继续修订。</p>
-          </div>
-        </section>
       </main>
+      {newDeckOpen&&<NewDeckModal onClose={()=>setNewDeckOpen(false)} onCreated={id=>{
+        void materialsQuery.refetch();
+        navigate(`/materials/${encodeURIComponent(id)}/work?mode=edit&page=1`);
+      }}/>}
     </div>
   </>;
-}
-
-function formatTime(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '';
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${date.getFullYear()}.${month}.${day}`;
 }

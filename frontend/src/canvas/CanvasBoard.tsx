@@ -17,20 +17,47 @@ import { findPhysicsStage } from './physicsPipeline.ts';
 import { findCalculusStage } from './calculusPipeline.ts';
 import { findBusinessStage } from './businessPipeline.ts';
 import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { CanvasDoc, CanvasNode, CanvasTool, InkStroke, NodeType, PortValue, ValueKind, Wire } from './types.ts';
+import type { CanvasDoc, CanvasNode, CanvasTool, CompositeSub, ExposedParam, InkStroke, NodeType, PortValue, ValueKind, Wire } from './types.ts';
 import { nextId, clamp } from './math.ts';
-import { saveCustomBlock } from './customBlocks.ts';
+import { saveCustomBlock, type CustomBlockRecord } from './customBlocks.ts';
 import { isStudyStage } from './studyStages';
 import { NODE_DEFS, nodePorts, type NodeBodyProps } from './nodes.tsx';
 import { AiRuleLive } from './AiRuleBlockNode.tsx';
 import { applyRulePreset, parseAiRulePayload } from './aiRuleBlock.ts';
 import { serializeUpstreamValue, upstreamHint, type RuleUpstreamContext } from './aiRulePorts.ts';
+import type { RuleFuseContext } from './BlockCreatorModal.tsx';
 import { createCanvasNode } from './createCanvasNode.ts';
 import { compatiblePorts, recommendNodesForPort, type WireRecommendation } from './wireRecommend.ts';
 import { WireQuickMenu } from './WireQuickMenu.tsx';
-import { makeCtx, evalOutput, inputValues, aiRuleInputs } from './engine.ts';
+import {
+  makeCtx,
+  evalOutput,
+  inputValues,
+  aiRuleInputs,
+  getSubCtx,
+  collectNextDelayStates,
+  listDelayRegisterIds,
+  type EvalCtx,
+} from './engine.ts';
+import {
+  MAX_COMPOSITE_DEPTH,
+  collectCandidateExposedParams,
+  getLayerAtPath,
+  pickDefaultExposedParams,
+  pickDefaultPreviewNodeId,
+  updateLayerAtPath,
+  wouldExceedDepthLimit,
+} from './compositeUtils.ts';
+import { summarizeCompositeBlock } from '@/api/workshopAi';
+import { CockpitStage, type SimClockControl } from './CockpitStage.tsx';
 import { PHYS_TYPES, physCycle, type PhysNodeType } from './physics.ts';
-import { COMPACT_CARD_WIDTH, applyAutoLayout } from './layout.ts';
+import {
+  COMPACT_CARD_WIDTH,
+  applyAutoLayout,
+  computeContentBounds,
+  computeOptimalViewport,
+  type NodeBoxSize,
+} from './layout.ts';
 import { simParamMeta } from '@/living/sim';
 import { InstrumentStage } from './InstrumentStage.tsx';
 import { applyPresetToDoc, workshopParamRefs, type WorkshopEmbedOptions } from './pluginPresets.ts';
@@ -54,6 +81,23 @@ export interface RuleWireRequest {
   insert: (node: CanvasNode) => void;
 }
 
+export interface RuleFuseRequest {
+  context: RuleFuseContext;
+  apply: (node: CanvasNode, keepOriginals: boolean) => void;
+}
+
+interface PendingEncapsulate {
+  nodeIds: string[];
+  title: string;
+  summary: string;
+  candidates: ExposedParam[];
+  selectedExposedKeys: Set<string>;
+  previewCandidates: Array<{ id: string; label: string }>;
+  previewNodeId: string;
+  aiNaming: boolean;
+  aiError: string;
+}
+
 interface PendingWireMenu {
   fromNodeId: string;
   fromPortId: string;
@@ -68,15 +112,21 @@ interface BoardProps {
   doc: CanvasDoc;
   setDoc: React.Dispatch<React.SetStateAction<CanvasDoc>>;
   tool: CanvasTool;
+  encapsulating?: boolean;
+  onEndEncapsulate?: () => void;
   inkColor: string;
   /** 双击空白时请求加节点（由页面决定默认参数） */
   onAddNode?: (type: NodeType, x: number, y: number) => void;
   /** 从「我的积木库」拖入画布 */
   onAddCustomBlock?: (blockId: string, x: number, y: number) => void;
+  /** 保存复合积木到个人积木库后的回调（用于同步云端与刷新面板） */
+  onSaveCustomBlock?: (record: CustomBlockRecord) => void;
   onOpenRuleCreator?: (request: RuleWireRequest) => void;
+  /** 多选触发「✨ AI 融合」 */
+  onOpenFuseCreator?: (request: RuleFuseRequest) => void;
   /** 嵌入活页等固定高度容器时，视口撑满父级而不是占满整屏。 */
   embedded?: boolean;
-  mode?: 'instrument' | 'compose';
+  mode?: 'instrument' | 'compose' | 'cockpit';
   onCompose?: () => void;
   templateKind?: string;
   renderTools?: (actions: {
@@ -142,7 +192,7 @@ function strokePath(pts: [number, number][]): string {
   return d;
 }
 
-export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCustomBlock, onOpenRuleCreator, embedded, mode: requestedMode, onCompose, templateKind, renderTools, workId, focusContent, readOnly, interactivePanel, interactiveSliders, slideInstrument, workshopEmbed, onPreviewPreset, presentationKey, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
+export function CanvasBoard({ doc, setDoc, tool, encapsulating, onEndEncapsulate, inkColor, onAddNode, onAddCustomBlock, onSaveCustomBlock, onOpenRuleCreator, onOpenFuseCreator, embedded, mode: requestedMode, onCompose, templateKind, renderTools, workId, focusContent, readOnly, interactivePanel, interactiveSliders, slideInstrument, workshopEmbed, onPreviewPreset, presentationKey, visibleNodeIds, onInkExtract, onInkFit }: BoardProps): JSX.Element {
   const mode = embedded || visibleNodeIds ? undefined : requestedMode;
   const innerRef = useRef<HTMLDivElement>(null);
   const vpRef = useRef<HTMLDivElement>(null);
@@ -155,6 +205,8 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
   const restoredViewport = useRef(false);
   const zoomRef = useRef(doc.zoom);
   zoomRef.current = doc.zoom;
+  const docLatest = useRef(doc);
+  docLatest.current = doc;
 
   const [paths, setPaths] = useState<Record<string, string>>({});
   const [tempWire, setTempWire] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
@@ -171,6 +223,13 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
   const [paramNodeId, setParamNodeId] = useState<string | null>(null);
   const [frame, setFrame] = useState(0);
   const [pipelineCursors, setPipelineCursors] = useState<Record<string, number>>({});
+  /** Composite 2.0：当前钻入的子画布路径栈（空数组 = 顶层主画布） */
+  const [viewPath, setViewPath] = useState<string[]>([]);
+  const [pendingEncap, setPendingEncap] = useState<PendingEncapsulate | null>(null);
+  const [aiNamingId, setAiNamingId] = useState<string | null>(null);
+  /** 全局时间步反馈仿真时钟（驱动 delayRegister） */
+  const [simTick, setSimTick] = useState(0);
+  const [simPlaying, setSimPlaying] = useState(false);
   const presentation = useContext(PresentationSyncContext);
   const lastCursorSend = useRef<Record<string, {time: number; timer?: number}>>({});
   const cursorValues = useRef(pipelineCursors);
@@ -194,9 +253,54 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       lastCursorSend.current = {};
     };
   }, [presentation, presentationKey]);
+
   const zoom = doc.zoom;
   const composing = mode === 'compose';
-  const schematic = composing && doc.nodes.some((node) => isPipelineStage(node.type) || isStudyStage(node.type));
+  const layer = useMemo(() => getLayerAtPath(doc, viewPath), [doc, viewPath]);
+  const activePath = useMemo(() => layer.breadcrumbs.map((b) => b.id), [layer.breadcrumbs]);
+  const activeNodes = layer.nodes;
+  const activeWires = layer.wires;
+  const inSubCanvas = activePath.length > 0;
+  useEffect(() => {
+    if (activePath.length !== viewPath.length) setViewPath(activePath);
+  }, [activePath, viewPath.length]);
+
+  const setActiveLayer = useCallback(
+    (updater: (nodes: CanvasNode[], wires: Wire[]) => { nodes: CanvasNode[]; wires: Wire[] }) => {
+      setDoc((d) => updateLayerAtPath(d, activePath, updater));
+    },
+    [activePath, setDoc],
+  );
+
+  const hasDelayRegister = useMemo(() => listDelayRegisterIds(doc.nodes).length > 0, [doc.nodes]);
+  const stepSimulation = useCallback(() => {
+    const evalCtx = makeCtx(docLatest.current, live.current);
+    const nextStates = collectNextDelayStates(evalCtx);
+    for (const [id, val] of nextStates) {
+      live.current.set(id, val);
+    }
+    setSimTick((t) => t + 1);
+    setFrame((f) => f + 1);
+  }, []);
+  const resetSimulation = useCallback(() => {
+    setSimPlaying(false);
+    for (const id of listDelayRegisterIds(docLatest.current.nodes)) {
+      live.current.delete(id);
+    }
+    setSimTick(0);
+    setFrame((f) => f + 1);
+  }, []);
+  useEffect(() => {
+    if (!simPlaying) return undefined;
+    if (!hasDelayRegister) {
+      setSimPlaying(false);
+      return undefined;
+    }
+    const timer = window.setInterval(() => stepSimulation(), 500);
+    return () => window.clearInterval(timer);
+  }, [simPlaying, hasDelayRegister, stepSimulation]);
+
+  const schematic = composing && !inSubCanvas && activeNodes.some((node) => isPipelineStage(node.type) || isStudyStage(node.type));
   const nodeWidth = (node: CanvasNode) => schematic && node.type !== 'textNote' && node.type !== 'latexNote' && node.type !== 'functionSource'
     ? COMPACT_CARD_WIDTH : node.w ?? NODE_DEFS[node.type]?.width ?? 240;
   const nodeRole = (node: CanvasNode | undefined): string => {
@@ -211,10 +315,21 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     return badge === '源' ? 'source' : badge === '视图' || doc.panel?.view_node_ids.includes(node.id) ? 'view'
       : node.type.startsWith('lab408') ? 'pipeline' : 'operator';
   };
-  const worldWidth = doc.nodes.reduce((size, node) => Math.max(size, node.x + nodeWidth(node) + 160), INNER_W);
-  const worldHeight = doc.nodes.reduce((size, node) => Math.max(size, node.y + (node.h ?? 700)), INNER_H);
+  const worldWidth = activeNodes.reduce((size, node) => Math.max(size, node.x + nodeWidth(node) + 160), INNER_W);
+  const worldHeight = activeNodes.reduce((size, node) => Math.max(size, node.y + (node.h ?? 700)), INNER_H);
 
   const ctx = useMemo(() => makeCtx(doc, live.current), [doc, frame]);
+  const activeCtx = useMemo<EvalCtx>(() => {
+    let current = ctx;
+    for (const id of activePath) {
+      const comp = current.doc.nodes.find((n) => n.id === id && n.type === 'composite');
+      if (!comp) break;
+      const child = getSubCtx(current, comp);
+      if (!child) break;
+      current = child;
+    }
+    return current;
+  }, [ctx, activePath]);
 
   const toInner = useCallback((clientX: number, clientY: number): Pt => {
     const ir = innerRef.current?.getBoundingClientRect();
@@ -358,17 +473,28 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
   }, [mode]);
 
   const deleteNodes = useCallback((ids: ReadonlySet<string>) => {
-    setDoc((current) => ({
-      ...current,
-      nodes: current.nodes.filter((node) => !ids.has(node.id)),
-      wires: current.wires.filter((wire) => !ids.has(wire.from) && !ids.has(wire.to)),
-      ...(current.panel ? { panel: {
-        ...current.panel,
-        view_node_ids: current.panel.view_node_ids.filter((id) => !ids.has(id)),
-        exposed_params: current.panel.exposed_params.filter((param) => !ids.has(param.node_id)),
-      } } : {}),
-    }));
-  }, [setDoc]);
+    // 禁止在子画布中误删边界端口节点（portIn/portOut）以免破坏外层接口
+    const protectedIds = new Set(activeNodes.filter((n) => n.type === 'portIn' || n.type === 'portOut').map((n) => n.id));
+    const removable = new Set([...ids].filter((id) => !protectedIds.has(id)));
+    if (!removable.size) return;
+    setDoc((current) => {
+      const updated = updateLayerAtPath(current, activePath, (nodes, wires) => ({
+        nodes: nodes.filter((node) => !removable.has(node.id)),
+        wires: wires.filter((wire) => !removable.has(wire.from) && !removable.has(wire.to)),
+      }));
+      if (activePath.length === 0 && updated.panel) {
+        return {
+          ...updated,
+          panel: {
+            ...updated.panel,
+            view_node_ids: updated.panel.view_node_ids.filter((id) => !removable.has(id)),
+            exposed_params: updated.panel.exposed_params.filter((param) => !removable.has(param.node_id)),
+          },
+        };
+      }
+      return updated;
+    });
+  }, [activeNodes, activePath, setDoc]);
 
   /* ---------- 选中 + Del 删除（多选） ---------- */
   useEffect(() => {
@@ -377,7 +503,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
         setSelSet(new Set());
         setSelStrokes(new Set());
       }
-      if (mode === 'instrument' || readOnly || selSet.size === 0) return;
+      if (mode === 'instrument' || mode === 'cockpit' || readOnly || selSet.size === 0) return;
       const t = e.target as HTMLElement;
       if (t.closest('input,textarea,math-field,[contenteditable]')) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -392,9 +518,9 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
 
   /* ---------- 布局后重算连线几何；内容相同则跳过重渲，防 layout-effect 循环 ---------- */
   useLayoutEffect(() => {
-    if (mode === 'instrument') return;
+    if (mode === 'instrument' || mode === 'cockpit') return;
     const next: Record<string, string> = {};
-    for (const w of doc.wires) {
+    for (const w of activeWires) {
       const a = portCenter(poutKey(w.from, w.fromPort ?? 'out'));
       const b = portCenter(pinKey(w.to, w.toPort ?? 'in'));
       if (a && b) next[w.id] = wirePath(a, b);
@@ -408,7 +534,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
 
   /* ---------- 文档变更 ---------- */
   const pulseFrom = useCallback((id: string) => {
-    const isPipeline = doc.nodes.some((node) => node.id === id && isPipelineStage(node.type));
+    const isPipeline = activeNodes.some((node) => node.id === id && isPipelineStage(node.type));
     const visited = new Set<string>();
     const pending = [{ node: id, depth: 0 }];
     const edges: { id: string; depth: number }[] = [];
@@ -416,7 +542,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       const { node: current, depth } = pending[index]!;
       if (visited.has(current)) continue;
       visited.add(current);
-      for (const wire of doc.wires) {
+      for (const wire of activeWires) {
         if (wire.from !== current) continue;
         edges.push({ id: wire.id, depth });
         if (isPipeline) pending.push({ node: wire.to, depth: depth + 1 });
@@ -427,19 +553,22 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       for (const edge of edges) next[edge.id] = { count: (next[edge.id]?.count ?? 0) + 1, delay: edge.depth * 0.13 };
       return next;
     });
-  }, [doc.nodes, doc.wires]);
+  }, [activeNodes, activeWires]);
 
   const patchNode = useCallback((id: string, patch: Partial<CanvasNode>) => {
-    setDoc((d) => ({ ...d, nodes: d.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) }));
-  }, [setDoc]);
+    setActiveLayer((nodes, wires) => ({
+      nodes: nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+      wires,
+    }));
+  }, [setActiveLayer]);
 
   const updateParams = useCallback((id: string, patch: Record<string, number>) => {
-    setDoc((d) => ({
-      ...d,
-      nodes: d.nodes.map((n) => (n.id === id ? { ...n, params: { ...n.params, ...patch } } : n)),
+    setActiveLayer((nodes, wires) => ({
+      nodes: nodes.map((n) => (n.id === id ? { ...n, params: { ...n.params, ...patch } } : n)),
+      wires,
     }));
     pulseFrom(id);
-  }, [pulseFrom, setDoc]);
+  }, [pulseFrom, setActiveLayer]);
 
   const removeNode = useCallback((id: string) => {
     deleteNodes(new Set([id]));
@@ -452,71 +581,123 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
   }, [deleteNodes]);
 
   const connect = useCallback((fromId: string, fromPort: string, toId: string, toPort: string) => {
-    setDoc((d) => {
-      const pending = [toId];
-      const visited = new Set<string>();
-      while (pending.length) {
-        const id = pending.pop()!;
-        if (id === fromId) return d;
-        if (visited.has(id)) continue;
-        visited.add(id);
-        pending.push(...d.wires.filter((edge) => edge.from === id).map((edge) => edge.to));
+    setActiveLayer((nodes, wires) => {
+      // 允许经过 delayRegister 的跨时间步反馈环；仅截断纯同步依赖死循环
+      const byId = new Map(nodes.map((n) => [n.id, n]));
+      const fromNode = byId.get(fromId);
+      const toNode = byId.get(toId);
+      if (fromNode?.type !== 'delayRegister' && toNode?.type !== 'delayRegister') {
+        const pending = [toId];
+        const visited = new Set<string>();
+        while (pending.length) {
+          const id = pending.pop()!;
+          if (id === fromId) return { nodes, wires };
+          if (visited.has(id)) continue;
+          visited.add(id);
+          if (byId.get(id)?.type === 'delayRegister') continue;
+          for (const edge of wires) {
+            if (edge.from === id) pending.push(edge.to);
+          }
+        }
       }
-      return { ...d, wires: [
-        ...d.wires.filter((w) => !(w.to === toId && (w.toPort ?? 'in') === toPort)),
-        { id: nextId('wire'), from: fromId, fromPort, to: toId, toPort },
-      ] };
+      return {
+        nodes,
+        wires: [
+          ...wires.filter((w) => !(w.to === toId && (w.toPort ?? 'in') === toPort)),
+          { id: nextId('wire'), from: fromId, fromPort, to: toId, toPort },
+        ],
+      };
     });
-  }, [setDoc]);
+  }, [setActiveLayer]);
 
   const removeWire = useCallback((id: string) => {
-    setDoc((d) => ({ ...d, wires: d.wires.filter((w) => w.id !== id) }));
-  }, [setDoc]);
+    setActiveLayer((nodes, wires) => ({ nodes, wires: wires.filter((w) => w.id !== id) }));
+  }, [setActiveLayer]);
 
-  /* ---------- 自制积木：框选封装 / 展开还原 ---------- */
+  /* ---------- 自制积木：框选封装（Composite 2.0） / 展开还原 / 钻入 ---------- */
 
-  /** 把选中节点封装成一个 composite：跨界线折成 portIn/portOut 端口节点 */
-  const encapsulate = useCallback(() => {
-    if (selSet.size < 2) return;
-    setDoc((d) => {
-      const sel = new Set(selSet);
-      const inner = d.nodes.filter((n) => sel.has(n.id));
-      if (inner.length < 2) return d;
+  const drillIntoComposite = useCallback((compId: string) => {
+    setViewPath((prev) => [...prev, compId]);
+    setSelSet(new Set());
+    setSelStrokes(new Set());
+    setInspectNodeId(null);
+    setParamNodeId(null);
+  }, []);
 
-      // 边界：外向线 → portOut（内连 w.from → po.in；外连 composite[poId] → w.to）
+  /** 打开 Composite 2.0 封装配置浮层（自动勾选前 3 个透出参数 + 最后一个视图封面） */
+  const openEncapsulateModal = useCallback(() => {
+    const selectedIds = [...selSet].filter((id) => {
+      const node = activeNodes.find((n) => n.id === id);
+      return node && node.type !== 'portIn' && node.type !== 'portOut';
+    });
+    if (selectedIds.length < 2) return;
+    const inner = activeNodes.filter((n) => selectedIds.includes(n.id));
+    if (wouldExceedDepthLimit(activePath.length, inner, MAX_COMPOSITE_DEPTH)) {
+      window.alert(`复合积木嵌套深度建议不超过 ${MAX_COMPOSITE_DEPTH} 层，以保证画布响应流畅。`);
+      return;
+    }
+    const resolveTitle = (n: CanvasNode) => (n.type === 'aiRuleBlock' ? parseAiRulePayload(n.payload)?.title : undefined)
+      ?? (n.text && n.type !== 'textNote' && n.type !== 'latexNote' && !n.text.includes('\n') ? n.text : undefined)
+      ?? NODE_DEFS[n.type]?.title
+      ?? n.type;
+    const candidates = collectCandidateExposedParams(inner, resolveTitle);
+    const defaultExposed = pickDefaultExposedParams(inner, resolveTitle, 3);
+    const defaultPreviewId = pickDefaultPreviewNodeId(inner) ?? '';
+    const previewCandidates = inner
+      .filter((n) => n.type !== 'slider' && n.type !== 'ticker' && n.type !== 'textNote' && n.type !== 'latexNote')
+      .map((n) => ({ id: n.id, label: resolveTitle(n) }));
+    const autoName = inner.slice(0, 2).map(resolveTitle).join('+') + (inner.length > 2 ? '模块' : '组');
+    setPendingEncap({
+      nodeIds: selectedIds,
+      title: autoName.slice(0, 24) || '自制积木',
+      summary: '',
+      candidates,
+      selectedExposedKeys: new Set(defaultExposed.map((p) => `${p.nodeId}:${p.paramKey}`)),
+      previewCandidates,
+      previewNodeId: defaultPreviewId,
+      aiNaming: false,
+      aiError: '',
+    });
+  }, [activeNodes, activePath.length, selSet]);
+
+  /** 执行 Composite 2.0 无损封装：跨界线折成 portIn/portOut，写入透出参数、封面预览与简介 */
+  const confirmEncapsulate = useCallback((draft: PendingEncapsulate) => {
+    const sel = new Set(draft.nodeIds);
+    setActiveLayer((nodes, wires) => {
+      const inner = nodes.filter((n) => sel.has(n.id));
+      if (inner.length < 2) return { nodes, wires };
+
       const portNodes: CanvasNode[] = [];
-      const innerWires: Wire[] = d.wires.filter((w) => sel.has(w.from) && sel.has(w.to));
-      const outerWires: Wire[] = d.wires.filter((w) => !sel.has(w.from) && !sel.has(w.to));
-      const bridgeWires: Wire[] = []; // composite 对外的新线
+      const innerWires: Wire[] = wires.filter((w) => sel.has(w.from) && sel.has(w.to));
+      const outerWires: Wire[] = wires.filter((w) => !sel.has(w.from) && !sel.has(w.to));
+      const bridgeWires: Wire[] = [];
       const ports: NonNullable<CanvasNode['sub']>['ports'] = [];
 
       const kindOfPort = (nodeId: string, isOut: boolean, portId?: string): PortValue['kind'] | undefined => {
-        const n = d.nodes.find((x) => x.id === nodeId);
+        const n = nodes.find((x) => x.id === nodeId);
         if (!n) return undefined;
         const spec = nodePorts(n, isOut ? 'out' : 'in').find((p) => p.id === (portId ?? (isOut ? 'out' : 'in')));
         return spec?.kind;
       };
 
-      for (const w of d.wires) {
+      for (const w of wires) {
         const fromIn = sel.has(w.from);
         const toIn = sel.has(w.to);
         if (fromIn === toIn) continue;
         if (fromIn) {
-          // 内 → 外：内源接 portOut，外目标改接 composite 的该端口
           const poId = nextId('po');
           const src = inner.find((n) => n.id === w.from);
           const label = src ? `${NODE_DEFS[src.type]?.title ?? src.type}` : 'out';
-          portNodes.push({ id: poId, type: 'portOut', x: (src?.x ?? 0) + 40, y: (src?.y ?? 0) + 40, params: {} });
+          portNodes.push({ id: poId, type: 'portOut', x: (src?.x ?? 0) + 260, y: (src?.y ?? 0) + 20, params: {}, text: label });
           innerWires.push({ id: nextId('w'), from: w.from, fromPort: w.fromPort, to: poId, toPort: 'in' });
           bridgeWires.push({ id: w.id, from: 'COMPOSITE', fromPort: poId, to: w.to, toPort: w.toPort });
           ports.push({ id: poId, dir: 'out', label, kind: kindOfPort(w.from, true, w.fromPort) });
         } else {
-          // 外 → 内：外源改接 composite 的 pi 端口，portIn 接内目标
           const piId = nextId('pi');
           const dst = inner.find((n) => n.id === w.to);
           const inSpec = dst ? nodePorts(dst, 'in').find((p) => p.id === (w.toPort ?? 'in')) : undefined;
           const label = dst ? `${NODE_DEFS[dst.type]?.title ?? dst.type}·${inSpec?.label ?? 'in'}` : 'in';
-          portNodes.push({ id: piId, type: 'portIn', x: (dst?.x ?? 0) - 140, y: (dst?.y ?? 0) + 30, params: {} });
+          portNodes.push({ id: piId, type: 'portIn', x: Math.max(0, (dst?.x ?? 0) - 200), y: (dst?.y ?? 0) + 20, params: {}, text: label });
           innerWires.push({ id: nextId('w'), from: piId, fromPort: 'out', to: w.to, toPort: w.toPort });
           bridgeWires.push({ id: w.id, from: w.from, fromPort: w.fromPort, to: 'COMPOSITE', toPort: piId });
           ports.push({ id: piId, dir: 'in', label, kind: kindOfPort(w.to, false, w.toPort) });
@@ -526,10 +707,21 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       const cx = inner.reduce((s, n) => s + n.x, 0) / inner.length;
       const cy = inner.reduce((s, n) => s + n.y, 0) / inner.length;
       const compId = nextId('n');
+      const exposedParams = draft.candidates
+        .filter((p) => draft.selectedExposedKeys.has(`${p.nodeId}:${p.paramKey}`))
+        .slice(0, 6);
+      const sub: CompositeSub = {
+        nodes: [...inner, ...portNodes],
+        wires: innerWires,
+        ports,
+        ...(exposedParams.length ? { exposedParams } : {}),
+        ...(draft.previewNodeId && inner.some((n) => n.id === draft.previewNodeId) ? { previewNodeId: draft.previewNodeId } : {}),
+        ...(draft.summary.trim() ? { summary: draft.summary.trim().slice(0, 200) } : {}),
+      };
       const comp: CanvasNode = {
         id: compId, type: 'composite', x: Math.max(0, cx - 60), y: Math.max(0, cy - 30),
-        params: {}, text: '自制积木',
-        sub: { nodes: [...inner, ...portNodes], wires: innerWires, ports },
+        params: {}, text: draft.title.trim().slice(0, 48) || '自制积木',
+        sub,
       };
       const fixedBridge = bridgeWires.map((w) => ({
         ...w,
@@ -537,25 +729,25 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
         to: w.to === 'COMPOSITE' ? compId : w.to,
       }));
       return {
-        ...d,
-        nodes: [...d.nodes.filter((n) => !sel.has(n.id)), comp],
+        nodes: [...nodes.filter((n) => !sel.has(n.id)), comp],
         wires: [...outerWires, ...fixedBridge],
       };
     });
+    setPendingEncap(null);
     setSelSet(new Set());
-  }, [selSet, setDoc]);
+    onEndEncapsulate?.();
+  }, [onEndEncapsulate, setActiveLayer]);
 
   /** 展开 composite：内部节点回到本层，边界线按 port 节点接线还原 */
   const explode = useCallback((compId: string) => {
-    setDoc((d) => {
-      const comp = d.nodes.find((n) => n.id === compId && n.type === 'composite');
+    setActiveLayer((nodes, wires) => {
+      const comp = nodes.find((n) => n.id === compId && n.type === 'composite');
       const sub = comp?.sub;
-      if (!comp || !sub) return d;
+      if (!comp || !sub) return { nodes, wires };
       const portIds = new Set(sub.ports.map((p) => p.id));
       const restoreWires: Wire[] = [];
 
-      // 外层接到 pi 端口 → 还原成外层源直连接 pi.out 指向的内目标
-      for (const w of d.wires) {
+      for (const w of wires) {
         if (w.to === compId) {
           const inner = sub.wires.find((x) => x.from === w.toPort);
           if (inner) restoreWires.push({ id: w.id, from: w.from, fromPort: w.fromPort, to: inner.to, toPort: inner.toPort });
@@ -569,12 +761,12 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       const restored = sub.nodes.filter((n) => !portIds.has(n.id));
       const innerWires = sub.wires.filter((x) => !portIds.has(x.from) && !portIds.has(x.to));
       return {
-        ...d,
-        nodes: [...d.nodes.filter((n) => n.id !== compId), ...restored],
+        nodes: [...nodes.filter((n) => n.id !== compId), ...restored],
         wires: [...restoreWires, ...innerWires],
       };
     });
-  }, [setDoc]);
+    setInspectNodeId((cur) => (cur === compId ? null : cur));
+  }, [setActiveLayer]);
 
   /* ---------- 节点拖动（整卡可拖；编排态画布可平移，不钳制到左上角） ---------- */
   const startNodeDrag = useCallback((e: React.PointerEvent, node: CanvasNode) => {
@@ -669,7 +861,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     const compatible = (key: string): boolean => {
       const [direction, id, inputId] = key.split('|');
       if (direction !== 'pin' || id === node.id) return false;
-      const target = doc.nodes.find((candidate) => candidate.id === id);
+      const target = activeNodes.find((candidate) => candidate.id === id);
       const input = target && nodePorts(target, 'in').find((port) => port.id === inputId);
       return Boolean(target && input && compatiblePorts(node, portId, outKind, target, input));
     };
@@ -711,14 +903,14 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', finish);
     document.addEventListener('pointercancel', finish);
-  }, [closeWireMenu, connect, doc.nodes, portCenter, toInner]);
+  }, [activeNodes, closeWireMenu, connect, portCenter, toInner]);
 
   const insertWiredNode = (pending: PendingWireMenu, node: CanvasNode, inPortId: string): void => {
     const placed = { ...node, x: Math.max(0, pending.canvasX), y: Math.max(0, pending.canvasY - 40) };
     const wire = { id: nextId('wire'), from: pending.fromNodeId, fromPort: pending.fromPortId, to: node.id, toPort: inPortId };
-    setDoc((current) => current.nodes.some(({ id }) => id === wire.from)
-      ? { ...current, nodes: [...current.nodes, placed], wires: [...current.wires, wire] }
-      : current);
+    setActiveLayer((nodes, wires) => (nodes.some(({ id }) => id === wire.from)
+      ? { nodes: [...nodes, placed], wires: [...wires, wire] }
+      : { nodes, wires }));
     setSelSet(new Set([node.id]));
     setSelStrokes(new Set());
     closeWireMenu();
@@ -786,7 +978,11 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       startPan(e);
       return;
     }
-    if (e.button !== 0 || readOnly) return;
+    if (e.button !== 0) return;
+    if (readOnly) {
+      if (renderTools && !(e.target as Element).closest('[data-node],[data-port]')) startPan(e);
+      return;
+    }
     if (tool === 'erase') {
       e.preventDefault();
       eraseAt(e);
@@ -799,11 +995,11 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       document.addEventListener('pointerup', up);
       return;
     }
-    const pen = tool === 'pen' || e.pointerType === 'pen';
+    const pen = !encapsulating && (tool === 'pen' || e.pointerType === 'pen');
     if (!pen) {
       // 选择工具在空白处按下 → 框选（marquee）；点在节点上交给节点的 click 选中
       if (tool === 'select' && !(e.target as HTMLElement).closest('[data-node],[data-port]')) {
-        if (composing && !e.shiftKey) {
+        if (composing && !encapsulating && !e.shiftKey) {
           setSelSet(new Set());
           setSelStrokes(new Set());
           startPan(e);
@@ -851,13 +1047,13 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     }
     if ((e.target as HTMLElement).closest('[data-port]')) return; // 端口优先连线
     startStroke(e);
-  }, [composing, doc.strokes, eraseAt, readOnly, startPan, startStroke, toInner, tool]);
+  }, [composing, doc.strokes, encapsulating, eraseAt, readOnly, renderTools, startPan, startStroke, toInner, tool]);
 
   const onInnerDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (readOnly || (e.target as HTMLElement).closest('[data-node],[data-port],[data-board-tools]')) return;
+    if (readOnly || encapsulating || (e.target as HTMLElement).closest('[data-node],[data-port],[data-board-tools]')) return;
     const p = toInner(e.clientX, e.clientY);
     onAddNode?.('textNote', Math.max(0, p.x), Math.max(0, p.y));
-  }, [onAddNode, readOnly, toInner]);
+  }, [encapsulating, onAddNode, readOnly, toInner]);
 
   const recognizeInk = useCallback(async (): Promise<void> => {
     if (!onInkExtract || inkBusy) return;
@@ -912,20 +1108,28 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
   }, [workId, composing, pan]);
 
   const tidyLayout = () => {
-    const boxes = [...(vpRef.current?.querySelectorAll<HTMLElement>('[data-node]') ?? [])];
-    const cardWidth = Math.max(176, ...boxes.map((el) => el.offsetWidth));
-    const cardHeight = Math.max(116, ...boxes.map((el) => el.offsetHeight));
-    setDoc((prev) => ({ ...prev, nodes: applyAutoLayout(prev.nodes, prev.wires, { cardWidth, cardHeight, excludeNotes: false }) }));
-    requestAnimationFrame(() => fitAll());
+    const nodeSizes = new Map<string, NodeBoxSize>();
+    vpRef.current?.querySelectorAll<HTMLElement>('[data-node]').forEach((el) => {
+      const id = el.dataset.node;
+      if (id && el.offsetWidth > 0 && el.offsetHeight > 0) {
+        nodeSizes.set(id, { w: el.offsetWidth, h: el.offsetHeight });
+      }
+    });
+    setActiveLayer((nodes, wires) => ({
+      nodes: applyAutoLayout(nodes, wires, { nodeSizes, excludeNotes: false }),
+      wires,
+    }));
+    // 等 React 提交新坐标且浏览器完成一次重排后再执行适应全图，避免读到旧位置
+    requestAnimationFrame(() => requestAnimationFrame(() => fitAll()));
   };
   const nodeTitle = (node: CanvasNode) => find408Stage(node)?.stage.title ?? findPhysicsStage(node)?.stage.title
     ?? findCalculusStage(node)?.stage.title ?? findBusinessStage(node)?.stage.title
     ?? (node.type === 'aiRuleBlock' ? parseAiRulePayload(node.payload)?.title : undefined)
     ?? (node.text && node.type !== 'textNote' && node.type !== 'latexNote' && node.type !== 'functionSource'
       && !node.text.includes('\n') ? node.text : NODE_DEFS[node.type].title);
-  const wireSource = wireMenu && doc.nodes.find(({ id }) => id === wireMenu.fromNodeId);
+  const wireSource = wireMenu && activeNodes.find(({ id }) => id === wireMenu.fromNodeId);
   const wireKind = wireMenu?.outKind ?? (wireSource && wireMenu
-    ? evalOutput(ctx, wireSource.id, wireMenu.fromPortId)?.kind : undefined);
+    ? evalOutput(activeCtx, wireSource.id, wireMenu.fromPortId)?.kind : undefined);
   const wireRecommendations = useMemo(() => wireSource && wireMenu
     ? recommendNodesForPort(wireSource, wireMenu.fromPortId, wireKind, NODE_DEFS) : [],
   [wireSource, wireMenu, wireKind]);
@@ -937,7 +1141,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     if (!wireMenu || !wireSource || !onOpenRuleCreator) return;
     const portLabel = nodePorts(wireSource, 'out').find(({ id }) => id === wireMenu.fromPortId)?.label ?? wireMenu.fromPortId;
     const title = nodeTitle(wireSource);
-    const value = serializeUpstreamValue(evalOutput(ctx, wireSource.id, wireMenu.fromPortId));
+    const value = serializeUpstreamValue(evalOutput(activeCtx, wireSource.id, wireMenu.fromPortId));
     closeWireMenu();
     onOpenRuleCreator({
       context: { nodeTitle: title, portLabel, kind: wireKind, value,
@@ -946,7 +1150,230 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     });
   };
 
-  const inspected = doc.nodes.find((node) => node.id === inspectNodeId);
+  /** 收集多选子图上下文并打开「✨ AI 融合」造物台 */
+  const openFuseCreator = (): void => {
+    if (!onOpenFuseCreator) return;
+    const selectedIds = [...selSet].filter((id) => {
+      const node = activeNodes.find((n) => n.id === id);
+      return node && node.type !== 'portIn' && node.type !== 'portOut';
+    });
+    if (selectedIds.length < 2 || selectedIds.length > 6) return;
+    const sel = new Set(selectedIds);
+    const selectedNodes = activeNodes.filter((n) => sel.has(n.id));
+    const nodeTitles = selectedNodes.map((n) => nodeTitle(n));
+
+    const nodesSummary = selectedNodes.map((n) => {
+      const parsedAi = n.type === 'aiRuleBlock' ? parseAiRulePayload(n.payload) : null;
+      const outVal = serializeUpstreamValue(evalOutput(activeCtx, n.id));
+      return {
+        id: n.id,
+        type: n.type,
+        title: nodeTitle(n),
+        params: n.params,
+        ...(n.text ? { text: n.text.slice(0, 800) } : {}),
+        ...(parsedAi ? {
+          code: parsedAi.code.slice(0, 4000),
+          summary: parsedAi.summary,
+          preferredView: parsedAi.preferredView,
+          controls: parsedAi.controls,
+        } : {}),
+        ...(outVal ? { liveOutputHint: upstreamHint(outVal, outVal.kind as ValueKind | undefined) } : {}),
+      };
+    });
+
+    const internalWires = activeWires
+      .filter((w) => sel.has(w.from) && sel.has(w.to))
+      .map((w) => ({
+        from: w.from,
+        fromPort: w.fromPort ?? 'out',
+        to: w.to,
+        toPort: w.toPort ?? 'in',
+      }));
+
+    // 收集外部入边与外部出边（用于融合后自动重连外部连线）
+    const externalInBindings: Array<{
+      wireId: string;
+      fromNodeId: string;
+      fromPort: string;
+      portId: string;
+      label: string;
+      kind?: ValueKind;
+      fromNodeTitle: string;
+      value: Record<string, unknown> | null;
+    }> = [];
+    const externalOutBindings: Array<{
+      wireId: string;
+      toNodeId: string;
+      toPort: string;
+      portId: string;
+      label: string;
+      kind?: ValueKind;
+      toNodeTitle: string;
+    }> = [];
+
+    let inIdx = 0;
+    let outIdx = 0;
+    for (const w of activeWires) {
+      const fromIn = sel.has(w.from);
+      const toIn = sel.has(w.to);
+      if (fromIn === toIn) continue;
+      if (!fromIn && toIn) {
+        inIdx += 1;
+        const src = activeNodes.find((n) => n.id === w.from);
+        const dst = activeNodes.find((n) => n.id === w.to);
+        const inSpec = dst ? nodePorts(dst, 'in').find((p) => p.id === (w.toPort ?? 'in')) : undefined;
+        const srcVal = src ? evalOutput(activeCtx, src.id, w.fromPort ?? 'out') : null;
+        externalInBindings.push({
+          wireId: w.id,
+          fromNodeId: w.from,
+          fromPort: w.fromPort ?? 'out',
+          portId: `in_${inIdx}`,
+          label: inSpec?.label || (src ? nodeTitle(src) : `输入${inIdx}`),
+          kind: inSpec?.kind ?? srcVal?.kind,
+          fromNodeTitle: src ? nodeTitle(src) : w.from,
+          value: serializeUpstreamValue(srcVal),
+        });
+      } else if (fromIn && !toIn) {
+        outIdx += 1;
+        const src = activeNodes.find((n) => n.id === w.from);
+        const dst = activeNodes.find((n) => n.id === w.to);
+        const outSpec = src ? nodePorts(src, 'out').find((p) => p.id === (w.fromPort ?? 'out')) : undefined;
+        externalOutBindings.push({
+          wireId: w.id,
+          toNodeId: w.to,
+          toPort: w.toPort ?? 'in',
+          portId: `out_${outIdx}`,
+          label: outSpec?.label || (src ? nodeTitle(src) : `输出${outIdx}`),
+          kind: outSpec?.kind,
+          toNodeTitle: dst ? nodeTitle(dst) : w.to,
+        });
+      }
+    }
+
+    const sampleInputs: Record<string, unknown> = {};
+    const sampleUpstream: Record<string, unknown>[] = [];
+    for (const binding of externalInBindings) {
+      if (binding.value) {
+        sampleInputs[binding.portId] = binding.value;
+        sampleUpstream.push({ ...binding.value, port: binding.portId });
+      }
+    }
+
+    const cx = selectedNodes.reduce((s, n) => s + n.x, 0) / selectedNodes.length;
+    const cy = selectedNodes.reduce((s, n) => s + n.y, 0) / selectedNodes.length;
+    const maxRight = Math.max(...selectedNodes.map((n) => n.x + nodeWidth(n)));
+
+    onOpenFuseCreator({
+      context: {
+        nodeIds: selectedIds,
+        nodeTitles,
+        defaultPrompt: `将选中的 ${nodeTitles.length} 个积木（${nodeTitles.join('、')}）融合成一块同屏联动展示的综合积木，合并核心可调参数并在同一视图中对比呈现关键结果`,
+        nodesSummary,
+        wiresSummary: internalWires,
+        externalPorts: {
+          inputs: externalInBindings.map(({ portId, label, kind, fromNodeTitle }) => ({
+            id: portId, label, ...(kind ? { kind } : {}), fromNodeTitle,
+          })),
+          outputs: externalOutBindings.map(({ portId, label, kind, toNodeTitle }) => ({
+            id: portId, label, ...(kind ? { kind } : {}), toNodeTitle,
+          })),
+        },
+        sampleInputs,
+        sampleUpstream,
+      },
+      apply: (fusedNode, keepOriginals) => {
+        const placed: CanvasNode = {
+          ...fusedNode,
+          x: Math.max(0, keepOriginals ? maxRight + 60 : cx - 40),
+          y: Math.max(0, cy - 20),
+        };
+        const fusedInPorts = nodePorts(placed, 'in');
+        const fusedOutPorts = nodePorts(placed, 'out');
+        setActiveLayer((nodes, wires) => {
+          if (keepOriginals) {
+            return { nodes: [...nodes, placed], wires };
+          }
+          const keptNodes = nodes.filter((n) => !sel.has(n.id));
+          const keptWires = wires.filter((w) => !sel.has(w.from) && !sel.has(w.to));
+          const rewired: Wire[] = [];
+          externalInBindings.forEach((b, idx) => {
+            if (!keptNodes.some((n) => n.id === b.fromNodeId)) return;
+            const targetPort = fusedInPorts.find((p) => p.id === b.portId)?.id
+              ?? fusedInPorts[idx]?.id
+              ?? fusedInPorts[0]?.id
+              ?? 'in';
+            rewired.push({
+              id: nextId('wire'),
+              from: b.fromNodeId,
+              fromPort: b.fromPort,
+              to: placed.id,
+              toPort: targetPort,
+            });
+          });
+          externalOutBindings.forEach((b, idx) => {
+            if (!keptNodes.some((n) => n.id === b.toNodeId)) return;
+            const sourcePort = fusedOutPorts.find((p) => p.id === b.portId)?.id
+              ?? (b.kind === 'scalar' ? fusedOutPorts.find((p) => p.kind === 'scalar')?.id : undefined)
+              ?? (b.kind === 'series' ? fusedOutPorts.find((p) => p.kind === 'series')?.id : undefined)
+              ?? fusedOutPorts[idx]?.id
+              ?? 'out';
+            rewired.push({
+              id: nextId('wire'),
+              from: placed.id,
+              fromPort: sourcePort,
+              to: b.toNodeId,
+              toPort: b.toPort,
+            });
+          });
+          return {
+            nodes: [...keptNodes, placed],
+            wires: [...keptWires, ...rewired],
+          };
+        });
+        setSelSet(new Set([placed.id]));
+        setInspectNodeId(placed.id);
+      },
+    });
+  };
+
+  /** 为复合积木调用轻量 AI 自动命名与一句话简介 */
+  const aiNameExistingComposite = async (comp: CanvasNode): Promise<void> => {
+    if (!comp.sub || aiNamingId) return;
+    setAiNamingId(comp.id);
+    try {
+      const innerNodes = comp.sub.nodes.filter((n) => n.type !== 'portIn' && n.type !== 'portOut');
+      const res = await summarizeCompositeBlock({
+        nodes_summary: innerNodes.map((n) => ({
+          id: n.id,
+          type: n.type,
+          title: nodeTitle(n),
+          params: n.params,
+        })),
+        wires_summary: comp.sub.wires.map((w) => ({
+          from: w.from,
+          to: w.to,
+          ...(w.fromPort ? { fromPort: w.fromPort } : {}),
+          ...(w.toPort ? { toPort: w.toPort } : {}),
+        })),
+        ports_summary: comp.sub.ports.map((p) => ({
+          id: p.id,
+          dir: p.dir,
+          label: p.label,
+          ...(p.kind ? { kind: p.kind } : {}),
+        })),
+      });
+      patchNode(comp.id, {
+        text: res.title,
+        sub: { ...comp.sub, summary: res.summary || comp.sub.summary },
+      });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'AI 自动命名失败，请手动输入名称');
+    } finally {
+      setAiNamingId(null);
+    }
+  };
+
+  const inspected = activeNodes.find((node) => node.id === inspectNodeId);
   const activeSelId = selSet.size === 1 ? [...selSet][0]! : null;
   const toggleView = (id: string) => setDoc((current) => {
     const panel = current.panel ?? { view_node_ids: [], exposed_params: [] };
@@ -993,15 +1420,20 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     const entries = Object.entries(outputs);
     if (!entries.length) return;
     if (node.type === 'aiRuleBlock') {
-      for (const port of ['value', 'series']) if (!Object.hasOwn(outputs, port)) live.current.delete(`${node.id}|${port}`);
+      const declaredOutIds = parseAiRulePayload(node.payload)?.outputs?.map((p) => p.id) ?? [];
+      for (const port of new Set(['value', 'series', ...declaredOutIds])) {
+        if (!Object.hasOwn(outputs, port)) live.current.delete(`${node.id}|${port}`);
+      }
     }
     for (const [port, value] of entries) live.current.set(`${node.id}|${port}`, value);
     setFrame((f) => f + 1);
   };
-  const makeBodyProps = (n: CanvasNode): NodeBodyProps => {
-    const self = evalOutput(ctx, n.id);
-    const upstreamWire = n.type === 'aiRuleBlock' ? doc.wires.find((wire) => wire.to === n.id && (wire.toPort ?? 'in') === 'in') : undefined;
-    const upstreamNode = upstreamWire && doc.nodes.find((source) => source.id === upstreamWire.from);
+  const makeBodyProps = (n: CanvasNode, scopeCtx: EvalCtx = activeCtx, allowSubPreview = true): NodeBodyProps => {
+    const scopeNodes = scopeCtx.doc.nodes;
+    const scopeWires = scopeCtx.doc.wires;
+    const self = evalOutput(scopeCtx, n.id);
+    const upstreamWire = n.type === 'aiRuleBlock' ? scopeWires.find((wire) => wire.to === n.id) : undefined;
+    const upstreamNode = upstreamWire && scopeNodes.find((source) => source.id === upstreamWire.from);
     const upstreamPort = upstreamNode && nodePorts(upstreamNode, 'out').find(({ id }) => id === (upstreamWire?.fromPort ?? 'out'));
     const presetSource = n.type === 'aiRuleBlock' ? parseAiRulePayload(n.payload)?.presetSource : undefined;
     const pipeline = self
@@ -1010,14 +1442,40 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     const cursorKey = pipelineWork + ':' + pipeline;
     const exposed = (audienceParams ?? (interactivePanel && readOnly ? doc.panel?.exposed_params : undefined))
       ?.filter((param) => param.node_id === n.id);
+    const deepPanoramaInteractive = n.type === 'deepPanoramaStage' && readOnly && interactivePanel && !audienceParams;
+
+    // Composite 2.0：解析外壳封面缩略视图（仅当非嵌套预览时渲染，防极端递归）
+    let subPreview: NodeBodyProps['subPreview'] = null;
+    if (allowSubPreview && n.type === 'composite' && n.sub?.previewNodeId) {
+      const previewNode = n.sub.nodes.find((child) => child.id === n.sub?.previewNodeId);
+      if (previewNode && previewNode.type !== 'composite' && NODE_DEFS[previewNode.type]) {
+        const childCtx = getSubCtx(scopeCtx, n);
+        if (childCtx) {
+          subPreview = {
+            node: previewNode,
+            props: {
+              node: previewNode,
+              values: inputValues(childCtx, previewNode),
+              self: evalOutput(childCtx, previewNode.id),
+            },
+          };
+        }
+      }
+    }
+
     return {
       node: n,
-      values: inputValues(ctx, n),
+      displayContext: 'canvas',
+      wiredOutputs: new Set(scopeWires.filter(({ from }) => from === n.id).map(({ fromPort }) => fromPort ?? 'out')),
+      values: inputValues(scopeCtx, n),
       self,
       ...(upstreamNode ? { upstreamLabel: [nodeTitle(upstreamNode), upstreamPort?.label].filter(Boolean).join(' · ') } : {}),
       onRulePreset: presetSource && !readOnly && !audienceParams
-        ? (preset) => setDoc((current) => applyRulePreset(current, n.id, preset, presetSource)) : undefined,
-      onParams: !readOnly && !audienceParams ? (patch) => updateParams(n.id, patch) : exposed?.length && (!readOnly || interactivePanel) ? (patch) => {
+        ? (preset) => setActiveLayer((nodes, wires) => {
+          const nextDoc = applyRulePreset({ ...doc, nodes, wires }, n.id, preset, presetSource);
+          return { nodes: nextDoc.nodes, wires: nextDoc.wires };
+        }) : undefined,
+      onParams: !readOnly && !audienceParams ? (patch) => updateParams(n.id, patch) : deepPanoramaInteractive ? (patch) => updateParams(n.id, patch) : exposed?.length && (!readOnly || interactivePanel) ? (patch) => {
         const allowed = Object.fromEntries(exposed.filter((param) => Object.hasOwn(patch, param.param_key))
           .map((param) => [param.param_key, patch[param.param_key]!]));
         if (Object.keys(allowed).length) updateParams(n.id, allowed);
@@ -1031,12 +1489,22 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       },
       onPayload: readOnly || audienceParams ? undefined : (payload) => patchNode(n.id, { payload }),
       onExplode: !readOnly && !audienceParams && n.type === 'composite' ? () => explode(n.id) : undefined,
+      onDrillIn: !audienceParams && n.type === 'composite' ? () => drillIntoComposite(n.id) : undefined,
+      onUpdateSub: !readOnly && !audienceParams && n.type === 'composite' ? (nextSub) => {
+        patchNode(n.id, { sub: nextSub });
+        pulseFrom(n.id);
+      } : undefined,
+      subPreview,
+      onAiNameComposite: !readOnly && !audienceParams && n.type === 'composite'
+        ? () => aiNameExistingComposite(n) : undefined,
+      aiNaming: aiNamingId === n.id,
       onSaveBlock: !readOnly && !audienceParams && n.type === 'composite' ? () => {
         if (!n.sub) return;
         const title = window.prompt('给这个积木起个名字', n.text || '我的自制积木');
         if (title === null) return;
         try {
-          saveCustomBlock(title, n.sub);
+          const saved = saveCustomBlock(title, n.sub);
+          onSaveCustomBlock?.(saved);
           window.alert('已存入「我的积木库」，可在任意画布从积木库拖出复用。');
         } catch (error) {
           window.alert(error instanceof Error ? error.message : '积木保存失败');
@@ -1050,23 +1518,49 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
     };
   };
 
+  const simClock: SimClockControl = {
+    tick: simTick,
+    playing: simPlaying,
+    hasDelayRegister,
+    onTogglePlay: () => setSimPlaying((p) => !p),
+    onStep: stepSimulation,
+    onReset: resetSimulation,
+  };
+
   const fitAll = useCallback(() => {
     const viewport = vpRef.current;
     if (!viewport) return;
-    const boxes = [...viewport.querySelectorAll<HTMLElement>('[data-node]')];
-    if (!boxes.length) return;
-    const left = Math.min(...boxes.map((box) => box.offsetLeft));
-    const top = Math.min(...boxes.map((box) => box.offsetTop));
-    const right = Math.max(...boxes.map((box) => box.offsetLeft + box.offsetWidth));
-    const bottom = Math.max(...boxes.map((box) => box.offsetTop + box.offsetHeight));
+    const boxes = [...viewport.querySelectorAll<HTMLElement>('[data-node]')].map((box) => ({
+      left: box.offsetLeft,
+      top: box.offsetTop,
+      right: box.offsetLeft + box.offsetWidth,
+      bottom: box.offsetTop + box.offsetHeight,
+    }));
+    const strokes = activePath.length === 0 ? docLatest.current.strokes : [];
+    const bounds = computeContentBounds(boxes, strokes);
+    if (!bounds) return;
+
     const dockHeight = viewport.querySelector<HTMLElement>('[aria-label="画布工具坞"]')?.offsetHeight ?? 0;
-    const margin = Math.max(24, dockHeight + 24);
-    const fitted = Math.floor(clamp(Math.min((viewport.clientWidth - 48) / Math.max(1, right - left),
-      (viewport.clientHeight - 2 * margin) / Math.max(1, bottom - top)), 0.05, 1.05) * 100) / 100;
+    const clockBar = viewport.querySelector<HTMLElement>('[aria-label="全局仿真时钟"]')?.offsetHeight ?? 0;
+    const breadcrumbBar = viewport.querySelector<HTMLElement>('[aria-label="子画布层级导航"]')?.offsetHeight ?? 0;
+    const inspectorWidth = viewport.querySelector<HTMLElement>(`.${styles.inspectDrawer}`)?.offsetWidth ?? 0;
+
+    const insets = {
+      top: Math.max(28, Math.max(clockBar, breadcrumbBar) + (clockBar || breadcrumbBar ? 28 : 0)),
+      bottom: Math.max(28, dockHeight + (dockHeight ? 32 : 0)),
+      left: 32,
+      right: Math.max(32, inspectorWidth + (inspectorWidth ? 24 : 0)),
+    };
+
+    const { zoom: fitted, pan: nextPan } = computeOptimalViewport(
+      bounds,
+      viewport.clientWidth,
+      viewport.clientHeight,
+      insets,
+    );
     setDoc((prev) => prev.zoom === fitted ? prev : { ...prev, zoom: fitted });
-    setPan({ x: (viewport.clientWidth - (left + right) * fitted) / 2,
-      y: (viewport.clientHeight - (top + bottom) * fitted) / 2 });
-  }, [setDoc]);
+    setPan(nextPan);
+  }, [activePath.length, setDoc]);
 
   useLayoutEffect(() => {
     if (!composing || composedOnce.current || !doc.nodes.length) return;
@@ -1080,10 +1574,27 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
   if (mode === 'instrument') return <>{ruleRunners}<InstrumentStage
     key={templateKind ?? workId}
     doc={doc} templateKind={templateKind} readOnly={readOnly} interactivePanel={interactivePanel} slideInstrument={slideInstrument} onCompose={onCompose}
-    getBodyProps={makeBodyProps} nodeTitle={nodeTitle}
+    getBodyProps={(node) => makeBodyProps(node, ctx)} nodeTitle={nodeTitle}
     cursors={pipelineCursors} setCursor={setCursor} pipelineScope={pipelineWork} presentationKey={presentationKey}
     workshopEmbed={workshopEmbed} audienceParams={audienceParams}
     onPreset={readOnly ? undefined : onPreviewPreset ?? (preset => setDoc(current => applyPresetToDoc(current, preset, audienceKeys || undefined)))}
+  /></>;
+
+  if (mode === 'cockpit') return <>{ruleRunners}<CockpitStage
+    doc={doc}
+    readOnly={readOnly}
+    getBodyProps={(node) => makeBodyProps(node, ctx)}
+    nodeTitle={nodeTitle}
+    onUpdateParam={(nodeId, patch) => setDoc((d) => ({
+      ...d,
+      nodes: d.nodes.map((n) => (n.id === nodeId ? { ...n, params: { ...n.params, ...patch } } : n)),
+    }))}
+    onUpdateCompositeSub={(compId, nextSub) => setDoc((d) => ({
+      ...d,
+      nodes: d.nodes.map((n) => (n.id === compId ? { ...n, sub: nextSub } : n)),
+    }))}
+    onBackToEdit={onCompose}
+    simClock={simClock}
   /></>;
 
   const canvas = (
@@ -1109,6 +1620,70 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
         onAddNode?.(type, Math.max(0, point.x), Math.max(0, point.y));
       } : undefined}>
       {composing && <div className={styles.canvasSurface} aria-hidden="true" />}
+
+      {/* Composite 2.0：子画布面包屑层级导航 */}
+      {inSubCanvas ? (
+        <nav className={styles.breadcrumbBar} data-board-tools aria-label="子画布层级导航">
+          <button
+            type="button"
+            className={styles.breadcrumbBtn}
+            onClick={() => { setViewPath([]); setSelSet(new Set()); setInspectNodeId(null); }}
+          >
+            🏠 主画布
+          </button>
+          {layer.breadcrumbs.map((crumb, idx) => {
+            const isLast = idx === layer.breadcrumbs.length - 1;
+            return (
+              <span key={crumb.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span aria-hidden="true">/</span>
+                {isLast ? (
+                  <span className={styles.breadcrumbCurrent}>{crumb.title}</span>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.breadcrumbBtn}
+                    onClick={() => {
+                      setViewPath(activePath.slice(0, idx + 1));
+                      setSelSet(new Set());
+                      setInspectNodeId(null);
+                    }}
+                  >
+                    {crumb.title}
+                  </button>
+                )}
+              </span>
+            );
+          })}
+          <button
+            type="button"
+            className={styles.breadcrumbBtn}
+            onClick={() => { setViewPath((p) => p.slice(0, -1)); setSelSet(new Set()); setInspectNodeId(null); }}
+          >
+            ← 返回上一层
+          </button>
+        </nav>
+      ) : null}
+
+      {/* 全局时间步仿真控制条（存在 delayRegister 或已步进时显示） */}
+      {(hasDelayRegister || simTick > 0) && !visibleNodeIds ? (
+        <div className={styles.simClockBar} data-board-tools role="toolbar" aria-label="全局仿真时钟">
+          <span className={styles.simClockTick}>t = {simTick}</span>
+          <button
+            type="button"
+            className={`${styles.simClockBtn} ${simPlaying ? styles.simClockBtnActive : ''}`}
+            onClick={simClock.onTogglePlay}
+          >
+            {simPlaying ? '⏸ 暂停' : '▶ 播放'}
+          </button>
+          <button type="button" className={styles.simClockBtn} onClick={simClock.onStep}>
+            ⏭ 单步 +1
+          </button>
+          <button type="button" className={styles.simClockBtn} onClick={simClock.onReset}>
+            ↺ 重置 t=0
+          </button>
+        </div>
+      ) : null}
+
       {wireMenu && wireSource && !readOnly && <WireQuickMenu
         clientX={wireMenu.clientX} clientY={wireMenu.clientY} items={wireRecommendations} onClose={closeWireMenu}
         onChoose={(item: WireRecommendation) => insertWiredNode(wireMenu, createCanvasNode(item.type, 0, 0), item.inPortId)}
@@ -1125,7 +1700,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
       >
         {/* 连线层（仪器面板模式下隐藏内部接线，引擎照常求值） */}
         <svg className={styles.wires} data-408-flow={pipelineEnds.size > 0 || undefined} width={worldWidth} height={worldHeight} aria-hidden="true">
-          {visibleNodeIds ? null : doc.wires.map((w: Wire) => {
+          {visibleNodeIds ? null : activeWires.map((w: Wire) => {
             const d = paths[w.id];
             if (!d) return null;
             const isRelated = activeSelId ? (w.from === activeSelId || w.to === activeSelId) : false;
@@ -1134,7 +1709,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
               ? (isRelated ? `${styles.wire} ${styles.wireActive}` : `${styles.wire} ${styles.wireDim}`)
               : styles.wire;
             return (
-              <g key={w.id} data-node-role={composing ? nodeRole(doc.nodes.find((node) => node.id === w.from)) : undefined}>
+              <g key={w.id} data-node-role={composing ? nodeRole(activeNodes.find((node) => node.id === w.from)) : undefined}>
                 <path
                   className={wireClass}
                   data-wire={w.id}
@@ -1163,7 +1738,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
         </svg>
 
         {/* 节点层 */}
-        {doc.nodes.map((n) => {
+        {activeNodes.map((n) => {
           if (visibleNodeIds && !visibleNodeIds.has(n.id)) return null;
           const def = NODE_DEFS[n.type];
           if (!def) return null;
@@ -1177,11 +1752,12 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
           const calculusStage = findCalculusStage(n)?.stage;
           const businessStage = findBusinessStage(n)?.stage;
           const title = labStage?.title ?? physicsStage?.title ?? calculusStage?.title ?? businessStage?.title ?? def.title;
-          const isPinned = doc.panel?.view_node_ids.includes(n.id) ?? false;
-          const exposed = doc.panel?.exposed_params.filter((param) => param.node_id === n.id) ?? [];
-          const bodyProps = makeBodyProps(n);
+          const isPinned = !inSubCanvas && (doc.panel?.view_node_ids.includes(n.id) ?? false);
+          const exposed = !inSubCanvas ? (doc.panel?.exposed_params.filter((param) => param.node_id === n.id) ?? []) : [];
+          const bodyProps = makeBodyProps(n, activeCtx);
           const compact = schematic && n.type !== 'textNote' && n.type !== 'latexNote' && n.type !== 'functionSource';
           const preview = compact && n.type !== 'slider' && n.type !== 'aiRuleBlock' ? nodeSchematicMeta(n, def, bodyProps.self) : null;
+          const isBoundaryPort = n.type === 'portIn' || n.type === 'portOut';
           return (
             <div
               key={n.id}
@@ -1197,15 +1773,21 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
               data-calculus-module={calculusStage?.id}
               data-business-module={businessStage?.id}
               data-sel={selSet.has(n.id) || undefined}
+              onDoubleClick={n.type === 'composite' && !encapsulating ? (e) => {
+                if ((e.target as HTMLElement).closest(NODE_DRAG_IGNORE)) return;
+                e.stopPropagation();
+                drillIntoComposite(n.id);
+              } : undefined}
               onPointerDownCapture={readOnly ? undefined : (e) => {
-                if (tool !== 'select' || e.button !== 0) return;
+                if (tool !== 'select' || encapsulating || e.button !== 0) return;
                 if ((e.target as HTMLElement).closest(NODE_DRAG_IGNORE)) return;
                 startNodeDrag(e, n);
               }}
               onPointerDown={(e) => {
-                if (tool !== 'select' || (e.target as HTMLElement).closest('[data-port]')) return;
+                if (readOnly || tool !== 'select' || e.button !== 0 || (e.target as HTMLElement).closest('[data-port]')) return;
+                if (encapsulating && (isBoundaryPort || (e.target as HTMLElement).closest(NODE_DRAG_IGNORE))) return;
                 setSelSet((s) => {
-                  if (e.shiftKey) {
+                  if (encapsulating || e.shiftKey) {
                     const next = new Set(s);
                     if (next.has(n.id)) next.delete(n.id); else next.add(n.id);
                     return next;
@@ -1216,7 +1798,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
             >
               <div
                 className={styles.nhead}
-                onPointerDown={readOnly ? undefined : (e) => startNodeDrag(e, n)}
+                onPointerDown={readOnly || encapsulating ? undefined : (e) => startNodeDrag(e, n)}
                 role={readOnly ? undefined : 'button'}
                 aria-label={readOnly ? undefined : `拖动 ${title}`}
                 tabIndex={readOnly ? undefined : 0}
@@ -1224,14 +1806,16 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
                 <span className={`${styles.ndot} ${def.badge === '源' ? styles.ndotSrc : ''}`} aria-hidden="true" />
                 <span className={styles.nodeTitle} title={nodeTitle(n)}>{nodeTitle(n)}</span>
                 <span className={`${styles.nbadge} ${def.badge === '源' ? '' : styles.nbadgeSink}`}>{def.badge}</span>
-                {composing && !readOnly && <div className={styles.pins}>
-                  <button type="button" aria-pressed={isPinned} aria-label="主舞台视图" title="主舞台视图" onClick={() => toggleView(n.id)}>📌</button>
-                  {Object.keys(n.params).length > 0 && <button type="button" aria-expanded={paramNodeId === n.id}
-                    aria-label="外露参数" title="外露参数" data-pinned={exposed.length > 0 || undefined}
+                {composing && !readOnly && !isBoundaryPort && <div className={styles.pins}>
+                  {!inSubCanvas && (
+                    <button type="button" aria-pressed={isPinned} aria-label="钉选到驾驶舱" title="钉选到驾驶舱视图" onClick={() => toggleView(n.id)}>📌</button>
+                  )}
+                  {!inSubCanvas && Object.keys(n.params).length > 0 && <button type="button" aria-expanded={paramNodeId === n.id}
+                    aria-label="钉选全局参数" title="钉选全局参数到驾驶舱" data-pinned={exposed.length > 0 || undefined}
                     onClick={() => setParamNodeId(paramNodeId === n.id ? null : n.id)}>◉</button>}
                   <button type="button" aria-label="检查模块" title="检查模块" onClick={() => setInspectNodeId(n.id)}>⌕</button>
                 </div>}
-                {readOnly ? null : (
+                {readOnly || isBoundaryPort ? null : (
                   <button
                     type="button"
                     className={styles.nx}
@@ -1243,7 +1827,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
                   </button>
                 )}
               </div>
-              {composing && paramNodeId === n.id && <section className={styles.paramPicker} aria-label="外露参数" data-node-drag-ignore="true">
+              {composing && !inSubCanvas && paramNodeId === n.id && <section className={styles.paramPicker} aria-label="外露参数" data-node-drag-ignore="true">
                 {Object.keys(n.params).map((key) => {
                   const entry = exposed.find((param) => param.param_key === key);
                   return <div key={key}>
@@ -1267,7 +1851,7 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
                   {preview.foot && <small className={styles.schematicRead}>{preview.foot}</small>}
                 </> : <Body {...bodyProps} inCard />}
               </div>
-              {readOnly || compact || visibleNodeIds ? null : (
+              {readOnly || compact || visibleNodeIds || isBoundaryPort ? null : (
                 <span
                   className={styles.resize}
                   data-node-resize
@@ -1310,9 +1894,9 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
           );
         })}
 
-        {/* 墨迹层（最上层显示，不抢事件；仪器面板模式隐藏） */}
+        {/* 墨迹层（最上层显示，不抢事件；仪器面板模式及子画布隐藏） */}
         <svg className={styles.ink} width={worldWidth} height={worldHeight} aria-hidden="true">
-          {visibleNodeIds ? null : doc.strokes.map((s) => (
+          {visibleNodeIds || inSubCanvas ? null : doc.strokes.map((s) => (
             <path key={s.id} d={strokePath(s.points)} fill="none" stroke={s.color} strokeWidth={s.width} strokeLinecap="round" strokeLinejoin="round" />
           ))}
         </svg>
@@ -1331,13 +1915,19 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
         ) : null}
       </div>
 
-      {/* 多选操作条：封装积木 / 手写圈选识别 */}
-      {!readOnly && (selSet.size >= 2 || selStrokes.size > 0) ? (
+      {/* 多选操作条：封装积木 / AI 融合 / 手写圈选识别 */}
+      {!readOnly && (encapsulating || selSet.size >= 2 || selStrokes.size > 0) ? (
         <div className={styles.selBar} data-board-tools role="toolbar" aria-label="多选操作">
+          {encapsulating && <span role="status">点选或框选至少两块积木。默认编辑时也可按住 Shift 多选。</span>}
           {selSet.size >= 2 ? <>已选 {selSet.size} 个对象</> : null}
           {selSet.size >= 2 ? (
-            <button type="button" className={styles.selBarBtn} onClick={encapsulate}>
+            <button type="button" className={styles.selBarBtn} onClick={openEncapsulateModal}>
               📦 封装成积木
+            </button>
+          ) : null}
+          {selSet.size >= 2 && selSet.size <= 6 && onOpenFuseCreator ? (
+            <button type="button" className={`${styles.selBarBtn} ${styles.selBarBtnFuse}`} onClick={openFuseCreator}>
+              ✨ AI 融合
             </button>
           ) : null}
           {selStrokes.size > 0 ? <>已选 {selStrokes.size} 段笔迹</> : null}
@@ -1351,14 +1941,151 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
               {inkBusy ? '拟合中…' : '📈 拟合为函数'}
             </button>
           ) : null}
-          <button type="button" className={styles.selBarBtn} onClick={clearSelection}>
+          <button type="button" className={styles.selBarBtn} onClick={() => {
+            clearSelection();
+            if (encapsulating) onEndEncapsulate?.();
+          }}>
             取消
           </button>
         </div>
       ) : null}
+
+      {/* Composite 2.0 封装配置浮层 */}
+      {pendingEncap ? (
+        <div className={styles.encapModalBackdrop} data-board-tools role="dialog" aria-modal="true" aria-label="封装成积木配置">
+          <div className={styles.encapModal}>
+            <h3>📦 封装为复合积木（共 {pendingEncap.nodeIds.length} 个对象）</h3>
+
+            <div className={styles.compositeNameRow}>
+              <input
+                type="text"
+                className={styles.compositeInput}
+                value={pendingEncap.title}
+                placeholder="输入模块名称"
+                aria-label="复合积木名称"
+                maxLength={48}
+                onChange={(e) => setPendingEncap((cur) => (cur ? { ...cur, title: e.target.value } : null))}
+              />
+              <button
+                type="button"
+                className={styles.tbtn}
+                disabled={pendingEncap.aiNaming}
+                onClick={() => {
+                  const sel = new Set(pendingEncap.nodeIds);
+                  const innerNodes = activeNodes.filter((n) => sel.has(n.id));
+                  const innerWires = activeWires.filter((w) => sel.has(w.from) && sel.has(w.to));
+                  setPendingEncap((cur) => (cur ? { ...cur, aiNaming: true, aiError: '' } : null));
+                  void summarizeCompositeBlock({
+                    nodes_summary: innerNodes.map((n) => ({
+                      id: n.id,
+                      type: n.type,
+                      title: nodeTitle(n),
+                      params: n.params,
+                    })),
+                    wires_summary: innerWires.map((w) => ({
+                      from: w.from,
+                      to: w.to,
+                      ...(w.fromPort ? { fromPort: w.fromPort } : {}),
+                      ...(w.toPort ? { toPort: w.toPort } : {}),
+                    })),
+                    ports_summary: [],
+                  })
+                    .then((res) => {
+                      setPendingEncap((cur) => (cur ? { ...cur, title: res.title, summary: res.summary, aiNaming: false } : null));
+                    })
+                    .catch((err) => {
+                      setPendingEncap((cur) => (cur ? {
+                        ...cur,
+                        aiNaming: false,
+                        aiError: err instanceof Error ? err.message : 'AI 自动命名失败',
+                      } : null));
+                    });
+                }}
+              >
+                {pendingEncap.aiNaming ? '命名中…' : '✨ AI 命名'}
+              </button>
+            </div>
+            {pendingEncap.aiError ? <p className={styles.badRead}>{pendingEncap.aiError}</p> : null}
+
+            <label className={styles.compositeField}>
+              <span>一句话简介（可选，展示在积木外壳）</span>
+              <input
+                type="text"
+                className={styles.compositeInput}
+                value={pendingEncap.summary}
+                placeholder="例如：接收价格并计算供需缺口与库存变化"
+                maxLength={200}
+                onChange={(e) => setPendingEncap((cur) => (cur ? { ...cur, summary: e.target.value } : null))}
+              />
+            </label>
+
+            {pendingEncap.candidates.length > 0 ? (
+              <div className={styles.compositeConfigBlock}>
+                <span className={styles.compositeSectionTitle}>透出到外壳直接调节的参数（默认前 3 个，最多 6 个）</span>
+                <div className={styles.compositeCheckList}>
+                  {pendingEncap.candidates.map((cand) => {
+                    const key = `${cand.nodeId}:${cand.paramKey}`;
+                    const checked = pendingEncap.selectedExposedKeys.has(key);
+                    return (
+                      <label key={key} className={styles.compositeCheckItem}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setPendingEncap((cur) => {
+                              if (!cur) return null;
+                              const next = new Set(cur.selectedExposedKeys);
+                              if (next.has(key)) next.delete(key);
+                              else if (next.size < 6) next.add(key);
+                              return { ...cur, selectedExposedKeys: next };
+                            });
+                          }}
+                        />
+                        <span>{cand.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+
+            {pendingEncap.previewCandidates.length > 0 ? (
+              <label className={styles.compositeField}>
+                <span>外壳封面缩略视图（默认选最后一个视图节点）</span>
+                <select
+                  className={styles.compositeInput}
+                  value={pendingEncap.previewNodeId}
+                  onChange={(e) => setPendingEncap((cur) => (cur ? { ...cur, previewNodeId: e.target.value } : null))}
+                >
+                  <option value="">不显示封面预览</option>
+                  {pendingEncap.previewCandidates.map((c) => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            <p className={styles.compositeHint}>
+              提示：封装后可<b>双击卡片</b>或点「🔍 钻入子画布」进入内部编辑；如需取消封装，点卡片上的「↩ 解封」、在检查器点「展开还原到本层」或按 <b>Ctrl+Z</b> 撤销。
+            </p>
+
+            <div className={styles.encapModalActions}>
+              <button type="button" className={styles.simClockBtn} onClick={() => setPendingEncap(null)}>取消</button>
+              <button
+                type="button"
+                className={`${styles.simClockBtn} ${styles.simClockBtnActive}`}
+                onClick={() => confirmEncapsulate(pendingEncap)}
+              >
+                确认封装
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {composing && inspected && <div className={styles.inspectDrawer} data-board-tools>
-        <NodeInspector doc={doc} selectedNode={inspected} selectedDef={NODE_DEFS[inspected.type]}
-          selectedBodyProps={{ ...makeBodyProps(inspected), onLive: undefined }}
+        <NodeInspector doc={{ ...doc, nodes: activeNodes, wires: activeWires }} selectedNode={inspected} selectedDef={NODE_DEFS[inspected.type]}
+          selectedBodyProps={{ ...makeBodyProps(inspected, activeCtx), displayContext: 'inspector', onLive: undefined }}
           upstreamRealImage={(() => {
             const pending = [inspected.id];
             const visited = new Set<string>();
@@ -1366,17 +2093,17 @@ export function CanvasBoard({ doc, setDoc, tool, inkColor, onAddNode, onAddCusto
               const id = pending.pop()!;
               if (visited.has(id)) continue;
               visited.add(id);
-              const node = doc.nodes.find((item) => item.id === id);
+              const node = activeNodes.find((item) => item.id === id);
               const image = node?.type === 'pixelGridSource' ? parseRealImagePayload(node.payload) : null;
               if (image) return image;
-              for (const wire of doc.wires) if (wire.to === id) pending.push(wire.from);
+              for (const wire of activeWires) if (wire.to === id) pending.push(wire.from);
             }
             return null;
           })()}
           overviewNodes={[]} onSelectNode={setInspectNodeId} onUpdateParam={updateParams}
           nodeTitle={nodeTitle} closeLabel="关闭检查器" />
       </div>}
-      {composing && renderTools && <div data-board-tools>{renderTools({
+      {(composing || readOnly) && renderTools && <div data-board-tools>{renderTools({
         fitAll, tidyLayout,
         zoomBy: (delta) => { const { x, y } = viewportPoint(); zoomTo(zoom + delta, x, y); },
         spawnPoint: () => {

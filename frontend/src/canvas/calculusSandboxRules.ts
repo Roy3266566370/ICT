@@ -150,7 +150,7 @@ export const odeArenaRule = `function run({ params, upstream }) {
   const errors=[euler,midpoint,rk4].map(v=>Math.abs(v.at(-1)-exact.at(-1)));
   const lines=[{label:"解析解",values:exact},{label:"Euler",values:euler},
     {label:"中点法",values:midpoint},{label:"RK4",values:rk4}];
-  const summary="y′=−3y · h="+h.toFixed(2)+" · t=4 绝对误差 Euler / 中点 / RK4："+errors.map(v=>v.toExponential(1)).join(" / ");
+  const summary="y′ = −3y · h = "+h.toFixed(2)+" · t = 4 时的绝对误差："+["Euler","中点","RK4"].map((label,i)=>label+" "+errors[i].toExponential(1)).join("，");
   return { data:{value:errors[2],errors},frames:[
     {title:"同一初值的四条轨迹",summary,series:lines},
     {title:"各步绝对误差（log₁₀）",summary,series:lines.slice(1).map(v=>({

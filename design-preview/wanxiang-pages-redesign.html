@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>万象 · 工坊 / 活页 / 个人主页 高保真视觉原型</title>
+  <style>
+    :root {
+      --paper-bg: #f6f4ee;
+      --paper-card: #ffffff;
+      --paper-subtle: #faf8f4;
+      --paper-warm: #f2ede2;
+      --ink-950: #141820;
+      --ink-900: #1b212c;
+      --ink-600: #4c5666;
+      --ink-400: #8792a2;
+      --hairline: rgba(20, 24, 32, 0.08);
+      --hairline-strong: rgba(20, 24, 32, 0.15);
+      --indigo: #4f46e5;
+      --indigo-soft: #eef2ff;
+      --orange: #c25928;
+      --orange-soft: #fff2eb;
+      --teal: #0d9488;
+      --teal-soft: #eefcf9;
+      --violet: #7c3aed;
+      --violet-soft: #f4f0ff;
+      --amber: #b45309;
+      --amber-soft: #fef6e6;
+      --font-serif: "Songti SC", "STSong", "Noto Serif SC", Georgia, serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --shadow-sm: 0 1px 3px rgba(20, 24, 32, 0.04), 0 4px 12px rgba(20, 24, 32, 0.03);
+      --shadow-md: 0 4px 14px rgba(20, 24, 32, 0.05), 0 16px 36px rgba(20, 24, 32, 0.06);
+      --shadow-hover: 0 8px 24px rgba(20, 24, 32, 0.08), 0 22px 46px rgba(79, 70, 229, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      color: var(--ink-900);
+      background:
+        radial-gradient(circle at 8% 6%, rgba(194, 89, 40, 0.055), transparent 34%),
+        radial-gradient(circle at 92% 14%, rgba(79, 70, 229, 0.055), transparent 36%),
+        var(--paper-bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ================= 顶部导航 ================= */
+    .topnav {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px clamp(16px, 4vw, 48px);
+      background: rgba(246, 244, 238, 0.82);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--hairline);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: 0.02em;
+    }
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      border-radius: 9px;
+      background: linear-gradient(135deg, var(--indigo), var(--orange));
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-family: var(--font-serif);
+      font-size: 16px;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.24);
+    }
+    .page-switch {
+      display: flex;
+      gap: 4px;
+      padding: 4px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      box-shadow: var(--shadow-sm);
+    }
+    .page-btn {
+      border: 0;
+      background: transparent;
+      color: var(--ink-600);
+      padding: 7px 18px;
+      border-radius: 999px;
+      font-size: 13.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .page-btn:hover { color: var(--ink-950); }
+    .page-btn.active {
+      background: var(--ink-950);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 3px 10px rgba(20, 24, 32, 0.18);
+    }
+    .proto-pill {
+      font-size: 11.5px;
+      color: var(--ink-400);
+      background: #fff;
+      border: 1px solid var(--hairline);
+      padding: 5px 11px;
+      border-radius: 999px;
+    }
+
+    /* ================= 页面通用容器 ================= */
+    .container {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 28px clamp(16px, 3vw, 36px) 64px;
+    }
+    .page { display: none; animation: fadeIn 0.28s ease; }
+    .page.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--indigo-soft);
+      color: var(--indigo);
+      margin-bottom: 12px;
+    }
+    .eyebrow.warm { background: var(--orange-soft); color: var(--orange); }
+    .eyebrow.teal { background: var(--teal-soft); color: var(--teal); }
+
+    h1.hero-title {
+      margin: 0 0 10px;
+      font-family: var(--font-serif);
+      font-size: clamp(26px, 3vw, 36px);
+      line-height: 1.24;
+      letter-spacing: -0.01em;
+      color: var(--ink-950);
+    }
+    .hero-sub {
+      margin: 0 0 20px;
+      font-size: 14.5px;
+      line-height: 1.65;
+      color: var(--ink-600);
+      max-width: 540px;
+    }
+
+    .card {
+      background: var(--paper-card);
+      border: 1px solid var(--hairline);
+      border-radius: 20px;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 10px 18px;
+      border-radius: 11px;
+      border: 0;
+      background: var(--ink-950);
+      color: #fff;
+      font-size: 13.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.16s ease, background 0.16s ease;
+    }
+    .btn-primary:hover { background: var(--indigo); transform: translateY(-1px); }
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 15px;
+      border-radius: 11px;
+      border: 1px solid var(--hairline-strong);
+      background: #fff;
+      color: var(--ink-900);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .btn-ghost:hover { border-color: var(--indigo); color: var(--indigo); background: var(--indigo-soft); }
+
+    .section-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 34px 0 16px;
+    }
+    .section-head h2 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-size: 22px;
+    }
+    .section-head p {
+      margin: 4px 0 0;
+      font-size: 13px;
+      color: var(--ink-400);
+    }
+
+    /* ================= 页面 1：万象工坊 ================= */
+    .workshop-bento {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      gap: 20px;
+      align-items: stretch;
+    }
+    @media (max-width: 920px) { .workshop-bento { grid-template-columns: 1fr; } }
+
+    .workshop-hero-left {
+      padding: 30px 32px;
+      background:
+        radial-gradient(circle at 90% 10%, rgba(79, 70, 229, 0.08), transparent 45%),
+        linear-gradient(160deg, #ffffff 60%, #faf7f0 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .ai-prompt-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 7px 7px 14px;
+      background: #fff;
+      border: 1.5px solid rgba(79, 70, 229, 0.24);
+      border-radius: 14px;
+      box-shadow: 0 6px 20px rgba(79, 70, 229, 0.08);
+    }
+    .ai-prompt-box input {
+      flex: 1;
+      border: 0;
+      outline: 0;
+      font: inherit;
+      font-size: 14px;
+      color: var(--ink-900);
+      background: transparent;
+    }
+    .ai-prompt-box button {
+      padding: 9px 16px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--indigo), #6366f1);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .ai-prompt-box button:hover { filter: brightness(1.06); }
+    .prompt-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 12px;
+    }
+    .prompt-chip {
+      border: 1px solid var(--hairline-strong);
+      background: rgba(255, 255, 255, 0.85);
+      color: var(--ink-600);
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .prompt-chip:hover { border-color: var(--indigo); color: var(--indigo); background: var(--indigo-soft); }
+    .ai-feedback {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--teal);
+      min-height: 18px;
+    }
+
+    /* 右侧活预览沙盘卡 */
+    .live-demo-card {
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(180deg, #ffffff 0%, #f9f7f2 100%);
+    }
+    .live-demo-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--teal);
+      background: var(--teal-soft);
+      padding: 3px 9px;
+      border-radius: 999px;
+    }
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--teal);
+      animation: pulseDot 1.6s infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.4); }
+    }
+    .live-canvas-box {
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      background:
+        radial-gradient(rgba(20, 24, 32, 0.06) 1px, transparent 1px);
+      background-size: 14px 14px;
+      background-color: #fbfaf7;
+      padding: 8px;
+      margin-bottom: 12px;
+    }
+    .live-canvas-box svg { display: block; width: 100%; height: 165px; }
+    .live-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--ink-600);
+    }
+    .live-slider-row input { flex: 1; accent-color: var(--indigo); cursor: pointer; }
+    .live-readouts {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .readout-pill {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      padding: 3px 8px;
+      border-radius: 7px;
+      background: var(--paper-subtle);
+      border: 1px solid var(--hairline);
+      color: var(--ink-900);
+    }
+
+    /* 学科主题色导览条 */
+    .subject-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 26px 0 20px;
+    }
+    .subject-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .subject-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--hairline-strong);
+      background: #fff;
+      color: var(--ink-600);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .subject-pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .subject-pill .cnt {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: var(--paper-subtle);
+      color: var(--ink-400);
+    }
+    .subject-pill.active {
+      border-color: var(--active-color, var(--indigo));
+      background: var(--active-bg, var(--indigo-soft));
+      color: var(--active-color, var(--indigo));
+      font-weight: 600;
+    }
+    .subject-pill.active .cnt {
+      background: rgba(255, 255, 255, 0.8);
+      color: inherit;
+    }
+    .search-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid var(--hairline-strong);
+      font-size: 13px;
+      color: var(--ink-400);
+      min-width: 220px;
+    }
+    .search-input input {
+      border: 0;
+      outline: 0;
+      font: inherit;
+      color: var(--ink-900);
+      width: 100%;
+    }
+
+    /* 画廊卡片墙 */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+    @media (max-width: 960px) { .gallery-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 620px) { .gallery-grid { grid-template-columns: 1fr; } }
+
+    .sandbox-card {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+    .sandbox-card.featured {
+      grid-column: span 2;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 20px;
+      align-items: center;
+      background: linear-gradient(135deg, #ffffff 55%, #f7f4ec 100%);
+    }
+    @media (max-width: 720px) {
+      .sandbox-card.featured { grid-column: span 1; grid-template-columns: 1fr; }
+    }
+    .sandbox-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-hover);
+      border-color: rgba(79, 70, 229, 0.28);
+    }
+    .sandbox-thumb {
+      height: 148px;
+      border-radius: 13px;
+      border: 1px solid var(--hairline);
+      background:
+        radial-gradient(rgba(20, 24, 32, 0.055) 1px, transparent 1px),
+        #faf9f5;
+      background-size: 14px 14px;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+      position: relative;
+    }
+    .sandbox-card.featured .sandbox-thumb { height: 196px; }
+    .sandbox-thumb svg { width: 100%; height: 100%; }
+    .formula-badge {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--hairline);
+      color: var(--ink-900);
+    }
+    .sandbox-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--ink-400);
+    }
+    .sandbox-title {
+      margin: 4px 0 6px;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--ink-950);
+    }
+    .sandbox-desc {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--ink-600);
+    }
+    .sandbox-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: auto;
+      padding-top: 8px;
+      font-size: 12px;
+      color: var(--indigo);
+      font-weight: 600;
+    }
+
+    /* ================= 页面 2：万象活页 ================= */
+    .living-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+      gap: 22px;
+      align-items: stretch;
+    }
+    @media (max-width: 960px) { .living-hero { grid-template-columns: 1fr; } }
+
+    .upload-card {
+      padding: 28px 30px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .dropzone {
+      border: 1.8px dashed rgba(194, 89, 40, 0.38);
+      border-radius: 16px;
+      background: linear-gradient(180deg, #fffaf6 0%, #ffffff 100%);
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .dropzone:hover {
+      border-color: var(--orange);
+      background: var(--orange-soft);
+      transform: translateY(-2px);
+    }
+    .drop-icon {
+      width: 46px;
+      height: 46px;
+      margin: 0 auto 10px;
+      border-radius: 14px;
+      background: var(--orange-soft);
+      color: var(--orange);
+      display: grid;
+      place-items: center;
+      font-size: 20px;
+    }
+    .dropzone strong { display: block; font-size: 15px; margin-bottom: 4px; }
+    .dropzone span { font-size: 12.5px; color: var(--ink-400); }
+    .sample-row {
+      margin-top: 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--ink-400);
+    }
+
+    /* Before / After 拖动对比窗 */
+    .compare-card {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #171c26;
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+    .compare-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12.5px;
+      color: rgba(255, 255, 255, 0.72);
+    }
+    .compare-viewport {
+      position: relative;
+      height: 270px;
+      border-radius: 14px;
+      overflow: hidden;
+      user-select: none;
+      cursor: ew-resize;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .layer-after, .layer-before {
+      position: absolute;
+      inset: 0;
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .layer-after {
+      background: radial-gradient(circle at 80% 20%, rgba(79, 70, 229, 0.35), transparent 50%), #111622;
+    }
+    .layer-before {
+      background: #e9e6de;
+      color: #4b5563;
+      clip-path: inset(0 50% 0 0);
+    }
+    .layer-tag {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 999px;
+      width: fit-content;
+    }
+    .layer-before .layer-tag { background: #d6d3cb; color: #374151; }
+    .layer-after .layer-tag { background: rgba(79, 70, 229, 0.35); color: #c7d2fe; border: 1px solid rgba(165, 180, 252, 0.35); }
+    .compare-handle {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 2px;
+      background: #fff;
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.7);
+      pointer-events: none;
+    }
+    .compare-knob {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #fff;
+      color: var(--ink-950);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      font-size: 12px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    }
+
+    .feature-trio {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    @media (max-width: 780px) { .feature-trio { grid-template-columns: 1fr; } }
+    .feature-mini {
+      padding: 18px 20px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .feature-icon {
+      width: 38px;
+      height: 38px;
+      flex-shrink: 0;
+      border-radius: 11px;
+      display: grid;
+      place-items: center;
+      font-size: 17px;
+    }
+    .feature-mini h3 { margin: 0 0 4px; font-size: 14.5px; }
+    .feature-mini p { margin: 0; font-size: 12.5px; color: var(--ink-600); line-height: 1.5; }
+
+    /* 16:9 活页封面墙 */
+    .deck-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .deck-grid { grid-template-columns: 1fr; } }
+    .deck-card {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+    .deck-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-hover); }
+    .deck-cover {
+      aspect-ratio: 16 / 9;
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: #fff;
+    }
+    .deck-hover-bar {
+      position: absolute;
+      inset: auto 10px 10px 10px;
+      display: flex;
+      gap: 6px;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: all 0.2s ease;
+    }
+    .deck-card:hover .deck-hover-bar { opacity: 1; transform: translateY(0); }
+    .deck-hover-bar button {
+      flex: 1;
+      border: 0;
+      border-radius: 8px;
+      padding: 7px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.94);
+      color: var(--ink-950);
+    }
+    .deck-hover-bar button.play { background: var(--indigo); color: #fff; }
+
+    /* ================= 页面 3：个人主页 ================= */
+    .space-bento {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .space-bento { grid-template-columns: 1fr; } }
+
+    .profile-card {
+      padding: 26px 28px;
+      background:
+        radial-gradient(circle at 100% 0%, rgba(194, 89, 40, 0.08), transparent 45%),
+        linear-gradient(160deg, #ffffff 60%, #f8f5ed 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 18px;
+    }
+    .profile-top {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #312e81, var(--indigo));
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-family: var(--font-serif);
+      font-size: 24px;
+      font-weight: 700;
+      box-shadow: 0 6px 16px rgba(79, 70, 229, 0.24);
+    }
+    .stat-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .stat-box {
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid var(--hairline);
+      text-align: center;
+      cursor: pointer;
+    }
+    .stat-box:hover { border-color: var(--indigo); }
+    .stat-box strong {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 22px;
+      color: var(--ink-950);
+    }
+    .stat-box span { font-size: 12px; color: var(--ink-400); }
+
+    .continue-card {
+      padding: 22px 24px;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 20px;
+      align-items: center;
+      background: linear-gradient(135deg, #1b2232 0%, #262f45 100%);
+      color: #fff;
+    }
+    @media (max-width: 640px) { .continue-card { grid-template-columns: 1fr; } }
+    .continue-preview {
+      aspect-ratio: 16 / 10;
+      border-radius: 13px;
+      background: #101521;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      padding: 14px;
+      display: grid;
+      place-items: center;
+    }
+
+    .quick-create {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin: 20px 0 28px;
+    }
+    @media (max-width: 760px) { .quick-create { grid-template-columns: 1fr; } }
+    .quick-tile {
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+    }
+    .quick-tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--indigo); }
+    .quick-tile strong { display: block; font-size: 14.5px; margin-bottom: 2px; }
+    .quick-tile span { font-size: 12px; color: var(--ink-400); }
+
+    .asset-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+    @media (max-width: 900px) { .asset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px) { .asset-grid { grid-template-columns: 1fr; } }
+    .asset-card {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .asset-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-hover); }
+    .asset-thumb {
+      height: 124px;
+      border-radius: 12px;
+      border: 1px solid var(--hairline);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .asset-thumb.deck { background: linear-gradient(135deg, #1e293b, #312e81); color: #fff; }
+    .asset-thumb.work {
+      background: radial-gradient(rgba(20, 24, 32, 0.08) 1px, transparent 1px), #faf8f3;
+      background-size: 12px 12px;
+    }
+    .asset-thumb.block { background: linear-gradient(135deg, #eefcf9, #eef2ff); }
+  </style>
+</head>
+<body>
+  <header class="topnav">
+    <div class="brand">
+      <div class="brand-mark">万</div>
+      <span>万象 · WanXiang</span>
+    </div>
+    <nav class="page-switch" role="tablist">
+      <button class="page-btn active" data-page="workshop">万象工坊</button>
+      <button class="page-btn" data-page="living">万象活页</button>
+      <button class="page-btn" data-page="space">个人主页</button>
+    </nav>
+    <span class="proto-pill">高保真交互原型 · 未改业务代码</span>
+  </header>
+
+  <main class="container">
+    <!-- ==================== 1. 万象工坊 ==================== -->
+    <section class="page active" id="page-workshop">
+      <div class="workshop-bento">
+        <div class="card workshop-hero-left">
+          <div>
+            <span class="eyebrow">万象工坊 · 自由创造沙盒</span>
+            <h1 class="hero-title">把公式、算法与模型，<br />拼成可触摸的活仪器。</h1>
+            <p class="hero-sub">5 大领域 45+ 全景联动沙盘开箱即玩；也可以直接说一句话，让 AI 现造一块带 2D 动画的专属积木，拉线即连。</p>
+          </div>
+          <div>
+            <div class="ai-prompt-box">
+              <span aria-hidden="true">✨</span>
+              <input id="aiPromptInput" type="text" placeholder="一句话造一块新积木，例如：模拟蒙特卡洛估算圆周率…" />
+              <button id="aiBuildBtn" type="button">AI 造积木 →</button>
+            </div>
+            <div class="prompt-chips">
+              <button class="prompt-chip" data-prompt="画一个带曲率圆的过山车轨道导数仪">🎢 曲率圆过山车</button>
+              <button class="prompt-chip" data-prompt="用随机落点模拟蒙特卡洛估算圆周率 π">🎲 蒙特卡洛求 π</button>
+              <button class="prompt-chip" data-prompt="演示 TCP 拥塞窗口慢开始与 3-ACK 快恢复">📡 TCP 拥塞锯齿</button>
+            </div>
+            <div class="ai-feedback" id="aiFeedback"></div>
+          </div>
+        </div>
+
+        <!-- 右侧真实可交互迷你活沙盘 -->
+        <div class="card live-demo-card">
+          <div class="live-demo-head">
+            <span class="live-badge"><i class="live-dot"></i>实时运转 · 拖一下试试</span>
+            <span style="font-size:12px; color:var(--ink-400);">第 3 章 · 曲率圆沙盘</span>
+          </div>
+          <div class="live-canvas-box">
+            <svg id="liveCurveSvg" viewBox="0 0 320 165" fill="none"></svg>
+          </div>
+          <div class="live-slider-row">
+            <span>观察点 x₀</span>
+            <input id="liveX0" type="range" min="-2.2" max="2.2" step="0.05" value="-0.35" />
+            <strong id="liveX0Val" style="font-family:var(--font-mono); min-width:44px; text-align:right;">-0.35</strong>
+          </div>
+          <div class="live-readouts" id="liveReadouts"></div>
+        </div>
+      </div>
+
+      <div class="subject-bar">
+        <div class="subject-pills" id="subjectPills">
+          <button class="subject-pill active" data-subj="calculus" style="--active-color:#4f46e5; --active-bg:#eef2ff;">
+            <i class="dot" style="background:#4f46e5;"></i>高等数学<span class="cnt">11</span>
+          </button>
+          <button class="subject-pill" data-subj="physics" style="--active-color:#c25928; --active-bg:#fff2eb;">
+            <i class="dot" style="background:#c25928;"></i>大学物理<span class="cnt">10</span>
+          </button>
+          <button class="subject-pill" data-subj="lab408" style="--active-color:#0d9488; --active-bg:#eefcf9;">
+            <i class="dot" style="background:#0d9488;"></i>408 综合<span class="cnt">16</span>
+          </button>
+          <button class="subject-pill" data-subj="deep" style="--active-color:#7c3aed; --active-bg:#f4f0ff;">
+            <i class="dot" style="background:#7c3aed;"></i>深度学习<span class="cnt">14</span>
+          </button>
+          <button class="subject-pill" data-subj="business" style="--active-color:#b45309; --active-bg:#fef6e6;">
+            <i class="dot" style="background:#b45309;"></i>办公决策<span class="cnt">8</span>
+          </button>
+        </div>
+        <div class="search-input">
+          <span>⌕</span>
+          <input id="workshopSearch" type="text" placeholder="搜索定理、算法、沙盘…" />
+        </div>
+      </div>
+
+      <div class="gallery-grid" id="workshopGallery"></div>
+    </section>
+
+    <!-- ==================== 2. 万象活页 ==================== -->
+    <section class="page" id="page-living">
+      <div class="living-hero">
+        <div class="card upload-card">
+          <div>
+            <span class="eyebrow warm">万象活页 · 让静态课件觉醒</span>
+            <h1 class="hero-title">上传一份旧 PPT，<br />30 秒变成能现场调参的活页。</h1>
+            <p class="hero-sub">保留原有高清排版，把公式、图表与工坊沙盘变成讲台上的实时仪器，支持离线单文件播放。</p>
+          </div>
+          <div>
+            <div class="dropzone" onclick="alert('原型演示：实际接入后会弹出文件选择框（支持 PPTX / PDF / 图片 / 项目包）')">
+              <div class="drop-icon">↑</div>
+              <strong>拖入 PPTX / PDF / 图片，或点击选择</strong>
+              <span>原版式高清保真 · 自动识别可交互对象 · 也支持导入 .xiangsheng 包</span>
+            </div>
+            <div class="sample-row">
+              <span>手头没有 PPT？一键体验：</span>
+              <button class="prompt-chip">📐 矩阵空间视角（24页）</button>
+              <button class="prompt-chip">🌊 微积分基本定理</button>
+              <button class="prompt-chip">📡 TCP 拥塞控制</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 可左右拖动的 Before / After 对比窗 -->
+        <div class="card compare-card">
+          <div class="compare-head">
+            <span>← 左右拖动分割线，对比静态 PPT 与万象活页</span>
+            <span style="font-family:var(--font-mono); color:#a5b4fc;">Before / After</span>
+          </div>
+          <div class="compare-viewport" id="compareViewport">
+            <!-- 右侧：活页（底层） -->
+            <div class="layer-after">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="layer-tag">万象活页 · 现场实时推演</span>
+                <span style="font-family:var(--font-mono); font-size:12px; color:#5eead4;">det(A) = 1.40 · 面积 ×1.4</span>
+              </div>
+              <svg viewBox="0 0 360 140" fill="none" style="width:100%; height:145px;">
+                <g stroke="rgba(165,180,252,0.2)" stroke-width="1">
+                  <line x1="60" y1="120" x2="290" y2="120" /><line x1="80" y1="95" x2="310" y2="95" />
+                  <line x1="100" y1="70" x2="330" y2="70" /><line x1="120" y1="45" x2="350" y2="45" />
+                  <line x1="60" y1="120" x2="120" y2="45" /><line x1="115" y1="120" x2="175" y2="45" />
+                  <line x1="170" y1="120" x2="230" y2="45" /><line x1="225" y1="120" x2="285" y2="45" />
+                </g>
+                <polygon points="115,120 170,120 200,82 145,82" fill="rgba(194,89,40,0.32)" stroke="#f97316" stroke-width="2" />
+                <line x1="115" y1="120" x2="225" y2="55" stroke="#5eead4" stroke-width="2.5" />
+                <circle cx="225" cy="55" r="4.5" fill="#5eead4" />
+                <text x="234" y="59" fill="#5eead4" font-size="11" font-family="monospace">特征方向 λ₁=1.8</text>
+              </svg>
+              <div style="display:flex; align-items:center; gap:10px; font-size:12px; color:#c7d2fe;">
+                <span>剪切参数 b</span>
+                <div style="flex:1; height:5px; border-radius:99px; background:rgba(255,255,255,0.18); position:relative;">
+                  <div style="width:62%; height:100%; border-radius:99px; background:#818cf8;"></div>
+                  <div style="position:absolute; left:62%; top:-4px; width:13px; height:13px; border-radius:50%; background:#fff; border:2px solid #4f46e5;"></div>
+                </div>
+                <span style="font-family:var(--font-mono);">0.80</span>
+              </div>
+            </div>
+
+            <!-- 左侧：静态 PPT（裁切层） -->
+            <div class="layer-before" id="compareBefore">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="layer-tag">传统静态 PPT · 只能死背公式</span>
+                <span style="font-size:11px; color:#9ca3af;">不可交互</span>
+              </div>
+              <div style="padding:10px 6px;">
+                <div style="font-family:var(--font-serif); font-size:18px; font-weight:700; color:#374151; margin-bottom:8px;">矩阵线性变换性质</div>
+                <div style="font-size:12.5px; line-height:1.8; color:#6b7280;">
+                  • 设二维变换矩阵 A = [a, b; c, d]<br />
+                  • 行列式 det(A) = ad - bc 表示面积缩放倍率<br />
+                  • 当 det(A) = 0 时，二维平面退化为直线<br />
+                  • 特征向量方向在线性变换后保持共线
+                </div>
+              </div>
+              <div style="font-size:11px; color:#9ca3af;">第 4 页 / 静态图片，提问无法现场演示</div>
+            </div>
+
+            <div class="compare-handle" id="compareHandle">
+              <div class="compare-knob">⇄</div>
+            </div>
+          </div>
+          <div style="font-size:12px; color:rgba(255,255,255,0.65);">
+            在讲台上被追问“如果行列式变成 0 会怎样？”——直接拖滑块，全班亲眼看着二维网格压成一条线。
+          </div>
+        </div>
+      </div>
+
+      <div class="feature-trio">
+        <div class="card feature-mini">
+          <div class="feature-icon" style="background:var(--indigo-soft); color:var(--indigo);">✦</div>
+          <div>
+            <h3>原版式高清保真</h3>
+            <p>完整保留原有 PPT 字体、配图与布局，零重排成本直接升级活页。</p>
+          </div>
+        </div>
+        <div class="card feature-mini">
+          <div class="feature-icon" style="background:var(--orange-soft); color:var(--orange);">❖</div>
+          <div>
+            <h3>无缝嵌入工坊沙盘</h3>
+            <p>45+ 高数/物理/408/决策全景沙盘一键插入，支持状态时间轴步进。</p>
+          </div>
+        </div>
+        <div class="card feature-mini">
+          <div class="feature-icon" style="background:var(--teal-soft); color:var(--teal);">⚡</div>
+          <div>
+            <h3>单文件离线可演</h3>
+            <p>导出独立 HTML 课件，无网络教室双击打开照常丝滑调参。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <div>
+          <h2>我的活页课件</h2>
+          <p>16:9 封面画廊，悬浮即可一键开始演示、进入编辑或导出离线包</p>
+        </div>
+        <button class="btn-ghost">导入项目包 (.xiangsheng)</button>
+      </div>
+
+      <div class="deck-grid">
+        <article class="card deck-card">
+          <div class="deck-cover" style="background:linear-gradient(135deg, #0f172a, #1e293b 60%, #312e81);">
+            <div style="display:flex; justify-content:space-between; font-size:11px; opacity:0.8;">
+              <span>LINEAR ALGEBRA</span><span>24 页 · 6 个活对象</span>
+            </div>
+            <div style="font-family:var(--font-serif); font-size:20px; font-weight:700;">用空间视角理解矩阵运算</div>
+            <div class="deck-hover-bar">
+              <button class="play">▶ 演示</button><button>编辑</button><button>导出</button>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; color:var(--ink-400);">
+            <strong style="color:var(--ink-900);">用空间视角理解矩阵运算</strong>
+            <span style="color:var(--teal); font-weight:600;">● 可交互</span>
+          </div>
+        </article>
+
+        <article class="card deck-card">
+          <div class="deck-cover" style="background:linear-gradient(135deg, #27201b, #5a2c17 65%, #9a3412);">
+            <div style="display:flex; justify-content:space-between; font-size:11px; opacity:0.8;">
+              <span>CALCULUS · CH03</span><span>14 页 · 4 个活对象</span>
+            </div>
+            <div style="font-family:var(--font-serif); font-size:20px; font-weight:700;">导数应用、曲率圆与泰勒聚光灯</div>
+            <div class="deck-hover-bar">
+              <button class="play">▶ 演示</button><button>编辑</button><button>导出</button>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; color:var(--ink-400);">
+            <strong style="color:var(--ink-900);">高数第 3 章公开课课件</strong>
+            <span style="color:var(--teal); font-weight:600;">● 已就绪</span>
+          </div>
+        </article>
+
+        <article class="card deck-card">
+          <div class="deck-cover" style="background:linear-gradient(135deg, #0f2926, #115e59 65%, #0d9488);">
+            <div style="display:flex; justify-content:space-between; font-size:11px; opacity:0.8;">
+              <span>408 · NETWORK</span><span>18 页 · 5 个活对象</span>
+            </div>
+            <div style="font-family:var(--font-serif); font-size:20px; font-weight:700;">TCP 三次握手与拥塞控制全周期</div>
+            <div class="deck-hover-bar">
+              <button class="play">▶ 演示</button><button>编辑</button><button>导出</button>
+            </div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px; color:var(--ink-400);">
+            <strong style="color:var(--ink-900);">计网传输层核心精讲</strong>
+            <span style="color:var(--teal); font-weight:600;">● 可交互</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ==================== 3. 个人主页 ==================== -->
+    <section class="page" id="page-space">
+      <div class="space-bento">
+        <div class="card profile-card">
+          <div class="profile-top">
+            <div class="avatar">文</div>
+            <div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <strong style="font-size:19px;">曹同学的创作空间</strong>
+                <span class="eyebrow teal" style="margin:0; font-size:11px;">高等数学 · 408</span>
+              </div>
+              <p style="margin:4px 0 0; font-size:13px; color:var(--ink-600);">把抽象公式拼成可视化实验，做真正能互动的课件。</p>
+            </div>
+          </div>
+          <div class="stat-row">
+            <div class="stat-box" data-space-filter="deck"><strong>4</strong><span>活页课件</span></div>
+            <div class="stat-box" data-space-filter="work"><strong>7</strong><span>工坊作品</span></div>
+            <div class="stat-box" data-space-filter="block"><strong>12</strong><span>自建积木</span></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--ink-400);">
+            <span>☁ 云端同步正常 · 本地积木库已就绪</span>
+            <button class="btn-ghost" style="padding:5px 11px; font-size:12px;">编辑资料</button>
+          </div>
+        </div>
+
+        <div class="card continue-card">
+          <div>
+            <span style="font-size:11.5px; color:#a5b4fc; font-weight:600;">继续上次创作 · 12 分钟前</span>
+            <h2 style="margin:8px 0 8px; font-family:var(--font-serif); font-size:23px;">第 3 章 · 导数应用与局部近似</h2>
+            <p style="margin:0 0 18px; font-size:13px; color:rgba(255,255,255,0.72); line-height:1.6;">
+              已搭建 6 块联动积木（曲率圆 + 泰勒误差热图 + 导数切线），可直接继续编排或嵌入活页。
+            </p>
+            <button class="btn-primary" style="background:#fff; color:var(--ink-950);">继续编辑 →</button>
+          </div>
+          <div class="continue-preview">
+            <svg viewBox="0 0 220 120" fill="none" style="width:100%; height:100%;">
+              <path d="M16 70 Q65 20 110 64 T204 52" stroke="#818cf8" stroke-width="2.5" />
+              <circle cx="132" cy="78" r="28" stroke="#f97316" stroke-width="1.6" stroke-dasharray="4 3" />
+              <circle cx="110" cy="64" r="4.5" fill="#5eead4" />
+              <line x1="76" y1="42" x2="144" y2="86" stroke="#5eead4" stroke-width="1.6" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-create">
+        <div class="card quick-tile" onclick="switchPage('living')">
+          <div class="feature-icon" style="background:var(--orange-soft); color:var(--orange);">＋</div>
+          <div><strong>导入 PPT 做活页</strong><span>30 秒让静态课件活起来</span></div>
+        </div>
+        <div class="card quick-tile" onclick="switchPage('workshop')">
+          <div class="feature-icon" style="background:var(--indigo-soft); color:var(--indigo);">❖</div>
+          <div><strong>进工坊拼新沙盘</strong><span>45+ 全景模板与自由画布</span></div>
+        </div>
+        <div class="card quick-tile" onclick="switchPage('workshop')">
+          <div class="feature-icon" style="background:var(--teal-soft); color:var(--teal);">✨</div>
+          <div><strong>AI 一句话造积木</strong><span>存入个人积木库随时复用</span></div>
+        </div>
+      </div>
+
+      <div class="section-head" style="margin-top:10px;">
+        <div>
+          <h2>我的创作展柜</h2>
+          <p>按活页课件、工坊沙盘与可复用积木分区管理</p>
+        </div>
+        <div class="subject-pills" id="spaceFilters">
+          <button class="subject-pill active" data-sf="all">全部</button>
+          <button class="subject-pill" data-sf="deck">活页课件</button>
+          <button class="subject-pill" data-sf="work">工坊作品</button>
+          <button class="subject-pill" data-sf="block">我的积木库</button>
+        </div>
+      </div>
+
+      <div class="asset-grid" id="spaceAssets"></div>
+    </section>
+  </main>
+
+  <script>
+    /* 页面切换 */
+    function switchPage(id) {
+      document.querySelectorAll('.page-btn').forEach(b => b.classList.toggle('active', b.dataset.page === id));
+      document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + id));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    document.querySelectorAll('.page-btn').forEach(btn => {
+      btn.addEventListener('click', () => switchPage(btn.dataset.page));
+    });
+
+    /* 工坊 AI 灵感交互 */
+    const aiInput = document.getElementById('aiPromptInput');
+    const aiFeedback = document.getElementById('aiFeedback');
+    document.querySelectorAll('.prompt-chip[data-prompt]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        aiInput.value = chip.dataset.prompt;
+        aiFeedback.textContent = '✓ 已填入灵感描述，点击右侧「AI 造积木」即可进入造物台实时生成。';
+      });
+    });
+    document.getElementById('aiBuildBtn').addEventListener('click', () => {
+      const val = aiInput.value.trim() || '曲率圆过山车导数仪';
+      aiFeedback.textContent = `✨ 正在为「${val}」打开 AI 造物台并试跑 2D 矢量画面…（原型演示）`;
+    });
+
+    /* 工坊右侧实时可拖动曲率圆迷你沙盘 */
+    const svg = document.getElementById('liveCurveSvg');
+    const x0Slider = document.getElementById('liveX0');
+    const x0Val = document.getElementById('liveX0Val');
+    const readouts = document.getElementById('liveReadouts');
+    const f = x => Math.sin(x) + 0.35 * Math.cos(2 * x);
+    const df = x => Math.cos(x) - 0.7 * Math.sin(2 * x);
+    const d2f = x => -Math.sin(x) - 1.4 * Math.cos(2 * x);
+
+    function drawLiveCurve() {
+      const x0 = Number(x0Slider.value);
+      x0Val.textContent = x0.toFixed(2);
+      const sx = x => 160 + x * 52;
+      const sy = y => 86 - y * 44;
+      const pts = [];
+      for (let i = -28; i <= 28; i++) {
+        const x = i * 0.1;
+        pts.push(`${sx(x).toFixed(1)},${sy(f(x)).toFixed(1)}`);
+      }
+      const y0 = f(x0), k1 = df(x0), k2 = d2f(x0);
+      const kappa = k2 / Math.pow(1 + k1 * k1, 1.5);
+      const R = Math.abs(kappa) > 0.05 ? 1 / Math.abs(kappa) : 20;
+      const nx = -k1 / Math.hypot(1, k1);
+      const ny = 1 / Math.hypot(1, k1);
+      const sign = kappa >= 0 ? 1 : -1;
+      const cx = x0 + sign * R * nx;
+      const cy = y0 + sign * R * ny;
+      const tx1 = x0 - 0.9, ty1 = y0 - 0.9 * k1;
+      const tx2 = x0 + 0.9, ty2 = y0 + 0.9 * k1;
+
+      svg.innerHTML = `
+        <line x1="12" y1="${sy(0)}" x2="308" y2="${sy(0)}" stroke="#dcd7cb" stroke-width="1" />
+        <line x1="${sx(0)}" y1="8" x2="${sx(0)}" y2="158" stroke="#dcd7cb" stroke-width="1" />
+        <circle cx="${sx(cx).toFixed(1)}" cy="${sy(cy).toFixed(1)}" r="${Math.min(180, R * 48).toFixed(1)}"
+          stroke="#c25928" stroke-width="1.6" stroke-dasharray="4 3" fill="rgba(194,89,40,0.06)" />
+        <polyline points="${pts.join(' ')}" stroke="#4f46e5" stroke-width="2.4" fill="none" />
+        <line x1="${sx(tx1).toFixed(1)}" y1="${sy(ty1).toFixed(1)}" x2="${sx(tx2).toFixed(1)}" y2="${sy(ty2).toFixed(1)}"
+          stroke="#0d9488" stroke-width="1.8" />
+        <circle cx="${sx(x0).toFixed(1)}" cy="${sy(y0).toFixed(1)}" r="5" fill="#c25928" stroke="#fff" stroke-width="2" />
+      `;
+      readouts.innerHTML = `
+        <span class="readout-pill">f'(x₀) = ${k1.toFixed(2)}</span>
+        <span class="readout-pill">曲率 κ = ${kappa.toFixed(2)}</span>
+        <span class="readout-pill">半径 R = ${R < 15 ? R.toFixed(2) : '∞'}</span>
+      `;
+    }
+    x0Slider.addEventListener('input', drawLiveCurve);
+    drawLiveCurve();
+
+    /* 工坊学科画廊数据 */
+    const GALLERY_DATA = {
+      calculus: [
+        { featured: true, ch: '第 3 章 · 全景沙盘', title: '导数应用、曲率圆与泰勒聚光灯', desc: '一个函数同时联动切线、曲率圆滚动、驻点拐点标注与泰勒多阶误差热图。', formula: 'κ = f″/(1+f′²)³/²', blocks: 6, color: '#4f46e5' },
+        { ch: '第 7 章 · 全景沙盘', title: '微分方程解族与求解器擂台', desc: '调特征系数看复根/重实根解形态，拉大步长直击 Euler 发散与 RK4 稳健。', formula: 'y″ + 2ζy′ + y = Fcos(ωt)', blocks: 5, color: '#4f46e5' },
+        { ch: '第 9 章 · 全景沙盘', title: '多元微分与梯度寻谷', desc: '同一二维地形驱动等高线、拉格朗日相切与梯度下降小球滚落热图。', formula: '∇f = λ∇g', blocks: 5, color: '#4f46e5' },
+        { ch: '第 12 章 · 全景沙盘', title: '级数收敛悬崖与傅里叶降噪', desc: '共享项数滑杆，对比幂级数发散边界、吉布斯过冲与含噪信号滤波重建。', formula: 'SNR = 10 log₁₀(Ps/Pe)', blocks: 5, color: '#4f46e5' },
+      ],
+      physics: [
+        { featured: true, ch: '第 8 章 · 全景沙盘', title: '干涉、衍射与偏振（真实可见光谱）', desc: '拖动波长 400–700nm 实时变换条纹真实颜色，对比光栅主极大锐化与马吕斯定律。', formula: 'd sinθ = mλ · I = I₀cos²θ', blocks: 5, color: '#c25928' },
+        { ch: '第 5 章 · 全景沙盘', title: '静电场、速度选择器与质谱仪', desc: '调 E、B 观察仅 v=E/B 粒子直穿狭缝，进入磁场按荷质比分离半圆轨道。', formula: 'R = mv / (|q|B)', blocks: 5, color: '#c25928' },
+        { ch: '第 10 章 · 全景沙盘', title: '相对论光钟与光电效应量子势阱', desc: '亚光速尺缩时间膨胀、遏止电压阈值与一维无限深势阱概率云同台联动。', formula: 'γ = 1/√(1−v²/c²)', blocks: 5, color: '#c25928' },
+      ],
+      lab408: [
+        { featured: true, ch: 'CO 第 3 章 · 全景沙盘', title: '虚拟存储 → TLB → Cache 全链路', desc: '同一访存地址流驱动位段切分、组相联 Hit/Miss 网格演化与 AMAT 对账。', formula: 'AMAT = Hit + Miss% × Penalty', blocks: 5, color: '#0d9488' },
+        { ch: 'OS 第 3 章 · 全景沙盘', title: '分页与页面置换（Belady 异常）', desc: '同一页面序列同台竞赛 OPT/LRU/FIFO/Clock，3 框 vs 4 框直击 Belady 异常。', formula: 'FIFO 3框(9) → 4框(10)', blocks: 5, color: '#0d9488' },
+        { ch: 'CN 第 5 章 · 全景沙盘', title: 'TCP 握手挥手与拥塞控制全周期', desc: '切换超时归 1 与 3-ACK 减半，同步看状态机报文与 min(cwnd, rwnd) 管道。', formula: 'swnd = min(cwnd, rwnd)', blocks: 5, color: '#0d9488' },
+      ],
+      deep: [
+        { featured: true, ch: '深度学习 · 精选', title: '优化器竞技场（SGD / Momentum / Adam）', desc: '在二次碗、鞍点与狭长山谷地形上实时竞赛收敛轨迹与 Loss 曲线。', formula: 'θ ← θ − η · update(∇L)', blocks: 4, color: '#7c3aed' },
+        { ch: '深度学习 · 精选', title: 'Transformer 多头注意力与 KV Cache', desc: '调节温度 T 与因果掩码，实时查看注意力权重热力图与采样分布。', formula: 'softmax(QKᵀ/√d)V', blocks: 4, color: '#7c3aed' },
+      ],
+      business: [
+        { featured: true, ch: '财务经营 · 全景沙盘', title: '经营盈亏、定价与二维敏感性热图', desc: '调节客单价与成本率，实时输出利润瀑布拆解、红绿敏感性矩阵与回本月份。', formula: '盈亏平衡 = 固定开销 ÷ 贡献毛利', blocks: 5, color: '#b45309' },
+        { ch: '增长实验 · 全景沙盘', title: '增长漏斗、Cohort 留存热图与 LTV/CAC', desc: '12 周留存三角热图同屏对照“砸拉新”与“提留存 +5%”的复利营收差。', formula: 'LTV / CAC ≥ 3', blocks: 5, color: '#b45309' },
+      ],
+    };
+
+    let currentSubj = 'calculus';
+    function renderGallery() {
+      const q = document.getElementById('workshopSearch').value.trim().toLowerCase();
+      const list = (GALLERY_DATA[currentSubj] || []).filter(item =>
+        !q || (item.title + item.desc + item.ch).toLowerCase().includes(q)
+      );
+      document.getElementById('workshopGallery').innerHTML = list.map((item, idx) => `
+        <article class="card sandbox-card ${item.featured && !q ? 'featured' : ''}">
+          <div class="sandbox-thumb">
+            <svg viewBox="0 0 260 120" fill="none">
+              <path d="M20 92 Q75 ${22 + idx * 12} 135 66 T240 ${38 + idx * 10}" stroke="${item.color}" stroke-width="2.5" />
+              <circle cx="135" cy="66" r="5" fill="${item.color}" />
+              <circle cx="135" cy="66" r="18" stroke="${item.color}" stroke-opacity="0.3" stroke-dasharray="3 3" />
+              <rect x="24" y="18" width="48" height="22" rx="6" fill="#fff" stroke="rgba(20,24,32,0.12)" />
+              <rect x="188" y="76" width="52" height="24" rx="6" fill="#fff" stroke="rgba(20,24,32,0.12)" />
+            </svg>
+            <span class="formula-badge">${item.formula}</span>
+          </div>
+          <div style="display:flex; flex-direction:column; flex:1;">
+            <div class="sandbox-meta">
+              <span style="color:${item.color}; font-weight:600;">${item.ch}</span>
+              <span>${item.blocks} 块联动积木</span>
+            </div>
+            <h3 class="sandbox-title">${item.title}</h3>
+            <p class="sandbox-desc">${item.desc}</p>
+            <div class="sandbox-foot">
+              <span style="color:var(--ink-400); font-weight:400;">支持双图对照</span>
+              <span>进入沙盘 ↗</span>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+    document.querySelectorAll('#subjectPills .subject-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#subjectPills .subject-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentSubj = btn.dataset.subj;
+        renderGallery();
+      });
+    });
+    document.getElementById('workshopSearch').addEventListener('input', renderGallery);
+    renderGallery();
+
+    /* 活页 Before / After 拖动对比 */
+    const viewport = document.getElementById('compareViewport');
+    const beforeLayer = document.getElementById('compareBefore');
+    const handle = document.getElementById('compareHandle');
+    let draggingCompare = false;
+    function setSplit(clientX) {
+      const rect = viewport.getBoundingClientRect();
+      const pct = Math.max(8, Math.min(92, ((clientX - rect.left) / rect.width) * 100));
+      beforeLayer.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+      handle.style.left = pct + '%';
+    }
+    viewport.addEventListener('pointerdown', e => { draggingCompare = true; setSplit(e.clientX); });
+    window.addEventListener('pointermove', e => { if (draggingCompare) setSplit(e.clientX); });
+    window.addEventListener('pointerup', () => { draggingCompare = false; });
+
+    /* 个人主页资产展柜 */
+    const ASSETS = [
+      { kind: 'deck', tag: '活页课件 · 24 页', title: '用空间视角理解矩阵运算', time: '2 小时前', note: '含 6 个可交互对象' },
+      { kind: 'work', tag: '工坊作品 · 6 节点', title: '第 3 章 · 曲率圆与泰勒误差', time: '12 分钟前', note: '已保存云端' },
+      { kind: 'block', tag: '自建积木 · 2D 矢量', title: '受迫阻尼相平面轨迹仪', time: '昨天', note: '可一键拖入任意画布' },
+      { kind: 'work', tag: '工坊作品 · 5 节点', title: 'TCP 拥塞控制与快重传实验', time: '3 天前', note: '支持状态时间轴' },
+      { kind: 'deck', tag: '活页课件 · 18 页', title: '高数第 7 章微分方程公开课', time: '4 天前', note: '已导出离线包' },
+      { kind: 'block', tag: '自建积木 · 网格热图', title: '二维盈亏敏感性红绿矩阵', time: '1 周前', note: '来自 AI 一句话造物' },
+    ];
+    let spaceFilter = 'all';
+    function renderSpaceAssets() {
+      const items = ASSETS.filter(a => spaceFilter === 'all' || a.kind === spaceFilter);
+      document.getElementById('spaceAssets').innerHTML = items.map(item => `
+        <article class="card asset-card">
+          <div class="asset-thumb ${item.kind}">
+            <span style="font-size:11px; opacity:0.8;">${item.tag}</span>
+            <strong style="font-family:var(--font-serif); font-size:16px;">${item.title}</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--ink-400);">
+            <span>${item.note}</span>
+            <span>${item.time}</span>
+          </div>
+        </article>
+      `).join('');
+    }
+    document.querySelectorAll('#spaceFilters .subject-pill, .stat-box[data-space-filter]').forEach(el => {
+      el.addEventListener('click', () => {
+        spaceFilter = el.dataset.sf || el.dataset.spaceFilter;
+        document.querySelectorAll('#spaceFilters .subject-pill').forEach(b => b.classList.toggle('active', b.dataset.sf === spaceFilter));
+        renderSpaceAssets();
+      });
+    });
+    renderSpaceAssets();
+  </script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+.unifiedDock {
+  position: fixed;
+  left: 50%;
+  bottom: 72px;
+  z-index: 1005;
+  width: min(720px, calc(100vw - 24px));
+  border: 1px solid rgba(47, 58, 73, 0.16);
+  border-radius: 16px;
+  background: #f3ede3;
+  box-shadow: 0 18px 42px rgba(18, 27, 39, 0.18), 0 2px 8px rgba(18, 27, 39, 0.08);
+  color: #1c2430;
+  overflow: hidden;
+  user-select: none;
+}
+
+.topSection {
+  padding: 10px 14px 10px;
+  background: #fbf9f4;
+  border-bottom: 1px solid rgba(47, 58, 73, 0.1);
+}
+
+.dockHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  cursor: grab;
+}
+
+.dockHeader:active {
+  cursor: grabbing;
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dragDots {
+  font-size: 12px;
+  color: #9ca3af;
+  letter-spacing: -1px;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #182230;
+  white-space: nowrap;
+}
+
+.targetBadge {
+  font-size: 12px;
+  color: #6b4e3d;
+  background: rgba(182, 90, 60, 0.1);
+  padding: 2px 9px;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.modeSwitch {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(47, 58, 73, 0.08);
+}
+
+.modeBtn {
+  border: none;
+  background: transparent;
+  color: #526071;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.modeBtn[aria-pressed='true'] {
+  background: #fffdfa;
+  color: #b65a3c;
+  box-shadow: 0 1px 2px rgba(18, 27, 39, 0.1);
+}
+
+.closeBtn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(47, 58, 73, 0.14);
+  border-radius: 8px;
+  background: #fffdfa;
+  color: #475569;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  background: #efe7dc;
+  color: #182230;
+}
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.singleFieldHost {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 10px;
+  border: 1px solid rgba(47, 58, 73, 0.18);
+  border-radius: 10px;
+  background: #ffffff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.singleFieldHost:focus-within {
+  border-color: #b65a3c;
+  box-shadow: 0 0 0 2px rgba(182, 90, 60, 0.15);
+}
+
+/* 去掉 math-field 自带边框与多余的蓝色小键盘/三道杠菜单图标 */
+.mathFieldEl {
+  display: block;
+  width: 100%;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 17px;
+  padding: 4px 0;
+  color: #182230;
+  --caret-color: #b65a3c;
+  --selection-background-color: rgba(182, 90, 60, 0.18);
+  --contains-highlight-background-color: rgba(182, 90, 60, 0.08);
+  --placeholder-color: #b65a3c;
+}
+
+.mathFieldEl::part(virtual-keyboard-toggle),
+.mathFieldEl::part(menu-toggle) {
+  display: none !important;
+}
+
+.insertBtn {
+  height: 34px;
+  padding: 0 13px;
+  border: none;
+  border-radius: 8px;
+  background: #b65a3c;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.insertBtn:hover {
+  background: #9f4b30;
+}
+
+.clearBtn {
+  height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(47, 58, 73, 0.15);
+  border-radius: 8px;
+  background: #fffdfa;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.clearBtn:hover {
+  background: #efe7dc;
+  color: #182230;
+}
+
+.nativeHint {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: #526071;
+}
+
+.notice {
+  margin: 8px 0 0;
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ---------- MathLive 虚拟键盘暖纸面换肤 + 嵌入卡片内部 ---------- */
+
+.kbdHost {
+  position: relative;
+  width: 100%;
+  background: #f3ede3;
+  --keyboard-background: #f3ede3;
+  --keyboard-border: transparent;
+  --keyboard-toolbar-text: #5c6676;
+  --keyboard-toolbar-text-active: #b65a3c;
+  --keyboard-toolbar-background-hover: rgba(182, 90, 60, 0.08);
+  --keyboard-accent-color: #b65a3c;
+  --keycap-background: #fffdfa;
+  --keycap-background-hover: #faf3ea;
+  --keycap-background-active: #f1e4d6;
+  --keycap-secondary-background: #e9e1d4;
+  --keycap-secondary-background-hover: #dfd4c3;
+  --keycap-border: rgba(47, 58, 73, 0.14);
+  --keycap-border-bottom: rgba(47, 58, 73, 0.22);
+  --keycap-text: #1c2430;
+  --keycap-text-active: #b65a3c;
+  --keycap-shift-color: #b65a3c;
+  --keycap-height: 38px;
+  --keycap-font-size: 15px;
+  --keycap-gap: 5px;
+  --keycap-small-font-size: 11px;
+  --keyboard-padding-top: 4px;
+  --keyboard-padding-bottom: 8px;
+  --keyboard-padding-horizontal: 10px;
+}
+
+.kbdHost > :global(*),
+.kbdHost :global(.MLK__backdrop),
+.kbdHost :global(.MLK__plate),
+.kbdHost :global(.ML__keyboard) {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  transform: none !important;
+  box-shadow: none !important;
+  border-top: none !important;
+  background: #f3ede3 !important;
+  --keyboard-zindex: 1;
+}
+
+.kbdHost :global(.MLK__backdrop::before) {
+  display: none !important;
+}

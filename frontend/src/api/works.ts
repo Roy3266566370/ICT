@@ -1,6 +1,7 @@
 /**
  * works.ts —— 定象坊 API 客户端：作品存取、发布画廊、fork。
  */
+import type { ListingOptions } from './plazaTypes';
 import { requestJson } from './client';
 import type { CanvasDoc } from '@/canvas/types.ts';
 
@@ -18,6 +19,7 @@ export interface WorkSummary {
 
 export interface ShareSummary {
   share_id: string;
+  can_delete: boolean;
   title: string;
   node_count: number;
   forks: number;
@@ -30,7 +32,38 @@ export interface WorkShareDoc {
   title: string;
   published_at: string;
   document: CanvasDoc;
+  allow_fork?: boolean;
 }
+
+export interface BlueprintDto {
+  id: string;
+  kind: 'composite' | 'aiRule';
+  title: string;
+  summary: string;
+  blueprint: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export const blueprintsApi = {
+  list: (limit = 200) =>
+    requestJson<{ items: BlueprintDto[] }>(`${P}/workshop/blueprints?limit=${limit}`),
+  save: (input: {
+    id?: string;
+    kind: 'composite' | 'aiRule';
+    title: string;
+    summary?: string;
+    blueprint: Record<string, unknown>;
+  }) =>
+    requestJson<BlueprintDto>(`${P}/workshop/blueprints`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  remove: (blueprintId: string) =>
+    requestJson<void>(`${P}/workshop/blueprints/${encodeURIComponent(blueprintId)}`, {
+      method: 'DELETE',
+    }),
+};
 
 export const worksApi = {
   create: (document: CanvasDoc, title?: string) =>
@@ -50,10 +83,10 @@ export const worksApi = {
     ),
   remove: (workId: string) =>
     requestJson<void>(`${P}/works/${encodeURIComponent(workId)}`, { method: 'DELETE' }),
-  publish: (workId: string) =>
+  publish: (workId: string, plaza?: ListingOptions) =>
     requestJson<{ share_id: string; share_url: string; published_at: string }>(
       `${P}/works/${encodeURIComponent(workId)}/publish`,
-      { method: 'POST' },
+      { method: 'POST', ...(plaza ? { body: JSON.stringify(plaza) } : {}) },
     ),
   gallery: () => requestJson<{ items: ShareSummary[] }>(`${P}/work-shares`),
   getShare: (shareId: string) =>

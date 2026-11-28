@@ -62,6 +62,14 @@ _DEFAULT_GENERATOR = "pptx_parser.py@1"
 _A_NS = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 _P_NS = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
 _M_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/math}"
+_MC_NS = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
+_SHAPE_TAGS = {
+    _P_NS + "sp",
+    _P_NS + "pic",
+    _P_NS + "grpSp",
+    _P_NS + "graphicFrame",
+    _P_NS + "cxnSp",
+}
 _URI_SMARTART = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
 _URI_CHART = "http://schemas.openxmlformats.org/drawingml/2006/chart"
 _URI_TABLE = "http://schemas.openxmlformats.org/drawingml/2006/table"
@@ -266,6 +274,35 @@ def _transform_bbox(bbox: dict[str, int], transform: Transform) -> dict[str, int
     }
 
 
+def _iter_shapes_with_alternate(shapes: Sequence[Any]) -> list[Any]:
+    """按 XML 顺序展开形状容器，兼容被 python-pptx 忽略的 ``<mc:AlternateContent>``（如含 OMML 公式的文本框）。"""
+    tree = getattr(shapes, "_spTree", None)
+    if tree is None:
+        tree = getattr(shapes, "_grpSp", None)
+    if tree is None:
+        return list(shapes)
+    try:
+        from pptx.shapes.shapetree import SlideShapeFactory
+    except Exception:
+        return list(shapes)
+
+    items: list[Any] = []
+    for child in tree:
+        if child.tag in _SHAPE_TAGS:
+            items.append(SlideShapeFactory(child, shapes))
+        elif child.tag == _MC_NS + "AlternateContent":
+            choice = child.find(_MC_NS + "Choice")
+            fallback = child.find(_MC_NS + "Fallback")
+            container = choice if (choice is not None and len(choice)) else fallback
+            if container is None:
+                continue
+            for inner in container:
+                if inner.tag in _SHAPE_TAGS:
+                    items.append(SlideShapeFactory(inner, shapes))
+                    break
+    return items
+
+
 def _walk_shapes(
     shapes: Sequence[Any],
     *,
@@ -281,7 +318,7 @@ def _walk_shapes(
     嵌套组合继续追加 ``_gN``。``shape_index`` 始终记录顶层形状序号，保证既有
     ``s{page}_{shape_index}.png`` 资源命名不受影响。
     """
-    for index, shape in enumerate(shapes):
+    for index, shape in enumerate(_iter_shapes_with_alternate(shapes)):
         current_top = index if top_index is None else top_index
         bbox = _transform_bbox(_bbox(shape), parent_transform)
         if parent_element_id is None:
@@ -300,7 +337,7 @@ def _walk_shapes(
         ):
             child_transform = _compose_transform(parent_transform, _group_child_transform(shape))
             yield from _walk_shapes(
-                list(shape.shapes),
+                shape.shapes,
                 page_no=page_no,
                 parent_transform=child_transform,
                 parent_element_id=element_id,

@@ -1,5 +1,6 @@
 import type {SceneDocument,SceneNode,ScenePage,SceneRelation,NodePatch,NodeChange,PageMetadata,WorkshopPluginConfig} from './types';
-import {copyPage,diffDocuments,newNode,patchNodes,patchPageMetadata,patchPageRelations,rebaseDocument,removePage,same} from './model';
+import {copyPage,diffDocuments,patchNodes,patchPageMetadata,patchPageRelations,rebaseDocument,removePage,same} from './model';
+import {layoutNodes,type SlideLayout} from './layouts';
 export {diffDocuments,patchPageRelations,rebaseDocument} from './model';
 interface Options {
   save:(revision:number,operationId:string,changes:NodeChange[])=>Promise<{revision:number}>;
@@ -70,17 +71,17 @@ export class DocumentController {
     this.nextPageNo=Math.max(this.nextPageNo,Math.max(0,...pages.map(p=>p.page_no))+1);
     return this.nextPageNo++;
   }
-  addPage(afterPageNo:number,layout:'blank'|'lesson'='blank'){
+  addPage(afterPageNo:number,layout:SlideLayout='blank'){
     const pageNo=this.allocatePageNo();
     const size=this.current.pages.find(p=>p.page_no===afterPageNo)??this.current.pages[0];
     const page:ScenePage={page_no:pageNo,id:`p_${pageNo}`,width:size?.width??720,height:size?.height??405,
-      source_page_no:null,modified:true,nodes:[],preparation:{status:'ready'}};
-    if(layout==='lesson'){
-      const title=newNode(page,`u_page_${pageNo}_title`),body=newNode(page,`u_page_${pageNo}_body`);
-      const x=page.width*.08,width=page.width*.84;
-      page.nodes=[{...title,text:'课程标题',x,y:page.height*.10,width,height:page.height*.17,style:{...title.style,bold:true,font_size:Math.max(8,Math.min(48,page.height*.09))}},
-        {...body,text:'教学要点',x,y:page.height*.32,width,height:page.height*.58,style:{...body.style,font_size:Math.max(6,Math.min(36,page.height*.055))}}];
+      source_page_no:null,modified:true,nodes:[],preparation:{status:'ready'},layout_id:layout,
+      hide_master:layout==='cover'||layout==='section'};
+    if(this.current.theme){
+      page.background_color=this.current.theme.palette.background;
+      page.background_modified=true;
     }
+    page.nodes=layoutNodes(page,layout,this.current.theme);
     return this.insertPage(afterPageNo,page);
   }
   duplicatePage(pageNo:number){

@@ -8,19 +8,21 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from ..db.models import MaterialRecord
-from ..schemas.errors import ApiError, ErrorCode, missing_field
+from ..schemas.errors import ApiError, ErrorCode, missing_field, model_unavailable
 from ..settings import get_settings
 from . import API_PREFIX, DBDep, SessionDep, WriteDep, ok, owned_material
 from ..ppt_ai.learning import build_learning_page
 from ..ppt_ai.learning_practices import list_practices
 from ..ppt_ai.learning_types import LearningContext, LearningPublishSelection
+from ..ppt_ai.client import PPTAIError
+from ..ppt_ai.page_qa import answer_question, collect_pages
 from ..ppt_ai.tasks import dispatch_async, enqueue_task
 from ..ppt_ai.util import now_iso
 
@@ -50,6 +52,49 @@ def _learning_enabled() -> None:
 
 class StrictBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class PageQuestionTurn(StrictBody):
+    question: str = Field(min_length=1, max_length=2000)
+    answer: str = Field(min_length=1, max_length=6000)
+
+
+class PageQuestionBody(StrictBody):
+    question: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+    history: list[PageQuestionTurn] = Field(default_factory=list, max_length=4)
+
+
+PAGE_QA_PATH = f"{API_PREFIX}/materials/{{material_id}}/pages/{{page_no}}/learning-qa"
+
+
+def _page_qa_context(db: DBDep, material_id: str, page_no: int):
+    _learning_enabled()
+    pages = collect_pages(db, material_id, page_no)
+    if not pages:
+        raise missing_field("页码超出范围", field="page_no")
+    return pages
+
+
+@router.get(PAGE_QA_PATH, summary="准备本页与相邻页的问答上下文")
+def prepare_page_question(material_id: str, page_no: int, request: Request, ctx: SessionDep, db: DBDep) -> JSONResponse:
+    material = owned_material(db, ctx, material_id)
+    pages = _page_qa_context(db, material.id, page_no)
+    return ok(request, {"pages": [
+        {"page_no": page["page_no"], "title": page["title"], "has_image": bool(page["_image"])}
+        for page in pages
+    ]})
+
+
+@router.post(PAGE_QA_PATH, summary="用视觉模型回答课件问题")
+def ask_page_question(material_id: str, page_no: int, body: PageQuestionBody, request: Request, ctx: WriteDep, db: DBDep) -> JSONResponse:
+    material = owned_material(db, ctx, material_id)
+    pages = _page_qa_context(db, material.id, page_no)
+    db.rollback()  # Release the database connection before the model request.
+    try:
+        answer = answer_question(page_no, pages, body.question, [turn.model_dump() for turn in body.history])
+    except PPTAIError as error:
+        raise model_unavailable(str(error)) from error
+    return ok(request, answer.model_dump())
 
 
 class PrepareBody(StrictBody):

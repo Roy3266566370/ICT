@@ -1,4 +1,10 @@
 .canvas { position:absolute; left:0; top:0; transform-origin:0 0; isolation:isolate; color:#18233d; }
+@media (prefers-reduced-motion:no-preference) {
+  .canvas [data-build-entry][data-node-id]:not([data-node-type='workshop_plugin']):not([data-node-type='diagram']),
+  .canvas [data-build-entry][data-vector-node],
+  .canvas [data-build-entry] > :global(.slideRichNode) { animation:buildEntrance 240ms ease-out both; }
+  @keyframes buildEntrance { from { opacity:0; translate:0 7px; } }
+}
 .contentLayer { position:absolute; inset:0; overflow:hidden; }
 .pageBackground { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 .node { position:absolute; transform-origin:center; outline:none; box-sizing:border-box; }
@@ -8,11 +14,14 @@
 .raster { position:absolute; inset:0; width:100%; height:100%; object-fit:fill; user-select:none; pointer-events:none; }
 .imageClip { position:absolute; inset:0; overflow:hidden; }
 .textFrame { position:absolute; inset:0; box-sizing:border-box; display:flex; flex-direction:column; overflow:visible; pointer-events:none; }
+.textFrame, .inlineRichFrame { text-decoration-skip-ink:none; }
 .textContent { white-space:pre-wrap; overflow-wrap:break-word; flex-shrink:0; width:100%; text-rendering:geometricPrecision; }
 .textContent p { margin:0; padding:0; line-height:inherit; }
-.inlineText { position:absolute; inset:0; width:100%; height:100%; box-sizing:border-box; margin:0; background:transparent; border:0; outline:1px solid #7b63db; resize:none; overflow:auto; white-space:pre-wrap; }
+.inlineText { position:absolute; inset:0; width:100%; height:100%; box-sizing:border-box; margin:0; background:transparent; border:0; outline:1px solid #7b63db; resize:none; overflow:auto; white-space:pre-wrap; cursor:text; }
 .inlineRichFrame { position:absolute; inset:0; }
-.inlineRichFrame ul { margin:0; padding-inline-start:1.4em; }
+.inlineRichFrame :is(ul,ol) { margin:0; padding-inline-start:1.4em; }
+.exactFontSize { width:48px; min-width:0; }
+.table input { width:100%; min-width:0; box-sizing:border-box; font:inherit; color:#19233c; }
 .richToolbar { position:absolute; top:calc(100% + 4px); left:0; z-index:1; display:flex; align-items:center; gap:3px; min-width:max-content; padding:4px; border:1px solid #ccd2dc; border-radius:5px; background:white; box-shadow:0 2px 8px #18233d22; color:#18233d; font:13px system-ui,sans-serif; }
 .richToolbar :is(button,select,input) { min-height:24px; padding:2px 5px; border:1px solid #ccd2dc; border-radius:3px; background:white; color:inherit; font:inherit; }
 .richToolbar input { width:28px; }
@@ -22,7 +31,7 @@
 .table td { border:1px solid #b6bed0; padding:4px 7px; overflow-wrap:anywhere; }
 .chart { width:100%; height:100%; overflow:hidden; background:#fff; }
 .chart figure { margin:0; height:100%; padding:0; }
-.chart svg { width:100%; height:calc(100% - 24px); }
+.chart svg { width:100%; height:100%; }
 
 .vectorControls { position:absolute; z-index:30000; right:10px; bottom:10px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; max-width:calc(100% - 20px); padding:8px; border:1px solid #ccd2dc; border-radius:6px; background:#fff; color:#18233d; font:14px system-ui,sans-serif; }
 .vectorControls[data-external=true] { position:static; width:fit-content; max-width:100%; box-sizing:border-box; margin:0 auto 4px; }

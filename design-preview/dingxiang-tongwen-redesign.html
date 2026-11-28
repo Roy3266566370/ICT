@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>定象坊 × 通文册 · 东方现代工造美学原型</title>
+  <style>
+    :root {
+      --xuan: #f4efe6;        /* 宣纸底 */
+      --xuan-light: #faf7f1;  /* 浅宣纸 */
+      --xuan-deep: #eae2d3;   /* 熟宣压线 */
+      --ink: #16191e;         /* 徽墨 */
+      --ink-70: #464c56;
+      --ink-40: #868c96;
+      --cinnabar: #b83b24;    /* 朱砂印 */
+      --cinnabar-soft: rgba(184, 59, 36, 0.09);
+      --indigo: #1f4e79;      /* 石青 */
+      --indigo-soft: rgba(31, 78, 121, 0.09);
+      --jade: #1b6b5c;        /* 铜绿 */
+      --gold: #a67c37;        /* 鎏金细线 */
+      --line: rgba(22, 25, 30, 0.12);
+      --line-strong: rgba(22, 25, 30, 0.24);
+      --font-serif: "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif CN", Georgia, serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: var(--font-sans);
+      background-color: var(--xuan);
+      background-image:
+        linear-gradient(to right, rgba(22, 25, 30, 0.032) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(22, 25, 30, 0.032) 1px, transparent 1px);
+      background-size: 48px 48px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ================= 顶部建筑感导航 ================= */
+    .masthead {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 14px clamp(20px, 4vw, 56px);
+      background: rgba(244, 239, 230, 0.86);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .seal {
+      width: 30px;
+      height: 30px;
+      border: 1.5px solid var(--cinnabar);
+      border-radius: 5px;
+      color: var(--cinnabar);
+      display: grid;
+      place-items: center;
+      font-family: var(--font-serif);
+      font-weight: 700;
+      font-size: 15px;
+      background: rgba(184, 59, 36, 0.04);
+      box-shadow: inset 0 0 0 1px rgba(184, 59, 36, 0.18);
+    }
+    .logo-title {
+      font-family: var(--font-serif);
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+    }
+    .logo-sub {
+      font-size: 11px;
+      color: var(--ink-40);
+      letter-spacing: 0.08em;
+      display: block;
+      margin-top: 1px;
+    }
+
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      border: 1px solid var(--line-strong);
+      background: var(--xuan-light);
+      border-radius: 6px;
+    }
+    .nav-tab {
+      border: 0;
+      background: transparent;
+      color: var(--ink-70);
+      padding: 7px 22px;
+      border-radius: 4px;
+      font-family: var(--font-serif);
+      font-size: 15px;
+      letter-spacing: 0.1em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .nav-tab:hover { color: var(--ink); }
+    .nav-tab.active {
+      background: var(--ink);
+      color: var(--xuan-light);
+    }
+
+    .masthead-right {
+      justify-self: end;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11.5px;
+      color: var(--ink-40);
+      font-family: var(--font-mono);
+    }
+
+    /* ================= 页面容器 ================= */
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 36px clamp(20px, 4vw, 48px) 80px;
+    }
+    .view { display: none; animation: reveal 0.35s ease; }
+    .view.active { display: block; }
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ================= 一、定象坊（以器定象） ================= */
+    .dx-hero {
+      border: 1px solid var(--line-strong);
+      background: var(--xuan-light);
+      position: relative;
+      display: grid;
+      grid-template-columns: 360px minmax(0, 1fr);
+      min-height: 440px;
+    }
+    @media (max-width: 960px) { .dx-hero { grid-template-columns: 1fr; } }
+
+    /* 四角精密准星 */
+    .dx-hero::before, .dx-hero::after {
+      content: "+";
+      position: absolute;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .dx-hero::before { top: 8px; left: 10px; }
+    .dx-hero::after { bottom: 8px; right: 10px; }
+
+    .dx-hero-editorial {
+      padding: 38px 32px 32px;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 24px;
+    }
+    @media (max-width: 960px) { .dx-hero-editorial { border-right: 0; border-bottom: 1px solid var(--line); } }
+
+    .kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      color: var(--cinnabar);
+      text-transform: uppercase;
+    }
+    .kicker::before {
+      content: "";
+      width: 18px;
+      height: 1px;
+      background: var(--cinnabar);
+    }
+
+    .display-title {
+      margin: 14px 0 12px;
+      font-family: var(--font-serif);
+      font-size: clamp(28px, 3vw, 38px);
+      line-height: 1.24;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .display-lead {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.75;
+      color: var(--ink-70);
+    }
+
+    /* 以言定象（AI 造物指令栏） */
+    .ai-forge {
+      border-top: 1px solid var(--line);
+      padding-top: 18px;
+    }
+    .ai-forge-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--ink-40);
+      margin-bottom: 8px;
+    }
+    .ai-forge-input {
+      display: flex;
+      border: 1px solid var(--line-strong);
+      background: #fff;
+    }
+    .ai-forge-input input {
+      flex: 1;
+      border: 0;
+      outline: 0;
+      padding: 11px 12px;
+      font: inherit;
+      font-size: 13.5px;
+      background: transparent;
+      color: var(--ink);
+    }
+    .ai-forge-input button {
+      border: 0;
+      border-left: 1px solid var(--line-strong);
+      background: var(--ink);
+      color: var(--xuan-light);
+      padding: 0 16px;
+      font-family: var(--font-serif);
+      font-size: 13.5px;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: background 0.18s ease;
+    }
+    .ai-forge-input button:hover { background: var(--cinnabar); }
+
+    .forge-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .forge-chip {
+      border: 1px solid var(--line);
+      background: var(--xuan);
+      color: var(--ink-70);
+      padding: 4px 10px;
+      font-size: 11.5px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .forge-chip:hover { border-color: var(--cinnabar); color: var(--cinnabar); background: #fff; }
+
+    /* 右侧沉浸式星盘/精密仪器剧场 */
+    .dx-theater {
+      position: relative;
+      background:
+        radial-gradient(circle at 50% 45%, rgba(31, 78, 121, 0.22), transparent 62%),
+        #12161e;
+      color: #f0ece3;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 20px 24px 18px;
+      overflow: hidden;
+    }
+    .theater-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: rgba(240, 236, 227, 0.65);
+      z-index: 2;
+    }
+    .theater-modes {
+      display: flex;
+      gap: 6px;
+    }
+    .t-mode {
+      border: 1px solid rgba(240, 236, 227, 0.2);
+      background: transparent;
+      color: rgba(240, 236, 227, 0.72);
+      padding: 4px 10px;
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+    .t-mode.active {
+      border-color: #d97742;
+      color: #fff;
+      background: rgba(184, 59, 36, 0.25);
+    }
+    .theater-svg-wrap {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      min-height: 260px;
+    }
+    .theater-svg-wrap svg {
+      width: 100%;
+      height: 280px;
+    }
+
+    /* 游标刻度尺控制条 */
+    .caliper-bar {
+      border-top: 1px solid rgba(240, 236, 227, 0.14);
+      padding-top: 14px;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 16px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .caliper-bar input[type="range"] {
+      width: 100%;
+      accent-color: #d97742;
+      cursor: ew-resize;
+    }
+    .caliper-readout {
+      display: flex;
+      gap: 14px;
+      color: #e6c68a;
+    }
+
+    /* 定象图谱索引 */
+    .catalog-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin: 42px 0 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line-strong);
+    }
+    .domain-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 22px;
+    }
+    .domain-tab {
+      position: relative;
+      border: 0;
+      background: transparent;
+      padding: 4px 0 8px;
+      font-family: var(--font-serif);
+      font-size: 16px;
+      color: var(--ink-40);
+      cursor: pointer;
+      transition: color 0.18s ease;
+    }
+    .domain-tab small {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      margin-left: 5px;
+      opacity: 0.7;
+    }
+    .domain-tab:hover { color: var(--ink); }
+    .domain-tab.active {
+      color: var(--ink);
+      font-weight: 700;
+    }
+    .domain-tab.active::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -13px;
+      height: 2px;
+      background: var(--cinnabar);
+    }
+
+    /* 蓝图卷宗网格 */
+    .blueprint-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-top: 1px solid var(--line);
+      border-left: 1px solid var(--line);
+      background: var(--xuan-light);
+    }
+    @media (max-width: 920px) { .blueprint-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 600px) { .blueprint-grid { grid-template-columns: 1fr; } }
+
+    .bp-card {
+      position: relative;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      padding: 22px 22px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      cursor: pointer;
+      transition: background 0.22s ease;
+    }
+    .bp-card.wide {
+      grid-column: span 2;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 24px;
+      align-items: center;
+    }
+    @media (max-width: 720px) { .bp-card.wide { grid-column: span 1; grid-template-columns: 1fr; } }
+    .bp-card:hover { background: #ffffff; }
+    .bp-card:hover .bp-svg path,
+    .bp-card:hover .bp-svg circle { stroke: var(--cinnabar); }
+    .bp-card:hover .bp-enter { color: var(--cinnabar); transform: translateX(4px); }
+
+    .bp-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-40);
+    }
+    .bp-code {
+      color: var(--indigo);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+    }
+    .bp-canvas {
+      height: 138px;
+      border: 1px solid var(--line);
+      background: var(--xuan);
+      display: grid;
+      place-items: center;
+      position: relative;
+      padding: 10px;
+    }
+    .bp-card.wide .bp-canvas { height: 186px; }
+    .bp-svg { width: 100%; height: 100%; }
+    .bp-svg path, .bp-svg circle { transition: stroke 0.25s ease; }
+    .bp-formula {
+      position: absolute;
+      bottom: 6px;
+      left: 8px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      color: var(--ink-70);
+      background: rgba(250, 247, 241, 0.9);
+      padding: 2px 6px;
+    }
+    .bp-title {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .bp-desc {
+      margin: 6px 0 0;
+      font-size: 13px;
+      line-height: 1.65;
+      color: var(--ink-70);
+    }
+    .bp-foot {
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px dashed var(--line);
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--ink-40);
+    }
+    .bp-enter {
+      color: var(--ink);
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    /* ================= 二、通文册（文象相通） ================= */
+    .tw-intro {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 26px;
+    }
+
+    /* 展开的双页立体通文册 */
+    .folio-spread {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: #fffdf8;
+      border: 1px solid var(--line-strong);
+      box-shadow:
+        0 20px 50px rgba(22, 25, 30, 0.1),
+        0 2px 0 #ebe4d6,
+        0 5px 0 #e2d9c8;
+      min-height: 390px;
+    }
+    @media (max-width: 860px) { .folio-spread { grid-template-columns: 1fr; } }
+
+    /* 中央书脊折痕阴影 */
+    .folio-spread::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      width: 36px;
+      transform: translateX(-50%);
+      background: linear-gradient(90deg, transparent, rgba(22, 25, 30, 0.08) 48%, rgba(22, 25, 30, 0.14) 50%, rgba(22, 25, 30, 0.05) 54%, transparent);
+      pointer-events: none;
+    }
+    @media (max-width: 860px) { .folio-spread::after { display: none; } }
+
+    .folio-page {
+      padding: 32px 38px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+    .folio-left {
+      border-right: 1px solid rgba(22, 25, 30, 0.08);
+    }
+    .folio-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-40);
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .folio-text h2 {
+      font-family: var(--font-serif);
+      font-size: 24px;
+      margin: 18px 0 12px;
+    }
+    .folio-text p {
+      font-size: 14px;
+      line-height: 1.9;
+      color: var(--ink-70);
+      margin: 0 0 12px;
+    }
+    /* 文中活数字：随右页滑块实时跳动！ */
+    .live-token {
+      display: inline-block;
+      padding: 0 7px;
+      margin: 0 2px;
+      border-bottom: 2px solid var(--cinnabar);
+      background: var(--cinnabar-soft);
+      color: var(--cinnabar);
+      font-family: var(--font-mono);
+      font-weight: 700;
+      transition: background 0.15s ease;
+    }
+    .live-token.blue {
+      border-color: var(--indigo);
+      background: var(--indigo-soft);
+      color: var(--indigo);
+    }
+
+    .folio-right {
+      background: linear-gradient(180deg, #faf7f0 0%, #f5efe3 100%);
+    }
+    .folio-instrument {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 14px;
+      padding: 16px 0;
+    }
+    .folio-instrument svg {
+      width: 100%;
+      height: 190px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+    .folio-slider {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 12px;
+      font-size: 12.5px;
+      font-family: var(--font-mono);
+    }
+    .folio-slider input { width: 100%; accent-color: var(--cinnabar); cursor: pointer; }
+
+    /* 落纸成册导入带 */
+    .import-strip {
+      margin-top: 24px;
+      border: 1.5px dashed var(--line-strong);
+      background: var(--xuan-light);
+      padding: 22px 28px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .import-strip:hover {
+      border-color: var(--cinnabar);
+      background: #fff;
+    }
+    .import-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .import-seal {
+      width: 44px;
+      height: 44px;
+      border: 1.5px solid var(--cinnabar);
+      color: var(--cinnabar);
+      display: grid;
+      place-items: center;
+      font-family: var(--font-serif);
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .import-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .ink-btn {
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: var(--xuan-light);
+      padding: 10px 20px;
+      font-family: var(--font-serif);
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+    }
+    .ink-btn:hover { background: var(--cinnabar); border-color: var(--cinnabar); }
+    .ink-btn.outline {
+      background: transparent;
+      color: var(--ink);
+    }
+    .ink-btn.outline:hover { background: var(--ink); color: var(--xuan-light); }
+
+    /* 书架：我的通文册 */
+    .shelf-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 24px;
+    }
+    @media (max-width: 860px) { .shelf-grid { grid-template-columns: 1fr; } }
+
+    .book-card {
+      position: relative;
+      background: var(--xuan-light);
+      border: 1px solid var(--line-strong);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      transition: transform 0.22s ease, box-shadow 0.22s ease;
+    }
+    .book-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 14px 32px rgba(22, 25, 30, 0.1);
+    }
+    .book-cover {
+      aspect-ratio: 16 / 10;
+      position: relative;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      color: var(--xuan-light);
+      border-left: 8px solid var(--gold);
+    }
+    .book-spine-tag {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: 0.12em;
+      opacity: 0.78;
+    }
+    .book-cover h3 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-size: 20px;
+      line-height: 1.35;
+      font-weight: 700;
+    }
+    .book-actions {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr 1fr;
+      gap: 6px;
+    }
+    .book-actions button {
+      border: 1px solid var(--line-strong);
+      background: #fff;
+      color: var(--ink);
+      padding: 7px 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .book-actions button.primary {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+    }
+    .book-actions button:hover { border-color: var(--cinnabar); color: var(--cinnabar); }
+    .book-actions button.primary:hover { background: var(--cinnabar); border-color: var(--cinnabar); color: #fff; }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="logo-wrap">
+      <div class="seal" id="brandSeal">象</div>
+      <div>
+        <span class="logo-title" id="brandTitle">定象坊</span>
+        <span class="logo-sub" id="brandSub">DINGXIANG · 以器定象</span>
+      </div>
+    </div>
+
+    <nav class="nav-tabs" role="tablist">
+      <button class="nav-tab active" data-view="dx">定象坊</button>
+      <button class="nav-tab" data-view="tw">通文册</button>
+    </nav>
+
+    <div class="masthead-right">
+      <span>东方现代工造原型 · 未改业务代码</span>
+    </div>
+  </header>
+
+  <main class="shell">
+    <!-- ==================== 一、定象坊 ==================== -->
+    <section class="view active" id="view-dx">
+      <div class="dx-hero">
+        <div class="dx-hero-editorial">
+          <div>
+            <span class="kicker">定象坊 · 精密造物沙盒</span>
+            <h1 class="display-title">以器定象，<br />见所未见。</h1>
+            <p class="display-lead">
+              将抽象公式、物理场域与算法推演，锻造成可拆改、可联动的精密活器。拖动右侧游标尺，或直接以一句话造出你的专属定象器。
+            </p>
+          </div>
+
+          <div class="ai-forge">
+            <div class="ai-forge-label">
+              <span>以言定象 · AI 造器</span>
+              <span style="font-family:var(--font-mono);">2D 矢量 · 热图 · 随机</span>
+            </div>
+            <div class="ai-forge-input">
+              <input id="forgeInput" type="text" placeholder="描述你想观察的规律或实验…" />
+              <button id="forgeBtn" type="button">定象 ↗</button>
+            </div>
+            <div class="forge-chips">
+              <button class="forge-chip" data-text="曲率圆沿函数滚动与拐点翻转">曲率圆过山车</button>
+              <button class="forge-chip" data-text="用蒙特卡洛随机撒点逼近圆周率 π">蒙特卡洛求 π</button>
+              <button class="forge-chip" data-text="TCP 慢开始与 3-ACK 快恢复锯齿">TCP 拥塞锯齿</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧沉浸式暗色星盘/精密仪器剧场 -->
+        <div class="dx-theater">
+          <div class="theater-top">
+            <span id="theaterCaption">NO.01 · 谐波共振与李萨如相图</span>
+            <div class="theater-modes">
+              <button class="t-mode active" data-tm="lissajous">相轨 · 李萨如</button>
+              <button class="t-mode" data-tm="curvature">微分 · 曲率圆</button>
+              <button class="t-mode" data-tm="wave">光学 · 干涉波</button>
+            </div>
+          </div>
+
+          <div class="theater-svg-wrap">
+            <svg id="theaterSvg" viewBox="0 0 560 280" fill="none"></svg>
+          </div>
+
+          <div class="caliper-bar">
+            <span id="caliperLabel">相位 δ</span>
+            <input id="caliperSlider" type="range" min="0" max="6.28" step="0.04" value="1.57" />
+            <div class="caliper-readout" id="caliperReadout"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5 门类图谱索引 -->
+      <div class="catalog-bar">
+        <div class="domain-tabs" id="domainTabs">
+          <button class="domain-tab active" data-dom="math">数理 · 高等数学<small>11</small></button>
+          <button class="domain-tab" data-dom="phy">格物 · 大学物理<small>10</small></button>
+          <button class="domain-tab" data-dom="cs">算机 · 408 综合<small>16</small></button>
+          <button class="domain-tab" data-dom="ai">智算 · 深度学习<small>14</small></button>
+          <button class="domain-tab" data-dom="biz">经管 · 办公决策<small>8</small></button>
+        </div>
+        <span style="font-family:var(--font-mono); font-size:11.5px; color:var(--ink-40);">每卷 1 源联动全章 · 可拆改可嵌入通文册</span>
+      </div>
+
+      <div class="blueprint-grid" id="bpGrid"></div>
+    </section>
+
+    <!-- ==================== 二、通文册 ==================== -->
+    <section class="view" id="view-tw">
+      <div class="tw-intro">
+        <div>
+          <span class="kicker">通文册 · 动态交互书册</span>
+          <h1 class="display-title" style="margin-bottom:6px;">静文通脉，开册见活。</h1>
+          <p class="display-lead" style="max-width:600px;">
+            将既有 PPTX / PDF 化作可推演的现代书册。试着拖动右页滑块——左侧正文里的数学结论会随图形同步脉动，这才是“文与象相通”。
+          </p>
+        </div>
+        <div style="font-family:var(--font-mono); font-size:12px; color:var(--ink-40);">
+          原版式保真 · 嵌入定象器 · 单文件离线可演
+        </div>
+      </div>
+
+      <!-- 展开的双页通文册：左文右象，实时联动！ -->
+      <div class="folio-spread">
+        <div class="folio-page folio-left">
+          <div class="folio-header">
+            <span>卷壹 · 线性变换的几何本质</span>
+            <span>P.04 / 24</span>
+          </div>
+          <div class="folio-text">
+            <h2>矩阵不是数字表，而是空间的形变</h2>
+            <p>
+              当我们在二维平面施加剪切参数 <span class="live-token blue" id="txtShear">k = 0.65</span> 时，
+              原本正交的单位网格发生倾斜，但基向量张成的面积倍率恰好等于行列式
+              <span class="live-token" id="txtDet">det(A) = 1.00</span>。
+            </p>
+            <p>
+              若进一步压低纵向缩放至 <span class="live-token blue" id="txtScale">s = 1.00</span>，
+              当前空间状态判定为：<span class="live-token" id="txtState">可逆满秩 · 面积守恒</span>。
+            </p>
+            <p style="font-size:12.5px; color:var(--ink-40); border-left:2px solid var(--gold); padding-left:12px; margin-top:16px;">
+              ↑ 试着拖动右页的两个参数，观察正文中的朱砂/石青数据如何与图形实时联动。
+            </p>
+          </div>
+          <div class="folio-header" style="border-bottom:0; border-top:1px solid var(--line); padding:10px 0 0;">
+            <span>通文联动 · 文随象变</span>
+            <span>状态预设：基准 / 剪切 / 奇异塌缩</span>
+          </div>
+        </div>
+
+        <div class="folio-page folio-right">
+          <div class="folio-header">
+            <span>嵌入定象器 · 2×2 空间网格仪</span>
+            <span style="color:var(--cinnabar);">● 实时运转</span>
+          </div>
+          <div class="folio-instrument">
+            <svg id="folioSvg" viewBox="0 0 360 190" fill="none"></svg>
+            <div class="folio-slider">
+              <span>剪切 k</span>
+              <input id="folioShear" type="range" min="-1.2" max="1.2" step="0.05" value="0.65" />
+              <strong id="folioShearVal">0.65</strong>
+            </div>
+            <div class="folio-slider">
+              <span>纵缩 s</span>
+              <input id="folioScale" type="range" min="0" max="1.4" step="0.05" value="1.00" />
+              <strong id="folioScaleVal">1.00</strong>
+            </div>
+          </div>
+          <div class="folio-header" style="border-bottom:0; border-top:1px solid var(--line); padding:10px 0 0;">
+            <span style="color:var(--jade);">✓ 讲台可随时接管调参，一键复位</span>
+            <button class="forge-chip" id="folioCollapseBtn" style="margin:0;">一键演示：奇异塌缩 (s=0)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 落纸成册导入带 -->
+      <div class="import-strip" onclick="alert('原型演示：实际接入后会唤起 PPTX / PDF / 图片 / 项目包上传')">
+        <div class="import-left">
+          <div class="import-seal">册</div>
+          <div>
+            <strong style="font-family:var(--font-serif); font-size:18px; display:block; margin-bottom:3px;">落纸成册 · 导入你的静态课件</strong>
+            <span style="font-size:13px; color:var(--ink-70);">拖入 PPTX / PDF / 图片或 .xiangsheng 包，自动保留原版式并唤醒交互对象</span>
+          </div>
+        </div>
+        <div class="import-actions" onclick="event.stopPropagation()">
+          <button class="ink-btn" onclick="alert('选择文件上传')">选择课件上传 ↑</button>
+          <button class="ink-btn outline" onclick="alert('打开官方示例册')">翻阅官方示例册</button>
+        </div>
+      </div>
+
+      <!-- 书架 -->
+      <div class="catalog-bar" style="margin-top:44px;">
+        <div style="font-family:var(--font-serif); font-size:20px; font-weight:700;">案头书架 · 我的通文册</div>
+        <span style="font-family:var(--font-mono); font-size:11.5px; color:var(--ink-40);">共 3 册 · 均支持单文件离线演说</span>
+      </div>
+
+      <div class="shelf-grid">
+        <article class="book-card">
+          <div class="book-cover" style="background:linear-gradient(135deg, #161d2b, #1f3b5c);">
+            <span class="book-spine-tag">卷壹 · 24 页 · 含 6 活象</span>
+            <h3>用空间视角理解矩阵运算</h3>
+            <span class="book-spine-tag" style="color:#e6c68a;">LINEAR ALGEBRA FOLIO</span>
+          </div>
+          <div class="book-actions">
+            <button class="primary">▶ 开册演说</button><button>修册</button><button>离线导出</button>
+          </div>
+        </article>
+
+        <article class="book-card">
+          <div class="book-cover" style="background:linear-gradient(135deg, #2b1a16, #7a2c1c);">
+            <span class="book-spine-tag">卷贰 · 14 页 · 含 4 活象</span>
+            <h3>曲率圆、中值定理与泰勒聚光灯</h3>
+            <span class="book-spine-tag" style="color:#e6c68a;">CALCULUS CH.03</span>
+          </div>
+          <div class="book-actions">
+            <button class="primary">▶ 开册演说</button><button>修册</button><button>离线导出</button>
+          </div>
+        </article>
+
+        <article class="book-card">
+          <div class="book-cover" style="background:linear-gradient(135deg, #122624, #1b5c50);">
+            <span class="book-spine-tag">卷叁 · 18 页 · 含 5 活象</span>
+            <h3>TCP 三次握手与拥塞锯齿全周期</h3>
+            <span class="book-spine-tag" style="color:#e6c68a;">COMPUTER NETWORKS</span>
+          </div>
+          <div class="book-actions">
+            <button class="primary">▶ 开册演说</button><button>修册</button><button>离线导出</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /* 顶栏切换：定象坊 / 通文册 */
+    const seal = document.getElementById('brandSeal');
+    const title = document.getElementById('brandTitle');
+    const sub = document.getElementById('brandSub');
+    document.querySelectorAll('.nav-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const v = btn.dataset.view;
+        document.querySelectorAll('.nav-tab').forEach(b => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.view').forEach(el => el.classList.toggle('active', el.id === 'view-' + v));
+        if (v === 'dx') {
+          seal.textContent = '象'; title.textContent = '定象坊'; sub.textContent = 'DINGXIANG · 以器定象';
+        } else {
+          seal.textContent = '册'; title.textContent = '通文册'; sub.textContent = 'TONGWEN · 静文通脉';
+        }
+      });
+    });
+
+    /* AI 灵感填入 */
+    const forgeInput = document.getElementById('forgeInput');
+    document.querySelectorAll('.forge-chip[data-text]').forEach(c => {
+      c.addEventListener('click', () => { forgeInput.value = c.dataset.text; });
+    });
+    document.getElementById('forgeBtn').addEventListener('click', () => {
+      alert(`原型演示：将使用「${forgeInput.value.trim() || '曲率圆过山车'}」进入定象坊 AI 造器台。`);
+    });
+
+    /* 定象坊星盘剧场（三种真实数学/物理可视化模式 + 游标尺实时响应） */
+    let theaterMode = 'lissajous';
+    const tSvg = document.getElementById('theaterSvg');
+    const caliper = document.getElementById('caliperSlider');
+    const cLabel = document.getElementById('caliperLabel');
+    const cRead = document.getElementById('caliperReadout');
+    const tCap = document.getElementById('theaterCaption');
+
+    function drawTheater() {
+      const val = Number(caliper.value);
+      const grid = `<g stroke="rgba(240,236,227,0.07)" stroke-width="1">
+        <line x1="20" y1="140" x2="540" y2="140"/><line x1="280" y1="14" x2="280" y2="266"/>
+        <circle cx="280" cy="140" r="108" stroke-dasharray="3 5"/>
+      </g>`;
+
+      if (theaterMode === 'lissajous') {
+        const pts = [];
+        for (let i = 0; i <= 260; i++) {
+          const t = (i / 260) * Math.PI * 2;
+          const x = 280 + 185 * Math.sin(3 * t + val);
+          const y = 140 - 102 * Math.sin(2 * t);
+          pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+        }
+        const px = 280 + 185 * Math.sin(val);
+        const py = 140;
+        tSvg.innerHTML = grid + `
+          <polyline points="${pts.join(' ')}" stroke="rgba(230,198,138,0.28)" stroke-width="4" fill="none"/>
+          <polyline points="${pts.join(' ')}" stroke="#e6c68a" stroke-width="1.8" fill="none"/>
+          <circle cx="${px.toFixed(1)}" cy="${py}" r="5" fill="#d97742" stroke="#fff" stroke-width="1.5"/>
+        `;
+        cRead.innerHTML = `<span>ωx:ωy = 3:2</span><span>δ = ${val.toFixed(2)} rad</span>`;
+      } else if (theaterMode === 'curvature') {
+        const f = x => Math.sin(x) + 0.35 * Math.cos(2 * x);
+        const df = x => Math.cos(x) - 0.7 * Math.sin(2 * x);
+        const d2f = x => -Math.sin(x) - 1.4 * Math.cos(2 * x);
+        const x0 = -2.2 + (val / 6.28) * 4.4;
+        const sx = x => 280 + x * 92, sy = y => 142 - y * 62;
+        const pts = [];
+        for (let i = -26; i <= 26; i++) pts.push(`${sx(i * 0.1).toFixed(1)},${sy(f(i * 0.1)).toFixed(1)}`);
+        const y0 = f(x0), k1 = df(x0), k2 = d2f(x0);
+        const kappa = k2 / Math.pow(1 + k1 * k1, 1.5);
+        const R = Math.abs(kappa) > 0.06 ? 1 / Math.abs(kappa) : 16;
+        const nx = -k1 / Math.hypot(1, k1), ny = 1 / Math.hypot(1, k1);
+        const sgn = kappa >= 0 ? 1 : -1;
+        const cx = x0 + sgn * R * nx, cy = y0 + sgn * R * ny;
+        tSvg.innerHTML = grid + `
+          <circle cx="${sx(cx).toFixed(1)}" cy="${sy(cy).toFixed(1)}" r="${Math.min(220, R * 72).toFixed(1)}"
+            stroke="#d97742" stroke-width="1.5" stroke-dasharray="4 4" fill="rgba(217,119,66,0.08)"/>
+          <polyline points="${pts.join(' ')}" stroke="#7dd3fc" stroke-width="2.2" fill="none"/>
+          <line x1="${sx(x0 - 0.85).toFixed(1)}" y1="${sy(y0 - 0.85 * k1).toFixed(1)}"
+            x2="${sx(x0 + 0.85).toFixed(1)}" y2="${sy(y0 + 0.85 * k1).toFixed(1)}" stroke="#e6c68a" stroke-width="1.6"/>
+          <circle cx="${sx(x0).toFixed(1)}" cy="${sy(y0).toFixed(1)}" r="5" fill="#d97742" stroke="#fff" stroke-width="1.5"/>
+        `;
+        cRead.innerHTML = `<span>x₀ = ${x0.toFixed(2)}</span><span>κ = ${kappa.toFixed(2)}</span><span>R = ${R < 14 ? R.toFixed(2) : '∞'}</span>`;
+      } else {
+        const lambda = 400 + (val / 6.28) * 300;
+        const hue = Math.round(270 - ((lambda - 400) / 300) * 265);
+        const color = `hsl(${hue}, 82%, 62%)`;
+        const bars = Array.from({ length: 48 }, (_, i) => {
+          const u = (i - 23.5) / 23.5;
+          const phase = u * (550 / lambda) * 14;
+          const intensity = Math.pow(Math.cos(phase), 2) * Math.exp(-u * u * 1.4);
+          const h = Math.max(4, intensity * 140);
+          return `<rect x="${40 + i * 10}" y="${225 - h}" width="7" height="${h.toFixed(1)}" fill="${color}" opacity="${(0.25 + intensity * 0.75).toFixed(2)}"/>`;
+        }).join('');
+        tSvg.innerHTML = grid + bars;
+        cRead.innerHTML = `<span>λ = ${Math.round(lambda)} nm</span><span>双缝光强 I(θ)</span>`;
+      }
+    }
+
+    document.querySelectorAll('.t-mode').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.t-mode').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        theaterMode = btn.dataset.tm;
+        if (theaterMode === 'lissajous') { tCap.textContent = 'NO.01 · 谐波共振与李萨如相图'; cLabel.textContent = '相位 δ'; }
+        else if (theaterMode === 'curvature') { tCap.textContent = 'NO.02 · 曲线导数与滚动曲率圆'; cLabel.textContent = '切点 x₀'; }
+        else { tCap.textContent = 'NO.03 · 可见光波长与双缝干涉'; cLabel.textContent = '波长 λ'; }
+        drawTheater();
+      });
+    });
+    caliper.addEventListener('input', drawTheater);
+    drawTheater();
+
+    /* 定象坊蓝图卷宗网格 */
+    const DOMAINS = {
+      math: [
+        { wide: true, code: 'DX-M03', ch: '高数 · 第 3 章', title: '导数应用、曲率圆与泰勒聚光灯', desc: '单一函数源驱动切线、滚动曲率圆、极值拐点与多阶泰勒误差热图。', formula: 'κ = f″ / (1 + f′²)³/²', blocks: 6 },
+        { code: 'DX-M07', ch: '高数 · 第 7 章', title: '微分方程特征根解族与求解擂台', desc: '对比复根衰减、重实根临界与同频放大，大步长直击 Euler 发散。', formula: 'y″ + 2ζy′ + y = Fcos(ωt)', blocks: 5 },
+        { code: 'DX-M09', ch: '高数 · 第 9 章', title: '多元地形、拉格朗日与梯度寻谷', desc: '一张二元地形同时联动等高线、约束相切与梯度下降寻谷热图。', formula: '∇f = λ∇g', blocks: 5 },
+        { code: 'DX-M12', ch: '高数 · 第 12 章', title: '级数收敛悬崖与傅里叶降噪', desc: '共享项数滑杆，直击幂级数发散边界、吉布斯过冲与信号滤波重建。', formula: 'SNR = 10 log₁₀(Ps/Pe)', blocks: 5 },
+      ],
+      phy: [
+        { wide: true, code: 'DX-P08', ch: '大物 · 第 8 章', title: '真实可见光谱干涉、衍射与偏振', desc: '400–700nm 波长实时变色条纹、光栅主极大锐化与马吕斯偏振透射。', formula: 'd sinθ = mλ', blocks: 5 },
+        { code: 'DX-P05', ch: '大物 · 第 5 章', title: '静电场、速度选择器与质谱仪', desc: '调 E/B 筛选 v=E/B 粒子直穿，进入磁场按荷质比分离半圆轨道。', formula: 'R = mv / (|q|B)', blocks: 5 },
+        { code: 'DX-P10', ch: '大物 · 第 10 章', title: '相对论光钟、光电效应与量子势阱', desc: '亚光速时间膨胀尺缩、遏止电压阈值与一维势阱概率云联动。', formula: 'γ = 1/√(1−v²/c²)', blocks: 5 },
+      ],
+      cs: [
+        { wide: true, code: 'DX-C02', ch: '408 · 组成原理', title: '虚拟存储 → TLB → Cache 全链路', desc: '同一访存流驱动位段切分、组相联 Hit/Miss 网格与 AMAT 核算。', formula: 'AMAT = Hit + Miss% × Penalty', blocks: 5 },
+        { code: 'DX-C03', ch: '408 · 操作系统', title: '分页与页面置换（Belady 异常）', desc: '同序列竞赛 OPT/LRU/FIFO/Clock，3 框 vs 4 框直击 Belady 异常。', formula: 'FIFO 3框(9) → 4框(10)', blocks: 5 },
+        { code: 'DX-C05', ch: '408 · 计算机网络', title: 'TCP 状态机与拥塞锯齿全周期', desc: '切换超时归 1 与 3-ACK 快恢复，对照 min(cwnd, rwnd) 实际窗口。', formula: 'swnd = min(cwnd, rwnd)', blocks: 5 },
+      ],
+      ai: [
+        { wide: true, code: 'DX-A01', ch: '深度学习', title: '优化器竞技场（SGD / Momentum / Adam）', desc: '在二次碗、鞍点与狭长山谷上实时对比轨迹与收敛速度。', formula: 'θ ← θ − η·update(∇L)', blocks: 4 },
+        { code: 'DX-A02', ch: '深度学习', title: '多头注意力与 KV Cache 采样', desc: '调节温度 T 与因果掩码，实时查看注意力权重矩阵。', formula: 'softmax(QKᵀ/√d)V', blocks: 4 },
+      ],
+      biz: [
+        { wide: true, code: 'DX-B01', ch: '经管决策', title: '经营盈亏、定价与二维敏感性热图', desc: '价格与成本率双因素红绿盈利矩阵、利润瀑布拆解与回本月份。', formula: 'BEP = Fixed ÷ Margin', blocks: 5 },
+        { code: 'DX-B02', ch: '经管决策', title: '增长漏斗、Cohort 留存与 LTV/CAC', desc: '12 周留存热图对照“拉新”与“提留存 +5%”的复利收益差。', formula: 'LTV / CAC ≥ 3', blocks: 5 },
+      ],
+    };
+
+    let activeDom = 'math';
+    function renderBlueprints() {
+      const items = DOMAINS[activeDom] || [];
+      document.getElementById('bpGrid').innerHTML = items.map((item, i) => `
+        <article class="bp-card ${item.wide ? 'wide' : ''}">
+          <div class="bp-canvas">
+            <svg class="bp-svg" viewBox="0 0 260 120" fill="none">
+              <path d="M18 96 H242 M26 16 V104" stroke="rgba(22,25,30,0.16)" stroke-width="1"/>
+              <path d="M26 88 Q85 ${20 + i * 14} 140 62 T236 ${34 + i * 12}" stroke="#1f4e79" stroke-width="2"/>
+              <circle cx="140" cy="62" r="20" stroke="#1f4e79" stroke-opacity="0.35" stroke-dasharray="3 3"/>
+              <circle cx="140" cy="62" r="4" fill="#b83b24"/>
+            </svg>
+            <span class="bp-formula">${item.formula}</span>
+          </div>
+          <div style="display:flex; flex-direction:column; flex:1;">
+            <div class="bp-head">
+              <span class="bp-code">${item.code}</span>
+              <span>${item.ch}</span>
+            </div>
+            <h3 class="bp-title" style="margin-top:8px;">${item.title}</h3>
+            <p class="bp-desc">${item.desc}</p>
+            <div class="bp-foot">
+              <span>${item.blocks} 器联动</span>
+              <span class="bp-enter">启器观象 →</span>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+    document.querySelectorAll('#domainTabs .domain-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#domainTabs .domain-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeDom = btn.dataset.dom;
+        renderBlueprints();
+      });
+    });
+    renderBlueprints();
+
+    /* 通文册双页“文象相通”实时联动 */
+    const fShear = document.getElementById('folioShear');
+    const fScale = document.getElementById('folioScale');
+    const fSvg = document.getElementById('folioSvg');
+    function drawFolio() {
+      const k = Number(fShear.value);
+      const s = Number(fScale.value);
+      document.getElementById('folioShearVal').textContent = k.toFixed(2);
+      document.getElementById('folioScaleVal').textContent = s.toFixed(2);
+      document.getElementById('txtShear').textContent = `k = ${k.toFixed(2)}`;
+      document.getElementById('txtScale').textContent = `s = ${s.toFixed(2)}`;
+      document.getElementById('txtDet').textContent = `det(A) = ${s.toFixed(2)}`;
+      document.getElementById('txtState').textContent =
+        s === 0 ? '奇异塌缩 · 平面压为直线' : Math.abs(s - 1) < 0.05 ? '可逆满秩 · 面积守恒' : `可逆满秩 · 面积缩放 ×${s.toFixed(2)}`;
+
+      const ox = 180, oy = 115, u = 42;
+      const map = (x, y) => [ox + (x + k * y) * u, oy - (s * y) * u];
+      let lines = '';
+      for (let i = -3; i <= 3; i++) {
+        const [x1, y1] = map(i, -2), [x2, y2] = map(i, 2);
+        const [x3, y3] = map(-3, i * 0.6), [x4, y4] = map(3, i * 0.6);
+        lines += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="rgba(31,78,121,0.18)" stroke-width="1"/>`;
+        lines += `<line x1="${x3.toFixed(1)}" y1="${y3.toFixed(1)}" x2="${x4.toFixed(1)}" y2="${y4.toFixed(1)}" stroke="rgba(31,78,121,0.18)" stroke-width="1"/>`;
+      }
+      const p0 = map(0, 0), p1 = map(1, 0), p2 = map(1, 1), p3 = map(0, 1);
+      const poly = `${p0[0]},${p0[1]} ${p1[0]},${p1[1]} ${p2[0]},${p2[1]} ${p3[0]},${p3[1]}`;
+      fSvg.innerHTML = `
+        <line x1="16" y1="${oy}" x2="344" y2="${oy}" stroke="rgba(22,25,30,0.18)"/>
+        <line x1="${ox}" y1="12" x2="${ox}" y2="178" stroke="rgba(22,25,30,0.18)"/>
+        ${lines}
+        <polygon points="${poly}" fill="rgba(184,59,36,0.18)" stroke="#b83b24" stroke-width="2"/>
+        <line x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" stroke="#1f4e79" stroke-width="2.5"/>
+        <line x1="${p0[0]}" y1="${p0[1]}" x2="${p3[0]}" y2="${p3[1]}" stroke="#b83b24" stroke-width="2.5"/>
+        <circle cx="${p1[0]}" cy="${p1[1]}" r="3.5" fill="#1f4e79"/>
+        <circle cx="${p3[0]}" cy="${p3[1]}" r="3.5" fill="#b83b24"/>
+      `;
+    }
+    fShear.addEventListener('input', drawFolio);
+    fScale.addEventListener('input', drawFolio);
+    document.getElementById('folioCollapseBtn').addEventListener('click', () => {
+      fScale.value = Number(fScale.value) === 0 ? '1.00' : '0';
+      drawFolio();
+    });
+    drawFolio();
+  </script>
+</body>
+</html>

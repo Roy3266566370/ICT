@@ -1,10 +1,60 @@
 import type { CanvasDoc, CanvasNode, NodeType } from './types.ts';
 import { deepTemplateDoc, type DeepTemplateKind } from './deepTemplates.ts';
+import { isDeepPanoramaTemplateKind } from './deepPanoramaTemplates.ts';
 import { nextId } from './math.ts';
 
+const DEEP_PANORAMA_DEFAULT_PARAMS: Record<string, Record<string, number>> = {
+  'dl-mlp-backprop': { scenario: 0, activation: 1, lr: 0.12, width: 6, l2: 0.0005, dropout: 0 },
+  'dl-cnn-resnet': { inputPattern: 3, kernel: 0, stride: 1, scanCell: -1 },
+  'dl-transformer-attention': { dk: 16, offset: 0, encoding: 1, scaleMode: 1, query: 4 },
+  'dl-llm-inference-lora': { mode: 0, temperature: 1, topk: 10, topp: 1, rank: 2, quant: 0 },
+  'dl-diffusion-latent': { scenario: 2, beta: 3, steps: 30, anchorX: 0.6, anchorY: 0.2 },
+  'dl-rl-agent': { alpha: 0.18, gamma: 0.95, epsilon: 0.22, reinforce: 0, selectedState: 30 },
+};
+const DEEP_PANORAMA_TITLES: Record<string, string> = {
+  'dl-mlp-backprop': 'MLP 流形折叠与反传沙盘',
+  'dl-cnn-resnet': 'CNN 卷积扫描与感受野沙盘',
+  'dl-transformer-attention': 'Transformer 注意力全景沙盘',
+  'dl-llm-inference-lora': 'LLM 推理、KV-cache 与 LoRA 沙盘',
+  'dl-diffusion-latent': '扩散轨迹与潜空间沙盘',
+  'dl-rl-agent': '强化学习智能体进化沙盘',
+};
+const DEEP_PANORAMA_EXPOSED: Record<string, readonly [string, string, number, number, number][]> = {
+  'dl-mlp-backprop': [['lr', '学习率', 0.01, 0.32, 0.005], ['width', '隐藏宽度', 2, 8, 1], ['dropout', 'Dropout', 0, 0.5, 0.02]],
+  'dl-cnn-resnet': [['kernel', '卷积核', 0, 3, 1], ['stride', '步幅', 1, 2, 1]],
+  'dl-transformer-attention': [['dk', '维度 dₖ', 2, 64, 1], ['offset', '位置偏移', -8, 8, 1], ['scaleMode', '缩放路径', 0, 1, 1]],
+  'dl-llm-inference-lora': [['temperature', '温度', 0.2, 2.4, 0.05], ['topk', 'top-k', 1, 10, 1], ['topp', 'top-p', 0.2, 1, 0.02]],
+  'dl-diffusion-latent': [['beta', '噪声速率', 1, 5, 0.1], ['steps', '反向步数', 8, 42, 1], ['anchorX', 'anchor x', -1.6, 1.6, 0.05]],
+  'dl-rl-agent': [['alpha', '学习率', 0.01, 0.5, 0.01], ['gamma', '折扣', 0, 1, 0.01], ['epsilon', '探索率', 0, 0.8, 0.01]],
+};
+
 /** Workbench templates are separate from the documents used by published lessons. */
-export function deepWorkshopDoc(kind: DeepTemplateKind): CanvasDoc {
-  const older = deepTemplateDoc(kind);
+export function deepWorkshopDoc(kind: DeepTemplateKind | string): CanvasDoc {
+  if (isDeepPanoramaTemplateKind(kind)) {
+    const node = {
+      id: nextId('n'),
+      type: 'deepPanoramaStage' as const,
+      x: 32,
+      y: 28,
+      payload: kind,
+      params: { ...DEEP_PANORAMA_DEFAULT_PARAMS[kind] },
+    };
+    return {
+      version: 1,
+      title: DEEP_PANORAMA_TITLES[kind] ?? '深度学习全景沙盘',
+      nodes: [node],
+      wires: [],
+      strokes: [],
+      zoom: 0.72,
+      panel: {
+        title: DEEP_PANORAMA_TITLES[kind] ?? '深度学习全景沙盘',
+        view_node_ids: [node.id],
+        exposed_params: (DEEP_PANORAMA_EXPOSED[kind] ?? []).map(([param_key, label, min, max, step]) => ({ node_id: node.id, param_key, label, min, max, step })),
+      },
+    };
+  }
+
+  const older = deepTemplateDoc(kind as DeepTemplateKind);
   const doc: CanvasDoc = {
     version: 1, title: older.title, nodes: [], wires: [], strokes: [], zoom: 0.9,
     panel: { title: older.title, view_node_ids: [], exposed_params: [] },
@@ -196,7 +246,9 @@ export function deepWorkshopDoc(kind: DeepTemplateKind): CanvasDoc {
       const learner = wire(map, add('svmLab', 2.4, 0, { control: 2, steps: 100, wired: 1 }));
       wire(control('惩罚 C', 2, .01, 20, .1, 3), learner, 'control');
       panel.view_node_ids.push(learner.id);
-      watch(learner, 4, 0, '分类超平面权重');
+      watch(learner, 4, 0, '分类超平面权重 (w, b)').params.svmWeights = 1;
+      watch(learner, 4, 1, '决策分数 f(x, y)，域 [-2, 2]²', 'field');
+      watch(learner, 4, 2, '训练 primal objective', 'history', 'studyCurveView');
       expose(data, 'noise', '数据噪声', 0, .5, .01);
       return doc;
     }
@@ -209,7 +261,7 @@ export function deepWorkshopDoc(kind: DeepTemplateKind): CanvasDoc {
       const model = wire(first, add('studyMlpModel', 1, 1), '第一层');
       wire(second, model, '第二层');
       const config = add('studyTrainConfig', 1, 2, { 学习率: .08, Batch: 16, L1: 0, L2: 0, Dropout: 0 });
-      const trainer = wire(data, add('mlpTrainer', 2.2, 0, { seed: 7, play: 0, reset: 0, wired: 1 }));
+      const trainer = wire(data, add('mlpTrainer', 2.2, 0, { seed: 7, play: 0, reset: 0, wired: 1 }, 'MLP 训练控制台'));
       wire(model, trainer, 'model');
       wire(config, trainer, 'training');
       const boundary = wire(trainer, add('boundaryView', 3.6, 0, { layer: kind === 'dlManifold' ? 1 : 0 }), 'in', 'boundary');
@@ -275,7 +327,10 @@ export function deepWorkshopDoc(kind: DeepTemplateKind): CanvasDoc {
       expose(environment, '终点奖励', '终点奖励', 1, 60, 1);
       panel.view_node_ids.push(learner.id);
       watch(learner, 4, 0, '策略动作（0–3）', 'policy');
+      watch(learner, 4, 1, '回合回报（Episode return）', 'returns', 'studyCurveView');
+      watch(learner, 4, 2, '回合步数（Episode steps）', 'steps', 'studyCurveView');
       return doc;
     }
-  }
+    }
+  return doc;
 }

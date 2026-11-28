@@ -39,11 +39,21 @@ from ..db.models import (
     RunRecord,
     ShareRecord,
 )
+from ..db.ppt_ai_models import (
+    PptAiArtifactRecord,
+    PptAiBranchRecord,
+    PptAiBundleRecord,
+    PptAiExperimentRecord,
+    PptAiPlanRecord,
+    PptAiTaskRecord,
+    PptAiValidationReportRecord,
+)
 from ..ispec.persistence import clear_values, save_values
 from ..parsers.pdf_to_pptx import PdfConvertError, convert_pdf_to_pptx
 from ..project_package import MAX_PACKAGE_BYTES, ProjectPackageError, build_project_archive, import_project_file
 from ..documents.presentation import apply_document_specs,current_document
-from ..documents.store import read_document
+from ..documents.native_deck import THEMES, TEMPLATES, create_native_deck
+from ..documents.store import LOCK as DOCUMENT_LOCK, document_root, read_document, write_document
 from ..schemas.api_models import (
     CandidateObject,
     MaterialSummary,
@@ -52,7 +62,7 @@ from ..schemas.api_models import (
     UploadAccepted,
 )
 from ..schemas.common import iso_after, to_iso, utc_now
-from ..schemas.errors import invalid_file, limit_exceeded, missing_field, resource_unavailable
+from ..schemas.errors import invalid_file, limit_exceeded, missing_field, model_unavailable, resource_unavailable
 from ..schemas.knowledge_object import KnowledgeObject
 
 from ..render import (
@@ -633,6 +643,70 @@ def upload_material(
     return ok(request, UploadAccepted(material_id=material_id, job_id=job_id), status_code=202)
 
 
+class MaterialTitleBody(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    title: str = Field(min_length=1, max_length=255)
+
+
+class BlankMaterialBody(MaterialTitleBody):
+    aspect_ratio: Literal["16:9", "4:3"] = "16:9"
+    theme_id: str | None = None
+    template_id: str = "blank"
+    outline: str | None = Field(None, min_length=1, max_length=10000)
+
+
+@router.post("/materials/blank", status_code=201, summary="新建原生课件")
+def create_blank_material(body: BlankMaterialBody, request: Request, ctx: WriteDep, db: DBDep) -> JSONResponse:
+    if body.template_id not in TEMPLATES or (body.theme_id is not None and body.theme_id not in THEMES):
+        raise missing_field("课件主题或模板不受支持")
+    material_id = f"mat_{uuid4().hex}"
+    outline = None
+    if body.outline:
+        from ..documents.ai_deck_generator import generate_outline
+        from ..ppt_ai.client import PPTAIClient, PPTAIError
+        try:
+            outline = generate_outline(PPTAIClient(), body.title, body.outline)
+        except PPTAIError as error:
+            raise model_unavailable(str(error)) from error
+    document = create_native_deck(body.title, body.aspect_ratio, body.template_id, body.theme_id, outline)
+    now = utc_now()
+    page_count = len(document["pages"])
+    try:
+        db.add(MaterialRecord(
+            id=material_id, session_id=ctx.session_id, title=body.title, status="ready",
+            page_count=page_count, created_at=to_iso(now),
+            expires_at=iso_after(get_settings().material_retention_hours, base=now),
+        ))
+        db.flush()
+        for page in document["pages"]:
+            db.add(PageRecord(id=f"pag_{uuid4().hex}", material_id=material_id, page_no=page["page_no"]))
+        write_document(material_id, document)
+        db.commit()
+    except Exception:
+        db.rollback()
+        shutil.rmtree(document_root(material_id), ignore_errors=True)
+        raise
+    return ok(request, {"material_id": material_id, "title": body.title, "page_count": page_count}, status_code=201)
+
+
+@router.patch("/materials/{material_id}", summary="修改课件标题")
+def rename_material(material_id: str, body: MaterialTitleBody, request: Request, ctx: WriteDep, db: DBDep) -> JSONResponse:
+    with DOCUMENT_LOCK:
+        material = owned_material(db, ctx, material_id)
+        document = read_document(material.id)
+        material.title = body.title
+        if document is not None:
+            write_document(material.id, {**document, "title": body.title})
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            if document is not None:
+                write_document(material_id, document)
+            raise
+    return ok(request, {"title": body.title})
+
+
 @router.get("/materials", summary="材料列表（端点 #6）")
 def list_materials(
     request: Request,
@@ -717,6 +791,7 @@ def get_material(
         db.commit()
         background_tasks.add_task(run_upload_job, job.id)
     stats = material_stats(db, [material.id]).get(material.id)
+    scene_document = current_document(material.id)
     payload = {
         "material": summary_payload(
             material_summary(db, material, stats, job_stage=job.stage if job is not None else None)
@@ -732,7 +807,9 @@ def get_material(
         # MaterialDetail.job 是 required + nullable：无任务时显式 null。
         "job": build_job_status(job) if job is not None else None,
         "ispecs": apply_document_specs(material.id,(read_ispec_payload(material.id) or {}).get("ispecs", [])),
-        "scene_document": current_document(material.id),
+        "scene_document": scene_document,
+        **({"forked_ppt_ai": spec_payload["forked_ppt_ai"]}
+           if spec_payload.get("forked_ppt_ai") and scene_document and scene_document.get("revision") == 0 else {}),
         "edit_revision": (read_ispec_payload(material.id) or {}).get("edit_revision", 0),
         "render": {key: value for key, value in (read_render_manifest(material.id) or {}).items()
                    if key in ("render_engine", "fidelity", "render_status", "errors", "page_size")},
@@ -1013,6 +1090,17 @@ def delete_material(material_id: str, request: Request, ctx: WriteDep, db: DBDep
     db.execute(delete(JobRecord).where(JobRecord.material_id == material.id))
     # 发布快照随材料一起删除：可见链接与"材料不可访问"必须同时成立（P2-10）。
     db.execute(delete(ShareRecord).where(ShareRecord.material_id == material.id))
+    # 分支、实验、产物与报告都引用内容包，必须先删除。
+    for record in (
+        PptAiValidationReportRecord,
+        PptAiArtifactRecord,
+        PptAiExperimentRecord,
+        PptAiBranchRecord,
+        PptAiBundleRecord,
+        PptAiPlanRecord,
+        PptAiTaskRecord,
+    ):
+        db.execute(delete(record).where(record.material_id == material.id))
     db.delete(material)
     db.commit()
 

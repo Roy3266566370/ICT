@@ -34,10 +34,6 @@
   flex-wrap: wrap;
 }
 
-.isCollapsed .introHead {
-  border-bottom-color: transparent;
-}
-
 .introHeadLeft {
   display: flex;
   align-items: center;
@@ -847,16 +843,214 @@
 }
 .bindLink:hover { color: #fffdf8; background: #111b5e; }
 
+/* ==================== 通文册：双层 3D 真书翻页舞台 ==================== */
+.bookSpreadStage {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  display: grid;
+  transform-style: preserve-3d;
+  border-radius: 0 6px 6px 0;
+}
+
+.underPage {
+  position: relative;
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  border-radius: 0 6px 6px 0;
+  overflow: hidden;
+  background: linear-gradient(108deg, #e8e1d18c 0%, #faf6ed 12%, #fffdf8 52%, #f8f4ea 100%);
+}
+
+.bookLeafContent {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: clamp(26px, 3.2vw, 42px) clamp(24px, 3.4vw, 46px) 52px;
+}
+
+.bookLeafContent::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border: 1px solid #12151318;
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* 书页页眉（随纸叶一起翻动） */
+.folioHeader {
+  width: min(100%, 480px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--font-family-mono, "JetBrains Mono", Consolas, monospace);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: #7c776b;
+  text-transform: uppercase;
+}
+
+.folioSection {
+  font-weight: 600;
+  color: #5b574d;
+}
+
+.folioNumber {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Both faces share the moving crease. Light falls off across the curled edge. */
+.underPageShadow,
+.turningLeaf,
+.leafFront,
+.leafBack,
+.leafFrontShade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.underPageShadow {
+  background: linear-gradient(var(--fold-angle),
+    transparent var(--fold-stop), #42341f48 var(--fold-stop),
+    #52452f19 calc(var(--fold-stop) + 15px), transparent calc(var(--fold-stop) + 52px));
+  opacity: var(--fold-depth);
+}
+
+.turningLeaf {
+  z-index: 5;
+  overflow: hidden;
+  border-radius: 0 6px 6px 0;
+}
+
+.leafFront {
+  clip-path: polygon(0 0, var(--fold-top) 0, var(--fold-bottom) 100%, 0 100%);
+  background: linear-gradient(108deg, #f1ecdf, #faf6ed 12%, #fffdf8 52%, #f8f4ea);
+}
+
+.leafFrontShade {
+  background: linear-gradient(var(--fold-angle),
+    transparent calc(var(--fold-stop) - 64px), #5e503820 var(--fold-stop));
+}
+
+.leafBack {
+  transform-origin: 0 0;
+  transform: var(--fold-reflection);
+  clip-path: polygon(var(--fold-top) 0, 100% 0, 100% 100%, var(--fold-bottom) 100%);
+  background: linear-gradient(var(--fold-angle),
+    #d5ccbb var(--fold-stop), #fdfaf1 calc(var(--fold-stop) + 12px),
+    #f6f1e6 calc(var(--fold-stop) + 40px), #e8e1d3 calc(var(--fold-stop) + 110px));
+  box-shadow: inset 0 0 0 1px #5f50321c;
+}
+
+/* ==================== 三页差异化核心演示卡片 ==================== */
 .atlasSheet {
   position: relative;
   width: min(100%, 480px);
   padding: 16px 17px 13px;
   color: #e9e6da;
-  border-radius: 8px;
+  border-radius: 10px;
   background: radial-gradient(130% 100% at 10% 0%, #34447855, transparent 58%),
               linear-gradient(155deg, #171b20, #101317 62%, #0c0f12);
-  box-shadow: inset 0 0 0 1px #ffffff18, 0 20px 44px #0c0e1057;
+  box-shadow: inset 0 0 0 1px #ffffff18, 0 18px 38px #0c0e1042;
 }
+
+/* 第 1 页：静态原稿态（纸面课件原稿质感，与通电后的深色仪器强烈对比） */
+.atlasSheetDraft {
+  color: #1f231e;
+  background:
+    radial-gradient(110% 90% at 95% 0%, rgba(187, 53, 25, 0.06), transparent 60%),
+    linear-gradient(165deg, #fffefb, #f7f3e8 100%);
+  box-shadow: inset 0 0 0 1px rgba(18, 21, 19, 0.14), 0 14px 30px rgba(45, 36, 18, 0.1);
+}
+
+.atlasSheetDraft .atlasBar,
+.atlasSheetDraft .atlasRange {
+  color: #363932;
+}
+
+.atlasSheetDraft .atlasBar {
+  border-bottom-color: rgba(18, 21, 19, 0.11);
+}
+
+.atlasSheetDraft .atlasBar:last-of-type {
+  border-top-color: rgba(18, 21, 19, 0.11);
+}
+
+.atlasSheetDraft .atlasFigure {
+  background: rgba(18, 21, 19, 0.025);
+  border: 1px dashed rgba(18, 21, 19, 0.16);
+}
+
+.atlasSheetDraft .atlasEmbed {
+  background: rgba(255, 253, 248, 0.92);
+  border-color: rgba(18, 21, 19, 0.16);
+  color: #55594f;
+}
+
+.atlasSheetDraft .atlasRange output {
+  color: #bb3519;
+}
+
+.atlasSheetDraft .atlasBar .collapseBtn {
+  border-color: rgba(18, 21, 19, 0.2);
+  color: #3f433a;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.atlasSheetDraft .atlasBar .collapseBtn:hover {
+  background: #121513;
+  color: #fffdf8;
+}
+
+.atlasSheetDraft .atlasControl {
+  border-color: #bb3519;
+  background: #bb3519;
+  color: #fffdf8;
+}
+
+.atlasSheetDraft .atlasControl:hover {
+  background: #9a2912;
+  color: #fffdf8;
+}
+
+/* 第 3 页：离线演播态（深翠蓝单文件演播室质感） */
+.atlasSheetOffline {
+  background:
+    radial-gradient(130% 100% at 88% 0%, rgba(15, 118, 110, 0.42), transparent 58%),
+    linear-gradient(155deg, #102022, #0d1619 62%, #0a1013);
+  box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.22), 0 18px 38px rgba(7, 25, 24, 0.34);
+}
+
+.atlasSheetOffline .atlasRange output {
+  color: #5eead4;
+}
+
+.atlasSheetOffline .atlasRange input {
+  accent-color: #14b8a6;
+}
+
+.atlasSheetOffline .atlasControl,
+.atlasSheetOffline .atlasBar .collapseBtn {
+  border-color: rgba(94, 234, 212, 0.36);
+  color: #99f6e4;
+  background: rgba(15, 118, 110, 0.22);
+}
+
+.atlasSheetOffline .atlasControl:hover,
+.atlasSheetOffline .atlasBar .collapseBtn:hover {
+  background: #0f766e;
+  color: #fff;
+}
+
 .atlasBar, .atlasRange {
   display: flex;
   justify-content: space-between;
@@ -865,15 +1059,42 @@
   font: 11px var(--font-family-mono);
   color: #e9e6da;
 }
+.atlasBarTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.liveBeacon,
+.offlineBeacon {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.liveBeacon {
+  background: #f3c86b;
+  box-shadow: 0 0 0 3px rgba(243, 200, 107, 0.24);
+  animation: pulseDot 1.8s ease-in-out infinite;
+}
+.offlineBeacon {
+  background: #5eead4;
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.22);
+}
 .atlasBar { border-bottom: 1px solid #ffffff1a; padding-bottom: 8px; }
 .atlasBar:last-of-type { border: 0; border-top: 1px solid #ffffff1a; padding: 9px 0 0; }
-.atlasBar .collapseBtn, .atlasControl {
+.atlasBar .collapseBtn, .atlasControl, .collapseStub {
   border: 1px solid #f3c86b52;
   border-radius: 5px;
   color: #f3c86b;
   background: #242421;
-  padding: 4px 7px;
+  padding: 4px 8px;
   font: inherit;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.collapseStub {
+  cursor: default;
+  opacity: 0.85;
 }
 .atlasBar .collapseBtn:hover, .atlasControl:hover { color: #fffdf8; background: #4b402c; }
 .atlasFigure {
@@ -881,45 +1102,209 @@
   margin-top: 10px;
   display: grid;
   align-items: center;
-  min-height: clamp(130px, 16vw, 234px);
-  border-radius: 5px;
+  min-height: clamp(130px, 15.5vw, 220px);
+  border-radius: 6px;
   background: #ffffff04;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .atlasFigure { animation: turnProof .35s ease-out both; transform-origin: left center; }
-  @keyframes turnProof {
-    from { opacity: .45; transform: perspective(900px) rotateY(-12deg); }
-    to { opacity: 1; transform: perspective(900px) rotateY(0); }
-  }
 }
 .atlasFigure svg { width: 100%; display: block; }
 .atlasEmbed {
   position: absolute;
   bottom: 6px;
   left: 7px;
-  padding: 3px 6px;
+  padding: 3px 7px;
   border: 1px solid #ffffff29;
   border-radius: 4px;
   background: #0d1013da;
   font-size: 10px;
 }
-.atlasRange { margin: 12px 0; }
-.atlasRange input { flex: 1; width: 0; accent-color: #de421f; }
-.atlasRange output { padding-inline: 4px; color: #f3c86b; }
-.flipCorner {
+.offlineBadge {
   position: absolute;
-  right: -17px;
-  bottom: -35px;
-  padding: 9px 7px 5px;
-  border: 0;
-  border-radius: 0 0 5px 0;
-  color: #34372f;
-  background: linear-gradient(315deg, #eee8da 0 48%, #dcd4c2 49% 52%, #f7f4ec 53%);
-  font-size: 12px;
+  top: 7px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(15, 118, 110, 0.88);
+  border: 1px solid rgba(94, 234, 212, 0.45);
+  color: #ecfeff;
+  font-family: var(--font-family-mono, monospace);
+  font-size: 10px;
+  font-weight: 600;
 }
-.flipCorner:hover { color: #a82f16; }
+.wavePresetRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 9px;
+}
+.wavePresetBtn {
+  flex: 1;
+  border: 1px solid rgba(94, 234, 212, 0.24);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: 11px var(--font-family-mono, monospace);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.wavePresetBtn:hover {
+  border-color: rgba(94, 234, 212, 0.55);
+  color: #fff;
+}
+.wavePresetBtnActive {
+  background: rgba(20, 184, 166, 0.24);
+  border-color: #5eead4;
+  color: #99f6e4;
+  font-weight: 600;
+}
+.atlasRange { margin: 11px 0; }
+.atlasRange input { flex: 1; width: 0; accent-color: #de421f; cursor: pointer; }
+.atlasRange output { padding-inline: 4px; color: #f3c86b; font-variant-numeric: tabular-nums; }
+
+/* 页脚页码点与上一页按钮 */
+.folioFooter {
+  position: absolute;
+  left: 24px;
+  bottom: 18px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.folioNavBtn {
+  border: 1px solid rgba(18, 21, 19, 0.14);
+  background: rgba(255, 253, 248, 0.85);
+  color: #4f5249;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.folioNavBtn:hover:not(:disabled) {
+  border-color: #121513;
+  color: #121513;
+  background: #fff;
+}
+.folioNavBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.folioDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.folioDot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(18, 21, 19, 0.2);
+  cursor: pointer;
+  transition: width 0.22s ease, background-color 0.22s ease;
+}
+.folioDot:hover {
+  background: rgba(18, 21, 19, 0.45);
+}
+.folioDotActive {
+  width: 20px;
+  background: #bb3519;
+}
+
+/* 右下角真实书角卷翘（Dog-ear Page Curl）：紧贴书页最右下角 */
+.pageCurlBtn {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  width: 82px;
+  height: 78px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  overflow: visible;
+  transition: opacity 160ms ease;
+}
+.pageCurlHidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.pageCurlHint {
+  position: absolute;
+  right: 54px;
+  bottom: 18px;
+  white-space: nowrap;
+  font-family: var(--font-family-mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b6558;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.9);
+  border: 1px solid rgba(18, 21, 19, 0.12);
+  box-shadow: 0 4px 12px rgba(24, 19, 10, 0.08);
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s ease, border-color 0.2s ease;
+}
+.pageCurlBtn:hover .pageCurlHint,
+.pageCurlBtn:focus-visible .pageCurlHint {
+  color: #bb3519;
+  border-color: rgba(187, 53, 25, 0.36);
+  transform: translate(-10px, -4px);
+}
+/* 卷起的折角本体：::before 为掀开后露出的下层纸角，::after 为折起反面的柔和卷纸 */
+.pageCurlFlap {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 0 0 6px 0;
+  transition:
+    width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    height 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* 掀开后露出的底层书页三角（带折痕落影） */
+.pageCurlFlap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 0 0 6px 0;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  background: linear-gradient(135deg, #b8ab92 0%, #ded5c2 38%, #f3ede0 78%, #faf6ec 100%);
+  pointer-events: none;
+}
+/* 折起覆盖在左上方的纸背卷角（带弧面高光与真实纸角阴影） */
+.pageCurlFlap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-top-left-radius: 5px;
+  clip-path: polygon(0 100%, 100% 0, 0 0);
+  background: linear-gradient(315deg, #d8ceb8 0%, #fffdf8 44%, #f4eddd 82%, #e6dcc8 100%);
+  filter: drop-shadow(-3px -2px 5px rgba(34, 26, 12, 0.2));
+  transition: filter 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.pageCurlBtn:hover .pageCurlFlap,
+.pageCurlBtn:focus-visible .pageCurlFlap {
+  width: 68px;
+  height: 68px;
+}
+.pageCurlBtn:hover .pageCurlFlap::after,
+.pageCurlBtn:focus-visible .pageCurlFlap::after {
+  filter: drop-shadow(-6px -5px 10px rgba(34, 26, 12, 0.26));
+}
+.pageCurlBtn:focus-visible {
+  outline: 2px solid #2234d4;
+  outline-offset: -3px;
+  border-radius: 6px;
+}
+
 @media (max-width: 540px) {
   .atelierBench .circuitGrid { grid-template-columns: 1fr; grid-template-areas: "sheet" "tray" "check"; }
   .atelierBench .pressCheck { gap: 5px; }
-  .flipCorner { right: 0; }
+  .folioFooter { left: 16px; bottom: 14px; }
+  .pageCurlHint { right: 48px; bottom: 14px; }
 }

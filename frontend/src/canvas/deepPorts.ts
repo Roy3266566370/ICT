@@ -13,6 +13,12 @@ export const DEEP_NODE_TYPES = new Set([
 export function validDeepValue(value: PortValue | null): boolean {
   if (!value) return false;
   if (value.kind === 'scalar') return Number.isFinite(value.v);
+  if (value.kind === 'series') {
+    return Array.isArray(value.values) && value.values.length > 0 && value.values.length <= 2048
+      && value.values.every(Number.isFinite)
+      && (value.secondary === undefined || (Array.isArray(value.secondary) && value.secondary.every((line) =>
+        line && Array.isArray(line.values) && line.values.length <= 2048 && line.values.every(Number.isFinite))));
+  }
   if (value.kind === 'tensor2d') {
     if (!Array.isArray(value.data) || !value.data.length || value.data.length > 16) return false;
     const columns = value.data[0]?.length ?? 0;

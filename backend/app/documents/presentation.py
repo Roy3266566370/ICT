@@ -227,6 +227,7 @@ def freeze_document(material_id:str)->dict|None:
 
     def embed_layer(url,page):
         if not url:return None
+        if url.startswith("data:image/"):return url
         filename=url.rsplit('/',1)[-1]
         if not re.fullmatch(r'(background|n_\d+(_empty)?)\.png',filename):raise ValueError('页面资源名称不合法')
         number=source_page_number(page)
@@ -277,16 +278,29 @@ def freeze_document(material_id:str)->dict|None:
                 if node.get(kind)!=node.get('base_'+kind):node.pop('base_'+kind,None)
         pages.append(page)
     return public_document({'schema_version':'1.0','revision':document['revision'],'title':document['title'],'pages':pages,
+        'theme':document.get('theme'),
         **({'page_order':[page['page_no'] for page in document['pages']]} if document.get('structure_modified') else {})})
 
 
 def public_document(raw)->dict|None:
     """A second whitelist at the delivery boundary, including nested scene fields."""
     if not isinstance(raw,dict):return None
+    from .store import validate_deck_theme, validate_page_background, validate_page_transition, validate_patch, validate_visual_effect
+    try:
+        theme=validate_deck_theme(raw.get('theme'))
+    except ValueError:
+        theme=None
     style_keys={'font_size','font_family','color','bold','italic','underline','letter_spacing','baseline','highlight','align','vertical_align','line_height',
-      'padding_left','padding_right','padding_top','padding_bottom','fill','stroke','stroke_width','line_style','arrow_start','arrow_end','anim_step','bind_mode'}
+      'padding_left','padding_right','padding_top','padding_bottom','fill','stroke','stroke_width','fill_opacity','stroke_opacity','line_style','arrow_start','arrow_end','anim_step','bind_mode'}
     node_keys={'id','type','x','y','width','height','rotation','z','opacity','text','base_text','base_width','base_height','shape','whole_group','word_wrap','rich_text_edited'}
-    def style(value):return {k:v for k,v in value.items() if k in style_keys and type(v) in (str,float,int,bool)} if isinstance(value,dict) else {}
+    def style(value):
+        if not isinstance(value,dict):return {}
+        result={k:v for k,v in value.items() if k in style_keys and type(v) in (str,float,int,bool)}
+        for key in ('border_radius','shadow','linear_gradient'):
+            if key in value:
+                try:result[key]=validate_visual_effect(key,value[key])
+                except ValueError:pass
+        return result
     def image(value):return value if isinstance(value,str) and re.fullmatch(r'data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+',value) else None
     def chart(value):
         if not isinstance(value,dict):return None
@@ -303,10 +317,19 @@ def public_document(raw)->dict|None:
             node={k:deepcopy(v) for k,v in source.items() if k in node_keys and (v is None or type(v) in (str,int,float,bool))}
             node.update(name=source.get('type','对象'),style=style(source.get('style')),base_style=style(source.get('base_style')),
               locked=False,hidden=False,deleted=False)
+            if isinstance(source.get('group_id'),str) and re.fullmatch(r'[A-Za-z0-9_-]{1,96}',source['group_id']):
+                node['group_id']=source['group_id']
+            if source.get('table_style') is not None:
+                try:node.update(validate_patch({'table_style':source['table_style']}))
+                except ValueError:pass
             if source.get('shape_paths'):
                 from .importer import valid_shape_paths
                 if valid_shape_paths(source['shape_paths']):
                     node['shape_paths']=deepcopy(source['shape_paths'])
+            if source.get('fill_gradient'):
+                from .importer import valid_fill_gradient
+                if valid_fill_gradient(source['fill_gradient']):
+                    node['fill_gradient']=deepcopy(source['fill_gradient'])
             transform=source.get('text_transform')
             if (source.get('type')=='text' and isinstance(transform,list) and len(transform)==4
                 and all(type(value) in (int,float) and -1e6<=value<=1e6 for value in transform)
@@ -375,6 +398,7 @@ def public_document(raw)->dict|None:
                 if isinstance(source.get(key),list):node[key]=[[v for v in row if isinstance(v,str)] for row in source[key] if isinstance(row,list)]
             node['paragraphs']=[{'text':str(p.get('text','')),'align':p.get('align','left'),
               **({'bullet':p['bullet']} if type(p.get('bullet')) is bool else {}),
+              **({'list_type':p['list_type']} if p.get('list_type') in ('bullet','ordered') else {}),
               **{key:float(p[key]) for key in ('line_height','line_spacing_pt','space_before','space_after')
                  if type(p.get(key)) in (int,float)},
               'runs':[{'text':str(r.get('text','')),'style':style(r.get('style'))} for r in p.get('runs',[]) if isinstance(r,dict)]}
@@ -388,12 +412,22 @@ def public_document(raw)->dict|None:
             except (ValueError,TypeError):
                 page_relations=[]
         background=page.get('background_color')
+        try:transition=validate_page_transition(page.get('transition'))
+        except ValueError:transition=None
+        try:custom_background=validate_page_background(page.get('background'))
+        except ValueError:custom_background=None
         pages.append({k:deepcopy(page[k]) for k in ('page_no','width','height') if k in page}|
           {'modified':True,'nodes':nodes,'background_url':image(page.get('background_url')),
            **({'background_color':background} if isinstance(background,str) and re.fullmatch(r'#[a-fA-F0-9]{6}',background) else {}),
+           **({'background_modified':page['background_modified']} if type(page.get('background_modified')) is bool else {}),
+           **({'transition':transition} if transition else {}),
+           **({'background':custom_background} if custom_background else {}),
+           **({'hide_master':True} if page.get('hide_master') is True else {}),
+           **({'layout_id':page['layout_id']} if page.get('layout_id') in ('blank','cover','section','agenda','lesson','two-column','text-image','text-plugin') else {}),
            **({'relations':page_relations} if page_relations else {}),
            'preparation':{'status':'ready','frozen_ids':[v for v in page.get('preparation',{}).get('frozen_ids',[]) if isinstance(v,str)]}})
     order=raw.get('page_order')
     return {'schema_version':'1.0','revision':raw.get('revision',0),'title':str(raw.get('title','')),'pages':pages,
+        **({'theme':theme} if theme else {}),
         **({'page_order':order} if isinstance(order,list) and 0<len(order)<=10000
            and all(type(n) is int and 0<n<=10000 for n in order) and len(set(order))==len(order) else {})}

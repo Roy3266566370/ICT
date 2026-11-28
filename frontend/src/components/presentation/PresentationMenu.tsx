@@ -22,7 +22,6 @@ interface Props {
   onClear: () => void;
   onScreen: (screen: PresentationScreen) => void;
   onPresenter?: () => void;
-  onDemo?: () => void;
   onEnd: () => void;
 }
 
@@ -99,7 +98,7 @@ function MenuPanel({label, point, anchor, focus, onBack, className = '', childre
   </div>;
 }
 
-export function PresentationMenu({point, pages, index, tool, color, zoomed, screen, onClose, onGo, onZoom, onTool, onColor, onClear, onScreen, onPresenter, onDemo, onEnd}: Props) {
+export function PresentationMenu({point, pages, index, tool, color, zoomed, screen, onClose, onGo, onZoom, onTool, onColor, onClear, onScreen, onPresenter, onEnd}: Props) {
   const [submenu, setSubmenu] = useState<{kind: 'pointer' | 'screen'; anchor: HTMLButtonElement; focus: boolean}>();
   const [palette, setPalette] = useState<{anchor: HTMLButtonElement; focus: boolean}>();
   const [overview, setOverview] = useState(false);
@@ -124,7 +123,6 @@ export function PresentationMenu({point, pages, index, tool, color, zoomed, scre
         <button type="button" role="menuitem" disabled={index === 0} onClick={run(() => onGo(index - 1))}>上一张</button>
         <button type="button" role="menuitem" onClick={() => { setSubmenu(undefined); setPalette(undefined); setOverview(true); }}>查看所有幻灯片</button>
         <button type="button" role="menuitem" onClick={run(onZoom)}>{zoomed ? '恢复适应窗口' : '放大幻灯片'}</button>
-        {onDemo&&<button type="button" role="menuitem" onClick={run(onDemo)}>独立演示</button>}
         <div role="separator" className={styles.separator}/>
         <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded={submenu?.kind === 'screen'}
           onMouseEnter={event => openSubmenu('screen', event.currentTarget, false)}
@@ -142,7 +140,7 @@ export function PresentationMenu({point, pages, index, tool, color, zoomed, scre
         {pages.map((page, ordinal) => <button type="button" key={page.pageNo} role="menuitem"
           aria-current={ordinal === index ? 'page' : undefined} onClick={run(() => onGo(ordinal))}>
           <span className={styles.thumbnail} style={{aspectRatio: page.aspectRatio}}>
-            {page.scene ? <SceneThumbnail page={page.scene}/> : page.imageUrl
+            {page.scene ? <SceneThumbnail page={page.scene} master={page.master}/> : page.imageUrl
               ? <img src={pageThumbUrl(page.imageUrl, 320, page.bytes)} alt="" loading="lazy"/> : null}
           </span>
           <span>第 {ordinal + 1} 页{page.label ? ` · ${page.label}` : ''}</span>

@@ -1,0 +1,44 @@
+.error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(180, 35, 24, 0.3);
+  border-radius: 8px;
+  background: #fef3f2;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.stage {
+  position: relative;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.view {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.iframe {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  left: -9999px;
+  top: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.stageNote {
+  margin: 0;
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--ink-500, #58636f);
+  font-size: 12px;
+}

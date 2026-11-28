@@ -313,7 +313,7 @@ export function OdeSlopeFieldBody({ node, values, onParams, onText, inCard }: No
     </div>
     <div className={styles.stageControls}>
       <label className={styles.expression}>y′ =<input aria-label="微分方程表达式" maxLength={500} spellCheck={false}
-        value={expression} onChange={(e) => onText?.(e.target.value)} /></label>
+        value={expression} readOnly={!onText} onChange={(e) => onText?.(e.target.value)} /></label>
       {!inCard && <>
         <div className={styles.fields}>
           <Field label="初值 x₀" value={x0} min={min} max={max} onChange={(v) => onParams?.({ x0: v })} />

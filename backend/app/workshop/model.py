@@ -32,6 +32,7 @@ def _num(value: Any, lo: float = -1e6, hi: float = 1e6) -> float | None:
 
 _PORT_KINDS = {
     "matrix2", "scalar", "body", "function", "tensor2d", "dataset2d", "lab408Data",
+    "physicsData", "calculusData", "businessData",
     "series", "field2d", "algoData", "customFrames", "function2d", "vectorFunction2d",
 }
 
@@ -50,8 +51,8 @@ def _wires(raw_list: Any, id_set: set[str]) -> list[dict[str, Any]]:
             "id": str(item.get("id") or "")[:48] or f"w{len(wires)}",
             "from": frm,
             "to": to,
-            **({"fromPort": str(item["fromPort"])[:24]} if isinstance(item.get("fromPort"), str) else {}),
-            **({"toPort": str(item["toPort"])[:24]} if isinstance(item.get("toPort"), str) else {}),
+            **({"fromPort": str(item["fromPort"])[:48]} if isinstance(item.get("fromPort"), str) else {}),
+            **({"toPort": str(item["toPort"])[:48]} if isinstance(item.get("toPort"), str) else {}),
         })
     return wires
 
@@ -96,9 +97,9 @@ def _node(raw: Any, *, depth: int) -> dict[str, Any]:
     if isinstance(payload, str) and payload:
         node["payload"] = payload[:MAX_PAYLOAD]
 
-    # composite 自制积木：递归校验子图（限深防恶意嵌套）
+    # composite 自制积木：递归校验子图（限深 6 层防恶意深层嵌套）
     sub = raw.get("sub")
-    if sub is not None and depth < 3 and isinstance(sub, Mapping):
+    if sub is not None and depth < 6 and isinstance(sub, Mapping):
         inner = _nodes(sub.get("nodes"), depth=depth + 1)
         inner_ids = {n["id"] for n in inner}
         ports: list[dict[str, Any]] = []
@@ -114,11 +115,45 @@ def _node(raw: Any, *, depth: int) -> dict[str, Any]:
                 "label": str(p.get("label") or "")[:48],
                 **({"kind": p["kind"]} if p.get("kind") in _PORT_KINDS else {}),
             })
-        node["sub"] = {
+        sub_obj: dict[str, Any] = {
             "nodes": inner,
             "wires": _wires(sub.get("wires"), inner_ids),
             "ports": ports,
         }
+        # Composite 2.0 可选字段：外壳透出参数、封面预览节点、一句话简介（100% 向后兼容）
+        raw_exposed = sub.get("exposedParams")
+        if isinstance(raw_exposed, list):
+            exposed_params: list[dict[str, Any]] = []
+            for item in raw_exposed[:12]:
+                if not isinstance(item, Mapping):
+                    continue
+                target_id = str(item.get("nodeId") or "")[:48]
+                param_key = str(item.get("paramKey") or "")[:48]
+                label = str(item.get("label") or "")[:48]
+                if target_id not in inner_ids or not param_key or not label:
+                    continue
+                entry: dict[str, Any] = {
+                    "nodeId": target_id,
+                    "paramKey": param_key,
+                    "label": label,
+                }
+                for key in ("min", "max", "step"):
+                    bound = _num(item.get(key), -1e6, 1e6)
+                    if bound is not None:
+                        entry[key] = bound
+                if entry.get("min") is not None and entry.get("max") is not None and not entry["min"] < entry["max"]:
+                    entry.pop("min", None)
+                    entry.pop("max", None)
+                exposed_params.append(entry)
+            if exposed_params:
+                sub_obj["exposedParams"] = exposed_params
+        preview_node_id = sub.get("previewNodeId")
+        if isinstance(preview_node_id, str) and preview_node_id in inner_ids:
+            sub_obj["previewNodeId"] = preview_node_id
+        summary = sub.get("summary")
+        if isinstance(summary, str) and summary.strip():
+            sub_obj["summary"] = summary.strip()[:300]
+        node["sub"] = sub_obj
     return node
 
 

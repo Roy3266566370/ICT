@@ -233,7 +233,7 @@ $('#question').addEventListener('input', () => {
 });
 
 $('#open-workshop').addEventListener('click', () => {
-  $('#dialog-content').innerHTML = '<div class="dialog-intro"><p class="eyebrow">万象工坊 / 积木连接示例</p><h2 id="dialog-title">一个函数，可以有几种看法？</h2><p>函数源输出同一个函数，连接图像与导数观察器。改变观察点，图形和计算结果一起回应。</p></div><div class="workshop-demo"><div class="modal-board"><div id="modal-plot" class="modal-plot" role="img"></div><div class="modal-result" id="modal-result"></div><div class="modal-slider-label"><label for="workshop-slider">观察点 x</label><output id="workshop-value" for="workshop-slider"></output></div><input id="workshop-slider" type="range" min="-1.8" max="1.8" step="0.01" value="1"><p class="modal-tip">函数源 f(x) = x² → 函数图像 → 导数观察器 f′(x) = 2x。这里演示积木连接后的联动结果。</p></div></div>';
+  $('#dialog-content').innerHTML = '<div class="dialog-intro"><p class="eyebrow">定象坊 / 积木连接示例</p><h2 id="dialog-title">一个函数，可以有几种看法？</h2><p>函数源输出同一个函数，连接图像与导数观察器。改变观察点，图形和计算结果一起回应。</p></div><div class="workshop-demo"><div class="modal-board"><div id="modal-plot" class="modal-plot" role="img"></div><div class="modal-result" id="modal-result"></div><div class="modal-slider-label"><label for="workshop-slider">观察点 x</label><output id="workshop-value" for="workshop-slider"></output></div><input id="workshop-slider" type="range" min="-1.8" max="1.8" step="0.01" value="1"><p class="modal-tip">函数源 f(x) = x² → 函数图像 → 导数观察器 f′(x) = 2x。这里演示积木连接后的联动结果。</p></div></div>';
   const slider = $('#workshop-slider');
   const update = () => {
     const value = Number(slider.value);
